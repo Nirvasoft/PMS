@@ -14,7 +14,9 @@ import { startSlaEscalationJob } from './common/slaEscalation';
 import { authRouter } from './modules/auth/auth.routes';
 import { usersRouter, rolesRouter, roleTemplatesRouter, permissionsRouter, departmentsRouter, positionsRouter } from './modules/users/users.routes';
 import { invitationsRouter } from './modules/users/invitations.routes';
-import { companyRouter, branchesRouter, regionsRouter, businessUnitsRouter, propertiesRouter } from './modules/organization/organization.routes';
+import { companyRouter, branchesRouter, regionsRouter, businessUnitsRouter } from './modules/organization/organization.routes';
+import { propertiesRouter, facilityTypesRouter } from './modules/properties/properties.routes';
+import { propertiesService, seedPropertyTypes } from './modules/properties/properties.service';
 import { workflowDefinitionsRouter, workflowInstancesRouter, workflowTasksRouter } from './modules/workflow/workflow.routes';
 import { notificationsRouter, templatesRouter } from './modules/notifications/notifications.routes';
 import { documentsRouter, documentFoldersRouter } from './modules/documents/documents.routes';
@@ -64,7 +66,10 @@ async function bootstrap() {
   app.use('/api/v1/branches', branchesRouter);
   app.use('/api/v1/regions', regionsRouter);
   app.use('/api/v1/business-units', businessUnitsRouter);
+
+  // Module 2.1 — Property Management (Phase 2)
   app.use('/api/v1/properties', propertiesRouter);
+  app.use('/api/v1/facility-types', facilityTypesRouter);
 
   // Module 1.4 — Workflow Engine
   app.use('/api/v1/workflow-definitions', workflowDefinitionsRouter);
@@ -89,8 +94,9 @@ async function bootstrap() {
   // Connect database
   await connectDatabase();
 
-  // Seed widget definitions
+  // Seed reference data
   await dashboardService.seedWidgetDefinitions();
+  await seedPropertyTypes();
 
   // Start Socket.IO
   initSocketIO(httpServer, config.frontendUrl);

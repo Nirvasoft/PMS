@@ -1,298 +1,227 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  useGetPropertiesQuery, useCreatePropertyMutation, useDeletePropertyMutation,
-  useGetPropertyStatsQuery, useGetBranchesQuery,
-} from '../../../store/api/organizationApi';
-import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+  useGetPropertiesQuery, useDeletePropertyMutation,
+} from '../../../store/api/propertiesApi';
+import type { PropertyListItem } from '../../../store/api/propertiesApi';
+import { useAppSelector, useAppDispatch } from '../../../store';
+import { setListView, setListFilter, resetFilters } from '../../../store/slices/propertiesSlice';
+import {
+  Plus, LayoutGrid, List, Search, Filter, X, MapPin,
+  Building2, Wrench, MoreVertical, Trash2, Eye, BarChart2, Home,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+import './PropertiesPage.css';
 
-const PROPERTY_TYPES = [
-  { value: 'residential', label: 'Residential', icon: '🏠' },
-  { value: 'commercial', label: 'Commercial', icon: '🏢' },
-  { value: 'retail', label: 'Retail', icon: '🏬' },
-  { value: 'mixed', label: 'Mixed Use', icon: '🏗️' },
-  { value: 'industrial', label: 'Industrial', icon: '🏭' },
-];
+const STATUS_COLORS: Record<string, string> = {
+  active: '#2ecc71',
+  under_renovation: '#f39c12',
+  decommissioned: '#e74c3c',
+};
+
+const TYPE_ICONS: Record<string, JSX.Element> = {
+  residential: <Home size={14} />,
+  commercial: <Building2 size={14} />,
+  retail: <BarChart2 size={14} />,
+  mixed_use: <Building2 size={14} />,
+  industrial: <Wrench size={14} />,
+  hospitality: <Building2 size={14} />,
+  warehouse: <Building2 size={14} />,
+};
 
 export default function PropertiesPage() {
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const { listView, listFilters } = useAppSelector((s) => s.properties);
+  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
-  const [showCreate, setShowCreate] = useState(false);
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
-  const params: Record<string, string> = { page: String(page), limit: '12' };
-  if (search) params.search = search;
-  if (typeFilter) params.propertyType = typeFilter;
+  const { data, isLoading } = useGetPropertiesQuery({
+    search: listFilters.search || undefined,
+    status: listFilters.status || undefined,
+    propertyType: listFilters.propertyType || undefined,
+    regionId: listFilters.regionId || undefined,
+    page,
+    limit: 12,
+  });
 
-  const { data, isLoading } = useGetPropertiesQuery(params);
-  const { data: statsData } = useGetPropertyStatsQuery();
   const [deleteProperty] = useDeletePropertyMutation();
-
-  const properties = data?.data ?? [];
+  const properties = data?.data || [];
   const meta = data?.meta;
-  const stats = statsData?.data;
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Archive property "${name}"? It can be restored later.`)) return;
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
     try {
       await deleteProperty(id).unwrap();
-      toast.success('Property archived');
-    } catch { toast.error('Failed'); }
+      toast.success(`"${name}" deleted`);
+    } catch { toast.error('Failed to delete'); }
   };
 
   return (
-    <div className="page-content" style={{ maxWidth: 1200 }}>
-      <div className="page-header">
-        <h1>🏠 Properties</h1>
-        <p className="text-secondary">Manage your property portfolio</p>
+    <div className="properties-page">
+      <div className="properties-header">
+        <div className="header-left">
+          <Building2 size={24} className="header-icon" />
+          <div>
+            <h1>Properties</h1>
+            <p className="subtitle">{meta?.total ?? 0} properties in portfolio</p>
+          </div>
+        </div>
+        <div className="header-actions">
+          <button className="btn-secondary" onClick={() => setShowFilters(!showFilters)}>
+            <Filter size={15} /> Filters{(listFilters.status || listFilters.propertyType) ? ' •' : ''}
+          </button>
+          <div className="view-toggle">
+            <button className={listView === 'grid' ? 'active' : ''} onClick={() => dispatch(setListView('grid'))}><LayoutGrid size={16} /></button>
+            <button className={listView === 'list' ? 'active' : ''} onClick={() => dispatch(setListView('list'))}><List size={16} /></button>
+          </div>
+          <button className="btn-primary" onClick={() => navigate('/admin/properties/create')}>
+            <Plus size={16} /> Add Property
+          </button>
+        </div>
       </div>
 
-      {/* Stats Row */}
-      {stats && (
-        <div className="prop-stats-row">
-          <div className="prop-stat">
-            <span className="prop-stat-num">{stats.total}</span>
-            <span className="prop-stat-label">Total</span>
-          </div>
-          {stats.byType.map((t) => {
-            const icon = PROPERTY_TYPES.find((pt) => pt.value === t.type)?.icon || '🏠';
-            return (
-              <div key={t.type} className="prop-stat">
-                <span className="prop-stat-num">{icon} {t.count}</span>
-                <span className="prop-stat-label">{t.type}</span>
-              </div>
-            );
-          })}
+      <div className="properties-toolbar">
+        <div className="search-box">
+          <Search size={15} />
+          <input
+            type="text" placeholder="Search properties..."
+            value={listFilters.search}
+            onChange={(e) => { dispatch(setListFilter({ search: e.target.value })); setPage(1); }}
+          />
+          {listFilters.search && <button onClick={() => dispatch(setListFilter({ search: '' }))}><X size={14} /></button>}
         </div>
-      )}
-
-      {/* Toolbar */}
-      <div className="toolbar">
-        <div style={{ display: 'flex', gap: 10, flex: 1 }}>
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="Search properties..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="input-full"
-            />
+        {showFilters && (
+          <div className="filter-bar">
+            <select value={listFilters.status || ''} onChange={(e) => { dispatch(setListFilter({ status: e.target.value || null })); setPage(1); }}>
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="under_renovation">Under Renovation</option>
+              <option value="decommissioned">Decommissioned</option>
+            </select>
+            <select value={listFilters.propertyType || ''} onChange={(e) => { dispatch(setListFilter({ propertyType: e.target.value || null })); setPage(1); }}>
+              <option value="">All Types</option>
+              <option value="residential">Residential</option>
+              <option value="commercial">Commercial</option>
+              <option value="retail">Retail</option>
+              <option value="mixed_use">Mixed-Use</option>
+              <option value="industrial">Industrial</option>
+              <option value="hospitality">Hospitality</option>
+              <option value="warehouse">Warehouse</option>
+            </select>
+            <button className="btn-ghost" onClick={() => { dispatch(resetFilters()); setPage(1); }}>
+              <X size={14} /> Reset
+            </button>
           </div>
-          <select
-            className="input-full"
-            style={{ maxWidth: 180 }}
-            value={typeFilter}
-            onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-          >
-            <option value="">All Types</option>
-            {PROPERTY_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
-            ))}
-          </select>
-        </div>
-        <PermissionGuard permission="properties.create">
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Property</button>
-        </PermissionGuard>
+        )}
       </div>
 
-      {/* Properties Grid */}
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading properties...</div>
+        <div className={listView === 'grid' ? 'property-grid' : 'property-list'}>
+          {Array.from({ length: 6 }, (_, i) => <div key={i} className="property-skeleton" />)}
+        </div>
+      ) : properties.length === 0 ? (
+        <div className="empty-state">
+          <Building2 size={48} />
+          <h3>No properties found</h3>
+          <p>Add your first property to get started</p>
+          <button className="btn-primary" onClick={() => navigate('/admin/properties/create')}>
+            <Plus size={16} /> Add Property
+          </button>
+        </div>
+      ) : listView === 'grid' ? (
+        <div className="property-grid">
+          {properties.map((p) => (
+            <PropertyCard
+              key={p.id} property={p}
+              menuOpen={menuOpen === p.id}
+              onMenuOpen={() => setMenuOpen(menuOpen === p.id ? null : p.id)}
+              onView={() => navigate(`/admin/properties/${p.id}`)}
+              onDelete={() => handleDelete(p.id, p.name)}
+            />
+          ))}
+        </div>
       ) : (
-        <div className="properties-grid">
-          {properties.map((p) => {
-            const typeInfo = PROPERTY_TYPES.find((t) => t.value === p.propertyType);
-            return (
-              <div key={p.id} className="property-card">
-                <div className="property-card-header">
-                  <div className="property-type-badge" data-type={p.propertyType}>
-                    {typeInfo?.icon || '🏠'}
-                  </div>
-                  <div className="property-card-title">
-                    <h3>{p.name}</h3>
-                    {p.code && <span className="dept-code">{p.code}</span>}
-                  </div>
-                  <span className={`status-badge ${p.status === 'active' ? 'active' : 'inactive'}`}>
-                    {p.status}
-                  </span>
-                </div>
-
-                <div className="property-card-body">
-                  <div className="property-detail-row">
-                    <span className="text-muted">📌</span>
-                    <span>{[p.addressLine1, p.city, p.country].filter(Boolean).join(', ') || 'No address'}</span>
-                  </div>
-                  <div className="property-detail-row">
-                    <span className="text-muted">📐</span>
-                    <span>{p.totalAreaSqft ? `${Number(p.totalAreaSqft).toLocaleString()} sq ft` : '—'}</span>
-                  </div>
-                  {p.yearBuilt && (
-                    <div className="property-detail-row">
-                      <span className="text-muted">🗓️</span>
-                      <span>Built {p.yearBuilt}</span>
-                    </div>
-                  )}
-                  {p.branch && (
-                    <div className="property-detail-row">
-                      <span className="text-muted">📍</span>
-                      <span>{p.branch.name}</span>
-                    </div>
-                  )}
-                  {p.regions.length > 0 && (
-                    <div className="property-regions">
-                      {p.regions.map((r) => (
-                        <span key={r.id} className="role-chip">{r.name}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {p.description && (
-                  <p className="property-desc text-muted text-small">{p.description}</p>
-                )}
-
-                <div className="property-card-footer">
-                  <span className="role-chip">{typeInfo?.label || p.propertyType}</span>
-                  <PermissionGuard permission="properties.delete">
-                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(p.id, p.name)}>
-                      Archive
-                    </button>
-                  </PermissionGuard>
-                </div>
-              </div>
-            );
-          })}
-          {properties.length === 0 && (
-            <div className="info-card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 60 }}>
-              <p className="text-muted">No properties found. Create your first property to get started.</p>
-            </div>
-          )}
+        <div className="property-list-table">
+          <div className="list-header">
+            <span>Name</span><span>Type</span><span>Status</span><span>Units</span><span>City</span><span></span>
+          </div>
+          {properties.map((p) => (
+            <PropertyRow key={p.id} property={p}
+              onView={() => navigate(`/admin/properties/${p.id}`)}
+              onDelete={() => handleDelete(p.id, p.name)} />
+          ))}
         </div>
       )}
 
-      {/* Pagination */}
       {meta && meta.totalPages > 1 && (
         <div className="pagination">
-          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
-          <span className="text-secondary">Page {meta.page} of {meta.totalPages} ({meta.total} properties)</span>
-          <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next →</button>
+          <button disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
+          <span>{page} / {meta.totalPages}</span>
+          <button disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next →</button>
         </div>
       )}
-
-      {showCreate && <CreatePropertyModal onClose={() => setShowCreate(false)} />}
     </div>
   );
 }
 
-function CreatePropertyModal({ onClose }: { onClose: () => void }) {
-  const [createProperty, { isLoading }] = useCreatePropertyMutation();
-  const { data: branchesData } = useGetBranchesQuery();
-
-  const [form, setForm] = useState({
-    name: '', code: '', propertyType: 'residential',
-    branchId: '', addressLine1: '', city: '', country: '',
-    totalAreaSqft: '', yearBuilt: '', description: '',
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const data: Record<string, unknown> = { ...form };
-      if (form.totalAreaSqft) data.totalAreaSqft = Number(form.totalAreaSqft);
-      if (form.yearBuilt) data.yearBuilt = Number(form.yearBuilt);
-      if (!form.branchId) delete data.branchId;
-      if (!form.code) delete data.code;
-      await createProperty(data).unwrap();
-      toast.success('Property created');
-      onClose();
-    } catch (err: unknown) {
-      const e = err as { data?: { errors?: { message: string }[] } };
-      toast.error(e.data?.errors?.[0]?.message || 'Failed to create property');
-    }
-  };
-
+function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onDelete }: {
+  property: PropertyListItem; menuOpen: boolean;
+  onMenuOpen: () => void; onView: () => void; onDelete: () => void;
+}) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card modal-lg" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Add Property</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+    <div className="property-card" onClick={onView}>
+      <div className="card-image">
+        {p.coverImageUrl
+          ? <img src={p.coverImageUrl} alt={p.name} loading="lazy" />
+          : <div className="image-placeholder"><Building2 size={40} /></div>}
+        <div className="status-badge" style={{ '--status-color': STATUS_COLORS[p.status] } as any}>
+          <span className="status-dot" />{p.status.replace(/_/g, ' ')}
         </div>
-        <form onSubmit={handleSubmit} className="modal-body">
-          <div className="form-row-2">
-            <div className="form-group">
-              <label>Property Name *</label>
-              <input className="input-full" required value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div className="form-group">
-              <label>Code</label>
-              <input className="input-full" value={form.code} placeholder="e.g. MBR-001"
-                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} />
-            </div>
+        <button className="card-menu-btn" onClick={(e) => { e.stopPropagation(); onMenuOpen(); }}><MoreVertical size={16} /></button>
+        {menuOpen && (
+          <div className="card-menu" onClick={(e) => e.stopPropagation()}>
+            <button onClick={onView}><Eye size={14} /> View Details</button>
+            <button onClick={onDelete} className="danger"><Trash2 size={14} /> Delete</button>
           </div>
-          <div className="form-row-2">
-            <div className="form-group">
-              <label>Property Type *</label>
-              <select className="input-full" value={form.propertyType}
-                onChange={(e) => setForm({ ...form, propertyType: e.target.value })}>
-                {PROPERTY_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Branch</label>
-              <select className="input-full" value={form.branchId}
-                onChange={(e) => setForm({ ...form, branchId: e.target.value })}>
-                <option value="">— None —</option>
-                {branchesData?.data?.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Address</label>
-            <input className="input-full" value={form.addressLine1}
-              onChange={(e) => setForm({ ...form, addressLine1: e.target.value })} />
-          </div>
-          <div className="form-row-2">
-            <div className="form-group">
-              <label>City</label>
-              <input className="input-full" value={form.city}
-                onChange={(e) => setForm({ ...form, city: e.target.value })} />
-            </div>
-            <div className="form-group">
-              <label>Country</label>
-              <input className="input-full" value={form.country} maxLength={2} placeholder="SG"
-                onChange={(e) => setForm({ ...form, country: e.target.value.toUpperCase() })} />
-            </div>
-          </div>
-          <div className="form-row-2">
-            <div className="form-group">
-              <label>Total Area (sq ft)</label>
-              <input className="input-full" type="number" value={form.totalAreaSqft}
-                onChange={(e) => setForm({ ...form, totalAreaSqft: e.target.value })} />
-            </div>
-            <div className="form-group">
-              <label>Year Built</label>
-              <input className="input-full" type="number" value={form.yearBuilt} placeholder="2020"
-                onChange={(e) => setForm({ ...form, yearBuilt: e.target.value })} />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Description</label>
-            <input className="input-full" value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })} />
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? 'Creating...' : 'Create Property'}
-            </button>
-          </div>
-        </form>
+        )}
+      </div>
+      <div className="card-content">
+        <div className="card-type-row">
+          {TYPE_ICONS[p.propertyType] || <Building2 size={14} />}
+          <span>{p.propertyType.replace(/_/g, ' ')}</span>
+        </div>
+        <h3 className="card-name">{p.name}</h3>
+        {p.code && <span className="card-code">{p.code}</span>}
+        {(p.city || p.country) && (
+          <div className="card-location"><MapPin size={12} /><span>{[p.city, p.country].filter(Boolean).join(', ')}</span></div>
+        )}
+        <div className="occupancy-bar"><div className="bar-fill" style={{ width: '0%', background: '#6c5ce7' }} /></div>
+        <div className="card-stats"><span>{p.totalUnits} units</span><span className="occupancy-pct">0% occupied</span></div>
+      </div>
+    </div>
+  );
+}
+
+function PropertyRow({ property: p, onView, onDelete }: {
+  property: PropertyListItem; onView: () => void; onDelete: () => void;
+}) {
+  return (
+    <div className="list-row" onClick={onView}>
+      <div className="row-name">
+        <div className="row-avatar">
+          {p.coverImageUrl ? <img src={p.coverImageUrl} alt={p.name} /> : <Building2 size={16} />}
+        </div>
+        <div><span className="name">{p.name}</span>{p.code && <span className="code"> {p.code}</span>}</div>
+      </div>
+      <span className="row-type">{p.propertyType.replace(/_/g, ' ')}</span>
+      <span className="row-status" style={{ color: STATUS_COLORS[p.status] }}>{p.status.replace(/_/g, ' ')}</span>
+      <span>{p.totalUnits}</span>
+      <span>{p.city || '—'}</span>
+      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onView}><Eye size={15} /></button>
+        <button onClick={onDelete} className="danger"><Trash2 size={15} /></button>
       </div>
     </div>
   );

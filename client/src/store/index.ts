@@ -4,6 +4,7 @@ import type { TypedUseSelectorHook } from 'react-redux';
 import authReducer from './slices/authSlice';
 import themeReducer from './slices/themeSlice';
 import dashboardReducer from './slices/dashboardSlice';
+import propertiesReducer from './slices/propertiesSlice';
 import { authApi } from './api/authApi';
 import { usersApi } from './api/usersApi';
 import { organizationApi } from './api/organizationApi';
@@ -11,12 +12,14 @@ import { workflowApi } from './api/workflowApi';
 import { notificationsApi } from './api/notificationsApi';
 import { documentsApi } from './api/documentsApi';
 import { dashboardApi } from './api/dashboardApi';
+import { propertiesApi } from './api/propertiesApi';
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
     theme: themeReducer,
     dashboard: dashboardReducer,
+    properties: propertiesReducer,
     [authApi.reducerPath]: authApi.reducer,
     [usersApi.reducerPath]: usersApi.reducer,
     [organizationApi.reducerPath]: organizationApi.reducer,
@@ -24,12 +27,13 @@ export const store = configureStore({
     [notificationsApi.reducerPath]: notificationsApi.reducer,
     [documentsApi.reducerPath]: documentsApi.reducer,
     [dashboardApi.reducerPath]: dashboardApi.reducer,
+    [propertiesApi.reducerPath]: propertiesApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
       authApi.middleware, usersApi.middleware, organizationApi.middleware,
       workflowApi.middleware, notificationsApi.middleware, documentsApi.middleware,
-      dashboardApi.middleware,
+      dashboardApi.middleware, propertiesApi.middleware,
     ),
 });
 

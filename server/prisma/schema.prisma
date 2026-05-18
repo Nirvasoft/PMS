@@ -159,6 +159,11 @@ model User {
   dashboardLayouts       DashboardLayout[]       @relation("UserDashboardLayouts")
   savedReports           SavedReport[]           @relation("ReportCreator")
 
+  // Relations — Properties (Module 2.1)
+  managedProperties      Property[]              @relation("PropertyManager")
+  uploadedPhotos         PropertyPhoto[]         @relation("PhotoUploader")
+  propertyStatusChanges  PropertyStatusHistory[] @relation("StatusChanger")
+
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
   @@index([companyId])
@@ -570,9 +575,12 @@ model Property {
   companyId        String    @map("company_id") @db.Uuid
   branchId         String?   @map("branch_id") @db.Uuid
   businessUnitId   String?   @map("business_unit_id") @db.Uuid
+  propertyTypeId   String?   @map("property_type_id") @db.Uuid
   name             String    @db.VarChar(255)
   code             String?   @db.VarChar(50)
-  propertyType     String    @map("property_type") @db.VarChar(50)
+  propertyType     String    @default("residential") @map("property_type") @db.VarChar(50)
+  legalName        String?   @map("legal_name") @db.VarChar(255)
+  registrationNo   String?   @map("registration_no") @db.VarChar(100)
   status           String    @default("active") @db.VarChar(30)
   addressLine1     String?   @map("address_line1") @db.VarChar(255)
   addressLine2     String?   @map("address_line2") @db.VarChar(255)
@@ -582,22 +590,40 @@ model Property {
   country          String?   @db.VarChar(2)
   geoLat           Decimal?  @map("geo_lat") @db.Decimal(9, 6)
   geoLng           Decimal?  @map("geo_lng") @db.Decimal(9, 6)
-  totalAreaSqft    Decimal?  @map("total_area_sqft") @db.Decimal(12, 2)
+  geoFence         Json?     @map("geo_fence")             // polygon coords array (Phase 2 stub)
   yearBuilt        Int?      @map("year_built") @db.SmallInt
+  totalFloors      Int?      @map("total_floors") @db.SmallInt
+  totalUnits       Int       @default(0) @map("total_units") @db.SmallInt
+  totalAreaSqm     Decimal?  @map("total_area_sqm") @db.Decimal(12, 2)
+  totalAreaSqft    Decimal?  @map("total_area_sqft") @db.Decimal(12, 2)
+  coverImageUrl    String?   @map("cover_image_url") @db.VarChar(500)
+  imageUrl         String?   @map("image_url") @db.VarChar(500)  // legacy — use coverImageUrl
+  managerId        String?   @map("manager_id") @db.Uuid
+  billingCycle     String    @default("monthly") @map("billing_cycle") @db.VarChar(20)
+  billingDay       Int       @default(1) @map("billing_day") @db.SmallInt
+  currency         String    @default("USD") @db.VarChar(3)
+  timezone         String    @default("UTC") @db.VarChar(60)
   description      String?   @db.Text
-  imageUrl         String?   @map("image_url") @db.VarChar(500)
+  settings         Json      @default("{}")                // property-level overrides
   isActive         Boolean   @default(true) @map("is_active")
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
 
-  company          Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  branch           Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  businessUnit     BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branch           Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  businessUnit     BusinessUnit?  @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  propertyTypeRef  PropertyType?  @relation(fields: [propertyTypeId], references: [id], onDelete: SetNull)
+  manager          User?          @relation("PropertyManager", fields: [managerId], references: [id], onDelete: SetNull)
   regionProperties RegionProperty[]
+  photos           PropertyPhoto[]
+  facilities       PropertyFacility[]
+  contacts         PropertyContact[]
+  statusHistory    PropertyStatusHistory[]
 
   @@unique([code, companyId], name: "uq_property_code_company")
   @@index([companyId])
+  @@index([status])
   @@map("properties")
 }
 
@@ -610,6 +636,109 @@ model RegionProperty {
 
   @@id([regionId, propertyId])
   @@map("region_properties")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 2.1 — PROPERTY MANAGEMENT (Phase 2)
+// ─────────────────────────────────────────────
+
+model PropertyType {
+  id          String     @id @default(uuid()) @db.Uuid
+  code        String     @unique @db.VarChar(50)
+  name        String     @db.VarChar(100)
+  description String?    @db.Text
+  isActive    Boolean    @default(true) @map("is_active")
+
+  properties  Property[]
+
+  @@map("property_types")
+}
+
+model PropertyPhoto {
+  id          String   @id @default(uuid()) @db.Uuid
+  propertyId  String   @map("property_id") @db.Uuid
+  storageKey  String   @map("storage_key") @db.VarChar(1000)
+  url         String   @db.VarChar(500)
+  thumbnailUrl String? @map("thumbnail_url") @db.VarChar(500)
+  caption     String?  @db.VarChar(255)
+  isCover     Boolean  @default(false) @map("is_cover")
+  sortOrder   Int      @default(0) @map("sort_order") @db.SmallInt
+  uploadedBy  String?  @map("uploaded_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  uploader    User?    @relation("PhotoUploader", fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+  @@index([propertyId])
+  @@map("property_photos")
+}
+
+model FacilityType {
+  id         String             @id @default(uuid()) @db.Uuid
+  code       String             @unique @db.VarChar(50)
+  name       String             @db.VarChar(100)
+  icon       String?            @db.VarChar(50)
+  category   String             @db.VarChar(50)  // 'recreation' | 'convenience' | 'security' | 'utility'
+  isActive   Boolean            @default(true) @map("is_active")
+
+  facilities PropertyFacility[]
+
+  @@map("facility_types")
+}
+
+model PropertyFacility {
+  id                 String       @id @default(uuid()) @db.Uuid
+  propertyId         String       @map("property_id") @db.Uuid
+  facilityTypeId     String       @map("facility_type_id") @db.Uuid
+  name               String?      @db.VarChar(150)
+  description        String?      @db.Text
+  floor              String?      @db.VarChar(20)
+  capacity           Int?         @db.SmallInt
+  operatingHours     Json?        @map("operating_hours")  // { mon: '06:00-22:00', ... }
+  isBookable         Boolean      @default(false) @map("is_bookable")
+  bookingAdvanceDays Int          @default(7) @map("booking_advance_days") @db.SmallInt
+  isActive           Boolean      @default(true) @map("is_active")
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  property           Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  facilityType       FacilityType @relation(fields: [facilityTypeId], references: [id])
+
+  @@unique([propertyId, facilityTypeId], name: "uq_property_facility")
+  @@map("property_facilities")
+}
+
+model PropertyContact {
+  id          String   @id @default(uuid()) @db.Uuid
+  propertyId  String   @map("property_id") @db.Uuid
+  role        String   @db.VarChar(100)  // 'building_manager' | 'security' | 'maintenance' | 'emergency'
+  name        String   @db.VarChar(200)
+  phone       String?  @db.VarChar(50)
+  mobile      String?  @db.VarChar(50)
+  email       String?  @db.VarChar(255)
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  sortOrder   Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@map("property_contacts")
+}
+
+model PropertyStatusHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  propertyId  String   @map("property_id") @db.Uuid
+  fromStatus  String?  @map("from_status") @db.VarChar(30)
+  toStatus    String   @map("to_status") @db.VarChar(30)
+  reason      String?  @db.Text
+  changedBy   String   @map("changed_by") @db.Uuid
+  changedAt   DateTime @default(now()) @map("changed_at") @db.Timestamptz
+
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  changedByUser User   @relation("StatusChanger", fields: [changedBy], references: [id])
+
+  @@index([propertyId])
+  @@map("property_status_history")
 }
 
 // ─────────────────────────────────────────────
