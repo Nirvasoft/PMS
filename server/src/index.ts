@@ -17,6 +17,8 @@ import { invitationsRouter } from './modules/users/invitations.routes';
 import { companyRouter, branchesRouter, regionsRouter, businessUnitsRouter } from './modules/organization/organization.routes';
 import { propertiesRouter, facilityTypesRouter } from './modules/properties/properties.routes';
 import { propertiesService, seedPropertyTypes } from './modules/properties/properties.service';
+import { towersRouter, unitsRouter, unitTypesRouter } from './modules/units/units.routes';
+import { seedUnitTypes } from './modules/units/units.service';
 import { workflowDefinitionsRouter, workflowInstancesRouter, workflowTasksRouter } from './modules/workflow/workflow.routes';
 import { notificationsRouter, templatesRouter } from './modules/notifications/notifications.routes';
 import { documentsRouter, documentFoldersRouter } from './modules/documents/documents.routes';
@@ -71,6 +73,11 @@ async function bootstrap() {
   app.use('/api/v1/properties', propertiesRouter);
   app.use('/api/v1/facility-types', facilityTypesRouter);
 
+  // Module 2.2 — Tower, Block & Unit Management (Phase 2)
+  app.use('/api/v1/properties/:propertyId/towers', towersRouter);
+  app.use('/api/v1/properties/:propertyId/units',  unitsRouter);
+  app.use('/api/v1/unit-types', unitTypesRouter);
+
   // Module 1.4 — Workflow Engine
   app.use('/api/v1/workflow-definitions', workflowDefinitionsRouter);
   app.use('/api/v1/workflow-instances', workflowInstancesRouter);
@@ -97,6 +104,7 @@ async function bootstrap() {
   // Seed reference data
   await dashboardService.seedWidgetDefinitions();
   await seedPropertyTypes();
+  await seedUnitTypes();
 
   // Start Socket.IO
   initSocketIO(httpServer, config.frontendUrl);

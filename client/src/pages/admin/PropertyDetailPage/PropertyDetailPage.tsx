@@ -9,6 +9,7 @@ import {
   useAddContactMutation, useRemoveContactMutation,
   useGetFacilityTypesQuery, useUploadPhotosMutation,
 } from '../../../store/api/propertiesApi';
+import UnitsTab from './UnitsTab';
 import {
   ArrowLeft, Building2, MapPin, Calendar, Users, Phone, Mail,
   Settings2, Globe, Clock, Star, Trash2, Plus, Upload, CheckCircle,
@@ -17,7 +18,7 @@ import {
 import toast from 'react-hot-toast';
 import './PropertyDetailPage.css';
 
-type Tab = 'overview' | 'facilities' | 'contacts' | 'photos' | 'history' | 'settings';
+type Tab = 'overview' | 'units' | 'facilities' | 'contacts' | 'photos' | 'history' | 'settings';
 
 const STATUS_TRANSITIONS: Record<string, Array<{ value: string; label: string }>> = {
   active:           [{ value: 'under_renovation', label: 'Put Under Renovation' }, { value: 'decommissioned', label: 'Decommission' }],
@@ -118,7 +119,7 @@ export default function PropertyDetailPage() {
 
       {/* Tab navigation */}
       <div className="detail-tabs">
-        {(['overview', 'facilities', 'contacts', 'photos', 'history', 'settings'] as Tab[]).map((tab) => (
+        {(['overview', 'units', 'facilities', 'contacts', 'photos', 'history', 'settings'] as Tab[]).map((tab) => (
           <button key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
@@ -126,8 +127,9 @@ export default function PropertyDetailPage() {
       </div>
 
       {/* Tab content */}
-      <div className="detail-content">
+      <div className={`detail-content${activeTab === 'units' ? ' units-content' : ''}`}>
         {activeTab === 'overview' && <OverviewTab property={property} />}
+        {activeTab === 'units' && <UnitsTab />}
         {activeTab === 'facilities' && <FacilitiesTab propertyId={id!} />}
         {activeTab === 'contacts' && <ContactsTab propertyId={id!} />}
         {activeTab === 'photos' && <PhotosTab propertyId={id!} />}

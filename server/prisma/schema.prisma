@@ -77,6 +77,11 @@ model Company {
   // Relations — Dashboard (Module 1.7)
   savedReports        SavedReport[]
 
+  // Relations — Units (Module 2.2)
+  towers              Tower[]
+  units               Unit[]
+  utilityMeters       UtilityMeter[]
+
   @@index([parentId])
   @@map("companies")
 }
@@ -163,6 +168,9 @@ model User {
   managedProperties      Property[]              @relation("PropertyManager")
   uploadedPhotos         PropertyPhoto[]         @relation("PhotoUploader")
   propertyStatusChanges  PropertyStatusHistory[] @relation("StatusChanger")
+
+  // Relations — Units (Module 2.2)
+  unitStatusChanges      UnitStatusHistory[]     @relation("UnitStatusChanger")
 
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
@@ -621,6 +629,11 @@ model Property {
   contacts         PropertyContact[]
   statusHistory    PropertyStatusHistory[]
 
+  // Relations — Units (Module 2.2)
+  towers           Tower[]
+  units            Unit[]
+  utilityMeters    UtilityMeter[]
+
   @@unique([code, companyId], name: "uq_property_code_company")
   @@index([companyId])
   @@index([status])
@@ -739,6 +752,166 @@ model PropertyStatusHistory {
 
   @@index([propertyId])
   @@map("property_status_history")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 2.2 — TOWER, BLOCK & UNIT MANAGEMENT
+// ─────────────────────────────────────────────
+
+model Tower {
+  id           String         @id @default(uuid()) @db.Uuid
+  propertyId   String         @map("property_id") @db.Uuid
+  companyId    String         @map("company_id") @db.Uuid
+  name         String         @db.VarChar(150)
+  code         String?        @db.VarChar(50)
+  description  String?        @db.Text
+  totalFloors  Int?           @map("total_floors") @db.SmallInt
+  yearBuilt    Int?           @map("year_built") @db.SmallInt
+  isActive     Boolean        @default(true) @map("is_active")
+  sortOrder    Int            @default(0) @map("sort_order") @db.SmallInt
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  property     Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sections     TowerSection[]
+  units        Unit[]
+
+  @@unique([code, propertyId], name: "uq_tower_code_property")
+  @@index([propertyId])
+  @@map("towers")
+}
+
+model TowerSection {
+  id         String   @id @default(uuid()) @db.Uuid
+  towerId    String   @map("tower_id") @db.Uuid
+  name       String   @db.VarChar(100)
+  code       String?  @db.VarChar(20)
+  sortOrder  Int      @default(0) @map("sort_order") @db.SmallInt
+
+  tower      Tower    @relation(fields: [towerId], references: [id], onDelete: Cascade)
+  units      Unit[]
+
+  @@index([towerId])
+  @@map("tower_sections")
+}
+
+model UnitType {
+  id          String  @id @default(uuid()) @db.Uuid
+  code        String  @unique @db.VarChar(50)
+  name        String  @db.VarChar(100)
+  category    String  @db.VarChar(30)   // 'residential' | 'commercial' | 'storage' | 'parking'
+  description String? @db.Text
+  isActive    Boolean @default(true) @map("is_active")
+
+  units       Unit[]
+
+  @@map("unit_types")
+}
+
+model Unit {
+  id                 String         @id @default(uuid()) @db.Uuid
+  propertyId         String         @map("property_id") @db.Uuid
+  towerId            String?        @map("tower_id") @db.Uuid
+  sectionId          String?        @map("section_id") @db.Uuid
+  companyId          String         @map("company_id") @db.Uuid
+  unitNumber         String         @map("unit_number") @db.VarChar(50)
+  unitTypeId         String?        @map("unit_type_id") @db.Uuid
+  unitType           String         @map("unit_type") @db.VarChar(50)
+  floorNumber        Int?           @map("floor_number") @db.SmallInt
+  floorLabel         String?        @map("floor_label") @db.VarChar(20)
+  areaSqft           Decimal?       @map("area_sqft") @db.Decimal(10, 2)
+  areaSqm            Decimal?       @map("area_sqm") @db.Decimal(10, 2)
+  bedroomCount       Int            @default(0) @map("bedroom_count") @db.SmallInt
+  bathroomCount      Int            @default(0) @map("bathroom_count") @db.SmallInt
+  direction          String?        @db.VarChar(20)  // 'north' | 'south' | 'east' | 'west' | 'corner'
+  floorPlanUrl       String?        @map("floor_plan_url") @db.VarChar(500)
+  status             String         @default("available") @db.VarChar(30)
+  ownershipType      String         @default("leasehold") @map("ownership_type") @db.VarChar(30)
+  ownerName          String?        @map("owner_name") @db.VarChar(255)
+  ownerContact       String?        @map("owner_contact") @db.VarChar(255)
+  purchaseDate       DateTime?      @map("purchase_date") @db.Date
+  purchasePrice      Decimal?       @map("purchase_price") @db.Decimal(15, 2)
+  currentMarketValue Decimal?       @map("current_market_value") @db.Decimal(15, 2)
+  furnishing         String         @default("unfurnished") @db.VarChar(20)
+  description        String?        @db.Text
+  notes              String?        @db.Text
+  isActive           Boolean        @default(true) @map("is_active")
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime?      @map("deleted_at") @db.Timestamptz
+
+  property           Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tower              Tower?         @relation(fields: [towerId], references: [id], onDelete: SetNull)
+  section            TowerSection?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  unitTypeRef        UnitType?      @relation(fields: [unitTypeId], references: [id], onDelete: SetNull)
+  company            Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  statusHistory      UnitStatusHistory[]
+  meters             UtilityMeter[]
+  amenities          UnitAmenity[]
+
+  @@unique([unitNumber, propertyId], name: "uq_unit_number_property")
+  @@index([propertyId])
+  @@index([towerId])
+  @@index([status])
+  @@index([unitType])
+  @@map("units")
+}
+
+model UnitStatusHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  unitId      String   @map("unit_id") @db.Uuid
+  fromStatus  String?  @map("from_status") @db.VarChar(30)
+  toStatus    String   @map("to_status") @db.VarChar(30)
+  reason      String?  @db.Text
+  changedBy   String   @map("changed_by") @db.Uuid
+  changedAt   DateTime @default(now()) @map("changed_at") @db.Timestamptz
+
+  unit        Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  changedByUser User   @relation("UnitStatusChanger", fields: [changedBy], references: [id])
+
+  @@index([unitId])
+  @@map("unit_status_history")
+}
+
+model UtilityMeter {
+  id               String   @id @default(uuid()) @db.Uuid
+  unitId           String   @map("unit_id") @db.Uuid
+  propertyId       String   @map("property_id") @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  meterType        String   @map("meter_type") @db.VarChar(20)  // 'electricity'|'water'|'gas'|'chilled_water'
+  meterSerialNo    String   @map("meter_serial_no") @db.VarChar(100)
+  meterProvider    String?  @map("meter_provider") @db.VarChar(100)
+  location         String?  @db.VarChar(255)
+  lastReading      Decimal? @map("last_reading") @db.Decimal(12, 3)
+  lastReadingDate  DateTime? @map("last_reading_date") @db.Date
+  isSmartMeter     Boolean  @default(false) @map("is_smart_meter")
+  smartMeterId     String?  @map("smart_meter_id") @db.VarChar(100)
+  isActive         Boolean  @default(true) @map("is_active")
+  installedAt      DateTime? @map("installed_at") @db.Date
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  unit             Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  property         Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([meterSerialNo, propertyId], name: "uq_meter_serial_property")
+  @@index([unitId])
+  @@index([propertyId])
+  @@map("utility_meters")
+}
+
+model UnitAmenity {
+  id      String  @id @default(uuid()) @db.Uuid
+  unitId  String  @map("unit_id") @db.Uuid
+  amenity String  @db.VarChar(100)
+  notes   String? @db.VarChar(255)
+
+  unit    Unit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId])
+  @@map("unit_amenities")
 }
 
 // ─────────────────────────────────────────────

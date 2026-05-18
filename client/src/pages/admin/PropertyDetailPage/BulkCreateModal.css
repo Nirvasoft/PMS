@@ -1,0 +1,133 @@
+/* ─── Bulk Create Modal ──────────────────────── */
+.bulk-modal {
+  background: #1a1f2e;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.bulk-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.bulk-form {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.form-field select, .form-field input {
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.83rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.form-field select:focus, .form-field input:focus {
+  border-color: rgba(108,92,231,0.5);
+}
+
+.form-field optgroup { background: #1a1f2e; font-weight: 700; }
+.form-field option { background: #1a1f2e; }
+
+.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.total-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(108,92,231,0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(108,92,231,0.2);
+  font-size: 0.82rem;
+  color: #a29bfe;
+}
+
+.total-summary.over-limit {
+  background: rgba(231,76,60,0.1);
+  border-color: rgba(231,76,60,0.2);
+  color: #e74c3c;
+}
+
+/* ─── Preview Panel ──────────────────────────── */
+.bulk-preview {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.preview-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.preview-empty {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 5px;
+}
+
+.preview-cell {
+  padding: 5px 4px;
+  background: rgba(108,92,231,0.1);
+  border: 1px solid rgba(108,92,231,0.2);
+  border-radius: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  color: #a29bfe;
+  font-family: monospace;
+}
+
+.preview-more {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  padding: 6px;
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .bulk-modal { max-height: 100vh; border-radius: 0; }
+  .bulk-body { grid-template-columns: 1fr; }
+  .bulk-preview { border-top: 1px solid rgba(255,255,255,0.06); }
+}
