@@ -1,0 +1,56 @@
+# ─── Node ────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Environment files (NEVER commit secrets) ─
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+server/.env
+server/.env.*
+client/.env
+client/.env.*
+
+# ─── Build outputs ───────────────────────────
+dist/
+build/
+server/dist/
+
+# ─── Prisma ──────────────────────────────────
+# Keep schema.prisma and migrations, ignore generated client
+server/node_modules/
+
+# ─── Uploads / Storage ───────────────────────
+server/uploads/
+!server/uploads/.gitkeep
+
+# ─── OS ──────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ─── IDE ─────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── Logs ────────────────────────────────────
+*.log
+logs/
+
+# ─── Test coverage ───────────────────────────
+coverage/
+.nyc_output/
+
+# ─── TypeScript ──────────────────────────────
+*.tsbuildinfo

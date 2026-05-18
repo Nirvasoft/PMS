@@ -1,0 +1,186 @@
+import { createApi } from '@reduxjs/toolkit/query/react';
+import type { RootState } from '../index';
+import { setCredentials, setMfaPending, clearAuth } from '../slices/authSlice';
+import { baseQueryWithReauth } from './baseQuery';
+
+interface LoginRequest {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
+}
+
+interface LoginSuccessData {
+  accessToken: string;
+  expiresIn: number;
+  tokenType: string;
+  user: {
+    id: string;
+    email: string;
+    companyId: string;
+    roles: string[];
+    permissions: string[];
+    mustChangePassword: boolean;
+  };
+}
+
+interface MfaChallengeData {
+  mfaRequired: true;
+  mfaToken: string;
+  mfaTokenExpiresIn: number;
+}
+
+interface MfaVerifyRequest {
+  mfaToken: string;
+  code: string;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+}
+
+export const authApi = createApi({
+  reducerPath: 'authApi',
+  baseQuery: baseQueryWithReauth,
+  tagTypes: ['Devices', 'AuditLogs', 'IpPolicies', 'PasswordPolicy', 'Me'],
+  endpoints: (builder) => ({
+    login: builder.mutation<ApiResponse<LoginSuccessData | MfaChallengeData>, LoginRequest>({
+      query: (body) => ({ url: '/auth/login', method: 'POST', body }),
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if ('mfaRequired' in data.data && data.data.mfaRequired) {
+            dispatch(setMfaPending({ mfaToken: (data.data as MfaChallengeData).mfaToken }));
+          } else {
+            const d = data.data as LoginSuccessData;
+            dispatch(setCredentials({ user: d.user, accessToken: d.accessToken, expiresIn: d.expiresIn }));
+          }
+        } catch { /* handled by component */ }
+      },
+    }),
+
+    verifyMfa: builder.mutation<ApiResponse<LoginSuccessData>, MfaVerifyRequest>({
+      query: (body) => ({ url: '/auth/mfa/verify', method: 'POST', body }),
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          const d = data.data;
+          dispatch(setCredentials({ user: d.user, accessToken: d.accessToken, expiresIn: d.expiresIn }));
+        } catch { /* handled by component */ }
+      },
+    }),
+
+    logout: builder.mutation<void, { allDevices?: boolean }>({
+      query: (body) => ({ url: '/auth/logout', method: 'POST', body }),
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+        } catch { /* still clear */ }
+        dispatch(clearAuth());
+        dispatch(authApi.util.resetApiState());
+      },
+    }),
+
+    refreshTokens: builder.mutation<ApiResponse<LoginSuccessData>, void>({
+      query: () => ({ url: '/auth/refresh', method: 'POST' }),
+    }),
+
+    getMe: builder.query<ApiResponse<Record<string, unknown>>, void>({
+      query: () => '/auth/me',
+      providesTags: ['Me'],
+    }),
+
+    changePassword: builder.mutation<ApiResponse<null>, { currentPassword: string; newPassword: string; confirmPassword: string }>({
+      query: (body) => ({ url: '/auth/password/change', method: 'POST', body }),
+    }),
+
+    requestPasswordReset: builder.mutation<ApiResponse<{ message: string }>, { email: string }>({
+      query: (body) => ({ url: '/auth/password/reset-request', method: 'POST', body }),
+    }),
+
+    resetPassword: builder.mutation<ApiResponse<null>, { token: string; newPassword: string; confirmPassword: string }>({
+      query: (body) => ({ url: '/auth/password/reset', method: 'POST', body }),
+    }),
+
+    // MFA
+    setupMfa: builder.mutation<ApiResponse<{ secret: string; qrCodeDataUrl: string; backupCodes: string[] }>, void>({
+      query: () => ({ url: '/auth/mfa/setup', method: 'POST' }),
+    }),
+
+    enableMfa: builder.mutation<ApiResponse<{ mfaEnabled: boolean }>, { secret: string; code: string; backupCodes: string[] }>({
+      query: (body) => ({ url: '/auth/mfa/enable', method: 'POST', body }),
+      invalidatesTags: ['Me'],
+    }),
+
+    disableMfa: builder.mutation<ApiResponse<{ mfaEnabled: boolean }>, { code: string }>({
+      query: (body) => ({ url: '/auth/mfa/disable', method: 'POST', body }),
+      invalidatesTags: ['Me'],
+    }),
+
+    // Devices
+    getDevices: builder.query<ApiResponse<Array<Record<string, unknown>>>, void>({
+      query: () => '/auth/devices',
+      providesTags: ['Devices'],
+    }),
+
+    revokeDevice: builder.mutation<void, string>({
+      query: (id) => ({ url: `/auth/devices/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Devices'],
+    }),
+
+    // Audit logs
+    getAuditLogs: builder.query<{ success: boolean; data: Array<Record<string, unknown>>; meta: Record<string, number> }, Record<string, string>>({
+      query: (params) => ({ url: '/auth/audit-logs', params }),
+      providesTags: ['AuditLogs'],
+    }),
+
+    // IP Policies
+    getIpPolicies: builder.query<ApiResponse<Array<Record<string, unknown>>>, void>({
+      query: () => '/auth/ip-policies',
+      providesTags: ['IpPolicies'],
+    }),
+
+    createIpPolicy: builder.mutation<void, Record<string, unknown>>({
+      query: (body) => ({ url: '/auth/ip-policies', method: 'POST', body }),
+      invalidatesTags: ['IpPolicies'],
+    }),
+
+    deleteIpPolicy: builder.mutation<void, string>({
+      query: (id) => ({ url: `/auth/ip-policies/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['IpPolicies'],
+    }),
+
+    // Password Policy
+    getPasswordPolicy: builder.query<ApiResponse<Record<string, unknown> | null>, void>({
+      query: () => '/auth/password-policy',
+      providesTags: ['PasswordPolicy'],
+    }),
+
+    updatePasswordPolicy: builder.mutation<void, Record<string, unknown>>({
+      query: (body) => ({ url: '/auth/password-policy', method: 'PUT', body }),
+      invalidatesTags: ['PasswordPolicy'],
+    }),
+  }),
+});
+
+export const {
+  useLoginMutation,
+  useVerifyMfaMutation,
+  useLogoutMutation,
+  useRefreshTokensMutation,
+  useGetMeQuery,
+  useChangePasswordMutation,
+  useRequestPasswordResetMutation,
+  useResetPasswordMutation,
+  useSetupMfaMutation,
+  useEnableMfaMutation,
+  useDisableMfaMutation,
+  useGetDevicesQuery,
+  useRevokeDeviceMutation,
+  useGetAuditLogsQuery,
+  useGetIpPoliciesQuery,
+  useCreateIpPolicyMutation,
+  useDeleteIpPolicyMutation,
+  useGetPasswordPolicyQuery,
+  useUpdatePasswordPolicyMutation,
+} = authApi;

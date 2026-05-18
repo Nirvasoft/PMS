@@ -1,0 +1,1070 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ORGANIZATION (minimal for auth FK)
+// ─────────────────────────────────────────────
+
+model Company {
+  id              String    @id @default(uuid()) @db.Uuid
+  parentId        String?   @map("parent_id") @db.Uuid
+  name            String    @db.VarChar(255)
+  legalName       String?   @map("legal_name") @db.VarChar(255)
+  companyType     String    @default("standalone") @map("company_type") @db.VarChar(30)
+  registrationNo  String?   @map("registration_no") @db.VarChar(100)
+  taxId           String?   @map("tax_id") @db.VarChar(100)
+  industry        String?   @db.VarChar(100)
+  phone           String?   @db.VarChar(50)
+  email           String?   @db.VarChar(255)
+  website         String?   @db.VarChar(255)
+  addressLine1    String?   @map("address_line1") @db.VarChar(255)
+  addressLine2    String?   @map("address_line2") @db.VarChar(255)
+  city            String?   @db.VarChar(100)
+  state           String?   @db.VarChar(100)
+  postalCode      String?   @map("postal_code") @db.VarChar(20)
+  country         String    @default("US") @db.VarChar(2)
+  timezone        String?   @default("UTC") @db.VarChar(60)
+  currency        String?   @default("USD") @db.VarChar(3)
+  logoUrl         String?   @map("logo_url") @db.VarChar(500)
+  isActive        Boolean   @default(true) @map("is_active")
+  settings        Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  parent          Company?  @relation("CompanyHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  subsidiaries    Company[] @relation("CompanyHierarchy")
+  users           User[]
+  passwordPolicies PasswordPolicy[]
+  ipPolicies      IpPolicy[]
+  authAuditLogs   AuthAuditLog[]
+  departments     Department[]
+  positions       Position[]
+  roles           Role[]
+  userInvitations UserInvitation[]
+
+  // Relations — Organization (Module 1.3)
+  branches        Branch[]
+  regions         Region[]
+  businessUnits   BusinessUnit[]
+  properties      Property[]
+
+  // Relations — Workflow (Module 1.4)
+  workflowDefinitions WorkflowDefinition[]
+  workflowInstances   WorkflowInstance[]
+
+  // Relations — Notifications (Module 1.5)
+  notificationTemplates NotificationTemplate[]
+  notificationLogs      NotificationLog[]
+  inAppNotifications    InAppNotification[]
+
+  // Relations — SSO
+  ssoConfigs          SsoConfig[]
+
+  // Relations — Documents (Module 1.6)
+  documentFolders     DocumentFolder[]
+  documents           Document[]
+
+  // Relations — Dashboard (Module 1.7)
+  savedReports        SavedReport[]
+
+  @@index([parentId])
+  @@map("companies")
+}
+
+// ─────────────────────────────────────────────
+// AUTH SCHEMA
+// ─────────────────────────────────────────────
+
+model User {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  email               String    @db.VarChar(255)
+  emailVerified       Boolean   @default(false) @map("email_verified")
+  passwordHash        String?   @map("password_hash") @db.VarChar(255)
+  isActive            Boolean   @default(true) @map("is_active")
+  isLocked            Boolean   @default(false) @map("is_locked")
+  lockedAt            DateTime? @map("locked_at") @db.Timestamptz
+  lockedReason        String?   @map("locked_reason") @db.VarChar(255)
+  failedAttempts      Int       @default(0) @map("failed_attempts") @db.SmallInt
+  lastLoginAt         DateTime? @map("last_login_at") @db.Timestamptz
+  mfaEnabled          Boolean   @default(false) @map("mfa_enabled")
+  mfaSecret           String?   @map("mfa_secret") @db.VarChar(255)
+  mfaBackupCodes      String[]  @map("mfa_backup_codes")
+  passwordChangedAt   DateTime? @default(now()) @map("password_changed_at") @db.Timestamptz
+  mustChangePassword  Boolean   @default(false) @map("must_change_password")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations — Auth (Module 1.1)
+  company             Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  refreshTokens       RefreshToken[]
+  devices             UserDevice[]
+  passwordHistory     PasswordHistory[]
+  authAuditLogs       AuthAuditLog[]        @relation("UserAuditLogs")
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  createdIpPolicies   IpPolicy[]            @relation("IpPolicyCreator")
+  userIpPolicies      IpPolicy[]            @relation("IpPolicyUser")
+
+  // Relations — User & Role (Module 1.2)
+  profile             UserProfile?
+  userRoles           UserRole[]
+  permissionOverrides UserPermissionOverride[] @relation("UserOverrides")
+  grantedOverrides    UserPermissionOverride[] @relation("OverrideGrantor")
+  managedDepartments  Department[]            @relation("DepartmentManager")
+  createdRoles        Role[]                  @relation("RoleCreator")
+  grantedRolePerms    RolePermission[]        @relation("RolePermGrantor")
+  grantedUserRoles    UserRole[]              @relation("UserRoleGrantor")
+  sentInvitations     UserInvitation[]        @relation("InvitationSender")
+
+  // Relations — Organization (Module 1.3)
+  managedBranches     Branch[]                @relation("BranchManager")
+  managedRegions      Region[]                @relation("RegionManager")
+  managedBusinessUnits BusinessUnit[]          @relation("BusinessUnitManager")
+
+  // Relations — Workflow (Module 1.4)
+  createdDefinitions  WorkflowDefinition[]    @relation("WfDefinitionCreator")
+  initiatedInstances  WorkflowInstance[]      @relation("WfInstanceInitiator")
+  assignedTasks       WorkflowTask[]          @relation("WfTaskAssignee")
+  delegatedTasks      WorkflowTask[]          @relation("WfTaskDelegatee")
+  completedTasks      WorkflowTask[]          @relation("WfTaskCompleter")
+  wfHistoryActions    WorkflowHistory[]       @relation("WfHistoryPerformer")
+
+  // Relations — Notifications (Module 1.5)
+  notificationLogs       NotificationLog[]       @relation("NotificationRecipient")
+  inAppNotifications     InAppNotification[]     @relation("InAppNotifications")
+  notificationPreferences NotificationPreference[] @relation("NotificationPreferences")
+
+  // Relations — SSO
+  ssoIdentities          SsoIdentity[]           @relation("UserSsoIdentities")
+
+  // Relations — Documents (Module 1.6)
+  uploadedDocuments      Document[]              @relation("DocumentUploader")
+  uploadedVersions       DocumentVersion[]       @relation("VersionUploader")
+  documentAccessLogs     DocumentAccessLog[]     @relation("DocumentAccessor")
+  documentShares         DocumentShare[]         @relation("ShareCreator")
+
+  // Relations — Dashboard (Module 1.7)
+  dashboardLayouts       DashboardLayout[]       @relation("UserDashboardLayouts")
+  savedReports           SavedReport[]           @relation("ReportCreator")
+
+  @@unique([email, companyId], name: "uq_users_email_company")
+  @@index([email])
+  @@index([companyId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash") @db.VarChar(255)
+  family       String    @db.VarChar(255)
+  deviceId     String?   @map("device_id") @db.Uuid
+  ipAddress    String?   @map("ip_address") @db.VarChar(45)
+  userAgent    String?   @map("user_agent") @db.Text
+  issuedAt     DateTime  @default(now()) @map("issued_at") @db.Timestamptz
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz
+  revokeReason String?   @map("revoke_reason") @db.VarChar(100)
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([family])
+  @@map("refresh_tokens")
+}
+
+model UserDevice {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  deviceName   String?   @map("device_name") @db.VarChar(255)
+  deviceType   String?   @map("device_type") @db.VarChar(50)
+  os           String?   @db.VarChar(100)
+  browser      String?   @db.VarChar(100)
+  fingerprint  String    @db.VarChar(255)
+  isTrusted    Boolean   @default(false) @map("is_trusted")
+  trustedAt    DateTime? @map("trusted_at") @db.Timestamptz
+  lastSeenAt   DateTime? @map("last_seen_at") @db.Timestamptz
+  lastIp       String?   @map("last_ip") @db.VarChar(45)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([fingerprint, userId], name: "uq_device_fingerprint_user")
+  @@map("user_devices")
+}
+
+model IpPolicy {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  policyType  String   @map("policy_type") @db.VarChar(10)
+  cidr        String   @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User?    @relation("IpPolicyUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator     User?    @relation("IpPolicyCreator", fields: [createdBy], references: [id])
+
+  @@index([companyId])
+  @@map("ip_policies")
+}
+
+model PasswordPolicy {
+  id                   String   @id @default(uuid()) @db.Uuid
+  companyId            String   @unique @map("company_id") @db.Uuid
+  minLength            Int      @default(8) @map("min_length") @db.SmallInt
+  requireUppercase     Boolean  @default(true) @map("require_uppercase")
+  requireLowercase     Boolean  @default(true) @map("require_lowercase")
+  requireNumber        Boolean  @default(true) @map("require_number")
+  requireSpecial       Boolean  @default(true) @map("require_special")
+  maxAgeDays           Int?     @default(90) @map("max_age_days") @db.SmallInt
+  historyCount         Int      @default(5) @map("history_count") @db.SmallInt
+  maxFailedAttempts    Int      @default(5) @map("max_failed_attempts") @db.SmallInt
+  lockoutDurationMins  Int      @default(30) @map("lockout_duration_mins") @db.SmallInt
+  sessionTimeoutMins   Int      @default(480) @map("session_timeout_mins") @db.SmallInt
+  mfaRequired          Boolean  @default(false) @map("mfa_required")
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("password_policies")
+}
+
+model PasswordHistory {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("password_history")
+}
+
+model AuthAuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  email       String?  @db.VarChar(255)
+  companyId   String?  @map("company_id") @db.Uuid
+  eventType   String   @map("event_type") @db.VarChar(50)
+  status      String   @db.VarChar(10)
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.Text
+  deviceId    String?  @map("device_id") @db.Uuid
+  geoCountry  String?  @map("geo_country") @db.VarChar(100)
+  geoCity     String?  @map("geo_city") @db.VarChar(100)
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user        User?    @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+  company     Company? @relation(fields: [companyId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([eventType, createdAt(sort: Desc)])
+  @@map("auth_audit_logs")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  usedAt    DateTime? @map("used_at") @db.Timestamptz
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  usedAt    DateTime? @map("used_at") @db.Timestamptz
+  ipAddress String?   @map("ip_address") @db.VarChar(45)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 1.2 — USER & ROLE MANAGEMENT
+// ─────────────────────────────────────────────
+
+model UserProfile {
+  userId        String    @id @map("user_id") @db.Uuid
+  firstName     String    @map("first_name") @db.VarChar(100)
+  lastName      String    @map("last_name") @db.VarChar(100)
+  phone         String?   @db.VarChar(30)
+  mobile        String?   @db.VarChar(30)
+  avatarUrl     String?   @map("avatar_url") @db.VarChar(500)
+  jobTitle      String?   @map("job_title") @db.VarChar(150)
+  departmentId  String?   @map("department_id") @db.Uuid
+  positionId    String?   @map("position_id") @db.Uuid
+  employeeId    String?   @map("employee_id") @db.VarChar(50)
+  dateOfJoining DateTime? @map("date_of_joining") @db.Date
+  notes         String?   @db.Text
+  timezone      String    @default("UTC") @db.VarChar(60)
+  locale        String    @default("en") @db.VarChar(10)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  position      Position?  @relation(fields: [positionId], references: [id], onDelete: SetNull)
+
+  @@map("user_profiles")
+}
+
+model Department {
+  id         String    @id @default(uuid()) @db.Uuid
+  companyId  String    @map("company_id") @db.Uuid
+  parentId   String?   @map("parent_id") @db.Uuid
+  name       String    @db.VarChar(150)
+  code       String?   @db.VarChar(50)
+  managerId  String?   @map("manager_id") @db.Uuid
+  isActive   Boolean   @default(true) @map("is_active")
+  sortOrder  Int       @default(0) @map("sort_order") @db.SmallInt
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent     Department? @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Department[] @relation("DepartmentHierarchy")
+  manager    User?      @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  positions  Position[]
+  profiles   UserProfile[]
+
+  @@unique([code, companyId], name: "uq_dept_code_company")
+  @@index([companyId])
+  @@index([parentId])
+  @@map("departments")
+}
+
+model Position {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  departmentId  String?   @map("department_id") @db.Uuid
+  name          String    @db.VarChar(150)
+  level         Int       @default(1) @db.SmallInt
+  canApprove    Boolean   @default(false) @map("can_approve")
+  approvalLimit Decimal?  @map("approval_limit") @db.Decimal(15, 2)
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company       Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  profiles      UserProfile[]
+
+  @@map("positions")
+}
+
+model Role {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  name        String    @db.VarChar(100)
+  description String?   @db.Text
+  isSystem    Boolean   @default(false) @map("is_system")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator         User?            @relation("RoleCreator", fields: [createdBy], references: [id])
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+  invitations     UserInvitation[]
+
+  @@unique([name, companyId], name: "uq_role_name_company")
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(150)
+  description String?  @db.Text
+  module      String   @db.VarChar(50)
+  action      String   @db.VarChar(50)
+  isActive    Boolean  @default(true) @map("is_active")
+
+  rolePermissions RolePermission[]
+  overrides       UserPermissionOverride[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  grantedBy    String?  @map("granted_by") @db.Uuid
+  grantedAt    DateTime @default(now()) @map("granted_at") @db.Timestamptz
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantor      User?      @relation("RolePermGrantor", fields: [grantedBy], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  roleId     String    @map("role_id") @db.Uuid
+  propertyId String?   @map("property_id") @db.Uuid
+  grantedBy  String?   @map("granted_by") @db.Uuid
+  grantedAt  DateTime  @default(now()) @map("granted_at") @db.Timestamptz
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  grantor    User?     @relation("UserRoleGrantor", fields: [grantedBy], references: [id])
+
+  @@unique([userId, roleId], name: "uq_user_role")
+  @@index([userId])
+  @@map("user_roles")
+}
+
+model UserPermissionOverride {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  permissionId String    @map("permission_id") @db.Uuid
+  overrideType String    @map("override_type") @db.VarChar(6)
+  reason       String?   @db.Text
+  grantedBy    String    @map("granted_by") @db.Uuid
+  grantedAt    DateTime  @default(now()) @map("granted_at") @db.Timestamptz
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz
+
+  user         User       @relation("UserOverrides", fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantor      User       @relation("OverrideGrantor", fields: [grantedBy], references: [id])
+
+  @@unique([userId, permissionId], name: "uq_user_perm_override")
+  @@map("user_permission_overrides")
+}
+
+model RoleTemplate {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @unique @db.VarChar(100)
+  description  String?  @db.Text
+  permissions  String[]
+
+  @@map("role_templates")
+}
+
+model UserInvitation {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  email        String    @db.VarChar(255)
+  roleId       String?   @map("role_id") @db.Uuid
+  departmentId String?   @map("department_id") @db.Uuid
+  invitedBy    String    @map("invited_by") @db.Uuid
+  tokenHash    String    @unique @map("token_hash") @db.VarChar(255)
+  message      String?   @db.Text
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz
+  acceptedAt   DateTime? @map("accepted_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role         Role?     @relation(fields: [roleId], references: [id])
+  inviter      User      @relation("InvitationSender", fields: [invitedBy], references: [id])
+
+  @@unique([companyId, email], name: "uq_active_invite")
+  @@map("user_invitations")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 1.3 — ORGANIZATION MANAGEMENT
+// ─────────────────────────────────────────────
+
+model Branch {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  name          String    @db.VarChar(255)
+  code          String?   @db.VarChar(50)
+  managerId     String?   @map("manager_id") @db.Uuid
+  phone         String?   @db.VarChar(50)
+  email         String?   @db.VarChar(255)
+  addressLine1  String?   @map("address_line1") @db.VarChar(255)
+  addressLine2  String?   @map("address_line2") @db.VarChar(255)
+  city          String?   @db.VarChar(100)
+  state         String?   @db.VarChar(100)
+  postalCode    String?   @map("postal_code") @db.VarChar(20)
+  country       String    @default("US") @db.VarChar(2)
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager       User?     @relation("BranchManager", fields: [managerId], references: [id], onDelete: SetNull)
+  properties    Property[]
+  businessUnits BusinessUnit[]
+
+  @@unique([code, companyId], name: "uq_branch_code_company")
+  @@index([companyId])
+  @@map("branches")
+}
+
+model Region {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  name        String    @db.VarChar(150)
+  code        String?   @db.VarChar(50)
+  description String?   @db.Text
+  managerId   String?   @map("manager_id") @db.Uuid
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager     User?     @relation("RegionManager", fields: [managerId], references: [id], onDelete: SetNull)
+  regionProperties RegionProperty[]
+
+  @@unique([code, companyId], name: "uq_region_code_company")
+  @@map("regions")
+}
+
+model BusinessUnit {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  branchId    String?   @map("branch_id") @db.Uuid
+  name        String    @db.VarChar(150)
+  code        String?   @db.VarChar(50)
+  managerId   String?   @map("manager_id") @db.Uuid
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch      Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  manager     User?         @relation("BusinessUnitManager", fields: [managerId], references: [id], onDelete: SetNull)
+  properties  Property[]
+
+  @@unique([code, companyId], name: "uq_bu_code_company")
+  @@map("business_units")
+}
+
+model Property {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  branchId         String?   @map("branch_id") @db.Uuid
+  businessUnitId   String?   @map("business_unit_id") @db.Uuid
+  name             String    @db.VarChar(255)
+  code             String?   @db.VarChar(50)
+  propertyType     String    @map("property_type") @db.VarChar(50)
+  status           String    @default("active") @db.VarChar(30)
+  addressLine1     String?   @map("address_line1") @db.VarChar(255)
+  addressLine2     String?   @map("address_line2") @db.VarChar(255)
+  city             String?   @db.VarChar(100)
+  state            String?   @db.VarChar(100)
+  postalCode       String?   @map("postal_code") @db.VarChar(20)
+  country          String?   @db.VarChar(2)
+  geoLat           Decimal?  @map("geo_lat") @db.Decimal(9, 6)
+  geoLng           Decimal?  @map("geo_lng") @db.Decimal(9, 6)
+  totalAreaSqft    Decimal?  @map("total_area_sqft") @db.Decimal(12, 2)
+  yearBuilt        Int?      @map("year_built") @db.SmallInt
+  description      String?   @db.Text
+  imageUrl         String?   @map("image_url") @db.VarChar(500)
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
+
+  company          Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branch           Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  businessUnit     BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  regionProperties RegionProperty[]
+
+  @@unique([code, companyId], name: "uq_property_code_company")
+  @@index([companyId])
+  @@map("properties")
+}
+
+model RegionProperty {
+  regionId   String @map("region_id") @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
+
+  region     Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([regionId, propertyId])
+  @@map("region_properties")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 1.4 — WORKFLOW ENGINE
+// ─────────────────────────────────────────────
+
+model WorkflowDefinition {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  name          String    @db.VarChar(255)
+  description   String?   @db.Text
+  entityType    String    @map("entity_type") @db.VarChar(100)
+  version       Int       @default(1) @db.SmallInt
+  status        String    @default("draft") @db.VarChar(20)
+  graph         Json
+  settings      Json      @default("{}")
+  createdBy     String?   @map("created_by") @db.Uuid
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator       User?     @relation("WfDefinitionCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  instances     WorkflowInstance[]
+
+  @@index([companyId, entityType])
+  @@map("workflow_definitions")
+}
+
+model WorkflowInstance {
+  id                String    @id @default(uuid()) @db.Uuid
+  definitionId      String    @map("definition_id") @db.Uuid
+  definitionVersion Int       @map("definition_version") @db.SmallInt
+  entityType        String    @map("entity_type") @db.VarChar(100)
+  entityId          String    @map("entity_id") @db.VarChar(255)
+  companyId         String    @map("company_id") @db.Uuid
+  currentNodeIds    String[]  @map("current_node_ids")
+  status            String    @default("running") @db.VarChar(20)
+  initiatedBy       String    @map("initiated_by") @db.Uuid
+  startedAt         DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz
+  cancelledAt       DateTime? @map("cancelled_at") @db.Timestamptz
+  cancelReason      String?   @map("cancel_reason") @db.Text
+  context           Json      @default("{}")
+  metadata          Json      @default("{}")
+
+  definition        WorkflowDefinition @relation(fields: [definitionId], references: [id])
+  company           Company            @relation(fields: [companyId], references: [id])
+  initiator         User               @relation("WfInstanceInitiator", fields: [initiatedBy], references: [id])
+  tasks             WorkflowTask[]
+  history           WorkflowHistory[]
+
+  @@index([entityType, entityId])
+  @@index([status])
+  @@map("workflow_instances")
+}
+
+model WorkflowTask {
+  id            String    @id @default(uuid()) @db.Uuid
+  instanceId    String    @map("instance_id") @db.Uuid
+  nodeId        String    @map("node_id") @db.VarChar(100)
+  taskType      String    @default("approval") @map("task_type") @db.VarChar(30)
+  title         String    @db.VarChar(255)
+  assignedTo    String?   @map("assigned_to") @db.Uuid
+  assignedRole  String?   @map("assigned_role") @db.VarChar(100)
+  delegatedTo   String?   @map("delegated_to") @db.Uuid
+  delegatedAt   DateTime? @map("delegated_at") @db.Timestamptz
+  status        String    @default("pending") @db.VarChar(20)
+  decision      String?   @db.VarChar(20)
+  comments      String?   @db.Text
+  slaDueAt      DateTime? @map("sla_due_at") @db.Timestamptz
+  slaBreached   Boolean   @default(false) @map("sla_breached")
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz
+  completedBy   String?   @map("completed_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  instance      WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  assignee      User?            @relation("WfTaskAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  delegatee     User?            @relation("WfTaskDelegatee", fields: [delegatedTo], references: [id], onDelete: SetNull)
+  completer     User?            @relation("WfTaskCompleter", fields: [completedBy], references: [id], onDelete: SetNull)
+  historyItems  WorkflowHistory[]
+
+  @@index([assignedTo, status])
+  @@index([instanceId])
+  @@map("workflow_tasks")
+}
+
+model WorkflowHistory {
+  id           String    @id @default(uuid()) @db.Uuid
+  instanceId   String    @map("instance_id") @db.Uuid
+  taskId       String?   @map("task_id") @db.Uuid
+  fromNodeId   String?   @map("from_node_id") @db.VarChar(100)
+  toNodeId     String?   @map("to_node_id") @db.VarChar(100)
+  action       String    @db.VarChar(50)
+  performedBy  String?   @map("performed_by") @db.Uuid
+  comments     String?   @db.Text
+  metadata     Json      @default("{}")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  instance     WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  task         WorkflowTask?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  performer    User?            @relation("WfHistoryPerformer", fields: [performedBy], references: [id], onDelete: SetNull)
+
+  @@index([instanceId, createdAt])
+  @@map("workflow_history")
+}
+
+// ═══════════════════════════════════════════════
+// MODULE 1.5 — NOTIFICATION CENTER
+// ═══════════════════════════════════════════════
+
+model NotificationTemplate {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String?   @map("company_id") @db.Uuid
+  code        String    @db.VarChar(100)
+  name        String    @db.VarChar(255)
+  description String?   @db.Text
+  channels    String[]  @default([])
+  subject     String?   @db.VarChar(500)
+  bodyText    String    @map("body_text") @db.Text
+  bodyHtml    String?   @map("body_html") @db.Text
+  bodyPush    String?   @map("body_push") @db.VarChar(500)
+  variables   Json      @default("[]")
+  isCritical  Boolean   @default(false) @map("is_critical")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company     Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  logs        NotificationLog[]
+
+  @@unique([code, companyId], name: "uq_template_code_company")
+  @@map("notification_templates")
+}
+
+model NotificationLog {
+  id                 String    @id @default(uuid()) @db.Uuid
+  companyId          String?   @map("company_id") @db.Uuid
+  templateId         String?   @map("template_id") @db.Uuid
+  templateCode       String?   @map("template_code") @db.VarChar(100)
+  channel            String    @db.VarChar(20)
+  recipientId        String?   @map("recipient_id") @db.Uuid
+  recipientEmail     String?   @map("recipient_email") @db.VarChar(255)
+  recipientPhone     String?   @map("recipient_phone") @db.VarChar(50)
+  subject            String?   @db.VarChar(500)
+  body               String?   @db.Text
+  status             String    @default("queued") @db.VarChar(20)
+  provider           String?   @db.VarChar(50)
+  providerMessageId  String?   @map("provider_message_id") @db.VarChar(255)
+  errorMessage       String?   @map("error_message") @db.Text
+  retryCount         Int       @default(0) @map("retry_count") @db.SmallInt
+  sentAt             DateTime? @map("sent_at") @db.Timestamptz
+  deliveredAt        DateTime? @map("delivered_at") @db.Timestamptz
+  entityType         String?   @map("entity_type") @db.VarChar(100)
+  entityId           String?   @map("entity_id") @db.Uuid
+  metadata           Json      @default("{}")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company            Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  template           NotificationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipient          User?     @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId, createdAt(sort: Desc)])
+  @@index([status])
+  @@index([entityType, entityId])
+  @@map("notification_logs")
+}
+
+model InAppNotification {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  title       String    @db.VarChar(255)
+  body        String    @db.Text
+  icon        String    @default("bell") @db.VarChar(50)
+  actionType  String?   @map("action_type") @db.VarChar(50)
+  actionUrl   String?   @map("action_url") @db.VarChar(500)
+  entityType  String?   @map("entity_type") @db.VarChar(100)
+  entityId    String?   @map("entity_id") @db.Uuid
+  isRead      Boolean   @default(false) @map("is_read")
+  readAt      DateTime? @map("read_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User      @relation("InAppNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@map("in_app_notifications")
+}
+
+model NotificationPreference {
+  userId          String    @map("user_id") @db.Uuid
+  templateCode    String    @map("template_code") @db.VarChar(100)
+  emailEnabled    Boolean   @default(true) @map("email_enabled")
+  smsEnabled      Boolean   @default(false) @map("sms_enabled")
+  pushEnabled     Boolean   @default(true) @map("push_enabled")
+  inAppEnabled    Boolean   @default(true) @map("in_app_enabled")
+  quietHoursStart String?   @map("quiet_hours_start") @db.VarChar(5)
+  quietHoursEnd   String?   @map("quiet_hours_end") @db.VarChar(5)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user            User      @relation("NotificationPreferences", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, templateCode])
+  @@map("notification_preferences")
+}
+
+// ─────────────────────────────────────────────
+// SSO — SINGLE SIGN-ON (FUTURE-READY)
+// ─────────────────────────────────────────────
+
+/// Stores SSO/IdP configuration per company.
+/// Supports OIDC (Azure AD, Okta, Google Workspace) and SAML.
+model SsoConfig {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  name              String    @db.VarChar(255)        // "Acme Azure AD"
+  provider          String    @db.VarChar(50)         // oidc | saml | azure_ad | okta | google
+  protocol          String    @default("oidc") @db.VarChar(10) // oidc | saml
+  isEnabled         Boolean   @default(false) @map("is_enabled")
+  isDefault         Boolean   @default(false) @map("is_default")
+
+  // OIDC fields
+  clientId          String?   @map("client_id") @db.VarChar(255)
+  clientSecret      String?   @map("client_secret") @db.VarChar(500) // encrypted at rest
+  issuerUrl         String?   @map("issuer_url") @db.VarChar(500)    // e.g. https://login.microsoftonline.com/{tenant}/v2.0
+  authorizationUrl  String?   @map("authorization_url") @db.VarChar(500)
+  tokenUrl          String?   @map("token_url") @db.VarChar(500)
+  userInfoUrl       String?   @map("userinfo_url") @db.VarChar(500)
+  scopes            String    @default("openid profile email") @db.VarChar(500)
+
+  // SAML fields (future)
+  entityId          String?   @map("entity_id") @db.VarChar(500)
+  ssoUrl            String?   @map("sso_url") @db.VarChar(500)
+  certificate       String?   @db.Text
+
+  // Mapping & provisioning
+  autoProvision     Boolean   @default(false) @map("auto_provision")  // JIT user creation
+  defaultRoleId     String?   @map("default_role_id") @db.Uuid       // Role for JIT-provisioned users
+  domainRestriction String?   @map("domain_restriction") @db.VarChar(255) // e.g. "acme.com"
+  attributeMapping  Json      @default("{}") @map("attribute_mapping") // Map IdP claims → PMS fields
+  settings          Json      @default("{}")                          // Extra provider-specific config
+
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  identities        SsoIdentity[]
+
+  @@unique([companyId, provider], name: "uq_sso_company_provider")
+  @@map("sso_configs")
+}
+
+/// Links an external IdP identity to a PMS user.
+/// One user can have multiple SSO identities (e.g. Azure AD + Google).
+model SsoIdentity {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  ssoConfigId       String    @map("sso_config_id") @db.Uuid
+  externalId        String    @map("external_id") @db.VarChar(255) // sub / nameId from IdP
+  externalEmail     String?   @map("external_email") @db.VarChar(255)
+  externalUsername  String?   @map("external_username") @db.VarChar(255)
+  rawAttributes     Json      @default("{}") @map("raw_attributes") // Full IdP profile snapshot
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user              User      @relation("UserSsoIdentities", fields: [userId], references: [id], onDelete: Cascade)
+  ssoConfig         SsoConfig @relation(fields: [ssoConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([ssoConfigId, externalId], name: "uq_sso_identity")
+  @@index([userId])
+  @@map("sso_identities")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 1.6 — DOCUMENT MANAGEMENT
+// ─────────────────────────────────────────────
+
+model DocumentFolder {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  propertyId    String?   @map("property_id") @db.Uuid
+  parentId      String?   @map("parent_id") @db.Uuid
+  name          String    @db.VarChar(255)
+  path          String    @db.Text              // materialized path: /root/contracts/2025/
+  entityType    String?   @map("entity_type") @db.VarChar(100)
+  entityId      String?   @map("entity_id") @db.Uuid
+  accessPolicy  String    @default("inherit") @map("access_policy") @db.VarChar(20)
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent        DocumentFolder? @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children      DocumentFolder[] @relation("FolderHierarchy")
+  documents     Document[]
+
+  @@unique([path, companyId], name: "uq_folder_path_company")
+  @@index([companyId])
+  @@index([parentId])
+  @@index([entityType, entityId])
+  @@map("document_folders")
+}
+
+model Document {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  propertyId          String?   @map("property_id") @db.Uuid
+  folderId            String?   @map("folder_id") @db.Uuid
+  entityType          String?   @map("entity_type") @db.VarChar(100)
+  entityId            String?   @map("entity_id") @db.Uuid
+  name                String    @db.VarChar(500)
+  originalFilename    String    @map("original_filename") @db.VarChar(500)
+  mimeType            String    @map("mime_type") @db.VarChar(100)
+  extension           String?   @db.VarChar(20)
+  fileSize            BigInt    @map("file_size")
+  storageKey          String    @map("storage_key") @db.VarChar(1000)
+  storageBucket       String    @default("local") @map("storage_bucket") @db.VarChar(255)
+  checksumSha256      String?   @map("checksum_sha256") @db.VarChar(64)
+  category            String?   @db.VarChar(100)
+  description         String?   @db.Text
+  tags                String[]  @default([])
+  status              String    @default("active") @db.VarChar(30)
+  expiryDate          DateTime? @map("expiry_date") @db.Date
+  expiryReminderDays  Int[]     @default([90, 30, 7]) @map("expiry_reminder_days")
+  isConfidential      Boolean   @default(false) @map("is_confidential")
+  currentVersion      Int       @default(1) @map("current_version") @db.SmallInt
+  ocrStatus           String    @default("skipped") @map("ocr_status") @db.VarChar(20)
+  ocrText             String?   @map("ocr_text") @db.Text
+  virusScanStatus     String    @default("skipped") @map("virus_scan_status") @db.VarChar(20)
+  virusScanAt         DateTime? @map("virus_scan_at") @db.Timestamptz
+  uploadedBy          String    @map("uploaded_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz
+
+  company             Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folder              DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  uploader            User      @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+  versions            DocumentVersion[]
+  accessLogs          DocumentAccessLog[]
+  shares              DocumentShare[]
+
+  @@index([companyId])
+  @@index([entityType, entityId])
+  @@index([folderId])
+  @@index([uploadedBy])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id               String   @id @default(uuid()) @db.Uuid
+  documentId       String   @map("document_id") @db.Uuid
+  versionNumber    Int      @map("version_number") @db.SmallInt
+  storageKey       String   @map("storage_key") @db.VarChar(1000)
+  originalFilename String   @map("original_filename") @db.VarChar(500)
+  fileSize         BigInt   @map("file_size")
+  mimeType         String   @map("mime_type") @db.VarChar(100)
+  checksumSha256   String?  @map("checksum_sha256") @db.VarChar(64)
+  changeNotes      String?  @map("change_notes") @db.Text
+  uploadedBy       String   @map("uploaded_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  document         Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploader         User     @relation("VersionUploader", fields: [uploadedBy], references: [id])
+
+  @@unique([documentId, versionNumber], name: "uq_doc_version")
+  @@map("document_versions")
+}
+
+model DocumentAccessLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  documentId  String   @map("document_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  action      String   @db.VarChar(30) // 'view' | 'download' | 'preview' | 'share'
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user        User?    @relation("DocumentAccessor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([documentId, createdAt(sort: Desc)])
+  @@map("document_access_logs")
+}
+
+model DocumentShare {
+  id            String    @id @default(uuid()) @db.Uuid
+  documentId    String    @map("document_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash") @db.VarChar(255)
+  shareType     String    @default("view") @map("share_type") @db.VarChar(20)
+  passwordHash  String?   @map("password_hash") @db.VarChar(255)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz
+  maxAccesses   Int?      @map("max_accesses") @db.SmallInt
+  accessCount   Int       @default(0) @map("access_count") @db.SmallInt
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  document      Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  creator       User?     @relation("ShareCreator", fields: [createdBy], references: [id])
+
+  @@map("document_shares")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 1.7 — DASHBOARD & ANALYTICS
+// ─────────────────────────────────────────────
+
+model WidgetDefinition {
+  id                  String   @id @default(uuid()) @db.Uuid
+  code                String   @unique @db.VarChar(100)
+  name                String   @db.VarChar(255)
+  description         String?  @db.Text
+  category            String   @db.VarChar(50)       // 'property' | 'finance' | 'maintenance' | 'security'
+  widgetType          String   @map("widget_type") @db.VarChar(30) // 'kpi_card' | 'line_chart' | 'bar_chart' | 'pie_chart' | 'gauge' | 'data_table'
+  dataProvider        String   @map("data_provider") @db.VarChar(100)
+  defaultConfig       Json     @default("{}") @map("default_config")
+  requiredPermissions String[] @default([]) @map("required_permissions")
+  minWidth            Int      @default(1) @map("min_width") @db.SmallInt
+  minHeight           Int      @default(1) @map("min_height") @db.SmallInt
+  defaultWidth        Int      @default(3) @map("default_width") @db.SmallInt
+  defaultHeight       Int      @default(2) @map("default_height") @db.SmallInt
+  isActive            Boolean  @default(true) @map("is_active")
+
+  @@map("widget_definitions")
+}
+
+model DashboardLayout {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  dashboardKey  String   @default("main") @map("dashboard_key") @db.VarChar(100)
+  layout        Json     // array of widget placement objects
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user          User     @relation("UserDashboardLayouts", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dashboardKey], name: "uq_user_dashboard")
+  @@map("dashboard_layouts")
+}
+
+model SavedReport {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  createdBy   String    @map("created_by") @db.Uuid
+  name        String    @db.VarChar(255)
+  reportType  String    @map("report_type") @db.VarChar(100)
+  parameters  Json      @default("{}")
+  schedule    Json?
+  lastRunAt   DateTime? @map("last_run_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator     User      @relation("ReportCreator", fields: [createdBy], references: [id])
+
+  @@map("saved_reports")
+}

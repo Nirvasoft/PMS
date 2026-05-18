@@ -1,0 +1,340 @@
+/* ─── Designer Layout ─────────────────────────────────── */
+.designer-root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  z-index: 1000;
+  /* React Flow requires the container to have an explicit height */
+}
+
+.designer-loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  z-index: 1000;
+}
+
+/* ─── Top Bar ─────────────────────────────────────────── */
+.designer-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.designer-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  transition: all 0.15s;
+}
+.designer-back:hover { background: var(--surface-elevated); color: var(--text-primary); }
+
+.designer-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.designer-title-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.designer-readonly-badge {
+  font-size: 11px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.designer-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.designer-unsaved {
+  font-size: 12px;
+  color: var(--warning);
+  font-weight: 600;
+}
+.designer-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  transition: all 0.15s;
+}
+.designer-btn:hover { background: var(--surface-hover); }
+.designer-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.designer-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.designer-btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+/* ─── Body ────────────────────────────────────────────── */
+.designer-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;   /* critical: allows flex child to shrink below content size */
+  overflow: hidden;
+}
+
+/* ─── Palette ─────────────────────────────────────────── */
+.designer-palette {
+  width: 180px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border-subtle);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+.designer-palette-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.designer-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--node-color, var(--border));
+  background: color-mix(in srgb, var(--node-color, var(--text-muted)) 12%, transparent);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.designer-palette-item:hover {
+  background: color-mix(in srgb, var(--node-color, var(--text-muted)) 25%, transparent);
+  transform: translateX(2px);
+}
+.designer-palette-icon { font-size: 16px; }
+.designer-palette-plus { margin-left: auto; color: var(--text-muted); }
+.designer-palette-hint {
+  margin-top: 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.8;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ─── Canvas ──────────────────────────────────────────── */
+.designer-canvas {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  min-height: 0;   /* critical for flex children with overflow */
+}
+
+/* React Flow overrides — theme-aware */
+.react-flow__background { background: var(--bg-primary) !important; }
+.react-flow__controls {
+  background: var(--surface) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--shadow-md) !important;
+}
+.react-flow__controls-button {
+  background: var(--surface) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+  fill: var(--text-secondary) !important;
+}
+.react-flow__controls-button:hover {
+  background: var(--surface-elevated) !important;
+}
+.react-flow__controls-button svg {
+  fill: var(--text-secondary) !important;
+}
+.react-flow__minimap {
+  border-radius: 8px !important;
+  overflow: hidden;
+  background: var(--surface) !important;
+}
+.react-flow__edge-label { font-size: 11px !important; }
+
+/* React Flow attribution */
+.react-flow__attribution {
+  background: var(--surface) !important;
+}
+.react-flow__attribution a {
+  color: var(--text-muted) !important;
+}
+
+.designer-empty-hint {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ─── Sidebar / Config Panel ──────────────────────────── */
+.designer-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border-subtle);
+  overflow-y: auto;
+}
+
+.config-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.config-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.config-panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.config-delete-btn {
+  background: transparent;
+  border: 1px solid var(--error-bg);
+  color: var(--error);
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+.config-delete-btn:hover { background: var(--error-bg); }
+
+.config-fixed-note {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.config-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  flex: 1;
+}
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.config-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.config-input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.config-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+.config-input:disabled { opacity: 0.55; cursor: not-allowed; }
+.config-textarea { resize: vertical; font-family: 'Monaco', 'Consolas', monospace; }
+.config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.config-channels { display: flex; flex-wrap: wrap; gap: 8px; }
+.config-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.config-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+.config-hint code {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.config-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.config-footer code {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.config-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 32px;
+}
+.config-empty-icon { font-size: 40px; margin-bottom: 8px; }
+.config-empty p { margin: 0; font-size: 13px; }

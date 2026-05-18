@@ -1,0 +1,96 @@
+import { prisma } from '../../../common/database';
+import { redis } from '../../../common/redis';
+import { logger } from '../../../common/logger';
+
+/**
+ * Resolves the effective permission codes for a user.
+ * Cache TTL: 5 minutes. Invalidated on role/permission/override change.
+ *
+ * Resolution order:
+ * 1. Union all permissions from all active user roles
+ * 2. Apply 'grant' overrides (add even if no role grants it)
+ * 3. Apply 'revoke' overrides (remove even if role grants it)
+ * 4. Filter out expired entries
+ */
+export class PermissionResolver {
+  async getEffectivePermissions(userId: string, propertyId?: string): Promise<string[]> {
+    const cacheKey = `perms:${userId}:${propertyId ?? 'all'}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+
+    const now = new Date();
+
+    // Step 1: Collect permissions from all user roles (including property-scoped)
+    const userRoles = await prisma.userRole.findMany({
+      where: {
+        userId,
+        OR: [
+          { propertyId: null },
+          ...(propertyId ? [{ propertyId }] : []),
+        ],
+      },
+      include: {
+        role: {
+          include: {
+            rolePermissions: {
+              include: { permission: true },
+            },
+          },
+        },
+      },
+    });
+
+    const permSet = new Set<string>();
+    for (const ur of userRoles) {
+      // Skip expired role assignments
+      if (ur.expiresAt && ur.expiresAt < now) continue;
+      if (!ur.role.isActive) continue;
+
+      for (const rp of ur.role.rolePermissions) {
+        if (rp.permission.isActive) {
+          permSet.add(rp.permission.code);
+        }
+      }
+    }
+
+    // Step 2: Apply per-user overrides
+    const overrides = await prisma.userPermissionOverride.findMany({
+      where: { userId },
+      include: { permission: true },
+    });
+
+    for (const o of overrides) {
+      // Skip expired overrides
+      if (o.expiresAt && o.expiresAt < now) continue;
+
+      if (o.overrideType === 'grant') {
+        permSet.add(o.permission.code);
+      } else if (o.overrideType === 'revoke') {
+        permSet.delete(o.permission.code);
+      }
+    }
+
+    const result = Array.from(permSet);
+    await redis.set(cacheKey, JSON.stringify(result), 'EX', 300);
+    return result;
+  }
+
+  async invalidateCache(userId: string): Promise<void> {
+    const keys = await redis.keys(`perms:${userId}:*`);
+    if (keys.length) await redis.del(...keys);
+  }
+
+  async invalidateCacheForRole(roleId: string): Promise<void> {
+    const userRoles = await prisma.userRole.findMany({
+      where: { roleId },
+      select: { userId: true },
+    });
+    const userIds = [...new Set(userRoles.map((ur) => ur.userId))];
+    for (const uid of userIds) {
+      await this.invalidateCache(uid);
+    }
+    logger.debug(`Permission cache invalidated for ${userIds.length} users (role ${roleId})`);
+  }
+}
+
+export const permissionResolver = new PermissionResolver();
