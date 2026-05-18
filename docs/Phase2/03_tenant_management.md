@@ -1,11 +1,21 @@
 # Module 2.3 — Tenant Management
 
-**Phase:** 2 — Property Structure & Leasing  
-**Stack:** Express · Prisma · PostgreSQL · Redis · React 18 · Redux Toolkit  
-**Estimated Effort:** 2 weeks (1.5 backend, 0.5 frontend)  
+**Phase:** 2 — Property Structure & Leasing
+**Stack:** Express · Prisma · PostgreSQL · Redis · React 18 · Redux Toolkit
+**Estimated Effort:** 2 weeks (1.5 backend, 0.5 frontend)
 **Depends On:** Module 1.1, 1.2, 1.3, 1.6 (Documents)
+**Status:** ✅ Implemented (2026-05-19)
+
+> **Implementation Notes:**
+> - Plain service classes used (consistent with Modules 2.1 & 2.2, not NestJS DI)
+> - Lease history returns `[]` until Module 2.4 creates the `Lease` model
+> - Default KYC requirements auto-seeded per company on first tenant creation
+> - `displayName` computed field returned from both list and detail endpoints
+> - KYC status auto-recalculated server-side after every document review
+> - Tenant merge migrates: KYC docs, emergency contacts, blacklist log, notes
 
 ---
+
 
 ## Overview
 

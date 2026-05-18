@@ -1,0 +1,46 @@
+/* Create Tenant Page */
+.create-tenant-page { padding: 24px 28px; max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+.ct-header { display: flex; align-items: center; gap: 14px; }
+.ct-header h1 { font-size: 1.4rem; font-weight: 800; margin: 0; }
+.back-btn { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-muted); font-size: 0.8rem; cursor: pointer; }
+.back-btn:hover { background: rgba(255,255,255,0.08); }
+
+.ct-type-toggle { display: flex; gap: 0; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; overflow: hidden; width: fit-content; }
+.ct-type-toggle button { display: flex; align-items: center; gap: 7px; padding: 10px 24px; background: none; border: none; color: var(--text-muted); font-size: 0.88rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+.ct-type-toggle button.active { background: #6c5ce7; color: white; }
+
+.duplicate-warning { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; background: rgba(243,156,18,0.1); border: 1px solid rgba(243,156,18,0.3); border-radius: 12px; }
+.duplicate-warning svg { color: #f39c12; flex-shrink: 0; margin-top: 2px; }
+.duplicate-warning strong { display: block; font-size: 0.88rem; color: #f39c12; }
+.duplicate-warning p { font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 8px; }
+.duplicate-warning button { padding: 5px 10px; background: rgba(243,156,18,0.2); border: none; border-radius: 6px; color: #f39c12; font-size: 0.78rem; cursor: pointer; }
+.dismiss-btn { background: none !important; padding: 0 !important; color: var(--text-muted) !important; font-size: 1.2rem !important; margin-left: auto; align-self: flex-start; }
+
+.ct-form { display: flex; flex-direction: column; gap: 16px; }
+
+.ct-section { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 18px 20px; }
+.ct-section h3 { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 0 0 14px; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 10px; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.form-field input, .form-field select {
+  padding: 9px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: var(--text-primary); font-size: 0.84rem; outline: none; transition: border-color 0.15s;
+}
+.form-field input:focus, .form-field select:focus { border-color: rgba(108,92,231,0.5); }
+.form-field select option { background: #1a1f2e; }
+
+.tags-input-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.tags-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.ct-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: rgba(108,92,231,0.15); border-radius: 5px; font-size: 0.75rem; color: #a29bfe; }
+.ct-tag button { background: none; border: none; color: inherit; cursor: pointer; font-size: 0.9rem; padding: 0; }
+.tag-input-wrap { display: flex; gap: 6px; }
+.tag-input-wrap input { flex: 1; padding: 7px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); font-size: 0.8rem; outline: none; }
+.tag-input-wrap button { padding: 7px 12px; background: rgba(108,92,231,0.2); border: none; border-radius: 8px; color: #a29bfe; font-size: 0.78rem; cursor: pointer; }
+
+.ct-notes { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); font-size: 0.84rem; outline: none; resize: vertical; box-sizing: border-box; }
+
+.ct-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
