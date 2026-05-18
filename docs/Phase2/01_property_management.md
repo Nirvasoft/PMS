@@ -1,11 +1,21 @@
 # Module 2.1 — Property Management
 
 **Phase:** 2 — Property Structure & Leasing  
-**Stack:** Express · Prisma · PostgreSQL · PostGIS · Redis · React 18 · Redux Toolkit  
+**Stack:** Express · Prisma · PostgreSQL · Redis · React 18 · Redux Toolkit · Multer  
 **Estimated Effort:** 2 weeks (1.5 backend, 0.5 frontend)  
+**Status:** ✅ Implemented  
 **Depends On:** Module 1.1, 1.2, 1.3, 1.6 (Document Management)
 
+### Implementation Notes
+- **PostGIS deferred**: No PostGIS extension required. `geoLat`/`geoLng` stored as `Decimal(9,6)`. `geo_fence` stored as JSON (polygon coords array) — upgrade to PostGIS geometry in Phase 3 if geo-queries needed.
+- **`totalAreaSqm` added**: Both `totalAreaSqm` and `totalAreaSqft` columns added.
+- **`propertyTypeId` FK**: `PropertyType` reference table added; `propertyType` string kept for fast filtering.
+- **regionId**: Properties are linked to regions via `RegionProperty` junction (existing). No direct `regionId` column — query via `regionProperties`.
+- **Photo storage**: Files saved to `server/uploads/documents/photos/{propertyId}/…` using existing StorageService. S3 migration path: swap `saveFile`/`deleteFile` with S3 SDK.
+- **Seed data**: 7 property types, 22 facility types across recreation/convenience/security/utility categories — auto-seeded at server startup.
+
 ---
+
 
 ## Table of Contents
 1. [Overview](#overview)
