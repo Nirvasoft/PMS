@@ -15,6 +15,8 @@ import {
   ArrowLeft, Building2, MapPin, Calendar, Users, Phone, Mail,
   Settings2, Globe, Clock, Star, Trash2, Plus, Upload, CheckCircle,
   AlertCircle, Wrench, ChevronRight, X, Camera, Tag,
+  Waves, Dumbbell, Flame, TreePine, Lock, Zap, Car, Coffee,
+  Wifi, Shield, ArrowUp, ShoppingBag, UtensilsCrossed, MonitorSmartphone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './PropertyDetailPage.css';
@@ -241,6 +243,35 @@ function OverviewTab({ property }: { property: any }) {
   );
 }
 
+// ── Facility helpers ─────────────────────────
+const FACILITY_ICONS: Record<string, JSX.Element> = {
+  waves:          <Waves size={18} />,
+  dumbbell:       <Dumbbell size={18} />,
+  flame:          <Flame size={18} />,
+  playground:     <TreePine size={18} />,
+  parking:        <Car size={18} />,
+  concierge:      <Coffee size={18} />,
+  meeting_room:   <Users size={18} />,
+  rooftop:        <TreePine size={18} />,
+  locker:         <Lock size={18} />,
+  ev_charging:    <Zap size={18} />,
+  cctv:           <Shield size={18} />,
+  access_control: <Lock size={18} />,
+  elevator:       <ArrowUp size={18} />,
+  laundry:        <ShoppingBag size={18} />,
+  mailroom:       <Coffee size={18} />,
+  coworking:      <MonitorSmartphone size={18} />,
+  restaurant:     <UtensilsCrossed size={18} />,
+  retail:         <ShoppingBag size={18} />,
+  wifi:           <Wifi size={18} />,
+};
+const FACILITY_CAT_COLORS: Record<string, string> = {
+  recreation:  '#6c5ce7',
+  convenience: '#0984e3',
+  security:    '#e74c3c',
+  utility:     '#00b894',
+};
+
 // ─── Facilities Tab ───────────────────────────
 function FacilitiesTab({ propertyId }: { propertyId: string }) {
   const { data } = useGetFacilitiesQuery(propertyId);
@@ -248,23 +279,42 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
   const [addFacility] = useAddFacilityMutation();
   const [removeFacility] = useRemoveFacilityMutation();
   const [adding, setAdding] = useState(false);
-  const [selectedTypeId, setSelectedTypeId] = useState('');
+  const [fForm, setFForm] = useState({
+    facilityTypeId: '', name: '', floor: '',
+    capacity: '', isBookable: false, bookingAdvanceDays: '7',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const facilities = data?.data || [];
   const facilityTypes = typesData?.data || [];
   const assigned = new Set(facilities.map((f) => f.facilityTypeId));
 
+  const resetForm = () => setFForm({ facilityTypeId: '', name: '', floor: '', capacity: '', isBookable: false, bookingAdvanceDays: '7' });
+
   const handleAdd = async () => {
-    if (!selectedTypeId) return;
+    if (!fForm.facilityTypeId) { toast.error('Please select a facility type'); return; }
+    setIsSubmitting(true);
     try {
-      await addFacility({ propertyId, data: { facilityTypeId: selectedTypeId } }).unwrap();
+      await addFacility({
+        propertyId,
+        data: {
+          facilityTypeId: fForm.facilityTypeId,
+          name:           fForm.name.trim() || undefined,
+          floor:          fForm.floor.trim() || undefined,
+          capacity:       fForm.capacity ? Number(fForm.capacity) : undefined,
+          isBookable:     fForm.isBookable,
+          bookingAdvanceDays: fForm.isBookable ? Number(fForm.bookingAdvanceDays) : undefined,
+        },
+      }).unwrap();
       toast.success('Facility added');
       setAdding(false);
-      setSelectedTypeId('');
+      resetForm();
     } catch { toast.error('Failed to add facility'); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleRemove = async (facilityId: string) => {
+    if (!confirm('Remove this facility?')) return;
     try { await removeFacility({ propertyId, facilityId }).unwrap(); toast.success('Removed'); }
     catch { toast.error('Failed to remove'); }
   };
@@ -272,20 +322,66 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
   return (
     <div className="tab-section">
       <div className="section-header">
-        <h3>Facilities & Amenities</h3>
-        <button className="btn-secondary" onClick={() => setAdding(!adding)}><Plus size={14} /> Add Facility</button>
+        <h3>Facilities &amp; Amenities</h3>
+        <button className="btn-secondary" onClick={() => { setAdding(!adding); if (adding) resetForm(); }}>
+          <Plus size={14} /> Add Facility
+        </button>
       </div>
 
       {adding && (
-        <div className="add-facility-form">
-          <select value={selectedTypeId} onChange={(e) => setSelectedTypeId(e.target.value)}>
-            <option value="">Select facility type...</option>
-            {facilityTypes.filter((t) => !assigned.has(t.id)).map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-          <button className="btn-primary" onClick={handleAdd}>Add</button>
-          <button className="btn-ghost" onClick={() => setAdding(false)}>Cancel</button>
+        <div className="rich-facility-form">
+          <div className="rff-row">
+            <div className="rff-field rff-grow">
+              <label>Facility Type *</label>
+              <select value={fForm.facilityTypeId} onChange={e => setFForm(f => ({ ...f, facilityTypeId: e.target.value }))}>
+                <option value="">Select type…</option>
+                {facilityTypes.filter(t => !assigned.has(t.id)).map(t => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.category})</option>
+                ))}
+              </select>
+            </div>
+            <div className="rff-field rff-grow">
+              <label>Display Name <span className="rff-opt">(optional override)</span></label>
+              <input
+                placeholder={facilityTypes.find(t => t.id === fForm.facilityTypeId)?.name || 'e.g. Rooftop Pool'}
+                value={fForm.name}
+                onChange={e => setFForm(f => ({ ...f, name: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="rff-row">
+            <div className="rff-field">
+              <label>Floor / Location</label>
+              <input placeholder="e.g. B1 or 30F" value={fForm.floor} onChange={e => setFForm(f => ({ ...f, floor: e.target.value }))} />
+            </div>
+            <div className="rff-field">
+              <label>Capacity <span className="rff-opt">(persons)</span></label>
+              <input type="number" min={0} placeholder="e.g. 50" value={fForm.capacity} onChange={e => setFForm(f => ({ ...f, capacity: e.target.value }))} />
+            </div>
+          </div>
+          <div className="rff-row rff-check-row">
+            <label className="rff-checkbox-label">
+              <input
+                type="checkbox"
+                checked={fForm.isBookable}
+                onChange={e => setFForm(f => ({ ...f, isBookable: e.target.checked }))}
+              />
+              <CheckCircle size={14} /> Bookable by tenants
+            </label>
+            {fForm.isBookable && (
+              <div className="rff-field">
+                <label>Advance booking (days)</label>
+                <input type="number" min={1} max={90} value={fForm.bookingAdvanceDays}
+                  onChange={e => setFForm(f => ({ ...f, bookingAdvanceDays: e.target.value }))} style={{ width: 80 }} />
+              </div>
+            )}
+          </div>
+          <div className="form-actions">
+            <button className="btn-primary" onClick={handleAdd} disabled={isSubmitting}>
+              <Plus size={14} /> {isSubmitting ? 'Adding…' : 'Add Facility'}
+            </button>
+            <button className="btn-ghost" onClick={() => { setAdding(false); resetForm(); }}>Cancel</button>
+          </div>
         </div>
       )}
 
@@ -293,23 +389,47 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
         <div className="empty-section">No facilities configured yet</div>
       ) : (
         <div className="facilities-grid">
-          {facilities.map((f) => (
-            <div key={f.id} className="facility-card">
-              <div className="facility-icon"><Wrench size={18} /></div>
-              <div className="facility-info">
-                <span className="facility-name">{f.name || f.facilityType.name}</span>
-                <span className="facility-category">{f.facilityType.category}</span>
-                {f.floor && <span className="facility-floor">Floor: {f.floor}</span>}
-                {f.isBookable && <span className="facility-bookable"><CheckCircle size={11} /> Bookable</span>}
+          {facilities.map((f) => {
+            const iconKey = f.facilityType?.icon || '';
+            const catColor = FACILITY_CAT_COLORS[f.facilityType?.category || ''] || '#6c5ce7';
+            return (
+              <div key={f.id} className="facility-card">
+                <div className="facility-icon" style={{ background: `${catColor}18`, color: catColor }}>
+                  {FACILITY_ICONS[iconKey] || <Wrench size={18} />}
+                </div>
+                <div className="facility-info">
+                  <span className="facility-name">{f.name || f.facilityType?.name}</span>
+                  <span className="facility-category">{f.facilityType?.category}</span>
+                  <div className="facility-meta">
+                    {f.floor    && <span className="facility-floor"><MapPin size={10} /> {f.floor}</span>}
+                    {f.capacity && <span className="facility-capacity"><Users size={10} /> {f.capacity} cap.</span>}
+                  </div>
+                  {f.isBookable && (
+                    <span className="facility-bookable">
+                      <CheckCircle size={11} /> Bookable · {f.bookingAdvanceDays ?? 7}d advance
+                    </span>
+                  )}
+                </div>
+                <button className="remove-btn" onClick={() => handleRemove(f.id)}><Trash2 size={14} /></button>
               </div>
-              <button className="remove-btn" onClick={() => handleRemove(f.id)}><Trash2 size={14} /></button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
+
+// ── Contact helpers ──────────────────────────
+const CONTACT_ROLES = [
+  { value: 'building_manager', label: 'Building Manager' },
+  { value: 'security',         label: 'Security' },
+  { value: 'maintenance',      label: 'Maintenance' },
+  { value: 'emergency',        label: 'Emergency' },
+  { value: 'leasing',          label: 'Leasing Agent' },
+  { value: 'other',            label: 'Other' },
+];
+const BLANK_CONTACT = { role: 'building_manager', name: '', phone: '', mobile: '', email: '', isPrimary: false };
 
 // ─── Contacts Tab ─────────────────────────────
 function ContactsTab({ propertyId }: { propertyId: string }) {
@@ -317,45 +437,71 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
   const [addContact] = useAddContactMutation();
   const [removeContact] = useRemoveContactMutation();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ role: 'building_manager', name: '', phone: '', mobile: '', email: '', isPrimary: false });
+  const [form, setForm] = useState({ ...BLANK_CONTACT });
+  const [isAdding, setIsAdding] = useState(false);
+  const [isRemoving, setIsRemoving] = useState<string | null>(null);
 
   const contacts = data?.data || [];
 
   const handleAdd = async () => {
-    if (!form.name) return;
+    if (!form.name.trim()) { toast.error('Name is required'); return; }
+    setIsAdding(true);
     try {
-      await addContact({ propertyId, data: form }).unwrap();
+      await addContact({ propertyId, data: { ...form, name: form.name.trim() } }).unwrap();
       toast.success('Contact added');
       setShowForm(false);
-      setForm({ role: 'building_manager', name: '', phone: '', mobile: '', email: '', isPrimary: false });
+      setForm({ ...BLANK_CONTACT });
     } catch { toast.error('Failed to add contact'); }
+    finally { setIsAdding(false); }
+  };
+
+  const handleRemove = async (contactId: string) => {
+    if (!confirm('Remove this contact?')) return;
+    setIsRemoving(contactId);
+    try { await removeContact({ propertyId, contactId }).unwrap(); toast.success('Removed'); }
+    catch { toast.error('Failed'); }
+    finally { setIsRemoving(null); }
   };
 
   return (
     <div className="tab-section">
       <div className="section-header">
         <h3>Key Contacts</h3>
-        <button className="btn-secondary" onClick={() => setShowForm(!showForm)}><Plus size={14} /> Add Contact</button>
+        <button className="btn-secondary" onClick={() => { setShowForm(!showForm); setForm({ ...BLANK_CONTACT }); }}>
+          <Plus size={14} /> Add Contact
+        </button>
       </div>
 
       {showForm && (
         <div className="contact-form">
+          {/* Row 1: Role + Name */}
           <div className="form-row">
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-              <option value="building_manager">Building Manager</option>
-              <option value="security">Security</option>
-              <option value="maintenance">Maintenance</option>
-              <option value="emergency">Emergency</option>
+            <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
+              {CONTACT_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
-            <input placeholder="Full Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <input placeholder="Full Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           </div>
+          {/* Row 2: Phone + Mobile + Email */}
           <div className="form-row">
-            <input placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-            <input placeholder="Mobile" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
-            <input placeholder="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <input placeholder="Phone" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+            <input placeholder="Mobile" value={form.mobile} onChange={e => setForm({ ...form, mobile: e.target.value })} />
+            <input placeholder="Email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+          </div>
+          {/* Row 3: isPrimary */}
+          <div className="form-row form-check-row">
+            <label className="contact-primary-label">
+              <input
+                type="checkbox"
+                checked={form.isPrimary}
+                onChange={e => setForm({ ...form, isPrimary: e.target.checked })}
+              />
+              <Star size={13} /> Mark as primary contact
+            </label>
           </div>
           <div className="form-actions">
-            <button className="btn-primary" onClick={handleAdd}>Save Contact</button>
+            <button className="btn-primary" onClick={handleAdd} disabled={isAdding}>
+              {isAdding ? 'Saving…' : 'Save Contact'}
+            </button>
             <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
           </div>
         </div>
@@ -367,16 +513,25 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
             {contacts.map((c) => (
               <div key={c.id} className="contact-card">
                 {c.isPrimary && <span className="primary-badge"><Star size={11} /> Primary</span>}
-                <div className="contact-role">{c.role.replace(/_/g, ' ')}</div>
-                <div className="contact-name">{c.name}</div>
-                <div className="contact-details">
-                  {c.phone && <span><Phone size={12} /> {c.phone}</span>}
-                  {c.email && <span><Mail size={12} /> {c.email}</span>}
+                <div className="contact-avatar" style={{ background: c.isPrimary ? 'rgba(243,156,18,0.15)' : 'rgba(108,92,231,0.12)', color: c.isPrimary ? '#f39c12' : '#6c5ce7' }}>
+                  {c.name.charAt(0).toUpperCase()}
                 </div>
-                <button className="remove-btn" onClick={async () => {
-                  try { await removeContact({ propertyId, contactId: c.id }).unwrap(); toast.success('Removed'); }
-                  catch { toast.error('Failed'); }
-                }}><Trash2 size={14} /></button>
+                <div className="contact-body">
+                  <div className="contact-role">{CONTACT_ROLES.find(r => r.value === c.role)?.label || c.role.replace(/_/g, ' ')}</div>
+                  <div className="contact-name">{c.name}</div>
+                  <div className="contact-details">
+                    {c.phone  && <span><Phone size={12} /> {c.phone}</span>}
+                    {c.mobile && <span><Phone size={12} /> {c.mobile} <span className="contact-tag">mob</span></span>}
+                    {c.email  && <span><Mail size={12} /> {c.email}</span>}
+                  </div>
+                </div>
+                <button
+                  className="remove-btn"
+                  disabled={isRemoving === c.id}
+                  onClick={() => handleRemove(c.id)}
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
             ))}
           </div>
