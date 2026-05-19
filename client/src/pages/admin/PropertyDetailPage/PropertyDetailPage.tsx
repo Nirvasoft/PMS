@@ -6,7 +6,7 @@ import {
   useGetFacilitiesQuery, useGetContactsQuery,
   useSetCoverPhotoMutation, useDeletePhotoMutation,
   useAddFacilityMutation, useRemoveFacilityMutation,
-  useAddContactMutation, useRemoveContactMutation,
+  useAddContactMutation, useRemoveContactMutation, useUpdateContactMutation,
   useGetFacilityTypesQuery, useUploadPhotosMutation,
   useUpdatePropertyMutation,
 } from '../../../store/api/propertiesApi';
@@ -14,7 +14,7 @@ import UnitsTab from './UnitsTab';
 import {
   ArrowLeft, Building2, MapPin, Calendar, Users, Phone, Mail,
   Settings2, Globe, Clock, Star, Trash2, Plus, Upload, CheckCircle,
-  AlertCircle, Wrench, ChevronRight, X, Camera, Tag,
+  AlertCircle, Wrench, ChevronRight, X, Camera, Tag, Edit3,
   Waves, Dumbbell, Flame, TreePine, Lock, Zap, Car, Coffee,
   Wifi, Shield, ArrowUp, ShoppingBag, UtensilsCrossed, MonitorSmartphone,
 } from 'lucide-react';
@@ -435,24 +435,38 @@ const BLANK_CONTACT = { role: 'building_manager', name: '', phone: '', mobile: '
 function ContactsTab({ propertyId }: { propertyId: string }) {
   const { data } = useGetContactsQuery(propertyId);
   const [addContact] = useAddContactMutation();
+  const [updateContact] = useUpdateContactMutation();
   const [removeContact] = useRemoveContactMutation();
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...BLANK_CONTACT });
   const [isAdding, setIsAdding] = useState(false);
   const [isRemoving, setIsRemoving] = useState<string | null>(null);
 
   const contacts = data?.data || [];
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Name is required'); return; }
     setIsAdding(true);
     try {
-      await addContact({ propertyId, data: { ...form, name: form.name.trim() } }).unwrap();
-      toast.success('Contact added');
+      if (editingId) {
+        await updateContact({ propertyId, contactId: editingId, data: { ...form, name: form.name.trim() } }).unwrap();
+        toast.success('Contact updated');
+      } else {
+        await addContact({ propertyId, data: { ...form, name: form.name.trim() } }).unwrap();
+        toast.success('Contact added');
+      }
       setShowForm(false);
+      setEditingId(null);
       setForm({ ...BLANK_CONTACT });
-    } catch { toast.error('Failed to add contact'); }
+    } catch { toast.error('Failed to save contact'); }
     finally { setIsAdding(false); }
+  };
+
+  const handleEdit = (c: typeof contacts[0]) => {
+    setEditingId(c.id);
+    setForm({ role: c.role, name: c.name, phone: c.phone || '', mobile: c.mobile || '', email: c.email || '', isPrimary: c.isPrimary });
+    setShowForm(true);
   };
 
   const handleRemove = async (contactId: string) => {
@@ -467,13 +481,14 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
     <div className="tab-section">
       <div className="section-header">
         <h3>Key Contacts</h3>
-        <button className="btn-secondary" onClick={() => { setShowForm(!showForm); setForm({ ...BLANK_CONTACT }); }}>
-          <Plus size={14} /> Add Contact
+        <button className="btn-secondary" onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...BLANK_CONTACT }); }}>
+          <Plus size={14} /> {showForm ? 'Cancel' : 'Add Contact'}
         </button>
       </div>
 
       {showForm && (
         <div className="contact-form">
+          <div className="contact-form-title">{editingId ? 'Edit Contact' : 'New Contact'}</div>
           {/* Row 1: Role + Name */}
           <div className="form-row">
             <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
@@ -490,19 +505,15 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
           {/* Row 3: isPrimary */}
           <div className="form-row form-check-row">
             <label className="contact-primary-label">
-              <input
-                type="checkbox"
-                checked={form.isPrimary}
-                onChange={e => setForm({ ...form, isPrimary: e.target.checked })}
-              />
+              <input type="checkbox" checked={form.isPrimary} onChange={e => setForm({ ...form, isPrimary: e.target.checked })} />
               <Star size={13} /> Mark as primary contact
             </label>
           </div>
           <div className="form-actions">
-            <button className="btn-primary" onClick={handleAdd} disabled={isAdding}>
-              {isAdding ? 'Saving…' : 'Save Contact'}
+            <button className="btn-primary" onClick={handleSave} disabled={isAdding}>
+              {isAdding ? 'Saving…' : editingId ? 'Update Contact' : 'Save Contact'}
             </button>
-            <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn-ghost" onClick={() => { setShowForm(false); setEditingId(null); }}>Cancel</button>
           </div>
         </div>
       )}
@@ -525,13 +536,10 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
                     {c.email  && <span><Mail size={12} /> {c.email}</span>}
                   </div>
                 </div>
-                <button
-                  className="remove-btn"
-                  disabled={isRemoving === c.id}
-                  onClick={() => handleRemove(c.id)}
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="contact-card-actions">
+                  <button className="edit-btn" title="Edit" onClick={() => handleEdit(c)}><Edit3 size={14} /></button>
+                  <button className="remove-btn" disabled={isRemoving === c.id} onClick={() => handleRemove(c.id)}><Trash2 size={14} /></button>
+                </div>
               </div>
             ))}
           </div>
@@ -548,7 +556,10 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
   const [deletePhoto] = useDeletePhotoMutation();
   const [lightbox, setLightbox] = useState<string | null>(null);
 
-  const photos = data?.data || [];
+  const photos = [...(data?.data || [])].sort((a, b) => {
+    if (a.isCover !== b.isCover) return a.isCover ? -1 : 1;
+    return a.sortOrder - b.sortOrder;
+  });
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

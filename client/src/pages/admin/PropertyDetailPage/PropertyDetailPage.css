@@ -795,11 +795,32 @@
 }
 [data-theme="light"] .rff-field select option { background: #ffffff; }
 
-/* ─── Remove button ──────────────────────────── */
+/* ─── Contact card actions ────────────────────── */
+.contact-card-actions {
+  position: absolute; top: 8px; right: 8px;
+  display: flex; gap: 4px;
+  opacity: 0; transition: opacity 0.15s;
+}
+.contact-card:hover .contact-card-actions { opacity: 1; }
+
+.contact-form-title {
+  font-size: .78rem; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px;
+}
+
+/* ─── Edit / Remove buttons ──────────────────── */
+.edit-btn {
+  width: 28px; height: 28px;
+  background: rgba(108,92,231,0.1); border: none; border-radius: 6px;
+  color: #6c5ce7; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.edit-btn:hover { background: rgba(108,92,231,0.2); }
+
 .remove-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  position: relative;
+  top: auto; right: auto;
   width: 28px;
   height: 28px;
   background: rgba(231,76,60,0.1);
@@ -810,12 +831,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.15s;
+  opacity: 1;
+  transition: background 0.15s;
 }
+.remove-btn:hover { background: rgba(231,76,60,0.2); }
 
-.facility-card:hover .remove-btn,
-.contact-card:hover .remove-btn { opacity: 1; }
+/* Facility card still uses absolute positioned remove */
+.facility-card .remove-btn {
+  position: absolute; top: 8px; right: 8px; opacity: 0;
+}
+.facility-card:hover .remove-btn { opacity: 1; }
 
 /* ─── Modal ──────────────────────────────────── */
 .modal-overlay {
@@ -1097,11 +1122,16 @@
   color: var(--text-primary);
 }
 
-/* Remove button (hovers on cards) */
+/* Remove / Edit buttons (hovers on cards) */
 [data-theme="light"] .remove-btn {
   background: rgba(220,38,38,0.08);
   color: #dc2626;
 }
+[data-theme="light"] .edit-btn {
+  background: rgba(108,92,231,0.08);
+  color: #6c5ce7;
+}
+[data-theme="light"] .edit-btn:hover { background: rgba(108,92,231,0.15); }
 
 /* ── Modal ── */
 [data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.35); }
