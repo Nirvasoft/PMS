@@ -131,3 +131,44 @@
   .bulk-body { grid-template-columns: 1fr; }
   .bulk-preview { border-top: 1px solid rgba(255,255,255,0.06); }
 }
+
+/* ═══════════════════════════════════════════════
+   LIGHT MODE — Bulk Create Modal
+   ═══════════════════════════════════════════════ */
+[data-theme="light"] .bulk-modal {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.1);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+}
+[data-theme="light"] .bulk-form {
+  border-right-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .form-field select,
+[data-theme="light"] .form-field input {
+  background: #ffffff;
+  border-color: #d1e6d9;
+}
+[data-theme="light"] .form-field select:focus,
+[data-theme="light"] .form-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] .form-field optgroup,
+[data-theme="light"] .form-field option {
+  background: #ffffff;
+}
+[data-theme="light"] .total-summary {
+  background: rgba(108,92,231,0.06);
+  border-color: rgba(108,92,231,0.15);
+  color: #6c5ce7;
+}
+[data-theme="light"] .preview-cell {
+  background: rgba(108,92,231,0.06);
+  border-color: rgba(108,92,231,0.15);
+  color: #6c5ce7;
+}
+@media (max-width: 600px) {
+  [data-theme="light"] .bulk-preview {
+    border-top-color: rgba(0,0,0,0.07);
+  }
+}

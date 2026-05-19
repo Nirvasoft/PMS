@@ -207,3 +207,111 @@
 .history-change-sm { display: flex; gap: 5px; font-size: 0.8rem; font-weight: 500; text-transform: capitalize; }
 .history-reason-sm { font-size: 0.72rem; color: var(--text-muted); font-style: italic; margin-top: 1px; }
 .history-meta-sm { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════
+   LIGHT MODE — Unit Detail Drawer
+   ═══════════════════════════════════════════════ */
+[data-theme="light"] .unit-drawer {
+  background: #ffffff;
+  border-left: 1px solid rgba(0,0,0,0.08);
+  box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+}
+
+[data-theme="light"] .drawer-header {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+
+[data-theme="light"] .status-transition-bar {
+  border-bottom-color: rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] .drawer-tabs {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+
+[data-theme="light"] .drawer-tabs button {
+  color: var(--text-muted);
+}
+[data-theme="light"] .drawer-tabs button.active {
+  color: #6c5ce7;
+  border-bottom-color: #6c5ce7;
+}
+
+[data-theme="light"] .info-section h5 {
+  border-bottom-color: rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] .info-item {
+  background: rgba(0,0,0,0.025);
+}
+
+[data-theme="light"] .amenity-tag {
+  background: rgba(108,92,231,0.08);
+  color: #6c5ce7;
+}
+
+/* Meters */
+[data-theme="light"] .btn-add-meter {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.1);
+}
+[data-theme="light"] .btn-add-meter:hover {
+  background: rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] .meter-form {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .meter-form select,
+[data-theme="light"] .meter-form input {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .meter-form select:focus,
+[data-theme="light"] .meter-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+[data-theme="light"] .btn-ghost-sm {
+  border-color: rgba(0,0,0,0.1);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .btn-ghost-sm:hover {
+  background: rgba(0,0,0,0.04);
+}
+
+[data-theme="light"] .meter-card {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .meter-card:hover {
+  border-color: rgba(0,0,0,0.12);
+}
+[data-theme="light"] .meter-icon {
+  background: rgba(108,92,231,0.1);
+}
+
+[data-theme="light"] .meter-delete {
+  background: rgba(239,68,68,0.08);
+}
+
+/* History */
+[data-theme="light"] .drawer-history::before {
+  background: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .history-dot-sm {
+  border-color: rgba(255,255,255,0.8);
+}
+
+[data-theme="light"] .smart-badge {
+  background: rgba(16,185,129,0.1);
+  color: #059669;
+}
+
+/* Drawer overlay */
+[data-theme="light"] .drawer-overlay {
+  background: rgba(0,0,0,0.15);
+}
