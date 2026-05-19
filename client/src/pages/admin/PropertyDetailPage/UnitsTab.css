@@ -576,3 +576,114 @@
   background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1);
 }
 
+
+/* ═══════════════════════════════════════════════
+   LIGHT MODE — Units Tab
+   ═══════════════════════════════════════════════ */
+
+[data-theme="light"] .unit-stats-bar {
+  background: rgba(0,0,0,0.02);
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .unit-stat {
+  border-right-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .tower-sidebar {
+  border-right-color: rgba(0,0,0,0.07);
+  background: rgba(0,0,0,0.01);
+}
+[data-theme="light"] .tower-sidebar-header {
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .tower-item:hover {
+  background: rgba(0,0,0,0.04);
+  color: var(--text-primary);
+}
+[data-theme="light"] .tower-item.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+/* Toolbar */
+[data-theme="light"] .ug-toolbar {
+  background: var(--surface);
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .ug-search {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.09);
+}
+[data-theme="light"] .ug-search input {
+  color: var(--text-primary);
+  background: transparent;
+}
+[data-theme="light"] .ug-search input::placeholder { color: var(--text-muted); }
+[data-theme="light"] .ug-filter-btn,
+[data-theme="light"] .zoom-toggle button,
+[data-theme="light"] .view-toggle button,
+[data-theme="light"] .btn-bulk {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.09);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .ug-filter-btn:hover,
+[data-theme="light"] .zoom-toggle button:hover,
+[data-theme="light"] .view-toggle button:hover,
+[data-theme="light"] .btn-bulk:hover {
+  background: rgba(0,0,0,0.07);
+  color: var(--text-primary);
+}
+[data-theme="light"] .zoom-toggle button.active,
+[data-theme="light"] .view-toggle button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* Unit header / list */
+[data-theme="light"] .unit-header-row {
+  background: rgba(0,0,0,0.02);
+  border-bottom-color: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .ul-header {
+  background: rgba(0,0,0,0.03);
+  border-bottom-color: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .ul-row {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .ul-row:hover {
+  background: rgba(0,0,0,0.03);
+}
+[data-theme="light"] .unit-col-header {
+  color: rgba(0,0,0,0.3);
+}
+[data-theme="light"] .floor-header {
+  background: rgba(0,0,0,0.03);
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+
+/* Unit grid cards */
+[data-theme="light"] .ug-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .ug-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+[data-theme="light"] .ug-body {
+  background: rgba(0,0,0,0.01);
+}
+
+/* Stat cards at the bottom */
+[data-theme="light"] .ug-stat-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .meter-icon {
+  background: rgba(0,0,0,0.06);
+}
+

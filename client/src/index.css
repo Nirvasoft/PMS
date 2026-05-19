@@ -3315,3 +3315,268 @@ select.input-full:focus {
   background: linear-gradient(135deg, #eef0ef 0%, #e4e8e6 100%);
   color: rgba(0,0,0,0.2);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   LIGHT MODE — Users / Roles / Departments / Positions / Units
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── modal-card (used by Create User, Create Role, etc.) ── */
+[data-theme="light"] .modal-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+[data-theme="light"] .modal-header {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .modal-actions {
+  border-top-color: rgba(0,0,0,0.07);
+}
+
+/* ── input.input-full & select.input-full inside modals ── */
+[data-theme="light"] .modal-card input.input-full,
+[data-theme="light"] .modal-card select.input-full,
+[data-theme="light"] .modal-card .form-group input,
+[data-theme="light"] .modal-card .form-group select,
+[data-theme="light"] .modal-card .form-group textarea {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .modal-card input.input-full:focus,
+[data-theme="light"] .modal-card select.input-full:focus,
+[data-theme="light"] .modal-card .form-group input:focus,
+[data-theme="light"] .modal-card .form-group select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] .modal-card select.input-full option,
+[data-theme="light"] .modal-card .form-group select option {
+  background: #ffffff;
+  color: var(--text-primary);
+}
+[data-theme="light"] .modal-card .form-group label {
+  color: var(--text-secondary);
+}
+
+/* ── Roles page cards ── */
+[data-theme="light"] .role-card-full {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .role-card-full:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+[data-theme="light"] .role-card-footer {
+  border-top-color: rgba(0,0,0,0.06);
+}
+
+/* ── Permission matrix ── */
+[data-theme="light"] .perm-matrix {
+  border-color: rgba(0,0,0,0.08);
+  background: var(--surface);
+}
+[data-theme="light"] .perm-module-header:hover {
+  background: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .perm-item {
+  border-color: rgba(0,0,0,0.09);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .perm-item:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+[data-theme="light"] .perm-item.selected {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Department tree ── */
+[data-theme="light"] .dept-tree {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .dept-node-content:hover {
+  background: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .dept-children {
+  border-left-color: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .dept-actions .btn-icon:hover {
+  background: rgba(0,0,0,0.06);
+  color: var(--text-primary);
+}
+
+/* ── Users toolbar search ── */
+[data-theme="light"] .users-search-input {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .users-search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] .users-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── Filter pills ── */
+[data-theme="light"] .filter-pill {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-secondary);
+}
+[data-theme="light"] .filter-pill:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+[data-theme="light"] .filter-pill.active {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Users count badge ── */
+[data-theme="light"] .users-count-badge {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.09);
+}
+
+/* ── User audit table ── */
+[data-theme="light"] .audit-table-container {
+  border-color: rgba(0,0,0,0.08);
+  background: var(--surface);
+}
+[data-theme="light"] .audit-table th {
+  background: rgba(0,0,0,0.03);
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .audit-table td {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .audit-table tr:hover td {
+  background: rgba(0,0,0,0.03);
+}
+
+/* ── Pagination (generic) ── */
+[data-theme="light"] .pagination button {
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.09);
+  color: var(--text-primary);
+}
+[data-theme="light"] .pagination button:hover:not(:disabled) {
+  background: rgba(0,0,0,0.07);
+}
+
+/* ── General toolbar search-box (used across pages) ── */
+[data-theme="light"] .toolbar .search-box input {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+
+/* ── Page-level stat cards ── */
+[data-theme="light"] .stat-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .stat-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+
+/* ── Tabs (generic .tabs/.tab used in UserDetailPage) ── */
+[data-theme="light"] .tabs {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .tab {
+  color: var(--text-muted);
+}
+[data-theme="light"] .tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Units tab — all dark-only rgba(255,255,255,...) ── */
+[data-theme="light"] .ug-toolbar {
+  background: var(--surface);
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .tower-panel {
+  border-right-color: rgba(0,0,0,0.07);
+  background: rgba(0,0,0,0.02);
+}
+[data-theme="light"] .tower-item {
+  color: var(--text-secondary);
+}
+[data-theme="light"] .tower-item:hover {
+  background: rgba(0,0,0,0.04);
+  color: var(--text-primary);
+}
+[data-theme="light"] .tower-item.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+[data-theme="light"] .unit-header-row {
+  border-bottom-color: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .ug-filter-btn,
+[data-theme="light"] .zoom-toggle button,
+[data-theme="light"] .view-toggle button,
+[data-theme="light"] .btn-bulk {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.09);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .ug-filter-btn:hover,
+[data-theme="light"] .zoom-toggle button:hover,
+[data-theme="light"] .view-toggle button:hover,
+[data-theme="light"] .btn-bulk:hover {
+  background: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .ug-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .ug-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+[data-theme="light"] .ul-header {
+  border-bottom-color: rgba(0,0,0,0.06);
+  background: rgba(0,0,0,0.02);
+}
+[data-theme="light"] .ul-row {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .ul-row:hover {
+  background: rgba(0,0,0,0.02);
+}
+[data-theme="light"] .ug-stat-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .meter-icon {
+  background: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .floor-header {
+  background: rgba(0,0,0,0.03);
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .unit-col-header {
+  color: rgba(0,0,0,0.35);
+}
+
+/* ── New unit / bulk create modals ── */
+[data-theme="light"] .cu-overlay {
+  background: rgba(0,0,0,0.35);
+}
+
