@@ -14,6 +14,7 @@ import RolesPage from './pages/admin/RolesPage/RolesPage';
 import DepartmentsPage from './pages/admin/DepartmentsPage/DepartmentsPage';
 import CompanyPage from './pages/admin/CompanyPage/CompanyPage';
 import PropertiesPage from './pages/admin/PropertiesPage/PropertiesPage';
+import CreatePropertyPage from './pages/admin/PropertiesPage/CreatePropertyPage';
 import PropertyDetailPage from './pages/admin/PropertyDetailPage/PropertyDetailPage';
 import TenantListPage from './pages/admin/TenantsPage/TenantListPage';
 import TenantDetailPage from './pages/admin/TenantsPage/TenantDetailPage';
@@ -93,6 +94,7 @@ function AppRoutes() {
           <Route path="/admin/departments" element={<DepartmentsPage />} />
           <Route path="/admin/company" element={<CompanyPage />} />
           <Route path="/admin/properties" element={<PropertiesPage />} />
+          <Route path="/admin/properties/create" element={<CreatePropertyPage />} />
           <Route path="/admin/properties/:id" element={<PropertyDetailPage />} />
           <Route path="/admin/tenants" element={<TenantListPage />} />
           <Route path="/admin/tenants/new" element={<CreateTenantPage />} />
