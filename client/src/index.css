@@ -3162,3 +3162,124 @@ select.input-full:focus {
   color: #b45309;
 }
 
+/* ── Properties page — image placeholder & skeleton ─────────────── */
+
+/* Card image area background (shows when no cover photo) */
+[data-theme="light"] .card-image {
+  background: linear-gradient(135deg, #e8f0ed 0%, #d5e6de 100%);
+}
+
+/* Placeholder icon — was rgba(255,255,255,0.1) → invisible on light */
+[data-theme="light"] .image-placeholder {
+  color: rgba(0,0,0,0.18);
+  background: linear-gradient(135deg, #edf4f0 0%, #daeae2 100%);
+}
+
+/* Skeleton loading shimmer — was white-on-white, now grey shimmer */
+[data-theme="light"] .property-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0,0,0,0.04) 25%,
+    rgba(0,0,0,0.08) 50%,
+    rgba(0,0,0,0.04) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* Property card itself */
+[data-theme="light"] .property-card {
+  background: #ffffff;
+  border-color: #dde8e3;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+[data-theme="light"] .property-card:hover {
+  border-color: rgba(108,92,231,0.35);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+
+/* Occupancy bar track */
+[data-theme="light"] .occupancy-bar {
+  background: rgba(0,0,0,0.08);
+}
+
+/* List view rows */
+[data-theme="light"] .list-row:hover {
+  background: rgba(0,0,0,0.03);
+}
+[data-theme="light"] .row-avatar {
+  background: rgba(0,0,0,0.06);
+}
+
+/* Toolbar search & filters */
+[data-theme="light"] .search-box {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.09);
+}
+[data-theme="light"] .filter-bar select {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.09);
+  color: var(--text-primary);
+}
+[data-theme="light"] .filter-bar select option {
+  background: #fff;
+}
+
+/* View toggle */
+[data-theme="light"] .view-toggle {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.09);
+}
+[data-theme="light"] .view-toggle button {
+  color: var(--text-muted);
+}
+
+/* Header & toolbar dividers */
+[data-theme="light"] .properties-header {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .properties-toolbar {
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+
+/* Card menu popup */
+[data-theme="light"] .card-menu {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.1);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+[data-theme="light"] .card-menu button {
+  color: var(--text-primary);
+}
+[data-theme="light"] .card-menu button:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+/* Row action buttons */
+[data-theme="light"] .row-actions button {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .row-actions button:hover {
+  background: rgba(0,0,0,0.07);
+}
+
+/* Secondary & ghost buttons */
+[data-theme="light"] .btn-secondary {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.1);
+  color: var(--text-primary);
+}
+[data-theme="light"] .btn-secondary:hover {
+  background: rgba(0,0,0,0.07);
+}
+
+/* Pagination */
+[data-theme="light"] .properties-page .pagination button {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.09);
+}
+[data-theme="light"] .properties-page .pagination button:not(:disabled):hover {
+  background: rgba(0,0,0,0.07);
+}
+
+
