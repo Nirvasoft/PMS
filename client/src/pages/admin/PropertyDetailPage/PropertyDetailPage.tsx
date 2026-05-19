@@ -8,6 +8,7 @@ import {
   useAddFacilityMutation, useRemoveFacilityMutation,
   useAddContactMutation, useRemoveContactMutation,
   useGetFacilityTypesQuery, useUploadPhotosMutation,
+  useUpdatePropertyMutation,
 } from '../../../store/api/propertiesApi';
 import UnitsTab from './UnitsTab';
 import {
@@ -490,17 +491,137 @@ function HistoryTab({ propertyId }: { propertyId: string }) {
 }
 
 // ─── Settings Tab ─────────────────────────────
+const BILLING_CYCLES = [
+  { value: 'monthly',     label: 'Monthly' },
+  { value: 'quarterly',   label: 'Quarterly' },
+  { value: 'semi_annual', label: 'Semi-Annual' },
+  { value: 'annual',      label: 'Annual' },
+];
+const CURRENCIES = ['USD','SGD','EUR','GBP','AED','THB','MMK','JPY','CNY','INR','AUD'];
+const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Paris','Asia/Singapore','Asia/Tokyo','Asia/Bangkok','Asia/Yangon','Asia/Dubai','Australia/Sydney'];
+
 function SettingsTab({ property }: { property: any }) {
+  const [updateProperty, { isLoading }] = useUpdatePropertyMutation();
+  const [form, setForm] = useState({
+    billingCycle: property.billingCycle || 'monthly',
+    billingDay:   String(property.billingDay || 1),
+    currency:     property.currency || 'USD',
+    timezone:     property.timezone || 'UTC',
+  });
+  const [saved, setSaved] = useState(false);
+
+  const set = (k: keyof typeof form, v: string) => { setForm(f => ({ ...f, [k]: v })); setSaved(false); };
+
+  const handleSave = async () => {
+    const day = Number(form.billingDay);
+    if (isNaN(day) || day < 1 || day > 28) {
+      toast.error('Billing day must be between 1 and 28');
+      return;
+    }
+    try {
+      await updateProperty({
+        id: property.id,
+        data: {
+          billingCycle: form.billingCycle,
+          billingDay:   day,
+          currency:     form.currency,
+          timezone:     form.timezone,
+        },
+      }).unwrap();
+      toast.success('Settings saved');
+      setSaved(true);
+    } catch (e: any) {
+      toast.error(e?.data?.message || 'Failed to save settings');
+    }
+  };
+
   return (
     <div className="tab-section settings-tab">
-      <h3>Property Settings</h3>
-      <div className="settings-grid">
-        <div className="setting-row"><span className="setting-label">Billing Cycle</span><span className="capitalize">{property.billingCycle}</span></div>
-        <div className="setting-row"><span className="setting-label">Billing Day</span><span>{property.billingDay}</span></div>
-        <div className="setting-row"><span className="setting-label">Currency</span><span>{property.currency}</span></div>
-        <div className="setting-row"><span className="setting-label">Timezone</span><span>{property.timezone}</span></div>
+      <div className="section-header">
+        <h3>Property Settings</h3>
+        <button
+          className="btn-primary"
+          onClick={handleSave}
+          disabled={isLoading}
+          style={{ gap: 6 }}
+        >
+          {isLoading ? 'Saving…' : saved ? '✓ Saved' : 'Save Changes'}
+        </button>
       </div>
-      <p className="settings-note">Full settings editor coming in Phase 2.3</p>
+
+      <div className="settings-form">
+        {/* Billing Cycle */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <Calendar size={14} /> Billing Cycle
+          </label>
+          <div className="settings-field-desc">How often invoices are generated for this property</div>
+          <select
+            className="settings-select"
+            value={form.billingCycle}
+            onChange={e => set('billingCycle', e.target.value)}
+          >
+            {BILLING_CYCLES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </div>
+
+        {/* Billing Day */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <Calendar size={14} /> Billing Day
+          </label>
+          <div className="settings-field-desc">Day of the month invoices are issued (1–28)</div>
+          <input
+            type="number"
+            className="settings-input"
+            min={1} max={28}
+            value={form.billingDay}
+            onChange={e => set('billingDay', e.target.value)}
+          />
+        </div>
+
+        {/* Currency */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <Globe size={14} /> Currency
+          </label>
+          <div className="settings-field-desc">Default currency for rent and billing amounts</div>
+          <select
+            className="settings-select"
+            value={form.currency}
+            onChange={e => set('currency', e.target.value)}
+          >
+            {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        {/* Timezone */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <Clock size={14} /> Timezone
+          </label>
+          <div className="settings-field-desc">Used for invoice dates and lease expiry calculations</div>
+          <select
+            className="settings-select"
+            value={form.timezone}
+            onChange={e => set('timezone', e.target.value)}
+          >
+            {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Current values summary */}
+      <div className="settings-summary">
+        <div className="settings-summary-title">Current Settings</div>
+        <div className="settings-grid">
+          <div className="setting-row"><span className="setting-label">Billing Cycle</span><span className="capitalize">{property.billingCycle}</span></div>
+          <div className="setting-row"><span className="setting-label">Billing Day</span><span>{property.billingDay}</span></div>
+          <div className="setting-row"><span className="setting-label">Currency</span><span>{property.currency}</span></div>
+          <div className="setting-row"><span className="setting-label">Timezone</span><span>{property.timezone}</span></div>
+        </div>
+        <p className="settings-note">Changes take effect on the next billing cycle.</p>
+      </div>
     </div>
   );
 }

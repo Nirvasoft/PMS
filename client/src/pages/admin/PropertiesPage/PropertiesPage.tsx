@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  useGetPropertiesQuery, useDeletePropertyMutation,
+  useGetPropertiesQuery, useDeletePropertyMutation, useGetPropertyStatsQuery,
 } from '../../../store/api/propertiesApi';
 import type { PropertyListItem } from '../../../store/api/propertiesApi';
 import { useAppSelector, useAppDispatch } from '../../../store';
@@ -18,6 +18,13 @@ const STATUS_COLORS: Record<string, string> = {
   under_renovation: '#f39c12',
   decommissioned: '#e74c3c',
 };
+
+/** Returns bar colour based on occupancy % thresholds from spec */
+function occupancyColor(rate: number): string {
+  if (rate >= 90) return '#2ecc71'; // green
+  if (rate >= 70) return '#f39c12'; // yellow-orange
+  return '#e74c3c';                 // red
+}
 
 const TYPE_ICONS: Record<string, JSX.Element> = {
   residential: <Home size={14} />,
@@ -170,6 +177,13 @@ function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onDelete }: {
   property: PropertyListItem; menuOpen: boolean;
   onMenuOpen: () => void; onView: () => void; onDelete: () => void;
 }) {
+  const { data: statsData } = useGetPropertyStatsQuery(p.id);
+  const stats = statsData?.data;
+  const rate  = stats?.occupancyRate ?? 0;
+  const occupied = stats?.occupiedUnits ?? 0;
+  const total    = stats?.totalUnits ?? p.totalUnits;
+  const barColor = occupancyColor(rate);
+
   return (
     <div className="property-card" onClick={onView}>
       <div className="card-image">
@@ -197,8 +211,21 @@ function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onDelete }: {
         {(p.city || p.country) && (
           <div className="card-location"><MapPin size={12} /><span>{[p.city, p.country].filter(Boolean).join(', ')}</span></div>
         )}
-        <div className="occupancy-bar"><div className="bar-fill" style={{ width: '0%', background: '#6c5ce7' }} /></div>
-        <div className="card-stats"><span>{p.totalUnits} units</span><span className="occupancy-pct">0% occupied</span></div>
+        <div
+          className="occupancy-bar"
+          title={total > 0 ? `${occupied} / ${total} units occupied` : `${total} units`}
+        >
+          <div
+            className="bar-fill"
+            style={{ width: `${rate}%`, background: barColor }}
+          />
+        </div>
+        <div className="card-stats">
+          <span>{total} units</span>
+          <span className="occupancy-pct" style={{ color: total > 0 ? barColor : undefined }}>
+            {rate}% occupied
+          </span>
+        </div>
       </div>
     </div>
   );

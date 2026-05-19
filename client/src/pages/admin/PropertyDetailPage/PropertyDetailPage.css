@@ -545,27 +545,89 @@
 }
 
 /* ─── Settings Tab ───────────────────────────── */
+.settings-tab .settings-form {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.settings-field {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-field:last-child { border-bottom: none; }
+.settings-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+.settings-field-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.settings-select,
+.settings-input {
+  width: 100%;
+  max-width: 320px;
+  padding: 9px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.83rem;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.settings-select:focus,
+.settings-input:focus {
+  border-color: rgba(108,92,231,0.5);
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
+}
+.settings-select option { background: #1a1f2e; }
+
+.settings-summary {
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.settings-summary-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
 .settings-tab .settings-grid {
   display: flex;
   flex-direction: column;
-  gap: 0;
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 10px;
   overflow: hidden;
-  margin-bottom: 14px;
 }
-
 .setting-row {
   display: flex;
   justify-content: space-between;
-  padding: 12px 18px;
+  padding: 10px 14px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
-  font-size: 0.85rem;
+  font-size: 0.83rem;
 }
-
 .setting-row:last-child { border-bottom: none; }
 .setting-label { color: var(--text-muted); }
-.settings-note { font-size: 0.78rem; color: var(--text-muted); font-style: italic; }
+.settings-note { font-size: 0.75rem; color: var(--text-muted); font-style: italic; margin: 10px 0 0; }
 
 /* ─── Remove button ──────────────────────────── */
 .remove-btn {
@@ -895,11 +957,28 @@
 }
 
 /* ── Settings tab ── */
+/* Settings form */
+[data-theme="light"] .settings-tab .settings-form {
+  border-color: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .settings-field {
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .settings-select,
+[data-theme="light"] .settings-input {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.12);
+  color: var(--text-primary);
+}
+[data-theme="light"] .settings-select option { background: #ffffff; }
+[data-theme="light"] .settings-summary {
+  border-color: rgba(0,0,0,0.08);
+}
 [data-theme="light"] .settings-tab .settings-grid {
   border-color: rgba(0,0,0,0.08);
 }
 [data-theme="light"] .setting-row {
-  border-bottom-color: rgba(0,0,0,0.05);
+  border-bottom-color: rgba(0,0,0,0.04);
 }
 
 /* ── History tab timeline ── */
