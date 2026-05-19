@@ -462,3 +462,117 @@
   display: flex;
   flex-direction: column;
 }
+
+/* ─── Create Unit Modal ───────────────────────── */
+.cu-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  z-index: 300;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+
+.cu-modal {
+  background: #1a1f2e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  width: 100%; max-width: 560px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column;
+  max-height: 90vh;
+}
+
+.cu-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.cu-header h3 { margin: 0; font-size: 1rem; font-weight: 700; }
+.cu-header button {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; padding: 4px; border-radius: 6px;
+  display: flex; align-items: center;
+  transition: all 0.15s;
+}
+.cu-header button:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+
+.cu-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.cu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.cu-field { display: flex; flex-direction: column; gap: 4px; }
+.cu-field.cu-full { grid-column: span 2; }
+.cu-field label {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted);
+}
+.cu-opt { font-weight: 400; text-transform: none; font-size: 0.65rem; opacity: 0.6; }
+
+.cu-field input,
+.cu-field select,
+.cu-field textarea {
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: var(--text-primary); font-size: 0.82rem;
+  outline: none; transition: border-color 0.15s;
+  font-family: inherit;
+}
+.cu-field input:focus,
+.cu-field select:focus,
+.cu-field textarea:focus {
+  border-color: rgba(108,92,231,0.5);
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
+}
+.cu-field select option { background: #1a1f2e; }
+
+.cu-footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+
+.cu-btn-cancel {
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 9px; color: var(--text-muted);
+  font-size: 0.82rem; cursor: pointer;
+}
+.cu-btn-submit {
+  padding: 8px 18px;
+  background: #6c5ce7; border: none;
+  border-radius: 9px; color: white;
+  font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  transition: background 0.15s;
+}
+.cu-btn-submit:hover { background: #5a4bd5; }
+.cu-btn-submit:disabled { opacity: 0.5; cursor: default; }
+
+/* Light mode overrides for CreateUnitModal */
+[data-theme="light"] .cu-modal {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+[data-theme="light"] .cu-header { border-bottom-color: rgba(0,0,0,0.07); }
+[data-theme="light"] .cu-header button:hover { background: rgba(0,0,0,0.06); }
+[data-theme="light"] .cu-field input,
+[data-theme="light"] .cu-field select,
+[data-theme="light"] .cu-field textarea {
+  background: var(--bg-primary);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+[data-theme="light"] .cu-field select option { background: #fff; }
+[data-theme="light"] .cu-footer { border-top-color: rgba(0,0,0,0.07); }
+[data-theme="light"] .cu-btn-cancel {
+  background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1);
+}
+

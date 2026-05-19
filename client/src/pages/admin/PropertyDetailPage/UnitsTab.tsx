@@ -8,10 +8,10 @@ import {
 } from '../../../store/slices/unitsSlice';
 import {
   useGetTowersQuery, useGetFloorPlanQuery, useGetUnitsQuery,
-  useGetUnitStatsQuery, useDeleteUnitMutation,
+  useGetUnitStatsQuery, useDeleteUnitMutation, useCreateUnitMutation, useGetUnitTypesQuery,
 } from '../../../store/api/unitsApi';
 import type { UnitListItem, Tower } from '../../../store/api/unitsApi';
-import { LayoutGrid, List, Grid3x3, Plus, Search, Building2, Zap, Droplets, Wind, X, Layers } from 'lucide-react';
+import { LayoutGrid, List, Grid3x3, Plus, Search, Building2, Zap, Droplets, Wind, X, Layers, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UnitDetailDrawer } from './UnitDetailDrawer';
 import { BulkCreateModal } from './BulkCreateModal';
@@ -249,6 +249,11 @@ export default function UnitsTab() {
         <UnitDetailDrawer propertyId={propertyId!} unitId={selectedUnitId} />
       )}
 
+      {/* Create Unit Modal */}
+      {drawerOpen && selectedUnitId === 'new' && (
+        <CreateUnitModal propertyId={propertyId!} towers={towers} />
+      )}
+
       {/* Bulk Create Modal */}
       {bulkCreateOpen && (
         <BulkCreateModal propertyId={propertyId!} towers={towers} />
@@ -298,6 +303,179 @@ function UnitGridCard({ unit, onClick }: { unit: UnitListItem; onClick: () => vo
               {m.meterType === 'electricity' ? <Zap size={11} /> : m.meterType === 'water' ? <Droplets size={11} /> : <Wind size={11} />}
             </span>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Create Unit Modal ─────────────────────────
+function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: Tower[] }) {
+  const dispatch = useAppDispatch();
+  const close = () => dispatch(selectUnit(null as any));
+
+  const [form, setForm] = useState({
+    unitNumber: '', unitType: '', towerId: '', sectionId: '',
+    floorNumber: '', floorLabel: '', areaSqft: '', areaSqm: '',
+    bedroomCount: '0', bathroomCount: '0',
+    direction: '', furnishing: 'unfurnished', ownershipType: 'company',
+    description: '',
+  });
+
+  const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const { data: typesData } = useGetUnitTypesQuery();
+  const [createUnit, { isLoading }] = useCreateUnitMutation();
+
+  const unitTypes = typesData?.data || [];
+  const selectedTower = towers.find(t => t.id === form.towerId);
+  const sections = selectedTower?.sections || [];
+
+  const handleSubmit = async () => {
+    if (!form.unitNumber.trim() || !form.unitType) {
+      toast.error('Unit number and type are required');
+      return;
+    }
+    try {
+      const data: Record<string, unknown> = {
+        unitNumber: form.unitNumber.trim(),
+        unitType: form.unitType,
+        towerId:      form.towerId     || undefined,
+        sectionId:    form.sectionId   || undefined,
+        floorNumber:  form.floorNumber ? Number(form.floorNumber) : undefined,
+        floorLabel:   form.floorLabel  || undefined,
+        areaSqft:     form.areaSqft    ? Number(form.areaSqft)    : undefined,
+        areaSqm:      form.areaSqm     ? Number(form.areaSqm)     : undefined,
+        bedroomCount: Number(form.bedroomCount) || 0,
+        bathroomCount: Number(form.bathroomCount) || 0,
+        direction:    form.direction   || undefined,
+        furnishing:   form.furnishing,
+        ownershipType: form.ownershipType,
+        description:  form.description || undefined,
+      };
+      await createUnit({ propertyId, data: data as any }).unwrap();
+      toast.success(`Unit ${form.unitNumber} created`);
+      close();
+    } catch (e: any) {
+      toast.error(e?.data?.message || 'Failed to create unit');
+    }
+  };
+
+  return (
+    <div className="cu-overlay" onClick={close}>
+      <div className="cu-modal" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="cu-header">
+          <h3>Add New Unit</h3>
+          <button onClick={close}><X size={18} /></button>
+        </div>
+
+        {/* Form */}
+        <div className="cu-body">
+          {/* Row 1 */}
+          <div className="cu-grid">
+            <div className="cu-field">
+              <label>Unit Number *</label>
+              <input placeholder="e.g. A-101" value={form.unitNumber} onChange={e => set('unitNumber', e.target.value)} />
+            </div>
+            <div className="cu-field">
+              <label>Unit Type *</label>
+              <select value={form.unitType} onChange={e => set('unitType', e.target.value)}>
+                <option value="">Select type…</option>
+                {unitTypes.length > 0
+                  ? unitTypes.map(t => <option key={t.id} value={t.code}>{t.name}</option>)
+                  : ['studio','one_bedroom','two_bedroom','three_bedroom','penthouse','shop','office','warehouse'].map(t =>
+                      <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Tower & Section */}
+          {towers.length > 0 && (
+            <div className="cu-grid">
+              <div className="cu-field">
+                <label>Tower <span className="cu-opt">(optional)</span></label>
+                <select value={form.towerId} onChange={e => { set('towerId', e.target.value); set('sectionId', ''); }}>
+                  <option value="">No tower</option>
+                  {towers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              {sections.length > 0 && (
+                <div className="cu-field">
+                  <label>Section</label>
+                  <select value={form.sectionId} onChange={e => set('sectionId', e.target.value)}>
+                    <option value="">No section</option>
+                    {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Floor */}
+          <div className="cu-grid">
+            <div className="cu-field">
+              <label>Floor Number</label>
+              <input type="number" placeholder="e.g. 10" value={form.floorNumber} onChange={e => set('floorNumber', e.target.value)} />
+            </div>
+            <div className="cu-field">
+              <label>Floor Label</label>
+              <input placeholder="e.g. 10F" value={form.floorLabel} onChange={e => set('floorLabel', e.target.value)} />
+            </div>
+          </div>
+
+          {/* Area */}
+          <div className="cu-grid">
+            <div className="cu-field">
+              <label>Area (sqft)</label>
+              <input type="number" min={0} placeholder="e.g. 850" value={form.areaSqft} onChange={e => set('areaSqft', e.target.value)} />
+            </div>
+            <div className="cu-field">
+              <label>Area (sqm)</label>
+              <input type="number" min={0} placeholder="e.g. 79" value={form.areaSqm} onChange={e => set('areaSqm', e.target.value)} />
+            </div>
+          </div>
+
+          {/* Bed/Bath */}
+          <div className="cu-grid">
+            <div className="cu-field">
+              <label>Bedrooms</label>
+              <input type="number" min={0} value={form.bedroomCount} onChange={e => set('bedroomCount', e.target.value)} />
+            </div>
+            <div className="cu-field">
+              <label>Bathrooms</label>
+              <input type="number" min={0} value={form.bathroomCount} onChange={e => set('bathroomCount', e.target.value)} />
+            </div>
+            <div className="cu-field">
+              <label>Furnishing</label>
+              <select value={form.furnishing} onChange={e => set('furnishing', e.target.value)}>
+                <option value="unfurnished">Unfurnished</option>
+                <option value="semi_furnished">Semi-Furnished</option>
+                <option value="fully_furnished">Fully Furnished</option>
+              </select>
+            </div>
+            <div className="cu-field">
+              <label>Ownership Type</label>
+              <select value={form.ownershipType} onChange={e => set('ownershipType', e.target.value)}>
+                <option value="company">Company Owned</option>
+                <option value="individual">Individual</option>
+                <option value="strata">Strata Title</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="cu-field cu-full">
+            <label>Description <span className="cu-opt">(optional)</span></label>
+            <textarea rows={2} placeholder="Any notes about this unit…" value={form.description} onChange={e => set('description', e.target.value)} />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="cu-footer">
+          <button className="cu-btn-cancel" onClick={close}>Cancel</button>
+          <button className="cu-btn-submit" onClick={handleSubmit} disabled={isLoading || !form.unitNumber.trim() || !form.unitType}>
+            {isLoading ? 'Creating…' : '+ Add Unit'}
+          </button>
         </div>
       </div>
     </div>
