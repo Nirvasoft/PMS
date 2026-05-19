@@ -3580,3 +3580,235 @@ select.input-full:focus {
   background: rgba(0,0,0,0.35);
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   LIGHT MODE — Workflow / Change Password / Password Policy / Profile
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── settings-form inputs (Profile & Change Password) ── */
+[data-theme="light"] .settings-form input,
+[data-theme="light"] .settings-form select,
+[data-theme="light"] .settings-form textarea {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .settings-form input:focus,
+[data-theme="light"] .settings-form select:focus,
+[data-theme="light"] .settings-form textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] .settings-form input::placeholder { color: var(--text-muted); }
+
+/* ── standalone input.input-full / select.input-full ── */
+[data-theme="light"] input.input-full,
+[data-theme="light"] select.input-full,
+[data-theme="light"] textarea.input-full {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] input.input-full:focus,
+[data-theme="light"] select.input-full:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] select.input-full option { background: #ffffff; color: var(--text-primary); }
+[data-theme="light"] input.input-full::placeholder { color: var(--text-muted); }
+[data-theme="light"] input.input-full:disabled { background: rgba(0,0,0,0.04); }
+
+/* ── form-group inputs (used in profile, security, workflow modals) ── */
+[data-theme="light"] .form-group input,
+[data-theme="light"] .form-group select,
+[data-theme="light"] .form-group textarea {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .form-group input:focus,
+[data-theme="light"] .form-group select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] .form-group label { color: var(--text-secondary); }
+
+/* ── info-card (used across profile, security, workflow) ── */
+[data-theme="light"] .info-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .info-card h3,
+[data-theme="light"] .info-card h4 { color: var(--text-muted); }
+
+/* ── device-card (Security → Devices tab) ── */
+[data-theme="light"] .device-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .device-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+[data-theme="light"] .device-icon {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+/* ── TOTP input (MFA setup) ── */
+[data-theme="light"] .totp-input {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .totp-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* ── Workflow list page ── */
+[data-theme="light"] .wf-defs-table {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .wf-defs-header {
+  background: rgba(0,0,0,0.03);
+  color: var(--text-muted);
+}
+[data-theme="light"] .wf-defs-row {
+  border-top-color: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .wf-defs-row:hover {
+  background: rgba(0,0,0,0.02);
+}
+
+/* ── Workflow instance cards ── */
+[data-theme="light"] .wf-instance-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .wf-instance-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+}
+[data-theme="light"] .wf-instance-card.selected {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+/* ── Workflow detail panel ── */
+[data-theme="light"] .wf-detail-panel {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* ── Workflow timeline ── */
+[data-theme="light"] .wf-timeline {
+  border-left-color: rgba(0,0,0,0.12);
+}
+[data-theme="light"] .wf-task-item {
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+
+/* ── Workflow designer ── */
+[data-theme="light"] .designer-topbar {
+  background: var(--surface);
+  border-bottom-color: rgba(0,0,0,0.07);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+[data-theme="light"] .designer-palette {
+  background: var(--surface);
+  border-right-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .designer-sidebar {
+  background: var(--surface);
+  border-left-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .designer-back {
+  border-color: rgba(0,0,0,0.1);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .designer-back:hover {
+  background: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .config-panel-header {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .config-footer {
+  border-top-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .config-input {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .config-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+[data-theme="light"] .config-input:disabled { background: rgba(0,0,0,0.04); }
+[data-theme="light"] .designer-empty-hint {
+  background: var(--surface);
+  border-color: rgba(0,0,0,0.12);
+}
+
+/* ── Password policy card (grid of policy items) ── */
+[data-theme="light"] .settings-section .info-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+/* ── submit button inside settings-form ── */
+[data-theme="light"] .settings-form button[type="submit"],
+[data-theme="light"] .settings-form .submit {
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+
+/* ── settings-form bare inputs (form-group without input-full class) ── */
+[data-theme="light"] .settings-form .form-group input,
+[data-theme="light"] .settings-form .form-group select,
+[data-theme="light"] .settings-form .form-group textarea,
+[data-theme="light"] .settings-section .settings-form input,
+[data-theme="light"] .settings-section .settings-form select {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .settings-form .form-group input:focus,
+[data-theme="light"] .settings-form .form-group select:focus,
+[data-theme="light"] .settings-section .settings-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* ── backup codes box (MFA setup) ── */
+[data-theme="light"] .settings-section div[style*="surface-elevated"] {
+  background: rgba(0,0,0,0.04) !important;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+/* ── ip-policy / audit table light mode (already covered but reinforce) ── */
+[data-theme="light"] .settings-section .audit-table-container {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .settings-section .audit-table th {
+  background: rgba(0,0,0,0.03);
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .settings-section .audit-table td,
+[data-theme="light"] .settings-section .audit-table tr {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+
+/* ── Profile page info-card (avatar + roles sidebar) ── */
+[data-theme="light"] .page-content .info-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+}
+

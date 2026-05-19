@@ -278,7 +278,7 @@ function MfaSetupSection() {
         <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
           <div>
             <p className="text-muted">1. Scan this QR code with your authenticator app:</p>
-            <div style={{ background: '#fff', padding: 16, borderRadius: 12, display: 'inline-block', marginTop: 8 }}>
+            <div style={{ background: '#ffffff', padding: 16, borderRadius: 12, display: 'inline-block', marginTop: 8, border: '1px solid rgba(0,0,0,0.1)' }}>
               <img src={setupData.qrCodeDataUrl} alt="MFA QR Code" style={{ width: 200, height: 200 }} />
             </div>
             <p className="text-small text-muted" style={{ marginTop: 8 }}>Or enter manually: <code style={{ wordBreak: 'break-all' }}>{setupData.secret}</code></p>
