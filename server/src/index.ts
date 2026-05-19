@@ -20,6 +20,7 @@ import { propertiesService, seedPropertyTypes } from './modules/properties/prope
 import { towersRouter, unitsRouter, unitTypesRouter } from './modules/units/units.routes';
 import { seedUnitTypes } from './modules/units/units.service';
 import { tenantsRouter, kycRequirementsRouter } from './modules/tenants/tenants.routes';
+import { leasesRouter, leaseTemplatesRouter, leaseClausesRouter } from './modules/leases/leases.routes';
 import { workflowDefinitionsRouter, workflowInstancesRouter, workflowTasksRouter } from './modules/workflow/workflow.routes';
 import { notificationsRouter, templatesRouter } from './modules/notifications/notifications.routes';
 import { documentsRouter, documentFoldersRouter } from './modules/documents/documents.routes';
@@ -82,6 +83,11 @@ async function bootstrap() {
   // Module 2.3 — Tenant Management (Phase 2)
   app.use('/api/v1/tenants', tenantsRouter);
   app.use('/api/v1/kyc-requirements', kycRequirementsRouter);
+
+  // Module 2.4 — Lease Management (Phase 2)
+  app.use('/api/v1/leases', leasesRouter);
+  app.use('/api/v1/lease-templates', leaseTemplatesRouter);
+  app.use('/api/v1/lease-clauses', leaseClausesRouter);
 
   // Module 1.4 — Workflow Engine
   app.use('/api/v1/workflow-definitions', workflowDefinitionsRouter);

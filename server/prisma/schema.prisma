@@ -87,6 +87,11 @@ model Company {
   kycRequirements     KycRequirement[]
   blacklistLogs       TenantBlacklistLog[]
 
+  // Relations — Leases (Module 2.4)
+  leases              Lease[]
+  leaseTemplates      LeaseTemplate[]
+  leaseClauses        LeaseClause[]
+
   @@index([parentId])
   @@map("companies")
 }
@@ -183,6 +188,14 @@ model User {
   kycReviews             TenantKycDocument[]     @relation("KycReviewer")
   blacklistActions       TenantBlacklistLog[]    @relation("BlacklistActioner")
   tenantNotesAuthored    TenantNote[]            @relation("TenantNoteAuthor")
+
+  // Relations — Leases (Module 2.4)
+  leasesCreated          Lease[]                 @relation("LeaseCreator")
+  leasesApproved         Lease[]                 @relation("LeaseApprover")
+  leaseTemplatesCreated  LeaseTemplate[]         @relation("LeaseTemplateCreator")
+  amendmentsApproved     LeaseAmendment[]        @relation("AmendmentApprover")
+  amendmentsCreated      LeaseAmendment[]        @relation("AmendmentCreator")
+  leaseClausesCreated    LeaseClause[]           @relation("LeaseClauseCreator")
 
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
@@ -649,6 +662,9 @@ model Property {
   // Relations — Tenants (Module 2.3)
   blacklistScoped  TenantBlacklistLog[]
 
+  // Relations — Leases (Module 2.4)
+  leases           Lease[]
+
   @@unique([code, companyId], name: "uq_property_code_company")
   @@index([companyId])
   @@index([status])
@@ -865,6 +881,10 @@ model Unit {
   meters             UtilityMeter[]
   amenities          UnitAmenity[]
 
+  // Relations — Leases (Module 2.4)
+  leases             Lease[]
+  amendmentUnits     LeaseAmendment[] @relation("AmendmentUnit")
+
   @@unique([unitNumber, propertyId], name: "uq_unit_number_property")
   @@index([propertyId])
   @@index([towerId])
@@ -1000,6 +1020,9 @@ model Tenant {
   blacklistLog         TenantBlacklistLog[]
   tenantNotes          TenantNote[]
 
+  // Relations — Leases (Module 2.4)
+  leases               Lease[]
+
   @@index([companyId])
   @@index([email])
   @@index([kycStatus])
@@ -1103,6 +1126,206 @@ model TenantNote {
 
   @@index([tenantId])
   @@map("tenant_notes")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 2.4 — LEASE MANAGEMENT (Phase 2)
+// ─────────────────────────────────────────────
+
+model LeaseTemplate {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  name          String   @db.VarChar(255)
+  propertyType  String?  @map("property_type") @db.VarChar(50)
+  description   String?  @db.Text
+  defaultTerms  Json     @default("{}") @map("default_terms")
+  clauses       Json     @default("[]")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdBy     String?  @map("created_by") @db.Uuid
+
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator       User?    @relation("LeaseTemplateCreator", fields: [createdBy], references: [id])
+  leases        Lease[]
+
+  @@index([companyId])
+  @@map("lease_templates")
+}
+
+model Lease {
+  id                      String    @id @default(uuid()) @db.Uuid
+  companyId               String    @map("company_id") @db.Uuid
+  propertyId              String    @map("property_id") @db.Uuid
+  unitId                  String    @map("unit_id") @db.Uuid
+  tenantId                String    @map("tenant_id") @db.Uuid
+  templateId              String?   @map("template_id") @db.Uuid
+  leaseNumber             String    @map("lease_number") @db.VarChar(50)
+  status                  String    @default("draft") @db.VarChar(30)
+  // 'draft'|'pending_approval'|'approved'|'active'|'expired'|'terminated'|'renewed'|'cancelled'
+
+  startDate               DateTime  @map("start_date") @db.Date
+  endDate                 DateTime  @map("end_date") @db.Date
+  handoverDate            DateTime? @map("handover_date") @db.Date
+  leaseTermMonths         Int       @map("lease_term_months") @db.SmallInt
+
+  rentAmount              Decimal   @map("rent_amount") @db.Decimal(15, 2)
+  currency                String    @default("USD") @db.VarChar(3)
+  billingCycle            String    @default("monthly") @map("billing_cycle") @db.VarChar(20)
+  billingDay              Int       @default(1) @map("billing_day") @db.SmallInt
+  paymentDueDays          Int       @default(7) @map("payment_due_days") @db.SmallInt
+
+  securityDeposit         Decimal   @default(0) @map("security_deposit") @db.Decimal(15, 2)
+  depositPaid             Boolean   @default(false) @map("deposit_paid")
+  depositPaidAt           DateTime? @map("deposit_paid_at") @db.Timestamptz
+  depositRefunded         Boolean   @default(false) @map("deposit_refunded")
+  depositRefundedAt       DateTime? @map("deposit_refunded_at") @db.Timestamptz
+
+  // Escalation
+  escalationType          String?   @map("escalation_type") @db.VarChar(20)
+  escalationValue         Decimal?  @map("escalation_value") @db.Decimal(8, 4)
+  escalationFrequency     String?   @default("annual") @map("escalation_frequency") @db.VarChar(20)
+  escalationDay           Int?      @map("escalation_day") @db.SmallInt
+  escalationMonth         Int?      @map("escalation_month") @db.SmallInt
+
+  // Renewal
+  isRenewed               Boolean   @default(false) @map("is_renewed")
+  parentLeaseId           String?   @map("parent_lease_id") @db.Uuid
+  renewalOfferedAt        DateTime? @map("renewal_offered_at") @db.Timestamptz
+  renewalOfferExpiresAt   DateTime? @map("renewal_offer_expires_at") @db.Timestamptz
+  renewalAcceptedAt       DateTime? @map("renewal_accepted_at") @db.Timestamptz
+
+  // Termination
+  terminationDate         DateTime? @map("termination_date") @db.Date
+  terminationReason       String?   @map("termination_reason") @db.Text
+  terminationType         String?   @map("termination_type") @db.VarChar(20)
+  earlyTerminationPenalty Decimal?  @map("early_termination_penalty") @db.Decimal(15, 2)
+
+  // E-signature
+  esignStatus             String    @default("not_started") @map("esign_status") @db.VarChar(20)
+  esignEnvelopeId         String?   @map("esign_envelope_id") @db.VarChar(255)
+  esignCompletedAt        DateTime? @map("esign_completed_at") @db.Timestamptz
+
+  // Workflow
+  workflowInstanceId      String?   @map("workflow_instance_id") @db.Uuid
+
+  // Content
+  notes                   String?   @db.Text
+  specialConditions       String?   @map("special_conditions") @db.Text
+  clauses                 Json      @default("[]")
+
+  // Audit
+  createdBy               String    @map("created_by") @db.Uuid
+  approvedBy              String?   @map("approved_by") @db.Uuid
+  approvedAt              DateTime? @map("approved_at") @db.Timestamptz
+  activatedAt             DateTime? @map("activated_at") @db.Timestamptz
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt               DateTime? @map("deleted_at") @db.Timestamptz
+
+  company                 Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property                Property        @relation(fields: [propertyId], references: [id])
+  unit                    Unit            @relation(fields: [unitId], references: [id])
+  tenant                  Tenant          @relation(fields: [tenantId], references: [id])
+  template                LeaseTemplate?  @relation(fields: [templateId], references: [id])
+  creator                 User            @relation("LeaseCreator", fields: [createdBy], references: [id])
+  approver                User?           @relation("LeaseApprover", fields: [approvedBy], references: [id])
+  parentLease             Lease?          @relation("LeaseRenewal", fields: [parentLeaseId], references: [id])
+  renewalLeases           Lease[]         @relation("LeaseRenewal")
+
+  amendments              LeaseAmendment[]
+  escalationSchedule      LeaseEscalationSchedule[]
+  esignRecipients         EsignRecipient[]
+
+  @@index([companyId])
+  @@index([propertyId])
+  @@index([unitId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([endDate])
+  @@map("leases")
+}
+
+model LeaseAmendment {
+  id              String    @id @default(uuid()) @db.Uuid
+  leaseId         String    @map("lease_id") @db.Uuid
+  amendmentNumber Int       @map("amendment_number") @db.SmallInt
+  amendmentType   String    @map("amendment_type") @db.VarChar(50)
+  description     String    @db.Text
+  effectiveDate   DateTime  @map("effective_date") @db.Date
+  newRentAmount   Decimal?  @map("new_rent_amount") @db.Decimal(15, 2)
+  newEndDate      DateTime? @map("new_end_date") @db.Date
+  newUnitId       String?   @map("new_unit_id") @db.Uuid
+  oldValues       Json      @default("{}") @map("old_values")
+  newValues       Json      @default("{}") @map("new_values")
+  status          String    @default("pending_approval") @db.VarChar(20)
+  workflowInstanceId String? @map("workflow_instance_id") @db.Uuid
+  approvedBy      String?   @map("approved_by") @db.Uuid
+  approvedAt      DateTime? @map("approved_at") @db.Timestamptz
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  lease           Lease    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  approver        User?    @relation("AmendmentApprover", fields: [approvedBy], references: [id])
+  creator         User     @relation("AmendmentCreator", fields: [createdBy], references: [id])
+  newUnit         Unit?    @relation("AmendmentUnit", fields: [newUnitId], references: [id])
+
+  @@unique([leaseId, amendmentNumber], name: "uq_amendment_number")
+  @@index([leaseId])
+  @@map("lease_amendments")
+}
+
+model LeaseEscalationSchedule {
+  id            String    @id @default(uuid()) @db.Uuid
+  leaseId       String    @map("lease_id") @db.Uuid
+  effectiveDate DateTime  @map("effective_date") @db.Date
+  newRent       Decimal   @map("new_rent") @db.Decimal(15, 2)
+  applied       Boolean   @default(false)
+  appliedAt     DateTime? @map("applied_at") @db.Timestamptz
+
+  lease         Lease     @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@unique([leaseId, effectiveDate], name: "uq_escalation_date")
+  @@index([leaseId])
+  @@index([effectiveDate, applied])
+  @@map("lease_escalation_schedule")
+}
+
+model LeaseClause {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  title       String   @db.VarChar(255)
+  content     String   @db.Text
+  category    String?  @db.VarChar(100)
+  isStandard  Boolean  @default(false) @map("is_standard")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator     User?    @relation("LeaseClauseCreator", fields: [createdBy], references: [id])
+
+  @@index([companyId])
+  @@map("lease_clauses")
+}
+
+model EsignRecipient {
+  id              String    @id @default(uuid()) @db.Uuid
+  leaseId         String    @map("lease_id") @db.Uuid
+  envelopeId      String?   @map("envelope_id") @db.VarChar(255)
+  recipientType   String    @map("recipient_type") @db.VarChar(20)
+  name            String    @db.VarChar(200)
+  email           String    @db.VarChar(255)
+  status          String    @default("pending") @db.VarChar(20)
+  signedAt        DateTime? @map("signed_at") @db.Timestamptz
+  declinedReason  String?   @map("declined_reason") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  lease           Lease     @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@index([leaseId])
+  @@map("esign_recipients")
 }
 
 // ─────────────────────────────────────────────

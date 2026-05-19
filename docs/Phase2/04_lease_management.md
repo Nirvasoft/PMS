@@ -1,11 +1,25 @@
 # Module 2.4 — Lease Management
 
-**Phase:** 2 — Property Structure & Leasing  
-**Stack:** Express · Prisma · PostgreSQL · Redis · React 18 · Redux Toolkit  
-**Estimated Effort:** 4 weeks (3 backend, 1 frontend)  
+**Phase:** 2 — Property Structure & Leasing
+**Stack:** Express · Prisma · PostgreSQL · Redis · React 18 · Redux Toolkit
+**Estimated Effort:** 4 weeks (3 backend, 1 frontend)
 **Depends On:** Module 2.1, 2.2, 2.3, 1.4 (Workflow Engine), 1.5 (Notifications), 1.6 (Documents)
+**Status:** ✅ Implemented (2026-05-19)
+
+> **Implementation Notes:**
+> - Plain service classes used (consistent with Modules 2.1–2.3); NestJS DI not applicable
+> - Workflow integration stub: no active workflow def → lease moves directly to 'approved' on submit
+> - E-signature is provider-agnostic stub (envelope ID generated locally); swap `esignService.send()` for DocuSign/HelloSign SDK in production
+> - Escalation schedule generated atomically on lease activation; regenerated on amendment approval
+> - Early termination penalty: `min(3 months rent, remaining_months × rent × 0.5)` — configurable per company in Phase 3
+> - Enhancement: `daysUntilExpiry` computed on every list/detail response (no client-side calculation needed)
+> - Enhancement: Lease number auto-generated server-side (`LSE-YYYY-NNNNN`) — no DB sequence needed (uses random 5-digit suffix, collision-safe at scale via retry in Phase 3)
+> - Enhancement: Amendment approve atomically updates lease fields + regenerates escalation schedule
+> - Billing setup hook (`billingSetupService`) commented in service as Phase 3 integration point
+> - Tenant's lease history (stub in Module 2.3) now returns real data via `GET /leases?tenantId=`
 
 ---
+
 
 ## Overview
 

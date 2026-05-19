@@ -18,6 +18,9 @@ import PropertyDetailPage from './pages/admin/PropertyDetailPage/PropertyDetailP
 import TenantListPage from './pages/admin/TenantsPage/TenantListPage';
 import TenantDetailPage from './pages/admin/TenantsPage/TenantDetailPage';
 import CreateTenantPage from './pages/admin/TenantsPage/CreateTenantPage';
+import LeaseListPage from './pages/admin/LeasesPage/LeaseListPage';
+import LeaseDetailPage from './pages/admin/LeasesPage/LeaseDetailPage';
+import CreateLeasePage from './pages/admin/LeasesPage/CreateLeasePage';
 import WorkflowsPage from './pages/admin/WorkflowsPage/WorkflowsPage';
 import DesignerPage from './pages/admin/WorkflowsPage/DesignerPage';
 import MyTasksPage from './pages/admin/MyTasksPage/MyTasksPage';
@@ -94,6 +97,9 @@ function AppRoutes() {
           <Route path="/admin/tenants" element={<TenantListPage />} />
           <Route path="/admin/tenants/new" element={<CreateTenantPage />} />
           <Route path="/admin/tenants/:id" element={<TenantDetailPage />} />
+          <Route path="/admin/leases" element={<LeaseListPage />} />
+          <Route path="/admin/leases/new" element={<CreateLeasePage />} />
+          <Route path="/admin/leases/:id" element={<LeaseDetailPage />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
           <Route path="/admin/positions" element={<PositionsPage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />
