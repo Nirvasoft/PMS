@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../../../store';
 import {
@@ -51,6 +51,16 @@ export default function UnitsTab() {
     searchQuery, zoomLevel, drawerOpen, selectedUnitId, bulkCreateOpen,
   } = useAppSelector((s) => s.units);
 
+  /* Reset filters when switching to a different property */
+  const prevPropertyId = useRef(propertyId);
+  useEffect(() => {
+    if (propertyId !== prevPropertyId.current) {
+      dispatch(clearFilters());
+      dispatch(selectTower(null));
+      prevPropertyId.current = propertyId;
+    }
+  }, [propertyId, dispatch]);
+
   const { data: towersData } = useGetTowersQuery(propertyId!);
   const { data: statsData }  = useGetUnitStatsQuery(propertyId!);
   const towers = towersData?.data || [];
@@ -62,12 +72,13 @@ export default function UnitsTab() {
     { skip: viewMode !== 'floor_plan' }
   );
 
-  /* list / grid data */
+  /* list / grid data — send comma-separated statuses for multi-select */
+  const statusParam = statusFilter.length > 0 ? statusFilter.join(',') : undefined;
   const { data: listData, isLoading: listLoading } = useGetUnitsQuery(
     {
       propertyId: propertyId!,
       towerId: selectedTowerId || undefined,
-      status: statusFilter.length === 1 ? statusFilter[0] : undefined,
+      status: statusParam,
       search: searchQuery || undefined,
     },
     { skip: viewMode === 'floor_plan' }

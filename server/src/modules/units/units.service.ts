@@ -130,7 +130,10 @@ export class UnitsService {
 
     if (towerId)   where.towerId   = towerId;
     if (sectionId) where.sectionId = sectionId;
-    if (status)    where.status    = status;
+    if (status) {
+      const statuses = (status as string).split(',').map(s => s.trim()).filter(Boolean);
+      where.status = statuses.length === 1 ? statuses[0] : { in: statuses };
+    }
     if (unitType)  where.unitType  = unitType;
     if (floor !== undefined) where.floorNumber = floor;
     if (search)    where.OR = [
