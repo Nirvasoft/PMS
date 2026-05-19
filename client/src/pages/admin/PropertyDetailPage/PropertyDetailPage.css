@@ -740,3 +740,175 @@
   .overview-grid { grid-template-columns: 1fr; }
   .stats-bar { flex-wrap: wrap; }
 }
+
+/* ═══════════════════════════════════════════════
+   LIGHT MODE — Property Detail Page
+   ═══════════════════════════════════════════════ */
+
+/* Header & structure */
+[data-theme="light"] .detail-header        { border-bottom-color: rgba(0,0,0,0.07); }
+[data-theme="light"] .stats-bar            { border-bottom-color: rgba(0,0,0,0.07); }
+[data-theme="light"] .stat-item            { border-right-color:  rgba(0,0,0,0.06); }
+[data-theme="light"] .detail-tabs          { border-bottom-color: rgba(0,0,0,0.07); }
+[data-theme="light"] .tab-btn              { color: var(--text-muted); }
+[data-theme="light"] .tab-btn.active       { color: #6c5ce7; border-bottom-color: #6c5ce7; }
+[data-theme="light"] .tab-btn:hover:not(.active) { color: var(--text-primary); }
+
+/* Status & meta chips */
+[data-theme="light"] .meta-code {
+  background: rgba(108,92,231,0.1);
+  color: #5a4bd5;
+}
+[data-theme="light"] .btn-status {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.1);
+  color: var(--text-primary);
+}
+[data-theme="light"] .btn-status:hover {
+  background: rgba(0,0,0,0.07);
+  border-color: rgba(0,0,0,0.15);
+}
+
+/* Overview info cards */
+[data-theme="light"] .info-card {
+  background: #ffffff;
+  border-color: #dde8e3;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .info-card h4 { color: var(--text-muted); }
+[data-theme="light"] .info-row { border-bottom-color: rgba(0,0,0,0.04); }
+
+/* ── Facilities tab ── */
+[data-theme="light"] .empty-section {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.09);
+  color: var(--text-muted);
+}
+
+/* Add facility inline form row */
+[data-theme="light"] .add-facility-form {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.07);
+  border-radius: 10px;
+}
+[data-theme="light"] .add-facility-form select {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.12);
+  color: var(--text-primary);
+}
+[data-theme="light"] .add-facility-form select option {
+  background: #ffffff;
+}
+
+/* Facility cards */
+[data-theme="light"] .facility-card {
+  background: #ffffff;
+  border-color: #dde8e3;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .facility-card:hover {
+  border-color: rgba(108,92,231,0.3);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+}
+[data-theme="light"] .facility-icon {
+  background: rgba(108,92,231,0.1);
+  color: #6c5ce7;
+}
+[data-theme="light"] .facility-bookable { color: #16a34a; }
+
+/* ── Contacts tab ── */
+/* Add contact inline form */
+[data-theme="light"] .contact-form {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .form-row input,
+[data-theme="light"] .form-row select {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.12);
+  color: var(--text-primary);
+}
+[data-theme="light"] .form-row input:focus,
+[data-theme="light"] .form-row select:focus {
+  border-color: rgba(108,92,231,0.5);
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.08);
+}
+[data-theme="light"] .form-row select option { background: #ffffff; }
+
+/* Contact cards */
+[data-theme="light"] .contact-card {
+  background: #ffffff;
+  border-color: #dde8e3;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .contact-card:hover {
+  border-color: rgba(0,0,0,0.15);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+}
+[data-theme="light"] .primary-badge {
+  background: rgba(243,156,18,0.12);
+  color: #b45309;
+}
+
+/* ── Buttons (within detail page) ── */
+[data-theme="light"] .property-detail .btn-secondary {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.1);
+  color: var(--text-primary);
+}
+[data-theme="light"] .property-detail .btn-secondary:hover {
+  background: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .property-detail .btn-ghost {
+  background: transparent;
+  border-color: rgba(0,0,0,0.1);
+  color: var(--text-muted);
+}
+[data-theme="light"] .property-detail .btn-ghost:hover {
+  border-color: rgba(0,0,0,0.2);
+  color: var(--text-primary);
+}
+
+/* Remove button (hovers on cards) */
+[data-theme="light"] .remove-btn {
+  background: rgba(220,38,38,0.08);
+  color: #dc2626;
+}
+
+/* ── Modal ── */
+[data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.35); }
+[data-theme="light"] .modal-box {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+[data-theme="light"] .modal-header {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .modal-footer {
+  border-top-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .modal-body textarea {
+  background: var(--bg-primary);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+/* ── Settings tab ── */
+[data-theme="light"] .settings-tab .settings-grid {
+  border-color: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .setting-row {
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+
+/* ── History tab timeline ── */
+[data-theme="light"] .history-list::before {
+  background: rgba(0,0,0,0.1);
+}
+
+/* ── Property cover thumb placeholder ── */
+[data-theme="light"] .property-cover-thumb {
+  background: rgba(108,92,231,0.08);
+}
+
