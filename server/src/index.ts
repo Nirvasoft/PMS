@@ -43,12 +43,12 @@ async function bootstrap() {
   app.use(express.json({ limit: '10mb' }));
   app.use(cookieParser());
   app.use(requestContextMiddleware);
-  app.use(authMiddleware);
 
-  // Serve uploaded files (avatars, logos)
+  // Serve static files BEFORE auth middleware (public access)
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
-  // Serve seed property photos
   app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos')));
+
+  app.use(authMiddleware);
 
   // Health check
   app.get('/api/v1/health', (_req, res) => {
