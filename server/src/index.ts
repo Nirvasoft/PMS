@@ -47,6 +47,8 @@ async function bootstrap() {
 
   // Serve uploaded files (avatars, logos)
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+  // Serve seed property photos
+  app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos')));
 
   // Health check
   app.get('/api/v1/health', (_req, res) => {
