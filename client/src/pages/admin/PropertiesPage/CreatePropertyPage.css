@@ -152,3 +152,120 @@
 [data-theme="light"] .create-property-page .cp-hint { background: rgba(108,92,231,.06); }
 [data-theme="light"] .create-property-page .cp-review { border-top-color: rgba(0,0,0,.06); }
 [data-theme="light"] .create-property-page .cp-rr { border-bottom-color: rgba(0,0,0,.04); }
+
+/* ─── Step 4: Facility Cards ──────────────────── */
+.cp-subtitle { font-size: .82rem; color: var(--text-muted); margin: -10px 0 14px; }
+.cp-fac-group { margin-bottom: 16px; }
+.cp-fac-cat {
+  font-size: .65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.cp-fac-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.cp-fac-card {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 8px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.02);
+  cursor: pointer; transition: all .15s;
+  position: relative; font-family: inherit;
+  color: var(--text-muted);
+}
+.cp-fac-card:hover {
+  border-color: rgba(108,92,231,.3);
+  background: rgba(108,92,231,.05);
+}
+.cp-fac-card.selected {
+  border-color: #6c5ce7;
+  background: rgba(108,92,231,.12);
+  color: #a29bfe;
+}
+.cp-fac-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(255,255,255,.05);
+  display: flex; align-items: center; justify-content: center;
+  color: inherit; transition: all .15s;
+}
+.cp-fac-card.selected .cp-fac-icon {
+  background: rgba(108,92,231,.2); color: #a29bfe;
+}
+.cp-fac-name { font-size: .72rem; font-weight: 500; text-align: center; line-height: 1.2; }
+.cp-fac-check {
+  position: absolute; top: 6px; right: 6px;
+  color: #2ecc71;
+}
+
+/* ─── Step 5: Photo Upload ────────────────────── */
+.cp-drop-zone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 36px 20px;
+  border: 2px dashed rgba(108,92,231,.25);
+  border-radius: 14px; background: rgba(108,92,231,.03);
+  cursor: pointer; transition: all .15s;
+  color: var(--text-muted); font-size: .85rem;
+}
+.cp-drop-zone:hover {
+  border-color: rgba(108,92,231,.5);
+  background: rgba(108,92,231,.06);
+}
+.cp-drop-hint { font-size: .72rem; opacity: .5; }
+
+.cp-photo-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px; margin-top: 16px;
+}
+.cp-photo-thumb {
+  position: relative; border-radius: 10px; overflow: hidden;
+  aspect-ratio: 1; border: 1px solid rgba(255,255,255,.08);
+}
+.cp-photo-thumb img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.cp-cover-badge {
+  position: absolute; top: 6px; left: 6px;
+  padding: 2px 7px; border-radius: 5px;
+  background: #6c5ce7; color: white;
+  font-size: .6rem; font-weight: 700; text-transform: uppercase;
+}
+.cp-photo-remove {
+  position: absolute; top: 4px; right: 4px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0,0,0,.6); border: none; color: white;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; opacity: 0; transition: opacity .15s;
+}
+.cp-photo-thumb:hover .cp-photo-remove { opacity: 1; }
+
+/* ─── Light mode — new steps ──────────────────── */
+[data-theme="light"] .cp-fac-card {
+  border-color: rgba(0,0,0,.08);
+  background: rgba(0,0,0,.02);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .cp-fac-card:hover {
+  border-color: rgba(108,92,231,.25);
+  background: rgba(108,92,231,.04);
+}
+[data-theme="light"] .cp-fac-card.selected {
+  border-color: #6c5ce7;
+  background: rgba(108,92,231,.08);
+  color: #6c5ce7;
+}
+[data-theme="light"] .cp-fac-icon { background: rgba(0,0,0,.04); }
+[data-theme="light"] .cp-fac-card.selected .cp-fac-icon {
+  background: rgba(108,92,231,.12); color: #6c5ce7;
+}
+[data-theme="light"] .cp-drop-zone {
+  border-color: rgba(108,92,231,.2);
+  background: rgba(108,92,231,.02);
+}
+[data-theme="light"] .cp-drop-zone:hover {
+  border-color: rgba(108,92,231,.4);
+  background: rgba(108,92,231,.05);
+}
+[data-theme="light"] .cp-photo-thumb { border-color: rgba(0,0,0,.1); }
+[data-theme="light"] .cp-photo-remove { background: rgba(0,0,0,.5); }

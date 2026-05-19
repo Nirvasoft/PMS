@@ -1,11 +1,30 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCreatePropertyMutation, useGetPropertyTypesQuery } from '../../../store/api/propertiesApi';
-import { ArrowLeft, Building2, MapPin, DollarSign, Info, Check } from 'lucide-react';
+import {
+  useCreatePropertyMutation, useGetPropertyTypesQuery,
+  useGetFacilityTypesQuery, useAddFacilityMutation, useUploadPhotosMutation,
+} from '../../../store/api/propertiesApi';
+import {
+  ArrowLeft, Building2, MapPin, DollarSign, Info, Check,
+  Waves, Dumbbell, Flame, TreePine, Leaf, CircleDot, Activity,
+  UserCheck, Users, Monitor, Mail, Wind, UtensilsCrossed, ShoppingBag,
+  Camera, Key, Shield, Car, Zap, ArrowUp, Lock, Battery, ImagePlus, X, Upload,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CreatePropertyPage.css';
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
+
+const ICON_MAP: Record<string, React.ReactNode> = {
+  waves: <Waves size={18}/>, dumbbell: <Dumbbell size={18}/>, flame: <Flame size={18}/>,
+  playground: <TreePine size={18}/>, leaf: <Leaf size={18}/>, circle: <CircleDot size={18}/>,
+  activity: <Activity size={18}/>, 'user-check': <UserCheck size={18}/>, users: <Users size={18}/>,
+  monitor: <Monitor size={18}/>, mail: <Mail size={18}/>, wind: <Wind size={18}/>,
+  utensils: <UtensilsCrossed size={18}/>, 'shopping-bag': <ShoppingBag size={18}/>,
+  camera: <Camera size={18}/>, key: <Key size={18}/>, shield: <Shield size={18}/>,
+  car: <Car size={18}/>, zap: <Zap size={18}/>, 'arrow-up': <ArrowUp size={18}/>,
+  lock: <Lock size={18}/>, battery: <Battery size={18}/>,
+};
 
 interface FormState {
   // Basic
@@ -31,7 +50,9 @@ const STEPS = [
   { n: 1, label: 'Basic Info',    icon: <Info size={15} /> },
   { n: 2, label: 'Address',       icon: <MapPin size={15} /> },
   { n: 3, label: 'Details',       icon: <Building2 size={15} /> },
-  { n: 4, label: 'Financial',     icon: <DollarSign size={15} /> },
+  { n: 4, label: 'Facilities',    icon: <Shield size={15} /> },
+  { n: 5, label: 'Photos',        icon: <Camera size={15} /> },
+  { n: 6, label: 'Review',        icon: <DollarSign size={15} /> },
 ];
 
 const CURRENCIES = ['USD','SGD','EUR','GBP','AED','THB','MMK','JPY','CNY','INR'];
@@ -43,15 +64,38 @@ export default function CreatePropertyPage() {
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormState>(INITIAL);
   const [createProperty, { isLoading }] = useCreatePropertyMutation();
+  const [addFacility] = useAddFacilityMutation();
+  const [uploadPhotos] = useUploadPhotosMutation();
   const { data: typesData } = useGetPropertyTypesQuery();
+  const { data: ftData } = useGetFacilityTypesQuery();
   const types = typesData?.data || [];
+  const facilityTypes = ftData?.data || [];
+  const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleFacility = (id: string) => {
+    setSelectedFacilities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handlePhotoDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    setPhotoFiles(prev => [...prev, ...files].slice(0, 10));
+  }, []);
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/'));
+    setPhotoFiles(prev => [...prev, ...files].slice(0, 10));
+    e.target.value = '';
+  };
+
+  const removePhoto = (idx: number) => setPhotoFiles(prev => prev.filter((_, i) => i !== idx));
 
   const set = (k: keyof FormState, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const canNext = (): boolean => {
     if (step === 1) return !!(form.name.trim() && form.propertyType);
-    if (step === 2) return true; // address optional
-    if (step === 3) return true;
     return true;
   };
 
@@ -83,8 +127,22 @@ export default function CreatePropertyPage() {
 
     try {
       const res = await createProperty(payload as any).unwrap();
+      const pid = res.data.id;
+
+      // Add facilities
+      for (const ftId of selectedFacilities) {
+        try { await addFacility({ propertyId: pid, data: { facilityTypeId: ftId } }).unwrap(); } catch {}
+      }
+
+      // Upload photos
+      if (photoFiles.length > 0) {
+        const fd = new FormData();
+        photoFiles.forEach(f => fd.append('photos', f));
+        try { await uploadPhotos({ propertyId: pid, formData: fd }).unwrap(); } catch {}
+      }
+
       toast.success(`Property "${res.data.name}" created`);
-      navigate(`/admin/properties/${res.data.id}`);
+      navigate(`/admin/properties/${pid}`);
     } catch (e: any) {
       toast.error(e?.data?.message || 'Failed to create property');
     }
@@ -107,7 +165,7 @@ export default function CreatePropertyPage() {
             onClick={() => step > s.n && setStep(s.n as Step)} style={{ cursor: step > s.n ? 'pointer' : 'default' }}>
             <div className="cp-step-dot">{step > s.n ? <Check size={13} /> : s.icon}</div>
             <span className="cp-step-label">{s.label}</span>
-            {s.n < 4 && <div className="cp-step-line" />}
+            {s.n < 6 && <div className="cp-step-line" />}
           </div>
         ))}
       </div>
@@ -218,13 +276,69 @@ export default function CreatePropertyPage() {
                 <input type="number" min={0} placeholder="e.g. 134549" value={form.totalAreaSqft} onChange={e => set('totalAreaSqft', e.target.value)} />
               </div>
             </div>
-            <div className="cp-hint">💡 You can add units, facilities, and photos after creation from the property detail page.</div>
           </div>
         )}
 
         {step === 4 && (
           <div className="cp-section">
-            <h3>Financial & Operational Settings</h3>
+            <h3>Facilities</h3>
+            <p className="cp-subtitle">Select the facilities available at this property</p>
+            {(['recreation','convenience','security','utility'] as const).map(cat => {
+              const items = facilityTypes.filter(ft => ft.category === cat);
+              if (!items.length) return null;
+              return (
+                <div key={cat} className="cp-fac-group">
+                  <div className="cp-fac-cat">{cat}</div>
+                  <div className="cp-fac-grid">
+                    {items.map(ft => (
+                      <button key={ft.id} type="button"
+                        className={`cp-fac-card ${selectedFacilities.includes(ft.id) ? 'selected' : ''}`}
+                        onClick={() => toggleFacility(ft.id)}>
+                        <div className="cp-fac-icon">{ICON_MAP[ft.icon || ''] || <Shield size={18}/>}</div>
+                        <span className="cp-fac-name">{ft.name}</span>
+                        {selectedFacilities.includes(ft.id) && <Check size={14} className="cp-fac-check" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {selectedFacilities.length > 0 && (
+              <div className="cp-hint">✅ {selectedFacilities.length} facilities selected</div>
+            )}
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="cp-section">
+            <h3>Photos</h3>
+            <p className="cp-subtitle">Upload property photos (max 10). First photo becomes the cover.</p>
+            <div className="cp-drop-zone"
+              onDragOver={e => e.preventDefault()}
+              onDrop={handlePhotoDrop}
+              onClick={() => fileInputRef.current?.click()}>
+              <Upload size={28} />
+              <span>Drag & drop images here or click to browse</span>
+              <span className="cp-drop-hint">JPG, PNG, WebP — max 10 files</span>
+              <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handlePhotoSelect} />
+            </div>
+            {photoFiles.length > 0 && (
+              <div className="cp-photo-grid">
+                {photoFiles.map((f, i) => (
+                  <div key={i} className="cp-photo-thumb">
+                    <img src={URL.createObjectURL(f)} alt={f.name} />
+                    {i === 0 && <span className="cp-cover-badge">Cover</span>}
+                    <button className="cp-photo-remove" onClick={() => removePhoto(i)}><X size={12}/></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 6 && (
+          <div className="cp-section">
+            <h3>Financial & Review</h3>
             <div className="cp-grid">
               <div className="cp-field">
                 <label>Currency</label>
@@ -252,18 +366,17 @@ export default function CreatePropertyPage() {
                 </select>
               </div>
             </div>
-
-            {/* Summary */}
             <div className="cp-review">
               <div className="cp-review-title">Review before creating</div>
               <div className="cp-review-grid">
-                <ReviewRow label="Name"         value={form.name} />
-                <ReviewRow label="Type"         value={form.propertyType} />
-                <ReviewRow label="Code"         value={form.code || 'Auto-generated'} />
-                <ReviewRow label="Location"     value={[form.city, form.country].filter(Boolean).join(', ') || '—'} />
-                <ReviewRow label="Currency"     value={form.currency} />
-                <ReviewRow label="Billing"      value={`${form.billingCycle}, day ${form.billingDay}`} />
-                <ReviewRow label="Timezone"     value={form.timezone} />
+                <ReviewRow label="Name" value={form.name} />
+                <ReviewRow label="Type" value={form.propertyType} />
+                <ReviewRow label="Code" value={form.code || 'Auto-generated'} />
+                <ReviewRow label="Location" value={[form.city, form.country].filter(Boolean).join(', ') || '—'} />
+                <ReviewRow label="Facilities" value={`${selectedFacilities.length} selected`} />
+                <ReviewRow label="Photos" value={`${photoFiles.length} uploaded`} />
+                <ReviewRow label="Currency" value={form.currency} />
+                <ReviewRow label="Billing" value={`${form.billingCycle}, day ${form.billingDay}`} />
               </div>
             </div>
           </div>
@@ -279,7 +392,7 @@ export default function CreatePropertyPage() {
         )}
         <div className="cp-footer-right">
           <button className="cp-btn-cancel" onClick={() => navigate('/admin/properties')}>Cancel</button>
-          {step < 4 ? (
+          {step < 6 ? (
             <button className="cp-btn-next" disabled={!canNext()} onClick={() => setStep(s => (s + 1) as Step)}>
               Next →
             </button>
