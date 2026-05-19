@@ -3282,4 +3282,36 @@ select.input-full:focus {
   background: rgba(0,0,0,0.07);
 }
 
+/* ── Property card — 3-dot button & status badge on light background ── */
 
+/* 3-dot (MoreVertical) button: dark glass → white frosted glass */
+[data-theme="light"] .card-menu-btn {
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(6px);
+  color: #444;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  border: 1px solid rgba(0,0,0,0.08);
+}
+[data-theme="light"] .card-menu-btn:hover {
+  background: #ffffff;
+  color: #111;
+}
+
+/* Status badge (Active / Under Renovation / etc): dark glass → white pill */
+[data-theme="light"] .status-badge {
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  /* keep --status-color for dot + text, just darken it slightly for contrast */
+  color: var(--status-color, #333);
+}
+
+/* Card image background — use a neutral light grey so green Active badge
+   doesn't camouflage against a green image area */
+[data-theme="light"] .card-image {
+  background: linear-gradient(135deg, #eef0ef 0%, #e4e8e6 100%);
+}
+[data-theme="light"] .image-placeholder {
+  background: linear-gradient(135deg, #eef0ef 0%, #e4e8e6 100%);
+  color: rgba(0,0,0,0.2);
+}
