@@ -6,6 +6,7 @@ import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import {
   Building2, LayoutDashboard, Shield, LogOut, Settings, ChevronRight,
   User, Users, Key, GitBranch, Home, MapPin, Workflow, Inbox, Bell, Briefcase, FileText, FolderOpen,
+  Users2, ClipboardList,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -74,6 +75,18 @@ export default function DashboardLayout() {
             <NavLink to="/admin/properties" className="nav-item">
               <Home size={18} />
               <span>Properties</span>
+            </NavLink>
+          </PermissionGuard>
+          <PermissionGuard permission="tenants.read">
+            <NavLink to="/admin/tenants" className="nav-item">
+              <Users2 size={18} />
+              <span>Tenants</span>
+            </NavLink>
+          </PermissionGuard>
+          <PermissionGuard permission="leases.read">
+            <NavLink to="/admin/leases" className="nav-item">
+              <ClipboardList size={18} />
+              <span>Leases</span>
             </NavLink>
           </PermissionGuard>
 

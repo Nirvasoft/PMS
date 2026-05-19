@@ -40,11 +40,20 @@ const PERMISSIONS = [
   { code: 'properties.update', name: 'Update Properties', module: 'properties', action: 'update' },
   { code: 'properties.delete', name: 'Delete Properties', module: 'properties', action: 'delete' },
 
+  // Tenants (Module 2.3)
+  { code: 'tenants.read',      name: 'View Tenants',         module: 'tenants', action: 'read' },
+  { code: 'tenants.create',    name: 'Create Tenants',       module: 'tenants', action: 'create' },
+  { code: 'tenants.update',    name: 'Update Tenants',       module: 'tenants', action: 'update' },
+  { code: 'tenants.delete',    name: 'Delete Tenants',       module: 'tenants', action: 'delete' },
+  { code: 'tenants.blacklist', name: 'Blacklist Tenants',    module: 'tenants', action: 'manage' },
+  { code: 'tenants.kyc',       name: 'Manage Tenant KYC',   module: 'tenants', action: 'manage' },
+
   // Leasing
   { code: 'leases.read', name: 'View Leases', module: 'leases', action: 'read' },
   { code: 'leases.create', name: 'Create Leases', module: 'leases', action: 'create' },
   { code: 'leases.update', name: 'Update Leases', module: 'leases', action: 'update' },
   { code: 'leases.approve', name: 'Approve Leases', module: 'leases', action: 'approve' },
+  { code: 'leases.terminate', name: 'Terminate Leases', module: 'leases', action: 'manage' },
   { code: 'leases.export', name: 'Export Leases', module: 'leases', action: 'export' },
 
   // Billing
@@ -88,7 +97,8 @@ const ROLE_TEMPLATES = [
     description: 'Manage properties, leases, tenants, and maintenance',
     permissions: [
       'users.read', 'properties.read', 'properties.update',
-      'leases.read', 'leases.create', 'leases.update', 'leases.approve',
+      'tenants.read', 'tenants.create', 'tenants.update', 'tenants.blacklist', 'tenants.kyc',
+      'leases.read', 'leases.create', 'leases.update', 'leases.approve', 'leases.terminate',
       'billing.read', 'billing.create',
       'maintenance.read', 'maintenance.create', 'maintenance.update', 'maintenance.assign',
       'reports.view', 'departments.read', 'positions.read',
@@ -122,7 +132,7 @@ const ROLE_TEMPLATES = [
     name: 'Viewer',
     description: 'Read-only access to the system',
     permissions: [
-      'users.read', 'properties.read', 'leases.read', 'billing.read',
+      'users.read', 'properties.read', 'tenants.read', 'leases.read', 'billing.read',
       'maintenance.read', 'reports.view', 'departments.read', 'positions.read',
     ],
   },
