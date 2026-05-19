@@ -2702,3 +2702,463 @@ select.input-full:focus {
 .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
 .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
 .toggle-switch input:disabled + .toggle-slider { opacity: 0.3; cursor: not-allowed; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   LIGHT MODE — Page-level overrides
+   These fix hardcoded rgba(255,255,255,...) values that only work on
+   dark backgrounds — used in Properties, Tenants, Leases and all
+   Phase-2 page CSS files.
+   ═══════════════════════════════════════════════════════════════════ */
+
+[data-theme="light"] {
+  /* ── Shared surface / card / panel patterns ── */
+  --lm-surface:       rgba(0,0,0,0.03);
+  --lm-surface-hover: rgba(0,0,0,0.05);
+  --lm-border:        rgba(0,0,0,0.08);
+  --lm-border-strong: rgba(0,0,0,0.12);
+  --lm-muted-bg:      rgba(0,0,0,0.04);
+  --lm-empty-icon:    rgba(0,0,0,0.1);
+}
+
+/* ── Generic components used across all pages ── */
+[data-theme="light"] .btn-ghost,
+[data-theme="light"] .btn-ghost-sm,
+[data-theme="light"] .back-btn {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.1);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .btn-ghost:hover,
+[data-theme="light"] .btn-ghost-sm:hover,
+[data-theme="light"] .back-btn:hover {
+  background: rgba(0,0,0,0.08);
+}
+
+/* ── Properties page ── */
+[data-theme="light"] .properties-page-header {
+  border-bottom-color: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .filters-bar {
+  border-bottom-color: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .search-input-wrap,
+[data-theme="light"] .search-box,
+[data-theme="light"] .filter-select-wrap,
+[data-theme="light"] .filter-select {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.09);
+  color: var(--text-primary);
+}
+[data-theme="light"] .search-box input,
+[data-theme="light"] .filter-select option {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+[data-theme="light"] .property-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .property-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+[data-theme="light"] .card-meta,
+[data-theme="light"] .card-footer {
+  border-top-color: rgba(0,0,0,0.06);
+  background: rgba(0,0,0,0.02);
+}
+[data-theme="light"] .card-menu-btn {
+  color: var(--text-muted);
+}
+[data-theme="light"] .card-menu {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-md);
+}
+[data-theme="light"] .card-menu button {
+  color: var(--text-secondary);
+}
+[data-theme="light"] .card-menu button:hover {
+  background: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .list-view-table-header,
+[data-theme="light"] .list-view-row {
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .list-view-row:hover {
+  background: rgba(0,0,0,0.03);
+}
+[data-theme="light"] .empty-state-card {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.08);
+  color: var(--text-muted);
+}
+[data-theme="light"] .view-toggle-btn {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.1);
+  color: var(--text-muted);
+}
+[data-theme="light"] .view-toggle-btn.active {
+  background: rgba(0,0,0,0.08);
+  color: var(--text-primary);
+}
+[data-theme="light"] .skeleton-card {
+  background: rgba(0,0,0,0.05);
+}
+
+/* Property Detail Page */
+[data-theme="light"] .property-detail-page .detail-tabs,
+[data-theme="light"] .property-detail-page .tabs-bar {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .property-detail-page .tab-btn {
+  color: var(--text-muted);
+}
+[data-theme="light"] .property-detail-page .tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+[data-theme="light"] .info-card,
+[data-theme="light"] .overview-card,
+[data-theme="light"] .detail-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .stat-strip-item {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.07);
+}
+/* Units tab */
+[data-theme="light"] .units-table-header,
+[data-theme="light"] .unit-row {
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .unit-row:hover {
+  background: rgba(0,0,0,0.03);
+}
+[data-theme="light"] .unit-type-badge,
+[data-theme="light"] .unit-status-badge {
+  border: 1px solid rgba(0,0,0,0.08);
+}
+[data-theme="light"] .floor-group-header {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .filter-pill {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.09);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .filter-pill.active {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Tenants page ── */
+[data-theme="light"] .tenant-list-page .search-box,
+[data-theme="light"] .tenant-list-page .filter-select,
+[data-theme="light"] .tenant-list-page .type-tabs button,
+[data-theme="light"] .tenant-list-page .expiry-filter button {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.09);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .tenant-table-wrap {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .tenant-table-header {
+  background: rgba(0,0,0,0.03);
+  border-bottom-color: rgba(0,0,0,0.07);
+  color: var(--text-muted);
+}
+[data-theme="light"] .tenant-row {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .tenant-row:hover {
+  background: rgba(0,0,0,0.025);
+}
+[data-theme="light"] .tenant-avatar {
+  background: rgba(0,0,0,0.08);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .row-chevron { color: var(--text-muted); }
+
+/* Tenant detail */
+[data-theme="light"] .tenant-detail-page .td-tabs {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .tenant-detail-page .td-tab-btn {
+  color: var(--text-muted);
+}
+[data-theme="light"] .tenant-detail-page .td-tab-btn.active {
+  color: var(--accent);
+}
+[data-theme="light"] .profile-card,
+[data-theme="light"] .kyc-card,
+[data-theme="light"] .note-card,
+[data-theme="light"] .emergency-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .info-row {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .kyc-doc-card {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .blacklist-history-card {
+  background: rgba(220,38,38,0.04);
+  border-color: rgba(220,38,38,0.15);
+}
+
+/* Create tenant */
+[data-theme="light"] .create-tenant-page .ct-section {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .form-field input,
+[data-theme="light"] .form-field select,
+[data-theme="light"] .form-field textarea,
+[data-theme="light"] .modal-body .form-field input,
+[data-theme="light"] .modal-body .form-field select,
+[data-theme="light"] .modal-body .form-field textarea {
+  background: var(--bg-primary);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+[data-theme="light"] .form-field input:focus,
+[data-theme="light"] .form-field select:focus,
+[data-theme="light"] .form-field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] .form-field select option {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+/* ── Leases page ── */
+[data-theme="light"] .lease-list-page .search-box,
+[data-theme="light"] .lease-list-page .filter-select,
+[data-theme="light"] .lease-list-page .expiry-filter {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.09);
+}
+[data-theme="light"] .lease-list-page .expiry-filter button {
+  color: var(--text-muted);
+}
+[data-theme="light"] .lease-table-wrap {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .lease-table-header {
+  background: rgba(0,0,0,0.03);
+  border-bottom-color: rgba(0,0,0,0.07);
+  color: var(--text-muted);
+}
+[data-theme="light"] .lease-row {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .lease-row:hover {
+  background: rgba(0,0,0,0.025);
+}
+[data-theme="light"] .lease-row.expiring {
+  background: rgba(217,119,6,0.04);
+}
+[data-theme="light"] .ln-badge {
+  background: rgba(0,0,0,0.06);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .table-empty {
+  color: rgba(0,0,0,0.12);
+}
+[data-theme="light"] .lp {
+  background: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .pagination button {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.09);
+  color: var(--text-primary);
+}
+
+/* Create Lease wizard */
+[data-theme="light"] .cl-body {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .step-dot {
+  border-color: rgba(0,0,0,0.12);
+  background: rgba(0,0,0,0.03);
+  color: var(--text-muted);
+}
+[data-theme="light"] .step-line {
+  background: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .step-info {
+  background: rgba(108,92,231,0.06);
+  color: var(--text-muted);
+}
+[data-theme="light"] .dates-summary {
+  background: rgba(22,163,74,0.06);
+}
+[data-theme="light"] .escalation-preview {
+  background: rgba(22,163,74,0.05);
+  border-color: rgba(22,163,74,0.2);
+}
+[data-theme="light"] .clause-library .lib-clause,
+[data-theme="light"] .selected-clauses .sel-clause,
+[data-theme="light"] .custom-clause-form input,
+[data-theme="light"] .custom-clause-form textarea {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.08);
+  color: var(--text-primary);
+}
+[data-theme="light"] .review-row {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .review-note {
+  background: rgba(37,99,235,0.06);
+}
+
+/* Lease Detail Page */
+[data-theme="light"] .parties-strip {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .party-arrow { color: rgba(0,0,0,0.15); }
+[data-theme="light"] .ld-metrics {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .metric-card {
+  border-right-color: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .ld-tabs {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .ld-tabs button {
+  color: var(--text-muted);
+}
+[data-theme="light"] .info-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .info-card h4 { color: var(--text-muted); }
+[data-theme="light"] .info-row {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .escalation-table-wrap,
+[data-theme="light"] .special-conditions,
+[data-theme="light"] .clauses-list {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .escalation-table th {
+  border-bottom-color: rgba(0,0,0,0.07);
+  color: var(--text-muted);
+}
+[data-theme="light"] .escalation-table td {
+  border-bottom-color: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .clause-card {
+  background: rgba(0,0,0,0.03);
+}
+[data-theme="light"] .amendment-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .esign-overview,
+[data-theme="light"] .recipient-row {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="light"] .rr-status {
+  background: rgba(0,0,0,0.05);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .empty-state { color: rgba(0,0,0,0.15); }
+
+/* Modals — shared */
+[data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.35); }
+[data-theme="light"] .modal-box {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+[data-theme="light"] .modal-header {
+  border-bottom-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .modal-footer {
+  border-top-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .modal-body .form-field input,
+[data-theme="light"] .modal-body .form-field select,
+[data-theme="light"] .modal-body .form-field textarea,
+[data-theme="light"] .recipient-form-row input {
+  background: var(--bg-primary);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+[data-theme="light"] .penalty-box {
+  background: rgba(220,38,38,0.06);
+  border-color: rgba(220,38,38,0.2);
+}
+
+/* ── Action buttons in light mode ── */
+[data-theme="light"] .btn-action-submit {
+  background: rgba(37,99,235,0.08);
+  border-color: rgba(37,99,235,0.25);
+  color: #2563eb;
+}
+[data-theme="light"] .btn-action-activate {
+  background: rgba(22,163,74,0.08);
+  border-color: rgba(22,163,74,0.25);
+  color: #16a34a;
+}
+[data-theme="light"] .btn-action-amend {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.12);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .btn-action-renew {
+  background: rgba(5,150,105,0.08);
+  border-color: rgba(5,150,105,0.25);
+  color: #059669;
+}
+[data-theme="light"] .btn-action-terminate {
+  background: rgba(220,38,38,0.07);
+  border-color: rgba(220,38,38,0.2);
+  color: #dc2626;
+}
+[data-theme="light"] .btn-action-cancel {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.12);
+  color: var(--text-muted);
+}
+
+/* Expiry banner in light mode */
+[data-theme="light"] .expiry-banner {
+  background: rgba(217,119,6,0.07);
+  border-color: rgba(217,119,6,0.2);
+  color: #b45309;
+}
+[data-theme="light"] .expiry-banner button {
+  background: rgba(217,119,6,0.12);
+  color: #b45309;
+}
+
