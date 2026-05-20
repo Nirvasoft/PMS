@@ -84,6 +84,56 @@
 .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .tenant-tag { padding: 3px 9px; background: rgba(255,255,255,0.06); border-radius: 5px; font-size: 0.72rem; color: var(--text-muted); }
 
+/* Edit Profile button */
+.btn-edit-profile {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 7px;
+  background: rgba(108,92,231,0.1); border: 1px solid rgba(108,92,231,0.25);
+  color: #a29bfe; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.btn-edit-profile:hover { background: rgba(108,92,231,0.2); }
+
+/* Edit grid */
+.edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.edit-field { display: flex; flex-direction: column; gap: 4px; }
+.edit-field label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.edit-field input, .edit-field select {
+  padding: 8px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: var(--text-primary); font-size: 0.82rem; outline: none;
+  transition: border-color 0.15s;
+}
+.edit-field input:focus, .edit-field select:focus { border-color: rgba(108,92,231,0.5); }
+.edit-actions { display: flex; gap: 6px; }
+
+/* Tags editing */
+.edit-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.edit-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 4px 3px 9px; background: rgba(108,92,231,0.12); border-radius: 6px;
+  font-size: 0.74rem; color: #a29bfe; text-transform: capitalize;
+}
+.edit-tag button { background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 0.9rem; padding: 0 3px; line-height: 1; }
+.edit-tag button:hover { color: #e74c3c; }
+.tag-input-inline {
+  padding: 4px 8px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 6px; color: var(--text-primary); font-size: 0.74rem; outline: none; width: 90px;
+}
+
+/* Notes textarea in edit mode */
+.edit-notes {
+  width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: var(--text-primary); font-size: 0.82rem; outline: none; resize: vertical;
+  box-sizing: border-box; line-height: 1.5;
+}
+.edit-notes:focus { border-color: rgba(108,92,231,0.5); }
+
+/* Light mode */
+[data-theme="light"] .btn-edit-profile { background: rgba(108,92,231,0.08); border-color: rgba(108,92,231,0.2); }
+[data-theme="light"] .edit-field input, [data-theme="light"] .edit-field select { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1); }
+[data-theme="light"] .edit-tag { background: rgba(108,92,231,0.08); }
+[data-theme="light"] .tag-input-inline { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.12); }
+[data-theme="light"] .edit-notes { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1); }
+
 /* Blacklist history */
 .bl-history { display: flex; flex-direction: column; gap: 8px; }
 .bl-entry { padding: 10px 12px; border-radius: 9px; border: 1px solid; }
@@ -137,10 +187,50 @@
 .review-toggle button.active.approve { background: rgba(46,204,113,0.15);  border-color: rgba(46,204,113,0.4);  color: #2ecc71; }
 .review-toggle button.active.reject  { background: rgba(231,76,60,0.15);   border-color: rgba(231,76,60,0.4);   color: #e74c3c; }
 
-/* ─── Leases / Coming soon ───────────────────── */
-.leases-tab, .coming-soon { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 20px; text-align: center; color: rgba(255,255,255,0.1); }
+/* ─── Leases Tab ─────────────────────────────── */
+.leases-tab { display: flex; flex-direction: column; gap: 12px; }
+.coming-soon { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 20px; text-align: center; color: rgba(255,255,255,0.1); }
 .coming-soon h3 { color: rgba(255,255,255,0.3); margin: 0; }
 .coming-soon p { font-size: 0.84rem; max-width: 360px; color: rgba(255,255,255,0.2); line-height: 1.6; margin: 0; }
+
+.leases-summary { display: flex; gap: 10px; align-items: center; }
+.lease-stat {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 7px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  font-size: 0.78rem; font-weight: 700; color: var(--text-muted);
+}
+.lease-stat.active { color: #2ecc71; background: rgba(46,204,113,0.08); border-color: rgba(46,204,113,0.2); }
+
+.leases-table { display: flex; flex-direction: column; gap: 2px; }
+.lease-row {
+  display: grid; grid-template-columns: 120px 1fr 70px 1.2fr 110px 90px;
+  gap: 8px; align-items: center;
+  padding: 10px 14px; border-radius: 9px; font-size: 0.8rem;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);
+  transition: border-color 0.12s;
+}
+.lease-row:hover:not(.header) { border-color: rgba(255,255,255,0.1); }
+.lease-row.header {
+  background: none; border-color: transparent;
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted); padding: 6px 14px;
+}
+.lease-num { font-weight: 700; font-size: 0.76rem; color: #a29bfe; font-family: monospace; }
+.lease-prop { color: var(--text-primary); font-weight: 600; }
+.lease-unit { color: var(--text-muted); font-weight: 600; }
+.lease-period { font-size: 0.74rem; color: var(--text-muted); }
+.lease-rent { font-weight: 700; font-size: 0.82rem; }
+.rent-cycle { font-weight: 400; font-size: 0.68rem; color: var(--text-muted); margin-left: 2px; }
+.lease-status {
+  display: inline-block; padding: 2px 8px; border-radius: 5px;
+  font-size: 0.68rem; font-weight: 700; border: 1px solid; text-transform: capitalize;
+}
+
+/* Light mode */
+[data-theme="light"] .lease-row { background: rgba(0,0,0,0.01); border-color: rgba(0,0,0,0.06); }
+[data-theme="light"] .lease-row:hover:not(.header) { border-color: rgba(0,0,0,0.14); }
+[data-theme="light"] .lease-stat { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.06); }
 
 /* ─── Notes Tab ──────────────────────────────── */
 .notes-tab { display: flex; flex-direction: column; gap: 12px; }

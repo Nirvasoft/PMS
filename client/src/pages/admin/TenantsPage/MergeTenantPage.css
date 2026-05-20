@@ -1,0 +1,160 @@
+/* ═══════════════════════════════════════════════
+   Module 2.3 — Merge Tenant Page
+   ═══════════════════════════════════════════════ */
+
+.merge-page { padding: 24px 28px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+.merge-header h1 { display: flex; align-items: center; gap: 8px; font-size: 1.4rem; font-weight: 800; margin: 12px 0 4px; }
+.merge-subtitle { font-size: 0.84rem; color: var(--text-muted); margin: 0; }
+
+/* ─── Select Step ─────────────────────────────── */
+.merge-select { display: flex; gap: 16px; align-items: flex-start; }
+
+.merge-side { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.merge-side-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.merge-side-label span { font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+.primary-label { color: #2ecc71; }
+.duplicate-label { color: #e74c3c; }
+
+.merge-arrow {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding-top: 44px; color: var(--text-muted); flex-shrink: 0;
+}
+.merge-arrow span { font-size: 0.65rem; color: var(--text-muted); }
+
+/* ─── Search Picker ──────────────────────────── */
+.tenant-search-picker { position: relative; }
+
+.tsp-input-wrap {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; transition: border-color 0.15s;
+}
+.tsp-input-wrap:focus-within { border-color: rgba(108,92,231,0.5); }
+.tsp-input-wrap input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text-primary); font-size: 0.84rem;
+}
+.tsp-input-wrap input::placeholder { color: var(--text-muted); }
+.tsp-input-wrap button {
+  background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px;
+}
+
+.tsp-dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+  background: #1e2335; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35); overflow: hidden; max-height: 340px; overflow-y: auto;
+}
+.tsp-option {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 14px; background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer; text-align: left; color: var(--text-primary); transition: background 0.1s;
+}
+.tsp-option:hover { background: rgba(108,92,231,0.08); }
+.tsp-option:last-child { border-bottom: none; }
+
+.tsp-opt-avatar {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 0.9rem;
+}
+.tsp-opt-name { font-size: 0.82rem; font-weight: 600; }
+.tsp-opt-meta { font-size: 0.7rem; color: var(--text-muted); }
+.tsp-empty { padding: 20px; text-align: center; font-size: 0.82rem; color: var(--text-muted); }
+
+/* ─── Selected tenant card ───────────────────── */
+.selected-tenant-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; position: relative;
+}
+.stc-avatar {
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 1.1rem;
+}
+.stc-name { font-size: 0.88rem; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.stc-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.stc-email { font-size: 0.72rem; color: var(--text-muted); }
+.stc-clear {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(255,255,255,0.06); border: none; border-radius: 6px;
+  color: var(--text-muted); cursor: pointer; padding: 4px 5px; display: flex;
+}
+.stc-clear:hover { color: #e74c3c; background: rgba(231,76,60,0.1); }
+
+/* ─── Preview Step ───────────────────────────── */
+.merge-preview { display: flex; flex-direction: column; gap: 18px; }
+
+.mp-cards { display: flex; gap: 14px; align-items: flex-start; }
+.mp-card { flex: 1; border-radius: 14px; overflow: hidden; border: 1px solid; }
+.mp-card.primary { border-color: rgba(46,204,113,0.3); background: rgba(46,204,113,0.04); }
+.mp-card.duplicate { border-color: rgba(231,76,60,0.3); background: rgba(231,76,60,0.04); }
+
+.mp-card-label {
+  display: flex; align-items: center; gap: 5px; padding: 8px 14px;
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.mp-card.primary .mp-card-label { color: #2ecc71; background: rgba(46,204,113,0.08); }
+.mp-card.duplicate .mp-card-label { color: #e74c3c; background: rgba(231,76,60,0.08); }
+
+.mp-arrow { display: flex; align-items: center; padding-top: 60px; color: var(--text-muted); flex-shrink: 0; }
+
+.tp-card-inner { padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.tp-avatar {
+  width: 52px; height: 52px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; font-weight: 800;
+}
+.tp-name { font-size: 1rem; font-weight: 700; }
+.tp-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.tp-detail { font-size: 0.78rem; color: var(--text-muted); }
+
+/* Migration info */
+.mp-migration {
+  padding: 14px 18px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+}
+.mp-migration h4 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 0 0 10px; }
+.mp-migration-items { display: flex; gap: 12px; flex-wrap: wrap; }
+.mp-mig-item { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; }
+.mp-mig-count {
+  width: 24px; height: 24px; border-radius: 6px; background: rgba(108,92,231,0.15);
+  color: #a29bfe; font-size: 0.75rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Warning */
+.mp-warning {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 18px; background: rgba(231,76,60,0.06); border: 1px solid rgba(231,76,60,0.2);
+  border-radius: 12px; color: #e74c3c;
+}
+.mp-warning div { flex: 1; }
+.mp-warning p { color: var(--text-muted); font-size: 0.82rem; margin: 4px 0 0; }
+.mp-warning strong { font-size: 0.85rem; }
+
+/* Footer */
+.merge-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; }
+.merge-loading { padding: 40px; text-align: center; color: var(--text-muted); font-size: 0.84rem; }
+
+/* Shared */
+.btn-ghost { display: flex; align-items: center; gap: 5px; padding: 8px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); font-size: 0.82rem; cursor: pointer; }
+.btn-primary { display: flex; align-items: center; gap: 5px; padding: 8px 16px; background: #6c5ce7; color: white; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.btn-primary:disabled { opacity: 0.5; cursor: default; }
+.btn-danger { display: flex; align-items: center; gap: 5px; padding: 8px 16px; background: #e74c3c; color: white; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.btn-danger:disabled { opacity: 0.5; cursor: default; }
+.back-btn { display: flex; align-items: center; gap: 5px; padding: 6px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-muted); font-size: 0.8rem; cursor: pointer; }
+
+/* Light mode */
+[data-theme="light"] .tsp-input-wrap { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1); }
+[data-theme="light"] .tsp-dropdown { background: #fff; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
+[data-theme="light"] .tsp-option:hover { background: rgba(108,92,231,0.06); }
+[data-theme="light"] .selected-tenant-card { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.08); }
+[data-theme="light"] .mp-card.primary { background: rgba(46,204,113,0.03); }
+[data-theme="light"] .mp-card.duplicate { background: rgba(231,76,60,0.03); }
+[data-theme="light"] .mp-migration { background: rgba(0,0,0,0.01); border-color: rgba(0,0,0,0.06); }
+[data-theme="light"] .mp-warning { background: rgba(231,76,60,0.04); }

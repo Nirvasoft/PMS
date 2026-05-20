@@ -310,8 +310,339 @@
   background: rgba(16,185,129,0.1);
   color: #059669;
 }
+/* ═══════════════════════════════════════════════
+   Leases Tab
+   ═══════════════════════════════════════════════ */
+.drawer-leases { display: flex; flex-direction: column; gap: 8px; }
+
+.lease-card {
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  transition: border-color 0.15s;
+}
+.lease-card:hover { border-color: rgba(255,255,255,0.12); }
+.lease-card.active { border-left: 3px solid #2ecc71; }
+
+.lease-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.lease-number {
+  font-size: 0.82rem; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.lease-status {
+  font-size: 0.62rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 5px;
+  text-transform: capitalize;
+}
+.ls-active     { background: rgba(46,204,113,0.15); color: #2ecc71; }
+.ls-draft      { background: rgba(156,163,175,0.15); color: #9ca3af; }
+.ls-pending_approval { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.ls-approved   { background: rgba(59,130,246,0.15); color: #3b82f6; }
+.ls-expired    { background: rgba(107,114,128,0.15); color: #6b7280; }
+.ls-terminated { background: rgba(239,68,68,0.12); color: #ef4444; }
+.ls-renewed    { background: rgba(168,85,247,0.15); color: #a855f7; }
+.ls-cancelled  { background: rgba(239,68,68,0.08); color: #ef4444; }
+
+.lease-tenant {
+  font-size: 0.8rem; font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.lease-details { display: flex; flex-direction: column; gap: 3px; }
+.lease-detail-row {
+  display: flex; align-items: center; gap: 6px; justify-content: space-between;
+  font-size: 0.72rem; color: var(--text-muted);
+}
+.lease-term {
+  padding: 1px 6px; border-radius: 4px;
+  background: rgba(108,92,231,0.1); color: #a29bfe;
+  font-size: 0.68rem; font-weight: 600;
+}
+.lease-rent { font-weight: 700; color: var(--text-primary); font-size: 0.82rem; }
+.lease-cycle { font-weight: 400; color: var(--text-muted); font-size: 0.68rem; }
+
+/* Light mode */
+[data-theme="light"] .lease-card {
+  background: rgba(0,0,0,0.015);
+  border-color: rgba(0,0,0,0.07);
+}
+[data-theme="light"] .lease-card:hover { border-color: rgba(0,0,0,0.14); }
+[data-theme="light"] .lease-card.active { border-left-color: #059669; }
 
 /* Drawer overlay */
 [data-theme="light"] .drawer-overlay {
   background: rgba(0,0,0,0.15);
+}
+
+/* ═══════════════════════════════════════════════
+   Edit Mode — Info Tab
+   ═══════════════════════════════════════════════ */
+.edit-toggle-bar {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 6px;
+}
+.btn-start-edit {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(108,92,231,0.3);
+  background: rgba(108,92,231,0.08);
+  color: #a29bfe;
+  font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+  font-family: inherit;
+}
+.btn-start-edit:hover { background: rgba(108,92,231,0.15); color: #6c5ce7; }
+
+.btn-save-edit {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 12px;
+  border-radius: 7px; border: none;
+  background: #6c5ce7; color: white;
+  font-size: 0.75rem; font-weight: 700;
+  cursor: pointer; transition: background 0.15s;
+  font-family: inherit;
+}
+.btn-save-edit:hover:not(:disabled) { background: #5a4bd5; }
+.btn-save-edit:disabled { opacity: 0.5; }
+
+.btn-cancel-edit {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  font-size: 0.75rem; cursor: pointer;
+  font-family: inherit; transition: all 0.15s;
+}
+.btn-cancel-edit:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+
+/* Edit form */
+.edit-form { display: flex; flex-direction: column; gap: 6px; }
+
+.ef-section-title {
+  font-size: 0.6rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 6px 0 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  margin-top: 4px;
+}
+
+.ef-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.ef-field { display: flex; flex-direction: column; gap: 3px; }
+.ef-field.full-width { grid-column: 1 / -1; }
+.ef-field label {
+  font-size: 0.62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.ef-field input,
+.ef-field select,
+.ef-field textarea {
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 7px;
+  color: var(--text-primary); font-size: 0.8rem;
+  outline: none; transition: border-color 0.15s;
+  font-family: inherit;
+}
+.ef-field input:focus,
+.ef-field select:focus,
+.ef-field textarea:focus {
+  border-color: rgba(108,92,231,0.5);
+  box-shadow: 0 0 0 2px rgba(108,92,231,0.1);
+}
+.ef-field select option { background: #1a1f2e; }
+.ef-field textarea { resize: vertical; min-height: 42px; }
+
+/* Amenity toggles */
+.amenity-toggles { display: flex; flex-wrap: wrap; gap: 5px; }
+.amenity-toggle {
+  padding: 4px 10px; border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: var(--text-muted);
+  font-size: 0.72rem; cursor: pointer;
+  transition: all 0.15s; text-transform: capitalize;
+  font-family: inherit;
+}
+.amenity-toggle:hover { border-color: rgba(108,92,231,0.3); color: var(--text-primary); }
+.amenity-toggle.active {
+  background: rgba(108,92,231,0.14); border-color: rgba(108,92,231,0.4);
+  color: #a29bfe; font-weight: 600;
+}
+
+.unit-notes { font-style: italic; opacity: 0.8; margin-top: 4px; }
+
+/* ═══════════════════════════════════════════════
+   Floor Plan Tab
+   ═══════════════════════════════════════════════ */
+.drawer-floorplan { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+.fp-preview { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+.fp-image {
+  width: 100%; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  object-fit: contain; max-height: 400px;
+  background: rgba(0,0,0,0.2);
+}
+
+.fp-pdf-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 28px 20px; width: 100%;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+.fp-open-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: #6c5ce7; font-size: 0.78rem; font-weight: 600;
+  text-decoration: none; transition: opacity 0.15s;
+}
+.fp-open-link:hover { opacity: 0.8; }
+
+.fp-actions { display: flex; gap: 6px; }
+
+.btn-fp-replace,
+.btn-fp-upload {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 14px; border-radius: 8px;
+  border: 1px solid rgba(108,92,231,0.3);
+  background: rgba(108,92,231,0.08);
+  color: #a29bfe; font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+  font-family: inherit;
+}
+.btn-fp-replace:hover,
+.btn-fp-upload:hover { background: rgba(108,92,231,0.18); color: #6c5ce7; }
+.btn-fp-replace:disabled,
+.btn-fp-upload:disabled { opacity: 0.5; cursor: default; }
+
+.fp-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 40px 20px; text-align: center; color: var(--text-muted);
+}
+.fp-empty p { margin: 0; font-size: 0.85rem; }
+.fp-hint { font-size: 0.68rem; opacity: 0.6; }
+
+/* ═══════════════════════════════════════════════
+   LIGHT MODE — Edit Form + Floor Plan
+   ═══════════════════════════════════════════════ */
+[data-theme="light"] .btn-start-edit {
+  border-color: rgba(108,92,231,0.25);
+  background: rgba(108,92,231,0.06);
+  color: #6c5ce7;
+}
+[data-theme="light"] .btn-start-edit:hover {
+  background: rgba(108,92,231,0.12);
+}
+[data-theme="light"] .btn-cancel-edit {
+  border-color: rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.03);
+}
+[data-theme="light"] .btn-cancel-edit:hover {
+  background: rgba(0,0,0,0.06);
+}
+[data-theme="light"] .ef-section-title {
+  border-bottom-color: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .ef-field input,
+[data-theme="light"] .ef-field select,
+[data-theme="light"] .ef-field textarea {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .ef-field input:focus,
+[data-theme="light"] .ef-field select:focus,
+[data-theme="light"] .ef-field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] .ef-field select option { background: #ffffff; }
+
+[data-theme="light"] .amenity-toggle {
+  border-color: rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.02);
+  color: var(--text-muted);
+}
+[data-theme="light"] .amenity-toggle:hover { border-color: rgba(108,92,231,0.25); }
+[data-theme="light"] .amenity-toggle.active {
+  background: rgba(108,92,231,0.08);
+  border-color: rgba(108,92,231,0.3);
+  color: #6c5ce7;
+}
+
+[data-theme="light"] .fp-image {
+  border-color: rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.03);
+}
+[data-theme="light"] .fp-pdf-card {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .btn-fp-replace,
+[data-theme="light"] .btn-fp-upload {
+  border-color: rgba(108,92,231,0.2);
+  background: rgba(108,92,231,0.06);
+  color: #6c5ce7;
+}
+[data-theme="light"] .btn-fp-replace:hover,
+[data-theme="light"] .btn-fp-upload:hover {
+  background: rgba(108,92,231,0.12);
+}
+
+/* ═══════════════════════════════════════════════
+   Status Modal — Required Reason
+   ═══════════════════════════════════════════════ */
+.reason-required {
+  color: #ef4444; font-size: 0.68rem; font-weight: 700;
+  margin-left: 4px;
+}
+.reason-optional {
+  color: var(--text-muted); font-size: 0.68rem; font-weight: 400;
+  margin-left: 2px;
+}
+textarea.reason-error {
+  border-color: rgba(239,68,68,0.5) !important;
+  box-shadow: 0 0 0 2px rgba(239,68,68,0.1);
+}
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Estimated completion for maintenance */
+.est-completion {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.est-completion label {
+  font-size: 0.72rem; font-weight: 600;
+  color: var(--text-muted);
+}
+.est-completion input[type="date"] {
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  outline: none;
+}
+.est-completion input[type="date"]:focus {
+  border-color: rgba(108,92,231,0.5);
+}
+[data-theme="light"] .est-completion input[type="date"] {
+  background: #ffffff;
+  border-color: #d1e6d9;
 }

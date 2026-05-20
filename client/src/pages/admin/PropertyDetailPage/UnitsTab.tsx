@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../../../store';
 import {
   selectUnit, setViewMode, selectTower,
   toggleStatusFilter, setSearchQuery, clearFilters,
   setZoomLevel, setBulkCreateOpen,
+  setFloorFilter, setUnitTypeFilter,
 } from '../../../store/slices/unitsSlice';
 import {
   useGetTowersQuery, useGetFloorPlanQuery, useGetUnitsQuery,
@@ -14,11 +15,13 @@ import type { UnitListItem, Tower } from '../../../store/api/unitsApi';
 import {
   LayoutGrid, List, Layers, Plus, Search, Building2,
   Zap, Droplets, Wind, X, Grid3x3, ChevronRight,
+  ChevronsUp, ChevronsDown, Filter, Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UnitDetailDrawer } from './UnitDetailDrawer';
 import { BulkCreateModal } from './BulkCreateModal';
 import { TowerSidebar } from './TowerSidebar';
+import { TowerFormModal } from './TowerFormModal';
 import './UnitsTab.css';
 
 /* ── Status config (single source of truth) ── */
@@ -47,9 +50,12 @@ export default function UnitsTab() {
   const { id: propertyId } = useParams<{ id: string }>();
   const dispatch = useAppDispatch();
   const {
-    viewMode, selectedTowerId, statusFilter,
+    viewMode, selectedTowerId, statusFilter, floorFilter, unitTypeFilter,
     searchQuery, zoomLevel, drawerOpen, selectedUnitId, bulkCreateOpen,
   } = useAppSelector((s) => s.units);
+
+  /* Tower modal: null = closed, 'new' = create, Tower = edit */
+  const [towerModal, setTowerModal] = useState<Tower | 'new' | null>(null);
 
   /* Reset filters when switching to a different property */
   const prevPropertyId = useRef(propertyId);
@@ -88,17 +94,34 @@ export default function UnitsTab() {
 
   /* filtered floor plan */
   const floors = floorPlanData?.data.floors || [];
+
+  const cellSize = ZOOM_CELL[zoomLevel];
+  const hasFilters = statusFilter.length > 0 || !!searchQuery || !!unitTypeFilter || floorFilter !== null;
+
+  /* Floor plan scroll ref for jump buttons */
+  const floorScrollRef = useRef<HTMLDivElement>(null);
+
+  /* Distinct floors from floor plan data */
+  const distinctFloors = [...new Set(floors.map((f) => f.floorNumber))].sort((a, b) => b - a);
+
+  /* Unit types for filter dropdown */
+  const { data: unitTypesData } = useGetUnitTypesQuery();
+  const unitTypes = unitTypesData?.data || [];
+
+  /* Apply floor + unit type filters to floor plan */
   const filteredFloors = floors
     .map((floor) => ({
       ...floor,
-      units: floor.units.filter((u) =>
-        statusFilter.length === 0 || statusFilter.includes(u.status)
-      ),
+      units: floor.units.filter((u) => {
+        if (statusFilter.length > 0 && !statusFilter.includes(u.status)) return false;
+        if (unitTypeFilter && u.unitType !== unitTypeFilter) return false;
+        return true;
+      }),
     }))
-    .filter((f) => f.units.length > 0 || statusFilter.length === 0);
-
-  const cellSize = ZOOM_CELL[zoomLevel];
-  const hasFilters = statusFilter.length > 0 || !!searchQuery;
+    .filter((f) => {
+      if (floorFilter !== null && f.floorNumber !== floorFilter) return false;
+      return f.units.length > 0 || (statusFilter.length === 0 && !unitTypeFilter);
+    });
 
   return (
     <div className="units-tab">
@@ -155,6 +178,40 @@ export default function UnitsTab() {
             </div>
           )}
 
+          {/* Filter dropdowns */}
+          <div className="ut-filter-dropdowns">
+            <div className="ut-filter-select">
+              <Filter size={11} />
+              <select
+                value={unitTypeFilter || ''}
+                onChange={(e) => dispatch(setUnitTypeFilter(e.target.value || null))}
+              >
+                <option value="">All Types</option>
+                {['residential', 'commercial', 'storage', 'parking'].map((cat) => (
+                  <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                    {unitTypes.filter((t) => t.category === cat).map((t) => (
+                      <option key={t.id} value={t.code}>{t.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            {viewMode === 'floor_plan' && distinctFloors.length > 1 && (
+              <div className="ut-filter-select">
+                <Layers size={11} />
+                <select
+                  value={floorFilter ?? ''}
+                  onChange={(e) => dispatch(setFloorFilter(e.target.value ? parseInt(e.target.value) : null))}
+                >
+                  <option value="">All Floors</option>
+                  {distinctFloors.map((f) => (
+                    <option key={f} value={f}>Floor {f}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
           {/* Right-side controls */}
           <div className="ut-actions">
             {/* Zoom (floor plan only) */}
@@ -190,6 +247,11 @@ export default function UnitsTab() {
                 className={viewMode === 'grid' ? 'active' : ''}
                 onClick={() => dispatch(setViewMode('grid'))}
               ><Grid3x3 size={14} /></button>
+              <button
+                title="Calendar"
+                className={viewMode === 'calendar' ? 'active' : ''}
+                onClick={() => dispatch(setViewMode('calendar'))}
+              ><Calendar size={14} /></button>
             </div>
 
             <button className="ut-btn-bulk" onClick={() => dispatch(setBulkCreateOpen(true))}>
@@ -210,6 +272,8 @@ export default function UnitsTab() {
           towers={towers}
           selectedTowerId={selectedTowerId}
           onSelect={(id) => dispatch(selectTower(id))}
+          onAddTower={() => setTowerModal('new')}
+          onEditTower={(tower) => setTowerModal(tower)}
         />
 
         {/* Main content */}
@@ -220,7 +284,7 @@ export default function UnitsTab() {
             fpLoading
               ? <div className="units-loading"><Building2 size={24} /><span>Loading floor plan…</span></div>
               : <div className="floor-plan-view">
-                  <div className="floor-plan-scroll">
+                  <div className="floor-plan-scroll" ref={floorScrollRef}>
                     {filteredFloors.length === 0
                       ? <EmptyState message={hasFilters ? 'No units match the current filters' : 'No units yet — click Add Unit to get started'} />
                       : filteredFloors.map((floor) => (
@@ -240,7 +304,6 @@ export default function UnitsTab() {
                                       : STATUS_COLOR[unit.status] + '55',
                                   }}
                                   onClick={() => dispatch(selectUnit(unit.id))}
-                                  title={`${unit.unitNumber} · ${unit.unitType} · ${unit.status}`}
                                 >
                                   <div className="cell-dot" style={{ background: STATUS_COLOR[unit.status] }} />
                                   <span
@@ -252,6 +315,21 @@ export default function UnitsTab() {
                                   {zoomLevel === 'large' && (
                                     <span className="cell-type">{unit.unitType}</span>
                                   )}
+                                  {/* Rich tooltip */}
+                                  <div className="unit-tooltip">
+                                    <div className="ut-tip-header">
+                                      <span className="ut-tip-num">{unit.unitNumber}</span>
+                                      <span className="ut-tip-status" style={{ background: STATUS_COLOR[unit.status] + '33', color: STATUS_COLOR[unit.status] }}>
+                                        {unit.status.replace(/_/g, ' ')}
+                                      </span>
+                                    </div>
+                                    <div className="ut-tip-rows">
+                                      <span>Type</span><span>{unit.unitType.replace(/_/g, ' ')}</span>
+                                      {unit.areaSqft && <><span>Area</span><span>{unit.areaSqft} sqft</span></>}
+                                      <span>Furnishing</span><span>{unit.furnishing.replace(/_/g, ' ')}</span>
+                                      {unit.tower && <><span>Tower</span><span>{unit.tower.name}</span></>}
+                                    </div>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -259,6 +337,36 @@ export default function UnitsTab() {
                         ))
                     }
                   </div>
+                  {/* Status legend */}
+                  {filteredFloors.length > 0 && (
+                    <div className="floor-legend">
+                      {STATUSES.map((s) => (
+                        <div key={s.key} className="legend-item">
+                          <span className="legend-dot" style={{ background: s.color }} />
+                          <span>{s.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Floor jump buttons */}
+                  {filteredFloors.length > 2 && (
+                    <div className="floor-jump-btns">
+                      <button
+                        className="floor-jump-btn"
+                        title="Jump to top floor"
+                        onClick={() => floorScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                      >
+                        <ChevronsUp size={14} />
+                      </button>
+                      <button
+                        className="floor-jump-btn"
+                        title="Jump to ground floor"
+                        onClick={() => floorScrollRef.current?.scrollTo({ top: floorScrollRef.current.scrollHeight, behavior: 'smooth' })}
+                      >
+                        <ChevronsDown size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
           )}
 
@@ -314,6 +422,16 @@ export default function UnitsTab() {
             </div>
           )}
 
+          {/* ── Calendar View ── */}
+          {viewMode === 'calendar' && (
+            <CalendarView
+              units={listData?.data || []}
+              loading={listLoading}
+              hasFilters={hasFilters}
+              onSelectUnit={(id) => dispatch(selectUnit(id))}
+            />
+          )}
+
         </div>
       </div>
 
@@ -326,6 +444,13 @@ export default function UnitsTab() {
       )}
       {bulkCreateOpen && (
         <BulkCreateModal propertyId={propertyId!} towers={towers} />
+      )}
+      {towerModal !== null && (
+        <TowerFormModal
+          propertyId={propertyId!}
+          tower={towerModal === 'new' ? null : towerModal}
+          onClose={() => setTowerModal(null)}
+        />
       )}
     </div>
   );
@@ -587,6 +712,130 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           >
             {isLoading ? 'Creating…' : '+ Add Unit'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Calendar View ── */
+function CalendarView({
+  units,
+  loading,
+  hasFilters,
+  onSelectUnit,
+}: {
+  units: UnitListItem[];
+  loading: boolean;
+  hasFilters: boolean;
+  onSelectUnit: (id: string) => void;
+}) {
+  const [month, setMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(month.year, month.month, 1);
+    const lastDay = new Date(month.year, month.month + 1, 0);
+    const startDow = firstDay.getDay(); // 0=Sun
+    const totalDays = lastDay.getDate();
+    const today = new Date();
+
+    const days: Array<{ date: number; isToday: boolean } | null> = [];
+    // Padding for start of week
+    for (let i = 0; i < startDow; i++) days.push(null);
+    for (let d = 1; d <= totalDays; d++) {
+      days.push({
+        date: d,
+        isToday: d === today.getDate() && month.month === today.getMonth() && month.year === today.getFullYear(),
+      });
+    }
+    return days;
+  }, [month]);
+
+  const monthLabel = new Date(month.year, month.month).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  // Status summary for the current snapshot
+  const statusSummary = useMemo(() => {
+    const summary: Record<string, number> = {};
+    for (const u of units) {
+      summary[u.status] = (summary[u.status] || 0) + 1;
+    }
+    return summary;
+  }, [units]);
+
+  const prevMonth = () => setMonth((m) => m.month === 0 ? { year: m.year - 1, month: 11 } : { ...m, month: m.month - 1 });
+  const nextMonth = () => setMonth((m) => m.month === 11 ? { year: m.year + 1, month: 0 } : { ...m, month: m.month + 1 });
+
+  if (loading) return <div className="units-loading"><Building2 size={24} /><span>Loading…</span></div>;
+  if (units.length === 0) return <EmptyState message={hasFilters ? 'No units match the current filters' : 'No units yet'} />;
+
+  return (
+    <div className="calendar-view">
+      {/* Month header */}
+      <div className="cal-header">
+        <button className="cal-nav" onClick={prevMonth}>‹</button>
+        <span className="cal-month">{monthLabel}</span>
+        <button className="cal-nav" onClick={nextMonth}>›</button>
+      </div>
+
+      {/* Status summary bar */}
+      <div className="cal-summary">
+        {STATUSES.map((s) => (
+          <div key={s.key} className="cal-sum-item">
+            <span className="cal-sum-dot" style={{ background: s.color }} />
+            <span className="cal-sum-count">{statusSummary[s.key] || 0}</span>
+            <span className="cal-sum-label">{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div className="cal-grid">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+          <div key={d} className="cal-dow">{d}</div>
+        ))}
+        {calendarDays.map((day, i) => (
+          <div key={i} className={`cal-day ${!day ? 'empty' : ''} ${day?.isToday ? 'today' : ''}`}>
+            {day && (
+              <>
+                <span className="cal-date">{day.date}</span>
+                <div className="cal-day-dots">
+                  {STATUSES.map((s) => {
+                    const count = statusSummary[s.key] || 0;
+                    if (count === 0) return null;
+                    return (
+                      <div
+                        key={s.key}
+                        className="cal-dot-bar"
+                        style={{ background: s.color + '55', borderColor: s.color }}
+                        title={`${count} ${s.label}`}
+                      >
+                        <span style={{ color: s.color }}>{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Unit list below calendar */}
+      <div className="cal-unit-list">
+        <div className="cal-list-header">Units ({units.length})</div>
+        <div className="cal-list-scroll">
+          {units.slice(0, 50).map((u) => (
+            <button key={u.id} className="cal-unit-row" onClick={() => onSelectUnit(u.id)}>
+              <span className="cal-u-dot" style={{ background: STATUS_COLOR[u.status] }} />
+              <span className="cal-u-num">{u.unitNumber}</span>
+              <span className="cal-u-type">{u.unitType.replace(/_/g, ' ')}</span>
+              <span className="cal-u-status" style={{ color: STATUS_COLOR[u.status] }}>{u.status.replace(/_/g, ' ')}</span>
+              <ChevronRight size={12} />
+            </button>
+          ))}
         </div>
       </div>
     </div>

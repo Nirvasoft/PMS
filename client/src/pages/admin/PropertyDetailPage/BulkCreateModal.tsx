@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAppDispatch } from '../../../store';
 import { setBulkCreateOpen } from '../../../store/slices/unitsSlice';
-import { useBulkCreateUnitsMutation, useGetUnitTypesQuery } from '../../../store/api/unitsApi';
+import { useBulkCreateUnitsMutation, useGetUnitTypesQuery, useCheckBulkConflictsMutation } from '../../../store/api/unitsApi';
 import type { Tower } from '../../../store/api/unitsApi';
-import { X, AlertCircle, CheckCircle, Layers } from 'lucide-react';
+import { X, AlertCircle, CheckCircle, Layers, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './BulkCreateModal.css';
 
@@ -16,6 +16,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
   const dispatch = useAppDispatch();
   const { data: typesData } = useGetUnitTypesQuery();
   const [bulkCreate, { isLoading }] = useBulkCreateUnitsMutation();
+  const [checkConflicts] = useCheckBulkConflictsMutation();
 
   const [form, setForm] = useState({
     towerId: '',
@@ -29,19 +30,62 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
 
   const unitTypes = typesData?.data || [];
 
-  // Preview generated unit numbers
-  const previewUnits = useMemo(() => {
-    const units: string[] = [];
-    if (!form.unitTypeId) return units;
-    for (let floor = form.fromFloor; floor <= form.toFloor && units.length < 20; floor++) {
-      for (let u = 1; u <= form.unitsPerFloor && units.length < 20; u++) {
-        units.push(`${floor}${form.prefix}${u.toString().padStart(2, '0')}`);
+  // ── Conflict pre-check state ────────────────
+  const [conflicts, setConflicts] = useState<Set<string>>(new Set());
+  const [checking, setChecking] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // ── Generate ALL unit numbers (not limited) ─
+  const allUnitNumbers = useMemo(() => {
+    const nums: string[] = [];
+    if (!form.unitTypeId) return nums;
+    for (let floor = form.fromFloor; floor <= form.toFloor; floor++) {
+      for (let u = 1; u <= form.unitsPerFloor; u++) {
+        nums.push(`${floor}${form.prefix}${u.toString().padStart(2, '0')}`);
       }
     }
-    return units;
+    return nums;
   }, [form.fromFloor, form.toFloor, form.unitsPerFloor, form.prefix, form.unitTypeId]);
 
-  const totalUnits = (form.toFloor - form.fromFloor + 1) * form.unitsPerFloor;
+  // Preview (first 20)
+  const previewUnits = useMemo(() => allUnitNumbers.slice(0, 20), [allUnitNumbers]);
+  const totalUnits = allUnitNumbers.length;
+
+  // ── Debounced conflict check ────────────────
+  const runConflictCheck = useCallback(async (unitNumbers: string[]) => {
+    if (unitNumbers.length === 0 || unitNumbers.length > 500) {
+      setConflicts(new Set());
+      setChecking(false);
+      return;
+    }
+    setChecking(true);
+    try {
+      const result = await checkConflicts({ propertyId, unitNumbers }).unwrap();
+      const conflictSet = new Set((result.data.conflicts || []).map((c: string) => c.toLowerCase()));
+      setConflicts(conflictSet);
+    } catch {
+      setConflicts(new Set());
+    }
+    setChecking(false);
+  }, [checkConflicts, propertyId]);
+
+  // Trigger debounced check when unit numbers change
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (allUnitNumbers.length === 0 || allUnitNumbers.length > 500) {
+      setConflicts(new Set());
+      return;
+    }
+    setChecking(true);
+    debounceRef.current = setTimeout(() => {
+      runConflictCheck(allUnitNumbers);
+    }, 600);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [allUnitNumbers, runConflictCheck]);
+
+  const conflictCount = conflicts.size;
 
   const handleCreate = async () => {
     if (!form.unitTypeId) { toast.error('Select a unit type'); return; }
@@ -66,9 +110,9 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
       toast.success(`✅ Created ${result.data.created} units`);
       dispatch(setBulkCreateOpen(false));
     } catch (e: any) {
-      const conflicts = e?.data?.details?.conflicts;
-      toast.error(conflicts
-        ? `${conflicts.length} unit number(s) already exist: ${conflicts.slice(0, 3).join(', ')}…`
+      const serverConflicts = e?.data?.details?.conflicts;
+      toast.error(serverConflicts
+        ? `${serverConflicts.length} unit number(s) already exist: ${serverConflicts.slice(0, 3).join(', ')}…`
         : 'Bulk create failed');
     }
   };
@@ -145,16 +189,40 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
               {totalUnits > 500 ? <AlertCircle size={14} /> : <CheckCircle size={14} />}
               <span>Will create <strong>{totalUnits}</strong> units{totalUnits > 500 ? ' — max 500' : ''}</span>
             </div>
+
+            {/* Conflict warning */}
+            {conflictCount > 0 && (
+              <div className="conflict-warning">
+                <AlertTriangle size={14} />
+                <span>
+                  <strong>{conflictCount}</strong> unit number{conflictCount !== 1 ? 's' : ''} already exist{conflictCount === 1 ? 's' : ''} and will be skipped
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Preview */}
           <div className="bulk-preview">
-            <div className="preview-header">Preview (first {Math.min(previewUnits.length, 20)})</div>
+            <div className="preview-header">
+              Preview (first {Math.min(previewUnits.length, 20)})
+              {checking && <span className="preview-checking"> · checking…</span>}
+            </div>
             {previewUnits.length === 0
               ? <div className="preview-empty">Select type and set range to preview</div>
               : (
                 <div className="preview-grid">
-                  {previewUnits.map((n) => <div key={n} className="preview-cell">{n}</div>)}
+                  {previewUnits.map((n) => {
+                    const isConflict = conflicts.has(n.toLowerCase());
+                    return (
+                      <div
+                        key={n}
+                        className={`preview-cell ${isConflict ? 'conflict' : ''}`}
+                        title={isConflict ? `"${n}" already exists` : n}
+                      >
+                        {n}
+                      </div>
+                    );
+                  })}
                   {totalUnits > 20 && (
                     <div className="preview-more">… and {totalUnits - 20} more</div>
                   )}
@@ -166,7 +234,8 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
 
         <div className="modal-footer">
           <button className="btn-ghost" onClick={() => dispatch(setBulkCreateOpen(false))}>Cancel</button>
-          <button className="btn-primary" onClick={handleCreate} disabled={isLoading || totalUnits > 500 || !form.unitTypeId}>
+          <button className="btn-primary" onClick={handleCreate}
+            disabled={isLoading || totalUnits > 500 || !form.unitTypeId}>
             {isLoading ? 'Creating…' : `Create ${totalUnits} Units`}
           </button>
         </div>

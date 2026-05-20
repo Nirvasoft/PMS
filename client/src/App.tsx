@@ -19,6 +19,7 @@ import PropertyDetailPage from './pages/admin/PropertyDetailPage/PropertyDetailP
 import TenantListPage from './pages/admin/TenantsPage/TenantListPage';
 import TenantDetailPage from './pages/admin/TenantsPage/TenantDetailPage';
 import CreateTenantPage from './pages/admin/TenantsPage/CreateTenantPage';
+import MergeTenantPage from './pages/admin/TenantsPage/MergeTenantPage';
 import LeaseListPage from './pages/admin/LeasesPage/LeaseListPage';
 import LeaseDetailPage from './pages/admin/LeasesPage/LeaseDetailPage';
 import CreateLeasePage from './pages/admin/LeasesPage/CreateLeasePage';
@@ -98,6 +99,7 @@ function AppRoutes() {
           <Route path="/admin/properties/:id" element={<PropertyDetailPage />} />
           <Route path="/admin/tenants" element={<TenantListPage />} />
           <Route path="/admin/tenants/new" element={<CreateTenantPage />} />
+          <Route path="/admin/tenants/merge" element={<MergeTenantPage />} />
           <Route path="/admin/tenants/:id" element={<TenantDetailPage />} />
           <Route path="/admin/leases" element={<LeaseListPage />} />
           <Route path="/admin/leases/new" element={<CreateLeasePage />} />

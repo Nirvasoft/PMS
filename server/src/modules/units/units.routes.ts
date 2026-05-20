@@ -100,6 +100,17 @@ unitsRouter.post('/bulk', asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data });
 }));
 
+/** POST /properties/:propertyId/units/check-conflicts — lightweight conflict pre-check */
+unitsRouter.post('/check-conflicts', asyncHandler(async (req, res) => {
+  const { unitNumbers } = req.body as { unitNumbers: string[] };
+  if (!Array.isArray(unitNumbers) || unitNumbers.length === 0) {
+    res.json({ success: true, data: { conflicts: [] } });
+    return;
+  }
+  const conflicts = await unitsService.checkConflicts(p(req, 'propertyId'), unitNumbers);
+  res.json({ success: true, data: { conflicts } });
+}));
+
 /** POST /properties/:propertyId/units */
 unitsRouter.post('/', asyncHandler(async (req, res) => {
   const data = await unitsService.create(p(req, 'propertyId'), req.user!.companyId, req.body, req.user!.sub);

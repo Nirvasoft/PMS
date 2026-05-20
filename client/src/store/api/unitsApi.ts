@@ -71,6 +71,26 @@ export interface UnitStatusHistory {
   changedAt: string;
 }
 
+export interface UnitLease {
+  id: string;
+  leaseNumber: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  rentAmount: number;
+  currency: string;
+  billingCycle: string;
+  leaseTermMonths: number;
+  tenant: {
+    id: string;
+    tenantType: string;
+    firstName: string | null;
+    lastName: string | null;
+    companyName: string | null;
+    email: string | null;
+  };
+}
+
 export interface UnitListItem {
   id: string;
   unitNumber: string;
@@ -101,6 +121,7 @@ export interface UnitDetail extends UnitListItem {
   statusHistory: UnitStatusHistory[];
   meters: UtilityMeter[];
   amenities: UnitAmenity[];
+  leases: UnitLease[];
 }
 
 export interface FloorPlanMatrix {
@@ -222,6 +243,12 @@ export const unitsApi = createApi({
       query: ({ propertyId, towerId, data }) => ({ url: `/properties/${propertyId}/towers/${towerId}/sections`, method: 'POST', body: data }),
       invalidatesTags: (_, __, { propertyId }) => [{ type: 'Towers', id: propertyId }],
     }),
+    updateSection: builder.mutation<ApiResponse<TowerSection>, { propertyId: string; towerId: string; sectionId: string; data: Record<string, unknown> }>({
+      query: ({ propertyId, towerId, sectionId, data }) => ({
+        url: `/properties/${propertyId}/towers/${towerId}/sections/${sectionId}`, method: 'PUT', body: data,
+      }),
+      invalidatesTags: (_, __, { propertyId }) => [{ type: 'Towers', id: propertyId }],
+    }),
     deleteSection: builder.mutation<void, { propertyId: string; towerId: string; sectionId: string }>({
       query: ({ propertyId, towerId, sectionId }) => ({ url: `/properties/${propertyId}/towers/${towerId}/sections/${sectionId}`, method: 'DELETE' }),
       invalidatesTags: (_, __, { propertyId }) => [{ type: 'Towers', id: propertyId }],
@@ -244,6 +271,11 @@ export const unitsApi = createApi({
       query: ({ propertyId, data }) => ({ url: `/properties/${propertyId}/units/bulk`, method: 'POST', body: data }),
       invalidatesTags: ['Units', 'FloorPlan', 'UnitStats'],
     }),
+    checkBulkConflicts: builder.mutation<ApiResponse<{ conflicts: string[] }>, { propertyId: string; unitNumbers: string[] }>({
+      query: ({ propertyId, unitNumbers }) => ({
+        url: `/properties/${propertyId}/units/check-conflicts`, method: 'POST', body: { unitNumbers },
+      }),
+    }),
     updateUnit: builder.mutation<ApiResponse<UnitDetail>, { propertyId: string; unitId: string; data: Partial<CreateUnitDto> }>({
       query: ({ propertyId, unitId, data }) => ({ url: `/properties/${propertyId}/units/${unitId}`, method: 'PUT', body: data }),
       invalidatesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }, 'Units', 'FloorPlan'],
@@ -262,6 +294,18 @@ export const unitsApi = createApi({
       query: ({ propertyId, unitId, amenities }) => ({
         url: `/properties/${propertyId}/units/${unitId}/amenities`, method: 'PUT', body: { amenities },
       }),
+      invalidatesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }],
+    }),
+    uploadFloorPlan: builder.mutation<ApiResponse<UnitDetail>, { propertyId: string; unitId: string; file: File }>({
+      query: ({ propertyId, unitId, file }) => {
+        const formData = new FormData();
+        formData.append('floorPlan', file);
+        return {
+          url: `/properties/${propertyId}/units/${unitId}/floor-plan`,
+          method: 'POST',
+          body: formData,
+        };
+      },
       invalidatesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }],
     }),
 
@@ -308,15 +352,18 @@ export const {
   useUpdateTowerMutation,
   useDeleteTowerMutation,
   useAddSectionMutation,
+  useUpdateSectionMutation,
   useDeleteSectionMutation,
   useGetUnitsQuery,
   useGetUnitQuery,
   useCreateUnitMutation,
   useBulkCreateUnitsMutation,
+  useCheckBulkConflictsMutation,
   useUpdateUnitMutation,
   useDeleteUnitMutation,
   useUpdateUnitStatusMutation,
   useSetAmenitiesMutation,
+  useUploadFloorPlanMutation,
   useGetFloorPlanQuery,
   useGetUnitStatsQuery,
   useGetMetersQuery,

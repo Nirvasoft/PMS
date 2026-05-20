@@ -1,6 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import { redis } from '../../common/redis';
 import {
   UNIT_TYPES, UNIT_STATUS_TRANSITIONS, SQM_TO_SQFT,
   UNIT_NUMBER_REGEX, UNIT_NUMBER_MAX_LENGTH,
@@ -165,7 +166,6 @@ export class UnitsService {
     };
   }
 
-  // ── Get one ────────────────────────────────
   async findById(propertyId: string, unitId: string) {
     const unit = await prisma.unit.findFirst({
       where: { id: unitId, propertyId, deletedAt: null },
@@ -182,10 +182,46 @@ export class UnitsService {
           orderBy: { changedAt: 'desc' },
           take: 20,
         },
+        leases: {
+          select: {
+            id: true,
+            leaseNumber: true,
+            status: true,
+            startDate: true,
+            endDate: true,
+            rentAmount: true,
+            currency: true,
+            billingCycle: true,
+            leaseTermMonths: true,
+            tenant: {
+              select: {
+                id: true,
+                tenantType: true,
+                firstName: true,
+                lastName: true,
+                companyName: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: { startDate: 'desc' },
+          take: 20,
+        },
       },
     });
     if (!unit) throw AppError.notFound('Unit');
     return unit;
+  }
+  // ── Check conflicts (case-insensitive) ─────
+  async checkConflicts(propertyId: string, unitNumbers: string[]): Promise<string[]> {
+    const lowerSet = new Set(unitNumbers.map((n) => n.toLowerCase()));
+    const existing = await prisma.unit.findMany({
+      where: { propertyId, deletedAt: null },
+      select: { unitNumber: true },
+    });
+    return existing
+      .filter((e) => lowerSet.has(e.unitNumber.toLowerCase()))
+      .map((e) => e.unitNumber);
   }
 
   // ── Create ─────────────────────────────────
@@ -195,8 +231,8 @@ export class UnitsService {
     validateUnitNumber(unitData.unitNumber as string);
     autoConvertArea(unitData);
 
-    // Check unique
-    const existing = await prisma.unit.findFirst({ where: { unitNumber: unitData.unitNumber as string, propertyId, deletedAt: null } });
+    // Check unique (case-insensitive)
+    const existing = await prisma.unit.findFirst({ where: { unitNumber: { equals: unitData.unitNumber as string, mode: 'insensitive' }, propertyId, deletedAt: null } });
     if (existing) throw new AppError(409, 'UNIT_NUMBER_TAKEN', `Unit number "${unitData.unitNumber}" already exists`);
 
     const unit = await prisma.unit.create({
@@ -216,6 +252,9 @@ export class UnitsService {
 
     // Increment property totalUnits
     await prisma.property.update({ where: { id: propertyId }, data: { totalUnits: { increment: 1 } } });
+
+    // Invalidate cached stats
+    await this.invalidateStatsCache(propertyId);
 
     return unit;
   }
@@ -255,12 +294,13 @@ export class UnitsService {
       }
     }
 
-    // Check for conflicts
+    // Check for conflicts (case-insensitive)
     const unitNumbers = units.map((u) => u.unitNumber as string);
+    const lowerNumbers = unitNumbers.map((n) => n.toLowerCase());
     const existing = await prisma.unit.findMany({
-      where: { propertyId, unitNumber: { in: unitNumbers }, deletedAt: null },
+      where: { propertyId, deletedAt: null },
       select: { unitNumber: true },
-    });
+    }).then((rows) => rows.filter((r) => lowerNumbers.includes(r.unitNumber.toLowerCase())));
     if (existing.length > 0) {
       throw new AppError(409, 'UNIT_NUMBER_CONFLICT', `${existing.length} unit number(s) already exist`, {
         conflicts: existing.map((e) => e.unitNumber),
@@ -281,6 +321,9 @@ export class UnitsService {
       return createdUnits;
     });
 
+    // Invalidate cached stats after transaction
+    await this.invalidateStatsCache(propertyId);
+
     return {
       created: created.length,
       units: created.map((u) => ({ id: u.id, unitNumber: u.unitNumber })),
@@ -297,7 +340,7 @@ export class UnitsService {
 
     if (unitData.unitNumber && unitData.unitNumber !== unit.unitNumber) {
       validateUnitNumber(unitData.unitNumber as string);
-      const conflict = await prisma.unit.findFirst({ where: { unitNumber: unitData.unitNumber as string, propertyId, id: { not: unitId }, deletedAt: null } });
+      const conflict = await prisma.unit.findFirst({ where: { unitNumber: { equals: unitData.unitNumber as string, mode: 'insensitive' }, propertyId, id: { not: unitId }, deletedAt: null } });
       if (conflict) throw new AppError(409, 'UNIT_NUMBER_TAKEN', `Unit number "${unitData.unitNumber}" already exists`);
     }
 
@@ -314,11 +357,22 @@ export class UnitsService {
       throw new AppError(400, 'INVALID_STATUS_TRANSITION', `Cannot transition from '${unit.status}' to '${dto.status}'`);
     }
 
+    // Require reason for certain transitions
+    const reasonRequired = ['maintenance', 'not_for_rent'].includes(dto.status);
+    if (reasonRequired && !dto.reason?.trim()) {
+      throw new AppError(400, 'REASON_REQUIRED', `A reason is required when changing status to '${dto.status.replace(/_/g, ' ')}'`);
+    }
+
     await prisma.unitStatusHistory.create({
       data: { unitId, fromStatus: unit.status, toStatus: dto.status, reason: dto.reason, changedBy: userId },
     });
 
-    return prisma.unit.update({ where: { id: unitId }, data: { status: dto.status } });
+    const result = await prisma.unit.update({ where: { id: unitId }, data: { status: dto.status } });
+
+    // Invalidate cached stats
+    await this.invalidateStatsCache(propertyId);
+
+    return result;
   }
 
   // ── Floor plan matrix ──────────────────────
@@ -356,6 +410,13 @@ export class UnitsService {
 
   // ── Stats ──────────────────────────────────
   async getStats(propertyId: string) {
+    // Check cache first
+    const cacheKey = `unit_stats:${propertyId}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      try { return JSON.parse(cached); } catch { /* fall through */ }
+    }
+
     const statusCounts = await prisma.unit.groupBy({
       by: ['status'],
       where: { propertyId, deletedAt: null },
@@ -369,7 +430,21 @@ export class UnitsService {
     }
 
     const occupancyRate = stats.total > 0 ? Math.round((stats.occupied / stats.total) * 100) : 0;
-    return { ...stats, occupancyRate };
+    const result = { ...stats, occupancyRate };
+
+    // Cache for 60 seconds
+    await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
+
+    return result;
+  }
+
+  /** Invalidate the unit stats cache for a property */
+  private async invalidateStatsCache(propertyId: string) {
+    try {
+      await redis.del(`unit_stats:${propertyId}`);
+    } catch (e) {
+      logger.warn('Failed to invalidate stats cache', e);
+    }
   }
 
   // ── Soft delete ─────────────────────────────
@@ -379,6 +454,9 @@ export class UnitsService {
     // TODO: block if has active lease (Phase 2.4)
     await prisma.unit.update({ where: { id: unitId }, data: { deletedAt: new Date(), isActive: false } });
     await prisma.property.update({ where: { id: propertyId }, data: { totalUnits: { decrement: 1 } } });
+
+    // Invalidate cached stats
+    await this.invalidateStatsCache(propertyId);
   }
 
   // ── Floor plan upload ──────────────────────

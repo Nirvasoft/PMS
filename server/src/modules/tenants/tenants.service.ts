@@ -190,16 +190,51 @@ export class TenantsService {
   async delete(id: string, companyId: string) {
     const tenant = await prisma.tenant.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!tenant) throw AppError.notFound('Tenant');
-    // TODO: block if active leases exist (Phase 2.4)
+
+    const activeLeases = await prisma.lease.count({
+      where: { tenantId: id, status: { in: ['active', 'pending_approval', 'approved'] }, deletedAt: null },
+    });
+    if (activeLeases > 0) {
+      throw new AppError(409, 'HAS_ACTIVE_LEASES', `Cannot delete tenant with ${activeLeases} active lease(s). Terminate or transfer leases first.`);
+    }
+
     await prisma.tenant.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
   }
 
-  // ── Lease history (stub — fully populated in Module 2.4) ──
+  // ── Lease history ──────────────────────────
   async getLeaseHistory(tenantId: string, companyId: string) {
     const tenant = await prisma.tenant.findFirst({ where: { id: tenantId, companyId, deletedAt: null } });
     if (!tenant) throw AppError.notFound('Tenant');
-    // Returns empty array until Module 2.4 creates the Lease model
-    return [];
+
+    const leases = await prisma.lease.findMany({
+      where: { tenantId, deletedAt: null },
+      select: {
+        id: true,
+        leaseNumber: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        rentAmount: true,
+        currency: true,
+        billingCycle: true,
+        unit: { select: { unitNumber: true } },
+        property: { select: { name: true } },
+      },
+      orderBy: { startDate: 'desc' },
+    });
+
+    return leases.map((l) => ({
+      id: l.id,
+      leaseNumber: l.leaseNumber,
+      unitNumber: l.unit.unitNumber,
+      propertyName: l.property.name,
+      startDate: l.startDate,
+      endDate: l.endDate,
+      rentAmount: Number(l.rentAmount),
+      currency: l.currency,
+      billingCycle: l.billingCycle,
+      status: l.status,
+    }));
   }
 
   // ── Merge tenants ──────────────────────────

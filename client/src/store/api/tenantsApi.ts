@@ -131,6 +131,19 @@ export interface BlacklistLogEntry {
   actionedByUser: { id: string; email: string; profile: { firstName: string; lastName: string } | null };
 }
 
+export interface LeaseHistoryItem {
+  id: string;
+  leaseNumber: string;
+  unitNumber: string;
+  propertyName: string;
+  startDate: string;
+  endDate: string;
+  rentAmount: number;
+  currency: string;
+  billingCycle: string;
+  status: string;
+}
+
 export interface KycRequirement {
   id: string;
   companyId: string;
@@ -198,8 +211,9 @@ export const tenantsApi = createApi({
     }),
 
     // ── Lease History ──
-    getLeaseHistory: builder.query<ApiResponse<unknown[]>, string>({
+    getLeaseHistory: builder.query<ApiResponse<LeaseHistoryItem[]>, string>({
       query: (id) => `/tenants/${id}/lease-history`,
+      providesTags: (_, __, id) => [{ type: 'Tenants', id }],
     }),
 
     // ── KYC ──

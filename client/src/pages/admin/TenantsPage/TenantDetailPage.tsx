@@ -7,13 +7,13 @@ import {
   useDeleteEmergencyContactMutation, useGetTenantNotesQuery,
   useAddTenantNoteMutation, useUpdateTenantNoteMutation,
   useDeleteTenantNoteMutation, useGetTenantKycQuery,
-  useReviewKycDocumentMutation,
-  type TenantNote, type EmergencyContact, type KycDocumentItem,
+  useReviewKycDocumentMutation, useGetLeaseHistoryQuery,
+  type TenantNote, type EmergencyContact, type KycDocumentItem, type LeaseHistoryItem,
 } from '../../../store/api/tenantsApi';
 import {
   ArrowLeft, User, Building2, Shield, ShieldOff, Phone, Mail,
   Plus, Trash2, Pin, PinOff, CheckCircle, XCircle, Clock,
-  AlertCircle, FileText, Users2, Edit2, X, ChevronRight,
+  AlertCircle, FileText, Users2, Edit2, X, ChevronRight, Save,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './TenantDetailPage.css';
@@ -201,12 +201,158 @@ function WhitelistButton({ tenantId }: { tenantId: string }) {
 function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
   const { data: historyData } = useGetBlacklistHistoryQuery(tenantId);
   const history = historyData?.data || [];
+  const [editing, setEditing] = useState(false);
+  const [updateTenant, { isLoading: saving }] = useUpdateTenantMutation();
+  const [form, setForm] = useState<Record<string, string>>({}); // populated on edit start
+  const [tagInput, setTagInput] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
 
+  const startEdit = () => {
+    const f: Record<string, string> = {};
+    if (tenant.tenantType === 'individual') {
+      f.firstName = tenant.firstName || ''; f.lastName = tenant.lastName || '';
+      f.dateOfBirth = (tenant.dateOfBirth || '').split('T')[0]; f.gender = tenant.gender || '';
+      f.nationality = tenant.nationality || ''; f.idType = tenant.idType || '';
+      f.idNumber = tenant.idNumber || ''; f.idExpiryDate = (tenant.idExpiryDate || '').split('T')[0];
+    } else {
+      f.companyName = tenant.companyName || ''; f.companyRegNo = tenant.companyRegNo || '';
+      f.companyType = tenant.companyType || ''; f.gstRegNo = tenant.gstRegNo || '';
+      f.contactPersonName = tenant.contactPersonName || ''; f.contactPersonRole = tenant.contactPersonRole || '';
+      f.contactPersonPhone = tenant.contactPersonPhone || ''; f.contactPersonEmail = tenant.contactPersonEmail || '';
+    }
+    f.email = tenant.email || ''; f.phone = tenant.phone || ''; f.mobile = tenant.mobile || '';
+    f.addressLine1 = tenant.addressLine1 || ''; f.addressLine2 = tenant.addressLine2 || '';
+    f.city = tenant.city || ''; f.state = tenant.state || ''; f.postalCode = tenant.postalCode || '';
+    f.country = tenant.country || ''; f.source = tenant.source || ''; f.notes = tenant.notes || '';
+    setForm(f);
+    setTags([...(tenant.tags || [])]);
+    setEditing(true);
+  };
+
+  const set = (k: string, v: string) => setForm((prev) => ({ ...prev, [k]: v }));
+
+  const handleSave = async () => {
+    const payload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(form)) {
+      payload[k] = v || null;
+    }
+    payload.tags = tags;
+    try {
+      await updateTenant({ id: tenantId, data: payload }).unwrap();
+      toast.success('Profile updated');
+      setEditing(false);
+    } catch { toast.error('Failed to update profile'); }
+  };
+
+  // ── Editing mode ──
+  if (editing) {
+    return (
+      <div className="profile-tab">
+        <div className="info-card">
+          <div className="card-header-row">
+            <h4>{tenant.tenantType === 'individual' ? 'Personal Info' : 'Company Info'}</h4>
+            <div className="edit-actions">
+              <button className="btn-ghost-sm" onClick={() => setEditing(false)}><X size={13} /> Cancel</button>
+              <button className="btn-primary-sm" onClick={handleSave} disabled={saving}><Save size={13} /> {saving ? 'Saving…' : 'Save'}</button>
+            </div>
+          </div>
+          <div className="edit-grid">
+            {tenant.tenantType === 'individual' ? (
+              <>
+                <EditField label="First Name" value={form.firstName} onChange={(v) => set('firstName', v)} />
+                <EditField label="Last Name" value={form.lastName} onChange={(v) => set('lastName', v)} />
+                <EditField label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
+                <EditSelect label="Gender" value={form.gender} onChange={(v) => set('gender', v)}
+                  options={[['','—'],['male','Male'],['female','Female'],['other','Other'],['prefer_not_to_say','Prefer not to say']]} />
+                <EditField label="Nationality" value={form.nationality} onChange={(v) => set('nationality', v)} />
+                <EditSelect label="ID Type" value={form.idType} onChange={(v) => set('idType', v)}
+                  options={[['','—'],['nric','NRIC'],['passport','Passport'],['fin','FIN'],['driving_license','Driving License']]} />
+                <EditField label="ID Number" value={form.idNumber} onChange={(v) => set('idNumber', v)} />
+                <EditField label="ID Expiry" value={form.idExpiryDate} onChange={(v) => set('idExpiryDate', v)} type="date" />
+              </>
+            ) : (
+              <>
+                <EditField label="Company Name" value={form.companyName} onChange={(v) => set('companyName', v)} span={2} />
+                <EditField label="Reg. No." value={form.companyRegNo} onChange={(v) => set('companyRegNo', v)} />
+                <EditSelect label="Company Type" value={form.companyType} onChange={(v) => set('companyType', v)}
+                  options={[['','—'],['private_limited','Private Limited'],['partnership','Partnership'],['sole_prop','Sole Proprietor'],['public','Public Listed']]} />
+                <EditField label="GST No." value={form.gstRegNo} onChange={(v) => set('gstRegNo', v)} />
+                <div />
+                <EditField label="Contact Person" value={form.contactPersonName} onChange={(v) => set('contactPersonName', v)} />
+                <EditField label="Role" value={form.contactPersonRole} onChange={(v) => set('contactPersonRole', v)} />
+                <EditField label="Contact Phone" value={form.contactPersonPhone} onChange={(v) => set('contactPersonPhone', v)} />
+                <EditField label="Contact Email" value={form.contactPersonEmail} onChange={(v) => set('contactPersonEmail', v)} type="email" />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Contact */}
+        <div className="info-card">
+          <h4>Contact Details</h4>
+          <div className="edit-grid">
+            <EditField label="Email" value={form.email} onChange={(v) => set('email', v)} type="email" />
+            <EditField label="Phone" value={form.phone} onChange={(v) => set('phone', v)} />
+            <EditField label="Mobile" value={form.mobile} onChange={(v) => set('mobile', v)} />
+            <EditSelect label="Source" value={form.source} onChange={(v) => set('source', v)}
+              options={[['','—'],['walk_in','Walk-in'],['referral','Referral'],['online','Online'],['agent','Agent']]} />
+          </div>
+        </div>
+
+        {/* Address */}
+        <div className="info-card">
+          <h4>Address</h4>
+          <div className="edit-grid">
+            <EditField label="Address Line 1" value={form.addressLine1} onChange={(v) => set('addressLine1', v)} span={2} />
+            <EditField label="Address Line 2" value={form.addressLine2} onChange={(v) => set('addressLine2', v)} span={2} />
+            <EditField label="City" value={form.city} onChange={(v) => set('city', v)} />
+            <EditField label="State" value={form.state} onChange={(v) => set('state', v)} />
+            <EditField label="Postal Code" value={form.postalCode} onChange={(v) => set('postalCode', v)} />
+            <EditField label="Country" value={form.country} onChange={(v) => set('country', v.toUpperCase())} maxLen={2} />
+          </div>
+        </div>
+
+        {/* Tags */}
+        <div className="info-card">
+          <h4>Tags</h4>
+          <div className="edit-tags">
+            {tags.map((t) => (
+              <span key={t} className="edit-tag">{t.replace(/_/g, ' ')}<button onClick={() => setTags(tags.filter((x) => x !== t))}>×</button></span>
+            ))}
+            <input
+              className="tag-input-inline"
+              placeholder="Add tag…"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && tagInput && !tags.includes(tagInput)) {
+                  setTags([...tags, tagInput]); setTagInput('');
+                }
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div className="info-card">
+          <h4>Internal Notes</h4>
+          <textarea className="edit-notes" rows={3} placeholder="Internal notes…" value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+        </div>
+
+        <EmergencyContactsSection tenantId={tenantId} />
+      </div>
+    );
+  }
+
+  // ── Read-only mode ──
   return (
     <div className="profile-tab">
       {/* Identity */}
       <div className="info-card">
-        <h4>{tenant.tenantType === 'individual' ? 'Personal Info' : 'Company Info'}</h4>
+        <div className="card-header-row">
+          <h4>{tenant.tenantType === 'individual' ? 'Personal Info' : 'Company Info'}</h4>
+          <button className="btn-edit-profile" onClick={startEdit}><Edit2 size={13} /> Edit Profile</button>
+        </div>
         <div className="info-rows">
           {tenant.tenantType === 'individual' ? (
             <>
@@ -231,6 +377,19 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
         </div>
       </div>
 
+      {/* Contact details */}
+      {(tenant.email || tenant.phone || tenant.mobile || tenant.source) && (
+        <div className="info-card">
+          <h4>Contact Details</h4>
+          <div className="info-rows">
+            {tenant.email  && <InfoRow label="Email" value={tenant.email} />}
+            {tenant.phone  && <InfoRow label="Phone" value={tenant.phone} />}
+            {tenant.mobile && <InfoRow label="Mobile" value={tenant.mobile} />}
+            {tenant.source && <InfoRow label="Source" value={tenant.source.replace(/_/g, ' ')} />}
+          </div>
+        </div>
+      )}
+
       {/* Address */}
       {(tenant.addressLine1 || tenant.city || tenant.country) && (
         <div className="info-card">
@@ -249,6 +408,14 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
           <div className="tag-list">
             {tenant.tags.map((t: string) => <span key={t} className="tenant-tag">{t.replace(/_/g,' ')}</span>)}
           </div>
+        </div>
+      )}
+
+      {/* Notes */}
+      {tenant.notes && (
+        <div className="info-card">
+          <h4>Internal Notes</h4>
+          <div className="address-block">{tenant.notes}</div>
         </div>
       )}
 
@@ -273,6 +440,30 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function EditField({ label, value, onChange, type = 'text', span, maxLen }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; span?: number; maxLen?: number;
+}) {
+  return (
+    <div className="edit-field" style={{ gridColumn: span ? `span ${span}` : undefined }}>
+      <label>{label}</label>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={maxLen} />
+    </div>
+  );
+}
+
+function EditSelect({ label, value, onChange, options }: {
+  label: string; value: string; onChange: (v: string) => void; options: [string, string][];
+}) {
+  return (
+    <div className="edit-field">
+      <label>{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
     </div>
   );
 }
@@ -441,13 +632,63 @@ function KycTab({ tenantId }: { tenantId: string }) {
 }
 
 // ── Leases Tab ────────────────────────────────
+const LEASE_STATUS_COLORS: Record<string, string> = {
+  draft: '#95a5a6', pending_approval: '#f39c12', approved: '#3498db',
+  active: '#2ecc71', expired: '#9b59b6', terminated: '#e74c3c',
+  renewed: '#1abc9c', cancelled: '#7f8c8d',
+};
+
 function LeasesTab({ tenantId }: { tenantId: string }) {
-  return (
+  const { data, isLoading } = useGetLeaseHistoryQuery(tenantId);
+  const leases = data?.data || [];
+
+  if (isLoading) return <div className="tab-loading">Loading leases…</div>;
+
+  if (leases.length === 0) return (
     <div className="leases-tab">
       <div className="coming-soon">
         <FileText size={36} />
-        <h3>Lease History</h3>
-        <p>Lease management is implemented in Module 2.4. Tenant's full lease history will appear here.</p>
+        <h3>No Leases</h3>
+        <p>This tenant has no lease history yet.</p>
+      </div>
+    </div>
+  );
+
+  const active = leases.filter((l: LeaseHistoryItem) => l.status === 'active').length;
+
+  return (
+    <div className="leases-tab">
+      <div className="leases-summary">
+        <span className="lease-stat">{leases.length} total leases</span>
+        {active > 0 && <span className="lease-stat active">{active} active</span>}
+      </div>
+      <div className="leases-table">
+        <div className="lease-row header">
+          <span>Lease #</span><span>Property</span><span>Unit</span>
+          <span>Period</span><span>Rent</span><span>Status</span>
+        </div>
+        {leases.map((l: LeaseHistoryItem) => {
+          const sc = LEASE_STATUS_COLORS[l.status] || '#95a5a6';
+          return (
+            <div key={l.id} className="lease-row">
+              <span className="lease-num">{l.leaseNumber}</span>
+              <span className="lease-prop">{l.propertyName}</span>
+              <span className="lease-unit">{l.unitNumber}</span>
+              <span className="lease-period">
+                {new Date(l.startDate).toLocaleDateString()} — {new Date(l.endDate).toLocaleDateString()}
+              </span>
+              <span className="lease-rent">
+                {l.currency} {l.rentAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                <span className="rent-cycle">/{l.billingCycle.replace('ly','')}</span>
+              </span>
+              <span>
+                <span className="lease-status" style={{ color: sc, background: sc + '18', borderColor: sc + '40' }}>
+                  {l.status.replace(/_/g, ' ')}
+                </span>
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
