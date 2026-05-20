@@ -21,11 +21,14 @@ import { towersRouter, unitsRouter, unitTypesRouter } from './modules/units/unit
 import { seedUnitTypes } from './modules/units/units.service';
 import { tenantsRouter, kycRequirementsRouter } from './modules/tenants/tenants.routes';
 import { leasesRouter, leaseTemplatesRouter, leaseClausesRouter } from './modules/leases/leases.routes';
+import { startEscalationJob } from './modules/leases/cron/escalation.job';
+import { startRenewalJob } from './modules/leases/cron/renewal.job';
 import { workflowDefinitionsRouter, workflowInstancesRouter, workflowTasksRouter } from './modules/workflow/workflow.routes';
 import { notificationsRouter, templatesRouter } from './modules/notifications/notifications.routes';
 import { documentsRouter, documentFoldersRouter } from './modules/documents/documents.routes';
 import { startDocumentExpiryJob } from './modules/documents/documentExpiry';
 import { dashboardRouter, reportsRouter } from './modules/dashboard/dashboard.routes';
+import { startKycExpiryJob } from './modules/tenants/kycExpiry';
 import { dashboardService } from './modules/dashboard/dashboard.service';
 
 async function bootstrap() {
@@ -127,6 +130,11 @@ async function bootstrap() {
 
   // Start document expiry cron job
   startDocumentExpiryJob();
+  startKycExpiryJob();
+
+  // Start lease cron jobs
+  startEscalationJob();
+  startRenewalJob();
 
   // Start server
   httpServer.listen(config.port, () => {

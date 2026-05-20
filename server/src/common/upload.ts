@@ -2,6 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import sharp from 'sharp';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
@@ -44,4 +45,20 @@ export const logoUpload = multer({
 
 export function getFileUrl(subdir: string, filename: string): string {
   return `/uploads/${subdir}/${filename}`;
+}
+
+export const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: imageFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+export async function processAvatar(buffer: Buffer): Promise<string> {
+  const filename = `${crypto.randomBytes(16).toString('hex')}.webp`;
+  const p = path.join(UPLOAD_DIR, 'avatars', filename);
+  await sharp(buffer)
+    .resize(300, 300, { fit: 'cover' })
+    .webp({ quality: 80 })
+    .toFile(p);
+  return getFileUrl('avatars', filename);
 }

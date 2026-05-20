@@ -4,6 +4,7 @@ import {
   tenantsService, kycService, blacklistService,
   emergencyContactsService, tenantNotesService,
 } from './tenants.service';
+import { memoryUpload, processAvatar } from '../../common/upload';
 
 const p = (req: Request, key: string) => req.params[key] as string;
 
@@ -26,8 +27,8 @@ tenantsRouter.get('/blacklisted', asyncHandler(async (req, res) => {
 
 /** POST /tenants/merge */
 tenantsRouter.post('/merge', asyncHandler(async (req, res) => {
-  const { primaryTenantId, duplicateTenantId } = req.body;
-  const data = await tenantsService.merge(primaryTenantId, duplicateTenantId, req.user!.companyId, req.user!.sub);
+  const { primaryTenantId, duplicateTenantId, confirmActiveLeasesTransfer } = req.body;
+  const data = await tenantsService.merge(primaryTenantId, duplicateTenantId, req.user!.companyId, req.user!.sub, confirmActiveLeasesTransfer);
   res.json({ success: true, data });
 }));
 
@@ -173,6 +174,14 @@ tenantsRouter.put('/:id/notes/:noteId', asyncHandler(async (req, res) => {
 tenantsRouter.delete('/:id/notes/:noteId', asyncHandler(async (req, res) => {
   await tenantNotesService.delete(p(req, 'id'), p(req, 'noteId'), req.user!.sub);
   res.status(204).send();
+}));
+
+/** POST /tenants/:id/avatar */
+tenantsRouter.post('/:id/avatar', memoryUpload.single('avatar'), asyncHandler(async (req, res) => {
+  if (!req.file) throw new Error('No file uploaded');
+  const avatarUrl = await processAvatar(req.file.buffer);
+  const data = await tenantsService.update(p(req, 'id'), req.user!.companyId, { avatarUrl });
+  res.json({ success: true, data: { avatarUrl: data.avatarUrl } });
 }));
 
 // ════════════════════════════════════════════════

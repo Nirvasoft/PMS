@@ -1,9 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../../middleware';
+import { leasesService } from './services/leases.service';
+import { leasesLifecycleService } from './services/leases-lifecycle.service';
+import { amendmentsService } from './services/amendments.service';
+import { esignService } from './services/esign.service';
+import { templatesService } from './services/templates.service';
+import { clausesService } from './services/clauses.service';
+import { validateRequest } from '../../middleware/validateRequest';
 import {
-  leasesService, amendmentsService, esignService,
-  templatesService, clausesService,
-} from './leases.service';
+  createLeaseSchema, updateLeaseSchema, createAmendmentSchema,
+  createRenewalSchema, terminateLeaseSchema, esignSendSchema,
+  createLeaseTemplateSchema, updateLeaseTemplateSchema, createLeaseClauseSchema,
+} from './leases.schema';
 
 const p = (req: Request, key: string) => req.params[key] as string;
 
@@ -31,7 +39,7 @@ leasesRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 /** POST /leases */
-leasesRouter.post('/', asyncHandler(async (req, res) => {
+leasesRouter.post('/', validateRequest(createLeaseSchema), asyncHandler(async (req, res) => {
   const data = await leasesService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
@@ -43,7 +51,7 @@ leasesRouter.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 /** PUT /leases/:id */
-leasesRouter.put('/:id', asyncHandler(async (req, res) => {
+leasesRouter.put('/:id', validateRequest(updateLeaseSchema), asyncHandler(async (req, res) => {
   const data = await leasesService.update(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
 }));
@@ -56,31 +64,31 @@ leasesRouter.delete('/:id', asyncHandler(async (req, res) => {
 
 /** POST /leases/:id/submit */
 leasesRouter.post('/:id/submit', asyncHandler(async (req, res) => {
-  const data = await leasesService.submit(p(req, 'id'), req.user!.companyId, req.user!.sub);
+  const data = await leasesLifecycleService.submit(p(req, 'id'), req.user!.companyId, req.user!.sub);
   res.json({ success: true, data });
 }));
 
 /** POST /leases/:id/activate */
 leasesRouter.post('/:id/activate', asyncHandler(async (req, res) => {
-  const data = await leasesService.activate(p(req, 'id'), req.user!.companyId, req.user!.sub);
+  const data = await leasesLifecycleService.activate(p(req, 'id'), req.user!.companyId, req.user!.sub);
   res.json({ success: true, data });
 }));
 
 /** POST /leases/:id/cancel */
 leasesRouter.post('/:id/cancel', asyncHandler(async (req, res) => {
-  const data = await leasesService.cancel(p(req, 'id'), req.user!.companyId, req.body.reason);
+  const data = await leasesLifecycleService.cancel(p(req, 'id'), req.user!.companyId, req.body.reason);
   res.json({ success: true, data });
 }));
 
 /** POST /leases/:id/terminate */
-leasesRouter.post('/:id/terminate', asyncHandler(async (req, res) => {
-  const data = await leasesService.terminate(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub);
+leasesRouter.post('/:id/terminate', validateRequest(terminateLeaseSchema), asyncHandler(async (req, res) => {
+  const data = await leasesLifecycleService.terminate(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub);
   res.json({ success: true, data });
 }));
 
 /** POST /leases/:id/renewal */
-leasesRouter.post('/:id/renewal', asyncHandler(async (req, res) => {
-  const data = await leasesService.createRenewal(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub);
+leasesRouter.post('/:id/renewal', validateRequest(createRenewalSchema), asyncHandler(async (req, res) => {
+  const data = await leasesLifecycleService.createRenewal(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
 
@@ -93,7 +101,7 @@ leasesRouter.get('/:id/amendments', asyncHandler(async (req, res) => {
 }));
 
 /** POST /leases/:id/amendments */
-leasesRouter.post('/:id/amendments', asyncHandler(async (req, res) => {
+leasesRouter.post('/:id/amendments', validateRequest(createAmendmentSchema), asyncHandler(async (req, res) => {
   const data = await amendmentsService.create(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
@@ -107,7 +115,7 @@ leasesRouter.post('/:id/amendments/:amendmentId/approve', asyncHandler(async (re
 // ── E-Sign ──────────────────────────────────
 
 /** POST /leases/:id/esign/send */
-leasesRouter.post('/:id/esign/send', asyncHandler(async (req, res) => {
+leasesRouter.post('/:id/esign/send', validateRequest(esignSendSchema), asyncHandler(async (req, res) => {
   const data = await esignService.send(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
 }));
@@ -133,12 +141,12 @@ leaseTemplatesRouter.get('/', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
-leaseTemplatesRouter.post('/', asyncHandler(async (req, res) => {
+leaseTemplatesRouter.post('/', validateRequest(createLeaseTemplateSchema), asyncHandler(async (req, res) => {
   const data = await templatesService.createTemplate(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
 
-leaseTemplatesRouter.put('/:id', asyncHandler(async (req, res) => {
+leaseTemplatesRouter.put('/:id', validateRequest(updateLeaseTemplateSchema), asyncHandler(async (req, res) => {
   const data = await templatesService.updateTemplate(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
 }));
@@ -152,7 +160,7 @@ leaseClausesRouter.get('/', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
-leaseClausesRouter.post('/', asyncHandler(async (req, res) => {
+leaseClausesRouter.post('/', validateRequest(createLeaseClauseSchema), asyncHandler(async (req, res) => {
   const data = await clausesService.createClause(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));

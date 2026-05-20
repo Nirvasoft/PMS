@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Lease Agreement - {{leaseNumber}}</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 40px;
+      color: #333;
+      line-height: 1.6;
+    }
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #333;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .header p {
+      margin: 5px 0 0 0;
+      color: #666;
+    }
+    .section {
+      margin-bottom: 30px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: bold;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+      margin-bottom: 15px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #eee;
+      text-align: left;
+    }
+    th {
+      background-color: #f9f9f9;
+      width: 40%;
+    }
+    .clause {
+      margin-bottom: 15px;
+    }
+    .clause h4 {
+      margin: 0 0 5px 0;
+      font-size: 14px;
+    }
+    .clause p {
+      margin: 0;
+      font-size: 14px;
+      color: #555;
+    }
+    .signatures {
+      margin-top: 50px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .signature-block {
+      width: 45%;
+    }
+    .signature-line {
+      border-top: 1px solid #333;
+      margin-top: 40px;
+      padding-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Lease Agreement</h1>
+    <p>Reference: {{leaseNumber}} | Date: {{generatedDate}}</p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">1. Parties</div>
+    <table>
+      <tr>
+        <th>Landlord (Company)</th>
+        <td>{{company.name}}</td>
+      </tr>
+      <tr>
+        <th>Tenant</th>
+        <td>{{tenant.displayName}}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">2. Premises</div>
+    <table>
+      <tr>
+        <th>Property</th>
+        <td>{{property.name}}</td>
+      </tr>
+      <tr>
+        <th>Unit</th>
+        <td>{{unit.unitNumber}} ({{unit.unitType}})</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">3. Term and Rent</div>
+    <table>
+      <tr>
+        <th>Lease Term</th>
+        <td>{{startDate}} to {{endDate}} ({{leaseTermMonths}} months)</td>
+      </tr>
+      <tr>
+        <th>Rent Amount</th>
+        <td>{{currency}} {{rentAmount}} per {{billingCycle}}</td>
+      </tr>
+      <tr>
+        <th>Security Deposit</th>
+        <td>{{currency}} {{securityDeposit}}</td>
+      </tr>
+    </table>
+  </div>
+
+  {{#if specialConditions}}
+  <div class="section">
+    <div class="section-title">4. Special Conditions</div>
+    <p>{{specialConditions}}</p>
+  </div>
+  {{/if}}
+
+  <div class="section">
+    <div class="section-title">5. Clauses</div>
+    {{#each clauses}}
+    <div class="clause">
+      <h4>{{this.title}}</h4>
+      <p>{{this.content}}</p>
+    </div>
+    {{/each}}
+  </div>
+
+  <div class="signatures">
+    <div class="signature-block">
+      <p>Signed on behalf of Landlord:</p>
+      <div class="signature-line">
+        <strong>{{company.name}}</strong><br>
+        Date: __________________
+      </div>
+    </div>
+    <div class="signature-block">
+      <p>Signed by Tenant:</p>
+      <div class="signature-line">
+        <strong>{{tenant.displayName}}</strong><br>
+        Date: __________________
+      </div>
+    </div>
+  </div>
+</body>
+</html>

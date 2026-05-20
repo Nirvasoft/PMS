@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useGetTenantQuery, useUpdateTenantMutation, useBlacklistTenantMutation,
@@ -6,19 +6,21 @@ import {
   useGetEmergencyContactsQuery, useAddEmergencyContactMutation,
   useDeleteEmergencyContactMutation, useGetTenantNotesQuery,
   useAddTenantNoteMutation, useUpdateTenantNoteMutation,
-  useDeleteTenantNoteMutation, useGetTenantKycQuery,
-  useReviewKycDocumentMutation, useGetLeaseHistoryQuery,
+  useDeleteTenantNoteMutation, useGetTenantKycQuery, useUploadAvatarMutation,
+  useReviewKycDocumentMutation, useSubmitKycDocumentMutation, useGetLeaseHistoryQuery,
   type TenantNote, type EmergencyContact, type KycDocumentItem, type LeaseHistoryItem,
 } from '../../../store/api/tenantsApi';
 import {
   ArrowLeft, User, Building2, Shield, ShieldOff, Phone, Mail,
   Plus, Trash2, Pin, PinOff, CheckCircle, XCircle, Clock,
   AlertCircle, FileText, Users2, Edit2, X, ChevronRight, Save,
+  FolderOpen, Upload, Download, Camera,
 } from 'lucide-react';
+import { useGetDocumentsQuery, useUploadDocumentMutation, useDeleteDocumentMutation, type DocumentItem } from '../../../store/api/documentsApi';
 import toast from 'react-hot-toast';
 import './TenantDetailPage.css';
 
-type Tab = 'profile' | 'kyc' | 'leases' | 'notes';
+type Tab = 'profile' | 'kyc' | 'leases' | 'documents' | 'notes';
 
 const KYC_COLORS: Record<string, string> = {
   pending: '#95a5a6', in_review: '#f39c12', verified: '#2ecc71', rejected: '#e74c3c', expired: '#9b59b6',
@@ -30,7 +32,21 @@ export default function TenantDetailPage() {
   const [tab, setTab] = useState<Tab>('profile');
 
   const { data, isLoading } = useGetTenantQuery(id!);
+  const [uploadAvatar, { isLoading: uploadingAvatar }] = useUploadAvatarMutation();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
   const tenant = data?.data;
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    try {
+      await uploadAvatar({ id, file }).unwrap();
+      toast.success('Avatar updated successfully');
+    } catch (err: any) {
+      toast.error(err.data?.message || 'Failed to upload avatar');
+    }
+  };
 
   if (isLoading) return <div className="td-loading"><div className="td-spinner" /></div>;
   if (!tenant) return (
@@ -52,8 +68,14 @@ export default function TenantDetailPage() {
         </button>
 
         <div className="td-hero">
-          <div className="td-avatar" style={{ background: tenant.isBlacklisted ? 'rgba(231,76,60,0.15)' : 'rgba(108,92,231,0.15)' }}>
-            {tenant.avatarUrl ? <img src={tenant.avatarUrl} alt="" /> : tenant.displayName.charAt(0).toUpperCase()}
+          <div className="td-avatar-wrapper" onClick={() => avatarInputRef.current?.click()}>
+            <div className="td-avatar" style={{ background: tenant.isBlacklisted ? 'rgba(231,76,60,0.15)' : 'rgba(108,92,231,0.15)' }}>
+              {tenant.avatarUrl ? <img src={tenant.avatarUrl} alt="" /> : tenant.displayName.charAt(0).toUpperCase()}
+            </div>
+            <div className="td-avatar-overlay">
+              <Camera size={20} />
+            </div>
+            <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleAvatarUpload} />
           </div>
           <div className="td-info">
             <h1 className="td-name">{tenant.displayName}</h1>
@@ -90,9 +112,9 @@ export default function TenantDetailPage() {
 
       {/* Tabs */}
       <div className="td-tabs">
-        {(['profile', 'kyc', 'leases', 'notes'] as Tab[]).map((t) => (
+        {(['profile', 'kyc', 'leases', 'documents', 'notes'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-            {t === 'profile' ? <User size={13} /> : t === 'kyc' ? <Shield size={13} /> : t === 'leases' ? <FileText size={13} /> : <Edit2 size={13} />}
+            {t === 'profile' ? <User size={13} /> : t === 'kyc' ? <Shield size={13} /> : t === 'leases' ? <FileText size={13} /> : t === 'documents' ? <FolderOpen size={13} /> : <Edit2 size={13} />}
             {t.charAt(0).toUpperCase() + t.slice(1)}
             {t === 'notes' && tenant._count.tenantNotes > 0 && (
               <span className="tab-count">{tenant._count.tenantNotes}</span>
@@ -106,6 +128,7 @@ export default function TenantDetailPage() {
         {tab === 'profile' && <ProfileTab tenant={tenant} tenantId={id!} />}
         {tab === 'kyc'     && <KycTab tenantId={id!} />}
         {tab === 'leases'  && <LeasesTab tenantId={id!} />}
+        {tab === 'documents' && <DocumentsTab tenantId={id!} />}
         {tab === 'notes'   && <NotesTab tenantId={id!} />}
       </div>
     </div>
@@ -549,6 +572,7 @@ function KycTab({ tenantId }: { tenantId: string }) {
   const { data, isLoading } = useGetTenantKycQuery(tenantId);
   const [review] = useReviewKycDocumentMutation();
   const [reviewModal, setReviewModal] = useState<{ docId: string; name: string } | null>(null);
+  const [submitModal, setSubmitModal] = useState<{ reqId: string; name: string } | null>(null);
   const [decision, setDecision] = useState<'approved' | 'rejected'>('approved');
   const [rejReason, setRejReason] = useState('');
 
@@ -594,9 +618,14 @@ function KycTab({ tenantId }: { tenantId: string }) {
               </div>}
             </div>
             <div className="kyc-doc-actions">
-              {doc.status !== 'approved' && (
+              {doc.documentId && doc.status !== 'approved' && (
                 <button className="btn-kyc-review" onClick={() => { setReviewModal({ docId: doc.id, name: doc.name }); setDecision('approved'); }}>
                   Review
+                </button>
+              )}
+              {(!doc.documentId || doc.status === 'rejected') && (
+                <button className="btn-kyc-submit btn-primary-sm" onClick={() => setSubmitModal({ reqId: doc.requirementId, name: doc.name || doc.docType })}>
+                  Submit
                 </button>
               )}
             </div>
@@ -627,6 +656,74 @@ function KycTab({ tenantId }: { tenantId: string }) {
           </div>
         </div>
       )}
+
+      {submitModal && (
+        <SubmitDocumentModal 
+          tenantId={tenantId}
+          requirementId={submitModal.reqId}
+          requirementName={submitModal.name}
+          onClose={() => setSubmitModal(null)} 
+        />
+      )}
+    </div>
+  );
+}
+
+function SubmitDocumentModal({ tenantId, requirementId, requirementName, onClose }: { tenantId: string, requirementId: string, requirementName: string, onClose: () => void }) {
+  const { data, isLoading } = useGetDocumentsQuery({ entityType: 'tenant', entityId: tenantId });
+  const [submitKyc] = useSubmitKycDocumentMutation();
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+
+  const documents = data?.data || [];
+
+  const handleSubmit = async () => {
+    if (!selectedDocId) return;
+    try {
+      await submitKyc({ tenantId, requirementId, documentId: selectedDocId }).unwrap();
+      toast.success('Document submitted for KYC');
+      onClose();
+    } catch {
+      toast.error('Failed to submit document');
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Submit: {requirementName}</h3>
+          <button onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body">
+          <p>Select a document from the vault to satisfy this KYC requirement.</p>
+          {isLoading ? <p>Loading documents...</p> : documents.length === 0 ? (
+            <p className="empty-sm">No documents found. Please upload one in the Documents tab first.</p>
+          ) : (
+            <div className="doc-select-list" style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {documents.map((doc: DocumentItem) => (
+                <div 
+                  key={doc.id} 
+                  className={`doc-card-sm ${selectedDocId === doc.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedDocId(doc.id)}
+                  style={{ cursor: 'pointer', border: selectedDocId === doc.id ? '1px solid #6c5ce7' : '' }}
+                >
+                  <div className="doc-info">
+                    <FileText size={16} className="doc-icon" />
+                    <div>
+                      <div className="doc-name">{doc.name}</div>
+                      <div className="doc-meta">{doc.fileSizeFormatted} · {new Date(doc.createdAt).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" disabled={!selectedDocId} onClick={handleSubmit}>Submit</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -690,6 +787,83 @@ function LeasesTab({ tenantId }: { tenantId: string }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Documents Tab ─────────────────────────────
+function DocumentsTab({ tenantId }: { tenantId: string }) {
+  const { data, isLoading } = useGetDocumentsQuery({ entityType: 'tenant', entityId: tenantId });
+  const [uploadDoc, { isLoading: uploading }] = useUploadDocumentMutation();
+  const [deleteDoc] = useDeleteDocumentMutation();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const documents = data?.data || [];
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', file.name.replace(/\.[^.]+$/, ''));
+    formData.append('entityType', 'tenant');
+    formData.append('entityId', tenantId);
+
+    try {
+      await uploadDoc(formData).unwrap();
+      toast.success('Document uploaded');
+    } catch { toast.error('Failed to upload document'); }
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this document?')) return;
+    try {
+      await deleteDoc(id).unwrap();
+      toast.success('Document deleted');
+    } catch { toast.error('Failed to delete document'); }
+  };
+
+  if (isLoading) return <div className="tab-loading">Loading documents…</div>;
+
+  return (
+    <div className="documents-tab">
+      <div className="card-header-row">
+        <h4>Tenant Documents</h4>
+        <div>
+          <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleUpload} />
+          <button className="btn-primary-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Document'}
+          </button>
+        </div>
+      </div>
+      
+      {documents.length === 0 ? (
+        <div className="empty-sm">No documents found</div>
+      ) : (
+        <div className="doc-list">
+          {documents.map((doc: DocumentItem) => (
+            <div key={doc.id} className="doc-card-sm">
+              <div className="doc-info">
+                <FileText size={16} className="doc-icon" />
+                <div>
+                  <div className="doc-name">{doc.name}</div>
+                  <div className="doc-meta">{doc.fileSizeFormatted} · {new Date(doc.createdAt).toLocaleDateString()}</div>
+                </div>
+              </div>
+              <div className="doc-actions">
+                <a href={`/api/v1/documents/${doc.id}/download`} target="_blank" rel="noreferrer" title="Download">
+                  <Download size={14} />
+                </a>
+                <button onClick={() => handleDelete(doc.id)} className="btn-danger-ghost" title="Delete">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

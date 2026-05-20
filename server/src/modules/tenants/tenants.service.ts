@@ -1,6 +1,12 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import {
+  createTenantSchema, updateTenantSchema, createKycRequirementSchema,
+  updateKycRequirementSchema, submitKycDocumentSchema, reviewKycDocumentSchema,
+  blacklistTenantSchema, whitelistTenantSchema, createEmergencyContactSchema,
+  updateEmergencyContactSchema, createTenantNoteSchema, updateTenantNoteSchema
+} from './tenants.schema';
 
 // ══════════════════════════════════════════════
 // HELPERS
@@ -94,6 +100,7 @@ export class TenantsService {
           companyName: true, email: true, mobile: true, kycStatus: true,
           isBlacklisted: true, avatarUrl: true, tags: true, source: true,
           createdAt: true,
+          _count: { select: { leases: { where: { status: 'active' } } } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -102,7 +109,10 @@ export class TenantsService {
       prisma.tenant.count({ where }),
     ]);
 
-    const data = rawData.map((t) => ({ ...t, displayName: displayName(t) }));
+    const data = rawData.map((t) => {
+      const { _count, ...rest } = t;
+      return { ...rest, displayName: displayName(t as any), activeLeases: _count?.leases || 0 };
+    });
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
@@ -136,7 +146,8 @@ export class TenantsService {
 
   // ── Create ─────────────────────────────────
   async create(companyId: string, dto: Record<string, unknown>) {
-    const { tags = [], ...rest } = dto;
+    const parsedData = createTenantSchema.parse(dto);
+    const { tags = [], ...rest } = parsedData;
 
     // Duplicate check
     const email = rest.email as string | undefined;
@@ -166,7 +177,7 @@ export class TenantsService {
     }
 
     const tenant = await prisma.tenant.create({
-      data: { companyId, tags: (tags as string[]), ...rest as any },
+      data: { companyId, tags, ...rest },
     });
 
     // Initialize KYC checklist
@@ -179,10 +190,13 @@ export class TenantsService {
   async update(id: string, companyId: string, dto: Record<string, unknown>) {
     const tenant = await prisma.tenant.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!tenant) throw AppError.notFound('Tenant');
-    const { tags, ...rest } = dto;
+    
+    const parsedData = updateTenantSchema.parse(dto);
+    const { tags, ...rest } = parsedData;
+
     return prisma.tenant.update({
       where: { id },
-      data: { ...rest as any, ...(tags !== undefined ? { tags: tags as string[] } : {}) },
+      data: { ...rest, ...(tags !== undefined ? { tags } : {}) },
     });
   }
 
@@ -238,7 +252,7 @@ export class TenantsService {
   }
 
   // ── Merge tenants ──────────────────────────
-  async merge(primaryId: string, duplicateId: string, companyId: string, mergedBy: string) {
+  async merge(primaryId: string, duplicateId: string, companyId: string, mergedBy: string, confirmActiveLeasesTransfer = false) {
     const [primary, duplicate] = await Promise.all([
       prisma.tenant.findFirst({ where: { id: primaryId, companyId, deletedAt: null } }),
       prisma.tenant.findFirst({ where: { id: duplicateId, companyId, deletedAt: null } }),
@@ -247,12 +261,22 @@ export class TenantsService {
     if (!duplicate) throw AppError.notFound('Duplicate tenant');
     if (primaryId === duplicateId) throw new AppError(400, 'SAME_TENANT', 'Cannot merge a tenant with itself');
 
+    const activeLeases = await prisma.lease.count({
+      where: { tenantId: duplicateId, status: 'active' }
+    });
+
+    if (activeLeases > 0 && !confirmActiveLeasesTransfer) {
+      throw new AppError(400, 'HAS_ACTIVE_LEASES', 'Duplicate tenant has active leases. Please confirm transfer to proceed.');
+    }
+
     await prisma.$transaction(async (tx) => {
       // Migrate related data
       await tx.tenantKycDocument.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
       await tx.tenantEmergencyContact.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
       await tx.tenantBlacklistLog.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
       await tx.tenantNote.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
+      await tx.lease.updateMany({ where: { tenantId: duplicateId }, data: { tenantId: primaryId } });
+
       // Soft-delete duplicate
       await tx.tenant.update({
         where: { id: duplicateId },
@@ -320,36 +344,38 @@ export class KycService {
   }
 
   async submitDocument(tenantId: string, companyId: string, dto: { requirementId: string; documentId: string }) {
+    const parsedDto = submitKycDocumentSchema.parse(dto);
     const tenant = await prisma.tenant.findFirst({ where: { id: tenantId, companyId, deletedAt: null } });
     if (!tenant) throw AppError.notFound('Tenant');
 
-    const req = await prisma.kycRequirement.findUniqueOrThrow({ where: { id: dto.requirementId } });
+    const req = await prisma.kycRequirement.findUniqueOrThrow({ where: { id: parsedDto.requirementId } });
 
-    const existing = await prisma.tenantKycDocument.findFirst({ where: { tenantId, requirementId: dto.requirementId } });
+    const existing = await prisma.tenantKycDocument.findFirst({ where: { tenantId, requirementId: parsedDto.requirementId } });
 
     if (existing) {
       return prisma.tenantKycDocument.update({
         where: { id: existing.id },
-        data: { documentId: dto.documentId, status: 'pending', submittedAt: new Date(), reviewedBy: null, reviewedAt: null, rejectionReason: null },
+        data: { documentId: parsedDto.documentId, status: 'pending', submittedAt: new Date(), reviewedBy: null, reviewedAt: null, rejectionReason: null },
       });
     } else {
       return prisma.tenantKycDocument.create({
-        data: { tenantId, requirementId: dto.requirementId, documentId: dto.documentId, docType: req.docType, status: 'pending' },
+        data: { tenantId, requirementId: parsedDto.requirementId, documentId: parsedDto.documentId, docType: req.docType, status: 'pending' },
       });
     }
   }
 
   async reviewDocument(tenantId: string, kycDocId: string, dto: { decision: string; rejectionReason?: string }, reviewedBy: string) {
+    const parsedDto = reviewKycDocumentSchema.parse(dto);
     const doc = await prisma.tenantKycDocument.findFirst({ where: { id: kycDocId, tenantId } });
     if (!doc) throw AppError.notFound('KYC document');
 
     await prisma.tenantKycDocument.update({
       where: { id: kycDocId },
       data: {
-        status: dto.decision === 'approved' ? 'approved' : 'rejected',
+        status: parsedDto.decision === 'approved' ? 'approved' : 'rejected',
         reviewedBy,
         reviewedAt: new Date(),
-        rejectionReason: dto.rejectionReason || null,
+        rejectionReason: parsedDto.decision === 'rejected' ? (parsedDto.rejectionReason || null) : null,
       },
     });
 
@@ -366,13 +392,16 @@ export class KycService {
   }
 
   async createRequirement(companyId: string, dto: Record<string, unknown>) {
-    return prisma.kycRequirement.create({ data: { companyId, ...dto as any } });
+    const parsedDto = createKycRequirementSchema.parse(dto);
+    return prisma.kycRequirement.create({ data: { companyId, ...parsedDto } });
   }
 
   async updateRequirement(id: string, companyId: string, dto: Record<string, unknown>) {
     const req = await prisma.kycRequirement.findFirst({ where: { id, companyId } });
-    if (!req) throw AppError.notFound('KYC Requirement');
-    return prisma.kycRequirement.update({ where: { id }, data: dto as any });
+    if (!req) throw AppError.notFound('KYC requirement');
+
+    const parsedDto = updateKycRequirementSchema.parse(dto);
+    return prisma.kycRequirement.update({ where: { id }, data: parsedDto });
   }
 
   async deleteRequirement(id: string, companyId: string) {
@@ -388,6 +417,7 @@ export class KycService {
 export class BlacklistService {
 
   async blacklist(tenantId: string, companyId: string, dto: { reason: string; scope?: string; propertyId?: string; notes?: string }, actionedBy: string) {
+    const parsedDto = blacklistTenantSchema.parse(dto);
     const tenant = await prisma.tenant.findFirst({ where: { id: tenantId, companyId, deletedAt: null } });
     if (!tenant) throw AppError.notFound('Tenant');
     if (tenant.isBlacklisted) throw new AppError(409, 'ALREADY_BLACKLISTED', 'Tenant is already blacklisted');
@@ -400,9 +430,9 @@ export class BlacklistService {
       prisma.tenantBlacklistLog.create({
         data: {
           tenantId, companyId, action: 'blacklist',
-          reason: dto.reason, scope: dto.scope || 'company',
-          propertyId: dto.propertyId || null,
-          notes: dto.notes || null, actionedBy,
+          reason: parsedDto.reason, scope: parsedDto.scope || 'company',
+          propertyId: parsedDto.propertyId || null,
+          notes: parsedDto.notes || null, actionedBy,
         },
       }),
     ]);
@@ -411,6 +441,7 @@ export class BlacklistService {
   }
 
   async whitelist(tenantId: string, companyId: string, dto: { reason: string; notes?: string }, actionedBy: string) {
+    const parsedDto = whitelistTenantSchema.parse(dto);
     const tenant = await prisma.tenant.findFirst({ where: { id: tenantId, companyId, deletedAt: null } });
     if (!tenant) throw AppError.notFound('Tenant');
     if (!tenant.isBlacklisted) throw new AppError(409, 'NOT_BLACKLISTED', 'Tenant is not blacklisted');
@@ -423,8 +454,8 @@ export class BlacklistService {
       prisma.tenantBlacklistLog.create({
         data: {
           tenantId, companyId, action: 'whitelist',
-          reason: dto.reason, scope: 'company',
-          notes: dto.notes || null, actionedBy,
+          reason: parsedDto.reason, scope: 'company',
+          notes: parsedDto.notes || null, actionedBy,
         },
       }),
     ]);
@@ -473,21 +504,23 @@ export class EmergencyContactsService {
   }
 
   async create(tenantId: string, companyId: string, dto: Record<string, unknown>) {
+    const parsedDto = createEmergencyContactSchema.parse(dto);
     const tenant = await prisma.tenant.findFirst({ where: { id: tenantId, companyId } });
     if (!tenant) throw AppError.notFound('Tenant');
-    if (dto.isPrimary) {
+    if (parsedDto.isPrimary) {
       await prisma.tenantEmergencyContact.updateMany({ where: { tenantId, isPrimary: true }, data: { isPrimary: false } });
     }
-    return prisma.tenantEmergencyContact.create({ data: { tenantId, ...dto as any } });
+    return prisma.tenantEmergencyContact.create({ data: { tenantId, ...parsedDto } });
   }
 
   async update(tenantId: string, contactId: string, dto: Record<string, unknown>) {
+    const parsedDto = updateEmergencyContactSchema.parse(dto);
     const contact = await prisma.tenantEmergencyContact.findFirst({ where: { id: contactId, tenantId } });
     if (!contact) throw AppError.notFound('Emergency Contact');
-    if (dto.isPrimary) {
+    if (parsedDto.isPrimary) {
       await prisma.tenantEmergencyContact.updateMany({ where: { tenantId, isPrimary: true, id: { not: contactId } }, data: { isPrimary: false } });
     }
-    return prisma.tenantEmergencyContact.update({ where: { id: contactId }, data: dto as any });
+    return prisma.tenantEmergencyContact.update({ where: { id: contactId }, data: parsedDto });
   }
 
   async delete(tenantId: string, contactId: string) {
@@ -512,18 +545,20 @@ export class TenantNotesService {
   }
 
   async create(tenantId: string, companyId: string, dto: { content: string; isPinned?: boolean }, createdBy: string) {
+    const parsedDto = createTenantNoteSchema.parse(dto);
     const tenant = await prisma.tenant.findFirst({ where: { id: tenantId, companyId } });
     if (!tenant) throw AppError.notFound('Tenant');
     return prisma.tenantNote.create({
-      data: { tenantId, content: dto.content, isPinned: dto.isPinned ?? false, createdBy },
+      data: { tenantId, content: parsedDto.content, isPinned: parsedDto.isPinned ?? false, createdBy },
     });
   }
 
   async update(tenantId: string, noteId: string, dto: { content?: string; isPinned?: boolean }, userId: string) {
+    const parsedDto = updateTenantNoteSchema.parse(dto);
     const note = await prisma.tenantNote.findFirst({ where: { id: noteId, tenantId } });
     if (!note) throw AppError.notFound('Note');
     if (note.createdBy !== userId) throw new AppError(403, 'FORBIDDEN', 'You can only edit your own notes');
-    return prisma.tenantNote.update({ where: { id: noteId }, data: dto });
+    return prisma.tenantNote.update({ where: { id: noteId }, data: parsedDto });
   }
 
   async delete(tenantId: string, noteId: string, userId: string) {

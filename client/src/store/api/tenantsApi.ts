@@ -17,6 +17,7 @@ export interface TenantListItem {
   avatarUrl: string | null;
   tags: string[];
   source: string | null;
+  activeLeases: number;
   createdAt: string;
 }
 
@@ -197,6 +198,18 @@ export const tenantsApi = createApi({
       query: (id) => ({ url: `/tenants/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Tenants'],
     }),
+    uploadAvatar: builder.mutation<ApiResponse<{ avatarUrl: string }>, { id: string; file: File }>({
+      query: ({ id, file }) => {
+        const formData = new FormData();
+        formData.append('avatar', file);
+        return {
+          url: `/tenants/${id}/avatar`,
+          method: 'POST',
+          body: formData,
+        };
+      },
+      invalidatesTags: (_, __, { id }) => [{ type: 'Tenants', id }, 'Tenants'],
+    }),
 
     // ── Blacklisted list ──
     getBlacklisted: builder.query<PaginatedResponse<TenantListItem>, { page?: number; limit?: number }>({
@@ -205,7 +218,7 @@ export const tenantsApi = createApi({
     }),
 
     // ── Merge ──
-    mergeTenants: builder.mutation<ApiResponse<{ mergedInto: string; message: string }>, { primaryTenantId: string; duplicateTenantId: string }>({
+    mergeTenants: builder.mutation<ApiResponse<{ mergedInto: string; message: string }>, { primaryTenantId: string; duplicateTenantId: string; confirmActiveLeasesTransfer?: boolean }>({
       query: (body) => ({ url: '/tenants/merge', method: 'POST', body }),
       invalidatesTags: ['Tenants'],
     }),
@@ -302,6 +315,7 @@ export const {
   useCreateTenantMutation,
   useUpdateTenantMutation,
   useDeleteTenantMutation,
+  useUploadAvatarMutation,
   useGetBlacklistedQuery,
   useMergeTenantsMutation,
   useGetLeaseHistoryQuery,

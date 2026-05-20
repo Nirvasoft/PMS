@@ -144,7 +144,7 @@
 
 .tenant-table-header {
   display: grid;
-  grid-template-columns: 2fr 100px 150px 130px 1fr 100px 60px;
+  grid-template-columns: 2fr 100px 150px 130px 100px 1fr 100px 60px;
   gap: 12px;
   padding: 10px 16px;
   font-size: 0.68rem;
@@ -157,7 +157,7 @@
 
 .tenant-row {
   display: grid;
-  grid-template-columns: 2fr 100px 150px 130px 1fr 100px 60px;
+  grid-template-columns: 2fr 100px 150px 130px 100px 1fr 100px 60px;
   gap: 12px;
   align-items: center;
   padding: 10px 16px;
@@ -205,6 +205,7 @@
 
 .tenant-email { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; }
 .tenant-contact { color: var(--text-muted); font-size: 0.8rem; }
+.tenant-active-leases { font-size: 0.8rem; font-weight: 600; color: #a29bfe; }
 
 .type-badge {
   display: inline-flex; align-items: center; gap: 4px;

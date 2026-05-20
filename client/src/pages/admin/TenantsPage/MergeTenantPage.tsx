@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  useGetTenantsQuery, useMergeTenantsMutation, useGetTenantQuery,
+  useGetTenantsQuery, useMergeTenantsMutation, useGetTenantQuery, useGetLeaseHistoryQuery,
   type TenantListItem,
 } from '../../../store/api/tenantsApi';
 import {
@@ -18,10 +18,12 @@ export default function MergeTenantPage() {
   const [step, setStep] = useState<'select' | 'preview'>('select');
   const [mergeTenants, { isLoading: merging }] = useMergeTenantsMutation();
 
+  const [confirmActive, setConfirmActive] = useState(false);
+
   const handleMerge = async () => {
     if (!primaryId || !duplicateId) return;
     try {
-      const result = await mergeTenants({ primaryTenantId: primaryId, duplicateTenantId: duplicateId }).unwrap();
+      const result = await mergeTenants({ primaryTenantId: primaryId, duplicateTenantId: duplicateId, confirmActiveLeasesTransfer: confirmActive }).unwrap();
       toast.success(result.data.message);
       navigate(`/admin/tenants/${primaryId}`);
     } catch (e: any) {
@@ -96,6 +98,8 @@ export default function MergeTenantPage() {
           onBack={() => setStep('select')}
           onConfirm={handleMerge}
           merging={merging}
+          confirmActive={confirmActive}
+          setConfirmActive={setConfirmActive}
         />
       )}
     </div>
@@ -193,14 +197,19 @@ function TenantSearchPicker({ selectedId, excludeId, onSelect, onClear }: {
 }
 
 /* ══ Merge Preview ══ */
-function MergePreview({ primaryId, duplicateId, onBack, onConfirm, merging }: {
+function MergePreview({ primaryId, duplicateId, onBack, onConfirm, merging, confirmActive, setConfirmActive }: {
   primaryId: string; duplicateId: string;
   onBack: () => void; onConfirm: () => void; merging: boolean;
+  confirmActive: boolean; setConfirmActive: (val: boolean) => void;
 }) {
   const { data: pData } = useGetTenantQuery(primaryId);
   const { data: dData } = useGetTenantQuery(duplicateId);
+  const { data: dLeasesData } = useGetLeaseHistoryQuery(duplicateId);
   const primary = pData?.data;
   const duplicate = dData?.data;
+  const duplicateLeases = dLeasesData?.data || [];
+  const duplicateActiveLeases = duplicateLeases.filter(l => l.status === 'active');
+  const hasActiveLeases = duplicateActiveLeases.length > 0;
 
   if (!primary || !duplicate) {
     return <div className="merge-loading">Loading preview…</div>;
@@ -208,6 +217,8 @@ function MergePreview({ primaryId, duplicateId, onBack, onConfirm, merging }: {
 
   // Count what will be migrated
   const migrated = [
+    { label: 'Active Leases', count: duplicateActiveLeases.length },
+    { label: 'Past Leases', count: duplicateLeases.length - duplicateActiveLeases.length },
     { label: 'KYC Documents', count: duplicate.kycDocuments?.length || 0 },
     { label: 'Emergency Contacts', count: duplicate.emergencyContacts?.length || 0 },
     { label: 'Notes', count: duplicate._count?.tenantNotes || 0 },
@@ -254,9 +265,23 @@ function MergePreview({ primaryId, duplicateId, onBack, onConfirm, merging }: {
         </div>
       </div>
 
+      {hasActiveLeases && (
+        <div className="mp-warning" style={{ background: 'rgba(243,156,18,0.1)', color: '#d35400' }}>
+          <AlertTriangle size={16} />
+          <div>
+            <strong>Active Leases Detected</strong>
+            <p>The duplicate tenant has {duplicateActiveLeases.length} active lease(s). By merging, these leases will be transferred to the primary tenant.</p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', cursor: 'pointer', fontWeight: 600 }}>
+              <input type="checkbox" checked={confirmActive} onChange={(e) => setConfirmActive(e.target.checked)} />
+              I confirm the transfer of active leases
+            </label>
+          </div>
+        </div>
+      )}
+
       <div className="merge-footer">
         <button className="btn-ghost" onClick={onBack}>← Back</button>
-        <button className="btn-danger" onClick={onConfirm} disabled={merging}>
+        <button className="btn-danger" onClick={onConfirm} disabled={merging || (hasActiveLeases && !confirmActive)}>
           <GitMerge size={14} /> {merging ? 'Merging…' : 'Confirm Merge'}
         </button>
       </div>

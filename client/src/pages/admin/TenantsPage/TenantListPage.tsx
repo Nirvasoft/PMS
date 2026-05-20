@@ -6,7 +6,7 @@ import {
 } from '../../../store/api/tenantsApi';
 import {
   Users, Plus, Search, X, Building2, User, Shield, ShieldOff,
-  Trash2, ChevronRight, Filter, GitMerge,
+  Trash2, ChevronRight, Filter, GitMerge, Tag,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './TenantListPage.css';
@@ -32,6 +32,7 @@ export default function TenantListPage() {
   const [search, setSearch]           = useState('');
   const [tenantType, setTenantType]   = useState('');
   const [kycStatus, setKycStatus]     = useState('');
+  const [tags, setTags]               = useState('');
   const [showBlacklisted, setShowBlacklisted] = useState<boolean | undefined>(undefined);
   const [page, setPage]               = useState(1);
 
@@ -39,6 +40,7 @@ export default function TenantListPage() {
     search: search || undefined,
     tenantType: tenantType || undefined,
     kycStatus: kycStatus || undefined,
+    tags: tags || undefined,
     isBlacklisted: showBlacklisted,
     page,
     limit: 20,
@@ -48,7 +50,7 @@ export default function TenantListPage() {
 
   const tenants = data?.data || [];
   const meta = data?.meta;
-  const hasFilters = !!(search || tenantType || kycStatus || showBlacklisted !== undefined);
+  const hasFilters = !!(search || tenantType || kycStatus || tags || showBlacklisted !== undefined);
 
   const handleDelete = async (t: TenantListItem, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -62,7 +64,7 @@ export default function TenantListPage() {
   };
 
   const clearFilters = () => {
-    setSearch(''); setTenantType(''); setKycStatus(''); setShowBlacklisted(undefined); setPage(1);
+    setSearch(''); setTenantType(''); setKycStatus(''); setTags(''); setShowBlacklisted(undefined); setPage(1);
   };
 
   return (
@@ -113,6 +115,16 @@ export default function TenantListPage() {
           {Object.entries(KYC_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
 
+        <div className="search-box">
+          <Tag size={14} />
+          <input
+            placeholder="Filter by tags (comma separated)…"
+            value={tags}
+            onChange={(e) => { setTags(e.target.value); setPage(1); }}
+          />
+          {tags && <button onClick={() => setTags('')}><X size={13} /></button>}
+        </div>
+
         <button
           className={`filter-btn-bl ${showBlacklisted === true ? 'active' : ''}`}
           onClick={() => { setShowBlacklisted(showBlacklisted === true ? undefined : true); setPage(1); }}
@@ -127,7 +139,7 @@ export default function TenantListPage() {
       <div className="tenant-table-wrap">
         <div className="tenant-table-header">
           <span>Tenant</span><span>Type</span><span>Contact</span>
-          <span>KYC Status</span><span>Tags</span><span>Added</span><span></span>
+          <span>KYC Status</span><span>Active Leases</span><span>Tags</span><span>Added</span><span></span>
         </div>
 
         {isLoading ? (
@@ -197,6 +209,11 @@ function TenantRow({ tenant, onClick, onDelete }: { tenant: TenantListItem; onCl
         <span className="kyc-badge" style={{ color: kycColor, background: kycColor + '18', borderColor: kycColor + '40' }}>
           {KYC_LABELS[tenant.kycStatus] || tenant.kycStatus}
         </span>
+      </div>
+
+      {/* Active Leases */}
+      <div className="tenant-active-leases">
+        {tenant.activeLeases}
       </div>
 
       {/* Tags */}

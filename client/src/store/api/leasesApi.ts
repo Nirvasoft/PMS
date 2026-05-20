@@ -39,6 +39,8 @@ export interface LeaseDetail extends LeaseListItem {
   terminationType: string | null;
   earlyTerminationPenalty: string | null;
   esignEnvelopeId: string | null;
+  esignCompletedAt: string | null;
+  leaseDocumentUrl: string | null;
   workflowInstanceId: string | null;
   notes: string | null;
   specialConditions: string | null;

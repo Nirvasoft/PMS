@@ -1206,6 +1206,7 @@ model Lease {
   esignStatus             String    @default("not_started") @map("esign_status") @db.VarChar(20)
   esignEnvelopeId         String?   @map("esign_envelope_id") @db.VarChar(255)
   esignCompletedAt        DateTime? @map("esign_completed_at") @db.Timestamptz
+  leaseDocumentUrl        String?   @map("lease_document_url") @db.Text
 
   // Workflow
   workflowInstanceId      String?   @map("workflow_instance_id") @db.Uuid
