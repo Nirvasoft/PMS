@@ -21,6 +21,9 @@ import { crmApi } from './api/crmApi';
 import { parkingApi } from './api/parkingApi';
 import { billingApi } from './api/billingApi';
 import { arApi } from './api/arApi';
+import { glApi } from './api/glApi';
+import { assetsApi } from './api/assetsApi';
+import { bankingApi } from './api/bankingApi';
 
 export const store = configureStore({
   reducer: {
@@ -44,6 +47,9 @@ export const store = configureStore({
     [parkingApi.reducerPath]: parkingApi.reducer,
     [billingApi.reducerPath]: billingApi.reducer,
     [arApi.reducerPath]: arApi.reducer,
+    [glApi.reducerPath]: glApi.reducer,
+    [assetsApi.reducerPath]: assetsApi.reducer,
+    [bankingApi.reducerPath]: bankingApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -54,6 +60,9 @@ export const store = configureStore({
       parkingApi.middleware,
       billingApi.middleware,
       arApi.middleware,
+      glApi.middleware,
+      assetsApi.middleware,
+      bankingApi.middleware,
     ),
 });
 

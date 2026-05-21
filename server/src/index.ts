@@ -48,6 +48,9 @@ import {
   receiptsRouter, arReportsRouter, refundsRouter,
   tenantCreditsRouter, tenantStatementRouter,
 } from './modules/ar/ar.routes';
+import { glRouter } from './modules/gl/gl.routes';
+import { budgetsRouter, assetsRouter } from './modules/assets/assets.routes';
+import { bankingRouter } from './modules/banking/banking.routes';
 
 async function bootstrap() {
   const app = express();
@@ -156,6 +159,16 @@ async function bootstrap() {
   app.use('/api/v1/refunds', refundsRouter);
   app.use('/api/v1/tenants', tenantCreditsRouter);
   app.use('/api/v1/tenants', tenantStatementRouter);
+
+  // Module 3.4 — General Ledger
+  app.use('/api/v1/gl', glRouter);
+
+  // Module 3.5 — Budgets & Assets
+  app.use('/api/v1/budgets', budgetsRouter);
+  app.use('/api/v1/assets', assetsRouter);
+
+  // Module 3.6 — Banking & Reconciliation
+  app.use('/api/v1/banking', bankingRouter);
 
   // Error handler (must be last)
   app.use(errorHandler);

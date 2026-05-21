@@ -9,6 +9,7 @@ import {
   User, Users, Key, GitBranch, Home, MapPin, Workflow, Inbox, Bell, Briefcase, FileText, FolderOpen,
   Users2, ClipboardList, Target, Megaphone, Car, Link2, Ticket, Activity, Receipt, CalendarClock,
   Banknote, BarChart3, Clock, RotateCcw,
+  BookOpen, Calculator, Scale, PieChart, Landmark, Wallet, Box,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -200,7 +201,46 @@ export default function DashboardLayout() {
             </NavLink>
           </NavSection>
 
-          {/* Workflow Section */}
+          {/* Finance / GL Section */}
+          <NavSection label="Finance" storageKey="finance" defaultOpen>
+            <NavLink to="/admin/gl/accounts" className="nav-item">
+              <BookOpen size={18} />
+              <span>Chart of Accounts</span>
+            </NavLink>
+            <NavLink to="/admin/gl/journal-entries" className="nav-item">
+              <ClipboardList size={18} />
+              <span>Journal Entries</span>
+            </NavLink>
+            <NavLink to="/admin/gl/fiscal-periods" className="nav-item">
+              <CalendarClock size={18} />
+              <span>Fiscal Periods</span>
+            </NavLink>
+            <NavLink to="/admin/gl/trial-balance" className="nav-item">
+              <Scale size={18} />
+              <span>Trial Balance</span>
+            </NavLink>
+            <NavLink to="/admin/gl/pnl" className="nav-item">
+              <PieChart size={18} />
+              <span>Profit & Loss</span>
+            </NavLink>
+            <NavLink to="/admin/gl/balance-sheet" className="nav-item">
+              <Landmark size={18} />
+              <span>Balance Sheet</span>
+            </NavLink>
+            <NavLink to="/admin/budgets" className="nav-item">
+              <Wallet size={18} />
+              <span>Budgets</span>
+            </NavLink>
+            <NavLink to="/admin/assets" className="nav-item">
+              <Box size={18} />
+              <span>Fixed Assets</span>
+            </NavLink>
+            <NavLink to="/admin/banking" className="nav-item">
+              <Building2 size={18} />
+              <span>Banking</span>
+            </NavLink>
+          </NavSection>
+
           <FeatureGate flag="workflowEnabled">
             <NavSection label="Workflows" storageKey="wf">
               <NavLink to="/tasks" className="nav-item">

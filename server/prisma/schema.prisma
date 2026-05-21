@@ -114,6 +114,19 @@ model Company {
   refundRequests        RefundRequest[]
   tenantCredits         TenantCredit[]
 
+  // Relations — GL (Module 3.4)
+  glAccounts            GlAccount[]
+  fiscalPeriods         FiscalPeriod[]
+  journalEntries        JournalEntry[]
+
+  // Relations — Budgets & Assets (Module 3.5)
+  budgets               Budget[]
+  fixedAssets            FixedAsset[]
+
+  // Relations — Banking (Module 3.6)
+  bankAccounts          BankAccount[]
+  bankStatementImports  BankStatementImport[]
+
   @@index([parentId])
   @@map("companies")
 }
@@ -2454,4 +2467,299 @@ model TenantCredit {
 
   @@index([tenantId])
   @@map("tenant_credits")
+}
+
+// ─────────────────────────────────────────────
+// GENERAL LEDGER (Module 3.4)
+// ─────────────────────────────────────────────
+
+model GlAccount {
+  id             String    @id @default(uuid()) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  parentId       String?   @map("parent_id") @db.Uuid
+  code           String    @db.VarChar(20)
+  name           String    @db.VarChar(255)
+  accountType    String    @map("account_type") @db.VarChar(20)
+                           // 'asset' | 'liability' | 'equity' | 'income' | 'expense'
+  accountSubtype String?   @map("account_subtype") @db.VarChar(50)
+  normalBalance  String    @map("normal_balance") @db.VarChar(6)
+                           // 'debit' | 'credit'
+  isControl      Boolean   @default(false) @map("is_control")
+  isActive       Boolean   @default(true) @map("is_active")
+  description    String?   @db.Text
+  sortOrder      Int       @default(0) @map("sort_order") @db.SmallInt
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent         GlAccount? @relation("AccountTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children       GlAccount[] @relation("AccountTree")
+  journalLines   JournalEntryLine[]
+  budgets        Budget[]
+
+  @@unique([code, companyId])
+  @@index([companyId])
+  @@index([accountType])
+  @@map("gl_accounts")
+}
+
+model FiscalPeriod {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  fiscalYear   Int       @map("fiscal_year") @db.SmallInt
+  periodNumber Int       @map("period_number") @db.SmallInt
+  name         String    @db.VarChar(50)
+  startDate    DateTime  @map("start_date") @db.Date
+  endDate      DateTime  @map("end_date") @db.Date
+  status       String    @default("open") @db.VarChar(20)
+                         // 'open' | 'closed' | 'locked'
+  closedAt     DateTime? @map("closed_at") @db.Timestamptz
+  closedBy     String?   @map("closed_by") @db.Uuid
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalEntries      JournalEntry[]
+  depreciationEntries DepreciationEntry[]
+
+  @@unique([companyId, fiscalYear, periodNumber])
+  @@map("fiscal_periods")
+}
+
+model JournalEntry {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  journalNumber   String    @unique @map("journal_number") @db.VarChar(50)
+  entryDate       DateTime  @map("entry_date") @db.Date
+  fiscalPeriodId  String    @map("fiscal_period_id") @db.Uuid
+  entryType       String    @default("manual") @map("entry_type") @db.VarChar(20)
+                            // 'manual'|'ar_receipt'|'ar_invoice'|'ap_payment'|'ap_invoice'|'depreciation'|'adjustment'
+  description     String    @db.VarChar(500)
+  status          String    @default("draft") @db.VarChar(20)
+                            // 'draft' | 'posted' | 'reversed'
+  referenceType   String?   @map("reference_type") @db.VarChar(50)
+  referenceId     String?   @map("reference_id") @db.Uuid
+  isReversal      Boolean   @default(false) @map("is_reversal")
+  reversalOfId    String?   @map("reversal_of_id") @db.Uuid
+  reversedById    String?   @map("reversed_by_id") @db.Uuid
+  totalDebit      Decimal   @default(0) @map("total_debit") @db.Decimal(15, 2)
+  totalCredit     Decimal   @default(0) @map("total_credit") @db.Decimal(15, 2)
+  postedBy        String?   @map("posted_by") @db.Uuid
+  postedAt        DateTime? @map("posted_at") @db.Timestamptz
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalPeriod   FiscalPeriod     @relation(fields: [fiscalPeriodId], references: [id])
+  lines          JournalEntryLine[]
+
+  @@index([companyId, entryDate(sort: Desc)])
+  @@index([fiscalPeriodId])
+  @@index([referenceType, referenceId])
+  @@map("journal_entries")
+}
+
+model JournalEntryLine {
+  id              String   @id @default(uuid()) @db.Uuid
+  journalEntryId  String   @map("journal_entry_id") @db.Uuid
+  accountId       String   @map("account_id") @db.Uuid
+  description     String?  @db.VarChar(500)
+  debit           Decimal  @default(0) @db.Decimal(15, 2)
+  credit          Decimal  @default(0) @db.Decimal(15, 2)
+  propertyId      String?  @map("property_id") @db.Uuid
+  departmentId    String?  @map("department_id") @db.Uuid
+  sortOrder       Int      @default(0) @map("sort_order") @db.SmallInt
+
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account        GlAccount    @relation(fields: [accountId], references: [id])
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("journal_entry_lines")
+}
+
+// ─────────────────────────────────────────────
+// BUDGETING (Module 3.5)
+// ─────────────────────────────────────────────
+
+model Budget {
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @db.Uuid
+  propertyId     String?  @db.Uuid
+  departmentId   String?  @db.Uuid
+  fiscalYear     Int      @db.SmallInt
+  glAccountId    String   @db.Uuid
+  name           String?  @db.VarChar(255)
+  annualAmount   Decimal  @db.Decimal(15, 2)
+  monthlyAmounts Json?    @db.JsonB
+  status         String   @default("draft") @db.VarChar(20)
+  approvedBy     String?  @db.Uuid
+  createdBy      String   @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz()
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  glAccount GlAccount  @relation(fields: [glAccountId], references: [id])
+
+  @@unique([companyId, propertyId, departmentId, fiscalYear, glAccountId])
+  @@index([companyId])
+  @@map("budgets")
+}
+
+// ─────────────────────────────────────────────
+// FIXED ASSETS (Module 3.5)
+// ─────────────────────────────────────────────
+
+model FixedAsset {
+  id                       String   @id @default(uuid()) @db.Uuid
+  companyId                String   @db.Uuid
+  propertyId               String?  @db.Uuid
+  assetNumber              String   @db.VarChar(50)
+  name                     String   @db.VarChar(255)
+  category                 String   @db.VarChar(100)
+  description              String?  @db.Text
+  acquisitionDate          DateTime @db.Date
+  acquisitionCost          Decimal  @db.Decimal(15, 2)
+  usefulLifeYears          Int      @db.SmallInt
+  residualValue            Decimal  @default(0) @db.Decimal(15, 2)
+  depreciationMethod       String   @default("straight_line") @db.VarChar(20)
+  decliningRate            Decimal? @db.Decimal(5, 4)
+  accumulatedDepreciation  Decimal  @default(0) @db.Decimal(15, 2)
+  currentLocation          String?  @db.VarChar(255)
+  responsiblePersonId      String?  @db.Uuid
+  status                   String   @default("active") @db.VarChar(20)
+  disposalDate             DateTime? @db.Date
+  disposalAmount           Decimal?  @db.Decimal(15, 2)
+  glAssetAccountId         String?  @db.Uuid
+  glDepreciationAccountId  String?  @db.Uuid
+  glAccumDepAccountId      String?  @db.Uuid
+  serialNumber             String?  @db.VarChar(100)
+  warrantyExpiry           DateTime? @db.Date
+  photoUrl                 String?  @db.VarChar(500)
+  createdAt                DateTime @default(now()) @db.Timestamptz()
+  updatedAt                DateTime @updatedAt @db.Timestamptz()
+
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  depreciationEntries  DepreciationEntry[]
+  transfers            AssetTransfer[]
+
+  @@unique([assetNumber, companyId])
+  @@index([companyId])
+  @@index([category])
+  @@map("fixed_assets")
+}
+
+model DepreciationEntry {
+  id                 String   @id @default(uuid()) @db.Uuid
+  assetId            String   @db.Uuid
+  fiscalPeriodId     String   @db.Uuid
+  depreciationDate   DateTime @db.Date
+  amount             Decimal  @db.Decimal(15, 2)
+  netBookValueAfter  Decimal  @db.Decimal(15, 2)
+  glJournalId        String?  @db.Uuid
+  createdAt          DateTime @default(now()) @db.Timestamptz()
+
+  asset        FixedAsset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id])
+
+  @@unique([assetId, fiscalPeriodId])
+  @@index([assetId])
+  @@map("depreciation_entries")
+}
+
+model AssetTransfer {
+  id              String   @id @default(uuid()) @db.Uuid
+  assetId         String   @db.Uuid
+  fromPropertyId  String?  @db.Uuid
+  toPropertyId    String?  @db.Uuid
+  transferDate    DateTime @db.Date
+  reason          String?  @db.Text
+  transferredBy   String   @db.Uuid
+  createdAt       DateTime @default(now()) @db.Timestamptz()
+
+  asset FixedAsset @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@map("asset_transfers")
+}
+
+// ─────────────────────────────────────────────
+// BANKING & RECONCILIATION (Module 3.6)
+// ─────────────────────────────────────────────
+
+model BankAccount {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @db.Uuid
+  propertyId      String?   @db.Uuid
+  bankName        String    @db.VarChar(100)
+  accountName     String    @db.VarChar(200)
+  accountNumber   String    @db.VarChar(50)
+  accountType     String    @default("current") @db.VarChar(20)
+  currency        String    @default("USD") @db.VarChar(3)
+  openingBalance  Decimal   @default(0) @db.Decimal(15, 2)
+  currentBalance  Decimal   @default(0) @db.Decimal(15, 2)
+  swiftCode       String?   @db.VarChar(20)
+  iban            String?   @db.VarChar(50)
+  branchName      String?   @db.VarChar(100)
+  branchCode      String?   @db.VarChar(20)
+  glAccountId     String?   @db.Uuid
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @db.Timestamptz()
+  updatedAt       DateTime  @updatedAt @db.Timestamptz()
+
+  company           Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  statementImports  BankStatementImport[]
+  statementLines    BankStatementLine[]
+
+  @@index([companyId])
+  @@map("bank_accounts")
+}
+
+model BankStatementImport {
+  id               String    @id @default(uuid()) @db.Uuid
+  bankAccountId    String    @db.Uuid
+  companyId        String    @db.Uuid
+  importDate       DateTime  @default(now()) @db.Timestamptz()
+  filename         String?   @db.VarChar(255)
+  format           String    @db.VarChar(10)
+  fromDate         DateTime  @db.Date
+  toDate           DateTime  @db.Date
+  totalCredits     Decimal?  @db.Decimal(15, 2)
+  totalDebits      Decimal?  @db.Decimal(15, 2)
+  transactionCount Int?      @db.SmallInt
+  status           String    @default("pending") @db.VarChar(20)
+  importedBy       String?   @db.Uuid
+  createdAt        DateTime  @default(now()) @db.Timestamptz()
+
+  bankAccount BankAccount         @relation(fields: [bankAccountId], references: [id])
+  company     Company             @relation(fields: [companyId], references: [id])
+  lines       BankStatementLine[]
+
+  @@index([bankAccountId])
+  @@map("bank_statement_imports")
+}
+
+model BankStatementLine {
+  id                 String    @id @default(uuid()) @db.Uuid
+  importId           String    @db.Uuid
+  bankAccountId      String    @db.Uuid
+  transactionDate    DateTime  @db.Date
+  valueDate          DateTime? @db.Date
+  description        String?   @db.VarChar(500)
+  reference          String?   @db.VarChar(255)
+  creditAmount       Decimal   @default(0) @db.Decimal(15, 2)
+  debitAmount        Decimal   @default(0) @db.Decimal(15, 2)
+  balance            Decimal?  @db.Decimal(15, 2)
+  matchStatus        String    @default("unmatched") @db.VarChar(20)
+  matchedEntityType  String?   @db.VarChar(30)
+  matchedEntityId    String?   @db.Uuid
+  matchConfidence    Decimal?  @db.Decimal(5, 2)
+  matchedBy          String?   @db.Uuid
+  matchedAt          DateTime? @db.Timestamptz()
+  createdAt          DateTime  @default(now()) @db.Timestamptz()
+
+  import      BankStatementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount         @relation(fields: [bankAccountId], references: [id])
+
+  @@index([importId])
+  @@index([matchStatus])
+  @@map("bank_statement_lines")
 }

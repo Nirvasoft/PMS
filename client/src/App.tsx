@@ -39,6 +39,17 @@ import AgingReportPage from './pages/admin/ARPage/AgingReportPage';
 import CollectionDashboard from './pages/admin/ARPage/CollectionDashboard';
 import RefundsPage from './pages/admin/ARPage/RefundsPage';
 import TenantStatementPage from './pages/admin/ARPage/TenantStatementPage';
+import ChartOfAccountsPage from './pages/admin/GLPage/ChartOfAccountsPage';
+import JournalEntriesPage from './pages/admin/GLPage/JournalEntriesPage';
+import FiscalPeriodsPage from './pages/admin/GLPage/FiscalPeriodsPage';
+import TrialBalancePage from './pages/admin/GLPage/TrialBalancePage';
+import ProfitAndLossPage from './pages/admin/GLPage/ProfitAndLossPage';
+import BalanceSheetPage from './pages/admin/GLPage/BalanceSheetPage';
+import BudgetsPage from './pages/admin/AssetsPage/BudgetsPage';
+import AssetsListPage from './pages/admin/AssetsPage/AssetsListPage';
+import AssetDetailPage from './pages/admin/AssetsPage/AssetDetailPage';
+import BankAccountsPage from './pages/admin/BankingPage/BankAccountsPage';
+import ReconciliationPage from './pages/admin/BankingPage/ReconciliationPage';
 import WorkflowsPage from './pages/admin/WorkflowsPage/WorkflowsPage';
 import DesignerPage from './pages/admin/WorkflowsPage/DesignerPage';
 import MyTasksPage from './pages/admin/MyTasksPage/MyTasksPage';
@@ -136,6 +147,17 @@ function AppRoutes() {
           <Route path="/admin/ar/collections" element={<CollectionDashboard />} />
           <Route path="/admin/ar/refunds" element={<RefundsPage />} />
           <Route path="/admin/ar/statements" element={<TenantStatementPage />} />
+          <Route path="/admin/gl/accounts" element={<ChartOfAccountsPage />} />
+          <Route path="/admin/gl/journal-entries" element={<JournalEntriesPage />} />
+          <Route path="/admin/gl/fiscal-periods" element={<FiscalPeriodsPage />} />
+          <Route path="/admin/gl/trial-balance" element={<TrialBalancePage />} />
+          <Route path="/admin/gl/pnl" element={<ProfitAndLossPage />} />
+          <Route path="/admin/gl/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="/admin/budgets" element={<BudgetsPage />} />
+          <Route path="/admin/assets" element={<AssetsListPage />} />
+          <Route path="/admin/assets/:id" element={<AssetDetailPage />} />
+          <Route path="/admin/banking" element={<BankAccountsPage />} />
+          <Route path="/admin/banking/reconcile/:bankAccountId" element={<ReconciliationPage />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
           <Route path="/admin/positions" element={<PositionsPage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />

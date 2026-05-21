@@ -1,0 +1,190 @@
+/* ─── General Ledger Module ─────────────────────── */
+/* Fully theme-aware: uses CSS variables from index.css */
+
+.gl-page { padding: 24px; max-width: 1200px; margin: 0 auto; }
+.gl-page h2 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 20px; }
+.gl-page h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin: 16px 0 8px; }
+
+/* ─── Toolbar / Filters ────────────────────────── */
+.gl-toolbar {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 20px; padding: 14px 16px;
+  background: var(--surface); border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.gl-toolbar label { font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); }
+.gl-toolbar input, .gl-toolbar select {
+  padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text-primary); font-size: 0.85rem;
+  transition: border-color 0.2s;
+}
+.gl-toolbar input:focus, .gl-toolbar select:focus { border-color: var(--primary); outline: none; }
+
+/* ─── Table ────────────────────────────────────── */
+.gl-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+.gl-table {
+  width: 100%; border-collapse: collapse; font-size: 0.85rem;
+}
+.gl-table th {
+  padding: 12px 14px; text-align: left; font-weight: 600; font-size: 0.75rem;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  background: var(--surface-hover); color: var(--text-secondary);
+  border-bottom: 2px solid var(--border); white-space: nowrap;
+}
+.gl-table td {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  color: var(--text-primary); white-space: nowrap;
+}
+.gl-table tr:hover td { background: var(--surface-hover); }
+.gl-table .amount { text-align: right; font-variant-numeric: tabular-nums; }
+.gl-table .amount.positive { color: var(--success, #22c55e); }
+.gl-table .amount.negative { color: var(--danger, #ef4444); }
+.gl-table tfoot td {
+  font-weight: 700; border-top: 2px solid var(--border);
+  background: var(--surface-hover);
+}
+
+/* ─── Cards ────────────────────────────────────── */
+.gl-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px;
+}
+.gl-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.gl-stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; text-align: center;
+}
+.gl-stat-card .stat-value {
+  font-size: 1.5rem; font-weight: 700; color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.gl-stat-card .stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px; }
+
+/* ─── Badges ───────────────────────────────────── */
+.gl-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.gl-badge.draft { background: rgba(234,179,8,0.15); color: #ca8a04; }
+.gl-badge.posted { background: rgba(34,197,94,0.15); color: #16a34a; }
+.gl-badge.reversed { background: rgba(239,68,68,0.15); color: #dc2626; }
+.gl-badge.open { background: rgba(34,197,94,0.15); color: #16a34a; }
+.gl-badge.closed { background: rgba(107,114,128,0.15); color: #6b7280; }
+.gl-badge.locked { background: rgba(239,68,68,0.15); color: #dc2626; }
+
+/* Account type color chips */
+.gl-type-chip {
+  display: inline-block; padding: 2px 8px; border-radius: 6px;
+  font-size: 0.7rem; font-weight: 600; text-transform: capitalize;
+}
+.gl-type-chip.asset { background: rgba(59,130,246,0.12); color: #3b82f6; }
+.gl-type-chip.liability { background: rgba(249,115,22,0.12); color: #f97316; }
+.gl-type-chip.equity { background: rgba(168,85,247,0.12); color: #a855f7; }
+.gl-type-chip.income { background: rgba(34,197,94,0.12); color: #22c55e; }
+.gl-type-chip.expense { background: rgba(239,68,68,0.12); color: #ef4444; }
+
+/* ─── Account Tree ─────────────────────────────── */
+.coa-tree { list-style: none; padding: 0; margin: 0; }
+.coa-node {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+  transition: background 0.15s;
+}
+.coa-node:hover { background: var(--surface-hover); }
+.coa-node .coa-code { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 60px; color: var(--text-primary); }
+.coa-node .coa-name { flex: 1; color: var(--text-primary); }
+.coa-node .coa-balance { font-variant-numeric: tabular-nums; color: var(--text-secondary); min-width: 100px; text-align: right; }
+.coa-children { list-style: none; padding-left: 28px; margin: 0; }
+.coa-toggle { cursor: pointer; width: 20px; text-align: center; color: var(--text-muted); user-select: none; }
+
+/* ─── Modal ────────────────────────────────────── */
+.gl-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex;
+  align-items: center; justify-content: center; z-index: 1000;
+  animation: glFadeIn 0.2s ease;
+}
+.gl-modal {
+  background: var(--surface); border-radius: 16px; padding: 28px;
+  width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25); border: 1px solid var(--border);
+}
+.gl-modal h3 { margin: 0 0 20px; font-size: 1.2rem; color: var(--text-primary); }
+.gl-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+/* ─── Form ─────────────────────────────────────── */
+.gl-form-group { margin-bottom: 14px; }
+.gl-form-group label {
+  display: block; font-size: 0.8rem; font-weight: 500;
+  color: var(--text-secondary); margin-bottom: 4px;
+}
+.gl-form-group input, .gl-form-group select, .gl-form-group textarea {
+  width: 100%; padding: 8px 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text-primary); font-size: 0.9rem;
+}
+.gl-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ─── JE Line Editor ──────────────────────────── */
+.je-line-editor { margin-top: 16px; }
+.je-line-row {
+  display: grid; grid-template-columns: 1fr 2fr 120px 120px 36px;
+  gap: 8px; align-items: center; margin-bottom: 6px;
+}
+.je-line-row input, .je-line-row select {
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--text-primary); font-size: 0.85rem;
+}
+.je-line-row .remove-line {
+  background: none; border: none; color: var(--danger, #ef4444);
+  cursor: pointer; font-size: 1.1rem; padding: 4px;
+}
+.je-totals {
+  display: flex; gap: 40px; justify-content: flex-end; padding: 10px 0;
+  font-weight: 600; font-variant-numeric: tabular-nums; font-size: 0.9rem;
+  color: var(--text-primary);
+}
+.je-totals .balanced { color: var(--success, #22c55e); }
+.je-totals .unbalanced { color: var(--danger, #ef4444); }
+
+/* ─── Financial Report Sections ────────────────── */
+.report-section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; margin-bottom: 16px;
+}
+.report-section h4 {
+  font-size: 0.95rem; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 12px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.report-total-row {
+  display: flex; justify-content: space-between; padding: 12px 14px;
+  font-weight: 700; font-size: 1rem; color: var(--text-primary);
+  border-top: 2px solid var(--border); margin-top: 8px;
+}
+.report-net-profit {
+  background: linear-gradient(135deg, var(--surface), var(--surface-hover));
+  border: 2px solid var(--border); border-radius: 14px;
+  padding: 20px; text-align: center;
+}
+.report-net-profit .value {
+  font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.report-net-profit .label { font-size: 0.8rem; color: var(--text-secondary); }
+.report-balanced {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;
+}
+.report-balanced.yes { background: rgba(34,197,94,0.12); color: #16a34a; }
+.report-balanced.no { background: rgba(239,68,68,0.12); color: #dc2626; }
+
+/* ─── Animations ───────────────────────────────── */
+@keyframes glFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ─── Responsive ───────────────────────────────── */
+@media (max-width: 768px) {
+  .gl-page { padding: 12px; }
+  .gl-form-row { grid-template-columns: 1fr; }
+  .je-line-row { grid-template-columns: 1fr; }
+  .gl-stats { grid-template-columns: 1fr 1fr; }
+}
