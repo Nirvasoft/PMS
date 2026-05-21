@@ -1,6 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import { glService } from '../gl/gl.service';
 
 export class ReceiptsService {
   // ── Receipt Number ──────────────────────────
@@ -129,6 +130,26 @@ export class ReceiptsService {
     });
 
     logger.info(`Created receipt ${receiptNumber} for amount ${amount}`);
+
+    // GL auto-posting: Dr Bank / Cr Accounts Receivable
+    try {
+      await glService.postAutoJournal({
+        companyId,
+        entryDate: dto.receiptDate as string || new Date().toISOString().split('T')[0],
+        entryType: 'ar_receipt',
+        description: `AR Receipt ${receiptNumber}`,
+        referenceType: 'receipt',
+        referenceId: receipt.id,
+        propertyId: (dto.propertyId as string) || undefined,
+        lines: [
+          { accountCode: '1210', debit: amount, credit: 0, description: `Bank deposit — ${receiptNumber}` },
+          { accountCode: '1100', debit: 0, credit: amount, description: `AR cleared — ${receiptNumber}` },
+        ],
+      });
+    } catch (err: any) {
+      logger.warn(`GL auto-post for receipt ${receiptNumber} failed: ${err.message}`);
+    }
+
     return receipt;
   }
 

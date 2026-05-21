@@ -382,6 +382,102 @@ class GlService {
     return reversalEntry;
   }
 
+  // ── Auto-Posting (for cross-module integration) ──
+
+  /**
+   * Creates and immediately posts a journal entry from another module.
+   * Lines use accountCode (not accountId) — resolved internally.
+   * Control-account restrictions are bypassed for auto-postings.
+   * Silently returns null if no open fiscal period exists (graceful degradation).
+   */
+  async postAutoJournal(params: {
+    companyId: string;
+    entryDate: string | Date;
+    entryType: string;  // 'ar_invoice' | 'ar_receipt' | 'depreciation' | etc.
+    description: string;
+    referenceType?: string;
+    referenceId?: string;
+    propertyId?: string;
+    lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }>;
+  }) {
+    try {
+      const entryDate = new Date(params.entryDate);
+
+      // Find open fiscal period
+      const period = await prisma.fiscalPeriod.findFirst({
+        where: {
+          companyId: params.companyId,
+          startDate: { lte: entryDate },
+          endDate: { gte: entryDate },
+          status: 'open',
+        },
+      });
+      if (!period) {
+        logger.warn(`GL auto-post skipped: no open fiscal period for ${entryDate.toISOString().split('T')[0]} (${params.entryType})`);
+        return null;
+      }
+
+      // Resolve account codes to IDs
+      const resolvedLines: any[] = [];
+      let totalDebit = 0, totalCredit = 0;
+
+      for (const line of params.lines) {
+        const account = await prisma.glAccount.findFirst({
+          where: { companyId: params.companyId, code: line.accountCode, isActive: true },
+        });
+        if (!account) {
+          logger.warn(`GL auto-post: account code ${line.accountCode} not found, skipping journal`);
+          return null;
+        }
+        totalDebit += line.debit;
+        totalCredit += line.credit;
+        resolvedLines.push({
+          accountId: account.id,
+          description: line.description || '',
+          debit: line.debit,
+          credit: line.credit,
+          propertyId: params.propertyId || null,
+          sortOrder: resolvedLines.length,
+        });
+      }
+
+      // Validate balanced
+      if (Math.abs(totalDebit - totalCredit) > 0.01) {
+        logger.error(`GL auto-post: unbalanced journal (${totalDebit} vs ${totalCredit}) for ${params.description}`);
+        return null;
+      }
+
+      // Generate journal number
+      const count = await prisma.journalEntry.count({ where: { companyId: params.companyId } });
+      const journalNumber = `JE-${entryDate.getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+
+      const journal = await prisma.journalEntry.create({
+        data: {
+          companyId: params.companyId,
+          journalNumber,
+          entryDate,
+          fiscalPeriodId: period.id,
+          entryType: params.entryType,
+          description: params.description,
+          status: 'posted',
+          referenceType: params.referenceType || null,
+          referenceId: params.referenceId || null,
+          totalDebit,
+          totalCredit,
+          postedAt: new Date(),
+          createdBy: '00000000-0000-0000-0000-000000000000',
+          lines: { create: resolvedLines },
+        },
+      });
+
+      logger.info(`GL auto-posted: ${journalNumber} (${params.entryType}) — ${params.description}`);
+      return journal;
+    } catch (err: any) {
+      logger.error(`GL auto-post failed for ${params.entryType}: ${err.message}`);
+      return null;
+    }
+  }
+
   // ── Reports ─────────────────────────────────
 
   async getTrialBalance(companyId: string, params: { fromDate?: string; toDate?: string; propertyId?: string }) {

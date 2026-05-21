@@ -1,5 +1,6 @@
 import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
+import { glService } from '../gl/gl.service';
 
 class AssetsService {
   // ── CRUD ────────────────────────────────────
@@ -210,6 +211,28 @@ class AssetsService {
     }
 
     logger.info(`Depreciation run: ${results.length} assets, total ${totalDepreciated} for period ${period.name}`);
+
+    // GL auto-posting: Dr Depreciation Expense / Cr Accumulated Depreciation
+    if (totalDepreciated > 0) {
+      try {
+        const journal = await glService.postAutoJournal({
+          companyId,
+          entryDate: now,
+          entryType: 'depreciation',
+          description: `Depreciation — ${period.name} (${results.length} assets)`,
+          referenceType: 'depreciation_run',
+          lines: [
+            { accountCode: '5600', debit: totalDepreciated, credit: 0, description: `Depreciation expense — ${period.name}` },
+            { accountCode: '1590', debit: 0, credit: totalDepreciated, description: `Accumulated depreciation — ${period.name}` },
+          ],
+        });
+        if (journal) {
+          logger.info(`Depreciation GL journal posted: ${journal.journalNumber}`);
+        }
+      } catch (err: any) {
+        logger.warn(`GL auto-post for depreciation failed: ${err.message}`);
+      }
+    }
 
     return {
       periodName: period.name,

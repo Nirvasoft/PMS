@@ -4,6 +4,7 @@ import { taxService } from './tax.service';
 import { logger } from '../../common/logger';
 import { billingNotifications } from './billingNotifications.service';
 import { workflowEngine } from '../workflow/services/engine.service';
+import { glService } from '../gl/gl.service';
 
 /** Adds computed `outstandingAmount` to an invoice object */
 function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T): T & { outstandingAmount: number } {
@@ -152,7 +153,26 @@ export class InvoicesService {
       },
     });
 
-    // TODO: GL posting hook — Dr Accounts Receivable / Cr Revenue accounts
+    // GL auto-posting: Dr Accounts Receivable / Cr Revenue / Cr Tax Payable
+    const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
+      { accountCode: '1100', debit: Number(invoice.totalAmount), credit: 0, description: `AR — ${invoiceNumber}` },
+    ];
+    // Credit revenue for subtotal
+    glLines.push({ accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoiceNumber}` });
+    // Credit tax payable if tax exists
+    if (totalTax > 0) {
+      glLines.push({ accountCode: '2200', debit: 0, credit: totalTax, description: `Tax Payable — ${invoiceNumber}` });
+    }
+    await glService.postAutoJournal({
+      companyId,
+      entryDate: dto.invoiceDate as string,
+      entryType: 'ar_invoice',
+      description: `AR Invoice ${invoiceNumber}`,
+      referenceType: 'invoice',
+      referenceId: invoice.id,
+      propertyId: dto.propertyId as string,
+      lines: glLines,
+    });
 
     // Send notification
     const tenantName = invoice.tenant
@@ -270,7 +290,24 @@ export class InvoicesService {
       },
     });
 
-    // TODO: GL posting hook
+    // GL auto-posting: Dr AR / Cr Revenue / Cr Tax Payable
+    const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
+      { accountCode: '1100', debit: totalAmount, credit: 0, description: `AR — ${invoiceNumber}` },
+      { accountCode: '4100', debit: 0, credit: amount, description: `Revenue — ${invoiceNumber}` },
+    ];
+    if (taxAmount > 0) {
+      glLines.push({ accountCode: '2200', debit: 0, credit: taxAmount, description: `Tax Payable — ${invoiceNumber}` });
+    }
+    await glService.postAutoJournal({
+      companyId: schedule.companyId,
+      entryDate: periodFrom,
+      entryType: 'ar_invoice',
+      description: `AR Invoice ${invoiceNumber}`,
+      referenceType: 'invoice',
+      referenceId: invoice.id,
+      propertyId: schedule.propertyId,
+      lines: glLines,
+    });
     // Send notification
     const tenantName = schedule.tenant
       ? `${schedule.tenant.firstName || ''} ${schedule.tenant.lastName || ''}`.trim()
