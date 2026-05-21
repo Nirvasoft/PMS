@@ -4,6 +4,7 @@ import { logger } from '../../../common/logger';
 import { calcLeaseTermMonths, nextLeaseNumber, calcEarlyTermPenalty } from './helpers';
 import { escalationService } from './escalation.service';
 import { workflowEngine } from '../../workflow/services/engine.service';
+import { billingSchedulesService } from '../../billing/billingSchedules.service';
 
 export class LeasesLifecycleService {
   // ── Submit for approval ───────────────────
@@ -55,7 +56,10 @@ export class LeasesLifecycleService {
 
   // ── Activate ─────────────────────────────
   async activate(id: string, companyId: string, activatedBy: string) {
-    const lease = await prisma.lease.findFirst({ where: { id, companyId, deletedAt: null }, include: { unit: true } });
+    const lease = await prisma.lease.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: { unit: { include: { property: true } } },
+    });
     if (!lease) throw AppError.notFound('Lease');
     if (!['approved', 'pending_approval'].includes(lease.status)) throw new AppError(400, 'INVALID_STATUS', 'Only approved leases can be activated');
 
@@ -68,6 +72,16 @@ export class LeasesLifecycleService {
     ]);
 
     await escalationService.generateEscalationSchedule(id);
+
+    // Create billing schedules (RENT + SERVICE_CHARGE) for the activated lease
+    try {
+      await billingSchedulesService.createFromLease(lease);
+      logger.info(`Billing schedules created for lease ${lease.leaseNumber}`);
+    } catch (err: any) {
+      // Don't fail activation if billing schedule creation fails — log and continue
+      logger.error(`Failed to create billing schedules for lease ${lease.leaseNumber}: ${err.message}`);
+    }
+
     logger.info(`Lease ${lease.leaseNumber} activated, unit → ${unitStatus}`);
     return prisma.lease.findUniqueOrThrow({ where: { id } });
   }

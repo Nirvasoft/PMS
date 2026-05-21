@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../../middleware';
 import { dashboardService } from './dashboard.service';
+import { getDrillDownData } from './widgets/drillDownProvider';
 
 // ═══════════════════════════════════════════════════
 // DASHBOARD ROUTES
@@ -22,8 +23,21 @@ dashboardRouter.get('/widget-data/:code', asyncHandler(async (req: Request, res:
     {
       propertyId: req.query.propertyId as string,
       dateRange: req.query.dateRange as string,
+      userId: req.user!.sub,
     },
   );
+  res.json({ success: true, data });
+}));
+
+/** GET /dashboard/widget-data/:code/drilldown — Drill-down detail data */
+dashboardRouter.get('/widget-data/:code/drilldown', asyncHandler(async (req: Request, res: Response) => {
+  const data = await getDrillDownData(req.params.code as string, {
+    companyId: req.user!.companyId,
+    userId: req.user!.sub,
+    drillKey: req.query.drillKey as string,
+    dateFrom: req.query.dateFrom as string,
+    dateTo: req.query.dateTo as string,
+  });
   res.json({ success: true, data });
 }));
 

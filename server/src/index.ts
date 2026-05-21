@@ -30,6 +30,20 @@ import { startDocumentExpiryJob } from './modules/documents/documentExpiry';
 import { dashboardRouter, reportsRouter } from './modules/dashboard/dashboard.routes';
 import { startKycExpiryJob } from './modules/tenants/kycExpiry';
 import { dashboardService } from './modules/dashboard/dashboard.service';
+import { leadsRouter, campaignsRouter } from './modules/crm/crm.routes';
+import {
+  parkingZonesRouter, parkingSlotsRouter, parkingAllocationsRouter,
+  tenantVehiclesRouter, visitorPassesRouter, parkingRfidRouter
+} from './modules/parking/parking.routes';
+import { requireFeature } from './common/featureFlags';
+import {
+  chargeTypesRouter, billingSchedulesRouter, invoicesRouter,
+  billingRunRouter, penaltyConfigsRouter, taxConfigsRouter,
+} from './modules/billing/billing.routes';
+import { chargeTypesService } from './modules/billing/chargeTypes.service';
+import { startDailyBillingJob } from './modules/billing/cron/dailyBilling.job';
+import { startPenaltyCheckJob } from './modules/billing/cron/penaltyCheck.job';
+import { startOverdueTransitionJob } from './modules/billing/cron/overdueTransition.job';
 
 async function bootstrap() {
   const app = express();
@@ -50,6 +64,7 @@ async function bootstrap() {
   // Serve static files BEFORE auth middleware (public access)
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
   app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos')));
+  app.use('/storage', express.static(path.join(process.cwd(), 'storage')));
 
   app.use(authMiddleware);
 
@@ -90,26 +105,46 @@ async function bootstrap() {
   app.use('/api/v1/kyc-requirements', kycRequirementsRouter);
 
   // Module 2.4 — Lease Management (Phase 2)
-  app.use('/api/v1/leases', leasesRouter);
-  app.use('/api/v1/lease-templates', leaseTemplatesRouter);
-  app.use('/api/v1/lease-clauses', leaseClausesRouter);
+  app.use('/api/v1/leases', requireFeature('leasingEnabled'), leasesRouter);
+  app.use('/api/v1/lease-templates', requireFeature('leasingEnabled'), leaseTemplatesRouter);
+  app.use('/api/v1/lease-clauses', requireFeature('leasingEnabled'), leaseClausesRouter);
 
   // Module 1.4 — Workflow Engine
-  app.use('/api/v1/workflow-definitions', workflowDefinitionsRouter);
-  app.use('/api/v1/workflow-instances', workflowInstancesRouter);
-  app.use('/api/v1/workflow-tasks', workflowTasksRouter);
+  app.use('/api/v1/workflow-definitions', requireFeature('workflowEnabled'), workflowDefinitionsRouter);
+  app.use('/api/v1/workflow-instances', requireFeature('workflowEnabled'), workflowInstancesRouter);
+  app.use('/api/v1/workflow-tasks', requireFeature('workflowEnabled'), workflowTasksRouter);
 
   // Module 1.5 — Notification Center
   app.use('/api/v1/notifications', notificationsRouter);
   app.use('/api/v1/notification-templates', templatesRouter);
 
   // Module 1.6 — Document Management
-  app.use('/api/v1/documents', documentsRouter);
-  app.use('/api/v1/document-folders', documentFoldersRouter);
+  app.use('/api/v1/documents', requireFeature('documentVaultEnabled'), documentsRouter);
+  app.use('/api/v1/document-folders', requireFeature('documentVaultEnabled'), documentFoldersRouter);
 
   // Module 1.7 — Dashboard & Analytics
   app.use('/api/v1/dashboard', dashboardRouter);
   app.use('/api/v1/reports', reportsRouter);
+
+  // Module 2.5 — CRM & Leasing
+  app.use('/api/v1/leads', requireFeature('crmEnabled'), leadsRouter);
+  app.use('/api/v1/marketing-campaigns', requireFeature('crmEnabled'), campaignsRouter);
+
+  // Module 2.6 — Parking Management
+  app.use('/api/v1/properties/:propertyId/parking/zones', requireFeature('parkingEnabled'), parkingZonesRouter);
+  app.use('/api/v1/properties/:propertyId/parking/slots', requireFeature('parkingEnabled'), parkingSlotsRouter);
+  app.use('/api/v1/parking/allocations', requireFeature('parkingEnabled'), parkingAllocationsRouter);
+  app.use('/api/v1/tenants/:tenantId/vehicles', requireFeature('parkingEnabled'), tenantVehiclesRouter);
+  app.use('/api/v1/parking/visitor-passes', requireFeature('parkingEnabled'), visitorPassesRouter);
+  app.use('/api/v1/properties/:propertyId/parking/rfid/events', requireFeature('parkingEnabled'), parkingRfidRouter);
+
+  // Module 3.1 — Billing Engine
+  app.use('/api/v1/billing/charge-types', chargeTypesRouter);
+  app.use('/api/v1/billing/schedules', billingSchedulesRouter);
+  app.use('/api/v1/invoices', invoicesRouter);
+  app.use('/api/v1/billing/run', billingRunRouter);
+  app.use('/api/v1/billing/penalty-configs', penaltyConfigsRouter);
+  app.use('/api/v1/billing/tax-configs', taxConfigsRouter);
 
   // Error handler (must be last)
   app.use(errorHandler);
@@ -121,6 +156,9 @@ async function bootstrap() {
   await dashboardService.seedWidgetDefinitions();
   await seedPropertyTypes();
   await seedUnitTypes();
+  await chargeTypesService.seedDefaults();
+  const { seedBillingNotificationTemplates } = await import('./modules/billing/billingNotifications.service');
+  await seedBillingNotificationTemplates();
 
   // Start Socket.IO
   initSocketIO(httpServer, config.frontendUrl);
@@ -135,6 +173,11 @@ async function bootstrap() {
   // Start lease cron jobs
   startEscalationJob();
   startRenewalJob();
+
+  // Start billing cron jobs
+  startDailyBillingJob();
+  startPenaltyCheckJob();
+  startOverdueTransitionJob();
 
   // Start server
   httpServer.listen(config.port, () => {

@@ -20,6 +20,7 @@ import {
   BarChart3, PieChart as PieChartIcon, Table2, Gauge, Activity,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import DrillDownModal from './DrillDownModal';
 import './AnalyticsDashboard.css';
 
 const CHART_COLORS = ['#6c5ce7', '#00cec9', '#fd79a8', '#fdcb6e', '#74b9ff', '#55efc4', '#a29bfe', '#fab1a0'];
@@ -63,6 +64,9 @@ export default function AnalyticsDashboard() {
   const { data: layoutData, isLoading: layoutLoading } = useGetDashboardLayoutQuery('main');
   const [saveLayout] = useSaveDashboardLayoutMutation();
   const [resetLayout] = useResetDashboardLayoutMutation();
+
+  // Drill-down state
+  const [drillDownData, setDrillDownData] = useState<{ widgetCode: string; drillKey?: string } | null>(null);
 
   const layout = (layoutData?.data?.layout || []) as LayoutItem[];
 
@@ -177,6 +181,7 @@ export default function AnalyticsDashboard() {
                       dateRange={filters.dateRange}
                       editMode={editMode}
                       onRemove={() => handleRemoveWidget(item.id)}
+                      onDrillDown={(drillKey) => setDrillDownData({ widgetCode: item.widgetCode, drillKey })}
                     />
                   </div>
                 ))}
@@ -189,6 +194,15 @@ export default function AnalyticsDashboard() {
       {/* Add Widget Panel */}
       {addWidgetPanelOpen && (
         <AddWidgetPanel onAdd={handleAddWidget} onClose={() => dispatch(closeAddWidgetPanel())} />
+      )}
+
+      {/* Drill Down Modal */}
+      {drillDownData && (
+        <DrillDownModal
+          widgetCode={drillDownData.widgetCode}
+          drillKey={drillDownData.drillKey}
+          onClose={() => setDrillDownData(null)}
+        />
       )}
     </div>
   );
@@ -213,11 +227,12 @@ function groupByRows(layout: LayoutItem[]): LayoutItem[][] {
 // ═══════════════════════════════════════════════════
 // WIDGET CONTAINER
 // ═══════════════════════════════════════════════════
-function WidgetContainer({ item, dateRange, editMode, onRemove }: {
+function WidgetContainer({ item, dateRange, editMode, onRemove, onDrillDown }: {
   item: LayoutItem;
   dateRange: { from: string; to: string };
   editMode: boolean;
   onRemove: () => void;
+  onDrillDown: (drillKey?: string) => void;
 }) {
   const { data, isLoading, error, refetch } = useGetWidgetDataQuery({
     code: item.widgetCode,
@@ -245,7 +260,7 @@ function WidgetContainer({ item, dateRange, editMode, onRemove }: {
           <button onClick={() => refetch()}>Retry</button>
         </div>
       ) : widgetData ? (
-        <WidgetRenderer data={widgetData} />
+        <WidgetRenderer data={widgetData} onDrillDown={onDrillDown} />
       ) : null}
     </div>
   );
@@ -254,14 +269,14 @@ function WidgetContainer({ item, dateRange, editMode, onRemove }: {
 // ═══════════════════════════════════════════════════
 // WIDGET RENDERER — dispatches to type-specific components
 // ═══════════════════════════════════════════════════
-function WidgetRenderer({ data }: { data: WidgetData }) {
+function WidgetRenderer({ data, onDrillDown }: { data: WidgetData; onDrillDown: (key?: string) => void }) {
   switch (data.type) {
-    case 'kpi_card': return <KpiCardWidget data={data} />;
-    case 'line_chart': return <LineChartWidget data={data} />;
-    case 'bar_chart': return <BarChartWidget data={data} />;
-    case 'pie_chart': return <PieChartWidget data={data} />;
-    case 'gauge': return <GaugeWidget data={data} />;
-    case 'data_table': return <DataTableWidget data={data} />;
+    case 'kpi_card': return <KpiCardWidget data={data} onDrillDown={onDrillDown} />;
+    case 'line_chart': return <LineChartWidget data={data} onDrillDown={onDrillDown} />;
+    case 'bar_chart': return <BarChartWidget data={data} onDrillDown={onDrillDown} />;
+    case 'pie_chart': return <PieChartWidget data={data} onDrillDown={onDrillDown} />;
+    case 'gauge': return <GaugeWidget data={data} onDrillDown={onDrillDown} />;
+    case 'data_table': return <DataTableWidget data={data} onDrillDown={onDrillDown} />;
     default: return <div className="widget-unknown">Unknown type: {(data as any).type}</div>;
   }
 }
@@ -269,7 +284,7 @@ function WidgetRenderer({ data }: { data: WidgetData }) {
 // ═══════════════════════════════════════════════════
 // KPI CARD
 // ═══════════════════════════════════════════════════
-function KpiCardWidget({ data }: { data: KpiCardData }) {
+function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: (k?: string) => void }) {
   const formatValue = (v: number, unit: string) => {
     if (unit === 'USD') return `$${v.toLocaleString()}`;
     if (unit === '%') return `${v}%`;
@@ -277,7 +292,7 @@ function KpiCardWidget({ data }: { data: KpiCardData }) {
   };
 
   return (
-    <div className="kpi-card">
+    <div className="kpi-card" onClick={() => onDrillDown()} style={{ cursor: 'pointer' }}>
       <div className="kpi-header">
         <span className="kpi-label">{data.label}</span>
         {data.trend && (
@@ -294,7 +309,7 @@ function KpiCardWidget({ data }: { data: KpiCardData }) {
       {data.breakdown && (
         <div className="kpi-breakdown">
           {Object.entries(data.breakdown).map(([k, v]) => (
-            <div key={k} className="breakdown-item">
+            <div key={k} className="breakdown-item" onClick={(e) => { e.stopPropagation(); onDrillDown(k); }}>
               <span className="breakdown-value">{v.toLocaleString()}</span>
               <span className="breakdown-label">{k}</span>
             </div>
@@ -308,7 +323,7 @@ function KpiCardWidget({ data }: { data: KpiCardData }) {
 // ═══════════════════════════════════════════════════
 // LINE CHART
 // ═══════════════════════════════════════════════════
-function LineChartWidget({ data }: { data: LineChartData }) {
+function LineChartWidget({ data, onDrillDown }: { data: LineChartData; onDrillDown: (k?: string) => void }) {
   const chartData = data.series[0]?.data.map((point, i) => {
     const row: Record<string, unknown> = { x: point.x };
     data.series.forEach((s) => { row[s.name] = s.data[i]?.y; });
@@ -316,7 +331,7 @@ function LineChartWidget({ data }: { data: LineChartData }) {
   }) || [];
 
   return (
-    <div className="chart-widget">
+    <div className="chart-widget" onClick={() => onDrillDown()} style={{ cursor: 'pointer' }}>
       <h4 className="chart-title">{data.label}</h4>
       <ResponsiveContainer width="100%" height={180}>
         <AreaChart data={chartData}>
@@ -345,19 +360,19 @@ function LineChartWidget({ data }: { data: LineChartData }) {
 // ═══════════════════════════════════════════════════
 // BAR CHART
 // ═══════════════════════════════════════════════════
-function BarChartWidget({ data }: { data: BarChartData }) {
+function BarChartWidget({ data, onDrillDown }: { data: BarChartData; onDrillDown: (k?: string) => void }) {
   const chartData = data.series[0]?.data.map((d) => ({ name: d.x, value: d.y })) || [];
 
   return (
-    <div className="chart-widget">
-      <h4 className="chart-title">{data.label}</h4>
+    <div className="chart-widget" style={{ cursor: 'pointer' }}>
+      <h4 className="chart-title" onClick={() => onDrillDown()}>{data.label}</h4>
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
           <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#8b95a5' }} tickLine={false} axisLine={false} />
           <YAxis tick={{ fontSize: 11, fill: '#8b95a5' }} tickLine={false} axisLine={false} width={50} />
-          <Tooltip contentStyle={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }} />
-          <Bar dataKey="value" fill="#6c5ce7" radius={[4, 4, 0, 0]} />
+          <Tooltip contentStyle={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+          <Bar dataKey="value" fill="#6c5ce7" radius={[4, 4, 0, 0]} onClick={(d) => onDrillDown(d.name)} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -367,10 +382,10 @@ function BarChartWidget({ data }: { data: BarChartData }) {
 // ═══════════════════════════════════════════════════
 // PIE CHART
 // ═══════════════════════════════════════════════════
-function PieChartWidget({ data }: { data: PieChartData }) {
+function PieChartWidget({ data, onDrillDown }: { data: PieChartData; onDrillDown: (k?: string) => void }) {
   return (
-    <div className="chart-widget">
-      <h4 className="chart-title">{data.label}</h4>
+    <div className="chart-widget" style={{ cursor: 'pointer' }}>
+      <h4 className="chart-title" onClick={() => onDrillDown()}>{data.label}</h4>
       <ResponsiveContainer width="100%" height={180}>
         <PieChart>
           <Pie
@@ -380,6 +395,7 @@ function PieChartWidget({ data }: { data: PieChartData }) {
             dataKey="value"
             stroke="none"
             paddingAngle={2}
+            onClick={(d) => onDrillDown(d.name)}
           >
             {data.data.map((entry, i) => (
               <Cell key={i} fill={entry.color || CHART_COLORS[i]} />
@@ -396,7 +412,7 @@ function PieChartWidget({ data }: { data: PieChartData }) {
 // ═══════════════════════════════════════════════════
 // GAUGE
 // ═══════════════════════════════════════════════════
-function GaugeWidget({ data }: { data: GaugeData }) {
+function GaugeWidget({ data, onDrillDown }: { data: GaugeData; onDrillDown: (k?: string) => void }) {
   const angle = (data.value / 100) * 180;
   const radius = 60;
   const cx = 80;
@@ -413,7 +429,7 @@ function GaugeWidget({ data }: { data: GaugeData }) {
   const largeArc = angle > 180 ? 1 : 0;
 
   return (
-    <div className="gauge-widget">
+    <div className="gauge-widget" onClick={() => onDrillDown()} style={{ cursor: 'pointer' }}>
       <h4 className="chart-title">{data.label}</h4>
       <div className="gauge-container">
         <svg viewBox="0 0 160 90" className="gauge-svg">
@@ -438,9 +454,9 @@ function GaugeWidget({ data }: { data: GaugeData }) {
 // ═══════════════════════════════════════════════════
 // DATA TABLE
 // ═══════════════════════════════════════════════════
-function DataTableWidget({ data }: { data: DataTableData }) {
+function DataTableWidget({ data, onDrillDown }: { data: DataTableData; onDrillDown: (k?: string) => void }) {
   return (
-    <div className="table-widget">
+    <div className="table-widget" onClick={() => onDrillDown()} style={{ cursor: 'pointer' }}>
       <h4 className="chart-title">{data.label}</h4>
       <div className="table-scroll">
         <table>

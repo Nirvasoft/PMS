@@ -23,6 +23,17 @@ import MergeTenantPage from './pages/admin/TenantsPage/MergeTenantPage';
 import LeaseListPage from './pages/admin/LeasesPage/LeaseListPage';
 import LeaseDetailPage from './pages/admin/LeasesPage/LeaseDetailPage';
 import CreateLeasePage from './pages/admin/LeasesPage/CreateLeasePage';
+import LeadPipelinePage from './pages/admin/CRMPage/LeadPipelinePage';
+import CRMLeadDetailPage from './pages/admin/CRMPage/LeadDetailPage';
+import CampaignsPage from './pages/admin/CRMPage/CampaignsPage';
+import ParkingOverviewPage from './pages/admin/ParkingPage/ParkingOverviewPage';
+import AllocationManager from './pages/admin/ParkingPage/AllocationManager';
+import VisitorParkingPage from './pages/admin/ParkingPage/VisitorParkingPage';
+import GateAccessLogsPage from './pages/admin/ParkingPage/GateAccessLogsPage';
+import InvoiceListPage from './pages/admin/BillingPage/InvoiceListPage';
+import InvoiceDetailPage from './pages/admin/BillingPage/InvoiceDetailPage';
+import CreateInvoicePage from './pages/admin/BillingPage/CreateInvoicePage';
+import BillingSchedulesPage from './pages/admin/BillingPage/BillingSchedulesPage';
 import WorkflowsPage from './pages/admin/WorkflowsPage/WorkflowsPage';
 import DesignerPage from './pages/admin/WorkflowsPage/DesignerPage';
 import MyTasksPage from './pages/admin/MyTasksPage/MyTasksPage';
@@ -104,6 +115,17 @@ function AppRoutes() {
           <Route path="/admin/leases" element={<LeaseListPage />} />
           <Route path="/admin/leases/new" element={<CreateLeasePage />} />
           <Route path="/admin/leases/:id" element={<LeaseDetailPage />} />
+          <Route path="/admin/crm/leads" element={<LeadPipelinePage />} />
+          <Route path="/admin/crm/leads/:id" element={<CRMLeadDetailPage />} />
+          <Route path="/admin/crm/campaigns" element={<CampaignsPage />} />
+          <Route path="/admin/parking" element={<ParkingOverviewPage />} />
+          <Route path="/admin/parking/allocations" element={<AllocationManager />} />
+          <Route path="/admin/parking/visitors" element={<VisitorParkingPage />} />
+          <Route path="/admin/parking/gate-logs" element={<GateAccessLogsPage />} />
+          <Route path="/admin/billing/invoices" element={<InvoiceListPage />} />
+          <Route path="/admin/billing/invoices/new" element={<CreateInvoicePage />} />
+          <Route path="/admin/billing/invoices/:id" element={<InvoiceDetailPage />} />
+          <Route path="/admin/billing/schedules" element={<BillingSchedulesPage />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
           <Route path="/admin/positions" element={<PositionsPage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />

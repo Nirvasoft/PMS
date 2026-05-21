@@ -92,6 +92,23 @@ model Company {
   leaseTemplates      LeaseTemplate[]
   leaseClauses        LeaseClause[]
 
+  // Relations — CRM (Module 2.5)
+  leads               Lead[]
+  marketingCampaigns  MarketingCampaign[]
+
+  // Relations — Parking (Module 2.6)
+  parkingZones        ParkingZone[]
+  parkingSlots        ParkingSlot[]
+  parkingAllocations  ParkingAllocation[]
+  tenantVehicles      TenantVehicle[]
+
+  // Relations — Billing (Module 3.1)
+  chargeTypes           ChargeType[]
+  billingSchedules      BillingSchedule[]
+  invoices              Invoice[]
+  penaltyConfigurations PenaltyConfiguration[]
+  taxConfigurations     TaxConfiguration[]
+
   @@index([parentId])
   @@map("companies")
 }
@@ -196,6 +213,16 @@ model User {
   amendmentsApproved     LeaseAmendment[]        @relation("AmendmentApprover")
   amendmentsCreated      LeaseAmendment[]        @relation("AmendmentCreator")
   leaseClausesCreated    LeaseClause[]           @relation("LeaseClauseCreator")
+
+  // Relations — CRM (Module 2.5)
+  assignedLeads          Lead[]                  @relation("LeadAgent")
+  leadViewingsAgent      LeadViewing[]           @relation("ViewingAgent")
+  leadActivitiesPerformed LeadActivity[]          @relation("ActivityPerformer")
+  campaignsCreated       MarketingCampaign[]     @relation("CampaignCreator")
+
+  // Relations — Parking (Module 2.6)
+  parkingAllocationsCreated ParkingAllocation[]   @relation("AllocationCreator")
+  visitorPassesIssued       VisitorParkingPass[]  @relation("PassIssuer")
 
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
@@ -665,6 +692,23 @@ model Property {
   // Relations — Leases (Module 2.4)
   leases           Lease[]
 
+  // Relations — CRM (Module 2.5)
+  leads            Lead[]
+  leadViewings     LeadViewing[]  @relation("ViewingProperty")
+  marketingCampaigns MarketingCampaign[]
+
+  // Relations — Parking (Module 2.6)
+  parkingZones     ParkingZone[]
+  parkingSlots     ParkingSlot[]
+  parkingAllocations ParkingAllocation[]
+  visitorParkingPasses VisitorParkingPass[]
+  rfidAccessEvents   RfidAccessEvent[]
+
+  // Relations — Billing (Module 3.1)
+  billingSchedules BillingSchedule[] @relation("ScheduleProperty")
+  invoices         Invoice[]         @relation("InvoiceProperty")
+  penaltyConfigs   PenaltyConfiguration[] @relation("PenaltyProperty")
+
   @@unique([code, companyId], name: "uq_property_code_company")
   @@index([companyId])
   @@index([status])
@@ -885,6 +929,17 @@ model Unit {
   leases             Lease[]
   amendmentUnits     LeaseAmendment[] @relation("AmendmentUnit")
 
+  // Relations — CRM (Module 2.5)
+  leadViewings       LeadViewing[]   @relation("ViewingUnit")
+
+  // Relations — Parking (Module 2.6)
+  parkingAllocations ParkingAllocation[] @relation("AllocationUnit")
+  visitorParkingPasses VisitorParkingPass[] @relation("PassUnit")
+
+  // Relations — Billing (Module 3.1)
+  billingSchedules BillingSchedule[] @relation("ScheduleUnit")
+  invoices         Invoice[]         @relation("InvoiceUnit")
+
   @@unique([unitNumber, propertyId], name: "uq_unit_number_property")
   @@index([propertyId])
   @@index([towerId])
@@ -1022,6 +1077,17 @@ model Tenant {
 
   // Relations — Leases (Module 2.4)
   leases               Lease[]
+
+  // Relations — CRM (Module 2.5)
+  convertedLeads       Lead[]          @relation("ConvertedTenant")
+
+  // Relations — Parking (Module 2.6)
+  parkingAllocations   ParkingAllocation[] @relation("AllocationTenant")
+  tenantVehicles       TenantVehicle[]
+
+  // Relations — Billing (Module 3.1)
+  billingSchedules     BillingSchedule[] @relation("ScheduleTenant")
+  invoices             Invoice[]         @relation("InvoiceTenant")
 
   @@index([companyId])
   @@index([email])
@@ -1238,6 +1304,16 @@ model Lease {
   amendments              LeaseAmendment[]
   escalationSchedule      LeaseEscalationSchedule[]
   esignRecipients         EsignRecipient[]
+
+  // Relations — CRM (Module 2.5)
+  convertedLeads          Lead[]          @relation("ConvertedLease")
+
+  // Relations — Parking (Module 2.6)
+  parkingAllocations      ParkingAllocation[] @relation("AllocationLease")
+
+  // Relations — Billing (Module 3.1)
+  billingSchedules        BillingSchedule[] @relation("ScheduleLease")
+  invoices                Invoice[]         @relation("InvoiceLease")
 
   @@index([companyId])
   @@index([propertyId])
@@ -1784,4 +1860,467 @@ model SavedReport {
   creator     User      @relation("ReportCreator", fields: [createdBy], references: [id])
 
   @@map("saved_reports")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 2.5 — CRM & LEASING
+// ─────────────────────────────────────────────
+
+model Lead {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  propertyId        String?   @map("property_id") @db.Uuid
+  leadNumber        String?   @map("lead_number") @db.VarChar(30)
+  // Contact info
+  firstName         String?   @map("first_name") @db.VarChar(100)
+  lastName          String?   @map("last_name") @db.VarChar(100)
+  companyName       String?   @map("company_name") @db.VarChar(255)
+  email             String?   @db.VarChar(255)
+  phone             String?   @db.VarChar(50)
+  mobile            String?   @db.VarChar(50)
+  // Requirements
+  unitTypePreference String?  @map("unit_type_preference") @db.VarChar(50)
+  minAreaSqft       Decimal?  @map("min_area_sqft") @db.Decimal(10, 2)
+  maxAreaSqft       Decimal?  @map("max_area_sqft") @db.Decimal(10, 2)
+  moveInDate        DateTime? @map("move_in_date") @db.Date
+  budgetMin         Decimal?  @map("budget_min") @db.Decimal(15, 2)
+  budgetMax         Decimal?  @map("budget_max") @db.Decimal(15, 2)
+  leaseTermMonths   Int?      @map("lease_term_months") @db.SmallInt
+  // Pipeline
+  stage             String    @default("new") @db.VarChar(30)
+  priority          String    @default("medium") @db.VarChar(10)
+  source            String?   @db.VarChar(50)
+  campaignId        String?   @map("campaign_id") @db.Uuid
+  assignedTo        String?   @map("assigned_to") @db.Uuid
+  lostReason        String?   @map("lost_reason") @db.VarChar(255)
+  lostAt            DateTime? @map("lost_at") @db.Timestamptz
+  convertedAt       DateTime? @map("converted_at") @db.Timestamptz
+  convertedLeaseId  String?   @map("converted_lease_id") @db.Uuid
+  convertedTenantId String?   @map("converted_tenant_id") @db.Uuid
+  notes             String?   @db.Text
+  tags              String[]  @default([])
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property          Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  campaign          MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  agent             User?     @relation("LeadAgent", fields: [assignedTo], references: [id], onDelete: SetNull)
+  convertedLease    Lease?    @relation("ConvertedLease", fields: [convertedLeaseId], references: [id], onDelete: SetNull)
+  convertedTenant   Tenant?   @relation("ConvertedTenant", fields: [convertedTenantId], references: [id], onDelete: SetNull)
+  viewings          LeadViewing[]
+  activities        LeadActivity[]
+
+  @@index([companyId])
+  @@index([stage])
+  @@index([assignedTo])
+  @@map("leads")
+}
+
+model LeadViewing {
+  id               String    @id @default(uuid()) @db.Uuid
+  leadId           String    @map("lead_id") @db.Uuid
+  unitId           String?   @map("unit_id") @db.Uuid
+  propertyId       String?   @map("property_id") @db.Uuid
+  scheduledAt      DateTime  @map("scheduled_at") @db.Timestamptz
+  durationMinutes  Int       @default(30) @map("duration_minutes") @db.SmallInt
+  agentId          String?   @map("agent_id") @db.Uuid
+  status           String    @default("scheduled") @db.VarChar(20)
+  outcome          String?   @db.VarChar(20)
+  agentNotes       String?   @map("agent_notes") @db.Text
+  calendarEventId  String?   @map("calendar_event_id") @db.VarChar(255)
+  reminderSent     Boolean   @default(false) @map("reminder_sent")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  lead             Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  unit             Unit?     @relation("ViewingUnit", fields: [unitId], references: [id], onDelete: SetNull)
+  property         Property? @relation("ViewingProperty", fields: [propertyId], references: [id], onDelete: SetNull)
+  agent            User?     @relation("ViewingAgent", fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([scheduledAt])
+  @@map("lead_viewings")
+}
+
+model MarketingCampaign {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String?   @map("property_id") @db.Uuid
+  name            String    @db.VarChar(255)
+  channel         String?   @db.VarChar(50)
+  budget          Decimal?  @db.Decimal(15, 2)
+  startDate       DateTime? @map("start_date") @db.Date
+  endDate         DateTime? @map("end_date") @db.Date
+  status          String    @default("active") @db.VarChar(20)
+  totalLeads      Int       @default(0) @map("total_leads") @db.SmallInt
+  totalConversions Int      @default(0) @map("total_conversions") @db.SmallInt
+  totalRevenue    Decimal   @default(0) @map("total_revenue") @db.Decimal(15, 2)
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property        Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  creator         User?     @relation("CampaignCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  leads           Lead[]
+
+  @@index([companyId])
+  @@map("marketing_campaigns")
+}
+
+model LeadActivity {
+  id           String    @id @default(uuid()) @db.Uuid
+  leadId       String    @map("lead_id") @db.Uuid
+  activityType String    @map("activity_type") @db.VarChar(50)
+  description  String    @db.Text
+  performedBy  String?   @map("performed_by") @db.Uuid
+  metadata     Json      @default("{}")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  performer    User?     @relation("ActivityPerformer", fields: [performedBy], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt(sort: Desc)])
+  @@map("lead_activities")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 2.6 — PARKING MANAGEMENT
+// ─────────────────────────────────────────────
+
+model ParkingZone {
+  id           String    @id @default(uuid()) @db.Uuid
+  propertyId   String    @map("property_id") @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  name         String    @db.VarChar(100)
+  code         String?   @db.VarChar(20)
+  zoneType     String    @default("covered") @map("zone_type") @db.VarChar(20)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property     Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  slots        ParkingSlot[]
+
+  @@index([propertyId])
+  @@map("parking_zones")
+}
+
+model ParkingSlot {
+  id              String    @id @default(uuid()) @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  zoneId          String?   @map("zone_id") @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  slotNumber      String    @map("slot_number") @db.VarChar(30)
+  slotType        String    @default("car") @map("slot_type") @db.VarChar(20)
+  size            String    @default("standard") @db.VarChar(20)
+  hasEvCharger    Boolean   @default(false) @map("has_ev_charger")
+  evChargerType   String?   @map("ev_charger_type") @db.VarChar(30)
+  status          String    @default("available") @db.VarChar(20)
+  monthlyRate     Decimal?  @map("monthly_rate") @db.Decimal(10, 2)
+  hourlyRate      Decimal?  @map("hourly_rate") @db.Decimal(8, 2)
+  rfidTagId       String?   @map("rfid_tag_id") @db.VarChar(100)
+  notes           String?   @db.Text
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  zone            ParkingZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  allocations     ParkingAllocation[]
+  visitorPasses   VisitorParkingPass[]
+
+  @@unique([slotNumber, propertyId], name: "uq_slot_number_property")
+  @@index([propertyId])
+  @@index([status])
+  @@map("parking_slots")
+}
+
+model ParkingAllocation {
+  id              String    @id @default(uuid()) @db.Uuid
+  slotId          String    @map("slot_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  unitId          String?   @map("unit_id") @db.Uuid
+  leaseId         String?   @map("lease_id") @db.Uuid
+  startDate       DateTime  @map("start_date") @db.Date
+  endDate         DateTime? @map("end_date") @db.Date
+  monthlyRate     Decimal   @map("monthly_rate") @db.Decimal(10, 2)
+  billingDay      Int       @default(1) @map("billing_day") @db.SmallInt
+  status          String    @default("active") @db.VarChar(20)
+  vehicleId       String?   @map("vehicle_id") @db.Uuid
+  notes           String?   @db.Text
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  slot            ParkingSlot @relation(fields: [slotId], references: [id])
+  property        Property    @relation(fields: [propertyId], references: [id])
+  company         Company     @relation(fields: [companyId], references: [id])
+  tenant          Tenant      @relation("AllocationTenant", fields: [tenantId], references: [id])
+  unit            Unit?       @relation("AllocationUnit", fields: [unitId], references: [id], onDelete: SetNull)
+  lease           Lease?      @relation("AllocationLease", fields: [leaseId], references: [id], onDelete: SetNull)
+  vehicle         TenantVehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  creator         User?       @relation("AllocationCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([slotId])
+  @@index([tenantId])
+  @@map("parking_allocations")
+}
+
+model TenantVehicle {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  plateNumber  String    @map("plate_number") @db.VarChar(30)
+  make         String?   @db.VarChar(100)
+  model        String?   @db.VarChar(100)
+  color        String?   @db.VarChar(50)
+  vehicleType  String    @default("car") @map("vehicle_type") @db.VarChar(20)
+  rfidTagNo    String?   @map("rfid_tag_no") @db.VarChar(100)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  allocations  ParkingAllocation[]
+  rfidEvents   RfidAccessEvent[]
+
+  @@unique([plateNumber, companyId], name: "uq_plate_company")
+  @@map("tenant_vehicles")
+}
+
+model VisitorParkingPass {
+  id                   String    @id @default(uuid()) @db.Uuid
+  propertyId           String    @map("property_id") @db.Uuid
+  companyId            String    @map("company_id") @db.Uuid
+  slotId               String?   @map("slot_id") @db.Uuid
+  issuedBy             String?   @map("issued_by") @db.Uuid
+  issuingUnitId        String?   @map("issuing_unit_id") @db.Uuid
+  visitorName          String    @map("visitor_name") @db.VarChar(200)
+  visitorVehiclePlate  String?   @map("visitor_vehicle_plate") @db.VarChar(30)
+  qrToken              String    @unique @map("qr_token") @db.VarChar(255)
+  validFrom            DateTime  @map("valid_from") @db.Timestamptz
+  validTo              DateTime  @map("valid_to") @db.Timestamptz
+  maxHours             Int       @default(4) @map("max_hours") @db.SmallInt
+  actualEntryAt        DateTime? @map("actual_entry_at") @db.Timestamptz
+  actualExitAt         DateTime? @map("actual_exit_at") @db.Timestamptz
+  status               String    @default("pending") @db.VarChar(20)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property             Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  slot                 ParkingSlot? @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  issuer               User?     @relation("PassIssuer", fields: [issuedBy], references: [id], onDelete: SetNull)
+  issuingUnit          Unit?     @relation("PassUnit", fields: [issuingUnitId], references: [id], onDelete: SetNull)
+
+  @@index([qrToken])
+  @@index([propertyId, validTo])
+  @@map("visitor_parking_passes")
+}
+
+model RfidAccessEvent {
+  id           String    @id @default(uuid()) @db.Uuid
+  propertyId   String    @map("property_id") @db.Uuid
+  rfidTagNo    String    @map("rfid_tag_no") @db.VarChar(100)
+  vehicleId    String?   @map("vehicle_id") @db.Uuid
+  eventType    String    @map("event_type") @db.VarChar(10)
+  gateId       String?   @map("gate_id") @db.VarChar(50)
+  eventAt      DateTime  @default(now()) @map("event_at") @db.Timestamptz
+  isAuthorized Boolean   @default(true) @map("is_authorized")
+  denialReason String?   @map("denial_reason") @db.VarChar(100)
+
+  property     Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  vehicle      TenantVehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([propertyId, eventAt(sort: Desc)])
+  @@map("rfid_access_events")
+}
+
+// ─────────────────────────────────────────────
+// BILLING SCHEMA (Phase 3.1)
+// ─────────────────────────────────────────────
+
+model ChargeType {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String?   @map("company_id") @db.Uuid
+  code            String    @db.VarChar(50)
+  name            String    @db.VarChar(150)
+  category        String    @db.VarChar(30)   // 'rent'|'utility'|'service'|'parking'|'penalty'|'deposit'|'misc'
+  glAccountCode   String?   @map("gl_account_code") @db.VarChar(20)
+  isTaxable       Boolean   @default(false) @map("is_taxable")
+  taxRate         Decimal   @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  isActive        Boolean   @default(true) @map("is_active")
+  isSystem        Boolean   @default(false) @map("is_system")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  billingSchedules BillingSchedule[]
+  invoiceLines    InvoiceLine[]
+  penaltyConfigs  PenaltyConfiguration[] @relation("PenaltyChargeType")
+
+  @@unique([code, companyId], name: "uq_charge_type_code_company")
+  @@index([category])
+  @@map("charge_types")
+}
+
+model BillingSchedule {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  propertyId        String    @map("property_id") @db.Uuid
+  unitId            String?   @map("unit_id") @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  leaseId           String?   @map("lease_id") @db.Uuid
+  chargeTypeId      String    @map("charge_type_id") @db.Uuid
+  description       String?   @db.VarChar(500)
+  amount            Decimal   @db.Decimal(15, 2)
+  currency          String    @default("USD") @db.VarChar(3)
+  billingCycle      String    @default("monthly") @map("billing_cycle") @db.VarChar(20)
+  billingDay        Int       @default(1) @map("billing_day") @db.SmallInt
+  paymentDueDays    Int       @default(7) @map("payment_due_days") @db.SmallInt
+  startDate         DateTime  @map("start_date") @db.Date
+  endDate           DateTime? @map("end_date") @db.Date
+  nextBillingDate   DateTime? @map("next_billing_date") @db.Date
+  status            String    @default("active") @db.VarChar(20)  // 'active'|'paused'|'cancelled'|'completed'
+  lastInvoicedAt    DateTime? @map("last_invoiced_at") @db.Timestamptz
+  invoiceCount      Int       @default(0) @map("invoice_count")
+  isProrated        Boolean   @default(false) @map("is_prorated")
+  prorateStart      DateTime? @map("prorate_start") @db.Date
+  notes             String?   @db.Text
+  createdBy         String?   @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property          Property  @relation("ScheduleProperty", fields: [propertyId], references: [id])
+  unit              Unit?     @relation("ScheduleUnit", fields: [unitId], references: [id])
+  tenant            Tenant    @relation("ScheduleTenant", fields: [tenantId], references: [id])
+  lease             Lease?    @relation("ScheduleLease", fields: [leaseId], references: [id])
+  chargeType        ChargeType @relation(fields: [chargeTypeId], references: [id])
+
+  @@index([nextBillingDate])
+  @@index([tenantId])
+  @@index([leaseId])
+  @@index([status])
+  @@map("billing_schedules")
+}
+
+model Invoice {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  propertyId          String    @map("property_id") @db.Uuid
+  unitId              String?   @map("unit_id") @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  leaseId             String?   @map("lease_id") @db.Uuid
+  invoiceNumber       String    @unique @map("invoice_number") @db.VarChar(50)
+  invoiceType         String    @default("invoice") @map("invoice_type") @db.VarChar(20)
+                                // 'invoice'|'credit_note'|'debit_note'|'proforma'
+  status              String    @default("draft") @db.VarChar(20)
+                                // 'draft'|'issued'|'sent'|'partially_paid'|'paid'|'overdue'|'void'|'disputed'
+  invoiceDate         DateTime  @map("invoice_date") @db.Date
+  dueDate             DateTime  @map("due_date") @db.Date
+  periodFrom          DateTime? @map("period_from") @db.Date
+  periodTo            DateTime? @map("period_to") @db.Date
+  subtotal            Decimal   @default(0) @db.Decimal(15, 2)
+  taxAmount           Decimal   @default(0) @map("tax_amount") @db.Decimal(15, 2)
+  discountAmount      Decimal   @default(0) @map("discount_amount") @db.Decimal(15, 2)
+  totalAmount         Decimal   @default(0) @map("total_amount") @db.Decimal(15, 2)
+  paidAmount          Decimal   @default(0) @map("paid_amount") @db.Decimal(15, 2)
+  currency            String    @default("USD") @db.VarChar(3)
+  // Penalty tracking
+  penaltyAmount       Decimal   @default(0) @map("penalty_amount") @db.Decimal(15, 2)
+  penaltyAppliedAt    DateTime? @map("penalty_applied_at") @db.Timestamptz
+  gracePeriodDays     Int       @default(0) @map("grace_period_days") @db.SmallInt
+  // Credit note reference
+  originalInvoiceId   String?   @map("original_invoice_id") @db.Uuid
+  creditReason        String?   @map("credit_reason") @db.Text
+  // Metadata
+  notes               String?   @db.Text
+  sentAt              DateTime? @map("sent_at") @db.Timestamptz
+  voidedAt            DateTime? @map("voided_at") @db.Timestamptz
+  voidedBy            String?   @map("voided_by") @db.Uuid
+  voidReason          String?   @map("void_reason") @db.Text
+  pdfUrl              String?   @map("pdf_url") @db.VarChar(500)
+  workflowInstanceId  String?   @map("workflow_instance_id") @db.Uuid
+  createdBy           String?   @map("created_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company             Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property            Property  @relation("InvoiceProperty", fields: [propertyId], references: [id])
+  unit                Unit?     @relation("InvoiceUnit", fields: [unitId], references: [id])
+  tenant              Tenant    @relation("InvoiceTenant", fields: [tenantId], references: [id])
+  lease               Lease?    @relation("InvoiceLease", fields: [leaseId], references: [id])
+  originalInvoice     Invoice?  @relation("CreditNoteInvoice", fields: [originalInvoiceId], references: [id])
+  creditNotes         Invoice[] @relation("CreditNoteInvoice")
+  lines               InvoiceLine[]
+
+  @@index([tenantId])
+  @@index([leaseId])
+  @@index([status, dueDate])
+  @@index([companyId])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id              String    @id @default(uuid()) @db.Uuid
+  invoiceId       String    @map("invoice_id") @db.Uuid
+  chargeTypeId    String    @map("charge_type_id") @db.Uuid
+  description     String    @db.VarChar(500)
+  quantity        Decimal   @default(1) @db.Decimal(10, 4)
+  unitPrice       Decimal   @map("unit_price") @db.Decimal(15, 4)
+  discountPct     Decimal   @default(0) @map("discount_pct") @db.Decimal(5, 2)
+  amount          Decimal   @db.Decimal(15, 2)
+  taxRate         Decimal   @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  taxAmount       Decimal   @default(0) @map("tax_amount") @db.Decimal(15, 2)
+  lineTotal       Decimal   @map("line_total") @db.Decimal(15, 2)
+  periodFrom      DateTime? @map("period_from") @db.Date
+  periodTo        DateTime? @map("period_to") @db.Date
+  sortOrder       Int       @default(0) @map("sort_order") @db.SmallInt
+  meterReadingId  String?   @map("meter_reading_id") @db.Uuid
+
+  invoice         Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  chargeType      ChargeType @relation(fields: [chargeTypeId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_lines")
+}
+
+model PenaltyConfiguration {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  propertyId        String?   @map("property_id") @db.Uuid
+  chargeTypeId      String?   @map("charge_type_id") @db.Uuid
+  gracePeriodDays   Int       @default(7) @map("grace_period_days") @db.SmallInt
+  penaltyType       String    @default("percentage") @map("penalty_type") @db.VarChar(20)
+                              // 'percentage'|'fixed_amount'|'percentage_per_day'|'tiered'
+  penaltyValue      Decimal   @map("penalty_value") @db.Decimal(10, 4)
+  maxPenaltyPct     Decimal?  @map("max_penalty_pct") @db.Decimal(5, 2)
+  compound          Boolean   @default(false)
+  tieredConfig      Json?     @map("tiered_config")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property          Property? @relation("PenaltyProperty", fields: [propertyId], references: [id])
+  chargeType        ChargeType? @relation("PenaltyChargeType", fields: [chargeTypeId], references: [id])
+
+  @@map("penalty_configurations")
+}
+
+model TaxConfiguration {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  taxName         String    @map("tax_name") @db.VarChar(50)
+  taxRate         Decimal   @map("tax_rate") @db.Decimal(5, 4)
+  appliesTo       String[]  @default([]) @map("applies_to")
+  effectiveFrom   DateTime  @map("effective_from") @db.Date
+  effectiveTo     DateTime? @map("effective_to") @db.Date
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("tax_configurations")
 }

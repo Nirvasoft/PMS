@@ -328,14 +328,19 @@ a:hover { color: var(--accent-hover); }
 .input-icon {
   position: absolute;
   left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--text-muted);
   pointer-events: none;
-  z-index: 1;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .input-with-icon input {
   width: 100%;
-  padding: 12px 14px 12px 42px;
+  padding: 12px 14px 12px 46px !important;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -344,6 +349,15 @@ a:hover { color: var(--accent-hover); }
   font-family: var(--font-sans);
   transition: all var(--transition-fast);
   outline: none;
+}
+
+/* Override browser autofill background so it doesn't break layout */
+.input-with-icon input:-webkit-autofill,
+.input-with-icon input:-webkit-autofill:hover,
+.input-with-icon input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-secondary) inset;
+  padding-left: 46px !important;
 }
 
 .input-with-icon input:focus {

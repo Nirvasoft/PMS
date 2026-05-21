@@ -17,6 +17,9 @@ import { propertiesApi } from './api/propertiesApi';
 import { unitsApi } from './api/unitsApi';
 import { tenantsApi } from './api/tenantsApi';
 import { leasesApi } from './api/leasesApi';
+import { crmApi } from './api/crmApi';
+import { parkingApi } from './api/parkingApi';
+import { billingApi } from './api/billingApi';
 
 export const store = configureStore({
   reducer: {
@@ -36,12 +39,18 @@ export const store = configureStore({
     [unitsApi.reducerPath]: unitsApi.reducer,
     [tenantsApi.reducerPath]: tenantsApi.reducer,
     [leasesApi.reducerPath]:  leasesApi.reducer,
+    [crmApi.reducerPath]:     crmApi.reducer,
+    [parkingApi.reducerPath]: parkingApi.reducer,
+    [billingApi.reducerPath]: billingApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
       authApi.middleware, usersApi.middleware, organizationApi.middleware,
       workflowApi.middleware, notificationsApi.middleware, documentsApi.middleware,
       dashboardApi.middleware, propertiesApi.middleware, unitsApi.middleware, tenantsApi.middleware, leasesApi.middleware,
+      crmApi.middleware,
+      parkingApi.middleware,
+      billingApi.middleware,
     ),
 });
 

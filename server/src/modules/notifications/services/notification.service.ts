@@ -191,6 +191,7 @@ export class NotificationService {
       workflow: '/admin/workflows',
       user: `/admin/users/${entityId}`,
       property: `/admin/properties`,
+      invoice: `/admin/billing/invoices/${entityId}`,
     };
     return map[entityType] || null;
   }

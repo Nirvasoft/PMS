@@ -842,3 +842,28 @@ export const parkingApi = createApi({
   }),
 });
 ```
+
+---
+
+## Implementation Notes (Updated during development)
+
+### Module 2.5 — CRM Improvements over spec
+- **Native drag-and-drop** for Kanban pipeline instead of `@dnd-kit` library — reduces bundle size
+- **Validated stage transitions** via a server-side `STAGE_TRANSITIONS` map preventing illegal moves
+- **Auto-stage advancement** when viewings are scheduled/completed
+- **Auto-assign agent** via round-robin when creating leads
+- **Lead numbering** with sequential `LD-YYYYMM-NNNN` format
+- **Campaign ROI** as a dedicated endpoint
+- **Activity timeline** with color-coded dots by type
+- **Tab-based Lead Detail** page (Info/Viewings/Activity)
+
+### Module 2.6 — Parking Improvements over spec
+- **ParkingZone as first-class CRUD** entity
+- **Bulk slot creation** via prefix+range pattern
+- **CSS conic-gradient donut chart** for occupancy — no charting library
+- **Zone breakdown cards** with stacked bar charts
+- **Visitor pass QR tokens** with entry/exit scan logic
+- **Overlap validation** for parking allocations
+- **Tab-based layout** (Overview/Slots/Zones)
+- **Property-scoped routes** for zones and slots
+- **Slot status auto-sync** via `$transaction`

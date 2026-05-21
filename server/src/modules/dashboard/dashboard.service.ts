@@ -2,7 +2,7 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { WIDGET_DEFINITIONS, DEFAULT_LAYOUT } from './widgets/widgetDefinitions';
-import { getStubWidgetData } from './widgets/stubProvider';
+import { getRealWidgetData } from './widgets/realProvider';
 
 export class DashboardService {
   /**
@@ -66,6 +66,7 @@ export class DashboardService {
   async getWidgetData(code: string, companyId: string, query: {
     propertyId?: string;
     dateRange?: string;
+    userId?: string;
   }) {
     // Verify widget exists
     const widget = await prisma.widgetDefinition.findUnique({ where: { code } });
@@ -76,12 +77,13 @@ export class DashboardService {
     // Parse date range
     const [dateFrom, dateTo] = (query.dateRange || '').split(',');
 
-    // In Phase 1, all providers are stubs
-    return getStubWidgetData(code, {
+    // Use real data provider
+    return getRealWidgetData(code, {
       companyId,
       propertyId: query.propertyId,
       dateFrom,
       dateTo,
+      userId: query.userId,
     });
   }
 

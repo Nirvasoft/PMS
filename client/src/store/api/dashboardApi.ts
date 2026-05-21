@@ -86,6 +86,20 @@ export interface DataTableData {
 
 export type WidgetData = KpiCardData | LineChartData | BarChartData | PieChartData | GaugeData | DataTableData;
 
+export interface DrillDownColumn {
+  key: string;
+  label: string;
+  link?: string;
+}
+
+export interface DrillDownResult {
+  title: string;
+  columns: DrillDownColumn[];
+  rows: Record<string, unknown>[];
+  total: number;
+  navigateTo?: string;
+}
+
 export interface LayoutItem {
   id: string;
   widgetCode: string;
@@ -136,6 +150,13 @@ export const dashboardApi = createApi({
       query: () => ({ url: '/dashboard/layout/reset', method: 'POST' }),
       invalidatesTags: ['Layout'],
     }),
+
+    getDrillDown: builder.query<ApiResponse<DrillDownResult>, { code: string; drillKey?: string }>({
+      query: ({ code, drillKey }) => ({
+        url: `/dashboard/widget-data/${code}/drilldown`,
+        params: { ...(drillKey && { drillKey }) },
+      }),
+    }),
   }),
 });
 
@@ -145,4 +166,5 @@ export const {
   useGetDashboardLayoutQuery,
   useSaveDashboardLayoutMutation,
   useResetDashboardLayoutMutation,
+  useLazyGetDrillDownQuery,
 } = dashboardApi;

@@ -6,6 +6,7 @@ import {
   useGetBusinessUnitsQuery, useCreateBusinessUnitMutation, useDeleteBusinessUnitMutation,
 } from '../../../store/api/organizationApi';
 import toast from 'react-hot-toast';
+import { FEATURE_FLAGS } from '../../../hooks/useFeatureFlags';
 
 type Tab = 'general' | 'branches' | 'regions' | 'business-units' | 'features';
 
@@ -418,17 +419,12 @@ function FeaturesTab() {
   const [updateSettings, { isLoading }] = useUpdateCompanySettingsMutation();
   const settings = (data?.data?.settings ?? {}) as Record<string, unknown>;
 
-  const featureFlags = [
-    { key: 'condoModuleEnabled', label: 'Condo Management Module', desc: 'Enable condo/strata management features' },
-    { key: 'mallModuleEnabled', label: 'Mall Management Module', desc: 'Enable shopping mall tenant management' },
-    { key: 'visitorMgmtEnabled', label: 'Visitor Management', desc: 'Enable visitor registration and tracking' },
-    { key: 'onlinePaymentEnabled', label: 'Online Payments', desc: 'Enable tenant online payment portal' },
-  ];
-
   const toggle = async (key: string) => {
+    // Default is true (enabled) if not explicitly set
+    const currentValue = settings[key] === undefined || settings[key] === null ? true : Boolean(settings[key]);
     try {
-      await updateSettings({ [key]: !settings[key] }).unwrap();
-      toast.success('Setting updated');
+      await updateSettings({ [key]: !currentValue }).unwrap();
+      toast.success(`${!currentValue ? 'Enabled' : 'Disabled'} successfully`);
     } catch { toast.error('Failed to update'); }
   };
 
@@ -436,24 +432,27 @@ function FeaturesTab() {
     <div className="org-detail-card" style={{ maxWidth: 600 }}>
       <h3>Feature Flags</h3>
       <p className="text-secondary text-small" style={{ marginBottom: 16 }}>
-        Enable or disable modules for your organization. Changes take effect immediately.
+        Enable or disable modules for your organization. Changes take effect immediately — disabled modules are hidden from the sidebar.
       </p>
       <div className="feature-flags-list">
-        {featureFlags.map((f) => (
-          <div key={f.key} className="feature-flag-item">
-            <div className="feature-flag-info">
-              <span className="feature-flag-label">{f.label}</span>
-              <span className="text-muted text-small">{f.desc}</span>
+        {Object.entries(FEATURE_FLAGS).map(([key, meta]) => {
+          const isOn = settings[key] === undefined || settings[key] === null ? true : Boolean(settings[key]);
+          return (
+            <div key={key} className="feature-flag-item">
+              <div className="feature-flag-info">
+                <span className="feature-flag-label">{meta.label}</span>
+                <span className="text-muted text-small">{meta.desc}</span>
+              </div>
+              <button
+                className={`toggle-switch ${isOn ? 'on' : ''}`}
+                onClick={() => toggle(key)}
+                disabled={isLoading}
+              >
+                <span className="toggle-knob" />
+              </button>
             </div>
-            <button
-              className={`toggle-switch ${settings[f.key] ? 'on' : ''}`}
-              onClick={() => toggle(f.key)}
-              disabled={isLoading}
-            >
-              <span className="toggle-knob" />
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>

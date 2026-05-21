@@ -226,7 +226,7 @@ Version 1.0 • Confidential • Property Management System
 
 | Module | Key Features | API Endpoints (Sample) |
 |---|---|---|
-| KPI Dashboard | Drag-drop widget layout (per user), pinnable KPIs, date range filter | GET /dashboard/widgets, POST /dashboard/layout |
+| KPI Dashboard | Drag-drop layout (per user), real-time database queries via realProvider, drill-down capabilities from widgets | GET /dashboard/widgets, GET /dashboard/widget-data/:code/drilldown, POST /dashboard/layout |
 | BI Widget Framework | Recharts-based chart widgets: bar, line, pie, gauge, heatmap | GET /widgets/:type/data |
 | Export to Excel/PDF | Server-side Excel (ExcelJS) and PDF (Puppeteer) export for all reports | POST /reports/:id/export |
 

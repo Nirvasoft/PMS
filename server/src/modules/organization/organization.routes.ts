@@ -7,6 +7,7 @@ import { businessUnitsService } from './services/business-units.service';
 import { propertiesService } from './services/properties.service';
 import { logoUpload, getFileUrl } from '../../common/upload';
 import { prisma } from '../../common/database';
+import { invalidateFeatureFlagCache } from '../../common/featureFlags';
 
 const param = (req: Request, name: string): string => req.params[name] as string;
 
@@ -31,6 +32,8 @@ companyRouter.get('/hierarchy', asyncHandler(async (req: Request, res: Response)
 
 companyRouter.put('/settings', asyncHandler(async (req: Request, res: Response) => {
   const data = await companiesService.updateSettings(req.user!.companyId, req.body);
+  // Invalidate feature flag cache when settings change
+  invalidateFeatureFlagCache(req.user!.companyId);
   res.json({ success: true, data });
 }));
 

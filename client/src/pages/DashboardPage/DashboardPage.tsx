@@ -3,10 +3,11 @@ import { useLogoutMutation } from '../../store/api/authApi';
 import { useGetPropertyStatsQuery } from '../../store/api/organizationApi';
 import { useAppSelector } from '../../store';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { FeatureGate } from '../../components/guards/FeatureGate';
 import {
   Building2, LayoutDashboard, Shield, LogOut, Settings, ChevronRight,
   User, Users, Key, GitBranch, Home, MapPin, Workflow, Inbox, Bell, Briefcase, FileText, FolderOpen,
-  Users2, ClipboardList,
+  Users2, ClipboardList, Target, Megaphone, Car, Link2, Ticket, Activity, Receipt, CalendarClock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -83,30 +84,81 @@ export default function DashboardLayout() {
               <span>Tenants</span>
             </NavLink>
           </PermissionGuard>
-          <PermissionGuard permission="leases.read">
-            <NavLink to="/admin/leases" className="nav-item">
-              <ClipboardList size={18} />
-              <span>Leases</span>
+          <FeatureGate flag="leasingEnabled">
+            <PermissionGuard permission="leases.read">
+              <NavLink to="/admin/leases" className="nav-item">
+                <ClipboardList size={18} />
+                <span>Leases</span>
+              </NavLink>
+            </PermissionGuard>
+          </FeatureGate>
+
+          {/* CRM Section */}
+          <FeatureGate flag="crmEnabled">
+            <div className="nav-section-label">CRM</div>
+            <NavLink to="/admin/crm/leads" className="nav-item">
+              <Target size={18} />
+              <span>Lead Pipeline</span>
             </NavLink>
-          </PermissionGuard>
+            <NavLink to="/admin/crm/campaigns" className="nav-item">
+              <Megaphone size={18} />
+              <span>Campaigns</span>
+            </NavLink>
+          </FeatureGate>
+
+          {/* Parking Section */}
+          <FeatureGate flag="parkingEnabled">
+            <div className="nav-section-label">Parking</div>
+            <NavLink to="/admin/parking" className="nav-item">
+              <Car size={18} />
+              <span>Parking Overview</span>
+            </NavLink>
+            <NavLink to="/admin/parking/allocations" className="nav-item">
+              <Link2 size={18} />
+              <span>Allocations</span>
+            </NavLink>
+            <NavLink to="/admin/parking/visitors" className="nav-item">
+              <span className="nav-icon"><Ticket size={16} /></span>
+              <span className="nav-label">Visitor Parking</span>
+            </NavLink>
+            <NavLink to="/admin/parking/gate-logs" className="nav-item">
+              <span className="nav-icon"><Activity size={16} /></span>
+              <span className="nav-label">Gate Logs</span>
+            </NavLink>
+          </FeatureGate>
+
+          {/* Billing Section */}
+          <div className="nav-section-label">Billing</div>
+          <NavLink to="/admin/billing/invoices" className="nav-item">
+            <Receipt size={18} />
+            <span>Invoices</span>
+          </NavLink>
+          <NavLink to="/admin/billing/schedules" className="nav-item">
+            <CalendarClock size={18} />
+            <span>Schedules</span>
+          </NavLink>
 
           {/* Workflow Section */}
-          <div className="nav-section-label">Workflows</div>
-          <NavLink to="/tasks" className="nav-item">
-            <Inbox size={18} />
-            <span>My Tasks</span>
-          </NavLink>
-          <NavLink to="/admin/workflows" className="nav-item">
-            <Workflow size={18} />
-            <span>Workflow Engine</span>
-          </NavLink>
+          <FeatureGate flag="workflowEnabled">
+            <div className="nav-section-label">Workflows</div>
+            <NavLink to="/tasks" className="nav-item">
+              <Inbox size={18} />
+              <span>My Tasks</span>
+            </NavLink>
+            <NavLink to="/admin/workflows" className="nav-item">
+              <Workflow size={18} />
+              <span>Workflow Engine</span>
+            </NavLink>
+          </FeatureGate>
 
           {/* Documents Section */}
-          <div className="nav-section-label">Documents</div>
-          <NavLink to="/documents" className="nav-item">
-            <FolderOpen size={18} />
-            <span>Document Vault</span>
-          </NavLink>
+          <FeatureGate flag="documentVaultEnabled">
+            <div className="nav-section-label">Documents</div>
+            <NavLink to="/documents" className="nav-item">
+              <FolderOpen size={18} />
+              <span>Document Vault</span>
+            </NavLink>
+          </FeatureGate>
 
           {/* Notifications Section */}
           <div className="nav-section-label">Notifications</div>
@@ -114,10 +166,12 @@ export default function DashboardLayout() {
             <Bell size={18} />
             <span>All Notifications</span>
           </NavLink>
-          <NavLink to="/admin/notifications" className="nav-item">
-            <FileText size={18} />
-            <span>Logs & Templates</span>
-          </NavLink>
+          <FeatureGate flag="notificationsAdminEnabled">
+            <NavLink to="/admin/notifications" className="nav-item">
+              <FileText size={18} />
+              <span>Logs & Templates</span>
+            </NavLink>
+          </FeatureGate>
 
           {/* Settings Section */}
           <div className="nav-section-label">Settings</div>
