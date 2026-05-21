@@ -51,6 +51,7 @@ CREATE TABLE inventory_items (
 -- Stock levels per item per store
 CREATE TABLE stock_levels (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id   UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   item_id      UUID NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
   store_id     UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
   qty_on_hand  NUMERIC(10,3) NOT NULL DEFAULT 0,

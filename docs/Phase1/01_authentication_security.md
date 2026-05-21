@@ -26,7 +26,8 @@
 Handles all authentication flows, session lifecycle, MFA, device tracking, IP restriction policies, and audit logging. This module is a hard dependency for every other module — no request reaches any other controller without passing through the Auth guard.
 
 **Key flows:**
-- Email + password login → JWT issuance
+- Company code + email + password login → JWT issuance (multi-company isolation via PostgreSQL RLS)
+- Company code validation (pre-login check, auto-skip when single company)
 - SSO via OIDC (Azure AD, Okta, Google Workspace) — **future-ready scaffolding implemented**
 - SAML 2.0 — schema ready, service placeholder
 - TOTP-based MFA (Google Authenticator)
@@ -35,6 +36,7 @@ Handles all authentication flows, session lifecycle, MFA, device tracking, IP re
 - IP allowlist/blocklist enforcement
 - Full audit log of all auth events (including SSO events)
 - JIT (Just-In-Time) user provisioning for SSO users
+- Admin provisioning of new companies (system admin only)
 
 ---
 
@@ -503,6 +505,10 @@ import { IsEmail, IsString, MinLength, IsOptional, IsBoolean } from 'class-valid
 import { Transform } from 'class-transformer';
 
 export class LoginDto {
+  @IsString()
+  @Transform(({ value }) => value?.toUpperCase().trim())
+  companyCode: string;  // Company code for multi-tenant isolation (e.g. 'ACME')
+
   @IsEmail({}, { message: 'Invalid email format' })
   @Transform(({ value }) => value?.toLowerCase().trim())
   email: string;
@@ -817,12 +823,50 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
 ---
 
+### `GET /auth/company/info`
+**Access:** Public
+
+Returns the number of active companies and auto-fills the single company if only one exists. The login page uses this to hide the company code field when there's only one company.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "count": 1,
+    "singleCompany": { "code": "ACME", "name": "ACME Property Group", "logoUrl": null }
+  }
+}
+```
+
+When multiple companies exist, `singleCompany` is `null` and the login page shows the company code input.
+
+---
+
+### `GET /auth/company/validate?code=ACME`
+**Access:** Public
+
+Validates a company code in real-time as the user types.
+
+**Response 200 — Valid:**
+```json
+{ "success": true, "data": { "name": "ACME Property Group", "logoUrl": null } }
+```
+
+**Response 200 — Not found:**
+```json
+{ "success": true, "data": null }
+```
+
+---
+
 ### `POST /auth/login`
 **Access:** Public
 
 **Request Body:**
 ```json
 {
+  "companyCode": "ACME",
   "email": "admin@acmecorp.com",
   "password": "SecurePass@123",
   "rememberMe": false,
@@ -830,6 +874,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   "deviceName": "Chrome on MacOS"
 }
 ```
+
+**Login flow:**
+1. Resolve company by `companyCode` → get `companyId`
+2. Set PostgreSQL RLS context: `SET app.current_company_id = '<companyId>'`
+3. Find user by email scoped to that company
+4. Validate password, check lockout, IP policy
+5. Issue JWT with `companyId` claim
 
 **Response 200 — No MFA:**
 ```json
@@ -843,9 +894,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     "user": {
       "id": "uuid",
       "email": "admin@acmecorp.com",
-      "fullName": "John Smith",
       "companyId": "uuid",
-      "roles": ["admin"],
+      "companyCode": "ACME",
+      "companyName": "ACME Property Group",
+      "roles": ["Super Admin"],
+      "permissions": ["users.read", "users.create", "..."],
       "mustChangePassword": false
     }
   }

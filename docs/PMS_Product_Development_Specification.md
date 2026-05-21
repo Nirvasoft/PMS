@@ -33,7 +33,9 @@ The platform follows a layered, microservice-ready architecture. All components 
 ## 4.1 Architecture Pattern
 The system adopts a Modular Monolith with a clear path to microservices. Each domain (Leasing, Billing, Maintenance, etc.) is isolated as an Express module with its own routes, service, and Prisma repository layer. Inter-module communication uses internal service interfaces in Phase 1–3, migrating to an event bus (Apache Kafka or AWS SQS) in Phase 4+.
 ## 4.2 Multi-Tenancy Strategy
-Row-Level Security (RLS) in PostgreSQL separates tenant data. Each authenticated JWT carries a companyId and propertyId claim. A global Express middleware injects the tenant context into every database query via Prisma middleware.
+Row-Level Security (RLS) in PostgreSQL enforces data isolation at the database level across 48 company-scoped tables. Each authenticated JWT carries a `companyId` claim. A global Express middleware sets the PostgreSQL session variable `app.current_company_id` on every request, and RLS policies automatically filter all queries — even if application code omits a `WHERE company_id = ...` clause. The application database role (`pms_app`) is a non-superuser to ensure RLS cannot be bypassed. Users authenticate with a company code + email + password. When only one company exists, the company code field is auto-filled and hidden.
+
+New companies are provisioned via an admin API (`POST /api/v1/admin/companies/provision`) which creates the company, default roles, departments, password policy, and first admin user in a single transaction.
 ## 4.3 API Design Principles
 RESTful JSON APIs for CRUD operations; GraphQL for complex reporting queries.
 API versioning via URL prefix (/api/v1/, /api/v2/).
@@ -46,11 +48,11 @@ The PMS is delivered in six phases. Each phase concludes with a formal UAT (User
 
 Phase 1 establishes the foundational infrastructure that every subsequent module depends on. No functional property or lease workflows can exist without a secure, multi-tenant platform core. This phase ships as a fully deployable SaaS skeleton.
 ## 1.1 Authentication & Security
-Implements JWT-based session management with configurable token expiry, refresh token rotation, and device-level tracking. Supports external SSO via SAML 2.0 and OAuth2 (Google, Microsoft Azure AD).
+Implements JWT-based session management with configurable token expiry, refresh token rotation, and device-level tracking. Login requires company code + email + password (company code auto-filled when only one company exists). Supports external SSO via SAML 2.0 and OAuth2 (Google, Microsoft Azure AD).
 ## 1.2 User & Role Management
 RBAC with dynamic permission overrides. Roles are templated (Admin, Manager, Finance, Maintenance, Tenant) but fully customizable. Department and position hierarchies control approval routing in later phases.
 ## 1.3 Organization Management
-Multi-company (holding + subsidiaries), multi-branch, multi-property hierarchy. All subsequent data is scoped to the organization tree node.
+Multi-company (holding + subsidiaries), multi-branch, multi-property hierarchy. All subsequent data is scoped to the organization tree node via PostgreSQL RLS. New companies are provisioned through an admin API that bootstraps roles, departments, and the first admin user with a temporary password.
 ## 1.4 Workflow Engine
 Visual BPMN-based workflow designer. Used by Lease Approvals, Maintenance Escalation, Vendor PO Approval, Move-In/Out, and more. Supports parallel and sequential approvals, conditional branching, SLA timers, and auto-escalation.
 ## 1.5 Notification Center
@@ -166,7 +168,7 @@ Version 1.0 • Confidential • Property Management System
 
 | Module | Key Features | API Endpoints (Sample) |
 |---|---|---|
-| Login / Logout | Email+password, remember-me, session invalidation, concurrent session limits | POST /auth/login, POST /auth/logout, POST /auth/refresh |
+| Login / Logout | Company code + email + password, remember-me, session invalidation, concurrent session limits | POST /auth/login, POST /auth/logout, POST /auth/refresh, GET /auth/company/info, GET /auth/company/validate |
 | SSO & OAuth2 | SAML 2.0, Google OAuth, Azure AD, JWT issuance | GET /auth/sso/:provider, POST /auth/sso/callback |
 | MFA / 2FA | TOTP (Google Authenticator), SMS OTP, backup codes | POST /auth/mfa/enable, POST /auth/mfa/verify |
 | Device Management | Registered devices, trusted devices, revocation | GET /auth/devices, DELETE /auth/devices/:id |
@@ -187,7 +189,7 @@ Version 1.0 • Confidential • Property Management System
 
 | Module | Key Features | API Endpoints (Sample) |
 |---|---|---|
-| Multi-Company | Company CRUD, parent-child company hierarchy, tax IDs, logos | GET /companies, POST /companies |
+| Multi-Company | Company CRUD, parent-child company hierarchy, tax IDs, logos, unique company code for login, admin provisioning API | GET /companies, POST /companies, POST /admin/companies/provision, GET /admin/companies |
 | Multi-Branch | Branch offices, address, contact, branch manager | GET /branches, POST /companies/:id/branches |
 | Multi-Property | Property entities linked to company, property-level settings | GET /properties, POST /properties |
 | Business Units | P&L-level units within a company | GET /business-units, POST /business-units |
@@ -442,7 +444,7 @@ Version 1.0 • Confidential • Property Management System
 
 | Entity | Key Fields | Relationships |
 |---|---|---|
-| Company | id, name, parent_company_id, tax_id, type | Has many: Properties, Users, BankAccounts |
+| Company | id, code, name, parent_company_id, tax_id, type | Has many: Properties, Users, BankAccounts |
 | Property | id, company_id, name, type, address, geo_lat, geo_lng | Has many: Towers, Units, Leases |
 | Unit | id, property_id, tower_id, floor, unit_number, type, area_sqft, status | Belongs to: Property, Tower; Has many: Leases, Meters |
 | Tenant | id, company_id, type (individual/company), name, kyc_status, blacklisted | Has many: Leases, Documents, Vehicles |

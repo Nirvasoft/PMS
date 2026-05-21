@@ -69,6 +69,7 @@ CREATE INDEX idx_visitors_status ON visitors(status) WHERE status IN ('pending',
 -- Walk-in approval requests (security calls host for verbal approval)
 CREATE TABLE walkin_approvals (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id    UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   visitor_id    UUID NOT NULL REFERENCES visitors(id) ON DELETE CASCADE,
   requested_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   approved_at   TIMESTAMPTZ,
@@ -813,6 +814,7 @@ CREATE INDEX idx_announcements_property ON announcements(property_id, published_
 
 -- Announcement read receipts
 CREATE TABLE announcement_reads (
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   announcement_id UUID NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   read_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -839,6 +841,7 @@ CREATE TABLE polls (
 -- Poll votes
 CREATE TABLE poll_votes (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   poll_id     UUID NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
   user_id     UUID NOT NULL REFERENCES users(id),
   option_ids  TEXT[] NOT NULL,                      -- selected option IDs

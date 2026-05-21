@@ -50,6 +50,7 @@ CREATE INDEX idx_pm_schedules_property ON pm_schedules(property_id);
 -- PM work orders (generated from schedules — links back to maintenance_tickets)
 CREATE TABLE pm_work_orders (
   id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id        UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   schedule_id       UUID NOT NULL REFERENCES pm_schedules(id) ON DELETE CASCADE,
   ticket_id         UUID REFERENCES maintenance_tickets(id),
   work_order_id     UUID REFERENCES work_orders(id),
@@ -446,6 +447,7 @@ CREATE INDEX idx_cam_entries_property ON cam_cost_entries(property_id, period_ye
 -- Utility systems (building-level meters)
 CREATE TABLE utility_systems (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   property_id     UUID NOT NULL REFERENCES properties(id),
   system_type     VARCHAR(30) NOT NULL,             -- 'electricity'|'water'|'gas'|'chilled_water'
   meter_id        VARCHAR(100),

@@ -1,26 +1,65 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useLoginMutation } from '../../store/api/authApi';
+import { useLoginMutation, useLazyValidateCompanyCodeQuery, useGetCompanyInfoQuery } from '../../store/api/authApi';
 import { useAppSelector } from '../../store';
-import { Eye, EyeOff, Building2, Lock, Mail, AlertTriangle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Building2, Lock, Mail, AlertTriangle, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ThemeToggle from '../../components/ThemeToggle';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [login, { isLoading, error }] = useLoginMutation();
+  const [validateCode] = useLazyValidateCompanyCodeQuery();
+  const { data: companyInfo } = useGetCompanyInfoQuery();
   const { mfaPending } = useAppSelector((s) => s.auth);
 
+  const [companyCode, setCompanyCode] = useState('');
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [companyValid, setCompanyValid] = useState<boolean | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
+  // Derive whether company code input should be shown
+  const isSingleCompany = companyInfo?.data?.count === 1;
+  const singleCompany = companyInfo?.data?.singleCompany;
+
+  // Auto-fill company code when only one company exists
+  useEffect(() => {
+    if (isSingleCompany && singleCompany) {
+      setCompanyCode(singleCompany.code);
+      setCompanyName(singleCompany.name);
+      setCompanyValid(true);
+    }
+  }, [isSingleCompany, singleCompany]);
+
+  // Validate company code as user types (only when multiple companies)
+  const handleCompanyCodeChange = useCallback(async (value: string) => {
+    const code = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    setCompanyCode(code);
+    setCompanyName(null);
+    setCompanyValid(null);
+
+    if (code.length >= 2) {
+      try {
+        const result = await validateCode(code).unwrap();
+        if (result.data) {
+          setCompanyName(result.data.name);
+          setCompanyValid(true);
+        } else {
+          setCompanyValid(false);
+        }
+      } catch {
+        setCompanyValid(false);
+      }
+    }
+  }, [validateCode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login({ email, password, rememberMe }).unwrap();
-      // If MFA is required, redirect happens via useEffect below
+      await login({ companyCode, email, password, rememberMe }).unwrap();
       if (!mfaPending) {
         toast.success('Welcome back!');
         navigate('/dashboard');
@@ -41,6 +80,7 @@ export default function LoginPage() {
   }
 
   const apiError = (error as { data?: { errors?: Array<{ message: string }> } })?.data?.errors?.[0]?.message;
+  const canSubmit = isLoading ? false : isSingleCompany ? true : companyValid === true;
 
   return (
     <div className="auth-page">
@@ -53,7 +93,11 @@ export default function LoginPage() {
             <Building2 size={40} strokeWidth={1.5} />
           </div>
           <h1>Property Management System</h1>
-          <p className="auth-subtitle">Sign in to your account</p>
+          <p className="auth-subtitle">
+            {isSingleCompany && singleCompany
+              ? singleCompany.name
+              : 'Sign in to your account'}
+          </p>
         </div>
 
         {apiError && (
@@ -105,6 +149,47 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {/* Only show company code when multiple companies exist */}
+          {!isSingleCompany && (
+            <div className="form-group">
+              <label htmlFor="companyCode">Company Code</label>
+              <div className="input-with-icon">
+                <Building2 size={18} className="input-icon" />
+                <input
+                  id="companyCode"
+                  type="text"
+                  value={companyCode}
+                  onChange={(e) => handleCompanyCodeChange(e.target.value)}
+                  placeholder="e.g. ACME"
+                  autoComplete="organization"
+                  required
+                  maxLength={20}
+                  style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                />
+                {companyValid === true && (
+                  <span className="input-action" style={{ color: 'var(--color-success)', pointerEvents: 'none' }}>
+                    <CheckCircle2 size={18} />
+                  </span>
+                )}
+                {companyValid === false && companyCode.length >= 2 && (
+                  <span className="input-action" style={{ color: 'var(--color-danger)', pointerEvents: 'none' }}>
+                    <XCircle size={18} />
+                  </span>
+                )}
+              </div>
+              {companyValid === true && companyName && (
+                <span className="text-small" style={{ color: 'var(--color-success)', marginTop: '4px', display: 'block' }}>
+                  {companyName}
+                </span>
+              )}
+              {companyValid === false && companyCode.length >= 2 && (
+                <span className="text-small" style={{ color: 'var(--color-danger)', marginTop: '4px', display: 'block' }}>
+                  Company not found
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="form-row">
             <label className="checkbox-label">
               <input
@@ -119,7 +204,7 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <button type="submit" className="btn btn-primary btn-block" disabled={isLoading}>
+          <button type="submit" className="btn btn-primary btn-block" disabled={!canSubmit}>
             {isLoading ? (
               <>
                 <Loader2 size={18} className="spin" /> Signing in...
@@ -132,7 +217,11 @@ export default function LoginPage() {
 
         <div className="auth-footer">
           <p className="text-muted">Demo credentials</p>
-          <p className="text-small text-muted">admin@acmeproperty.com / Admin@123</p>
+          <p className="text-small text-muted">
+            {isSingleCompany
+              ? 'admin@acmeproperty.com / Admin@123'
+              : 'Company: ACME | admin@acmeproperty.com / Admin@123'}
+          </p>
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { deviceService } from './services/device.service';
 import { auditService, AuthEventType } from './services/audit.service';
 import { ipPolicyService } from './services/ip-policy.service';
 import { prisma } from '../../common/database';
+import { setTenantContext } from '../../common/database';
 import type { RequestContext } from './interfaces/auth.interfaces';
 
 export const authRouter = Router();
@@ -18,6 +19,37 @@ function getContext(req: Request): RequestContext {
 }
 
 // ─── Public Routes ─────────────────────────────
+
+// Company info for login page — returns count and auto-fills if single company
+authRouter.get('/company/info', asyncHandler(async (req: Request, res: Response) => {
+  const companies = await prisma.company.findMany({
+    where: { isActive: true },
+    select: { code: true, name: true, logoUrl: true },
+    orderBy: { name: 'asc' },
+  });
+  res.json({
+    success: true,
+    data: {
+      count: companies.length,
+      // If single company, auto-fill for the user
+      singleCompany: companies.length === 1 ? companies[0] : null,
+    },
+  });
+}));
+
+// Validate company code (pre-login check, public)
+authRouter.get('/company/validate', asyncHandler(async (req: Request, res: Response) => {
+  const { code } = req.query;
+  if (!code || typeof code !== 'string') {
+    res.json({ success: true, data: null });
+    return;
+  }
+  const company = await prisma.company.findUnique({
+    where: { code: code.toUpperCase().trim() },
+    select: { name: true, logoUrl: true },
+  });
+  res.json({ success: true, data: company ? { name: company.name, logoUrl: company.logoUrl } : null });
+}));
 
 authRouter.post('/login', asyncHandler(async (req: Request, res: Response) => {
   const result = await authService.login(req.body, getContext(req));
@@ -79,37 +111,49 @@ authRouter.post('/refresh', asyncHandler(async (req: Request, res: Response) => 
     return;
   }
 
-  // We need to decode the token to get userId — peek at any existing access token
+  // We need to decode the token to get userId and companyId — peek at any existing access token
   // or decode from the refresh token family
   const authHeader = req.headers.authorization;
   let userId: string | undefined;
+  let companyId: string | undefined;
 
   if (authHeader?.startsWith('Bearer ')) {
     try {
       const jwt = await import('jsonwebtoken');
-      const decoded = jwt.default.decode(authHeader.slice(7)) as { sub?: string } | null;
+      const decoded = jwt.default.decode(authHeader.slice(7)) as { sub?: string; companyId?: string } | null;
       userId = decoded?.sub;
+      companyId = decoded?.companyId;
     } catch { /* ignore */ }
   }
 
   if (!userId) {
-    // Try to find user from refresh token hash
+    // Try to find user from refresh token hash (refresh_tokens is NOT RLS-protected)
     const crypto = await import('crypto');
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-    const dbToken = await prisma.refreshToken.findUnique({ where: { tokenHash } });
+    const dbToken = await prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: { select: { id: true, companyId: true } } },
+    });
     userId = dbToken?.userId;
+    companyId = dbToken?.user?.companyId;
   }
 
-  if (!userId) {
+  if (!userId || !companyId) {
     res.status(401).json({ success: false, errors: [{ code: 'TOKEN_INVALID', message: 'Invalid token' }] });
     return;
   }
 
-  const tokens = await authService.refreshTokens(refreshToken, userId, getContext(req));
+  const tokens = await authService.refreshTokens(refreshToken, userId, companyId, getContext(req));
+
+  // Set tenant context so RLS allows user/role queries below
+  await setTenantContext(companyId);
 
   // Fetch user data to include in response (needed by frontend to restore auth state)
   const { permissionResolver } = await import('../users/helpers/permission-resolver');
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { company: { select: { code: true, name: true } } },
+  });
   const userRoles = await prisma.userRole.findMany({
     where: { userId },
     include: { role: { select: { name: true } } },
@@ -135,6 +179,8 @@ authRouter.post('/refresh', asyncHandler(async (req: Request, res: Response) => 
         id: user.id,
         email: user.email,
         companyId: user.companyId,
+        companyCode: user.company.code,
+        companyName: user.company.name,
         roles,
         permissions,
         mustChangePassword: user.mustChangePassword,

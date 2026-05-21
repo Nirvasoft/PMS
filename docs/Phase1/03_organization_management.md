@@ -11,6 +11,10 @@
 
 Defines the multi-tenant hierarchy: Company → Branch → Property → Business Unit, plus Region groupings for portfolio-level reporting. Every data record in the system is scoped to a node in this hierarchy via `company_id` and optionally `property_id`.
 
+**Multi-tenancy** is enforced at the database level via **PostgreSQL Row-Level Security (RLS)** on all 48 company-scoped tables. Each authenticated request sets a session variable `app.current_company_id`, and RLS policies automatically filter all queries. This means even if application code omits a `WHERE company_id = ...`, the database still blocks cross-company data access.
+
+**Company login** uses a unique `code` field (e.g. `ACME`) that users type on the login page. When only one company exists, the company code field is auto-filled and hidden.
+
 ---
 
 ## DB Schema
@@ -22,6 +26,7 @@ Defines the multi-tenant hierarchy: Company → Branch → Property → Business
 CREATE TABLE companies (
   id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   parent_id        UUID REFERENCES companies(id) ON DELETE SET NULL,
+  code             VARCHAR(20) UNIQUE,                  -- Short code for login (e.g. 'ACME')
   name             VARCHAR(255) NOT NULL,
   legal_name       VARCHAR(255),
   company_type     VARCHAR(30) NOT NULL DEFAULT 'standalone',
@@ -49,6 +54,7 @@ CREATE TABLE companies (
 );
 
 CREATE INDEX idx_companies_parent ON companies(parent_id);
+CREATE UNIQUE INDEX idx_companies_code ON companies(code) WHERE code IS NOT NULL;
 
 -- Branches (physical office locations of a company)
 CREATE TABLE branches (
@@ -166,6 +172,7 @@ export class Company {
   @OneToMany(() => Company, (c) => c.parent)
   subsidiaries: Company[];
 
+  @Column({ length: 20, unique: true, nullable: true }) code: string | null;  // e.g. 'ACME'
   @Column({ length: 255 }) name: string;
   @Column({ name: 'legal_name', nullable: true }) legalName: string | null;
   @Column({ name: 'company_type', length: 30, default: 'standalone' }) companyType: string;
@@ -213,40 +220,47 @@ src/modules/organization/
     └── property.entity.ts
 ```
 
-### Tenant Context Middleware
+### Tenant Context Middleware (PostgreSQL RLS)
+
+Data isolation is enforced at the database level using **PostgreSQL Row-Level Security (RLS)**. All 48 company-scoped tables have an RLS policy:
+
+```sql
+-- Helper function to read the session variable
+CREATE OR REPLACE FUNCTION current_tenant_id() RETURNS UUID AS $$
+  SELECT NULLIF(current_setting('app.current_company_id', true), '')::uuid;
+$$ LANGUAGE sql STABLE;
+
+-- Applied to all company-scoped tables
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation_users ON users
+  USING (company_id = current_tenant_id())
+  WITH CHECK (company_id = current_tenant_id());
+```
+
+The middleware sets this variable on every authenticated request:
 
 ```typescript
-// src/common/middleware/tenant-context.middleware.ts
-// Injected globally; attaches company + property context to every request
+// src/middleware/tenantContext.ts
+import { Request, Response, NextFunction } from 'express';
+import { setTenantContext } from '../common/database';
 
-@Injectable()
-export class TenantContextMiddleware implements NestMiddleware {
-  use(req: Request, res: Response, next: NextFunction) {
-    const user = req.user as JwtPayload;
-    if (user) {
-      req['tenantContext'] = {
-        companyId: user.companyId,
-        propertyId: req.headers['x-property-id'] as string ?? null,
-        userId: user.sub,
-      };
-    }
-    next();
+export async function tenantContextMiddleware(req: Request, _res: Response, next: NextFunction) {
+  if (req.user?.companyId) {
+    await setTenantContext(req.user.companyId);
   }
+  next();
 }
 
-// TypeORM subscriber that auto-applies company_id filter
-@EventSubscriber()
-export class TenantSubscriber implements EntitySubscriberInterface {
-  beforeFind(event: FindEvent<any>) {
-    const ctx = AsyncLocalStorage.getStore() as TenantContext;
-    if (ctx?.companyId && event.metadata.findColumns.some(c => c.propertyName === 'companyId')) {
-      event.queryBuilder.andWhere(`${event.metadata.tableName}.company_id = :companyId`, {
-        companyId: ctx.companyId,
-      });
-    }
-  }
+// src/common/database.ts
+export async function setTenantContext(companyId: string) {
+  await prisma.$executeRawUnsafe(`SET app.current_company_id = '${companyId}'`);
 }
 ```
+
+> **Important:** The database connection uses a non-superuser role (`pms_app`). PostgreSQL superusers bypass RLS even with `FORCE ROW LEVEL SECURITY`, so the application must connect as a regular user.
+
+> **Cron jobs:** Background jobs that query RLS-protected tables iterate over all active companies and set tenant context per company. See billing/lease cron jobs for the pattern.
 
 ---
 
@@ -306,6 +320,69 @@ export class TenantSubscriber implements EntitySubscriberInterface {
 
 ### `GET /business-units`
 ### `POST /business-units`
+
+---
+
+## Admin Provisioning API
+
+### Base URL: `/api/v1/admin`
+
+These endpoints are protected by the `companies.provision` permission, which is assigned only to the system operator's Super Admin role.
+
+### `POST /admin/companies/provision`
+**Access:** Requires `companies.provision` permission
+
+Creates a fully bootstrapped company in one API call.
+
+**Request Body:**
+```json
+{
+  "name": "Golden Star Properties",
+  "legalName": "Golden Star Properties Co., Ltd",
+  "country": "MM",
+  "currency": "MMK",
+  "timezone": "Asia/Yangon",
+  "email": "info@goldenstar.com",
+  "adminEmail": "admin@goldenstar.com",
+  "adminFirstName": "Kyaw",
+  "adminLastName": "Win"
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "data": {
+    "company": { "id": "uuid", "code": "GOLDENST", "name": "Golden Star Properties" },
+    "admin": { "id": "uuid", "email": "admin@goldenstar.com", "temporaryPassword": "Xy6jD!fe3rcR" },
+    "summary": { "rolesCreated": 5, "departmentsCreated": 6 }
+  }
+}
+```
+
+**What gets created automatically:**
+- Company record with auto-generated code
+- Super Admin role with all permissions
+- Default roles: Property Manager, Finance, Maintenance, Viewer
+- Default departments: HQ, Finance, Operations, Maintenance, IT, HR
+- Password policy with sensible defaults
+- First admin user with `mustChangePassword: true`
+
+### `GET /admin/companies`
+**Access:** Requires `companies.provision` permission
+
+Lists all companies with user and property counts.
+
+### `POST /admin/companies/:id/deactivate`
+**Access:** Requires `companies.provision` permission
+
+Deactivates a company (users can no longer login).
+
+### `POST /admin/companies/:id/activate`
+**Access:** Requires `companies.provision` permission
+
+Reactivates a deactivated company.
 
 ---
 

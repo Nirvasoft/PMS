@@ -1,4 +1,5 @@
 import { prisma } from '../../../common/database';
+import { setTenantContext } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { logger } from '../../../common/logger';
 import { passwordService } from './password.service';
@@ -17,14 +18,34 @@ export class AuthService {
    * IP check → credential validation → lockout check → MFA challenge or token issuance
    */
   async login(
-    dto: { email: string; password: string; rememberMe?: boolean; deviceFingerprint?: string; deviceName?: string },
+    dto: { companyCode: string; email: string; password: string; rememberMe?: boolean; deviceFingerprint?: string; deviceName?: string },
     context: RequestContext,
   ): Promise<{ tokens?: AuthTokens; mfa?: MfaChallengeResponse; user?: Record<string, unknown> }> {
     const email = dto.email.toLowerCase().trim();
+    const companyCode = dto.companyCode.toUpperCase().trim();
 
-    // Find user (try without company scope for now — single-tenant MVP)
+    // Resolve company by code (companies table is NOT RLS-protected)
+    const company = await prisma.company.findUnique({
+      where: { code: companyCode },
+    });
+    if (!company || !company.isActive) {
+      await passwordService.dummyCompare();
+      await auditService.log({
+        email,
+        eventType: AuthEventType.LOGIN_FAILURE,
+        status: 'failure',
+        context,
+        metadata: { reason: 'invalid_company_code' },
+      });
+      throw AppError.invalidCredentials();
+    }
+
+    // Set tenant context so RLS allows the user query
+    await setTenantContext(company.id);
+
+    // Find user scoped to this company
     const user = await prisma.user.findFirst({
-      where: { email, deletedAt: null },
+      where: { email, companyId: company.id, deletedAt: null },
       include: { company: true },
     });
 
@@ -33,6 +54,7 @@ export class AuthService {
       await passwordService.dummyCompare();
       await auditService.log({
         email,
+        companyId: company.id,
         eventType: AuthEventType.LOGIN_FAILURE,
         status: 'failure',
         context,
@@ -212,6 +234,8 @@ export class AuthService {
         id: user.id,
         email: user.email,
         companyId: user.companyId,
+        companyCode: company.code,
+        companyName: company.name,
         roles,
         permissions,
         mustChangePassword: user.mustChangePassword,
@@ -227,9 +251,12 @@ export class AuthService {
     code: string,
     context: RequestContext,
   ): Promise<{ tokens: AuthTokens; user: Record<string, unknown> }> {
-    const { sub: userId } = tokenService.verifyMfaToken(mfaToken);
+    const { sub: userId, companyId: mfaCompanyId } = tokenService.verifyMfaToken(mfaToken);
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    // Set tenant context so RLS allows user lookup
+    await setTenantContext(mfaCompanyId);
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { company: true } });
     if (!user) throw AppError.invalidMfaCode();
 
     const valid = await mfaService.verifyCode(
@@ -282,6 +309,8 @@ export class AuthService {
         id: user.id,
         email: user.email,
         companyId: user.companyId,
+        companyCode: user.company.code,
+        companyName: user.company.name,
         roles,
         permissions,
         mustChangePassword: user.mustChangePassword,
@@ -295,12 +324,16 @@ export class AuthService {
   async refreshTokens(
     refreshToken: string,
     userId: string,
+    companyId: string,
     context: RequestContext,
   ): Promise<AuthTokens> {
     const { family, deviceId } = await tokenService.validateRefreshToken(refreshToken, userId);
 
     // Revoke old token
     await tokenService.revokeRefreshToken(refreshToken, userId, 'rotated');
+
+    // Set tenant context so RLS allows user lookup
+    await setTenantContext(companyId);
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.isActive) throw AppError.tokenInvalid();

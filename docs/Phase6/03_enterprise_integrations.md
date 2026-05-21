@@ -44,6 +44,7 @@ CREATE TABLE integration_configs (
 -- Integration sync log (full audit of every sync operation)
 CREATE TABLE integration_sync_logs (
   id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id        UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   integration_id    UUID NOT NULL REFERENCES integration_configs(id) ON DELETE CASCADE,
   sync_type         VARCHAR(50) NOT NULL,           -- 'gl_journal'|'ap_invoice'|'vendor'|'asset'|'full_sync'
   direction         VARCHAR(10) NOT NULL,           -- 'push'|'pull'|'bidirectional'
@@ -63,6 +64,7 @@ CREATE TABLE integration_sync_logs (
 -- Entity mapping (local PMS ID ↔ external system ID)
 CREATE TABLE integration_entity_map (
   id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id        UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   integration_id    UUID NOT NULL REFERENCES integration_configs(id) ON DELETE CASCADE,
   entity_type       VARCHAR(50) NOT NULL,           -- 'gl_account'|'vendor'|'journal_entry'|'invoice'
   pms_id            UUID NOT NULL,
@@ -93,6 +95,7 @@ CREATE TABLE webhook_endpoints (
 -- Webhook delivery log
 CREATE TABLE webhook_deliveries (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   endpoint_id     UUID NOT NULL REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
   event_type      VARCHAR(100) NOT NULL,
   payload         JSONB NOT NULL,
@@ -145,6 +148,7 @@ CREATE TABLE bms_devices (
 -- BMS readings
 CREATE TABLE bms_readings (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   device_id       UUID NOT NULL REFERENCES bms_devices(id) ON DELETE CASCADE,
   point_name      VARCHAR(100) NOT NULL,            -- BACnet object name or Modbus register label
   point_type      VARCHAR(30) NOT NULL,             -- 'analog_input'|'binary_input'|'analog_value'

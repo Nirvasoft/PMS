@@ -26,6 +26,8 @@ const PUBLIC_ROUTES = [
   'GET /api/v1/health',
   'POST /api/v1/invitations/accept',
   'POST /api/v1/auth/verify-email',
+  'GET /api/v1/auth/company/validate',
+  'GET /api/v1/auth/company/info',
 ];
 
 /**
@@ -102,3 +104,4 @@ export function asyncHandler(fn: (req: Request, res: Response, next: NextFunctio
   };
 }
 export * from './validateRequest';
+export { tenantContextMiddleware } from './tenantContext';

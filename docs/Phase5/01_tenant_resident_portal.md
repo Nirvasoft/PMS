@@ -79,6 +79,7 @@ CREATE INDEX idx_residents_user ON residents(user_id);
 -- Resident access cards / fobs
 CREATE TABLE resident_access_cards (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id   UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   resident_id  UUID NOT NULL REFERENCES residents(id) ON DELETE CASCADE,
   property_id  UUID NOT NULL REFERENCES properties(id),
   card_number  VARCHAR(100) NOT NULL,
@@ -94,6 +95,7 @@ CREATE TABLE resident_access_cards (
 -- Portal sessions (track portal-specific analytics)
 CREATE TABLE portal_sessions (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   user_id     UUID NOT NULL REFERENCES users(id),
   tenant_id   UUID REFERENCES tenants(id),
   unit_id     UUID REFERENCES units(id),
@@ -107,6 +109,7 @@ CREATE TABLE portal_sessions (
 -- Portal quick actions (for dashboard shortcuts, customizable per property)
 CREATE TABLE portal_quick_actions (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   property_id UUID NOT NULL REFERENCES properties(id),
   label       VARCHAR(100) NOT NULL,
   icon        VARCHAR(50),

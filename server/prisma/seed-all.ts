@@ -20,7 +20,7 @@ async function main() {
   const company = await prisma.company.upsert({
     where: { id: COMPANY_ID },
     create: {
-      id: COMPANY_ID, name: 'ACME Property Group', legalName: 'ACME Property Group Pte Ltd',
+      id: COMPANY_ID, code: 'ACME', name: 'ACME Property Group', legalName: 'ACME Property Group Pte Ltd',
       companyType: 'standalone', registrationNo: 'REG-2018-NY-00412', taxId: 'US-EIN-82-1234567',
       industry: 'Real Estate Management', phone: '+1-212-555-1000',
       email: 'admin@acmeproperty.com', website: 'https://acmeproperty.com',
@@ -30,6 +30,7 @@ async function main() {
       settings: { mallModuleEnabled: false, condoModuleEnabled: true, maxProperties: 50, subscriptionPlan: 'enterprise', fiscalYearStart: '01-01' },
     },
     update: {
+      code: 'ACME',
       legalName: 'ACME Property Group Pte Ltd', registrationNo: 'REG-2018-NY-00412', taxId: 'US-EIN-82-1234567',
       industry: 'Real Estate Management', phone: '+1-212-555-1000', website: 'https://acmeproperty.com',
       addressLine1: '350 Fifth Avenue, Suite 4200', addressLine2: 'Empire State Building',

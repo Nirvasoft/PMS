@@ -41,6 +41,7 @@ Complete shopping mall operations layer built on top of the core leasing and bil
 -- Mall-specific property extension
 CREATE TABLE mall_properties (
   property_id          UUID PRIMARY KEY REFERENCES properties(id) ON DELETE CASCADE,
+  company_id           UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   total_gla_sqft       NUMERIC(12,2),              -- Gross Leasable Area
   total_nla_sqft       NUMERIC(12,2),              -- Net Leasable Area
   total_shops          SMALLINT DEFAULT 0,
@@ -58,6 +59,7 @@ CREATE TABLE mall_properties (
 -- Shop profiles (each shop is a unit with extra attributes)
 CREATE TABLE shop_profiles (
   unit_id          UUID PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE,
+  company_id       UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   shop_number      VARCHAR(30),
   brand_name       VARCHAR(150),
   trade_category   VARCHAR(100),                   -- 'F&B'|'Fashion'|'Electronics'|'Beauty'|'Services'|'Anchor'|'Entertainment'
@@ -79,6 +81,7 @@ CREATE TABLE shop_profiles (
 -- Commercial lease extensions (one-to-one with leases where property has mall_module_enabled)
 CREATE TABLE commercial_leases (
   lease_id                UUID PRIMARY KEY REFERENCES leases(id) ON DELETE CASCADE,
+  company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   -- Fit-out period
   fit_out_start_date      DATE,
   fit_out_end_date        DATE,
@@ -281,6 +284,7 @@ CREATE TABLE footfall_sensors (
 -- Footfall counts (hourly aggregation from sensors)
 CREATE TABLE footfall_counts (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id    UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   sensor_id     UUID NOT NULL REFERENCES footfall_sensors(id) ON DELETE CASCADE,
   property_id   UUID NOT NULL REFERENCES properties(id),
   counted_at    TIMESTAMPTZ NOT NULL,

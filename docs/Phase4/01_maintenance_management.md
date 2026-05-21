@@ -132,6 +132,7 @@ CREATE INDEX idx_tickets_sla_resolve ON maintenance_tickets(sla_resolve_due_at) 
 -- Ticket photos (before + after)
 CREATE TABLE ticket_photos (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id   UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   ticket_id    UUID NOT NULL REFERENCES maintenance_tickets(id) ON DELETE CASCADE,
   work_order_id UUID REFERENCES work_orders(id),
   storage_key  VARCHAR(1000) NOT NULL,
@@ -182,6 +183,7 @@ CREATE INDEX idx_wo_scheduled ON work_orders(scheduled_start) WHERE status = 'pe
 -- Work order material usage (links to inventory module 4.4)
 CREATE TABLE work_order_materials (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   work_order_id   UUID NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
   inventory_item_id UUID,                             -- Phase 4.4
   item_name       VARCHAR(255) NOT NULL,              -- denormalized
@@ -195,6 +197,7 @@ CREATE TABLE work_order_materials (
 -- Technician profiles (extends users)
 CREATE TABLE technician_profiles (
   user_id        UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  company_id     UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   property_id    UUID REFERENCES properties(id),
   skills         TEXT[] DEFAULT '{}',                 -- ['plumbing','electrical','hvac']
   certifications TEXT[] DEFAULT '{}',
@@ -209,6 +212,7 @@ CREATE TABLE technician_profiles (
 -- SLA breach events
 CREATE TABLE sla_breach_events (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id   UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   ticket_id    UUID NOT NULL REFERENCES maintenance_tickets(id) ON DELETE CASCADE,
   breach_type  VARCHAR(20) NOT NULL,                  -- 'response'|'resolution'
   breached_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),

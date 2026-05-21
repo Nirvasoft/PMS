@@ -19,6 +19,7 @@ Residential condominium-specific modules not covered by the core residential lea
 -- Smart meter readings (IoT integration)
 CREATE TABLE smart_meter_readings (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   meter_id        UUID NOT NULL REFERENCES utility_meters(id) ON DELETE CASCADE,
   unit_id         UUID NOT NULL REFERENCES units(id),
   property_id     UUID NOT NULL REFERENCES properties(id),
@@ -40,6 +41,7 @@ CREATE INDEX idx_smart_readings_billing ON smart_meter_readings(billing_triggere
 -- Smart meter device configs (IoT connectivity settings)
 CREATE TABLE smart_meter_devices (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   meter_id        UUID NOT NULL REFERENCES utility_meters(id) ON DELETE CASCADE,
   protocol        VARCHAR(20) NOT NULL,             -- 'modbus_tcp'|'mqtt'|'http'|'lora'
   host            VARCHAR(255),                     -- IP for Modbus TCP
@@ -77,6 +79,7 @@ CREATE TABLE fund_accounts (
 -- Fund transactions
 CREATE TABLE fund_transactions (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   fund_account_id UUID NOT NULL REFERENCES fund_accounts(id) ON DELETE CASCADE,
   transaction_type VARCHAR(20) NOT NULL,            -- 'contribution'|'expenditure'|'interest'|'transfer'
   amount          NUMERIC(15,2) NOT NULL,
@@ -118,6 +121,7 @@ CREATE TABLE general_meetings (
 -- Meeting resolutions (voting items)
 CREATE TABLE meeting_resolutions (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   meeting_id      UUID NOT NULL REFERENCES general_meetings(id) ON DELETE CASCADE,
   resolution_no   SMALLINT NOT NULL,
   title           VARCHAR(255) NOT NULL,
@@ -135,6 +139,7 @@ CREATE TABLE meeting_resolutions (
 -- Proxy forms
 CREATE TABLE meeting_proxies (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   meeting_id      UUID NOT NULL REFERENCES general_meetings(id) ON DELETE CASCADE,
   unit_id         UUID NOT NULL REFERENCES units(id),
   owner_name      VARCHAR(200) NOT NULL,
@@ -147,6 +152,7 @@ CREATE TABLE meeting_proxies (
 -- Digital votes
 CREATE TABLE meeting_votes (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id      UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   meeting_id      UUID NOT NULL REFERENCES general_meetings(id),
   resolution_id   UUID NOT NULL REFERENCES meeting_resolutions(id),
   unit_id         UUID NOT NULL REFERENCES units(id),

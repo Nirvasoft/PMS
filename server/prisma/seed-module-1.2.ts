@@ -84,6 +84,9 @@ const PERMISSIONS = [
   { code: 'notifications.send', name: 'Send Notifications', module: 'notifications', action: 'create' },
   { code: 'notifications.logs', name: 'View Notification Logs', module: 'notifications', action: 'read' },
   { code: 'notifications.manage', name: 'Manage Notification Templates', module: 'notifications', action: 'manage' },
+
+  // System Admin
+  { code: 'companies.provision', name: 'Provision New Companies', module: 'companies', action: 'manage' },
 ];
 
 const ROLE_TEMPLATES = [

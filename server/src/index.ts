@@ -8,10 +8,11 @@ import { config } from './common/config';
 import { logger } from './common/logger';
 import { connectDatabase, disconnectDatabase } from './common/database';
 import { disconnectRedis } from './common/redis';
-import { authMiddleware, requestContextMiddleware, errorHandler } from './middleware';
+import { authMiddleware, requestContextMiddleware, errorHandler, tenantContextMiddleware } from './middleware';
 import { initSocketIO } from './common/socket';
 import { startSlaEscalationJob } from './common/slaEscalation';
 import { authRouter } from './modules/auth/auth.routes';
+import { adminRouter } from './modules/admin/admin.routes';
 import { usersRouter, rolesRouter, roleTemplatesRouter, permissionsRouter, departmentsRouter, positionsRouter } from './modules/users/users.routes';
 import { invitationsRouter } from './modules/users/invitations.routes';
 import { companyRouter, branchesRouter, regionsRouter, businessUnitsRouter } from './modules/organization/organization.routes';
@@ -74,6 +75,7 @@ async function bootstrap() {
   app.use('/storage', express.static(path.join(process.cwd(), 'storage')));
 
   app.use(authMiddleware);
+  app.use(tenantContextMiddleware);
 
   // Health check
   app.get('/api/v1/health', (_req, res) => {
@@ -82,6 +84,7 @@ async function bootstrap() {
 
   // Routes
   app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1/admin', adminRouter);
 
   // Module 1.2 — User & Role Management
   app.use('/api/v1/users', usersRouter);

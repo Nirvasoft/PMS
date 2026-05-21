@@ -4,6 +4,7 @@ import { setCredentials, setMfaPending, clearAuth } from '../slices/authSlice';
 import { baseQueryWithReauth } from './baseQuery';
 
 interface LoginRequest {
+  companyCode: string;
   email: string;
   password: string;
   rememberMe?: boolean;
@@ -17,6 +18,8 @@ interface LoginSuccessData {
     id: string;
     email: string;
     companyId: string;
+    companyCode: string;
+    companyName: string;
     roles: string[];
     permissions: string[];
     mustChangePassword: boolean;
@@ -160,6 +163,16 @@ export const authApi = createApi({
       query: (body) => ({ url: '/auth/password-policy', method: 'PUT', body }),
       invalidatesTags: ['PasswordPolicy'],
     }),
+
+    // Company Code Validation (public, pre-login)
+    validateCompanyCode: builder.query<ApiResponse<{ name: string; logoUrl: string | null } | null>, string>({
+      query: (code) => `/auth/company/validate?code=${encodeURIComponent(code)}`,
+    }),
+
+    // Company info (public, pre-login) — count + single company auto-fill
+    getCompanyInfo: builder.query<ApiResponse<{ count: number; singleCompany: { code: string; name: string; logoUrl: string | null } | null }>, void>({
+      query: () => '/auth/company/info',
+    }),
   }),
 });
 
@@ -183,4 +196,6 @@ export const {
   useDeleteIpPolicyMutation,
   useGetPasswordPolicyQuery,
   useUpdatePasswordPolicyMutation,
+  useLazyValidateCompanyCodeQuery,
+  useGetCompanyInfoQuery,
 } = authApi;

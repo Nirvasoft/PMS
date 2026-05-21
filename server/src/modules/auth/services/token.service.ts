@@ -7,7 +7,6 @@ import { config } from '../../../common/config';
 import { AppError } from '../../../common/errors';
 import { logger } from '../../../common/logger';
 import type { JwtPayload, AuthTokens, MfaChallengeResponse } from '../interfaces/auth.interfaces';
-import { config } from '../../../common/config';
 
 const KEY_PREFIX = config.redis.prefix || '';
 

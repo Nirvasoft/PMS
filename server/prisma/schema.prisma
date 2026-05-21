@@ -17,6 +17,7 @@ datasource db {
 model Company {
   id              String    @id @default(uuid()) @db.Uuid
   parentId        String?   @map("parent_id") @db.Uuid
+  code            String    @unique @db.VarChar(20)
   name            String    @db.VarChar(255)
   legalName       String?   @map("legal_name") @db.VarChar(255)
   companyType     String    @default("standalone") @map("company_type") @db.VarChar(30)
