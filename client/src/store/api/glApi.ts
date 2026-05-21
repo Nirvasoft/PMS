@@ -147,7 +147,7 @@ export const glApi = createApi({
       transformResponse: (r: any) => r.data,
       providesTags: ['TrialBalance'],
     }),
-    getPnL: b.query<PnL, { fromDate?: string; toDate?: string; propertyId?: string }>({
+    getPnL: b.query<PnL, { fromDate?: string; toDate?: string; propertyId?: string; compareFromDate?: string; compareToDate?: string }>({
       query: (params) => ({ url: '/gl/reports/pnl', params: params as any }),
       transformResponse: (r: any) => r.data,
       providesTags: ['PnL'],

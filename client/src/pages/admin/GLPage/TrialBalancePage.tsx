@@ -20,9 +20,34 @@ export default function TrialBalancePage() {
         <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
         <div style={{ flex: 1 }} />
         {tb && (
-          <span className={`report-balanced ${tb.summary.isBalanced ? 'yes' : 'no'}`}>
-            {tb.summary.isBalanced ? '✓ Balanced' : '✗ Unbalanced'}
-          </span>
+          <>
+            <button
+              onClick={() => {
+                const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken') || '';
+                const url = `/api/v1/gl/trial-balance?fromDate=${fromDate}&toDate=${toDate}&format=csv`;
+                fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+                  .then(r => r.blob())
+                  .then(blob => {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `trial-balance-${toDate}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  });
+              }}
+              style={{
+                padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              📥 Export CSV
+            </button>
+            <span className={`report-balanced ${tb.summary.isBalanced ? 'yes' : 'no'}`}>
+              {tb.summary.isBalanced ? '✓ Balanced' : '✗ Unbalanced'}
+            </span>
+          </>
         )}
       </div>
 

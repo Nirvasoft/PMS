@@ -109,6 +109,20 @@ glRouter.get('/trial-balance', asyncHandler(async (req, res) => {
     toDate: q(req, 'toDate') || undefined,
     propertyId: q(req, 'propertyId') || undefined,
   });
+
+  if (req.query.format === 'csv') {
+    const header = 'Code,Account Name,Type,Subtype,Total Debit,Total Credit,Net Balance\n';
+    const rows = data.rows.map(r =>
+      `"${r.code}","${r.name}","${r.accountType}","${r.accountSubtype || ''}",${r.totalDebit.toFixed(2)},${r.totalCredit.toFixed(2)},${r.netBalance.toFixed(2)}`
+    ).join('\n');
+    const totals = `\n"","TOTALS","","",${data.summary.totalDebit.toFixed(2)},${data.summary.totalCredit.toFixed(2)},""`;
+    const balanced = `\n"","Balanced: ${data.summary.isBalanced ? 'YES' : 'NO'}"`;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="trial-balance-${q(req, 'toDate') || 'current'}.csv"`);
+    return res.send(header + rows + totals + balanced);
+  }
+
   res.json({ success: true, data });
 }));
 
@@ -117,6 +131,8 @@ glRouter.get('/reports/pnl', asyncHandler(async (req, res) => {
     fromDate: q(req, 'fromDate') || new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
     toDate: q(req, 'toDate') || new Date().toISOString().split('T')[0],
     propertyId: q(req, 'propertyId') || undefined,
+    compareFromDate: q(req, 'compareFromDate') || undefined,
+    compareToDate: q(req, 'compareToDate') || undefined,
   });
   res.json({ success: true, data });
 }));

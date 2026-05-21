@@ -127,6 +127,72 @@ function VarianceTab({ year }: { year: number }) {
             </div>
           </div>
 
+          {/* Variance Bar Chart */}
+          {variance.rows.length > 0 && (() => {
+            const maxVal = Math.max(...variance.rows.map(r => Math.max(r.budgetAmount, r.actualAmount)));
+            const scale = maxVal > 0 ? 100 / maxVal : 1;
+            return (
+              <div style={{
+                background: 'var(--bg-secondary)', borderRadius: 12, padding: '20px 24px',
+                border: '1px solid var(--border-color)', marginBottom: 16,
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 16, fontSize: 15 }}>📊 Budget vs Actual</div>
+                {variance.rows.map(r => (
+                  <div key={r.budgetId} style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{r.glAccountCode} — {r.accountName}</span>
+                      <span style={{
+                        fontSize: 12, fontWeight: 600,
+                        color: r.status === 'under_budget' ? '#10b981' : '#ef4444',
+                      }}>
+                        {r.variancePct > 0 ? '+' : ''}{r.variancePct}%
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 50, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'right' }}>Budget</span>
+                        <div style={{ flex: 1, height: 16, background: 'var(--bg-tertiary, rgba(0,0,0,0.05))', borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%', borderRadius: 4,
+                            background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+                            width: `${r.budgetAmount * scale}%`, minWidth: r.budgetAmount > 0 ? 4 : 0,
+                            transition: 'width 0.5s ease',
+                          }} />
+                        </div>
+                        <span style={{ width: 80, fontSize: 12, fontFamily: 'monospace', textAlign: 'right' }}>{fmtAmt(r.budgetAmount)}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 50, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'right' }}>Actual</span>
+                        <div style={{ flex: 1, height: 16, background: 'var(--bg-tertiary, rgba(0,0,0,0.05))', borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%', borderRadius: 4,
+                            background: r.status === 'under_budget'
+                              ? 'linear-gradient(90deg, #10b981, #34d399)'
+                              : 'linear-gradient(90deg, #ef4444, #f87171)',
+                            width: `${r.actualAmount * scale}%`, minWidth: r.actualAmount > 0 ? 4 : 0,
+                            transition: 'width 0.5s ease',
+                          }} />
+                        </div>
+                        <span style={{ width: 80, fontSize: 12, fontFamily: 'monospace', textAlign: 'right' }}>{fmtAmt(r.actualAmount)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 12, height: 10, borderRadius: 2, background: '#3b82f6', display: 'inline-block' }} /> Budget
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 12, height: 10, borderRadius: 2, background: '#10b981', display: 'inline-block' }} /> Under Budget
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 12, height: 10, borderRadius: 2, background: '#ef4444', display: 'inline-block' }} /> Over Budget
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="gl-table-wrap">
             <table className="gl-table">
               <thead>

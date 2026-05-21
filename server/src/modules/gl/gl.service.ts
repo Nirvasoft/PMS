@@ -598,19 +598,59 @@ class GlService {
     };
   }
 
-  async getProfitAndLoss(companyId: string, params: { fromDate: string; toDate: string; propertyId?: string }) {
+  async getProfitAndLoss(companyId: string, params: {
+    fromDate: string; toDate: string; propertyId?: string;
+    compareFromDate?: string; compareToDate?: string;
+  }) {
     const tb = await this.getTrialBalance(companyId, params);
     const income = tb.rows.filter(r => r.accountType === 'income');
     const expense = tb.rows.filter(r => r.accountType === 'expense');
     const totalIncome = income.reduce((s, r) => s + r.netBalance, 0);
     const totalExpense = expense.reduce((s, r) => s + r.netBalance, 0);
+
+    let comparison: any = null;
+    if (params.compareFromDate && params.compareToDate) {
+      const prevTb = await this.getTrialBalance(companyId, {
+        fromDate: params.compareFromDate,
+        toDate: params.compareToDate,
+        propertyId: params.propertyId,
+      });
+
+      const prevBalances: Record<string, number> = {};
+      for (const r of prevTb.rows) prevBalances[r.code] = r.netBalance;
+
+      const prevIncome = prevTb.rows.filter(r => r.accountType === 'income');
+      const prevExpense = prevTb.rows.filter(r => r.accountType === 'expense');
+      const prevTotalIncome = prevIncome.reduce((s, r) => s + r.netBalance, 0);
+      const prevTotalExpense = prevExpense.reduce((s, r) => s + r.netBalance, 0);
+
+      const withVariance = (rows: typeof income) => rows.map(r => ({
+        ...r,
+        previousBalance: prevBalances[r.code] || 0,
+        variance: r.netBalance - (prevBalances[r.code] || 0),
+        variancePct: (prevBalances[r.code] || 0) !== 0
+          ? ((r.netBalance - (prevBalances[r.code] || 0)) / Math.abs(prevBalances[r.code] || 1)) * 100
+          : 0,
+      }));
+
+      comparison = {
+        period: { fromDate: params.compareFromDate, toDate: params.compareToDate },
+        income: withVariance(income),
+        expense: withVariance(expense),
+        prevTotalIncome,
+        prevTotalExpense,
+        prevNetProfit: prevTotalIncome - prevTotalExpense,
+      };
+    }
+
     return {
       income,
       expense,
       totalIncome,
       totalExpense,
       netProfit: totalIncome - totalExpense,
-      period: params,
+      period: { fromDate: params.fromDate, toDate: params.toDate },
+      comparison,
       generatedAt: new Date().toISOString(),
     };
   }
