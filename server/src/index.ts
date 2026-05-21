@@ -44,6 +44,10 @@ import { chargeTypesService } from './modules/billing/chargeTypes.service';
 import { startDailyBillingJob } from './modules/billing/cron/dailyBilling.job';
 import { startPenaltyCheckJob } from './modules/billing/cron/penaltyCheck.job';
 import { startOverdueTransitionJob } from './modules/billing/cron/overdueTransition.job';
+import {
+  receiptsRouter, arReportsRouter, refundsRouter,
+  tenantCreditsRouter, tenantStatementRouter,
+} from './modules/ar/ar.routes';
 
 async function bootstrap() {
   const app = express();
@@ -145,6 +149,13 @@ async function bootstrap() {
   app.use('/api/v1/billing/run', billingRunRouter);
   app.use('/api/v1/billing/penalty-configs', penaltyConfigsRouter);
   app.use('/api/v1/billing/tax-configs', taxConfigsRouter);
+
+  // Module 3.2 — Accounts Receivable
+  app.use('/api/v1/receipts', receiptsRouter);
+  app.use('/api/v1/ar', arReportsRouter);
+  app.use('/api/v1/refunds', refundsRouter);
+  app.use('/api/v1/tenants', tenantCreditsRouter);
+  app.use('/api/v1/tenants', tenantStatementRouter);
 
   // Error handler (must be last)
   app.use(errorHandler);

@@ -4,7 +4,11 @@
 
 /* ── Pipeline Page ──────────────────────────── */
 
-.crm-pipeline-page { padding: 28px 32px; }
+.crm-pipeline-page {
+  padding: 28px 32px;
+  min-width: 0;
+  max-width: 100%;
+}
 
 .crm-stats-row {
   display: grid;
@@ -65,12 +69,16 @@
   display: flex;
   gap: 14px;
   overflow-x: auto;
+  overflow-y: hidden;
   padding-bottom: 16px;
   min-height: 60vh;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
-.kanban-board::-webkit-scrollbar { height: 6px; }
-.kanban-board::-webkit-scrollbar-track { background: transparent; }
-.kanban-board::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
+.kanban-board::-webkit-scrollbar { height: 8px; }
+.kanban-board::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 4px; }
+.kanban-board::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.kanban-board::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 .kanban-column {
   flex: 0 0 270px;

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGetChargeTypesQuery, useCreateInvoiceMutation } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
-import { ArrowLeft, Plus, Trash2, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send } from 'lucide-react';
 import './BillingPage.css';
 
 interface LineItem {
@@ -47,6 +47,7 @@ export default function CreateInvoicePage() {
     if (field === 'chargeTypeId') {
       const ct = chargeTypes.find(c => c.id === value);
       if (ct && !updated[idx].description) updated[idx].description = ct.name;
+      if (ct && ct.isTaxable && updated[idx].taxRate === 0) updated[idx].taxRate = Number(ct.taxRate) || 0;
     }
     setLines(updated);
   };
@@ -77,37 +78,46 @@ export default function CreateInvoicePage() {
 
   return (
     <div className="billing-page">
-      <button className="btn btn-secondary" onClick={() => navigate('/admin/billing/invoices')} style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <ArrowLeft size={14} /> Back
+      <button className="inv-back-btn" onClick={() => navigate('/admin/billing/invoices')}>
+        <ArrowLeft size={14} /> Back to Invoices
       </button>
 
-      <div className="page-header" style={{ marginBottom: 24 }}>
+      <div className="page-header" style={{ marginBottom: 28 }}>
         <div className="page-title-row">
           <div className="page-icon-lg" style={{ background: 'var(--primary-subtle)', color: 'var(--primary)' }}>
             <FileText size={22} />
           </div>
           <div>
             <h1>Create Invoice</h1>
-            <p>Manual ad-hoc invoice</p>
+            <p>Create a manual ad-hoc invoice for a tenant</p>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Basic Details */}
-        <div className="card" style={{ padding: 24, marginBottom: 20 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Invoice Details</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+        {/* ── Section 1: Invoice Details ── */}
+        <div className="inv-form-section">
+          <div className="inv-form-section-header">
+            <div className="section-icon" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
+              <Building2 size={16} />
+            </div>
             <div>
-              <label className="form-label">Property *</label>
-              <select className="form-input" required value={form.propertyId} onChange={e => setForm({ ...form, propertyId: e.target.value })}>
+              <h3>Invoice Details</h3>
+              <p>Select the property, tenant, and billing dates</p>
+            </div>
+          </div>
+
+          <div className="inv-form-grid">
+            <div className="inv-field">
+              <label>Property <span className="req">*</span></label>
+              <select required value={form.propertyId} onChange={e => setForm({ ...form, propertyId: e.target.value })}>
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className="form-label">Tenant *</label>
-              <select className="form-input" required value={form.tenantId} onChange={e => setForm({ ...form, tenantId: e.target.value })}>
+            <div className="inv-field">
+              <label>Tenant <span className="req">*</span></label>
+              <select required value={form.tenantId} onChange={e => setForm({ ...form, tenantId: e.target.value })}>
                 <option value="">Select tenant</option>
                 {tenants.map((t: any) => (
                   <option key={t.id} value={t.id}>
@@ -116,39 +126,51 @@ export default function CreateInvoicePage() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="form-label">Invoice Date *</label>
-              <input type="date" className="form-input" required value={form.invoiceDate} onChange={e => setForm({ ...form, invoiceDate: e.target.value })} />
+            <div className="inv-field">
+              <label>Invoice Date <span className="req">*</span></label>
+              <input type="date" required value={form.invoiceDate} onChange={e => setForm({ ...form, invoiceDate: e.target.value })} />
             </div>
-            <div>
-              <label className="form-label">Due Date *</label>
-              <input type="date" className="form-input" required value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+            <div className="inv-field">
+              <label>Due Date <span className="req">*</span></label>
+              <input type="date" required value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
             </div>
           </div>
-          <div style={{ marginTop: 14 }}>
-            <label className="form-label">Notes</label>
-            <textarea className="form-input" rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+
+          <div className="inv-form-grid cols-1" style={{ marginTop: 16 }}>
+            <div className="inv-field">
+              <label>Notes</label>
+              <textarea rows={2} placeholder="Optional notes for this invoice…" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+            </div>
           </div>
         </div>
 
-        {/* Line Items */}
-        <div className="card" style={{ padding: 24, marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600 }}>Line Items</h3>
-            <button type="button" className="btn btn-secondary" onClick={addLine} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-              <Plus size={12} /> Add Line
+        {/* ── Section 2: Line Items ── */}
+        <div className="inv-form-section">
+          <div className="inv-form-section-header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="section-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+                <ClipboardList size={16} />
+              </div>
+              <div>
+                <h3>Line Items</h3>
+                <p>Add charges to this invoice</p>
+              </div>
+            </div>
+            <button type="button" className="add-line-btn" onClick={addLine}>
+              <Plus size={13} /> Add Line
             </button>
           </div>
-          <table className="line-items-table">
+
+          <table className="inv-lines-table">
             <thead>
               <tr>
-                <th>Charge Type</th>
-                <th>Description</th>
-                <th style={{ width: 80 }}>Qty</th>
-                <th style={{ width: 120 }}>Unit Price</th>
-                <th style={{ width: 100 }}>Tax %</th>
-                <th className="text-right" style={{ width: 120 }}>Total</th>
-                <th style={{ width: 40 }}></th>
+                <th style={{ width: '18%' }}>Charge Type</th>
+                <th style={{ width: '28%' }}>Description</th>
+                <th style={{ width: '10%', textAlign: 'right' }}>Qty</th>
+                <th style={{ width: '15%', textAlign: 'right' }}>Unit Price</th>
+                <th style={{ width: '10%', textAlign: 'right' }}>Tax %</th>
+                <th style={{ width: '14%', textAlign: 'right' }}>Total</th>
+                <th style={{ width: '5%' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -159,30 +181,31 @@ export default function CreateInvoicePage() {
                 return (
                   <tr key={idx}>
                     <td>
-                      <select className="form-input" required value={line.chargeTypeId} onChange={e => updateLine(idx, 'chargeTypeId', e.target.value)} style={{ fontSize: 12, padding: '6px 8px' }}>
-                        <option value="">Select</option>
+                      <select className="line-select" required value={line.chargeTypeId} onChange={e => updateLine(idx, 'chargeTypeId', e.target.value)}>
+                        <option value="">Select…</option>
                         {chargeTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
                       </select>
                     </td>
                     <td>
-                      <input className="form-input" required value={line.description} onChange={e => updateLine(idx, 'description', e.target.value)} style={{ fontSize: 12, padding: '6px 8px' }} />
+                      <input className="line-input" required placeholder="Charge description" value={line.description} onChange={e => updateLine(idx, 'description', e.target.value)} />
                     </td>
                     <td>
-                      <input type="number" className="form-input" min={0} step={1} value={line.quantity} onChange={e => updateLine(idx, 'quantity', Number(e.target.value))} style={{ fontSize: 12, padding: '6px 8px' }} />
+                      <input type="number" className="line-input" min={0} step={1} value={line.quantity} onChange={e => updateLine(idx, 'quantity', Number(e.target.value))} />
                     </td>
                     <td>
-                      <input type="number" className="form-input" min={0} step={0.01} value={line.unitPrice} onChange={e => updateLine(idx, 'unitPrice', Number(e.target.value))} style={{ fontSize: 12, padding: '6px 8px' }} />
+                      <input type="number" className="line-input" min={0} step={0.01} value={line.unitPrice} onChange={e => updateLine(idx, 'unitPrice', Number(e.target.value))} />
                     </td>
                     <td>
-                      <input type="number" className="form-input" min={0} max={100} step={0.1} value={line.taxRate * 100}
-                        onChange={e => updateLine(idx, 'taxRate', Number(e.target.value) / 100)}
-                        style={{ fontSize: 12, padding: '6px 8px' }} />
+                      <input type="number" className="line-input" min={0} max={100} step={0.1} value={Math.round(line.taxRate * 10000) / 100}
+                        onChange={e => updateLine(idx, 'taxRate', Number(e.target.value) / 100)} />
                     </td>
-                    <td className="text-right" style={{ fontWeight: 600 }}>{formatCurrency(lineTotal)}</td>
+                    <td>
+                      <div className="line-total">{formatCurrency(lineTotal)}</div>
+                    </td>
                     <td>
                       {lines.length > 1 && (
-                        <button type="button" onClick={() => removeLine(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }}>
-                          <Trash2 size={14} />
+                        <button type="button" className="line-remove-btn" onClick={() => removeLine(idx)} title="Remove line">
+                          <Trash2 size={13} />
                         </button>
                       )}
                     </td>
@@ -193,23 +216,24 @@ export default function CreateInvoicePage() {
           </table>
         </div>
 
-        {/* Totals Preview + Submit */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 20, alignItems: 'flex-start' }}>
-          <div className="invoice-totals-panel" style={{ width: 320 }}>
-            <div className="invoice-total-row">
-              <span className="label">Subtotal</span>
-              <span className="amount">{formatCurrency(subtotal)}</span>
+        {/* ── Footer: Totals + Submit ── */}
+        <div className="inv-form-footer">
+          <div className="inv-totals-card">
+            <div className="inv-totals-row">
+              <span className="t-label">Subtotal</span>
+              <span className="t-value">{formatCurrency(subtotal)}</span>
             </div>
-            <div className="invoice-total-row">
-              <span className="label">Tax</span>
-              <span className="amount">{formatCurrency(tax)}</span>
+            <div className="inv-totals-row">
+              <span className="t-label">Tax</span>
+              <span className="t-value">{formatCurrency(tax)}</span>
             </div>
-            <div className="invoice-total-row total-main">
-              <span className="label">Total</span>
-              <span className="amount">{formatCurrency(total)}</span>
+            <div className="inv-totals-row total-grand">
+              <span className="t-label">Total</span>
+              <span className="t-value">{formatCurrency(total)}</span>
             </div>
           </div>
-          <button type="submit" className="btn btn-primary" disabled={isLoading} style={{ padding: '12px 32px', fontSize: 14 }}>
+          <button type="submit" className="inv-submit-btn" disabled={isLoading}>
+            <Send size={16} />
             {isLoading ? 'Creating…' : 'Create Invoice'}
           </button>
         </div>

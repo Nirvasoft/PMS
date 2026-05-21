@@ -20,6 +20,7 @@ import { leasesApi } from './api/leasesApi';
 import { crmApi } from './api/crmApi';
 import { parkingApi } from './api/parkingApi';
 import { billingApi } from './api/billingApi';
+import { arApi } from './api/arApi';
 
 export const store = configureStore({
   reducer: {
@@ -42,6 +43,7 @@ export const store = configureStore({
     [crmApi.reducerPath]:     crmApi.reducer,
     [parkingApi.reducerPath]: parkingApi.reducer,
     [billingApi.reducerPath]: billingApi.reducer,
+    [arApi.reducerPath]: arApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -51,6 +53,7 @@ export const store = configureStore({
       crmApi.middleware,
       parkingApi.middleware,
       billingApi.middleware,
+      arApi.middleware,
     ),
 });
 

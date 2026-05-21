@@ -34,6 +34,11 @@ import InvoiceListPage from './pages/admin/BillingPage/InvoiceListPage';
 import InvoiceDetailPage from './pages/admin/BillingPage/InvoiceDetailPage';
 import CreateInvoicePage from './pages/admin/BillingPage/CreateInvoicePage';
 import BillingSchedulesPage from './pages/admin/BillingPage/BillingSchedulesPage';
+import ReceiptsPage from './pages/admin/ARPage/ReceiptsPage';
+import AgingReportPage from './pages/admin/ARPage/AgingReportPage';
+import CollectionDashboard from './pages/admin/ARPage/CollectionDashboard';
+import RefundsPage from './pages/admin/ARPage/RefundsPage';
+import TenantStatementPage from './pages/admin/ARPage/TenantStatementPage';
 import WorkflowsPage from './pages/admin/WorkflowsPage/WorkflowsPage';
 import DesignerPage from './pages/admin/WorkflowsPage/DesignerPage';
 import MyTasksPage from './pages/admin/MyTasksPage/MyTasksPage';
@@ -126,6 +131,11 @@ function AppRoutes() {
           <Route path="/admin/billing/invoices/new" element={<CreateInvoicePage />} />
           <Route path="/admin/billing/invoices/:id" element={<InvoiceDetailPage />} />
           <Route path="/admin/billing/schedules" element={<BillingSchedulesPage />} />
+          <Route path="/admin/ar/receipts" element={<ReceiptsPage />} />
+          <Route path="/admin/ar/aging" element={<AgingReportPage />} />
+          <Route path="/admin/ar/collections" element={<CollectionDashboard />} />
+          <Route path="/admin/ar/refunds" element={<RefundsPage />} />
+          <Route path="/admin/ar/statements" element={<TenantStatementPage />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
           <Route path="/admin/positions" element={<PositionsPage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />

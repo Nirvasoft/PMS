@@ -1,19 +1,52 @@
-import { useNavigate, NavLink, Outlet } from 'react-router-dom';
+import { useNavigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLogoutMutation } from '../../store/api/authApi';
 import { useGetPropertyStatsQuery } from '../../store/api/organizationApi';
 import { useAppSelector } from '../../store';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { FeatureGate } from '../../components/guards/FeatureGate';
 import {
-  Building2, LayoutDashboard, Shield, LogOut, Settings, ChevronRight,
+  Building2, LayoutDashboard, Shield, LogOut, Settings, ChevronRight, ChevronDown,
   User, Users, Key, GitBranch, Home, MapPin, Workflow, Inbox, Bell, Briefcase, FileText, FolderOpen,
   Users2, ClipboardList, Target, Megaphone, Car, Link2, Ticket, Activity, Receipt, CalendarClock,
+  Banknote, BarChart3, Clock, RotateCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
 import AnalyticsDashboard from './AnalyticsDashboard';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
+
+// ─── Collapsible Nav Section ──────────────────
+
+function NavSection({ label, children, defaultOpen = false, storageKey }: {
+  label: string; children: ReactNode; defaultOpen?: boolean; storageKey: string;
+}) {
+  const [open, setOpen] = useState(() => {
+    const saved = localStorage.getItem(`nav-section-${storageKey}`);
+    return saved !== null ? saved === '1' : defaultOpen;
+  });
+
+  const toggle = useCallback(() => {
+    setOpen(prev => {
+      const next = !prev;
+      localStorage.setItem(`nav-section-${storageKey}`, next ? '1' : '0');
+      return next;
+    });
+  }, [storageKey]);
+
+  return (
+    <div className="nav-section">
+      <button className="nav-section-toggle" onClick={toggle} type="button">
+        <span className="nav-section-label-text">{label}</span>
+        <ChevronRight size={12} className={`nav-section-chevron ${open ? 'open' : ''}`} />
+      </button>
+      <div className={`nav-section-items ${open ? 'expanded' : 'collapsed'}`}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
@@ -42,151 +75,184 @@ export default function DashboardLayout() {
           </NavLink>
 
           {/* Admin Section */}
-          <PermissionGuard permission="users.read">
-            <div className="nav-section-label">Administration</div>
-            <NavLink to="/admin/users" className="nav-item">
-              <Users size={18} />
-              <span>Users</span>
-            </NavLink>
-          </PermissionGuard>
-          <PermissionGuard permission="roles.read">
-            <NavLink to="/admin/roles" className="nav-item">
-              <Key size={18} />
-              <span>Roles & Permissions</span>
-            </NavLink>
-          </PermissionGuard>
-          <PermissionGuard permission="departments.read">
-            <NavLink to="/admin/departments" className="nav-item">
-              <GitBranch size={18} />
-              <span>Departments</span>
-            </NavLink>
-          </PermissionGuard>
-          <NavLink to="/admin/positions" className="nav-item">
-            <Briefcase size={18} />
-            <span>Positions</span>
-          </NavLink>
-
-          {/* Organization Section */}
-          <div className="nav-section-label">Organization</div>
-          <NavLink to="/admin/company" className="nav-item">
-            <Building2 size={18} />
-            <span>Company</span>
-          </NavLink>
-          <PermissionGuard permission="properties.read">
-            <NavLink to="/admin/properties" className="nav-item">
-              <Home size={18} />
-              <span>Properties</span>
-            </NavLink>
-          </PermissionGuard>
-          <PermissionGuard permission="tenants.read">
-            <NavLink to="/admin/tenants" className="nav-item">
-              <Users2 size={18} />
-              <span>Tenants</span>
-            </NavLink>
-          </PermissionGuard>
-          <FeatureGate flag="leasingEnabled">
-            <PermissionGuard permission="leases.read">
-              <NavLink to="/admin/leases" className="nav-item">
-                <ClipboardList size={18} />
-                <span>Leases</span>
+          <NavSection label="Administration" storageKey="admin" defaultOpen>
+            <PermissionGuard permission="users.read">
+              <NavLink to="/admin/users" className="nav-item">
+                <Users size={18} />
+                <span>Users</span>
               </NavLink>
             </PermissionGuard>
-          </FeatureGate>
+            <PermissionGuard permission="roles.read">
+              <NavLink to="/admin/roles" className="nav-item">
+                <Key size={18} />
+                <span>Roles & Permissions</span>
+              </NavLink>
+            </PermissionGuard>
+            <PermissionGuard permission="departments.read">
+              <NavLink to="/admin/departments" className="nav-item">
+                <GitBranch size={18} />
+                <span>Departments</span>
+              </NavLink>
+            </PermissionGuard>
+            <NavLink to="/admin/positions" className="nav-item">
+              <Briefcase size={18} />
+              <span>Positions</span>
+            </NavLink>
+          </NavSection>
+
+          {/* Organization Section */}
+          <NavSection label="Organization" storageKey="org" defaultOpen>
+            <NavLink to="/admin/company" className="nav-item">
+              <Building2 size={18} />
+              <span>Company</span>
+            </NavLink>
+            <PermissionGuard permission="properties.read">
+              <NavLink to="/admin/properties" className="nav-item">
+                <Home size={18} />
+                <span>Properties</span>
+              </NavLink>
+            </PermissionGuard>
+            <PermissionGuard permission="tenants.read">
+              <NavLink to="/admin/tenants" className="nav-item">
+                <Users2 size={18} />
+                <span>Tenants</span>
+              </NavLink>
+            </PermissionGuard>
+            <FeatureGate flag="leasingEnabled">
+              <PermissionGuard permission="leases.read">
+                <NavLink to="/admin/leases" className="nav-item">
+                  <ClipboardList size={18} />
+                  <span>Leases</span>
+                </NavLink>
+              </PermissionGuard>
+            </FeatureGate>
+          </NavSection>
 
           {/* CRM Section */}
           <FeatureGate flag="crmEnabled">
-            <div className="nav-section-label">CRM</div>
-            <NavLink to="/admin/crm/leads" className="nav-item">
-              <Target size={18} />
-              <span>Lead Pipeline</span>
-            </NavLink>
-            <NavLink to="/admin/crm/campaigns" className="nav-item">
-              <Megaphone size={18} />
-              <span>Campaigns</span>
-            </NavLink>
+            <NavSection label="CRM" storageKey="crm" defaultOpen>
+              <NavLink to="/admin/crm/leads" className="nav-item">
+                <Target size={18} />
+                <span>Lead Pipeline</span>
+              </NavLink>
+              <NavLink to="/admin/crm/campaigns" className="nav-item">
+                <Megaphone size={18} />
+                <span>Campaigns</span>
+              </NavLink>
+            </NavSection>
           </FeatureGate>
 
           {/* Parking Section */}
           <FeatureGate flag="parkingEnabled">
-            <div className="nav-section-label">Parking</div>
-            <NavLink to="/admin/parking" className="nav-item">
-              <Car size={18} />
-              <span>Parking Overview</span>
-            </NavLink>
-            <NavLink to="/admin/parking/allocations" className="nav-item">
-              <Link2 size={18} />
-              <span>Allocations</span>
-            </NavLink>
-            <NavLink to="/admin/parking/visitors" className="nav-item">
-              <span className="nav-icon"><Ticket size={16} /></span>
-              <span className="nav-label">Visitor Parking</span>
-            </NavLink>
-            <NavLink to="/admin/parking/gate-logs" className="nav-item">
-              <span className="nav-icon"><Activity size={16} /></span>
-              <span className="nav-label">Gate Logs</span>
-            </NavLink>
+            <NavSection label="Parking" storageKey="parking">
+              <NavLink to="/admin/parking" className="nav-item">
+                <Car size={18} />
+                <span>Parking Overview</span>
+              </NavLink>
+              <NavLink to="/admin/parking/allocations" className="nav-item">
+                <Link2 size={18} />
+                <span>Allocations</span>
+              </NavLink>
+              <NavLink to="/admin/parking/visitors" className="nav-item">
+                <span className="nav-icon"><Ticket size={16} /></span>
+                <span className="nav-label">Visitor Parking</span>
+              </NavLink>
+              <NavLink to="/admin/parking/gate-logs" className="nav-item">
+                <span className="nav-icon"><Activity size={16} /></span>
+                <span className="nav-label">Gate Logs</span>
+              </NavLink>
+            </NavSection>
           </FeatureGate>
 
           {/* Billing Section */}
-          <div className="nav-section-label">Billing</div>
-          <NavLink to="/admin/billing/invoices" className="nav-item">
-            <Receipt size={18} />
-            <span>Invoices</span>
-          </NavLink>
-          <NavLink to="/admin/billing/schedules" className="nav-item">
-            <CalendarClock size={18} />
-            <span>Schedules</span>
-          </NavLink>
+          <NavSection label="Billing" storageKey="billing" defaultOpen>
+            <NavLink to="/admin/billing/invoices" className="nav-item">
+              <Receipt size={18} />
+              <span>Invoices</span>
+            </NavLink>
+            <NavLink to="/admin/billing/schedules" className="nav-item">
+              <CalendarClock size={18} />
+              <span>Schedules</span>
+            </NavLink>
+          </NavSection>
+
+          {/* Accounts Receivable Section */}
+          <NavSection label="Accounts Receivable" storageKey="ar" defaultOpen>
+            <NavLink to="/admin/ar/receipts" className="nav-item">
+              <Banknote size={18} />
+              <span>Receipts</span>
+            </NavLink>
+            <NavLink to="/admin/ar/aging" className="nav-item">
+              <Clock size={18} />
+              <span>Aging Report</span>
+            </NavLink>
+            <NavLink to="/admin/ar/collections" className="nav-item">
+              <BarChart3 size={18} />
+              <span>Collections</span>
+            </NavLink>
+            <NavLink to="/admin/ar/refunds" className="nav-item">
+              <RotateCcw size={18} />
+              <span>Refunds</span>
+            </NavLink>
+            <NavLink to="/admin/ar/statements" className="nav-item">
+              <FileText size={18} />
+              <span>Statements</span>
+            </NavLink>
+          </NavSection>
 
           {/* Workflow Section */}
           <FeatureGate flag="workflowEnabled">
-            <div className="nav-section-label">Workflows</div>
-            <NavLink to="/tasks" className="nav-item">
-              <Inbox size={18} />
-              <span>My Tasks</span>
-            </NavLink>
-            <NavLink to="/admin/workflows" className="nav-item">
-              <Workflow size={18} />
-              <span>Workflow Engine</span>
-            </NavLink>
+            <NavSection label="Workflows" storageKey="wf">
+              <NavLink to="/tasks" className="nav-item">
+                <Inbox size={18} />
+                <span>My Tasks</span>
+              </NavLink>
+              <NavLink to="/admin/workflows" className="nav-item">
+                <Workflow size={18} />
+                <span>Workflow Engine</span>
+              </NavLink>
+            </NavSection>
           </FeatureGate>
 
           {/* Documents Section */}
           <FeatureGate flag="documentVaultEnabled">
-            <div className="nav-section-label">Documents</div>
-            <NavLink to="/documents" className="nav-item">
-              <FolderOpen size={18} />
-              <span>Document Vault</span>
-            </NavLink>
+            <NavSection label="Documents" storageKey="docs">
+              <NavLink to="/documents" className="nav-item">
+                <FolderOpen size={18} />
+                <span>Document Vault</span>
+              </NavLink>
+            </NavSection>
           </FeatureGate>
 
           {/* Notifications Section */}
-          <div className="nav-section-label">Notifications</div>
-          <NavLink to="/notifications" className="nav-item">
-            <Bell size={18} />
-            <span>All Notifications</span>
-          </NavLink>
-          <FeatureGate flag="notificationsAdminEnabled">
-            <NavLink to="/admin/notifications" className="nav-item">
-              <FileText size={18} />
-              <span>Logs & Templates</span>
+          <NavSection label="Notifications" storageKey="notif">
+            <NavLink to="/notifications" className="nav-item">
+              <Bell size={18} />
+              <span>All Notifications</span>
             </NavLink>
-          </FeatureGate>
+            <FeatureGate flag="notificationsAdminEnabled">
+              <NavLink to="/admin/notifications" className="nav-item">
+                <FileText size={18} />
+                <span>Logs & Templates</span>
+              </NavLink>
+            </FeatureGate>
+          </NavSection>
 
           {/* Settings Section */}
-          <div className="nav-section-label">Settings</div>
-          <NavLink to="/settings/security" className="nav-item">
-            <Shield size={18} />
-            <span>Security</span>
-          </NavLink>
-          <NavLink to="/settings/notifications" className="nav-item">
-            <Bell size={18} />
-            <span>Notification Prefs</span>
-          </NavLink>
-          <NavLink to="/settings/profile" className="nav-item">
-            <User size={18} />
-            <span>My Profile</span>
-          </NavLink>
+          <NavSection label="Settings" storageKey="settings">
+            <NavLink to="/settings/security" className="nav-item">
+              <Shield size={18} />
+              <span>Security</span>
+            </NavLink>
+            <NavLink to="/settings/notifications" className="nav-item">
+              <Bell size={18} />
+              <span>Notification Prefs</span>
+            </NavLink>
+            <NavLink to="/settings/profile" className="nav-item">
+              <User size={18} />
+              <span>My Profile</span>
+            </NavLink>
+          </NavSection>
         </nav>
 
         <div className="sidebar-footer">

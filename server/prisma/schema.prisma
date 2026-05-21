@@ -109,6 +109,11 @@ model Company {
   penaltyConfigurations PenaltyConfiguration[]
   taxConfigurations     TaxConfiguration[]
 
+  // Relations — AR (Module 3.2)
+  receipts              Receipt[]
+  refundRequests        RefundRequest[]
+  tenantCredits         TenantCredit[]
+
   @@index([parentId])
   @@map("companies")
 }
@@ -223,6 +228,11 @@ model User {
   // Relations — Parking (Module 2.6)
   parkingAllocationsCreated ParkingAllocation[]   @relation("AllocationCreator")
   visitorPassesIssued       VisitorParkingPass[]  @relation("PassIssuer")
+
+  // Relations — AR (Module 3.2)
+  receiptsCreated            Receipt[]             @relation("ReceiptCreator")
+  refundsApproved            RefundRequest[]       @relation("RefundApprover")
+  refundsCreated             RefundRequest[]       @relation("RefundCreator")
 
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
@@ -709,6 +719,9 @@ model Property {
   invoices         Invoice[]         @relation("InvoiceProperty")
   penaltyConfigs   PenaltyConfiguration[] @relation("PenaltyProperty")
 
+  // Relations — AR (Module 3.2)
+  receipts         Receipt[]         @relation("ReceiptProperty")
+
   @@unique([code, companyId], name: "uq_property_code_company")
   @@index([companyId])
   @@index([status])
@@ -1088,6 +1101,11 @@ model Tenant {
   // Relations — Billing (Module 3.1)
   billingSchedules     BillingSchedule[] @relation("ScheduleTenant")
   invoices             Invoice[]         @relation("InvoiceTenant")
+
+  // Relations — AR (Module 3.2)
+  receipts             Receipt[]         @relation("ReceiptTenant")
+  refundRequests       RefundRequest[]   @relation("RefundTenant")
+  tenantCredits        TenantCredit[]    @relation("CreditTenant")
 
   @@index([companyId])
   @@index([email])
@@ -2256,6 +2274,9 @@ model Invoice {
   creditNotes         Invoice[] @relation("CreditNoteInvoice")
   lines               InvoiceLine[]
 
+  // Relations — AR (Module 3.2)
+  receiptAllocations  ReceiptAllocation[]
+
   @@index([tenantId])
   @@index([leaseId])
   @@index([status, dueDate])
@@ -2323,4 +2344,114 @@ model TaxConfiguration {
   company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("tax_configurations")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 3.2 — ACCOUNTS RECEIVABLE
+// ─────────────────────────────────────────────
+
+model Receipt {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  propertyId          String?   @map("property_id") @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  receiptNumber       String    @unique @map("receipt_number") @db.VarChar(50)
+  receiptDate         DateTime  @map("receipt_date") @db.Date
+  paymentMethod       String    @map("payment_method") @db.VarChar(30)
+                                // 'bank_transfer'|'cheque'|'cash'|'online'|'giro'|'credit_card'
+  paymentReference    String?   @map("payment_reference") @db.VarChar(255)
+  bankAccountId       String?   @map("bank_account_id") @db.Uuid
+  amount              Decimal   @db.Decimal(15, 2)
+  currency            String    @default("USD") @db.VarChar(3)
+  exchangeRate        Decimal   @default(1) @map("exchange_rate") @db.Decimal(12, 6)
+  baseCurrencyAmount  Decimal?  @map("base_currency_amount") @db.Decimal(15, 2)
+  status              String    @default("confirmed") @db.VarChar(20)
+                                // 'pending'|'confirmed'|'reversed'|'refunded'
+  notes               String?   @db.Text
+  attachmentUrl       String?   @map("attachment_url") @db.VarChar(500)
+  glPosted            Boolean   @default(false) @map("gl_posted")
+  glJournalId         String?   @map("gl_journal_id") @db.Uuid
+  createdBy           String?   @map("created_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company             Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property            Property? @relation("ReceiptProperty", fields: [propertyId], references: [id])
+  tenant              Tenant    @relation("ReceiptTenant", fields: [tenantId], references: [id])
+  creator             User?     @relation("ReceiptCreator", fields: [createdBy], references: [id])
+  allocations         ReceiptAllocation[]
+  refundRequests      RefundRequest[] @relation("RefundReceipt")
+
+  @@index([tenantId])
+  @@index([companyId, receiptDate(sort: Desc)])
+  @@map("receipts")
+}
+
+model ReceiptAllocation {
+  id           String   @id @default(uuid()) @db.Uuid
+  receiptId    String   @map("receipt_id") @db.Uuid
+  invoiceId    String   @map("invoice_id") @db.Uuid
+  amount       Decimal  @db.Decimal(15, 2)
+  allocatedAt  DateTime @default(now()) @map("allocated_at") @db.Timestamptz
+
+  receipt      Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id])
+
+  @@unique([receiptId, invoiceId], name: "uq_receipt_invoice")
+  @@map("receipt_allocations")
+}
+
+model RefundRequest {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  receiptId           String?   @map("receipt_id") @db.Uuid
+  refundType          String    @map("refund_type") @db.VarChar(20)
+                                // 'overpayment'|'deposit'|'adjustment'
+  amount              Decimal   @db.Decimal(15, 2)
+  currency            String    @db.VarChar(3)
+  reason              String    @db.Text
+  status              String    @default("pending") @db.VarChar(20)
+                                // 'pending'|'approved'|'rejected'|'paid'
+  bankName            String?   @map("bank_name") @db.VarChar(100)
+  bankAccountNo       String?   @map("bank_account_no") @db.VarChar(50)
+  bankAccountName     String?   @map("bank_account_name") @db.VarChar(150)
+  approvedBy          String?   @map("approved_by") @db.Uuid
+  approvedAt          DateTime? @map("approved_at") @db.Timestamptz
+  paidAt              DateTime? @map("paid_at") @db.Timestamptz
+  paymentReference    String?   @map("payment_reference") @db.VarChar(255)
+  workflowInstanceId  String?   @map("workflow_instance_id") @db.Uuid
+  rejectionReason     String?   @map("rejection_reason") @db.Text
+  createdBy           String    @map("created_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company             Company   @relation(fields: [companyId], references: [id])
+  tenant              Tenant    @relation("RefundTenant", fields: [tenantId], references: [id])
+  receipt             Receipt?  @relation("RefundReceipt", fields: [receiptId], references: [id])
+  approver            User?     @relation("RefundApprover", fields: [approvedBy], references: [id])
+  creator             User      @relation("RefundCreator", fields: [createdBy], references: [id])
+
+  @@index([companyId])
+  @@index([tenantId])
+  @@map("refund_requests")
+}
+
+model TenantCredit {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  amount       Decimal  @db.Decimal(15, 2)
+  currency     String   @default("USD") @db.VarChar(3)
+  sourceType   String   @map("source_type") @db.VarChar(20)
+                        // 'overpayment'|'credit_note'|'adjustment'
+  sourceId     String?  @map("source_id") @db.Uuid
+  description  String?  @db.Text
+  usedAmount   Decimal  @default(0) @map("used_amount") @db.Decimal(15, 2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  company      Company  @relation(fields: [companyId], references: [id])
+  tenant       Tenant   @relation("CreditTenant", fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("tenant_credits")
 }
