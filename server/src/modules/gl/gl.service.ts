@@ -180,14 +180,75 @@ class GlService {
   }
 
   async closeFiscalPeriod(id: string, userId: string) {
-    // Check no draft journals remain
     const period = await prisma.fiscalPeriod.findUniqueOrThrow({ where: { id } });
+    if (period.status === 'closed') throw new Error('Period is already closed');
+
+    // 1. Check no draft journals remain
     const draftCount = await prisma.journalEntry.count({
       where: { fiscalPeriodId: id, status: 'draft' },
     });
     if (draftCount > 0) {
       throw new Error(`Cannot close period: ${draftCount} draft journal entries remain`);
     }
+
+    // 2. Create auto-closing entries (Income/Expense → Retained Earnings)
+    //    Debit all income accounts, credit all expense accounts, net to Retained Earnings
+    const periodLines = await prisma.journalEntryLine.findMany({
+      where: {
+        journalEntry: { fiscalPeriodId: id, status: 'posted', companyId: period.companyId },
+      },
+      include: { account: { select: { id: true, code: true, name: true, accountType: true, normalBalance: true } } },
+    });
+
+    // Aggregate net balance per account for income/expense only
+    const accountBalances: Record<string, { accountId: string; code: string; name: string; type: string; net: number }> = {};
+    for (const line of periodLines) {
+      const a = line.account;
+      if (a.accountType !== 'income' && a.accountType !== 'expense') continue;
+      if (!accountBalances[a.id]) {
+        accountBalances[a.id] = { accountId: a.id, code: a.code, name: a.name, type: a.accountType, net: 0 };
+      }
+      accountBalances[a.id].net += Number(line.credit) - Number(line.debit);
+    }
+
+    const entries = Object.values(accountBalances).filter(b => Math.abs(b.net) > 0.01);
+    const netIncome = entries.reduce((s, b) => s + b.net, 0);
+
+    if (Math.abs(netIncome) > 0.01 && entries.length > 0) {
+      // Post closing journal: zero out income/expense → retained earnings
+      const closingLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [];
+
+      for (const b of entries) {
+        if (b.type === 'income') {
+          // Income accounts have credit normal balance → debit to close
+          closingLines.push({ accountCode: b.code, debit: Math.abs(b.net), credit: 0, description: `Close ${b.name}` });
+        } else {
+          // Expense accounts have debit normal balance → credit to close
+          closingLines.push({ accountCode: b.code, debit: 0, credit: Math.abs(b.net), description: `Close ${b.name}` });
+        }
+      }
+
+      // Net to Retained Earnings (3200)
+      if (netIncome > 0) {
+        closingLines.push({ accountCode: '3200', debit: 0, credit: netIncome, description: `Net income → Retained Earnings` });
+      } else {
+        closingLines.push({ accountCode: '3200', debit: Math.abs(netIncome), credit: 0, description: `Net loss → Retained Earnings` });
+      }
+
+      await this.postAutoJournal({
+        companyId: period.companyId,
+        entryDate: period.endDate,
+        entryType: 'adjustment',
+        description: `Period closing — ${period.name}`,
+        referenceType: 'fiscal_period_close',
+        referenceId: period.id,
+        lines: closingLines,
+      });
+
+      logger.info(`Fiscal period ${period.name}: closing entries posted, net income = ${netIncome}`);
+    }
+
+    // 3. Close the period
     return prisma.fiscalPeriod.update({
       where: { id },
       data: { status: 'closed', closedAt: new Date(), closedBy: userId },
@@ -581,6 +642,127 @@ class GlService {
       totalLiabilitiesAndEquity: totalLiabilities + totalEquity,
       isBalanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01,
       asOfDate: params.asOfDate,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async getCashFlow(companyId: string, params: { fromDate: string; toDate: string; propertyId?: string }) {
+    // Cash flow using indirect method
+    // 1. Net income from P&L
+    const pnl = await this.getProfitAndLoss(companyId, params);
+
+    // 2. Get all posted journal entries in the period
+    const where: any = {
+      companyId,
+      status: 'posted',
+      entryDate: { gte: new Date(params.fromDate), lte: new Date(params.toDate) },
+    };
+
+    const journals = await prisma.journalEntry.findMany({
+      where,
+      include: {
+        lines: {
+          include: { account: { select: { code: true, name: true, accountType: true, accountSubtype: true } } },
+        },
+      },
+    });
+
+    // Categorize cash movements by entry type
+    const cashAccountCodes = ['1200', '1210'];  // Cash & Bank accounts
+
+    // Operating activities: AR receipts, AR invoices (non-cash AR changes)
+    let operatingCashIn = 0;
+    let operatingCashOut = 0;
+    const operatingItems: Array<{ description: string; amount: number }> = [];
+
+    // Investing activities: fixed asset purchases, disposals
+    let investingCashIn = 0;
+    let investingCashOut = 0;
+    const investingItems: Array<{ description: string; amount: number }> = [];
+
+    // Financing: equity contributions, loan proceeds
+    let financingCashIn = 0;
+    let financingCashOut = 0;
+    const financingItems: Array<{ description: string; amount: number }> = [];
+
+    for (const je of journals) {
+      // Find cash lines in this journal (debit to cash = inflow, credit to cash = outflow)
+      const cashLines = je.lines.filter(l => cashAccountCodes.includes(l.account.code));
+      if (cashLines.length === 0) continue;
+
+      const cashInflow = cashLines.reduce((s, l) => s + Number(l.debit), 0);
+      const cashOutflow = cashLines.reduce((s, l) => s + Number(l.credit), 0);
+      const netCash = cashInflow - cashOutflow;
+
+      const item = { description: je.description, amount: netCash };
+
+      switch (je.entryType) {
+        case 'ar_receipt':
+        case 'ar_invoice':
+        case 'ap_payment':
+        case 'ap_invoice':
+        case 'manual':
+        case 'adjustment':
+          if (netCash > 0) operatingCashIn += netCash;
+          else operatingCashOut += Math.abs(netCash);
+          operatingItems.push(item);
+          break;
+        case 'depreciation':
+          // Depreciation is non-cash, skip
+          break;
+        case 'bank_recon':
+          if (netCash > 0) operatingCashIn += netCash;
+          else operatingCashOut += Math.abs(netCash);
+          operatingItems.push(item);
+          break;
+        default:
+          // Check if related to fixed assets (investing) or equity (financing)
+          const hasFixedAssetLines = je.lines.some(l => l.account.accountSubtype === 'fixed_asset');
+          const hasEquityLines = je.lines.some(l => l.account.accountType === 'equity');
+
+          if (hasFixedAssetLines) {
+            if (netCash > 0) investingCashIn += netCash;
+            else investingCashOut += Math.abs(netCash);
+            investingItems.push(item);
+          } else if (hasEquityLines) {
+            if (netCash > 0) financingCashIn += netCash;
+            else financingCashOut += Math.abs(netCash);
+            financingItems.push(item);
+          } else {
+            if (netCash > 0) operatingCashIn += netCash;
+            else operatingCashOut += Math.abs(netCash);
+            operatingItems.push(item);
+          }
+      }
+    }
+
+    const netOperating = operatingCashIn - operatingCashOut;
+    const netInvesting = investingCashIn - investingCashOut;
+    const netFinancing = financingCashIn - financingCashOut;
+    const netCashChange = netOperating + netInvesting + netFinancing;
+
+    return {
+      period: params,
+      netIncome: pnl.netProfit,
+      operating: {
+        items: operatingItems,
+        cashIn: operatingCashIn,
+        cashOut: operatingCashOut,
+        net: netOperating,
+      },
+      investing: {
+        items: investingItems,
+        cashIn: investingCashIn,
+        cashOut: investingCashOut,
+        net: netInvesting,
+      },
+      financing: {
+        items: financingItems,
+        cashIn: financingCashIn,
+        cashOut: financingCashOut,
+        net: netFinancing,
+      },
+      netCashChange,
       generatedAt: new Date().toISOString(),
     };
   }

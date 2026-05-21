@@ -111,7 +111,15 @@ class BankingService {
     // Auto-match
     await this.autoMatchImport(importRecord.id, companyId);
 
-    logger.info(`Statement imported: ${data.lines.length} lines for bank account ${bankAccountId}`);
+    // Update bank account current balance
+    await prisma.bankAccount.update({
+      where: { id: bankAccountId },
+      data: {
+        currentBalance: { increment: totalCredits - totalDebits },
+      },
+    });
+
+    logger.info(`Statement imported: ${data.lines.length} lines for bank account ${bankAccountId}, balance updated (+${totalCredits} / -${totalDebits})`);
     return importRecord;
   }
 

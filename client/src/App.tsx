@@ -45,6 +45,7 @@ import FiscalPeriodsPage from './pages/admin/GLPage/FiscalPeriodsPage';
 import TrialBalancePage from './pages/admin/GLPage/TrialBalancePage';
 import ProfitAndLossPage from './pages/admin/GLPage/ProfitAndLossPage';
 import BalanceSheetPage from './pages/admin/GLPage/BalanceSheetPage';
+import CashFlowPage from './pages/admin/GLPage/CashFlowPage';
 import BudgetsPage from './pages/admin/AssetsPage/BudgetsPage';
 import AssetsListPage from './pages/admin/AssetsPage/AssetsListPage';
 import AssetDetailPage from './pages/admin/AssetsPage/AssetDetailPage';
@@ -153,6 +154,7 @@ function AppRoutes() {
           <Route path="/admin/gl/trial-balance" element={<TrialBalancePage />} />
           <Route path="/admin/gl/pnl" element={<ProfitAndLossPage />} />
           <Route path="/admin/gl/balance-sheet" element={<BalanceSheetPage />} />
+          <Route path="/admin/gl/cash-flow" element={<CashFlowPage />} />
           <Route path="/admin/budgets" element={<BudgetsPage />} />
           <Route path="/admin/assets" element={<AssetsListPage />} />
           <Route path="/admin/assets/:id" element={<AssetDetailPage />} />

@@ -56,10 +56,25 @@ interface BalanceSheet {
   asOfDate: string; generatedAt: string;
 }
 
+interface CashFlowSection {
+  items: Array<{ description: string; amount: number }>;
+  cashIn: number; cashOut: number; net: number;
+}
+
+interface CashFlow {
+  period: { fromDate: string; toDate: string };
+  netIncome: number;
+  operating: CashFlowSection;
+  investing: CashFlowSection;
+  financing: CashFlowSection;
+  netCashChange: number;
+  generatedAt: string;
+}
+
 export const glApi = createApi({
   reducerPath: 'glApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['GlAccounts', 'FiscalPeriods', 'JournalEntries', 'TrialBalance', 'PnL', 'BalanceSheet'],
+  tagTypes: ['GlAccounts', 'FiscalPeriods', 'JournalEntries', 'TrialBalance', 'PnL', 'BalanceSheet', 'CashFlow'],
   endpoints: (b) => ({
     // ── Chart of Accounts ──────────
     getGlAccounts: b.query<GlAccount[], { accountType?: string; tree?: boolean }>({
@@ -142,6 +157,11 @@ export const glApi = createApi({
       transformResponse: (r: any) => r.data,
       providesTags: ['BalanceSheet'],
     }),
+    getCashFlow: b.query<CashFlow, { fromDate?: string; toDate?: string; propertyId?: string }>({
+      query: (params) => ({ url: '/gl/reports/cash-flow', params: params as any }),
+      transformResponse: (r: any) => r.data,
+      providesTags: ['CashFlow'],
+    }),
   }),
 });
 
@@ -151,7 +171,7 @@ export const {
   useCloseFiscalPeriodMutation, useReopenFiscalPeriodMutation,
   useGetJournalEntriesQuery, useGetJournalEntryQuery,
   useCreateJournalEntryMutation, usePostJournalEntryMutation, useReverseJournalEntryMutation,
-  useGetTrialBalanceQuery, useGetPnLQuery, useGetBalanceSheetQuery,
+  useGetTrialBalanceQuery, useGetPnLQuery, useGetBalanceSheetQuery, useGetCashFlowQuery,
 } = glApi;
 
-export type { GlAccount, FiscalPeriod, JournalEntry, JournalEntryLine, TrialBalanceRow, TrialBalance, PnL, BalanceSheet };
+export type { GlAccount, FiscalPeriod, JournalEntry, JournalEntryLine, TrialBalanceRow, TrialBalance, PnL, BalanceSheet, CashFlow };

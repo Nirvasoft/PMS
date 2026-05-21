@@ -227,6 +227,10 @@ export default function DashboardLayout() {
               <Landmark size={18} />
               <span>Balance Sheet</span>
             </NavLink>
+            <NavLink to="/admin/gl/cash-flow" className="nav-item">
+              <Banknote size={18} />
+              <span>Cash Flow</span>
+            </NavLink>
             <NavLink to="/admin/budgets" className="nav-item">
               <Wallet size={18} />
               <span>Budgets</span>

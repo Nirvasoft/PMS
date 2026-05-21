@@ -128,3 +128,12 @@ glRouter.get('/reports/balance-sheet', asyncHandler(async (req, res) => {
   });
   res.json({ success: true, data });
 }));
+
+glRouter.get('/reports/cash-flow', asyncHandler(async (req, res) => {
+  const data = await glService.getCashFlow(req.user!.companyId, {
+    fromDate: q(req, 'fromDate') || new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
+    toDate: q(req, 'toDate') || new Date().toISOString().split('T')[0],
+    propertyId: q(req, 'propertyId') || undefined,
+  });
+  res.json({ success: true, data });
+}));
