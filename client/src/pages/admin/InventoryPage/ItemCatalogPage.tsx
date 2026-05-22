@@ -77,29 +77,35 @@ export default function ItemCatalogPage() {
       {/* Stats Row */}
       {stats && (
         <div className="maint-stats-row">
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}><Package size={18} /></div>
-            <div><div className="stat-value">{stats.totalItems}</div><div className="stat-label">Items</div></div>
+          <div className="maint-stat-card blue">
+            <div className="msc-icon"><Package size={18} /></div>
+            <div className="msc-label">Items</div>
+            <div className="msc-value">{stats.totalItems}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308' }}><AlertTriangle size={18} /></div>
-            <div><div className="stat-value">{stats.lowStockCount}</div><div className="stat-label">Low Stock</div></div>
+          <div className="maint-stat-card" style={{ position: 'relative' }}>
+            <div className="msc-icon" style={{ background: 'rgba(234,179,8,0.14)', color: '#eab308' }}><AlertTriangle size={18} /></div>
+            <div className="msc-label">Low Stock</div>
+            <div className="msc-value" style={{ color: '#eab308' }}>{stats.lowStockCount}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}><TrendingDown size={18} /></div>
-            <div><div className="stat-value">{stats.outOfStockCount}</div><div className="stat-label">Out of Stock</div></div>
+          <div className="maint-stat-card red">
+            <div className="msc-icon"><TrendingDown size={18} /></div>
+            <div className="msc-label">Out of Stock</div>
+            <div className="msc-value">{stats.outOfStockCount}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}><DollarSign size={18} /></div>
-            <div><div className="stat-value">${stats.totalValue?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div><div className="stat-label">Total Value</div></div>
+          <div className="maint-stat-card green">
+            <div className="msc-icon"><DollarSign size={18} /></div>
+            <div className="msc-label">Total Value</div>
+            <div className="msc-value">${stats.totalValue?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(168,85,247,0.15)', color: '#a855f7' }}><Warehouse size={18} /></div>
-            <div><div className="stat-value">{stats.totalStores}</div><div className="stat-label">Stores</div></div>
+          <div className="maint-stat-card purple">
+            <div className="msc-icon"><Warehouse size={18} /></div>
+            <div className="msc-label">Stores</div>
+            <div className="msc-value">{stats.totalStores}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(14,165,233,0.15)', color: '#0ea5e9' }}><BarChart3 size={18} /></div>
-            <div><div className="stat-value">{stats.recentMovements}</div><div className="stat-label">Movements (7d)</div></div>
+          <div className="maint-stat-card" style={{ position: 'relative' }}>
+            <div className="msc-icon" style={{ background: 'rgba(14,165,233,0.14)', color: '#0ea5e9' }}><BarChart3 size={18} /></div>
+            <div className="msc-label">Movements (7d)</div>
+            <div className="msc-value" style={{ color: '#0ea5e9' }}>{stats.recentMovements}</div>
           </div>
         </div>
       )}
