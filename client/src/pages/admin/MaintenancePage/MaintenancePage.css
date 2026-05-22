@@ -130,6 +130,20 @@
 }
 .maint-filters .filter-select option { background: #1a1f2e; }
 
+/* Search box inside filter bar */
+.maint-filters .search-box {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+  flex: 1; min-width: 180px; max-width: 300px;
+}
+.maint-filters .search-box svg { color: var(--text-tertiary); flex-shrink: 0; }
+.maint-filters .search-box input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text-primary); font-size: 13px;
+}
+.maint-filters .search-box input::placeholder { color: var(--text-tertiary); }
+
 /* ── Filter Chips / Tab Buttons ──────────────── */
 .filter-chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -255,18 +269,25 @@
 .maint-pagination {
   padding: 14px 20px; border-top: 1px solid rgba(255,255,255,0.04);
   display: flex; justify-content: space-between; align-items: center;
+  margin-top: 16px;
 }
 .maint-pagination .page-info { font-size: 12px; color: var(--text-tertiary); }
 .maint-pagination .page-btns { display: flex; gap: 6px; }
-.maint-pagination .page-btns button {
-  display: flex; align-items: center; justify-content: center;
+.maint-pagination .page-btns button,
+.maint-pagination > button {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
   padding: 6px 14px; border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
   color: var(--text-primary); cursor: pointer; font-size: 12px; font-weight: 600;
   transition: all 0.15s;
 }
-.maint-pagination .page-btns button:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
-.maint-pagination .page-btns button:disabled { opacity: 0.3; cursor: default; }
+.maint-pagination .page-btns button:hover:not(:disabled),
+.maint-pagination > button:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+.maint-pagination .page-btns button:disabled,
+.maint-pagination > button:disabled { opacity: 0.3; cursor: default; }
+.maint-pagination > span {
+  font-size: 12px; color: var(--text-tertiary); font-weight: 500;
+}
 
 /* ── Kanban Board ────────────────────────────── */
 .kanban-board {
@@ -708,6 +729,9 @@
 [data-theme="light"] .maint-filters .search-wrap input,
 [data-theme="light"] .maint-filters .filter-select { background: white; border-color: rgba(0,0,0,0.12); color: #111; }
 [data-theme="light"] .maint-filters .filter-select option { background: white; }
+[data-theme="light"] .maint-filters .search-box { background: white; border-color: rgba(0,0,0,0.12); }
+[data-theme="light"] .maint-filters .search-box input { color: #111; }
+[data-theme="light"] .maint-filters .search-box input::placeholder { color: #9ca3af; }
 
 [data-theme="light"] .filter-chip {
   background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1);
@@ -756,7 +780,9 @@
 [data-theme="light"] .priority-option { border-color: rgba(0,0,0,0.1); background: rgba(0,0,0,0.02); }
 
 [data-theme="light"] .maint-pagination { border-top-color: rgba(0,0,0,0.06); }
-[data-theme="light"] .maint-pagination .page-btns button { border-color: rgba(0,0,0,0.1); background: white; }
+[data-theme="light"] .maint-pagination .page-btns button,
+[data-theme="light"] .maint-pagination > button { border-color: rgba(0,0,0,0.1); background: white; color: #374151; }
+[data-theme="light"] .maint-pagination > span { color: #6b7280; }
 
 [data-theme="light"] .sla-progress-bar { background: white; border-color: rgba(0,0,0,0.08); }
 [data-theme="light"] .sla-progress-track { background: rgba(0,0,0,0.06); }

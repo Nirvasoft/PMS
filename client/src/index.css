@@ -319,6 +319,34 @@ a:hover { color: var(--accent-hover); }
   color: var(--text-secondary);
 }
 
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: var(--text-muted);
+}
+.form-group select option {
+  background: #1a1f2e;
+}
+
 .input-with-icon {
   position: relative;
   display: flex;
@@ -452,6 +480,18 @@ input.input-full:focus {
   transform: translateY(-1px);
 }
 .btn-primary:active { transform: translateY(0); }
+
+.btn-success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  box-shadow: 0 2px 8px rgba(16,185,129,0.25);
+}
+.btn-success:hover {
+  box-shadow: 0 4px 16px rgba(16,185,129,0.35);
+  transform: translateY(-1px);
+}
+.btn-success:active { transform: translateY(0); }
 
 .btn-block { width: 100%; }
 
@@ -1388,7 +1428,8 @@ input.input-full:focus {
   animation: fadeIn 0.2s ease-out;
 }
 
-.modal-card {
+.modal-card,
+.modal-content {
   width: 90%;
   max-width: 480px;
   max-height: 90vh;
@@ -1398,6 +1439,24 @@ input.input-full:focus {
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
   animation: fadeInUp 0.3s ease-out;
+}
+
+.modal-content {
+  padding: 28px;
+}
+.modal-content h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+.modal-content h2 svg {
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 .modal-lg {
@@ -3179,10 +3238,11 @@ select.input-full:focus {
 
 /* Modals — shared */
 [data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.35); }
-[data-theme="light"] .modal-box {
-  background: var(--surface);
-  border-color: var(--border);
-  box-shadow: var(--shadow-lg);
+[data-theme="light"] .modal-box,
+[data-theme="light"] .modal-content {
+  background: white;
+  border-color: rgba(0,0,0,0.1);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
 }
 [data-theme="light"] .modal-header {
   border-bottom-color: rgba(0,0,0,0.07);
@@ -3422,7 +3482,10 @@ select.input-full:focus {
 [data-theme="light"] .modal-card select.input-full,
 [data-theme="light"] .modal-card .form-group input,
 [data-theme="light"] .modal-card .form-group select,
-[data-theme="light"] .modal-card .form-group textarea {
+[data-theme="light"] .modal-card .form-group textarea,
+[data-theme="light"] .modal-content .form-group input,
+[data-theme="light"] .modal-content .form-group select,
+[data-theme="light"] .modal-content .form-group textarea {
   background: #ffffff;
   border-color: #d1e6d9;
   color: var(--text-primary);
@@ -3430,17 +3493,28 @@ select.input-full:focus {
 [data-theme="light"] .modal-card input.input-full:focus,
 [data-theme="light"] .modal-card select.input-full:focus,
 [data-theme="light"] .modal-card .form-group input:focus,
-[data-theme="light"] .modal-card .form-group select:focus {
+[data-theme="light"] .modal-card .form-group select:focus,
+[data-theme="light"] .modal-content .form-group input:focus,
+[data-theme="light"] .modal-content .form-group select:focus,
+[data-theme="light"] .modal-content .form-group textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 [data-theme="light"] .modal-card select.input-full option,
-[data-theme="light"] .modal-card .form-group select option {
+[data-theme="light"] .modal-card .form-group select option,
+[data-theme="light"] .modal-content .form-group select option {
   background: #ffffff;
   color: var(--text-primary);
 }
-[data-theme="light"] .modal-card .form-group label {
+[data-theme="light"] .modal-card .form-group label,
+[data-theme="light"] .modal-content .form-group label {
   color: var(--text-secondary);
+}
+[data-theme="light"] .modal-content h2 {
+  color: #111;
+}
+[data-theme="light"] .modal-actions {
+  border-top-color: rgba(0,0,0,0.08);
 }
 
 /* ── Roles page cards ── */
