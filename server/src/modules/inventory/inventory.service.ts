@@ -153,12 +153,26 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
     const item = await prisma.inventoryItem.findFirstOrThrow({ where: { id: itemId } });
     const totalCost = quantity * Number(item.unitCost);
 
-    return prisma.$transaction(async (tx) => {
+    const movement = await prisma.$transaction(async (tx) => {
       const newOnHand = Number(stockLevel.qtyOnHand) - quantity;
       await tx.stockLevel.update({
         where: { id: stockLevel.id },
         data: { qtyOnHand: newOnHand, qtyAvailable: newOnHand - Number(stockLevel.qtyReserved) },
       });
+
+      // Gap 3: Update WO materialsCost and totalCost if issuing to a work order
+      if (workOrderId) {
+        const wo = await tx.workOrder.findUnique({ where: { id: workOrderId } });
+        if (wo) {
+          await tx.workOrder.update({
+            where: { id: workOrderId },
+            data: {
+              materialsCost: Number(wo.materialsCost) + totalCost,
+              totalCost: Number(wo.totalCost) + totalCost,
+            },
+          });
+        }
+      }
 
       return tx.stockMovement.create({
         data: {
@@ -171,6 +185,11 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
         },
       });
     });
+
+    // Gap 2: Check reorder threshold after issue
+    await checkAndCreateReorderRequest(itemId, storeId, companyId).catch(() => {});
+
+    return movement;
   }
 
   async function transferStock(companyId: string, userId: string, data: any) {
@@ -303,6 +322,117 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
     return { totalItems, totalStores, totalValue, lowStockCount, outOfStockCount, recentMovements };
   }
 
+  // ── Auto-reorder check (Gap 2) ──────────
+  async function checkAndCreateReorderRequest(itemId: string, storeId: string, companyId: string) {
+    const item = await prisma.inventoryItem.findFirstOrThrow({ where: { id: itemId } });
+    const stock = await prisma.stockLevel.findFirst({ where: { itemId, storeId } });
+    if (!stock) return;
+
+    if (Number(stock.qtyOnHand) <= Number(item.reorderPoint)) {
+      // Check no pending PR already exists for this item
+      const existingPrs = await prisma.purchaseRequisition.findMany({
+        where: { companyId, status: { notIn: ['rejected', 'ordered'] } },
+      });
+      const hasPendingPr = existingPrs.some((pr: any) => {
+        const items = (pr.items as any[]) || [];
+        return items.some((i: any) => i.itemId === itemId);
+      });
+
+      if (!hasPendingPr) {
+        const store = await prisma.store.findUnique({ where: { id: storeId } });
+        const year = new Date().getFullYear();
+        const lastPr = await prisma.purchaseRequisition.findFirst({
+          where: { companyId, prNumber: { startsWith: `PR-${year}` } },
+          orderBy: { prNumber: 'desc' },
+        });
+        const seq = lastPr ? parseInt(lastPr.prNumber.split('-')[2]) + 1 : 1;
+        const prNumber = `PR-${year}-${String(seq).padStart(5, '0')}`;
+
+        await prisma.purchaseRequisition.create({
+          data: {
+            companyId,
+            propertyId: store!.propertyId,
+            prNumber,
+            status: 'draft',
+            items: [{ itemId, itemName: item.name, qty: Number(item.reorderQty), unitCost: Number(item.unitCost) }],
+            totalAmount: Number(item.reorderQty) * Number(item.unitCost),
+            requestedById: '00000000-0000-0000-0000-000000000000', // system
+            notes: `Auto-generated: stock fell below reorder point (${stock.qtyOnHand} ≤ ${item.reorderPoint})`,
+          },
+        });
+
+        // Send notification (best-effort)
+        try {
+          const { notificationService } = await import('../notifications/services/notification.service');
+          const admins = await prisma.user.findMany({
+            where: { companyId, isActive: true, role: { in: ['admin', 'manager'] } },
+            select: { id: true },
+          });
+          if (admins.length > 0) {
+            await notificationService.send({
+              templateCode: 'stock_reorder_required',
+              companyId,
+              recipientIds: admins.map((a: any) => a.id),
+              channels: ['in_app'],
+              variables: { itemName: item.name, currentStock: Number(stock.qtyOnHand), reorderPoint: Number(item.reorderPoint) },
+              entityType: 'maintenance_ticket',
+              entityId: itemId,
+            });
+          }
+        } catch { /* notification optional */ }
+      }
+    }
+  }
+
+  // ── Purchase Requisitions (Gap 1) ──────
+  async function listPurchaseRequisitions(companyId: string, params: any) {
+    const { status, page = 1, limit = 20 } = params;
+    const where: any = { companyId };
+    if (status) where.status = status;
+
+    const [data, total] = await Promise.all([
+      prisma.purchaseRequisition.findMany({
+        where,
+        include: {
+          property: { select: { id: true, name: true } },
+          requestedBy: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
+          approvedBy: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.purchaseRequisition.count({ where }),
+    ]);
+
+    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async function submitPurchaseRequisition(companyId: string, id: string) {
+    const pr = await prisma.purchaseRequisition.findFirst({ where: { id, companyId } });
+    if (!pr) throw Object.assign(new Error('PR not found'), { status: 404 });
+    if (pr.status !== 'draft') throw Object.assign(new Error('Can only submit draft PRs'), { status: 400 });
+    return prisma.purchaseRequisition.update({ where: { id }, data: { status: 'submitted' } });
+  }
+
+  async function approvePurchaseRequisition(companyId: string, id: string, userId: string) {
+    const pr = await prisma.purchaseRequisition.findFirst({ where: { id, companyId } });
+    if (!pr) throw Object.assign(new Error('PR not found'), { status: 404 });
+    if (pr.status !== 'submitted') throw Object.assign(new Error('Can only approve submitted PRs'), { status: 400 });
+    return prisma.purchaseRequisition.update({
+      where: { id }, data: { status: 'approved', approvedById: userId },
+    });
+  }
+
+  async function rejectPurchaseRequisition(companyId: string, id: string, userId: string) {
+    const pr = await prisma.purchaseRequisition.findFirst({ where: { id, companyId } });
+    if (!pr) throw Object.assign(new Error('PR not found'), { status: 404 });
+    if (pr.status !== 'submitted') throw Object.assign(new Error('Can only reject submitted PRs'), { status: 400 });
+    return prisma.purchaseRequisition.update({
+      where: { id }, data: { status: 'rejected', approvedById: userId },
+    });
+  }
+
   return {
     listStores, createStore,
     listItems, getItemById, createItem, updateItem,
@@ -310,5 +440,6 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
     receiveStock, issueStock, transferStock, adjustStock,
     listMovements,
     getStats,
+    listPurchaseRequisitions, submitPurchaseRequisition, approvePurchaseRequisition, rejectPurchaseRequisition,
   };
 }

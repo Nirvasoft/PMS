@@ -66,6 +66,7 @@ import { facilityAssetsRouter, facilityCamRouter, facilityStatsRouter, facilityU
 import { startFacilityAlertJob } from './modules/facility/cron/facilityAlert.job';
 import { inventoryRoutes } from './modules/inventory/inventory.routes';
 import { housekeepingRoutes } from './modules/housekeeping/housekeeping.routes';
+import { startHousekeepingTaskCron } from './modules/housekeeping/cron/taskGenerator.job';
 import { securityRoutes } from './modules/security/security.routes';
 
 async function bootstrap() {
@@ -215,6 +216,7 @@ async function bootstrap() {
   app.use('/api/v1/inventory/stock-levels', requireFeature('maintenanceEnabled'), inv.stockRouter);
   app.use('/api/v1/inventory/movements', requireFeature('maintenanceEnabled'), inv.movementsRouter);
   app.use('/api/v1/inventory/stats', requireFeature('maintenanceEnabled'), inv.statsRouter);
+  app.use('/api/v1/inventory/purchase-requisitions', requireFeature('maintenanceEnabled'), inv.prRouter);
 
   // Module 4.5 — Housekeeping Management
   const hk = housekeepingRoutes(prisma);
@@ -232,6 +234,7 @@ async function bootstrap() {
   app.use('/api/v1/security/patrol/logs', requireFeature('maintenanceEnabled'), sec.patrolLogsRouter);
   app.use('/api/v1/security/patrol/scan', requireFeature('maintenanceEnabled'), sec.scanRouter);
   app.use('/api/v1/security/stats', requireFeature('maintenanceEnabled'), sec.statsRouter);
+  app.use('/api/v1/security/access-events', requireFeature('maintenanceEnabled'), sec.accessEventsRouter);
 
   // Error handler (must be last)
   app.use(errorHandler);
@@ -272,6 +275,7 @@ async function bootstrap() {
   try { startTicketLifecycleJobs(); } catch (e) { logger.warn('Ticket lifecycle crons skipped — tables not ready'); }
   try { startPmGeneratorJob(); } catch (e) { logger.warn('PM generator cron skipped — tables not ready'); }
   try { startFacilityAlertJob(); } catch (e) { logger.warn('Facility alert cron skipped — tables not ready'); }
+  try { startHousekeepingTaskCron(); } catch (e) { logger.warn('Housekeeping task cron skipped — tables not ready'); }
 
   // Start server
   httpServer.listen(config.port, () => {

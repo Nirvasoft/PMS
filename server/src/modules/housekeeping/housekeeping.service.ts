@@ -101,9 +101,50 @@ export function createHousekeepingService({ prisma }: { prisma: PrismaClient }) 
   }
 
   async function createInspection(companyId: string, userId: string, data: any) {
-    return prisma.housekeepingInspection.create({
+    const inspection = await prisma.housekeepingInspection.create({
       data: { ...data, companyId, inspectedById: userId, inspectionDate: new Date(data.inspectionDate) },
     });
+
+    // Gap 8: Auto-create maintenance ticket when action is required
+    if (data.actionRequired && Array.isArray(data.issuesFound) && data.issuesFound.length > 0) {
+      try {
+        const zone = data.zoneId
+          ? await prisma.housekeepingZone.findUnique({ where: { id: data.zoneId }, select: { name: true } })
+          : null;
+        const zoneName = zone?.name || 'Unknown zone';
+
+        // Generate ticket number
+        const year = new Date().getFullYear();
+        const lastTicket = await prisma.maintenanceTicket.findFirst({
+          where: { companyId, ticketNumber: { startsWith: `MNT-${year}` } },
+          orderBy: { ticketNumber: 'desc' },
+        });
+        const seq = lastTicket ? parseInt(lastTicket.ticketNumber.split('-')[2]) + 1 : 1;
+        const ticketNumber = `MNT-${year}-${String(seq).padStart(5, '0')}`;
+
+        const ticket = await prisma.maintenanceTicket.create({
+          data: {
+            companyId,
+            propertyId: data.propertyId,
+            ticketNumber,
+            title: `Housekeeping issue — ${zoneName}`,
+            description: `Issues found during inspection:\n${data.issuesFound.join('\n')}`,
+            source: 'inspection',
+            priority: 'medium',
+            status: 'open',
+            reportedById: userId,
+          },
+        });
+
+        // Link ticket to inspection
+        await prisma.housekeepingInspection.update({
+          where: { id: inspection.id },
+          data: { ticketId: ticket.id },
+        });
+      } catch { /* ticket creation is best-effort */ }
+    }
+
+    return inspection;
   }
 
   // ── Stats ─────────────────────────────

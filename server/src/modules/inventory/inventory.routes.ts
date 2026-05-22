@@ -116,5 +116,36 @@ export function inventoryRoutes(prisma: PrismaClient) {
     } catch (e) { next(e); }
   });
 
-  return { storesRouter, itemsRouter, stockRouter, movementsRouter, statsRouter };
+  // ── Purchase Requisitions ─────────
+  const prRouter = Router();
+  prRouter.get('/', async (req, res, next) => {
+    try {
+      const result = await svc.listPurchaseRequisitions(req.user!.companyId, {
+        status: req.query.status,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 20,
+      });
+      res.json({ success: true, ...result });
+    } catch (e) { next(e); }
+  });
+  prRouter.post('/:id/submit', async (req, res, next) => {
+    try {
+      const data = await svc.submitPurchaseRequisition(req.user!.companyId, req.params.id as string);
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  });
+  prRouter.post('/:id/approve', async (req, res, next) => {
+    try {
+      const data = await svc.approvePurchaseRequisition(req.user!.companyId, req.params.id as string, req.user!.sub);
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  });
+  prRouter.post('/:id/reject', async (req, res, next) => {
+    try {
+      const data = await svc.rejectPurchaseRequisition(req.user!.companyId, req.params.id as string, req.user!.sub);
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  });
+
+  return { storesRouter, itemsRouter, stockRouter, movementsRouter, statsRouter, prRouter };
 }

@@ -4,7 +4,7 @@ import { baseQueryWithReauth } from './baseQuery';
 export const securityApi = createApi({
   reducerPath: 'securityApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['SecurityIncidents', 'PatrolCheckpoints', 'PatrolLogs'],
+  tagTypes: ['SecurityIncidents', 'PatrolCheckpoints', 'PatrolLogs', 'AccessEvents'],
   endpoints: (builder) => ({
     getSecurityIncidents: builder.query<any, any>({
       query: (params) => ({ url: '/security/incidents', params }),
@@ -41,6 +41,11 @@ export const securityApi = createApi({
     getSecurityStats: builder.query<any, { propertyId?: string }>({
       query: (params) => ({ url: '/security/stats', params }),
     }),
+    // Gap 13: Access control events
+    getAccessEvents: builder.query<any, any>({
+      query: (params) => ({ url: '/security/access-events', params }),
+      providesTags: ['AccessEvents'],
+    }),
   }),
 });
 
@@ -51,4 +56,5 @@ export const {
   useGetPatrolCheckpointsQuery, useCreatePatrolCheckpointMutation,
   useGetPatrolLogsQuery,
   useGetSecurityStatsQuery,
+  useGetAccessEventsQuery,
 } = securityApi;

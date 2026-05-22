@@ -55,7 +55,7 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
 
   async function createIncident(companyId: string, userId: string, data: any) {
     const incidentNumber = await nextIncidentNumber(companyId);
-    return prisma.securityIncident.create({
+    const incident = await prisma.securityIncident.create({
       data: {
         ...data,
         companyId,
@@ -64,6 +64,34 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
         incidentAt: new Date(data.incidentAt),
       },
     });
+
+    // Gap 9: Notify security managers + property managers
+    try {
+      const { notificationService } = await import('../notifications/services/notification.service');
+      const managers = await prisma.user.findMany({
+        where: { companyId, isActive: true, role: { in: ['admin', 'manager', 'security'] } },
+        select: { id: true },
+      });
+      if (managers.length > 0) {
+        const channels = data.severity === 'critical'
+          ? ['email', 'push', 'in_app'] : ['push', 'in_app'];
+        await notificationService.send({
+          templateCode: 'security_incident_reported',
+          companyId,
+          recipientIds: managers.map((m: any) => m.id),
+          channels,
+          variables: {
+            incidentNumber, incidentType: data.incidentType,
+            severity: data.severity, location: data.locationDetail || '',
+            description: (data.description || '').substring(0, 100),
+          },
+          entityType: 'security_incident',
+          entityId: incident.id,
+        });
+      }
+    } catch { /* notification optional */ }
+
+    return incident;
   }
 
   async function updateIncident(companyId: string, id: string, data: any) {
@@ -140,7 +168,7 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
     const checkpoint = await prisma.patrolCheckpoint.findUnique({ where: { qrCode: data.qrCode } });
     if (!checkpoint) throw Object.assign(new Error('Invalid checkpoint QR code'), { status: 404 });
 
-    return prisma.patrolLog.create({
+    const log = await prisma.patrolLog.create({
       data: {
         companyId,
         propertyId: checkpoint.propertyId,
@@ -151,6 +179,42 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
         notes: data.notes,
       },
     });
+
+    // Gap 10: Check for patrol gap > 90 minutes
+    try {
+      const lastLog = await prisma.patrolLog.findFirst({
+        where: { propertyId: checkpoint.propertyId, guardId, id: { not: log.id } },
+        orderBy: { scannedAt: 'desc' },
+      });
+      if (lastLog) {
+        const gapMinutes = (Date.now() - new Date(lastLog.scannedAt).getTime()) / 60000;
+        if (gapMinutes > 90) {
+          const { notificationService } = await import('../notifications/services/notification.service');
+          const managers = await prisma.user.findMany({
+            where: { companyId, isActive: true, role: { in: ['admin', 'manager', 'security'] } },
+            select: { id: true },
+          });
+          if (managers.length > 0) {
+            const guard = await prisma.user.findUnique({
+              where: { id: guardId },
+              include: { profile: { select: { firstName: true, lastName: true } } },
+            });
+            const guardName = guard?.profile ? `${guard.profile.firstName} ${guard.profile.lastName}` : 'Guard';
+            await notificationService.send({
+              templateCode: 'patrol_gap_detected',
+              companyId,
+              recipientIds: managers.map((m: any) => m.id),
+              channels: ['push', 'in_app'],
+              variables: { guardName, gapMinutes: Math.round(gapMinutes), propertyId: checkpoint.propertyId },
+              entityType: 'patrol_log',
+              entityId: log.id,
+            });
+          }
+        }
+      }
+    } catch { /* gap detection optional */ }
+
+    return log;
   }
 
   // ── Stats ──────────────────────────────
@@ -181,7 +245,85 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
 
     const checkpoints = await prisma.patrolCheckpoint.count({ where: { ...where, isActive: true } });
 
-    return { incidentSummary, bySeverity, byType, checkpoints };
+    // Gap 12: Patrol compliance
+    const today = new Date();
+    const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const patrolLogsToday = await prisma.patrolLog.count({
+      where: { ...where, scannedAt: { gte: dayStart } },
+    });
+    const activeSchedules = await prisma.patrolSchedule.count({ where: { ...where, isActive: true } });
+    // Estimate expected patrols: schedules × expected per day (assume ~6 for hourly)
+    const expectedPatrols = activeSchedules * 6;
+    const patrolCompliance = {
+      scheduled: expectedPatrols,
+      completed: patrolLogsToday,
+      missed: Math.max(0, expectedPatrols - patrolLogsToday),
+      complianceRate: expectedPatrols > 0 ? Math.round((patrolLogsToday / expectedPatrols) * 100 * 10) / 10 : 100,
+    };
+
+    // Gap 12: Access denied in last 24h
+    const accessDenied24h = await prisma.accessControlEvent.count({
+      where: { ...where, eventType: 'access_denied', eventAt: { gte: new Date(Date.now() - 86400000) } },
+    }).catch(() => 0);
+
+    return { incidentSummary, bySeverity, byType, checkpoints, patrolCompliance, accessDenied24h };
+  }
+
+  // ── Access Control Events (Gap 11) ──────
+  async function listAccessEvents(companyId: string, params: any) {
+    const { propertyId, eventType, page = 1, limit = 50 } = params;
+    const where: any = { companyId };
+    if (propertyId) where.propertyId = propertyId;
+    if (eventType) where.eventType = eventType;
+
+    const [data, total] = await Promise.all([
+      prisma.accessControlEvent.findMany({
+        where,
+        include: {
+          property: { select: { id: true, name: true } },
+          user: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
+        },
+        orderBy: { eventAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.accessControlEvent.count({ where }),
+    ]);
+
+    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async function handleAccessWebhook(companyId: string, data: any) {
+    const event = await prisma.accessControlEvent.create({
+      data: {
+        companyId,
+        propertyId: data.propertyId,
+        deviceId: data.deviceId,
+        deviceName: data.deviceName,
+        doorName: data.doorName,
+        cardNumber: data.cardNumber,
+        userId: data.userId || null,
+        tenantId: data.tenantId || null,
+        eventType: data.eventType,
+        eventAt: new Date(data.eventAt),
+        denialReason: data.denialReason,
+      },
+    });
+
+    // Auto-create security incident on door_forced
+    if (data.eventType === 'door_forced') {
+      await createIncident(companyId, '00000000-0000-0000-0000-000000000000', {
+        propertyId: data.propertyId,
+        incidentType: 'trespassing',
+        severity: 'high',
+        title: `Door forced open — ${data.doorName || 'Unknown'}`,
+        description: `Access control detected forced door opening at ${data.doorName || 'Unknown'}. Device: ${data.deviceId}`,
+        locationDetail: data.doorName,
+        incidentAt: data.eventAt,
+      });
+    }
+
+    return event;
   }
 
   return {
@@ -190,5 +332,6 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
     listPatrolSchedules, createPatrolSchedule,
     listPatrolLogs, scanCheckpoint,
     getStats,
+    listAccessEvents, handleAccessWebhook,
   };
 }

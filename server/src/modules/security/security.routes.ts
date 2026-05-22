@@ -95,5 +95,24 @@ export function securityRoutes(prisma: PrismaClient) {
     try { res.json({ success: true, data: await svc.getStats(req.user!.companyId, req.query) }); } catch (e) { next(e); }
   });
 
-  return { incidentsRouter, checkpointsRouter, patrolSchedulesRouter, patrolLogsRouter, scanRouter, statsRouter };
+  // ── Access Control Events ─────────────
+  const accessEventsRouter = Router();
+  accessEventsRouter.get('/', async (req, res, next) => {
+    try {
+      const result = await svc.listAccessEvents(req.user!.companyId, {
+        propertyId: req.query.propertyId, eventType: req.query.eventType,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 50,
+      });
+      res.json({ success: true, ...result });
+    } catch (e) { next(e); }
+  });
+  accessEventsRouter.post('/webhook', async (req, res, next) => {
+    try {
+      const data = await svc.handleAccessWebhook(req.user!.companyId, req.body);
+      res.status(201).json({ success: true, data });
+    } catch (e) { next(e); }
+  });
+
+  return { incidentsRouter, checkpointsRouter, patrolSchedulesRouter, patrolLogsRouter, scanRouter, statsRouter, accessEventsRouter };
 }
