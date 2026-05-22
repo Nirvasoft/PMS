@@ -55,10 +55,11 @@ import { bankingRouter } from './modules/banking/banking.routes';
 import {
   maintenanceTicketsRouter, maintenanceWorkOrdersRouter,
   maintenanceTechniciansRouter, maintenanceCategoriesRouter,
-  maintenanceStatsRouter, maintenanceSlaConfigsRouter,
+  maintenanceStatsRouter, maintenanceSlaConfigsRouter, maintenanceSlaReportRouter,
 } from './modules/maintenance/maintenance.routes';
 import { categoriesService as maintenanceCategoriesService } from './modules/maintenance/categories.service';
 import { startSlaMonitorJob } from './modules/maintenance/cron/slaMonitor.job';
+import { startTicketLifecycleJobs } from './modules/maintenance/cron/ticketLifecycle.job';
 import { pmSchedulesRouter, pmWorkOrdersRouter, pmUpcomingRouter } from './modules/preventive-maintenance/pm.routes';
 import { startPmGeneratorJob } from './modules/preventive-maintenance/cron/pmGenerator.job';
 import { facilityAssetsRouter, facilityCamRouter, facilityStatsRouter } from './modules/facility/facility.routes';
@@ -193,6 +194,7 @@ async function bootstrap() {
   app.use('/api/v1/maintenance/categories', requireFeature('maintenanceEnabled'), maintenanceCategoriesRouter);
   app.use('/api/v1/maintenance/stats', requireFeature('maintenanceEnabled'), maintenanceStatsRouter);
   app.use('/api/v1/maintenance/sla-configs', requireFeature('maintenanceEnabled'), maintenanceSlaConfigsRouter);
+  app.use('/api/v1/maintenance/sla-report', requireFeature('maintenanceEnabled'), maintenanceSlaReportRouter);
 
   // Module 4.2 — Preventive Maintenance
   app.use('/api/v1/pm/schedules', requireFeature('maintenanceEnabled'), pmSchedulesRouter);
@@ -265,6 +267,7 @@ async function bootstrap() {
 
   // Start maintenance cron jobs
   try { startSlaMonitorJob(); } catch (e) { logger.warn('Maintenance SLA monitor skipped — tables not ready'); }
+  try { startTicketLifecycleJobs(); } catch (e) { logger.warn('Ticket lifecycle crons skipped — tables not ready'); }
   try { startPmGeneratorJob(); } catch (e) { logger.warn('PM generator cron skipped — tables not ready'); }
 
   // Start server

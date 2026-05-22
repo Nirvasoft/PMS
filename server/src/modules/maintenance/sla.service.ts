@@ -10,6 +10,69 @@ const DEFAULT_SLA: Record<string, { responseHours: number; resolutionHours: numb
   P4: { responseHours: 24, resolutionHours: 168 },
 };
 
+/** Working-day config (Mon-Fri, 8:00-18:00) */
+const WORK_START_HOUR = 8;
+const WORK_END_HOUR = 18;
+const WORK_HOURS_PER_DAY = WORK_END_HOUR - WORK_START_HOUR; // 10
+
+/**
+ * Add hours to a date, respecting working hours if requested.
+ * Working hours = Mon-Fri 8:00-18:00 (10h/day).
+ * If workingHoursOnly is false, just does simple calendar addition.
+ */
+export function addSlaHours(from: Date, hours: number, workingHoursOnly: boolean): Date {
+  if (!workingHoursOnly) {
+    return new Date(from.getTime() + hours * 3600000);
+  }
+
+  let remaining = hours * 60; // work in minutes for precision
+  const result = new Date(from);
+
+  // If starting outside working hours, advance to next working start
+  advanceToWorkingTime(result);
+
+  while (remaining > 0) {
+    const dow = result.getDay(); // 0=Sun, 6=Sat
+
+    // Skip weekends
+    if (dow === 0) { result.setDate(result.getDate() + 1); result.setHours(WORK_START_HOUR, 0, 0, 0); continue; }
+    if (dow === 6) { result.setDate(result.getDate() + 2); result.setHours(WORK_START_HOUR, 0, 0, 0); continue; }
+
+    // Calculate minutes left in today's working period
+    const minuteOfDay = result.getHours() * 60 + result.getMinutes();
+    const endOfWorkMinute = WORK_END_HOUR * 60;
+    const availableToday = Math.max(0, endOfWorkMinute - minuteOfDay);
+
+    if (remaining <= availableToday) {
+      // Finish within today
+      result.setMinutes(result.getMinutes() + remaining);
+      remaining = 0;
+    } else {
+      // Consume the rest of today and move to next working day
+      remaining -= availableToday;
+      result.setDate(result.getDate() + 1);
+      result.setHours(WORK_START_HOUR, 0, 0, 0);
+    }
+  }
+
+  return result;
+}
+
+/** Advance a date to the next valid working time if currently outside */
+function advanceToWorkingTime(d: Date) {
+  const dow = d.getDay();
+  // Weekend → next Monday 8am
+  if (dow === 0) { d.setDate(d.getDate() + 1); d.setHours(WORK_START_HOUR, 0, 0, 0); return; }
+  if (dow === 6) { d.setDate(d.getDate() + 2); d.setHours(WORK_START_HOUR, 0, 0, 0); return; }
+  // Before working hours → same day 8am
+  if (d.getHours() < WORK_START_HOUR) { d.setHours(WORK_START_HOUR, 0, 0, 0); return; }
+  // After working hours → next weekday 8am
+  if (d.getHours() >= WORK_END_HOUR) {
+    d.setDate(d.getDate() + (dow === 5 ? 3 : 1));
+    d.setHours(WORK_START_HOUR, 0, 0, 0);
+  }
+}
+
 export class SlaService {
   /**
    * Resolve the SLA config for a ticket using a fallback chain:

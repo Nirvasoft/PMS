@@ -939,3 +939,26 @@
 [data-theme="light"] .md-cat-bar-wrap { background: #f1f5f9; }
 [data-theme="light"] .md-status-item:hover { background: #f8fafc; }
 [data-theme="light"] .md-feed-item:hover { background: #f8fafc; }
+
+/* ══════════════════════════════════════════════
+   Activity Timeline
+   ══════════════════════════════════════════════ */
+.activity-timeline { display: flex; flex-direction: column; gap: 0; }
+.tl-item { display: flex; gap: 12px; min-height: 48px; }
+.tl-line-wrap {
+  display: flex; flex-direction: column; align-items: center; flex-shrink: 0;
+  width: 24px;
+}
+.tl-dot {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: white; z-index: 1;
+}
+.tl-line {
+  width: 2px; flex: 1; min-height: 12px;
+  background: var(--border-primary);
+}
+.tl-content { padding-bottom: 12px; min-width: 0; }
+.tl-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.tl-detail { font-size: 11px; color: var(--text-secondary); margin-top: 1px; }
+.tl-time { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; }

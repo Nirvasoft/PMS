@@ -29,6 +29,7 @@ export const maintenanceTechniciansRouter = Router();
 export const maintenanceCategoriesRouter = Router();
 export const maintenanceStatsRouter = Router();
 export const maintenanceSlaConfigsRouter = Router();
+export const maintenanceSlaReportRouter = Router();
 
 // ────────────────────────────────────────────────
 // TICKETS
@@ -274,6 +275,17 @@ maintenanceStatsRouter.get('/', asyncHandler(async (req, res) => {
     propertyId: req.query.propertyId as string,
     from: req.query.from as string,
     to: req.query.to as string,
+  });
+  res.json({ success: true, data });
+}));
+
+/** GET /maintenance/sla-report */
+maintenanceSlaReportRouter.get('/', asyncHandler(async (req, res) => {
+  const data = await ticketsService.getSlaReport(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+    from: req.query.from as string,
+    to: req.query.to as string,
+    groupBy: req.query.groupBy as any,
   });
   res.json({ success: true, data });
 }));

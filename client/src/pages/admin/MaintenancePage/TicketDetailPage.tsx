@@ -469,6 +469,12 @@ export default function TicketDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Activity Timeline */}
+          <div className="detail-card">
+            <h3><Clock size={16} /> Activity Timeline</h3>
+            <ActivityTimeline ticket={ticket} />
+          </div>
         </div>
       </div>
 
@@ -477,6 +483,152 @@ export default function TicketDetailPage() {
       {showEscalateModal && <EscalateModal ticketId={ticket.id} onClose={() => { setShowEscalateModal(false); refetch(); }} />}
       {showCancelModal && <CancelModal ticketId={ticket.id} onClose={() => { setShowCancelModal(false); refetch(); }} />}
       {showRateModal && <RateModal ticketId={ticket.id} onClose={() => { setShowRateModal(false); refetch(); }} />}
+    </div>
+  );
+}
+
+// ── Activity Timeline ───────────────────────
+
+interface TimelineEvent {
+  time: Date;
+  icon: React.ReactNode;
+  color: string;
+  title: string;
+  detail?: string;
+}
+
+function ActivityTimeline({ ticket }: { ticket: any }) {
+  const events: TimelineEvent[] = [];
+
+  // Created
+  events.push({
+    time: new Date(ticket.createdAt),
+    icon: <Wrench size={12} />,
+    color: '#3b82f6',
+    title: 'Ticket created',
+    detail: `${ticket.priority} — ${ticket.source}`,
+  });
+
+  // Assigned
+  if (ticket.assignedAt) {
+    const assignee = ticket.assignedTo?.profile
+      ? `${ticket.assignedTo.profile.firstName} ${ticket.assignedTo.profile.lastName}`
+      : ticket.assignedTo?.email || 'Unknown';
+    events.push({
+      time: new Date(ticket.assignedAt),
+      icon: <UserPlus size={12} />,
+      color: '#8b5cf6',
+      title: 'Assigned',
+      detail: `to ${assignee}`,
+    });
+  }
+
+  // First response
+  if (ticket.firstResponseAt) {
+    events.push({
+      time: new Date(ticket.firstResponseAt),
+      icon: <CheckCircle2 size={12} />,
+      color: '#22c55e',
+      title: 'First response',
+      detail: ticket.slaResponseMet === true ? 'SLA met ✓' : ticket.slaResponseMet === false ? 'SLA breached ✗' : undefined,
+    });
+  }
+
+  // Work order events
+  ticket.workOrders?.forEach((wo: any) => {
+    if (wo.actualStart) {
+      events.push({
+        time: new Date(wo.actualStart),
+        icon: <Play size={12} />,
+        color: '#f59e0b',
+        title: `WO ${wo.woNumber} started`,
+        detail: wo.assignedTo?.profile ? `${wo.assignedTo.profile.firstName} ${wo.assignedTo.profile.lastName}` : undefined,
+      });
+    }
+    if (wo.actualEnd) {
+      events.push({
+        time: new Date(wo.actualEnd),
+        icon: <CheckCircle2 size={12} />,
+        color: '#22c55e',
+        title: `WO ${wo.woNumber} completed`,
+        detail: wo.totalCost ? `Cost: $${Number(wo.totalCost).toLocaleString()}` : undefined,
+      });
+    }
+  });
+
+  // SLA breaches
+  ticket.slaBreachEvents?.forEach((b: any) => {
+    events.push({
+      time: new Date(b.breachedAt),
+      icon: <AlertTriangle size={12} />,
+      color: '#ef4444',
+      title: `${b.breachType === 'response' ? 'Response' : 'Resolution'} SLA breached`,
+    });
+  });
+
+  // Escalation
+  if (ticket.escalatedAt) {
+    const target = ticket.escalatedTo?.profile
+      ? `${ticket.escalatedTo.profile.firstName} ${ticket.escalatedTo.profile.lastName}`
+      : ticket.escalatedTo?.email;
+    events.push({
+      time: new Date(ticket.escalatedAt),
+      icon: <AlertTriangle size={12} />,
+      color: '#f97316',
+      title: `Escalated to level ${ticket.escalationLevel}`,
+      detail: target ? `→ ${target}` : undefined,
+    });
+  }
+
+  // Resolved
+  if (ticket.resolvedAt) {
+    events.push({
+      time: new Date(ticket.resolvedAt),
+      icon: <CheckCircle2 size={12} />,
+      color: '#22c55e',
+      title: 'Resolved',
+      detail: ticket.slaResolveMet === true ? 'SLA met ✓' : ticket.slaResolveMet === false ? 'SLA breached ✗' : undefined,
+    });
+  }
+
+  // Rated
+  if (ticket.ratedAt) {
+    events.push({
+      time: new Date(ticket.ratedAt),
+      icon: <Star size={12} />,
+      color: '#f59e0b',
+      title: `Rated ${ticket.rating}/5`,
+      detail: ticket.ratingComment && !ticket.ratingComment.startsWith('__') ? `"${ticket.ratingComment}"` : undefined,
+    });
+  }
+
+  // Sort chronologically
+  events.sort((a, b) => a.time.getTime() - b.time.getTime());
+
+  const formatTime = (d: Date) => {
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <div className="activity-timeline">
+      {events.map((ev, i) => (
+        <div key={i} className="tl-item">
+          <div className="tl-line-wrap">
+            <div className="tl-dot" style={{ backgroundColor: ev.color }}>{ev.icon}</div>
+            {i < events.length - 1 && <div className="tl-line" />}
+          </div>
+          <div className="tl-content">
+            <div className="tl-title">{ev.title}</div>
+            {ev.detail && <div className="tl-detail">{ev.detail}</div>}
+            <div className="tl-time">{formatTime(ev.time)}</div>
+          </div>
+        </div>
+      ))}
+      {events.length === 0 && <p className="empty-state-inline">No activity yet</p>}
     </div>
   );
 }

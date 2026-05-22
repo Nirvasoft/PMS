@@ -1,7 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
-import { slaService } from './sla.service';
+import { slaService, addSlaHours } from './sla.service';
 import { io } from '../../common/socket';
 import { notificationService } from '../notifications/services/notification.service';
 
@@ -177,11 +177,12 @@ export class TicketsService {
     );
 
     const now = new Date();
+    const workingOnly = slaConfig?.workingHoursOnly ?? false;
     const slaResponseDueAt = slaConfig
-      ? new Date(now.getTime() + slaConfig.responseHours * 3600000)
+      ? addSlaHours(now, slaConfig.responseHours, workingOnly)
       : null;
     const slaResolveDueAt = slaConfig
-      ? new Date(now.getTime() + slaConfig.resolutionHours * 3600000)
+      ? addSlaHours(now, slaConfig.resolutionHours, workingOnly)
       : null;
 
     const ticket = await prisma.maintenanceTicket.create({
@@ -392,13 +393,40 @@ export class TicketsService {
     });
     if (!ticket) throw AppError.notFound('Maintenance ticket');
 
-    const updated = await prisma.maintenanceTicket.update({
-      where: { id },
-      data: {
-        escalationLevel: { increment: 1 },
-        escalatedAt: new Date(),
-        escalatedToId: dto.escalateTo as string,
-      },
+    const escalateToId = dto.escalateTo as string | undefined;
+
+    // Transaction: update ticket + reassign open work orders to new escalation target
+    const [updated] = await prisma.$transaction(async (tx) => {
+      // 1. Update the ticket
+      const updatedTicket = await tx.maintenanceTicket.update({
+        where: { id },
+        data: {
+          escalationLevel: { increment: 1 },
+          escalatedAt: new Date(),
+          escalatedToId: escalateToId || null,
+          // Reassign the ticket itself if an escalation target is provided
+          ...(escalateToId ? { assignedToId: escalateToId, assignedAt: new Date() } : {}),
+        },
+      });
+
+      // 2. Reassign all non-completed work orders to the new escalation target
+      if (escalateToId) {
+        const reassigned = await tx.workOrder.updateMany({
+          where: {
+            ticketId: id,
+            status: { in: ['pending', 'accepted', 'in_progress', 'on_hold'] },
+          },
+          data: {
+            assignedToId: escalateToId,
+          },
+        });
+
+        if (reassigned.count > 0) {
+          logger.info(`Reassigned ${reassigned.count} work order(s) to ${escalateToId} on escalation`);
+        }
+      }
+
+      return [updatedTicket];
     });
 
     this.emitEvent('ticket:escalated', { ticketId: id, escalatedTo: dto.escalateTo });
@@ -406,11 +434,11 @@ export class TicketsService {
     logger.info(`Ticket ${ticket.ticketNumber} escalated to level ${updated.escalationLevel}`);
 
     // Notify the escalation target
-    if (dto.escalateTo) {
+    if (escalateToId) {
       notificationService.send({
         templateCode: 'ticket_escalated',
         companyId,
-        recipientIds: [dto.escalateTo as string],
+        recipientIds: [escalateToId],
         channels: ['in_app', 'email', 'push'],
         variables: {
           ticketNumber: ticket.ticketNumber,
@@ -586,6 +614,118 @@ export class TicketsService {
       byPriority,
       byCategory,
       totalCost: Number(costAgg._sum.actualCost || 0),
+    };
+  }
+
+  // ── SLA Report ─────────────────────────────
+
+  async getSlaReport(companyId: string, filters: {
+    propertyId?: string; from?: string; to?: string;
+    groupBy?: 'priority' | 'property' | 'category' | 'technician';
+  }) {
+    const where: any = { companyId, deletedAt: null };
+    if (filters.propertyId) where.propertyId = filters.propertyId;
+    if (filters.from || filters.to) {
+      where.createdAt = {};
+      if (filters.from) where.createdAt.gte = new Date(filters.from);
+      if (filters.to) where.createdAt.lte = new Date(filters.to);
+    }
+
+    // Get all tickets with SLA data
+    const tickets = await prisma.maintenanceTicket.findMany({
+      where,
+      select: {
+        id: true, priority: true,
+        slaResponseMet: true, slaResolveMet: true,
+        createdAt: true, resolvedAt: true,
+        assignedToId: true,
+        categoryId: true, propertyId: true,
+        property: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true } },
+        assignedTo: { select: { id: true, profile: { select: { firstName: true, lastName: true } } } },
+        slaBreachEvents: { select: { breachType: true } },
+      },
+    });
+
+    // Get breach counts
+    const breachWhere: any = { companyId };
+    if (filters.propertyId) breachWhere.ticket = { propertyId: filters.propertyId };
+
+    // Determine grouping key
+    type GroupKey = string;
+    const getGroupKey = (t: typeof tickets[0]): GroupKey => {
+      switch (filters.groupBy) {
+        case 'priority': return t.priority;
+        case 'property': return t.property?.name || 'Unknown';
+        case 'category': return t.category?.name || 'Unknown';
+        case 'technician': {
+          if (!t.assignedTo) return 'Unassigned';
+          return t.assignedTo.profile
+            ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}`
+            : t.assignedToId || 'Unknown';
+        }
+        default: return 'All';
+      }
+    };
+
+    // Group tickets
+    const groups = new Map<string, typeof tickets>();
+    for (const t of tickets) {
+      const key = getGroupKey(t);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(t);
+    }
+
+    // Calculate per-group stats
+    const report = Array.from(groups.entries()).map(([group, tix]) => {
+      const total = tix.length;
+      const respMet = tix.filter(t => t.slaResponseMet === true).length;
+      const respTotal = tix.filter(t => t.slaResponseMet !== null).length;
+      const resMet = tix.filter(t => t.slaResolveMet === true).length;
+      const resTotal = tix.filter(t => t.slaResolveMet !== null).length;
+      const breaches = tix.reduce((sum, t) => sum + t.slaBreachEvents.length, 0);
+
+      const resolved = tix.filter(t => t.resolvedAt);
+      const avgResHours = resolved.length > 0
+        ? Math.round(resolved.reduce((s, t) => s + (t.resolvedAt!.getTime() - t.createdAt.getTime()) / 3600000, 0) / resolved.length * 10) / 10
+        : null;
+
+      return {
+        group,
+        totalTickets: total,
+        slaResponse: {
+          met: respMet,
+          total: respTotal,
+          rate: respTotal > 0 ? Math.round((respMet / respTotal) * 1000) / 10 : 100,
+        },
+        slaResolution: {
+          met: resMet,
+          total: resTotal,
+          rate: resTotal > 0 ? Math.round((resMet / resTotal) * 1000) / 10 : 100,
+        },
+        breaches,
+        avgResolutionHours: avgResHours,
+      };
+    });
+
+    // Sort by worst resolution rate first
+    report.sort((a, b) => a.slaResolution.rate - b.slaResolution.rate);
+
+    // Overall summary
+    const overallRespMet = tickets.filter(t => t.slaResponseMet === true).length;
+    const overallRespTotal = tickets.filter(t => t.slaResponseMet !== null).length;
+    const overallResMet = tickets.filter(t => t.slaResolveMet === true).length;
+    const overallResTotal = tickets.filter(t => t.slaResolveMet !== null).length;
+
+    return {
+      groupBy: filters.groupBy || 'all',
+      totalTickets: tickets.length,
+      overall: {
+        responseRate: overallRespTotal > 0 ? Math.round((overallRespMet / overallRespTotal) * 1000) / 10 : 100,
+        resolutionRate: overallResTotal > 0 ? Math.round((overallResMet / overallResTotal) * 1000) / 10 : 100,
+        totalBreaches: tickets.reduce((s, t) => s + t.slaBreachEvents.length, 0),
+      },
+      groups: report,
     };
   }
 
