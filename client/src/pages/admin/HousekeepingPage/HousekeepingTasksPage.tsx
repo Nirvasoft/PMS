@@ -8,8 +8,9 @@ import {
 } from '../../../store/api/housekeepingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
-  Sparkles, Loader2, Plus, Search, Play, CheckCircle2,
-  Calendar, Users, MapPin, ClipboardList,
+  Sparkles, Loader2, Plus, Play, CheckCircle2,
+  Calendar, Users, MapPin, ClipboardList, XCircle,
+  Clock, Timer, TrendingUp, LayoutGrid,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -17,8 +18,16 @@ const ZONE_TYPES = ['corridor', 'lobby', 'car_park', 'amenity', 'office', 'restr
 const ZONE_ICONS: Record<string, string> = {
   corridor: '🚶', lobby: '🏛️', car_park: '🅿️', amenity: '🏊', office: '🏢', restroom: '🚻', other: '📍',
 };
-const STATUS_MAP: Record<string, string> = {
-  pending: 'open', in_progress: 'in_progress', completed: 'completed', missed: 'cancelled',
+const FREQ_BADGES: Record<string, { bg: string; color: string }> = {
+  daily: { bg: 'rgba(99,102,241,0.15)', color: '#818cf8' },
+  weekly: { bg: 'rgba(14,165,233,0.15)', color: '#38bdf8' },
+  monthly: { bg: 'rgba(168,85,247,0.15)', color: '#c084fc' },
+};
+const STATUS_THEME: Record<string, { bg: string; color: string; icon: any }> = {
+  pending: { bg: 'rgba(234,179,8,0.12)', color: '#eab308', icon: Clock },
+  in_progress: { bg: 'rgba(59,130,246,0.12)', color: '#3b82f6', icon: Play },
+  completed: { bg: 'rgba(16,185,129,0.12)', color: '#10b981', icon: CheckCircle2 },
+  missed: { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', icon: XCircle },
 };
 
 export default function HousekeepingTasksPage() {
@@ -81,41 +90,51 @@ export default function HousekeepingTasksPage() {
     } catch { toast.error('Failed'); }
   };
 
+  const completionPct = stats?.today?.completionRate ?? 0;
+  const completionColor = completionPct >= 80 ? '#10b981' : completionPct >= 50 ? '#eab308' : '#ef4444';
+
   return (
     <div className="maint-page">
-      {/* Stats */}
+      {/* ── Stats Row ── */}
       {stats?.today && (
         <div className="maint-stats-row">
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}><ClipboardList size={18} /></div>
-            <div><div className="stat-value">{stats.today.total}</div><div className="stat-label">Today's Tasks</div></div>
+          <div className="maint-stat-card blue">
+            <div className="msc-icon"><ClipboardList size={18} /></div>
+            <div className="msc-label">Today's Tasks</div>
+            <div className="msc-value">{stats.today.total}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}><CheckCircle2 size={18} /></div>
-            <div><div className="stat-value">{stats.today.completed}</div><div className="stat-label">Completed</div></div>
+          <div className="maint-stat-card green">
+            <div className="msc-icon"><CheckCircle2 size={18} /></div>
+            <div className="msc-label">Completed</div>
+            <div className="msc-value">{stats.today.completed}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308' }}><Play size={18} /></div>
-            <div><div className="stat-value">{stats.today.inProgress}</div><div className="stat-label">In Progress</div></div>
+          <div className="maint-stat-card" style={{ position: 'relative' }}>
+            <div className="msc-icon" style={{ background: 'rgba(234,179,8,0.14)', color: '#eab308' }}><Timer size={18} /></div>
+            <div className="msc-label">In Progress</div>
+            <div className="msc-value" style={{ color: '#eab308' }}>{stats.today.inProgress}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(168,85,247,0.15)', color: '#a855f7' }}><MapPin size={18} /></div>
-            <div><div className="stat-value">{stats.zones}</div><div className="stat-label">Zones</div></div>
+          <div className="maint-stat-card red">
+            <div className="msc-icon"><XCircle size={18} /></div>
+            <div className="msc-label">Missed</div>
+            <div className="msc-value">{stats.today.missed}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(14,165,233,0.15)', color: '#0ea5e9' }}><Calendar size={18} /></div>
-            <div><div className="stat-value">{stats.schedules}</div><div className="stat-label">Schedules</div></div>
+          <div className="maint-stat-card purple">
+            <div className="msc-icon"><LayoutGrid size={18} /></div>
+            <div className="msc-label">Zones / Schedules</div>
+            <div className="msc-value">{stats.zones}<span style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: '0 4px' }}>/</span>{stats.schedules}</div>
           </div>
-          <div className="maint-stat-card">
-            <div className="stat-icon" style={{ background: stats.today.completionRate >= 80 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: stats.today.completionRate >= 80 ? '#10b981' : '#ef4444' }}>
-              <Sparkles size={18} />
+          <div className="maint-stat-card" style={{ position: 'relative' }}>
+            <div className="msc-icon" style={{ background: `${completionColor}22`, color: completionColor }}><TrendingUp size={18} /></div>
+            <div className="msc-label">Completion Rate</div>
+            <div className="msc-value" style={{ color: completionColor }}>{completionPct}%</div>
+            <div style={{ height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.06)', marginTop: '4px' }}>
+              <div style={{ height: '100%', width: `${completionPct}%`, borderRadius: '2px', background: completionColor, transition: 'width 0.5s' }} />
             </div>
-            <div><div className="stat-value">{stats.today.completionRate}%</div><div className="stat-label">Completion</div></div>
           </div>
         </div>
       )}
 
-      {/* Header + Tabs */}
+      {/* ── Header ── */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Sparkles size={20} /></div>
@@ -127,121 +146,171 @@ export default function HousekeepingTasksPage() {
         </div>
       </div>
 
-      {/* Tab Bar */}
+      {/* ── Tab Bar ── */}
       <div className="maint-filters" style={{ gap: '4px' }}>
         {(['tasks', 'schedules', 'zones'] as const).map((t) => (
           <button key={t} className={`filter-chip ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
             {t === 'tasks' ? <ClipboardList size={12} /> : t === 'schedules' ? <Calendar size={12} /> : <MapPin size={12} />}
             {t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'tasks' && tasks.length > 0 && <span style={{ marginLeft: '4px', fontSize: '10px', opacity: 0.6 }}>({tasks.length})</span>}
+            {t === 'schedules' && schedules.length > 0 && <span style={{ marginLeft: '4px', fontSize: '10px', opacity: 0.6 }}>({schedules.length})</span>}
+            {t === 'zones' && zones.length > 0 && <span style={{ marginLeft: '4px', fontSize: '10px', opacity: 0.6 }}>({zones.length})</span>}
           </button>
         ))}
         {tab === 'tasks' && (
           <>
+            <div style={{ marginLeft: 'auto' }} />
             <input type="date" className="filter-select" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: '160px' }} />
             <select className="filter-select" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="missed">Missed</option>
+              <option value="pending">Pending</option><option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option><option value="missed">Missed</option>
             </select>
           </>
         )}
       </div>
 
-      {/* Tasks Tab */}
+      {/* ── Tasks Tab — Card layout ── */}
       {tab === 'tasks' && (
         tasksLoading ? <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div> :
-        tasks.length === 0 ? <div className="maint-empty"><Sparkles size={32} /><p>No tasks for this date</p></div> : (
-          <div className="maint-table-wrap">
-            <table className="maint-table">
-              <thead>
-                <tr><th>Time</th><th>Zone</th><th>Schedule</th><th>Assigned</th><th>Status</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {tasks.map((t: any) => {
-                  const assignee = t.assignedTo?.profile ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}` : '—';
-                  return (
-                    <tr key={t.id}>
-                      <td><span className="cell-mono">{t.scheduledTime || '—'}</span></td>
-                      <td>
-                        <span className="cell-primary">{ZONE_ICONS[t.zone?.zoneType] || '📍'} {t.zone?.name}</span>
-                        {t.zone?.floor && <span className="cell-secondary" style={{ display: 'block' }}>Floor {t.zone.floor}</span>}
-                      </td>
-                      <td>
-                        <span className="cell-secondary">{t.schedule?.name}</span>
-                        {t.schedule?.cleaningType && <span className={`maint-status open`} style={{ marginLeft: '6px' }}>{t.schedule.cleaningType}</span>}
-                      </td>
-                      <td><span className="cell-secondary"><Users size={12} style={{ marginRight: '4px' }} />{assignee}</span></td>
-                      <td><span className={`maint-status ${STATUS_MAP[t.status] || 'open'}`}>{t.status}</span></td>
-                      <td>
-                        {t.status === 'pending' && (
-                          <button className="btn btn-primary btn-sm" onClick={() => handleStartTask(t.id)}>
-                            <Play size={12} /> Start
-                          </button>
-                        )}
-                        {t.status === 'in_progress' && (
-                          <button className="btn btn-success btn-sm" onClick={() => handleCompleteTask(t.id)}>
-                            <CheckCircle2 size={12} /> Done
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        tasks.length === 0 ? <div className="maint-empty"><Sparkles size={32} /><p>No tasks for {date === today ? 'today' : date}</p></div> : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
+            {tasks.map((t: any) => {
+              const assignee = t.assignedTo?.profile ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}` : '—';
+              const theme = STATUS_THEME[t.status] || STATUS_THEME.pending;
+              const Icon = theme.icon;
+              return (
+                <div key={t.id} style={{
+                  background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
+                  borderRadius: '14px', padding: '18px', position: 'relative', overflow: 'hidden',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  {/* Top accent */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: theme.color, opacity: 0.6 }} />
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: theme.bg, color: theme.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>
+                        {ZONE_ICONS[t.zone?.zoneType] || '📍'}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{t.zone?.name || 'Unknown Zone'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                          {t.zone?.floor && `Floor ${t.zone.floor}`}
+                          {t.schedule?.cleaningType && <span style={{ marginLeft: t.zone?.floor ? '8px' : 0, padding: '1px 6px', borderRadius: '4px', background: 'rgba(99,102,241,0.1)', color: '#818cf8', fontSize: '10px', fontWeight: 600 }}>{t.schedule.cleaningType}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, background: theme.bg, color: theme.color, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                      <Icon size={11} /> {t.status.replace('_', ' ')}
+                    </span>
+                  </div>
+
+                  {/* Info row */}
+                  <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px', flexWrap: 'wrap' }}>
+                    {t.scheduledTime && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={11} style={{ opacity: 0.5 }} /> {t.scheduledTime}</span>}
+                    {t.schedule?.name && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={11} style={{ opacity: 0.5 }} /> {t.schedule.name}</span>}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Users size={11} style={{ opacity: 0.5 }} /> {assignee}</span>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {t.status === 'pending' && (
+                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => handleStartTask(t.id)}>
+                        <Play size={12} /> Start Task
+                      </button>
+                    )}
+                    {t.status === 'in_progress' && (
+                      <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => handleCompleteTask(t.id)}>
+                        <CheckCircle2 size={12} /> Mark Complete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )
       )}
 
-      {/* Schedules Tab */}
+      {/* ── Schedules Tab ── */}
       {tab === 'schedules' && (
         schedules.length === 0 ? <div className="maint-empty"><Calendar size={32} /><p>No schedules</p></div> : (
-          <div className="maint-table-wrap">
-            <table className="maint-table">
-              <thead><tr><th>Name</th><th>Zone</th><th>Frequency</th><th>Time</th><th>Type</th><th>Assigned</th><th>Status</th></tr></thead>
-              <tbody>
-                {schedules.map((s: any) => (
-                  <tr key={s.id}>
-                    <td><span className="cell-primary">{s.name}</span></td>
-                    <td><span className="cell-secondary">{s.zone?.name}</span></td>
-                    <td><span className="maint-status open">{s.frequencyType}</span></td>
-                    <td><span className="cell-mono">{s.scheduledTime || '—'}</span></td>
-                    <td>{s.cleaningType && <span className="maint-status in_progress">{s.cleaningType}</span>}</td>
-                    <td><span className="cell-secondary">{s.assignedTo?.profile ? `${s.assignedTo.profile.firstName} ${s.assignedTo.profile.lastName}` : '—'}</span></td>
-                    <td><span className={`maint-status ${s.status === 'active' ? 'completed' : 'closed'}`}>{s.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
+            {schedules.map((s: any) => {
+              const freq = FREQ_BADGES[s.frequencyType] || FREQ_BADGES.daily;
+              const assignee = s.assignedTo?.profile ? `${s.assignedTo.profile.firstName} ${s.assignedTo.profile.lastName}` : 'Unassigned';
+              return (
+                <div key={s.id} style={{
+                  background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
+                  borderRadius: '14px', padding: '18px', position: 'relative', overflow: 'hidden',
+                  transition: 'transform 0.2s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
+                >
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${freq.color}, transparent)`, opacity: 0.5 }} />
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{s.name}</div>
+                    <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 700, background: s.status === 'active' ? 'rgba(16,185,129,0.12)' : 'rgba(107,114,128,0.12)', color: s.status === 'active' ? '#10b981' : '#6b7280', textTransform: 'uppercase' }}>
+                      {s.status}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                    <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: freq.bg, color: freq.color }}>{s.frequencyType}</span>
+                    {s.cleaningType && <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>{s.cleaningType}</span>}
+                    {s.scheduledTime && <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>⏰ {s.scheduledTime}</span>}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={11} /> {s.zone?.name || '—'}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Users size={11} /> {assignee}</span>
+                    {s.durationMinutes && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Timer size={11} /> {s.durationMinutes} min</span>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )
       )}
 
-      {/* Zones Tab */}
+      {/* ── Zones Tab ── */}
       {tab === 'zones' && (
         zones.length === 0 ? <div className="maint-empty"><MapPin size={32} /><p>No zones</p></div> : (
-          <div className="maint-table-wrap">
-            <table className="maint-table">
-              <thead><tr><th>Zone</th><th>Type</th><th>Property</th><th>Floor</th><th>Area (sqm)</th></tr></thead>
-              <tbody>
-                {zones.map((z: any) => (
-                  <tr key={z.id}>
-                    <td><span className="cell-primary">{z.name}</span></td>
-                    <td><span className="maint-status open">{ZONE_ICONS[z.zoneType] || '📍'} {z.zoneType || '—'}</span></td>
-                    <td><span className="cell-secondary">{z.property?.name}</span></td>
-                    <td><span className="cell-mono">{z.floor || '—'}</span></td>
-                    <td><span className="cell-secondary">{z.areaSqm ? Number(z.areaSqm).toLocaleString() : '—'}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px' }}>
+            {zones.map((z: any) => (
+              <div key={z.id} style={{
+                background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
+                borderRadius: '14px', padding: '18px', display: 'flex', gap: '14px', alignItems: 'center',
+                transition: 'transform 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
+              >
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>
+                  {ZONE_ICONS[z.zoneType] || '📍'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{z.name}</div>
+                  <div style={{ display: 'flex', gap: '10px', fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+                    {z.zoneType && <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(168,85,247,0.1)', color: '#c084fc', fontWeight: 600 }}>{z.zoneType}</span>}
+                    {z.floor && <span>Floor {z.floor}</span>}
+                    {z.areaSqm && <span>{Number(z.areaSqm).toLocaleString()} sqm</span>}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>{z.property?.name}</div>
+                </div>
+              </div>
+            ))}
           </div>
         )
       )}
 
-      {/* Zone Modal */}
+      {/* ── Zone Modal ── */}
       {showZoneModal && (
         <div className="modal-overlay" onClick={() => setShowZoneModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
@@ -267,7 +336,7 @@ export default function HousekeepingTasksPage() {
         </div>
       )}
 
-      {/* Schedule Modal */}
+      {/* ── Schedule Modal ── */}
       {showScheduleModal && (
         <div className="modal-overlay" onClick={() => setShowScheduleModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
