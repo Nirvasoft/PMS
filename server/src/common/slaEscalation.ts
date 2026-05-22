@@ -30,18 +30,16 @@ export function startSlaEscalationJob() {
           const overdueTasksRaw = await prisma.$queryRaw<{
             id: string;
             assigned_to: string | null;
-            definition_id: string;
-            step_key: string;
-            data: unknown;
+            node_id: string;
           }[]>`
-            SELECT wt.id, wt.assigned_to, wt.definition_id, wt.step_key, wt.data
+            SELECT wt.id, wt.assigned_to, wt.node_id
             FROM workflow_tasks wt
             JOIN workflow_instances wi ON wi.id = wt.instance_id
             WHERE wi.company_id = ${company.id}::uuid
               AND wt.status IN ('pending', 'in_progress')
-              AND wt.sla_deadline IS NOT NULL
-              AND wt.sla_deadline < ${now}
-              AND wt.escalated_at IS NULL
+              AND wt.sla_due_at IS NOT NULL
+              AND wt.sla_due_at < ${now}
+              AND wt.sla_breached = false
             LIMIT 50
           `;
 
@@ -50,10 +48,10 @@ export function startSlaEscalationJob() {
           logger.info(`SLA escalation (${company.code}): processing ${overdueTasksRaw.length} overdue tasks`);
 
           for (const task of overdueTasksRaw) {
-            // Mark escalated
+            // Mark SLA breached
             await prisma.$executeRaw`
               UPDATE workflow_tasks
-              SET escalated_at = ${now}, updated_at = ${now}
+              SET sla_breached = true
               WHERE id = ${task.id}::uuid
             `;
 
@@ -80,7 +78,7 @@ export function startSlaEscalationJob() {
               });
             }
 
-            logger.warn(`SLA breach: task=${task.id} stepKey=${task.step_key} (${company.code})`);
+            logger.warn(`SLA breach: task=${task.id} nodeId=${task.node_id} (${company.code})`);
           }
         } catch (err: any) {
           logger.error(`SLA escalation error for company ${company.code}: ${err.message}`);

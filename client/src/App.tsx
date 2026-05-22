@@ -62,6 +62,23 @@ import PositionsPage from './pages/admin/PositionsPage/PositionsPage';
 import NotificationAdminPage from './pages/admin/NotificationAdminPage/NotificationAdminPage';
 import VerifyEmailPage from './pages/VerifyEmailPage/VerifyEmailPage';
 import DocumentsPage from './pages/DocumentsPage/DocumentsPage';
+import TicketListPage from './pages/admin/MaintenancePage/TicketListPage';
+import TicketDetailPage from './pages/admin/MaintenancePage/TicketDetailPage';
+import TechnicianSchedulePage from './pages/admin/MaintenancePage/TechnicianSchedulePage';
+import SlaConfigPage from './pages/admin/MaintenancePage/SlaConfigPage';
+import PmScheduleListPage from './pages/admin/MaintenancePage/PmScheduleListPage';
+import PmScheduleDetailPage from './pages/admin/MaintenancePage/PmScheduleDetailPage';
+import PmCalendarPage from './pages/admin/MaintenancePage/PmCalendarPage';
+import MaintenanceDashboard from './pages/admin/MaintenancePage/MaintenanceDashboard';
+import AssetRegistryPage from './pages/admin/FacilityPage/AssetRegistryPage';
+import FacilityAssetDetailPage from './pages/admin/FacilityPage/AssetDetailPage';
+import CamCostPage from './pages/admin/FacilityPage/CamCostPage';
+import ItemCatalogPage from './pages/admin/InventoryPage/ItemCatalogPage';
+import StockLevelsPage from './pages/admin/InventoryPage/StockLevelsPage';
+import MovementsPage from './pages/admin/InventoryPage/MovementsPage';
+import HousekeepingTasksPage from './pages/admin/HousekeepingPage/HousekeepingTasksPage';
+import SecurityIncidentsPage from './pages/admin/SecurityPage/SecurityIncidentsPage';
+import PatrolLogsPage from './pages/admin/SecurityPage/PatrolLogsPage';
 import { useEffect } from 'react';
 import { useRefreshTokensMutation } from './store/api/authApi';
 import { useAppDispatch } from './store';
@@ -160,6 +177,23 @@ function AppRoutes() {
           <Route path="/admin/assets/:id" element={<AssetDetailPage />} />
           <Route path="/admin/banking" element={<BankAccountsPage />} />
           <Route path="/admin/banking/reconcile/:bankAccountId" element={<ReconciliationPage />} />
+          <Route path="/admin/maintenance" element={<MaintenanceDashboard />} />
+          <Route path="/admin/maintenance/tickets" element={<TicketListPage />} />
+          <Route path="/admin/maintenance/tickets/:id" element={<TicketDetailPage />} />
+          <Route path="/admin/maintenance/technicians" element={<TechnicianSchedulePage />} />
+          <Route path="/admin/maintenance/sla-config" element={<SlaConfigPage />} />
+          <Route path="/admin/maintenance/pm" element={<PmScheduleListPage />} />
+          <Route path="/admin/maintenance/pm/calendar" element={<PmCalendarPage />} />
+          <Route path="/admin/maintenance/pm/:id" element={<PmScheduleDetailPage />} />
+          <Route path="/admin/facility/assets" element={<AssetRegistryPage />} />
+          <Route path="/admin/facility/assets/:id" element={<FacilityAssetDetailPage />} />
+          <Route path="/admin/facility/cam-costs" element={<CamCostPage />} />
+          <Route path="/admin/inventory/items" element={<ItemCatalogPage />} />
+          <Route path="/admin/inventory/stock" element={<StockLevelsPage />} />
+          <Route path="/admin/inventory/movements" element={<MovementsPage />} />
+          <Route path="/admin/housekeeping" element={<HousekeepingTasksPage />} />
+          <Route path="/admin/security/incidents" element={<SecurityIncidentsPage />} />
+          <Route path="/admin/security/patrol" element={<PatrolLogsPage />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
           <Route path="/admin/positions" element={<PositionsPage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />

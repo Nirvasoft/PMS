@@ -24,6 +24,12 @@ import { arApi } from './api/arApi';
 import { glApi } from './api/glApi';
 import { assetsApi } from './api/assetsApi';
 import { bankingApi } from './api/bankingApi';
+import { maintenanceApi } from './api/maintenanceApi';
+import { pmApi } from './api/pmApi';
+import { facilityApi } from './api/facilityApi';
+import { inventoryApi } from './api/inventoryApi';
+import { housekeepingApi } from './api/housekeepingApi';
+import { securityApi } from './api/securityApi';
 
 export const store = configureStore({
   reducer: {
@@ -50,6 +56,12 @@ export const store = configureStore({
     [glApi.reducerPath]: glApi.reducer,
     [assetsApi.reducerPath]: assetsApi.reducer,
     [bankingApi.reducerPath]: bankingApi.reducer,
+    [maintenanceApi.reducerPath]: maintenanceApi.reducer,
+    [pmApi.reducerPath]: pmApi.reducer,
+    [facilityApi.reducerPath]: facilityApi.reducer,
+    [inventoryApi.reducerPath]: inventoryApi.reducer,
+    [housekeepingApi.reducerPath]: housekeepingApi.reducer,
+    [securityApi.reducerPath]: securityApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -63,6 +75,12 @@ export const store = configureStore({
       glApi.middleware,
       assetsApi.middleware,
       bankingApi.middleware,
+      maintenanceApi.middleware,
+      pmApi.middleware,
+      facilityApi.middleware,
+      inventoryApi.middleware,
+      housekeepingApi.middleware,
+      securityApi.middleware,
     ),
 });
 

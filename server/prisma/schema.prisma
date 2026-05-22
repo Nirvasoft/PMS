@@ -128,6 +128,35 @@ model Company {
   bankAccounts          BankAccount[]
   bankStatementImports  BankStatementImport[]
 
+  // Relations — Maintenance (Module 4.1)
+  maintenanceCategories    MaintenanceCategory[]
+  maintenanceSlaConfigs    MaintenanceSlaConfig[]
+  maintenanceTickets       MaintenanceTicket[]
+  ticketPhotos             TicketPhoto[]
+  workOrders               WorkOrder[]
+  workOrderMaterials       WorkOrderMaterial[]
+  technicianProfiles       TechnicianProfile[]
+  slaBreachEvents          SlaBreachEvent[]
+  pmSchedules              PmSchedule[]
+  pmWorkOrders             PmWorkOrder[]
+  facilityAssets           FacilityAsset[]
+  camCostEntries           CamCostEntry[]
+  utilitySystems           UtilitySystem[]
+  stores                   Store[]
+  inventoryItems           InventoryItem[]
+  stockLevels              StockLevel[]
+  stockMovements           StockMovement[]
+  purchaseRequisitions     PurchaseRequisition[]
+  housekeepingZones        HousekeepingZone[]
+  cleaningSchedules        CleaningSchedule[]
+  cleaningTasks            CleaningTask[]
+  housekeepingInspections  HousekeepingInspection[]
+  securityIncidents        SecurityIncident[]
+  patrolCheckpoints        PatrolCheckpoint[]
+  patrolSchedules          PatrolSchedule[]
+  patrolLogs               PatrolLog[]
+  accessControlEvents      AccessControlEvent[]
+
   @@index([parentId])
   @@map("companies")
 }
@@ -247,6 +276,38 @@ model User {
   receiptsCreated            Receipt[]             @relation("ReceiptCreator")
   refundsApproved            RefundRequest[]       @relation("RefundApprover")
   refundsCreated             RefundRequest[]       @relation("RefundCreator")
+
+  // Relations — Maintenance (Module 4.1)
+  technicianProfile          TechnicianProfile?
+  ticketsReportedByUser      MaintenanceTicket[]   @relation("TicketReportedByUser")
+  ticketsAssignedTo          MaintenanceTicket[]   @relation("TicketAssignedTo")
+  ticketsEscalatedTo         MaintenanceTicket[]   @relation("TicketEscalatedTo")
+  ticketsResolvedBy          MaintenanceTicket[]   @relation("TicketResolvedBy")
+  workOrdersAssigned         WorkOrder[]           @relation("WoAssignedTo")
+  ticketPhotosUploaded       TicketPhoto[]         @relation("PhotoUploader")
+  slaEscalationContact       MaintenanceSlaConfig[] @relation("SlaEscalationContact")
+  slaBreachEscalatedTo       SlaBreachEvent[]      @relation("BreachEscalatedTo")
+  pmSchedulesAssigned        PmSchedule[]          @relation("PmAssignedTo")
+  pmSchedulesCreated         PmSchedule[]          @relation("PmCreatedBy")
+  pmWorkOrdersCompleted      PmWorkOrder[]         @relation("PmWoCompletedBy")
+  facilityAssetsResponsible  FacilityAsset[]        @relation("AssetResponsiblePerson")
+  camCostEntriesCreated      CamCostEntry[]         @relation("CamCostCreatedBy")
+
+  // Relations — Inventory (Module 4.4)
+  stockMovementsPerformed    StockMovement[]        @relation("MovementPerformedBy")
+  purchaseReqsCreated        PurchaseRequisition[]  @relation("PrRequestedBy")
+  purchaseReqsApproved       PurchaseRequisition[]  @relation("PrApprovedBy")
+
+  // Relations — Housekeeping (Module 4.5)
+  cleaningSchedulesAssigned  CleaningSchedule[]     @relation("CleaningAssignedTo")
+  cleaningTasksAssigned      CleaningTask[]         @relation("CleaningTaskAssigned")
+  inspectionsPerformed       HousekeepingInspection[] @relation("InspectedBy")
+
+  // Relations — Security (Module 4.6)
+  incidentsReported          SecurityIncident[]     @relation("IncidentReportedBy")
+  incidentsAssigned          SecurityIncident[]     @relation("IncidentAssignedTo")
+  patrolSchedulesAssigned    PatrolSchedule[]       @relation("PatrolAssignedTo")
+  patrolLogsGuard            PatrolLog[]            @relation("PatrolGuard")
 
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
@@ -736,6 +797,24 @@ model Property {
   // Relations — AR (Module 3.2)
   receipts         Receipt[]         @relation("ReceiptProperty")
 
+  // Relations — Maintenance (Module 4.1)
+  maintenanceTickets MaintenanceTicket[]
+  pmSchedules        PmSchedule[]
+  facilityAssets     FacilityAsset[]
+  camCostEntries     CamCostEntry[]
+  utilitySystems     UtilitySystem[]
+  stores             Store[]
+  purchaseRequisitions PurchaseRequisition[]
+  housekeepingZones  HousekeepingZone[]
+  cleaningSchedules  CleaningSchedule[]
+  cleaningTasks      CleaningTask[]
+  housekeepingInspections HousekeepingInspection[]
+  securityIncidents  SecurityIncident[]
+  patrolCheckpoints  PatrolCheckpoint[]
+  patrolSchedules    PatrolSchedule[]
+  patrolLogs         PatrolLog[]
+  accessControlEvents AccessControlEvent[]
+
   @@unique([code, companyId], name: "uq_property_code_company")
   @@index([companyId])
   @@index([status])
@@ -967,6 +1046,13 @@ model Unit {
   billingSchedules BillingSchedule[] @relation("ScheduleUnit")
   invoices         Invoice[]         @relation("InvoiceUnit")
 
+  // Relations — Maintenance (Module 4.1)
+  maintenanceTickets MaintenanceTicket[]
+
+  // Relations — Facility (Module 4.3)
+  facilityAssets       FacilityAsset[]
+  securityIncidents    SecurityIncident[]
+
   @@unique([unitNumber, propertyId], name: "uq_unit_number_property")
   @@index([propertyId])
   @@index([towerId])
@@ -1120,6 +1206,10 @@ model Tenant {
   receipts             Receipt[]         @relation("ReceiptTenant")
   refundRequests       RefundRequest[]   @relation("RefundTenant")
   tenantCredits        TenantCredit[]    @relation("CreditTenant")
+
+  // Relations — Maintenance (Module 4.1)
+  maintenanceTickets   MaintenanceTicket[] @relation("TicketReportedByTenant")
+  securityIncidents    SecurityIncident[]
 
   @@index([companyId])
   @@index([email])
@@ -2763,4 +2853,761 @@ model BankStatementLine {
   @@index([importId])
   @@index([matchStatus])
   @@map("bank_statement_lines")
+}
+
+// ─────────────────────────────────────────────
+// MAINTENANCE MANAGEMENT (Module 4.1)
+// ─────────────────────────────────────────────
+
+model MaintenanceCategory {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String?   @map("company_id") @db.Uuid    // NULL = system-seeded
+  name        String    @db.VarChar(150)
+  description String?   @db.Text
+  icon        String?   @db.VarChar(50)
+  parentId    String?   @map("parent_id") @db.Uuid
+  isActive    Boolean   @default(true) @map("is_active")
+  sortOrder   Int       @default(0) @map("sort_order") @db.SmallInt
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company?             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent      MaintenanceCategory? @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    MaintenanceCategory[] @relation("CategoryTree")
+  slaConfigs  MaintenanceSlaConfig[]
+  tickets     MaintenanceTicket[]
+  pmSchedules PmSchedule[]
+
+  @@index([companyId])
+  @@map("maintenance_categories")
+}
+
+model MaintenanceSlaConfig {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  propertyId          String?   @map("property_id") @db.Uuid
+  categoryId          String?   @map("category_id") @db.Uuid
+  priority            String    @db.VarChar(10)
+                                // 'P1'|'P2'|'P3'|'P4'
+  responseHours       Int       @map("response_hours") @db.SmallInt
+  resolutionHours     Int       @map("resolution_hours") @db.SmallInt
+  workingHoursOnly    Boolean   @default(false) @map("working_hours_only")
+  escalationContactId String?   @map("escalation_contact_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category            MaintenanceCategory? @relation(fields: [categoryId], references: [id])
+  escalationContact   User?                @relation("SlaEscalationContact", fields: [escalationContactId], references: [id])
+
+  @@index([companyId])
+  @@map("maintenance_sla_configs")
+}
+
+model MaintenanceTicket {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  propertyId          String    @map("property_id") @db.Uuid
+  unitId              String?   @map("unit_id") @db.Uuid
+  ticketNumber        String    @unique @map("ticket_number") @db.VarChar(30)
+  title               String    @db.VarChar(500)
+  description         String?   @db.Text
+  categoryId          String    @map("category_id") @db.Uuid
+  priority            String    @default("P3") @db.VarChar(10)
+  status              String    @default("open") @db.VarChar(30)
+                                // 'open'|'assigned'|'in_progress'|'pending_parts'
+                                // |'completed'|'closed'|'cancelled'|'reopened'
+  source              String    @default("staff") @db.VarChar(20)
+                                // 'tenant'|'staff'|'preventive'|'inspection'|'system'
+  reportedByTenantId  String?   @map("reported_by_tenant") @db.Uuid
+  reportedByUserId    String?   @map("reported_by_user") @db.Uuid
+  assignedToId        String?   @map("assigned_to") @db.Uuid
+  assignedAt          DateTime? @map("assigned_at") @db.Timestamptz
+  // SLA tracking
+  slaResponseDueAt    DateTime? @map("sla_response_due_at") @db.Timestamptz
+  slaResolveDueAt     DateTime? @map("sla_resolve_due_at") @db.Timestamptz
+  slaResponseMet      Boolean?  @map("sla_response_met")
+  slaResolveMet       Boolean?  @map("sla_resolve_met")
+  firstResponseAt     DateTime? @map("first_response_at") @db.Timestamptz
+  // Escalation
+  escalationLevel     Int       @default(0) @map("escalation_level") @db.SmallInt
+  escalatedAt         DateTime? @map("escalated_at") @db.Timestamptz
+  escalatedToId       String?   @map("escalated_to") @db.Uuid
+  // Resolution
+  resolutionNotes     String?   @map("resolution_notes") @db.Text
+  resolvedAt          DateTime? @map("resolved_at") @db.Timestamptz
+  resolvedById        String?   @map("resolved_by") @db.Uuid
+  // Tenant feedback
+  rating              Int?      @db.SmallInt
+  ratingComment       String?   @map("rating_comment") @db.Text
+  ratedAt             DateTime? @map("rated_at") @db.Timestamptz
+  // Costs
+  estimatedCost       Decimal?  @map("estimated_cost") @db.Decimal(12, 2)
+  actualCost          Decimal?  @map("actual_cost") @db.Decimal(12, 2)
+  // Metadata
+  locationDetail      String?   @map("location_detail") @db.VarChar(255)
+  isUrgent            Boolean   @default(false) @map("is_urgent")
+  requiresAccess      Boolean   @default(true) @map("requires_access")
+  accessGranted       Boolean?  @map("access_granted")
+  accessTime          DateTime? @map("access_time") @db.Timestamptz
+  workflowInstanceId  String?   @map("workflow_instance_id") @db.Uuid
+  glPosted            Boolean   @default(false) @map("gl_posted")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property            Property             @relation(fields: [propertyId], references: [id])
+  unit                Unit?                @relation(fields: [unitId], references: [id])
+  category            MaintenanceCategory  @relation(fields: [categoryId], references: [id])
+  reportedByTenant    Tenant?              @relation("TicketReportedByTenant", fields: [reportedByTenantId], references: [id])
+  reportedByUser      User?                @relation("TicketReportedByUser", fields: [reportedByUserId], references: [id])
+  assignedTo          User?                @relation("TicketAssignedTo", fields: [assignedToId], references: [id])
+  escalatedTo         User?                @relation("TicketEscalatedTo", fields: [escalatedToId], references: [id])
+  resolvedBy          User?                @relation("TicketResolvedBy", fields: [resolvedById], references: [id])
+  photos              TicketPhoto[]
+  workOrders          WorkOrder[]
+  slaBreachEvents     SlaBreachEvent[]
+  pmWorkOrders        PmWorkOrder[]
+  housekeepingInspections HousekeepingInspection[]
+
+  @@index([companyId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([slaResolveDueAt])
+  @@map("maintenance_tickets")
+}
+
+model TicketPhoto {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  ticketId    String    @map("ticket_id") @db.Uuid
+  workOrderId String?   @map("work_order_id") @db.Uuid
+  storageKey  String    @map("storage_key") @db.VarChar(1000)
+  url         String    @db.VarChar(500)
+  photoType   String    @default("before") @map("photo_type") @db.VarChar(10)
+                        // 'before'|'during'|'after'
+  caption     String?   @db.VarChar(255)
+  uploadedById String   @map("uploaded_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticket      MaintenanceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id])
+  uploadedBy  User      @relation("PhotoUploader", fields: [uploadedById], references: [id])
+
+  @@index([ticketId])
+  @@map("ticket_photos")
+}
+
+model WorkOrder {
+  id              String    @id @default(uuid()) @db.Uuid
+  ticketId        String    @map("ticket_id") @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  woNumber        String    @unique @map("wo_number") @db.VarChar(30)
+  title           String    @db.VarChar(500)
+  description     String?   @db.Text
+  assignedToId    String    @map("assigned_to") @db.Uuid
+  status          String    @default("pending") @db.VarChar(20)
+                            // 'pending'|'accepted'|'in_progress'|'on_hold'|'completed'|'cancelled'
+  scheduledStart  DateTime? @map("scheduled_start") @db.Timestamptz
+  scheduledEnd    DateTime? @map("scheduled_end") @db.Timestamptz
+  actualStart     DateTime? @map("actual_start") @db.Timestamptz
+  actualEnd       DateTime? @map("actual_end") @db.Timestamptz
+  estimatedHours  Decimal?  @map("estimated_hours") @db.Decimal(5, 2)
+  actualHours     Decimal?  @map("actual_hours") @db.Decimal(5, 2)
+  // Labor cost
+  laborRate       Decimal?  @map("labor_rate") @db.Decimal(10, 2)
+  laborCost       Decimal?  @map("labor_cost") @db.Decimal(12, 2)
+  // Materials cost
+  materialsCost   Decimal   @default(0) @map("materials_cost") @db.Decimal(12, 2)
+  totalCost       Decimal   @default(0) @map("total_cost") @db.Decimal(12, 2)
+  // Completion
+  completionNotes String?   @map("completion_notes") @db.Text
+  checklist       Json?     @default("[]") @db.JsonB
+  onHoldReason    String?   @map("on_hold_reason") @db.Text
+  cancelledReason String?   @map("cancelled_reason") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  ticket          MaintenanceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  company         Company           @relation(fields: [companyId], references: [id])
+  assignedTo      User              @relation("WoAssignedTo", fields: [assignedToId], references: [id])
+  photos          TicketPhoto[]
+  materials       WorkOrderMaterial[]
+  pmWorkOrders    PmWorkOrder[]
+
+  @@index([ticketId])
+  @@index([assignedToId])
+  @@index([scheduledStart])
+  @@map("work_orders")
+}
+
+model WorkOrderMaterial {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  workOrderId     String    @map("work_order_id") @db.Uuid
+  inventoryItemId String?   @map("inventory_item_id") @db.Uuid  // Phase 4.4
+  itemName        String    @map("item_name") @db.VarChar(255)
+  quantity        Decimal   @db.Decimal(10, 4)
+  unitCost        Decimal   @map("unit_cost") @db.Decimal(10, 4)
+  totalCost       Decimal   @map("total_cost") @db.Decimal(12, 2)
+  issuedFromStock Boolean   @default(true) @map("issued_from_stock")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workOrder       WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([workOrderId])
+  @@map("work_order_materials")
+}
+
+model TechnicianProfile {
+  userId           String    @id @map("user_id") @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  propertyId       String?   @map("property_id") @db.Uuid
+  skills           String[]  @default([])
+  certifications   String[]  @default([])
+  hourlyRate       Decimal?  @map("hourly_rate") @db.Decimal(10, 2)
+  isAvailable      Boolean   @default(true) @map("is_available")
+  workingHours     Json?     @default("{}") @map("working_hours") @db.JsonB
+  maxConcurrentJobs Int      @default(3) @map("max_concurrent_jobs") @db.SmallInt
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("technician_profiles")
+}
+
+model SlaBreachEvent {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  ticketId      String    @map("ticket_id") @db.Uuid
+  breachType    String    @map("breach_type") @db.VarChar(20)
+                          // 'response'|'resolution'
+  breachedAt    DateTime  @default(now()) @map("breached_at") @db.Timestamptz
+  escalatedToId String?   @map("escalated_to") @db.Uuid
+  notified      Boolean   @default(false)
+
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticket        MaintenanceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  escalatedTo   User?             @relation("BreachEscalatedTo", fields: [escalatedToId], references: [id])
+
+  @@index([ticketId])
+  @@map("sla_breach_events")
+}
+
+// ═══════════════════════════════════════════════
+// MODULE 4.2 — PREVENTIVE MAINTENANCE
+// ═══════════════════════════════════════════════
+
+model PmSchedule {
+  id                 String    @id @default(uuid()) @db.Uuid
+  companyId          String    @map("company_id") @db.Uuid
+  propertyId         String    @map("property_id") @db.Uuid
+  name               String    @db.VarChar(255)
+  description        String?   @db.Text
+  categoryId         String?   @map("category_id") @db.Uuid
+  frequencyType      String    @map("frequency_type") @db.VarChar(20)
+                     // 'daily'|'weekly'|'monthly'|'quarterly'|'semi_annual'|'annual'|'custom_days'
+  frequencyValue     Int       @default(1) @map("frequency_value") @db.SmallInt
+  customDays         Int?      @map("custom_days") @db.SmallInt
+  estimatedHours     Decimal   @default(1) @map("estimated_hours") @db.Decimal(5, 2)
+  assignedRole       String?   @map("assigned_role") @db.VarChar(100)
+  assignedToId       String?   @map("assigned_to") @db.Uuid
+  checklistTemplate  Json      @default("[]") @map("checklist_template") @db.JsonB
+  lastPerformedAt    DateTime? @map("last_performed_at") @db.Timestamptz
+  nextDueDate        DateTime  @map("next_due_date") @db.Date
+  advanceDays        Int       @default(7) @map("advance_days") @db.SmallInt
+  status             String    @default("active") @db.VarChar(20)
+                     // 'active'|'paused'|'archived'
+  priority           String    @default("P3") @db.VarChar(10)
+  notes              String?   @db.Text
+  createdById        String?   @map("created_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property           Property             @relation(fields: [propertyId], references: [id])
+  category           MaintenanceCategory? @relation(fields: [categoryId], references: [id])
+  assignedTo         User?                @relation("PmAssignedTo", fields: [assignedToId], references: [id])
+  createdBy          User?                @relation("PmCreatedBy", fields: [createdById], references: [id])
+  pmWorkOrders       PmWorkOrder[]
+
+  @@index([nextDueDate])
+  @@index([propertyId])
+  @@map("pm_schedules")
+}
+
+model PmWorkOrder {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  scheduleId        String    @map("schedule_id") @db.Uuid
+  ticketId          String?   @map("ticket_id") @db.Uuid
+  workOrderId       String?   @map("work_order_id") @db.Uuid
+  dueDate           DateTime  @map("due_date") @db.Date
+  status            String    @default("scheduled") @db.VarChar(20)
+                    // 'scheduled'|'in_progress'|'completed'|'skipped'|'overdue'
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz
+  completedById     String?   @map("completed_by") @db.Uuid
+  checklistResults  Json      @default("[]") @map("checklist_results") @db.JsonB
+  findings          String?   @db.Text
+  nextDueDate       DateTime? @map("next_due_date") @db.Date
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  schedule          PmSchedule         @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  ticket            MaintenanceTicket? @relation(fields: [ticketId], references: [id])
+  workOrder         WorkOrder?         @relation(fields: [workOrderId], references: [id])
+  completedBy       User?              @relation("PmWoCompletedBy", fields: [completedById], references: [id])
+
+  @@index([scheduleId, dueDate(sort: Desc)])
+  @@index([status])
+  @@map("pm_work_orders")
+}
+
+// ═══════════════════════════════════════════════
+// MODULE 4.3 — FACILITY MANAGEMENT
+// ═══════════════════════════════════════════════
+
+model FacilityAsset {
+  id                    String    @id @default(uuid()) @db.Uuid
+  companyId             String    @map("company_id") @db.Uuid
+  propertyId            String    @map("property_id") @db.Uuid
+  assetNumber           String    @map("asset_number") @db.VarChar(50)
+  name                  String    @db.VarChar(255)
+  assetType             String    @map("asset_type") @db.VarChar(50)
+                        // 'hvac'|'elevator'|'generator'|'fire_system'|'water_pump'|'cctv'|'access_control'|'lighting'|'other'
+  make                  String?   @db.VarChar(100)
+  model                 String?   @db.VarChar(100)
+  serialNumber          String?   @map("serial_number") @db.VarChar(100)
+  installationDate      DateTime? @map("installation_date") @db.Date
+  warrantyExpiry        DateTime? @map("warranty_expiry") @db.Date
+  expectedLifespanYears Int?      @map("expected_lifespan_years") @db.SmallInt
+  location              String?   @db.VarChar(255)
+  floor                 String?   @db.VarChar(20)
+  unitId                String?   @map("unit_id") @db.Uuid
+  status                String    @default("operational") @db.VarChar(20)
+                        // 'operational'|'under_maintenance'|'decommissioned'|'fault'
+  lastServicedAt        DateTime? @map("last_serviced_at") @db.Date
+  nextServiceDue        DateTime? @map("next_service_due") @db.Date
+  responsiblePersonId   String?   @map("responsible_person_id") @db.Uuid
+  vendorName            String?   @map("vendor_name") @db.VarChar(255)
+  vendorContact         String?   @map("vendor_contact") @db.VarChar(100)
+  serviceContractNo     String?   @map("service_contract_no") @db.VarChar(100)
+  serviceContractExpiry DateTime? @map("service_contract_expiry") @db.Date
+  purchaseCost          Decimal?  @map("purchase_cost") @db.Decimal(15, 2)
+  currentValue          Decimal?  @map("current_value") @db.Decimal(15, 2)
+  notes                 String?   @db.Text
+  photoUrl              String?   @map("photo_url") @db.VarChar(500)
+  qrCode                String?   @map("qr_code") @db.VarChar(255)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  company               Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property              Property  @relation(fields: [propertyId], references: [id])
+  unit                  Unit?     @relation(fields: [unitId], references: [id])
+  responsiblePerson     User?     @relation("AssetResponsiblePerson", fields: [responsiblePersonId], references: [id])
+
+  @@unique([assetNumber, propertyId], name: "uq_asset_number_property")
+  @@index([propertyId])
+  @@index([warrantyExpiry])
+  @@map("facility_assets")
+}
+
+model CamCostEntry {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  propertyId    String    @map("property_id") @db.Uuid
+  costCategory  String    @map("cost_category") @db.VarChar(100)
+                // 'cleaning'|'security'|'landscaping'|'utilities'|'insurance'|'management_fee'|'repairs'|'other'
+  description   String    @db.VarChar(500)
+  amount        Decimal   @db.Decimal(15, 2)
+  currency      String    @default("USD") @db.VarChar(3)
+  periodMonth   Int       @map("period_month") @db.SmallInt
+  periodYear    Int       @map("period_year") @db.SmallInt
+  sourceType    String?   @map("source_type") @db.VarChar(30)
+                // 'ap_invoice'|'work_order'|'manual'
+  sourceId      String?   @map("source_id") @db.Uuid
+  createdById   String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property      Property  @relation(fields: [propertyId], references: [id])
+  createdBy     User?     @relation("CamCostCreatedBy", fields: [createdById], references: [id])
+
+  @@index([propertyId, periodYear, periodMonth])
+  @@map("cam_cost_entries")
+}
+
+model UtilitySystem {
+  id             String    @id @default(uuid()) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  propertyId     String    @map("property_id") @db.Uuid
+  systemType     String    @map("system_type") @db.VarChar(30)
+                 // 'electricity'|'water'|'gas'|'chilled_water'
+  meterId        String?   @map("meter_id") @db.VarChar(100)
+  capacity       Decimal?  @db.Decimal(12, 3)
+  unitOfMeasure  String?   @map("unit_of_measure") @db.VarChar(20)
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property       Property  @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId])
+  @@map("utility_systems")
+}
+
+// ═══════════════════════════════════════════════
+// MODULE 4.4 — INVENTORY & STORE MANAGEMENT
+// ═══════════════════════════════════════════════
+
+model Store {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  propertyId  String    @map("property_id") @db.Uuid
+  name        String    @db.VarChar(150)
+  location    String?   @db.VarChar(255)
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property    Property  @relation(fields: [propertyId], references: [id])
+  stockLevels StockLevel[]
+  stockMovements StockMovement[]
+
+  @@index([propertyId])
+  @@map("stores")
+}
+
+model InventoryItem {
+  id             String    @id @default(uuid()) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  itemCode       String    @map("item_code") @db.VarChar(50)
+  name           String    @db.VarChar(255)
+  description    String?   @db.Text
+  category       String?   @db.VarChar(100)
+  unitOfMeasure  String    @map("unit_of_measure") @db.VarChar(20)
+  unitCost       Decimal   @default(0) @map("unit_cost") @db.Decimal(12, 4)
+  currency       String    @default("USD") @db.VarChar(3)
+  reorderPoint   Decimal   @default(0) @map("reorder_point") @db.Decimal(10, 3)
+  reorderQty     Decimal   @default(1) @map("reorder_qty") @db.Decimal(10, 3)
+  maxStock       Decimal?  @map("max_stock") @db.Decimal(10, 3)
+  isActive       Boolean   @default(true) @map("is_active")
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockLevels    StockLevel[]
+  stockMovements StockMovement[]
+
+  @@unique([itemCode, companyId], name: "uq_item_code_company")
+  @@map("inventory_items")
+}
+
+model StockLevel {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  itemId        String    @map("item_id") @db.Uuid
+  storeId       String    @map("store_id") @db.Uuid
+  qtyOnHand     Decimal   @default(0) @map("qty_on_hand") @db.Decimal(10, 3)
+  qtyReserved   Decimal   @default(0) @map("qty_reserved") @db.Decimal(10, 3)
+  qtyAvailable  Decimal   @default(0) @map("qty_available") @db.Decimal(10, 3)
+  lastCountedAt DateTime? @map("last_counted_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  item          InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  store         Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, storeId], name: "uq_item_store")
+  @@index([storeId])
+  @@map("stock_levels")
+}
+
+model StockMovement {
+  id             String    @id @default(uuid()) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  itemId         String    @map("item_id") @db.Uuid
+  storeId        String    @map("store_id") @db.Uuid
+  movementType   String    @map("movement_type") @db.VarChar(20)
+  quantity       Decimal   @db.Decimal(10, 3)
+  unitCost       Decimal?  @map("unit_cost") @db.Decimal(12, 4)
+  totalCost      Decimal?  @map("total_cost") @db.Decimal(12, 2)
+  referenceType  String?   @map("reference_type") @db.VarChar(30)
+  referenceId    String?   @map("reference_id") @db.Uuid
+  fromStoreId    String?   @map("from_store_id") @db.Uuid
+  toStoreId      String?   @map("to_store_id") @db.Uuid
+  notes          String?   @db.Text
+  performedById  String    @map("performed_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company        Company   @relation(fields: [companyId], references: [id])
+  item           InventoryItem @relation(fields: [itemId], references: [id])
+  store          Store     @relation(fields: [storeId], references: [id])
+  performedBy    User      @relation("MovementPerformedBy", fields: [performedById], references: [id])
+
+  @@index([itemId, createdAt(sort: Desc)])
+  @@index([referenceType, referenceId])
+  @@map("stock_movements")
+}
+
+model PurchaseRequisition {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  propertyId          String    @map("property_id") @db.Uuid
+  prNumber            String    @unique @map("pr_number") @db.VarChar(30)
+  status              String    @default("draft") @db.VarChar(20)
+  items               Json      @default("[]")
+  totalAmount         Decimal?  @map("total_amount") @db.Decimal(15, 2)
+  requestedById       String    @map("requested_by") @db.Uuid
+  approvedById        String?   @map("approved_by") @db.Uuid
+  workflowInstanceId  String?   @map("workflow_instance_id") @db.Uuid
+  notes               String?   @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  company             Company   @relation(fields: [companyId], references: [id])
+  property            Property  @relation(fields: [propertyId], references: [id])
+  requestedBy         User      @relation("PrRequestedBy", fields: [requestedById], references: [id])
+  approvedBy          User?     @relation("PrApprovedBy", fields: [approvedById], references: [id])
+
+  @@map("purchase_requisitions")
+}
+
+// ═══════════════════════════════════════════════
+// MODULE 4.5 — HOUSEKEEPING MANAGEMENT
+// ═══════════════════════════════════════════════
+
+model HousekeepingZone {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  propertyId  String    @map("property_id") @db.Uuid
+  name        String    @db.VarChar(150)
+  zoneType    String?   @map("zone_type") @db.VarChar(30)
+  floor       String?   @db.VarChar(20)
+  areaSqm     Decimal?  @map("area_sqm") @db.Decimal(10, 2)
+  notes       String?   @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  property    Property  @relation(fields: [propertyId], references: [id])
+  schedules   CleaningSchedule[]
+  tasks       CleaningTask[]
+  inspections HousekeepingInspection[]
+
+  @@index([propertyId])
+  @@map("housekeeping_zones")
+}
+
+model CleaningSchedule {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  zoneId          String    @map("zone_id") @db.Uuid
+  name            String    @db.VarChar(255)
+  frequencyType   String    @map("frequency_type") @db.VarChar(20)
+  daysOfWeek      Int[]     @map("days_of_week")
+  scheduledTime   String?   @map("scheduled_time") @db.VarChar(10)
+  durationMinutes Int?      @map("duration_minutes") @db.SmallInt
+  assignedToId    String?   @map("assigned_to") @db.Uuid
+  staffCount      Int       @default(1) @map("staff_count") @db.SmallInt
+  cleaningType    String?   @map("cleaning_type") @db.VarChar(30)
+  checklist       Json      @default("[]")
+  status          String    @default("active") @db.VarChar(20)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id])
+  property        Property  @relation(fields: [propertyId], references: [id])
+  zone            HousekeepingZone @relation(fields: [zoneId], references: [id])
+  assignedTo      User?     @relation("CleaningAssignedTo", fields: [assignedToId], references: [id])
+  tasks           CleaningTask[]
+
+  @@map("cleaning_schedules")
+}
+
+model CleaningTask {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  propertyId       String    @map("property_id") @db.Uuid
+  scheduleId       String    @map("schedule_id") @db.Uuid
+  zoneId           String    @map("zone_id") @db.Uuid
+  assignedToId     String?   @map("assigned_to") @db.Uuid
+  taskDate         DateTime  @map("task_date") @db.Date
+  scheduledTime    String?   @map("scheduled_time") @db.VarChar(10)
+  status           String    @default("pending") @db.VarChar(20)
+  startedAt        DateTime? @map("started_at") @db.Timestamptz
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz
+  checklistResults Json      @default("[]") @map("checklist_results")
+  qualityScore     Int?      @map("quality_score") @db.SmallInt
+  notes            String?   @db.Text
+  photos           Json      @default("[]")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company          Company   @relation(fields: [companyId], references: [id])
+  property         Property  @relation(fields: [propertyId], references: [id])
+  schedule         CleaningSchedule @relation(fields: [scheduleId], references: [id])
+  zone             HousekeepingZone @relation(fields: [zoneId], references: [id])
+  assignedTo       User?     @relation("CleaningTaskAssigned", fields: [assignedToId], references: [id])
+
+  @@index([taskDate, propertyId])
+  @@index([assignedToId, taskDate])
+  @@map("cleaning_tasks")
+}
+
+model HousekeepingInspection {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  zoneId          String?   @map("zone_id") @db.Uuid
+  inspectedById   String    @map("inspected_by") @db.Uuid
+  inspectionDate  DateTime  @map("inspection_date") @db.Date
+  overallScore    Int?      @map("overall_score") @db.SmallInt
+  checklist       Json      @default("[]")
+  issuesFound     String[]  @map("issues_found")
+  actionRequired  Boolean   @default(false) @map("action_required")
+  ticketId        String?   @map("ticket_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id])
+  property        Property  @relation(fields: [propertyId], references: [id])
+  zone            HousekeepingZone? @relation(fields: [zoneId], references: [id])
+  inspectedBy     User      @relation("InspectedBy", fields: [inspectedById], references: [id])
+  ticket          MaintenanceTicket? @relation(fields: [ticketId], references: [id])
+
+  @@map("housekeeping_inspections")
+}
+
+// ═══════════════════════════════════════════════
+// MODULE 4.6 — SECURITY MANAGEMENT
+// ═══════════════════════════════════════════════
+
+model SecurityIncident {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  propertyId       String    @map("property_id") @db.Uuid
+  incidentNumber   String    @unique @map("incident_number") @db.VarChar(30)
+  incidentType     String    @map("incident_type") @db.VarChar(50)
+  severity         String    @default("medium") @db.VarChar(10)
+  title            String    @db.VarChar(255)
+  description      String    @db.Text
+  locationDetail   String?   @map("location_detail") @db.VarChar(255)
+  unitId           String?   @map("unit_id") @db.Uuid
+  incidentAt       DateTime  @map("incident_at") @db.Timestamptz
+  reportedById     String    @map("reported_by") @db.Uuid
+  assignedToId     String?   @map("assigned_to") @db.Uuid
+  status           String    @default("open") @db.VarChar(20)
+  resolution       String?   @db.Text
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz
+  policeReportNo   String?   @map("police_report_no") @db.VarChar(100)
+  involvesTenant   Boolean   @default(false) @map("involves_tenant")
+  tenantId         String?   @map("tenant_id") @db.Uuid
+  followUpRequired Boolean   @default(false) @map("follow_up_required")
+  followUpNotes    String?   @map("follow_up_notes") @db.Text
+  photos           Json      @default("[]")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property         Property  @relation(fields: [propertyId], references: [id])
+  unit             Unit?     @relation(fields: [unitId], references: [id])
+  reportedBy       User      @relation("IncidentReportedBy", fields: [reportedById], references: [id])
+  assignedTo       User?     @relation("IncidentAssignedTo", fields: [assignedToId], references: [id])
+  tenant           Tenant?   @relation(fields: [tenantId], references: [id])
+
+  @@index([propertyId, incidentAt(sort: Desc)])
+  @@index([status])
+  @@map("security_incidents")
+}
+
+model PatrolCheckpoint {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  propertyId  String    @map("property_id") @db.Uuid
+  name        String    @db.VarChar(150)
+  location    String?   @db.VarChar(255)
+  qrCode      String    @unique @map("qr_code") @db.VarChar(255)
+  floor       String?   @db.VarChar(20)
+  isActive    Boolean   @default(true) @map("is_active")
+  sortOrder   Int       @default(0) @map("sort_order") @db.SmallInt
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  property    Property  @relation(fields: [propertyId], references: [id])
+  patrolLogs  PatrolLog[]
+
+  @@map("patrol_checkpoints")
+}
+
+model PatrolSchedule {
+  id             String    @id @default(uuid()) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  propertyId     String    @map("property_id") @db.Uuid
+  name           String    @db.VarChar(150)
+  checkpoints    String[]  @db.Uuid
+  frequencyType  String    @map("frequency_type") @db.VarChar(20)
+  customTimes    String[]  @map("custom_times")
+  assignedToId   String?   @map("assigned_to") @db.Uuid
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company        Company   @relation(fields: [companyId], references: [id])
+  property       Property  @relation(fields: [propertyId], references: [id])
+  assignedTo     User?     @relation("PatrolAssignedTo", fields: [assignedToId], references: [id])
+  patrolLogs     PatrolLog[]
+
+  @@map("patrol_schedules")
+}
+
+model PatrolLog {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  propertyId    String    @map("property_id") @db.Uuid
+  scheduleId    String?   @map("schedule_id") @db.Uuid
+  checkpointId  String    @map("checkpoint_id") @db.Uuid
+  guardId       String    @map("guard_id") @db.Uuid
+  scannedAt     DateTime  @default(now()) @map("scanned_at") @db.Timestamptz
+  expectedAt    DateTime? @map("expected_at") @db.Timestamptz
+  isOnTime      Boolean?  @map("is_on_time")
+  notes         String?   @db.Text
+  lat           Decimal?  @db.Decimal(9, 6)
+  lng           Decimal?  @db.Decimal(9, 6)
+
+  company       Company   @relation(fields: [companyId], references: [id])
+  property      Property  @relation(fields: [propertyId], references: [id])
+  schedule      PatrolSchedule? @relation(fields: [scheduleId], references: [id])
+  checkpoint    PatrolCheckpoint @relation(fields: [checkpointId], references: [id])
+  guard         User      @relation("PatrolGuard", fields: [guardId], references: [id])
+
+  @@index([propertyId, scannedAt(sort: Desc)])
+  @@index([guardId, scannedAt(sort: Desc)])
+  @@map("patrol_logs")
+}
+
+model AccessControlEvent {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  propertyId   String    @map("property_id") @db.Uuid
+  deviceId     String    @map("device_id") @db.VarChar(100)
+  deviceName   String?   @map("device_name") @db.VarChar(150)
+  doorName     String?   @map("door_name") @db.VarChar(150)
+  cardNumber   String?   @map("card_number") @db.VarChar(100)
+  userId       String?   @map("user_id") @db.Uuid
+  tenantId     String?   @map("tenant_id") @db.Uuid
+  eventType    String    @map("event_type") @db.VarChar(20)
+  eventAt      DateTime  @map("event_at") @db.Timestamptz
+  denialReason String?   @map("denial_reason") @db.VarChar(100)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company      Company   @relation(fields: [companyId], references: [id])
+  property     Property  @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId, eventAt(sort: Desc)])
+  @@map("access_control_events")
 }

@@ -177,6 +177,8 @@ export class NotificationService {
       lease: 'file-text',
       workflow: 'git-branch',
       maintenance: 'tool',
+      maintenance_ticket: 'wrench',
+      work_order: 'clipboard-list',
       invoice: 'dollar-sign',
       user: 'user',
     };
@@ -192,6 +194,8 @@ export class NotificationService {
       user: `/admin/users/${entityId}`,
       property: `/admin/properties`,
       invoice: `/admin/billing/invoices/${entityId}`,
+      maintenance_ticket: `/admin/maintenance/tickets/${entityId}`,
+      work_order: '/admin/maintenance/tickets',
     };
     return map[entityType] || null;
   }

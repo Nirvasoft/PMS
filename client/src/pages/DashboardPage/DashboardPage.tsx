@@ -10,6 +10,7 @@ import {
   Users2, ClipboardList, Target, Megaphone, Car, Link2, Ticket, Activity, Receipt, CalendarClock,
   Banknote, BarChart3, Clock, RotateCcw,
   BookOpen, Calculator, Scale, PieChart, Landmark, Wallet, Box,
+  Wrench, Calendar, Package, Layers, Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -254,6 +255,92 @@ export default function DashboardLayout() {
               <NavLink to="/admin/workflows" className="nav-item">
                 <Workflow size={18} />
                 <span>Workflow Engine</span>
+              </NavLink>
+            </NavSection>
+          </FeatureGate>
+
+          {/* Maintenance Section */}
+          <FeatureGate flag="maintenanceEnabled">
+            <NavSection label="Maintenance" storageKey="maintenance">
+              <NavLink to="/admin/maintenance" className="nav-item" end>
+                <BarChart3 size={18} />
+                <span>Dashboard</span>
+              </NavLink>
+              <NavLink to="/admin/maintenance/tickets" className="nav-item">
+                <Wrench size={18} />
+                <span>Tickets</span>
+              </NavLink>
+              <NavLink to="/admin/maintenance/technicians" className="nav-item">
+                <Calendar size={18} />
+                <span>Technician Schedule</span>
+              </NavLink>
+              <NavLink to="/admin/maintenance/sla-config" className="nav-item">
+                <Shield size={18} />
+                <span>SLA Configuration</span>
+              </NavLink>
+              <NavLink to="/admin/maintenance/pm" className="nav-item">
+                <CalendarClock size={18} />
+                <span>PM Schedules</span>
+              </NavLink>
+              <NavLink to="/admin/maintenance/pm/calendar" className="nav-item">
+                <Calendar size={18} />
+                <span>PM Calendar</span>
+              </NavLink>
+            </NavSection>
+          </FeatureGate>
+
+          {/* Facility Management Section */}
+          <FeatureGate flag="maintenanceEnabled">
+            <NavSection label="Facility" storageKey="facility">
+              <NavLink to="/admin/facility/assets" className="nav-item">
+                <Box size={18} />
+                <span>Asset Registry</span>
+              </NavLink>
+              <NavLink to="/admin/facility/cam-costs" className="nav-item">
+                <Receipt size={18} />
+                <span>CAM Costs</span>
+              </NavLink>
+            </NavSection>
+          </FeatureGate>
+
+          {/* Inventory Section */}
+          <FeatureGate flag="maintenanceEnabled">
+            <NavSection label="Inventory" storageKey="inventory">
+              <NavLink to="/admin/inventory/items" className="nav-item">
+                <Package size={18} />
+                <span>Item Catalog</span>
+              </NavLink>
+              <NavLink to="/admin/inventory/stock" className="nav-item">
+                <Layers size={18} />
+                <span>Stock Levels</span>
+              </NavLink>
+              <NavLink to="/admin/inventory/movements" className="nav-item">
+                <Activity size={18} />
+                <span>Movements</span>
+              </NavLink>
+            </NavSection>
+          </FeatureGate>
+
+          {/* Housekeeping Section */}
+          <FeatureGate flag="maintenanceEnabled">
+            <NavSection label="Housekeeping" storageKey="housekeeping">
+              <NavLink to="/admin/housekeeping" className="nav-item">
+                <Sparkles size={18} />
+                <span>Tasks & Schedules</span>
+              </NavLink>
+            </NavSection>
+          </FeatureGate>
+
+          {/* Security Section */}
+          <FeatureGate flag="maintenanceEnabled">
+            <NavSection label="Security" storageKey="security">
+              <NavLink to="/admin/security/incidents" className="nav-item">
+                <Shield size={18} />
+                <span>Incidents</span>
+              </NavLink>
+              <NavLink to="/admin/security/patrol" className="nav-item">
+                <MapPin size={18} />
+                <span>Patrol Mgmt</span>
               </NavLink>
             </NavSection>
           </FeatureGate>

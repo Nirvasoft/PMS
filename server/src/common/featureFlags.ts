@@ -11,7 +11,8 @@ type FeatureFlagKey =
   | 'workflowEnabled'
   | 'documentVaultEnabled'
   | 'notificationsAdminEnabled'
-  | 'leasingEnabled';
+  | 'leasingEnabled'
+  | 'maintenanceEnabled';
 
 // Simple in-memory cache to avoid hitting the DB on every request
 const flagCache = new Map<string, { settings: Record<string, unknown>; expiresAt: number }>();

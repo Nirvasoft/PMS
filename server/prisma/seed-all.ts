@@ -359,7 +359,7 @@ async function main() {
       addressLine1: '500 Lexington Avenue', city: 'New York', state: 'NY', postalCode: '10017', country: 'US',
       totalFloors: 8, totalUnits: 800, yearBuilt: 2022,
       description: 'Flagship luxury shopping destination spanning 8 floors with over 800 retail units, food court, cinema, and rooftop entertainment. Features anchor tenants, boutique galleries, and a grand atrium with a glass ceiling.',
-      coverImageUrl: 'https://images.unsplash.com/photo-1567449303078-57ad995bd329?w=800&h=500&fit=crop',
+      coverImageUrl: 'https://images.unsplash.com/photo-1519566335946-e6f65f0f4fdf?w=800&h=500&fit=crop',
       branchIdx: 0, buIdx: 2, regionIdx: 0,
     },
     {
@@ -1261,6 +1261,11 @@ async function main() {
     { code: 'maintenance_dispatched', name: 'Maintenance Dispatched', description: 'Sent when a maintenance ticket is dispatched', channels: ['in_app', 'email'], subject: 'Maintenance Dispatched: {{ticketId}}', bodyText: 'Maintenance ticket {{ticketId}} has been dispatched to {{teamName}}. Priority: {{priority}}.', bodyPush: '🔧 Ticket {{ticketId}} dispatched', isCritical: false, variables: [{ name: 'ticketId', type: 'string', required: true }, { name: 'teamName', type: 'string', required: false }] },
     { code: 'tenant_welcome', name: 'Tenant Welcome', description: 'Welcome notification for new tenant move-in', channels: ['in_app', 'email'], subject: 'Welcome to {{propertyName}}!', bodyText: 'Welcome to {{propertyName}}, {{tenantName}}! Your move-in to unit {{unitCode}} is confirmed for {{moveInDate}}.', bodyPush: '🏠 Welcome to {{propertyName}}!', isCritical: false, variables: [{ name: 'propertyName', type: 'string', required: true }, { name: 'tenantName', type: 'string', required: true }] },
     { code: 'sla_breach_warning', name: 'SLA Breach Warning', description: 'Warning when a workflow task is about to breach SLA', channels: ['in_app', 'email'], subject: '⚠️ SLA Warning: {{taskTitle}}', bodyText: 'Task "{{taskTitle}}" is approaching its SLA deadline. Time remaining: {{timeLeft}}. Please take action immediately.', bodyPush: '⚠️ SLA warning: {{taskTitle}}', isCritical: true, variables: [{ name: 'taskTitle', type: 'string', required: true }, { name: 'timeLeft', type: 'string', required: true }] },
+    // Maintenance templates
+    { code: 'ticket_created', name: 'Maintenance Ticket Created', description: 'Sent to supervisors when a new maintenance ticket is submitted', channels: ['in_app', 'push'], subject: '🔧 New Ticket: {{ticketNumber}} — {{priority}}', bodyText: 'New maintenance ticket {{ticketNumber}} ({{priority}}): "{{title}}" at {{propertyName}}{{#if unitNumber}}, Unit {{unitNumber}}{{/if}}.', bodyPush: '🔧 {{priority}} ticket: {{title}}', isCritical: false, variables: [{ name: 'ticketNumber', type: 'string', required: true }, { name: 'title', type: 'string', required: true }, { name: 'priority', type: 'string', required: true }] },
+    { code: 'work_order_assigned', name: 'Work Order Assigned', description: 'Sent to technician when a work order is assigned to them', channels: ['in_app', 'push', 'email'], subject: '🛠️ Work Order Assigned: {{woNumber}}', bodyText: 'You have been assigned work order {{woNumber}} for ticket {{ticketNumber}}: "{{title}}" at {{propertyName}}. Scheduled: {{scheduledStart}}. Priority: {{priority}}.', bodyPush: '🛠️ New WO: {{title}} ({{priority}})', isCritical: false, variables: [{ name: 'woNumber', type: 'string', required: true }, { name: 'title', type: 'string', required: true }, { name: 'priority', type: 'string', required: true }] },
+    { code: 'ticket_sla_breach', name: 'SLA Breach Alert', description: 'Sent when a maintenance ticket breaches its SLA deadline', channels: ['in_app', 'email', 'push'], subject: '🚨 SLA Breach: {{ticketNumber}} — {{breachType}}', bodyText: '{{breachType}} breached for ticket {{ticketNumber}} ({{priority}}). Immediate action required.', bodyPush: '🚨 SLA breach: {{ticketNumber}}', isCritical: true, variables: [{ name: 'ticketNumber', type: 'string', required: true }, { name: 'breachType', type: 'string', required: true }, { name: 'priority', type: 'string', required: true }] },
+    { code: 'ticket_escalated', name: 'Ticket Escalated', description: 'Sent when a maintenance ticket is escalated to a new person', channels: ['in_app', 'email', 'push'], subject: '⬆️ Escalated: {{ticketNumber}} — Level {{escalationLevel}}', bodyText: 'Ticket {{ticketNumber}} ({{priority}}) has been escalated to you. "{{title}}". Reason: {{reason}}.', bodyPush: '⬆️ Escalated: {{ticketNumber}} ({{priority}})', isCritical: true, variables: [{ name: 'ticketNumber', type: 'string', required: true }, { name: 'priority', type: 'string', required: true }, { name: 'reason', type: 'string', required: false }] },
   ];
 
   const templates: any[] = [];
@@ -1617,6 +1622,11 @@ async function main() {
   console.log(`  ✅ ${gateEvents.length} RFID gate access events (${denials.length} denied)`);
 
   // ╔══════════════════════════════════════════════╗
+  // ║  PHASE 4 — run separately via seed-phase4.ts ║
+  // ╚══════════════════════════════════════════════╝
+  console.log('\n  ℹ️  Phase 4 data: run `npx tsx prisma/seed-phase4.ts` separately');
+
+  // ╔══════════════════════════════════════════════╗
   // ║  DONE                                        ║
   // ╚══════════════════════════════════════════════╝
   console.log('\n═══════════════════════════════════════');
@@ -1642,3 +1652,4 @@ async function main() {
 main()
   .catch((e) => { console.error('❌ Seed failed:', e); process.exit(1); })
   .finally(async () => { await prisma.$disconnect(); });
+

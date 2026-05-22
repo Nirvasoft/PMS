@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { config } from './common/config';
 import { logger } from './common/logger';
-import { connectDatabase, disconnectDatabase } from './common/database';
+import { prisma, connectDatabase, disconnectDatabase } from './common/database';
 import { disconnectRedis } from './common/redis';
 import { authMiddleware, requestContextMiddleware, errorHandler, tenantContextMiddleware } from './middleware';
 import { initSocketIO } from './common/socket';
@@ -52,6 +52,19 @@ import {
 import { glRouter } from './modules/gl/gl.routes';
 import { budgetsRouter, assetsRouter } from './modules/assets/assets.routes';
 import { bankingRouter } from './modules/banking/banking.routes';
+import {
+  maintenanceTicketsRouter, maintenanceWorkOrdersRouter,
+  maintenanceTechniciansRouter, maintenanceCategoriesRouter,
+  maintenanceStatsRouter, maintenanceSlaConfigsRouter,
+} from './modules/maintenance/maintenance.routes';
+import { categoriesService as maintenanceCategoriesService } from './modules/maintenance/categories.service';
+import { startSlaMonitorJob } from './modules/maintenance/cron/slaMonitor.job';
+import { pmSchedulesRouter, pmWorkOrdersRouter, pmUpcomingRouter } from './modules/preventive-maintenance/pm.routes';
+import { startPmGeneratorJob } from './modules/preventive-maintenance/cron/pmGenerator.job';
+import { facilityAssetsRouter, facilityCamRouter, facilityStatsRouter } from './modules/facility/facility.routes';
+import { inventoryRoutes } from './modules/inventory/inventory.routes';
+import { housekeepingRoutes } from './modules/housekeeping/housekeeping.routes';
+import { securityRoutes } from './modules/security/security.routes';
 
 async function bootstrap() {
   const app = express();
@@ -173,6 +186,49 @@ async function bootstrap() {
   // Module 3.6 — Banking & Reconciliation
   app.use('/api/v1/banking', bankingRouter);
 
+  // Module 4.1 — Maintenance Management
+  app.use('/api/v1/maintenance/tickets', requireFeature('maintenanceEnabled'), maintenanceTicketsRouter);
+  app.use('/api/v1/maintenance/work-orders', requireFeature('maintenanceEnabled'), maintenanceWorkOrdersRouter);
+  app.use('/api/v1/maintenance/technicians', requireFeature('maintenanceEnabled'), maintenanceTechniciansRouter);
+  app.use('/api/v1/maintenance/categories', requireFeature('maintenanceEnabled'), maintenanceCategoriesRouter);
+  app.use('/api/v1/maintenance/stats', requireFeature('maintenanceEnabled'), maintenanceStatsRouter);
+  app.use('/api/v1/maintenance/sla-configs', requireFeature('maintenanceEnabled'), maintenanceSlaConfigsRouter);
+
+  // Module 4.2 — Preventive Maintenance
+  app.use('/api/v1/pm/schedules', requireFeature('maintenanceEnabled'), pmSchedulesRouter);
+  app.use('/api/v1/pm/work-orders', requireFeature('maintenanceEnabled'), pmWorkOrdersRouter);
+  app.use('/api/v1/pm/upcoming', requireFeature('maintenanceEnabled'), pmUpcomingRouter);
+
+  // Module 4.3 — Facility Management
+  app.use('/api/v1/facility/assets', requireFeature('maintenanceEnabled'), facilityAssetsRouter);
+  app.use('/api/v1/facility/cam-costs', requireFeature('maintenanceEnabled'), facilityCamRouter);
+  app.use('/api/v1/facility/stats', requireFeature('maintenanceEnabled'), facilityStatsRouter);
+
+  // Module 4.4 — Inventory & Store Management
+  const inv = inventoryRoutes(prisma);
+  app.use('/api/v1/inventory/stores', requireFeature('maintenanceEnabled'), inv.storesRouter);
+  app.use('/api/v1/inventory/items', requireFeature('maintenanceEnabled'), inv.itemsRouter);
+  app.use('/api/v1/inventory/stock-levels', requireFeature('maintenanceEnabled'), inv.stockRouter);
+  app.use('/api/v1/inventory/movements', requireFeature('maintenanceEnabled'), inv.movementsRouter);
+  app.use('/api/v1/inventory/stats', requireFeature('maintenanceEnabled'), inv.statsRouter);
+
+  // Module 4.5 — Housekeeping Management
+  const hk = housekeepingRoutes(prisma);
+  app.use('/api/v1/housekeeping/zones', requireFeature('maintenanceEnabled'), hk.zonesRouter);
+  app.use('/api/v1/housekeeping/schedules', requireFeature('maintenanceEnabled'), hk.schedulesRouter);
+  app.use('/api/v1/housekeeping/tasks', requireFeature('maintenanceEnabled'), hk.tasksRouter);
+  app.use('/api/v1/housekeeping/inspections', requireFeature('maintenanceEnabled'), hk.inspectionsRouter);
+  app.use('/api/v1/housekeeping/stats', requireFeature('maintenanceEnabled'), hk.statsRouter);
+
+  // Module 4.6 — Security Management
+  const sec = securityRoutes(prisma);
+  app.use('/api/v1/security/incidents', requireFeature('maintenanceEnabled'), sec.incidentsRouter);
+  app.use('/api/v1/security/patrol/checkpoints', requireFeature('maintenanceEnabled'), sec.checkpointsRouter);
+  app.use('/api/v1/security/patrol/schedules', requireFeature('maintenanceEnabled'), sec.patrolSchedulesRouter);
+  app.use('/api/v1/security/patrol/logs', requireFeature('maintenanceEnabled'), sec.patrolLogsRouter);
+  app.use('/api/v1/security/patrol/scan', requireFeature('maintenanceEnabled'), sec.scanRouter);
+  app.use('/api/v1/security/stats', requireFeature('maintenanceEnabled'), sec.statsRouter);
+
   // Error handler (must be last)
   app.use(errorHandler);
 
@@ -184,6 +240,7 @@ async function bootstrap() {
   await seedPropertyTypes();
   await seedUnitTypes();
   await chargeTypesService.seedDefaults();
+  try { await maintenanceCategoriesService.seedDefaults(); } catch (e) { logger.warn('Maintenance tables not ready — skipping seed'); }
   const { seedBillingNotificationTemplates } = await import('./modules/billing/billingNotifications.service');
   await seedBillingNotificationTemplates();
 
@@ -205,6 +262,10 @@ async function bootstrap() {
   startDailyBillingJob();
   startPenaltyCheckJob();
   startOverdueTransitionJob();
+
+  // Start maintenance cron jobs
+  try { startSlaMonitorJob(); } catch (e) { logger.warn('Maintenance SLA monitor skipped — tables not ready'); }
+  try { startPmGeneratorJob(); } catch (e) { logger.warn('PM generator cron skipped — tables not ready'); }
 
   // Start server
   httpServer.listen(config.port, () => {
