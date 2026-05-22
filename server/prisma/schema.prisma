@@ -3111,6 +3111,7 @@ model PmSchedule {
   name               String    @db.VarChar(255)
   description        String?   @db.Text
   categoryId         String?   @map("category_id") @db.Uuid
+  assetId            String?   @map("asset_id") @db.Uuid
   frequencyType      String    @map("frequency_type") @db.VarChar(20)
                      // 'daily'|'weekly'|'monthly'|'quarterly'|'semi_annual'|'annual'|'custom_days'
   frequencyValue     Int       @default(1) @map("frequency_value") @db.SmallInt
@@ -3133,6 +3134,7 @@ model PmSchedule {
   company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   property           Property             @relation(fields: [propertyId], references: [id])
   category           MaintenanceCategory? @relation(fields: [categoryId], references: [id])
+  asset              FacilityAsset?       @relation(fields: [assetId], references: [id], onDelete: SetNull)
   assignedTo         User?                @relation("PmAssignedTo", fields: [assignedToId], references: [id])
   createdBy          User?                @relation("PmCreatedBy", fields: [createdById], references: [id])
   pmWorkOrders       PmWorkOrder[]
@@ -3211,12 +3213,15 @@ model FacilityAsset {
   property              Property  @relation(fields: [propertyId], references: [id])
   unit                  Unit?     @relation(fields: [unitId], references: [id])
   responsiblePerson     User?     @relation("AssetResponsiblePerson", fields: [responsiblePersonId], references: [id])
+  pmSchedules           PmSchedule[]
 
   @@unique([assetNumber, propertyId], name: "uq_asset_number_property")
   @@index([propertyId])
   @@index([warrantyExpiry])
   @@map("facility_assets")
 }
+
+// Reverse relation: FacilityAsset -> PmSchedule is handled via the relation on PmSchedule
 
 model CamCostEntry {
   id            String    @id @default(uuid()) @db.Uuid

@@ -1,10 +1,10 @@
 import '../MaintenancePage/MaintenancePage.css';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useGetFacilityAssetByIdQuery, useUpdateFacilityAssetMutation } from '../../../store/api/facilityApi';
+import { useGetFacilityAssetByIdQuery, useUpdateFacilityAssetMutation, useGetAssetServiceHistoryQuery } from '../../../store/api/facilityApi';
 import { useGetPmSchedulesQuery } from '../../../store/api/pmApi';
 import {
-  Box, ArrowLeft, Loader2, MapPin, Shield, Wrench, Calendar,
-  CalendarClock, Settings2, FileText, User, Building2, Clock,
+  ArrowLeft, Loader2, MapPin, Shield,
+  CalendarClock, FileText, History,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
@@ -29,20 +29,24 @@ export default function AssetDetailPage() {
   const [updateAsset] = useUpdateFacilityAssetMutation();
   const asset = assetData?.data;
 
-  // Fetch linked PM schedules (filtered by property — can't filter by asset yet)
+  // Fetch linked PM schedules
   const { data: pmData } = useGetPmSchedulesQuery({
     propertyId: asset?.propertyId,
     page: 1, limit: 50,
   }, { skip: !asset?.propertyId });
-  const pmSchedules = pmData?.data || [];
+  const allPmSchedules = pmData?.data || [];
+  // Filter to schedules linked to this asset (or unlinked ones)
+  const pmSchedules = allPmSchedules.filter((s: any) => s.assetId === id || !s.assetId);
+
+  // Fetch service history for this asset
+  const { data: historyData } = useGetAssetServiceHistoryQuery(id!, { skip: !id });
+  const serviceHistory = historyData?.data || [];
 
   const today = new Date();
   const daysUntilWarranty = asset?.warrantyExpiry
-    ? Math.ceil((new Date(asset.warrantyExpiry).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    : null;
+    ? Math.ceil((new Date(asset.warrantyExpiry).getTime() - today.getTime()) / 86400000) : null;
   const daysUntilService = asset?.nextServiceDue
-    ? Math.ceil((new Date(asset.nextServiceDue).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    : null;
+    ? Math.ceil((new Date(asset.nextServiceDue).getTime() - today.getTime()) / 86400000) : null;
 
   const [statusChanging, setStatusChanging] = useState(false);
   const handleStatusChange = async (newStatus: string) => {
@@ -77,13 +81,8 @@ export default function AssetDetailPage() {
           </div>
         </div>
         <div className="header-actions">
-          <select
-            className="filter-select"
-            value={asset.status}
-            onChange={(e) => handleStatusChange(e.target.value)}
-            disabled={statusChanging}
-            style={{ minWidth: '180px' }}
-          >
+          <select className="filter-select" value={asset.status} onChange={(e) => handleStatusChange(e.target.value)}
+            disabled={statusChanging} style={{ minWidth: '180px' }}>
             <option value="operational">✅ Operational</option>
             <option value="under_maintenance">🔧 Under Maintenance</option>
             <option value="fault">⚠️ Fault</option>
@@ -107,9 +106,7 @@ export default function AssetDetailPage() {
             <InfoItem label="Make / Brand">{asset.make || '—'}</InfoItem>
             <InfoItem label="Model">{asset.model || '—'}</InfoItem>
             <InfoItem label="Serial Number">{asset.serialNumber || '—'}</InfoItem>
-            <InfoItem label="QR Code">
-              <span className="cell-mono">{asset.qrCode || '—'}</span>
-            </InfoItem>
+            <InfoItem label="QR Code"><span className="cell-mono">{asset.qrCode || '—'}</span></InfoItem>
             <InfoItem label="Location"><MapPin size={12} style={{ marginRight: '4px' }} />{asset.location || '—'}</InfoItem>
             <InfoItem label="Floor">{asset.floor || '—'}</InfoItem>
             <InfoItem label="Installation Date">
@@ -167,8 +164,7 @@ export default function AssetDetailPage() {
             </InfoItem>
             <InfoItem label="Responsible Person">
               {asset.responsiblePerson?.profile
-                ? `${asset.responsiblePerson.profile.firstName} ${asset.responsiblePerson.profile.lastName}`
-                : '—'}
+                ? `${asset.responsiblePerson.profile.firstName} ${asset.responsiblePerson.profile.lastName}` : '—'}
             </InfoItem>
             <InfoItem label="Vendor">{asset.vendorName || '—'}</InfoItem>
             <InfoItem label="Vendor Contact">{asset.vendorContact || '—'}</InfoItem>
@@ -185,29 +181,51 @@ export default function AssetDetailPage() {
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
           <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>
             <CalendarClock size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} />
-            PM Schedules for this Property ({pmSchedules.length})
+            PM Schedules ({pmSchedules.length})
           </h3>
         </div>
         <table className="maint-table">
-          <thead>
-            <tr>
-              <th>Schedule</th>
-              <th>Frequency</th>
-              <th>Next Due</th>
-              <th>Status</th>
-              <th>Priority</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Schedule</th><th>Frequency</th><th>Next Due</th><th>Status</th><th>Priority</th></tr></thead>
           <tbody>
             {pmSchedules.length === 0 ? (
               <tr><td colSpan={5}><div className="maint-empty" style={{ padding: '24px 0' }}><p>No PM schedules linked</p></div></td></tr>
             ) : pmSchedules.map((s: any) => (
               <tr key={s.id} onClick={() => navigate(`/admin/maintenance/pm/${s.id}`)}>
-                <td><span className="cell-primary">{s.name}</span></td>
+                <td>
+                  <span className="cell-primary">{s.name}</span>
+                  {s.asset && <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>{s.asset.assetNumber} — {s.asset.name}</span>}
+                </td>
                 <td><span className="maint-status open">{s.frequencyType}</span></td>
                 <td><span className="cell-secondary">{new Date(s.nextDueDate).toLocaleDateString()}</span></td>
                 <td><span className={`maint-status ${s.status === 'active' ? 'in_progress' : 'closed'}`}>{s.status}</span></td>
                 <td><span className={`maint-priority ${s.priority?.toLowerCase()}`}>{s.priority}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Service History */}
+      <div className="maint-table-wrap" style={{ marginTop: '16px' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
+          <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>
+            <History size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} />
+            Service History ({serviceHistory.length})
+          </h3>
+        </div>
+        <table className="maint-table">
+          <thead><tr><th>Schedule</th><th>Due Date</th><th>Completed</th><th>Technician</th><th>Status</th><th>Findings</th></tr></thead>
+          <tbody>
+            {serviceHistory.length === 0 ? (
+              <tr><td colSpan={6}><div className="maint-empty" style={{ padding: '24px 0' }}><p>No service history yet</p></div></td></tr>
+            ) : serviceHistory.map((h: any) => (
+              <tr key={h.id}>
+                <td><span className="cell-primary">{h.scheduleName}</span></td>
+                <td><span className="cell-secondary">{new Date(h.dueDate).toLocaleDateString()}</span></td>
+                <td><span className="cell-secondary">{h.completedAt ? new Date(h.completedAt).toLocaleDateString() : '—'}</span></td>
+                <td>{h.technician || '—'}</td>
+                <td><span className={`maint-status ${h.status === 'completed' ? 'completed' : 'cancelled'}`}>{h.status}</span></td>
+                <td><span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{h.findings || '—'}</span></td>
               </tr>
             ))}
           </tbody>

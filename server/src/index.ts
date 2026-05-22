@@ -62,7 +62,8 @@ import { startSlaMonitorJob } from './modules/maintenance/cron/slaMonitor.job';
 import { startTicketLifecycleJobs } from './modules/maintenance/cron/ticketLifecycle.job';
 import { pmSchedulesRouter, pmWorkOrdersRouter, pmUpcomingRouter } from './modules/preventive-maintenance/pm.routes';
 import { startPmGeneratorJob } from './modules/preventive-maintenance/cron/pmGenerator.job';
-import { facilityAssetsRouter, facilityCamRouter, facilityStatsRouter } from './modules/facility/facility.routes';
+import { facilityAssetsRouter, facilityCamRouter, facilityStatsRouter, facilityUtilityRouter } from './modules/facility/facility.routes';
+import { startFacilityAlertJob } from './modules/facility/cron/facilityAlert.job';
 import { inventoryRoutes } from './modules/inventory/inventory.routes';
 import { housekeepingRoutes } from './modules/housekeeping/housekeeping.routes';
 import { securityRoutes } from './modules/security/security.routes';
@@ -205,6 +206,7 @@ async function bootstrap() {
   app.use('/api/v1/facility/assets', requireFeature('maintenanceEnabled'), facilityAssetsRouter);
   app.use('/api/v1/facility/cam-costs', requireFeature('maintenanceEnabled'), facilityCamRouter);
   app.use('/api/v1/facility/stats', requireFeature('maintenanceEnabled'), facilityStatsRouter);
+  app.use('/api/v1/facility/utility-systems', requireFeature('maintenanceEnabled'), facilityUtilityRouter);
 
   // Module 4.4 — Inventory & Store Management
   const inv = inventoryRoutes(prisma);
@@ -269,6 +271,7 @@ async function bootstrap() {
   try { startSlaMonitorJob(); } catch (e) { logger.warn('Maintenance SLA monitor skipped — tables not ready'); }
   try { startTicketLifecycleJobs(); } catch (e) { logger.warn('Ticket lifecycle crons skipped — tables not ready'); }
   try { startPmGeneratorJob(); } catch (e) { logger.warn('PM generator cron skipped — tables not ready'); }
+  try { startFacilityAlertJob(); } catch (e) { logger.warn('Facility alert cron skipped — tables not ready'); }
 
   // Start server
   httpServer.listen(config.port, () => {

@@ -13,6 +13,7 @@ const p = (req: Request, key: string) => req.params[key] as string;
 export const facilityAssetsRouter = Router();
 export const facilityCamRouter = Router();
 export const facilityStatsRouter = Router();
+export const facilityUtilityRouter = Router();
 
 // ────────────────────────────────────────────
 // FACILITY ASSETS
@@ -52,6 +53,12 @@ facilityAssetsRouter.get('/warranty-expiring', asyncHandler(async (req, res) => 
 /** GET /facility/assets/:id */
 facilityAssetsRouter.get('/:id', asyncHandler(async (req, res) => {
   const data = await facilityService.findAssetById(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
+/** GET /facility/assets/:id/scan — QR code landing page */
+facilityAssetsRouter.get('/:id/scan', asyncHandler(async (req, res) => {
+  const data = await facilityService.scanAsset(p(req, 'id'));
   res.json({ success: true, data });
 }));
 
@@ -116,4 +123,34 @@ facilityStatsRouter.get('/', asyncHandler(async (req, res) => {
     req.query.propertyId as string,
   );
   res.json({ success: true, data });
+}));
+
+// ────────────────────────────────────────────
+// UTILITY SYSTEMS
+// ────────────────────────────────────────────
+
+/** GET /facility/utility-systems */
+facilityUtilityRouter.get('/', asyncHandler(async (req, res) => {
+  const data = await facilityService.findAllUtilitySystems(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+  });
+  res.json({ success: true, data });
+}));
+
+/** POST /facility/utility-systems */
+facilityUtilityRouter.post('/', asyncHandler(async (req, res) => {
+  const data = await facilityService.createUtilitySystem(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+/** PUT /facility/utility-systems/:id */
+facilityUtilityRouter.put('/:id', asyncHandler(async (req, res) => {
+  const data = await facilityService.updateUtilitySystem(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+/** DELETE /facility/utility-systems/:id */
+facilityUtilityRouter.delete('/:id', asyncHandler(async (req, res) => {
+  await facilityService.deleteUtilitySystem(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, message: 'Utility system deleted' });
 }));

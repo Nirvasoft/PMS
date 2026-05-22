@@ -1,6 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import { facilityService } from '../facility/facility.service';
 
 export class WorkOrdersService {
   // ── Query ───────────────────────────────────
@@ -209,6 +210,15 @@ export class WorkOrdersService {
     ]);
 
     logger.info(`Work order ${wo.woNumber} completed. Cost: ${totalCost}`);
+
+    // Auto-create CAM cost entry if totalCost > 0 (Gap 9)
+    if (totalCost > 0 && wo.ticket?.propertyId) {
+      facilityService.autoCreateCamFromWorkOrder({
+        companyId, propertyId: wo.ticket.propertyId,
+        totalCost, woNumber: wo.woNumber, ticketTitle: wo.ticket.title,
+      }).catch((err: any) => logger.warn(`Auto-CAM creation failed for WO ${wo.woNumber}: ${err.message}`));
+    }
+
     return this.findById(id, companyId);
   }
 

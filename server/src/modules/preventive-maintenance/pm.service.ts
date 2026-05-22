@@ -55,6 +55,7 @@ class PmService {
         include: {
           property: { select: { id: true, name: true } },
           category: { select: { id: true, name: true } },
+          asset: { select: { id: true, assetNumber: true, name: true, assetType: true, location: true } },
           assignedTo: {
             select: {
               id: true, email: true,
@@ -96,6 +97,7 @@ class PmService {
       include: {
         property: { select: { id: true, name: true } },
         category: { select: { id: true, name: true } },
+        asset: { select: { id: true, assetNumber: true, name: true, assetType: true, location: true } },
         assignedTo: {
           select: {
             id: true, email: true,
@@ -121,6 +123,7 @@ class PmService {
       data: {
         companyId,
         propertyId: data.propertyId,
+        assetId: data.assetId || null,
         name: data.name,
         description: data.description,
         categoryId: data.categoryId,
@@ -152,7 +155,7 @@ class PmService {
 
     const updateData: any = {};
     const fields = [
-      'name', 'description', 'categoryId', 'frequencyType', 'frequencyValue',
+      'name', 'description', 'categoryId', 'assetId', 'frequencyType', 'frequencyValue',
       'customDays', 'estimatedHours', 'assignedToId', 'assignedRole',
       'advanceDays', 'priority', 'notes', 'checklistTemplate',
     ];
@@ -428,6 +431,88 @@ class PmService {
       },
       orderBy: { nextDueDate: 'asc' },
     });
+  }
+
+  // ── Skip PM Work Order ────────────────
+
+  async skipPmWorkOrder(id: string, companyId: string, reason: string, userId: string) {
+    await setTenantContext(companyId);
+
+    const pmWo = await prisma.pmWorkOrder.findFirst({
+      where: { id, companyId },
+      include: { schedule: true },
+    });
+    if (!pmWo) throw AppError.notFound('PM Work Order');
+    if (pmWo.status === 'completed') throw AppError.validation('Cannot skip a completed work order');
+    if (pmWo.status === 'skipped') throw AppError.validation('Already skipped');
+
+    const nextDueDate = this.computeNextDueDate(pmWo.schedule, new Date(pmWo.dueDate));
+
+    // Skip the WO and advance the schedule
+    const updated = await prisma.pmWorkOrder.update({
+      where: { id },
+      data: {
+        status: 'skipped',
+        findings: reason || 'Skipped by user',
+        completedById: userId,
+        completedAt: new Date(),
+        nextDueDate: new Date(nextDueDate),
+      },
+    });
+
+    await prisma.pmSchedule.update({
+      where: { id: pmWo.scheduleId },
+      data: { nextDueDate: new Date(nextDueDate) },
+    });
+
+    // Close the linked ticket if exists
+    if (pmWo.ticketId) {
+      await prisma.maintenanceTicket.update({
+        where: { id: pmWo.ticketId },
+        data: { status: 'cancelled', resolutionNotes: reason || 'PM work order skipped' },
+      }).catch(() => {}); // ignore if ticket doesn't exist
+    }
+
+    logger.info(`PM WO ${id} skipped. Next due: ${nextDueDate}`);
+    return updated;
+  }
+
+  // ── Asset Service History ─────────────
+
+  async getAssetServiceHistory(assetId: string, companyId: string) {
+    await setTenantContext(companyId);
+
+    // Get all PM work orders for schedules linked to this asset
+    const pmHistory = await prisma.pmWorkOrder.findMany({
+      where: {
+        companyId,
+        status: { in: ['completed', 'skipped'] },
+        schedule: { assetId },
+      },
+      select: {
+        id: true, dueDate: true, status: true, completedAt: true, findings: true,
+        checklistResults: true,
+        schedule: { select: { id: true, name: true, frequencyType: true } },
+        completedBy: { select: { id: true, profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: { dueDate: 'desc' },
+      take: 50,
+    });
+
+    return pmHistory.map(wo => ({
+      id: wo.id,
+      type: 'preventive' as const,
+      scheduleName: wo.schedule.name,
+      scheduleId: wo.schedule.id,
+      frequencyType: wo.schedule.frequencyType,
+      dueDate: wo.dueDate,
+      completedAt: wo.completedAt,
+      status: wo.status,
+      findings: wo.findings,
+      technician: wo.completedBy?.profile
+        ? `${wo.completedBy.profile.firstName} ${wo.completedBy.profile.lastName}`
+        : null,
+    }));
   }
 
   // ── Frequency Calculator ──────────────

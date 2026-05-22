@@ -60,6 +60,14 @@ export const facilityApi = createApi({
       query: (params) => ({ url: '/facility/stats', params }),
       providesTags: ['FacilityStats'],
     }),
+
+    // ── Scan / Service History ──────────────
+    scanFacilityAsset: builder.query<any, string>({
+      query: (id) => `/facility/assets/${id}/scan`,
+    }),
+    getAssetServiceHistory: builder.query<any, string>({
+      query: (assetId) => `/pm/work-orders/asset-history/${assetId}`,
+    }),
   }),
 });
 
@@ -75,4 +83,6 @@ export const {
   useCreateCamCostMutation,
   useGetCamCostSummaryQuery,
   useGetFacilityStatsQuery,
+  useScanFacilityAssetQuery,
+  useGetAssetServiceHistoryQuery,
 } = facilityApi;

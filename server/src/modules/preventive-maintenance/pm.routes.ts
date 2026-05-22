@@ -103,6 +103,18 @@ pmWorkOrdersRouter.post('/:id/complete', validateRequest(completePmWorkOrderSche
   res.json({ success: true, data });
 }));
 
+/** POST /pm/work-orders/:id/skip */
+pmWorkOrdersRouter.post('/:id/skip', asyncHandler(async (req, res) => {
+  const data = await pmService.skipPmWorkOrder(p(req, 'id'), req.user!.companyId, req.body.reason || '', req.user!.sub);
+  res.json({ success: true, data });
+}));
+
+/** GET /pm/asset-history/:assetId — service history for a specific asset */
+pmWorkOrdersRouter.get('/asset-history/:assetId', asyncHandler(async (req, res) => {
+  const data = await pmService.getAssetServiceHistory(p(req, 'assetId'), req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
 // ────────────────────────────────────────────
 // UPCOMING PM
 // ────────────────────────────────────────────
