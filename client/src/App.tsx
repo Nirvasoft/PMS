@@ -79,6 +79,26 @@ import MovementsPage from './pages/admin/InventoryPage/MovementsPage';
 import HousekeepingTasksPage from './pages/admin/HousekeepingPage/HousekeepingTasksPage';
 import SecurityIncidentsPage from './pages/admin/SecurityPage/SecurityIncidentsPage';
 import PatrolLogsPage from './pages/admin/SecurityPage/PatrolLogsPage';
+import PortalLayout from './pages/PortalPage/PortalLayout';
+import PortalDashboard from './pages/PortalPage/PortalDashboard';
+import PortalInvoices from './pages/PortalPage/PortalInvoices';
+import PortalMaintenance from './pages/PortalPage/PortalMaintenance';
+import PortalLease from './pages/PortalPage/PortalLease';
+import PortalResidents from './pages/PortalPage/PortalResidents';
+import PortalProfile from './pages/PortalPage/PortalProfile';
+import PortalVisitors from './pages/PortalPage/PortalVisitors';
+import PortalBookings from './pages/PortalPage/PortalBookings';
+import PortalCommunity from './pages/PortalPage/PortalCommunity';
+import PortalMoveRequests from './pages/PortalPage/PortalMoveRequests';
+import MallDashboard from './pages/admin/MallDashboard';
+import ShopDirectoryPage from './pages/admin/ShopDirectoryPage';
+import GtoManagementPage from './pages/admin/GtoManagementPage';
+import CamManagementPage from './pages/admin/CamManagementPage';
+import MallEventsPage from './pages/admin/MallEventsPage';
+import SmartMeterPage from './pages/admin/SmartMeterPage';
+import FundsPage from './pages/admin/FundsPage';
+import MeetingsPage from './pages/admin/MeetingsPage';
+import BylawsPage from './pages/admin/BylawsPage';
 import { useEffect } from 'react';
 import { useRefreshTokensMutation } from './store/api/authApi';
 import { useAppDispatch } from './store';
@@ -203,10 +223,37 @@ function AppRoutes() {
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
+
+          {/* Module 6.1 — Mall */}
+          <Route path="/admin/mall" element={<MallDashboard />} />
+          <Route path="/admin/mall/shops" element={<ShopDirectoryPage />} />
+          <Route path="/admin/mall/gto" element={<GtoManagementPage />} />
+          <Route path="/admin/mall/cam" element={<CamManagementPage />} />
+          <Route path="/admin/mall/events" element={<MallEventsPage />} />
+
+          {/* Module 6.2 — Condo */}
+          <Route path="/admin/condo/smart-meters" element={<SmartMeterPage />} />
+          <Route path="/admin/condo/funds" element={<FundsPage />} />
+          <Route path="/admin/condo/meetings" element={<MeetingsPage />} />
+          <Route path="/admin/condo/bylaws" element={<BylawsPage />} />
         </Route>
 
         {/* Full-screen Workflow Designer — no sidebar layout */}
         <Route path="/admin/workflows/:id/design" element={<DesignerPage />} />
+
+        {/* Portal — Tenant/Resident self-service */}
+        <Route element={<PortalLayout />}>
+          <Route path="/portal" element={<PortalDashboard />} />
+          <Route path="/portal/invoices" element={<PortalInvoices />} />
+          <Route path="/portal/maintenance" element={<PortalMaintenance />} />
+          <Route path="/portal/lease" element={<PortalLease />} />
+          <Route path="/portal/residents" element={<PortalResidents />} />
+          <Route path="/portal/profile" element={<PortalProfile />} />
+          <Route path="/portal/visitors" element={<PortalVisitors />} />
+          <Route path="/portal/bookings" element={<PortalBookings />} />
+          <Route path="/portal/community" element={<PortalCommunity />} />
+          <Route path="/portal/move-requests" element={<PortalMoveRequests />} />
+        </Route>
       </Route>
 
       {/* Fallback */}

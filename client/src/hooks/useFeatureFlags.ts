@@ -11,6 +11,8 @@ export const FEATURE_FLAGS = {
   documentVaultEnabled:{ label: 'Document Vault',               desc: 'Enable centralized document storage and management',         module: 'documents' },
   notificationsAdminEnabled: { label: 'Notification Admin',     desc: 'Enable notification logs, templates, and admin tools',       module: 'notifications_admin' },
   leasingEnabled:      { label: 'Lease Management',             desc: 'Enable lease creation, tracking, and renewal workflows',     module: 'leases' },
+  mallModuleEnabled:   { label: 'Shopping Mall Module',          desc: 'Enable shop directory, GTO, CAM, events, and footfall',      module: 'mall' },
+  condoModuleEnabled:  { label: 'Condo Module',                  desc: 'Enable smart meters, funds, meetings/AGM, and by-laws',     module: 'condo' },
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

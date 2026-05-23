@@ -12,7 +12,9 @@ type FeatureFlagKey =
   | 'documentVaultEnabled'
   | 'notificationsAdminEnabled'
   | 'leasingEnabled'
-  | 'maintenanceEnabled';
+  | 'maintenanceEnabled'
+  | 'mallModuleEnabled'
+  | 'condoModuleEnabled';
 
 // Simple in-memory cache to avoid hitting the DB on every request
 const flagCache = new Map<string, { settings: Record<string, unknown>; expiresAt: number }>();

@@ -27,7 +27,7 @@ async function main() {
       addressLine1: '350 Fifth Avenue, Suite 4200', addressLine2: 'Empire State Building',
       city: 'New York', state: 'NY', postalCode: '10118', country: 'US',
       currency: 'USD', timezone: 'America/New_York',
-      settings: { mallModuleEnabled: false, condoModuleEnabled: true, maxProperties: 50, subscriptionPlan: 'enterprise', fiscalYearStart: '01-01' },
+      settings: { mallModuleEnabled: true, condoModuleEnabled: true, maxProperties: 50, subscriptionPlan: 'enterprise', fiscalYearStart: '01-01' },
     },
     update: {
       code: 'ACME',
@@ -1631,6 +1631,11 @@ async function main() {
   // ║  PHASE 4 — run separately via seed-phase4.ts ║
   // ╚══════════════════════════════════════════════╝
   console.log('\n  ℹ️  Phase 4 data: run `npx tsx prisma/seed-phase4.ts` separately');
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  PHASE 6 — run separately via seed-phase6.ts ║
+  // ╚══════════════════════════════════════════════╝
+  console.log('  ℹ️  Phase 6 data (Mall + Condo): run `npx tsx prisma/seed-phase6.ts` separately');
 
   // ╔══════════════════════════════════════════════╗
   // ║  DONE                                        ║

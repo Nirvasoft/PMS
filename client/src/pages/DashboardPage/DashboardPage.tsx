@@ -1,7 +1,9 @@
 import { useNavigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLogoutMutation } from '../../store/api/authApi';
 import { useGetPropertyStatsQuery } from '../../store/api/organizationApi';
-import { useAppSelector } from '../../store';
+import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import { useAppSelector, useAppDispatch } from '../../store';
+import { setSelectedProperty } from '../../store/slices/propertiesSlice';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { FeatureGate } from '../../components/guards/FeatureGate';
 import {
@@ -11,6 +13,8 @@ import {
   Banknote, BarChart3, Clock, RotateCcw,
   BookOpen, Calculator, Scale, PieChart, Landmark, Wallet, Box,
   Wrench, Calendar, Package, Layers, Sparkles,
+  Store, TrendingUp, DollarSign,
+  Zap, Gavel,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -52,7 +56,11 @@ function NavSection({ label, children, defaultOpen = false, storageKey }: {
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const { user } = useAppSelector((s) => s.auth);
+  const selectedPropertyId = useAppSelector((s) => s.properties.selectedPropertyId);
+  const { data: propertiesRes } = useGetPropertiesQuery({ limit: 100 });
+  const properties = propertiesRes?.data || [];
   const [logout] = useLogoutMutation();
   useRealtimeNotifications(); // Real-time WS notifications
 
@@ -69,6 +77,24 @@ export default function DashboardLayout() {
           <Building2 size={28} />
           <span className="sidebar-brand">PMS</span>
         </div>
+
+        {/* Property Selector */}
+        {properties.length > 0 && (
+          <div className="sidebar-property-selector">
+            <select
+              value={selectedPropertyId || properties[0]?.id || ''}
+              onChange={(e) => dispatch(setSelectedProperty(e.target.value))}
+              className="sidebar-property-dropdown"
+              title="Select Property"
+            >
+              {properties.map((p: any) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.code})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <nav className="sidebar-nav">
           <NavLink to="/dashboard" end className="nav-item">
@@ -367,6 +393,60 @@ export default function DashboardLayout() {
                 <span>Logs & Templates</span>
               </NavLink>
             </FeatureGate>
+          </NavSection>
+
+          {/* Mall Section */}
+          <FeatureGate flag="mallModuleEnabled">
+            <NavSection label="Shopping Mall" storageKey="mall">
+              <NavLink to="/admin/mall" className="nav-item" end>
+                <Store size={18} />
+                <span>Mall Dashboard</span>
+              </NavLink>
+              <NavLink to="/admin/mall/shops" className="nav-item">
+                <Building2 size={18} />
+                <span>Shop Directory</span>
+              </NavLink>
+              <NavLink to="/admin/mall/gto" className="nav-item">
+                <TrendingUp size={18} />
+                <span>GTO Management</span>
+              </NavLink>
+              <NavLink to="/admin/mall/cam" className="nav-item">
+                <DollarSign size={18} />
+                <span>CAM Management</span>
+              </NavLink>
+              <NavLink to="/admin/mall/events" className="nav-item">
+                <Calendar size={18} />
+                <span>Events</span>
+              </NavLink>
+            </NavSection>
+          </FeatureGate>
+
+          {/* Condo Section */}
+          <FeatureGate flag="condoModuleEnabled">
+            <NavSection label="Condo" storageKey="condo">
+              <NavLink to="/admin/condo/smart-meters" className="nav-item">
+                <Zap size={18} />
+                <span>Smart Meters</span>
+              </NavLink>
+              <NavLink to="/admin/condo/funds" className="nav-item">
+                <Wallet size={18} />
+                <span>Funds</span>
+              </NavLink>
+              <NavLink to="/admin/condo/meetings" className="nav-item">
+                <Users2 size={18} />
+                <span>Meetings (AGM)</span>
+              </NavLink>
+              <NavLink to="/admin/condo/bylaws" className="nav-item">
+                <Gavel size={18} />
+                <span>By-Laws</span>
+              </NavLink>
+            </NavSection>
+          </FeatureGate>
+          <NavSection label="Tenant Portal" storageKey="portal">
+            <NavLink to="/portal" className="nav-item">
+              <Home size={18} />
+              <span>Portal Dashboard</span>
+            </NavLink>
           </NavSection>
 
           {/* Settings Section */}

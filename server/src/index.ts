@@ -68,6 +68,12 @@ import { inventoryRoutes } from './modules/inventory/inventory.routes';
 import { housekeepingRoutes } from './modules/housekeeping/housekeeping.routes';
 import { startHousekeepingTaskCron } from './modules/housekeeping/cron/taskGenerator.job';
 import { securityRoutes } from './modules/security/security.routes';
+import { portalRouter } from './modules/portal/portal.routes';
+import { visitorsRouter, portalVisitorsRouter } from './modules/visitors/visitors.routes';
+import { facilitiesRouter, bookingRulesRouter, portalBookingsRouter } from './modules/facility-booking/booking.routes';
+import { portalCommunityRouter, adminCommunityRouter } from './modules/community/community.routes';
+import { mallRouter } from './modules/mall/mall.routes';
+import { condoRouter } from './modules/condo/condo.routes';
 
 async function bootstrap() {
   const app = express();
@@ -235,6 +241,26 @@ async function bootstrap() {
   app.use('/api/v1/security/patrol/scan', requireFeature('maintenanceEnabled'), sec.scanRouter);
   app.use('/api/v1/security/stats', requireFeature('maintenanceEnabled'), sec.statsRouter);
   app.use('/api/v1/security/access-events', requireFeature('maintenanceEnabled'), sec.accessEventsRouter);
+
+  // Module 5.1 — Tenant & Resident Portal
+  app.use('/api/v1/portal', portalRouter);
+
+  // Module 5.2 — Visitor Management
+  app.use('/api/v1/visitors', visitorsRouter);
+  app.use('/api/v1/portal/visitors', portalVisitorsRouter);
+
+  // Module 5.3 — Facility Booking
+  app.use('/api/v1/facilities', facilitiesRouter);
+  app.use('/api/v1/facility-booking-rules', bookingRulesRouter);
+  app.use('/api/v1/portal/bookings', portalBookingsRouter);
+
+  // Module 5.4 — Community Management
+  app.use('/api/v1/portal/community', portalCommunityRouter);
+  app.use('/api/v1/admin/community', adminCommunityRouter);
+
+  // Module 6.1 — Shopping Mall
+  app.use('/api/v1/mall', requireFeature('mallModuleEnabled'), mallRouter);
+  app.use('/api/v1/condo', requireFeature('condoModuleEnabled'), condoRouter);
 
   // Error handler (must be last)
   app.use(errorHandler);

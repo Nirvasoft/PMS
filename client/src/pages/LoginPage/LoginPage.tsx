@@ -10,7 +10,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [login, { isLoading, error }] = useLoginMutation();
   const [validateCode] = useLazyValidateCompanyCodeQuery();
-  const { data: companyInfo } = useGetCompanyInfoQuery();
+  const { data: companyInfo, isLoading: loadingCompanyInfo, isError: companyInfoError } = useGetCompanyInfoQuery();
   const { mfaPending } = useAppSelector((s) => s.auth);
 
   const [companyCode, setCompanyCode] = useState('');
@@ -22,7 +22,8 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
 
   // Derive whether company code input should be shown
-  const isSingleCompany = companyInfo?.data?.count === 1;
+  // Hide company code while loading, on API error, or when only 1 company exists
+  const isSingleCompany = loadingCompanyInfo || companyInfoError || !companyInfo || companyInfo?.data?.count === 1;
   const singleCompany = companyInfo?.data?.singleCompany;
 
   // Auto-fill company code when only one company exists

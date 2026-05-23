@@ -157,6 +157,50 @@ model Company {
   patrolLogs               PatrolLog[]
   accessControlEvents      AccessControlEvent[]
 
+  // Relations — Portal (Module 5.1)
+  residents                Resident[]
+  residentAccessCards      ResidentAccessCard[]
+  portalSessions           PortalSession[]
+  portalQuickActions       PortalQuickAction[]
+
+  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  visitors                 Visitor[]
+  walkinApprovals          WalkinApproval[]
+  visitorBlacklist         VisitorBlacklist[]
+  facilityBookingRules     FacilityBookingRule[]
+  facilityBookings         FacilityBooking[]
+  bookingBlackoutDates     BookingBlackoutDate[]
+  announcements            Announcement[]
+  announcementReads        AnnouncementRead[]
+  polls                    Poll[]
+  pollVotes                PollVote[]
+  communityComplaints      CommunityComplaint[]
+  moveRequests             MoveRequest[]
+
+  // Relations — Mall (Module 6.1)
+  mallProperties           MallProperty[]
+  shopProfiles             ShopProfile[]
+  commercialLeases         CommercialLease[]
+  gtoSubmissions           GtoSubmission[]
+  camCostPools             CamCostPool[]
+  camBillings              CamBilling[]
+  camReconciliations       CamReconciliation[]
+  mallEvents               MallEvent[]
+  boothRentals             BoothRental[]
+  footfallSensors          FootfallSensor[]
+
+  // Relations — Condo (Module 6.2)
+  smartMeterReadings       SmartMeterReading[]
+  smartMeterDevices        SmartMeterDevice[]
+  fundAccounts             FundAccount[]
+  fundTransactions         FundTransaction[]
+  generalMeetings          GeneralMeeting[]
+  meetingResolutions       MeetingResolution[]
+  meetingProxies           MeetingProxy[]
+  meetingVotes             MeetingVote[]
+  bylaws                   Bylaw[]
+  bylawViolations          BylawViolation[]
+
   @@index([parentId])
   @@map("companies")
 }
@@ -308,6 +352,40 @@ model User {
   incidentsAssigned          SecurityIncident[]     @relation("IncidentAssignedTo")
   patrolSchedulesAssigned    PatrolSchedule[]       @relation("PatrolAssignedTo")
   patrolLogsGuard            PatrolLog[]            @relation("PatrolGuard")
+
+  // Relations — Portal (Module 5.1)
+  residents                  Resident[]             @relation("ResidentUser")
+  portalSessions             PortalSession[]        @relation("PortalSessionUser")
+  issuedAccessCards          ResidentAccessCard[]   @relation("AccessCardIssuer")
+
+  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  visitorsHosted             Visitor[]              @relation("VisitorHost")
+  visitorsCheckedIn          Visitor[]              @relation("VisitorCheckInGuard")
+  walkinResponses            WalkinApproval[]       @relation("WalkinResponder")
+  blacklistEntriesAdded      VisitorBlacklist[]     @relation("BlacklistAddedBy")
+  bookingsApproved           FacilityBooking[]      @relation("BookingApprover")
+  blackoutDatesCreated       BookingBlackoutDate[]  @relation("BlackoutCreator")
+  announcementsCreated       Announcement[]         @relation("AnnouncementCreator")
+  announcementReads          AnnouncementRead[]     @relation("AnnouncementReader")
+  pollsCreated               Poll[]                 @relation("PollCreator")
+  pollVotes                  PollVote[]             @relation("PollVoter")
+  complaintsSubmitted        CommunityComplaint[]   @relation("ComplaintSubmitter")
+  complaintsResponded        CommunityComplaint[]   @relation("ComplaintResponder")
+  moveRequestsInspected      MoveRequest[]          @relation("MoveInspector")
+  moveRequestsApproved       MoveRequest[]          @relation("MoveApprover")
+
+  // Relations — Mall (Module 6.1)
+  gtoSubmissionsCreated      GtoSubmission[]        @relation("GtoSubmitter")
+  gtoSubmissionsVerified     GtoSubmission[]        @relation("GtoVerifier")
+  mallEventsCreated          MallEvent[]            @relation("EventCreator")
+
+  // Relations — Condo (Module 6.2)
+  fundTransactionsCreated    FundTransaction[]      @relation("FundTxnCreator")
+  fundTransactionsApproved   FundTransaction[]      @relation("FundTxnApprover")
+  meetingsCreated            GeneralMeeting[]       @relation("MeetingCreator")
+  meetingVotesCast           MeetingVote[]          @relation("VoteCaster")
+  bylawsCreated              Bylaw[]                @relation("BylawCreator")
+  violationsReported         BylawViolation[]       @relation("ViolationReporter")
 
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
@@ -815,6 +893,40 @@ model Property {
   patrolLogs         PatrolLog[]
   accessControlEvents AccessControlEvent[]
 
+  // Relations — Portal (Module 5.1)
+  residents          Resident[]
+  residentAccessCards ResidentAccessCard[]
+  portalQuickActions  PortalQuickAction[]
+
+  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  visitors             Visitor[]
+  facilityBookingRules FacilityBookingRule[]
+  facilityBookings     FacilityBooking[]
+  bookingBlackoutDates BookingBlackoutDate[]
+  announcements        Announcement[]
+  polls                Poll[]
+  communityComplaints  CommunityComplaint[]
+  moveRequests         MoveRequest[]
+
+  // Relations — Mall (Module 6.1)
+  mallProperty         MallProperty?
+  shopProfiles         ShopProfile[]
+  gtoSubmissions       GtoSubmission[]
+  camCostPools         CamCostPool[]
+  camBillings          CamBilling[]
+  camReconciliations   CamReconciliation[]
+  mallEvents           MallEvent[]
+  boothRentals         BoothRental[]
+  footfallSensors      FootfallSensor[]
+
+  // Relations — Condo (Module 6.2)
+  smartMeterReadings   SmartMeterReading[] @relation("ReadingProperty")
+  smartMeterDevices    SmartMeterDevice[]  @relation("DeviceProperty")
+  fundAccounts         FundAccount[]
+  generalMeetings      GeneralMeeting[]
+  bylaws               Bylaw[]
+  bylawViolations      BylawViolation[]   @relation("ViolationProperty")
+
   @@unique([code, companyId], name: "uq_property_code_company")
   @@index([companyId])
   @@index([status])
@@ -896,6 +1008,11 @@ model PropertyFacility {
 
   property           Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   facilityType       FacilityType @relation(fields: [facilityTypeId], references: [id])
+
+  // Relations — Booking (Module 5.3)
+  bookingRule        FacilityBookingRule?
+  bookings           FacilityBooking[]
+  blackoutDates      BookingBlackoutDate[]
 
   @@unique([propertyId, facilityTypeId], name: "uq_property_facility")
   @@map("property_facilities")
@@ -1053,6 +1170,28 @@ model Unit {
   facilityAssets       FacilityAsset[]
   securityIncidents    SecurityIncident[]
 
+  // Relations — Portal (Module 5.1)
+  residents            Resident[]
+
+  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  visitors             Visitor[]
+  facilityBookings     FacilityBooking[]
+  communityComplaints  CommunityComplaint[]
+  moveRequests         MoveRequest[]
+
+  // Relations — Mall (Module 6.1)
+  shopProfile          ShopProfile?
+  gtoSubmissions       GtoSubmission[]
+  camBillings          CamBilling[]
+  camReconciliations   CamReconciliation[]
+
+  // Relations — Condo (Module 6.2)
+  smartMeterReadings   SmartMeterReading[] @relation("ReadingUnit")
+  fundTransactions     FundTransaction[]   @relation("FundTxnUnit")
+  meetingProxies       MeetingProxy[]
+  meetingVotes         MeetingVote[]       @relation("VoteUnit")
+  bylawViolations      BylawViolation[]    @relation("ViolationUnit")
+
   @@unique([unitNumber, propertyId], name: "uq_unit_number_property")
   @@index([propertyId])
   @@index([towerId])
@@ -1102,6 +1241,10 @@ model UtilityMeter {
   @@unique([meterSerialNo, propertyId], name: "uq_meter_serial_property")
   @@index([unitId])
   @@index([propertyId])
+  // Relations — Condo (Module 6.2)
+  smartMeterReadings SmartMeterReading[]
+  smartMeterDevice   SmartMeterDevice?
+
   @@map("utility_meters")
 }
 
@@ -1210,6 +1353,15 @@ model Tenant {
   // Relations — Maintenance (Module 4.1)
   maintenanceTickets   MaintenanceTicket[] @relation("TicketReportedByTenant")
   securityIncidents    SecurityIncident[]
+
+  // Relations — Portal (Module 5.1)
+  residents            Resident[]         @relation("ResidentTenant")
+
+  // Relations — Mall (Module 6.1)
+  gtoSubmissions       GtoSubmission[]
+  camBillings          CamBilling[]       @relation("CamBillingTenant")
+  camReconciliations   CamReconciliation[] @relation("CamReconTenant")
+  boothRentals         BoothRental[]      @relation("BoothTenant")
 
   @@index([companyId])
   @@index([email])
@@ -1436,6 +1588,17 @@ model Lease {
   // Relations — Billing (Module 3.1)
   billingSchedules        BillingSchedule[] @relation("ScheduleLease")
   invoices                Invoice[]         @relation("InvoiceLease")
+
+  // Relations — Portal (Module 5.1)
+  residents               Resident[]        @relation("ResidentLease")
+
+  // Relations — Community (Module 5.4)
+  moveRequests            MoveRequest[]     @relation("MoveRequestLease")
+
+  // Relations — Mall (Module 6.1)
+  commercialLease         CommercialLease?
+  gtoSubmissions          GtoSubmission[]
+  camBillings             CamBilling[]      @relation("CamBillingLease")
 
   @@index([companyId])
   @@index([propertyId])
@@ -2152,6 +2315,7 @@ model ParkingSlot {
   company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   allocations     ParkingAllocation[]
   visitorPasses   VisitorParkingPass[]
+  visitors        Visitor[]            @relation("VisitorParkingSlot")
 
   @@unique([slotNumber, propertyId], name: "uq_slot_number_property")
   @@index([propertyId])
@@ -2380,6 +2544,18 @@ model Invoice {
 
   // Relations — AR (Module 3.2)
   receiptAllocations  ReceiptAllocation[]
+
+  // Relations — Booking (Module 5.3)
+  facilityBookings    FacilityBooking[]  @relation("BookingInvoice")
+
+  // Relations — Mall (Module 6.1)
+  gtoSubmissions      GtoSubmission[]    @relation("GtoInvoice")
+  camBillings         CamBilling[]       @relation("CamBillingInvoice")
+  camReconciliations  CamReconciliation[] @relation("CamReconInvoice")
+  boothRentals        BoothRental[]      @relation("BoothInvoice")
+
+  // Relations — Condo (Module 6.2)
+  bylawViolations     BylawViolation[]   @relation("ViolationInvoice")
 
   @@index([tenantId])
   @@index([leaseId])
@@ -3616,3 +3792,1089 @@ model AccessControlEvent {
   @@index([propertyId, eventAt(sort: Desc)])
   @@map("access_control_events")
 }
+
+// ─────────────────────────────────────────────
+// MODULE 5.1 — TENANT & RESIDENT PORTAL
+// ─────────────────────────────────────────────
+
+model Resident {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  unitId          String    @map("unit_id") @db.Uuid
+  leaseId         String?   @map("lease_id") @db.Uuid
+  userId          String?   @map("user_id") @db.Uuid
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  residentType    String    @default("occupant") @map("resident_type") @db.VarChar(20)
+                  // 'primary_tenant'|'family_member'|'occupant'|'domestic_helper'
+  firstName       String    @map("first_name") @db.VarChar(100)
+  lastName        String    @map("last_name") @db.VarChar(100)
+  dateOfBirth     DateTime? @map("date_of_birth") @db.Date
+  relationship    String?   @db.VarChar(50)
+                  // 'spouse'|'child'|'parent'|'sibling'|'employee'
+  idType          String?   @map("id_type") @db.VarChar(30)
+  idNumber        String?   @map("id_number") @db.VarChar(100)
+  mobile          String?   @db.VarChar(50)
+  email           String?   @db.VarChar(255)
+  avatarUrl       String?   @map("avatar_url") @db.VarChar(500)
+  hasPortalAccess Boolean   @default(false) @map("has_portal_access")
+  vehiclePlate    String?   @map("vehicle_plate") @db.VarChar(30)
+  isActive        Boolean   @default(true) @map("is_active")
+  moveInDate      DateTime? @map("move_in_date") @db.Date
+  moveOutDate     DateTime? @map("move_out_date") @db.Date
+  notes           String?   @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property        Property  @relation(fields: [propertyId], references: [id])
+  unit            Unit      @relation(fields: [unitId], references: [id])
+  lease           Lease?    @relation("ResidentLease", fields: [leaseId], references: [id])
+  user            User?     @relation("ResidentUser", fields: [userId], references: [id])
+  tenant          Tenant?   @relation("ResidentTenant", fields: [tenantId], references: [id])
+  accessCards     ResidentAccessCard[]
+
+  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  visitorsHosted     Visitor[]
+  facilityBookings   FacilityBooking[]
+  complaintsSubmitted CommunityComplaint[]
+  moveRequests       MoveRequest[]
+
+  // Relations — Condo (Module 6.2)
+  bylawViolations    BylawViolation[]   @relation("ViolationResident")
+
+  @@index([unitId])
+  @@index([leaseId])
+  @@index([userId])
+  @@index([companyId])
+  @@map("residents")
+}
+
+model ResidentAccessCard {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  residentId  String    @map("resident_id") @db.Uuid
+  propertyId  String    @map("property_id") @db.Uuid
+  cardNumber  String    @map("card_number") @db.VarChar(100)
+  cardType    String    @default("rfid") @map("card_type") @db.VarChar(20)
+              // 'rfid'|'nfc'|'qr'|'barcode'
+  issuedAt    DateTime  @map("issued_at") @db.Date
+  expiresAt   DateTime? @map("expires_at") @db.Date
+  status      String    @default("active") @db.VarChar(20)
+              // 'active'|'suspended'|'cancelled'|'lost'
+  notes       String?   @db.Text
+  issuedById  String?   @map("issued_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  resident    Resident  @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  property    Property  @relation(fields: [propertyId], references: [id])
+  issuedBy    User?     @relation("AccessCardIssuer", fields: [issuedById], references: [id])
+
+  @@index([residentId])
+  @@index([companyId])
+  @@map("resident_access_cards")
+}
+
+model PortalSession {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tenantId      String?   @map("tenant_id") @db.Uuid
+  unitId        String?   @map("unit_id") @db.Uuid
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  endedAt       DateTime? @map("ended_at") @db.Timestamptz
+  ipAddress     String?   @map("ip_address") @db.VarChar(45)
+  userAgent     String?   @map("user_agent") @db.Text
+  pagesVisited  Int       @default(0) @map("pages_visited") @db.SmallInt
+
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user          User      @relation("PortalSessionUser", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([companyId])
+  @@map("portal_sessions")
+}
+
+model PortalQuickAction {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  propertyId  String   @map("property_id") @db.Uuid
+  label       String   @db.VarChar(100)
+  icon        String?  @db.VarChar(50)
+  actionType  String   @map("action_type") @db.VarChar(30)
+              // 'link'|'modal'|'page'
+  actionUrl   String?  @map("action_url") @db.VarChar(255)
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order") @db.SmallInt
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property    Property @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId])
+  @@index([companyId])
+  @@map("portal_quick_actions")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 5.2 — VISITOR MANAGEMENT
+// ─────────────────────────────────────────────
+
+model Visitor {
+  id                     String    @id @default(uuid()) @db.Uuid
+  companyId              String    @map("company_id") @db.Uuid
+  propertyId             String    @map("property_id") @db.Uuid
+  hostUnitId             String    @map("host_unit_id") @db.Uuid
+  hostResidentId         String?   @map("host_resident_id") @db.Uuid
+  hostUserId             String?   @map("host_user_id") @db.Uuid
+  visitorName            String    @map("visitor_name") @db.VarChar(200)
+  visitorIc              String?   @map("visitor_ic") @db.VarChar(50)
+  visitorMobile          String?   @map("visitor_mobile") @db.VarChar(50)
+  visitorCompany         String?   @map("visitor_company") @db.VarChar(150)
+  visitPurpose           String?   @map("visit_purpose") @db.VarChar(255)
+  expectedAt             DateTime? @map("expected_at") @db.Timestamptz
+  expectedDurationHours  Int       @default(2) @map("expected_duration_hours") @db.SmallInt
+  validFrom              DateTime  @map("valid_from") @db.Timestamptz
+  validTo                DateTime  @map("valid_to") @db.Timestamptz
+  // QR pass
+  qrToken                String    @unique @map("qr_token") @db.VarChar(255)
+  qrTokenHash            String    @unique @map("qr_token_hash") @db.VarChar(255)
+  passType               String    @default("single") @map("pass_type") @db.VarChar(20)
+                          // 'single'|'recurring'|'multi_day'
+  maxUses                Int       @default(1) @map("max_uses") @db.SmallInt
+  useCount               Int       @default(0) @map("use_count") @db.SmallInt
+  // Status
+  status                 String    @default("pending") @db.VarChar(20)
+                          // 'pending'|'approved'|'checked_in'|'checked_out'|'expired'|'cancelled'|'denied'
+  // Actual visit
+  checkedInAt            DateTime? @map("checked_in_at") @db.Timestamptz
+  checkedOutAt           DateTime? @map("checked_out_at") @db.Timestamptz
+  checkInGate            String?   @map("check_in_gate") @db.VarChar(100)
+  checkInGuardId         String?   @map("check_in_guard_id") @db.Uuid
+  actualDurationMinutes  Int?      @map("actual_duration_minutes") @db.SmallInt
+  // Overstay
+  isOverstay             Boolean   @default(false) @map("is_overstay")
+  overstayNotified       Boolean   @default(false) @map("overstay_notified")
+  // Vehicle
+  vehiclePlate           String?   @map("vehicle_plate") @db.VarChar(30)
+  vehicleMake            String?   @map("vehicle_make") @db.VarChar(50)
+  parkingSlotId          String?   @map("parking_slot_id") @db.Uuid
+  // Misc
+  notes                  String?   @db.Text
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company                Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property               Property       @relation(fields: [propertyId], references: [id])
+  hostUnit               Unit           @relation(fields: [hostUnitId], references: [id])
+  hostResident           Resident?      @relation(fields: [hostResidentId], references: [id])
+  hostUser               User?          @relation("VisitorHost", fields: [hostUserId], references: [id])
+  checkInGuard           User?          @relation("VisitorCheckInGuard", fields: [checkInGuardId], references: [id])
+  parkingSlot            ParkingSlot?   @relation("VisitorParkingSlot", fields: [parkingSlotId], references: [id])
+  walkinApprovals        WalkinApproval[]
+
+  @@index([propertyId, validFrom(sort: Desc)])
+  @@index([hostUnitId])
+  @@index([qrTokenHash])
+  @@index([status])
+  @@index([companyId])
+  @@map("visitors")
+}
+
+model WalkinApproval {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  visitorId    String    @map("visitor_id") @db.Uuid
+  requestedAt  DateTime  @default(now()) @map("requested_at") @db.Timestamptz
+  approvedAt   DateTime? @map("approved_at") @db.Timestamptz
+  rejectedAt   DateTime? @map("rejected_at") @db.Timestamptz
+  respondedBy  String?   @map("responded_by") @db.Uuid
+  response     String?   @db.VarChar(10)
+               // 'approved'|'rejected'
+  reason       String?   @db.Text
+  timeoutAt    DateTime  @map("timeout_at") @db.Timestamptz
+
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  visitor      Visitor   @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  responder    User?     @relation("WalkinResponder", fields: [respondedBy], references: [id])
+
+  @@index([visitorId])
+  @@index([companyId])
+  @@map("walkin_approvals")
+}
+
+model VisitorBlacklist {
+  id             String    @id @default(uuid()) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  propertyId     String?   @map("property_id") @db.Uuid
+  visitorName    String?   @map("visitor_name") @db.VarChar(200)
+  visitorIc      String?   @map("visitor_ic") @db.VarChar(50)
+  visitorMobile  String?   @map("visitor_mobile") @db.VarChar(50)
+  reason         String    @db.Text
+  addedBy        String    @map("added_by") @db.Uuid
+  addedAt        DateTime  @default(now()) @map("added_at") @db.Timestamptz
+  isActive       Boolean   @default(true) @map("is_active")
+
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  addedByUser    User      @relation("BlacklistAddedBy", fields: [addedBy], references: [id])
+
+  @@index([companyId])
+  @@map("visitor_blacklist")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 5.3 — FACILITY BOOKING
+// ─────────────────────────────────────────────
+
+model FacilityBookingRule {
+  id                   String   @id @default(uuid()) @db.Uuid
+  facilityId           String   @unique @map("facility_id") @db.Uuid
+  propertyId           String   @map("property_id") @db.Uuid
+  companyId            String   @map("company_id") @db.Uuid
+  minDurationMinutes   Int      @default(30) @map("min_duration_minutes") @db.SmallInt
+  maxDurationMinutes   Int      @default(240) @map("max_duration_minutes") @db.SmallInt
+  advanceBookingDays   Int      @default(7) @map("advance_booking_days") @db.SmallInt
+  maxAdvanceDays       Int      @default(30) @map("max_advance_days") @db.SmallInt
+  maxBookingsPerDay    Int?     @map("max_bookings_per_day") @db.SmallInt
+  maxBookingsPerWeek   Int?     @map("max_bookings_per_week") @db.SmallInt
+  cancellationHours    Int      @default(24) @map("cancellation_hours") @db.SmallInt
+  isPaid               Boolean  @default(false) @map("is_paid")
+  hourlyRate           Decimal? @map("hourly_rate") @db.Decimal(10, 2)
+  flatRate             Decimal? @map("flat_rate") @db.Decimal(10, 2)
+  currency             String   @default("USD") @db.VarChar(3)
+  requiresApproval     Boolean  @default(false) @map("requires_approval")
+  autoApprove          Boolean  @default(true) @map("auto_approve")
+  bufferMinutes        Int      @default(15) @map("buffer_minutes") @db.SmallInt
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  facility             PropertyFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  property             Property         @relation(fields: [propertyId], references: [id])
+  company              Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("facility_booking_rules")
+}
+
+model FacilityBooking {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  propertyId        String    @map("property_id") @db.Uuid
+  facilityId        String    @map("facility_id") @db.Uuid
+  unitId            String    @map("unit_id") @db.Uuid
+  residentId        String    @map("resident_id") @db.Uuid
+  bookingDate       DateTime  @map("booking_date") @db.Date
+  startTime         String    @map("start_time") @db.VarChar(5)
+  endTime           String    @map("end_time") @db.VarChar(5)
+  startAt           DateTime  @map("start_at") @db.Timestamptz
+  endAt             DateTime  @map("end_at") @db.Timestamptz
+  durationMinutes   Int       @map("duration_minutes") @db.SmallInt
+  paxCount          Int       @default(1) @map("pax_count") @db.SmallInt
+  purpose           String?   @db.VarChar(255)
+  status            String    @default("confirmed") @db.VarChar(20)
+                    // 'pending'|'confirmed'|'cancelled'|'completed'|'no_show'
+  // Payment
+  isPaidBooking     Boolean   @default(false) @map("is_paid_booking")
+  chargeAmount      Decimal?  @map("charge_amount") @db.Decimal(10, 2)
+  currency          String?   @db.VarChar(3)
+  invoiceId         String?   @map("invoice_id") @db.Uuid
+  paymentStatus     String    @default("not_required") @map("payment_status") @db.VarChar(20)
+                    // 'not_required'|'pending'|'paid'|'refunded'
+  // Approval
+  requiresApproval  Boolean   @default(false) @map("requires_approval")
+  approvedBy        String?   @map("approved_by") @db.Uuid
+  approvedAt        DateTime? @map("approved_at") @db.Timestamptz
+  rejectionReason   String?   @map("rejection_reason") @db.Text
+  // Cancellation
+  cancelledAt       DateTime? @map("cancelled_at") @db.Timestamptz
+  cancellationReason String?  @map("cancellation_reason") @db.Text
+  cancellationFee    Decimal  @default(0) @map("cancellation_fee") @db.Decimal(10, 2)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property          Property         @relation(fields: [propertyId], references: [id])
+  facility          PropertyFacility @relation(fields: [facilityId], references: [id])
+  unit              Unit             @relation(fields: [unitId], references: [id])
+  resident          Resident         @relation(fields: [residentId], references: [id])
+  invoice           Invoice?         @relation("BookingInvoice", fields: [invoiceId], references: [id])
+  approver          User?            @relation("BookingApprover", fields: [approvedBy], references: [id])
+
+  @@index([facilityId, bookingDate])
+  @@index([residentId, bookingDate(sort: Desc)])
+  @@index([status])
+  @@index([companyId])
+  @@map("facility_bookings")
+}
+
+model BookingBlackoutDate {
+  id            String    @id @default(uuid()) @db.Uuid
+  facilityId    String?   @map("facility_id") @db.Uuid
+  propertyId    String    @map("property_id") @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  blackoutDate  DateTime  @map("blackout_date") @db.Date
+  fromTime      String?   @map("from_time") @db.VarChar(5)
+  toTime        String?   @map("to_time") @db.VarChar(5)
+  reason        String?   @db.VarChar(255)
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  facility      PropertyFacility? @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  property      Property          @relation(fields: [propertyId], references: [id])
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator       User?             @relation("BlackoutCreator", fields: [createdBy], references: [id])
+
+  @@index([facilityId, blackoutDate])
+  @@index([companyId])
+  @@map("booking_blackout_dates")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 5.4 — COMMUNITY MANAGEMENT
+// ─────────────────────────────────────────────
+
+model Announcement {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  title           String    @db.VarChar(255)
+  content         String    @db.Text
+  contentHtml     String?   @map("content_html") @db.Text
+  category        String    @default("general") @db.VarChar(50)
+                  // 'general'|'maintenance'|'event'|'emergency'|'policy'
+  priority        String    @default("normal") @db.VarChar(10)
+                  // 'normal'|'important'|'urgent'
+  targetAudience  String    @default("all") @map("target_audience") @db.VarChar(20)
+                  // 'all'|'unit_type'|'floor_range'|'specific_units'
+  targetConfig    Json?     @map("target_config") @db.JsonB
+  attachments     Json      @default("[]") @db.JsonB
+  isPinned        Boolean   @default(false) @map("is_pinned")
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz
+  status          String    @default("draft") @db.VarChar(20)
+                  // 'draft'|'published'|'expired'|'archived'
+  sendPush        Boolean   @default(true) @map("send_push")
+  sendEmail       Boolean   @default(false) @map("send_email")
+  viewCount       Int       @default(0) @map("view_count")
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property        Property  @relation(fields: [propertyId], references: [id])
+  creator         User      @relation("AnnouncementCreator", fields: [createdBy], references: [id])
+  reads           AnnouncementRead[]
+
+  @@index([propertyId, publishedAt(sort: Desc)])
+  @@index([companyId])
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  companyId       String   @map("company_id") @db.Uuid
+  announcementId  String   @map("announcement_id") @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  readAt          DateTime @default(now()) @map("read_at") @db.Timestamptz
+
+  company         Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  announcement    Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user            User         @relation("AnnouncementReader", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([announcementId, userId])
+  @@map("announcement_reads")
+}
+
+model Poll {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  propertyId   String    @map("property_id") @db.Uuid
+  title        String    @db.VarChar(255)
+  description  String?   @db.Text
+  options      Json      @db.JsonB
+               // [{ id, text, voteCount }]
+  pollType     String    @default("single") @map("poll_type") @db.VarChar(10)
+               // 'single'|'multiple'
+  startAt      DateTime  @map("start_at") @db.Timestamptz
+  endAt        DateTime  @map("end_at") @db.Timestamptz
+  status       String    @default("active") @db.VarChar(20)
+  isAnonymous  Boolean   @default(true) @map("is_anonymous")
+  createdBy    String    @map("created_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property     Property  @relation(fields: [propertyId], references: [id])
+  creator      User      @relation("PollCreator", fields: [createdBy], references: [id])
+  votes        PollVote[]
+
+  @@index([propertyId])
+  @@index([companyId])
+  @@map("polls")
+}
+
+model PollVote {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  pollId     String   @map("poll_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  optionIds  String[] @map("option_ids")
+  votedAt    DateTime @default(now()) @map("voted_at") @db.Timestamptz
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  poll       Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user       User     @relation("PollVoter", fields: [userId], references: [id])
+
+  @@unique([pollId, userId], name: "uq_poll_vote")
+  @@index([companyId])
+  @@map("poll_votes")
+}
+
+model CommunityComplaint {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  propertyId        String    @map("property_id") @db.Uuid
+  unitId            String?   @map("unit_id") @db.Uuid
+  submittedBy       String    @map("submitted_by") @db.Uuid
+  residentId        String?   @map("resident_id") @db.Uuid
+  category          String    @db.VarChar(50)
+                    // 'noise'|'cleanliness'|'neighbor'|'management'|'facility'|'other'
+  title             String    @db.VarChar(255)
+  description       String    @db.Text
+  isAnonymous       Boolean   @default(false) @map("is_anonymous")
+  status            String    @default("open") @db.VarChar(20)
+                    // 'open'|'in_review'|'resolved'|'closed'
+  response          String?   @db.Text
+  respondedBy       String?   @map("responded_by") @db.Uuid
+  respondedAt       DateTime? @map("responded_at") @db.Timestamptz
+  satisfactionScore Int?      @map("satisfaction_score") @db.SmallInt
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property          Property  @relation(fields: [propertyId], references: [id])
+  unit              Unit?     @relation(fields: [unitId], references: [id])
+  submitter         User      @relation("ComplaintSubmitter", fields: [submittedBy], references: [id])
+  resident          Resident? @relation(fields: [residentId], references: [id])
+  responder         User?     @relation("ComplaintResponder", fields: [respondedBy], references: [id])
+
+  @@index([propertyId])
+  @@index([companyId])
+  @@map("community_complaints")
+}
+
+model MoveRequest {
+  id                    String    @id @default(uuid()) @db.Uuid
+  companyId             String    @map("company_id") @db.Uuid
+  propertyId            String    @map("property_id") @db.Uuid
+  unitId                String    @map("unit_id") @db.Uuid
+  leaseId               String?   @map("lease_id") @db.Uuid
+  residentId            String    @map("resident_id") @db.Uuid
+  requestType           String    @map("request_type") @db.VarChar(10)
+                        // 'move_in'|'move_out'
+  requestedDate         DateTime  @map("requested_date") @db.Date
+  preferredTime         String?   @map("preferred_time") @db.VarChar(5)
+  elevatorBookingId     String?   @map("elevator_booking_id") @db.Uuid
+  depositAmount         Decimal?  @map("deposit_amount") @db.Decimal(15, 2)
+  depositPaid           Boolean   @default(false) @map("deposit_paid")
+  inspectionRequired    Boolean   @default(true) @map("inspection_required")
+  inspectionAt          DateTime? @map("inspection_at") @db.Timestamptz
+  inspectionBy          String?   @map("inspection_by") @db.Uuid
+  inspectionChecklist   Json      @default("[]") @map("inspection_checklist") @db.JsonB
+  status                String    @default("pending") @db.VarChar(20)
+                        // 'pending'|'approved'|'rejected'|'completed'|'cancelled'
+  workflowInstanceId    String?   @map("workflow_instance_id") @db.Uuid
+  approvedBy            String?   @map("approved_by") @db.Uuid
+  approvedAt            DateTime? @map("approved_at") @db.Timestamptz
+  notes                 String?   @db.Text
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company               Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property              Property  @relation(fields: [propertyId], references: [id])
+  unit                  Unit      @relation(fields: [unitId], references: [id])
+  lease                 Lease?    @relation("MoveRequestLease", fields: [leaseId], references: [id])
+  resident              Resident  @relation(fields: [residentId], references: [id])
+  inspector             User?     @relation("MoveInspector", fields: [inspectionBy], references: [id])
+  approver              User?     @relation("MoveApprover", fields: [approvedBy], references: [id])
+
+  @@index([propertyId])
+  @@index([companyId])
+  @@map("move_requests")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 6.1 — SHOPPING MALL MODULES
+// ─────────────────────────────────────────────
+
+model MallProperty {
+  propertyId          String   @id @map("property_id") @db.Uuid
+  companyId           String   @map("company_id") @db.Uuid
+  totalGlaSqft        Decimal? @map("total_gla_sqft") @db.Decimal(12, 2)
+  totalNlaSqft        Decimal? @map("total_nla_sqft") @db.Decimal(12, 2)
+  totalShops          Int      @default(0) @map("total_shops") @db.SmallInt
+  totalFloors         Int?     @map("total_floors") @db.SmallInt
+  anchorTenantSlots   Int      @default(0) @map("anchor_tenant_slots") @db.SmallInt
+  mallType            String?  @map("mall_type") @db.VarChar(30)
+  managementFeePct    Decimal  @default(0.05) @map("management_fee_pct") @db.Decimal(5, 4)
+  camPoolType         String   @default("shared") @map("cam_pool_type") @db.VarChar(20)
+  camAdminFeePct      Decimal  @default(0.10) @map("cam_admin_fee_pct") @db.Decimal(5, 4)
+  fiscalYearStart     Int      @default(1) @map("fiscal_year_start") @db.SmallInt
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  property            Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("mall_properties")
+}
+
+model ShopProfile {
+  unitId              String   @id @map("unit_id") @db.Uuid
+  companyId           String   @map("company_id") @db.Uuid
+  propertyId          String   @map("property_id") @db.Uuid
+  shopNumber          String?  @map("shop_number") @db.VarChar(30)
+  brandName           String?  @map("brand_name") @db.VarChar(150)
+  tradeCategory       String?  @map("trade_category") @db.VarChar(100)
+  tradeSubcategory    String?  @map("trade_subcategory") @db.VarChar(100)
+  franchiseGroup      String?  @map("franchise_group") @db.VarChar(150)
+  logoUrl             String?  @map("logo_url") @db.VarChar(500)
+  shopfrontUrl        String?  @map("shopfront_url") @db.VarChar(500)
+  isAnchor            Boolean  @default(false) @map("is_anchor")
+  anchorType          String?  @map("anchor_type") @db.VarChar(30)
+  shopZone            String?  @map("shop_zone") @db.VarChar(50)
+  shopfrontWidthM     Decimal? @map("shopfront_width_m") @db.Decimal(6, 2)
+  fitOutAllowed       Boolean  @default(true) @map("fit_out_allowed")
+  posSystem           String?  @map("pos_system") @db.VarChar(50)
+  posStoreId          String?  @map("pos_store_id") @db.VarChar(100)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  unit                Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property            Property @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId])
+  @@index([tradeCategory])
+  @@map("shop_profiles")
+}
+
+model CommercialLease {
+  leaseId                   String    @id @map("lease_id") @db.Uuid
+  companyId                 String    @map("company_id") @db.Uuid
+  fitOutStartDate           DateTime? @map("fit_out_start_date") @db.Date
+  fitOutEndDate             DateTime? @map("fit_out_end_date") @db.Date
+  fitOutRentFree            Boolean   @default(true) @map("fit_out_rent_free")
+  fitOutAllowance           Decimal   @default(0) @map("fit_out_allowance") @db.Decimal(15, 2)
+  fitOutAllowancePaid       Boolean   @default(false) @map("fit_out_allowance_paid")
+  hasPercentageRent         Boolean   @default(false) @map("has_percentage_rent")
+  baseRentPctThreshold      Decimal?  @map("base_rent_pct_threshold") @db.Decimal(15, 2)
+  percentageRentRate        Decimal?  @map("percentage_rent_rate") @db.Decimal(5, 4)
+  percentageRentType        String    @default("natural") @map("percentage_rent_type") @db.VarChar(20)
+  artificialBreakpoint      Decimal?  @map("artificial_breakpoint") @db.Decimal(15, 2)
+  gtoReportingDay           Int       @default(15) @map("gto_reporting_day") @db.SmallInt
+  camIncluded               Boolean   @default(true) @map("cam_included")
+  camRatePerSqft            Decimal?  @map("cam_rate_per_sqft") @db.Decimal(10, 4)
+  camCapPct                 Decimal?  @map("cam_cap_pct") @db.Decimal(5, 4)
+  camBaseYear               Int?      @map("cam_base_year") @db.SmallInt
+  marketingLevyPct          Decimal   @default(0.01) @map("marketing_levy_pct") @db.Decimal(5, 4)
+  marketingLevyAmount       Decimal?  @map("marketing_levy_amount") @db.Decimal(12, 2)
+  turnoverReportingRequired Boolean   @default(true) @map("turnover_reporting_required")
+  exclusivityCategory       String?   @map("exclusivity_category") @db.VarChar(100)
+  exclusivityRadiusKm       Decimal?  @map("exclusivity_radius_km") @db.Decimal(5, 2)
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  lease                     Lease     @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  company                   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("commercial_leases")
+}
+
+model GtoSubmission {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  propertyId          String    @map("property_id") @db.Uuid
+  unitId              String    @map("unit_id") @db.Uuid
+  leaseId             String    @map("lease_id") @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  submissionMonth     Int       @map("submission_month") @db.SmallInt
+  submissionYear      Int       @map("submission_year") @db.SmallInt
+  grossTurnover       Decimal   @map("gross_turnover") @db.Decimal(15, 2)
+  currency            String    @default("USD") @db.VarChar(3)
+  cashSales           Decimal?  @map("cash_sales") @db.Decimal(15, 2)
+  cardSales           Decimal?  @map("card_sales") @db.Decimal(15, 2)
+  onlineSales         Decimal?  @map("online_sales") @db.Decimal(15, 2)
+  otherSales          Decimal?  @map("other_sales") @db.Decimal(15, 2)
+  submittedAt         DateTime  @default(now()) @map("submitted_at") @db.Timestamptz
+  submittedBy         String    @map("submitted_by") @db.Uuid
+  submissionMethod    String    @default("manual") @map("submission_method") @db.VarChar(20)
+  verified            Boolean   @default(false)
+  verifiedBy          String?   @map("verified_by") @db.Uuid
+  verifiedAt          DateTime? @map("verified_at") @db.Timestamptz
+  variancePct         Decimal?  @map("variance_pct") @db.Decimal(7, 4)
+  baseRent            Decimal?  @map("base_rent") @db.Decimal(15, 2)
+  naturalBreakpoint   Decimal?  @map("natural_breakpoint") @db.Decimal(15, 2)
+  gtoAboveBreakpoint  Decimal?  @map("gto_above_breakpoint") @db.Decimal(15, 2)
+  percentageRent      Decimal   @default(0) @map("percentage_rent") @db.Decimal(15, 2)
+  totalRentDue        Decimal?  @map("total_rent_due") @db.Decimal(15, 2)
+  invoiceId           String?   @map("invoice_id") @db.Uuid
+  posValidated        Boolean   @default(false) @map("pos_validated")
+  notes               String?   @db.Text
+
+  company             Company   @relation(fields: [companyId], references: [id])
+  property            Property  @relation(fields: [propertyId], references: [id])
+  unit                Unit      @relation(fields: [unitId], references: [id])
+  lease               Lease     @relation(fields: [leaseId], references: [id])
+  tenant              Tenant    @relation(fields: [tenantId], references: [id])
+  submitter           User      @relation("GtoSubmitter", fields: [submittedBy], references: [id])
+  verifier            User?     @relation("GtoVerifier", fields: [verifiedBy], references: [id])
+  invoice             Invoice?  @relation("GtoInvoice", fields: [invoiceId], references: [id])
+
+  @@unique([leaseId, submissionMonth, submissionYear], name: "uq_gto_submission")
+  @@index([propertyId, submissionYear, submissionMonth])
+  @@index([leaseId])
+  @@map("gto_submissions")
+}
+
+model CamCostPool {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  name            String    @db.VarChar(150)
+  description     String?   @db.Text
+  poolType        String    @map("pool_type") @db.VarChar(30)
+  allocationBasis String    @default("gla") @map("allocation_basis") @db.VarChar(30)
+  costCategories  String[]  @default([]) @map("cost_categories")
+  year            Int       @db.SmallInt
+  budgetedAmount  Decimal   @default(0) @map("budgeted_amount") @db.Decimal(15, 2)
+  actualAmount    Decimal   @default(0) @map("actual_amount") @db.Decimal(15, 2)
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id])
+  property        Property  @relation(fields: [propertyId], references: [id])
+  billings        CamBilling[]
+  reconciliations CamReconciliation[]
+
+  @@unique([propertyId, name, year], name: "uq_cam_pool")
+  @@map("cam_cost_pools")
+}
+
+model CamBilling {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  poolId          String    @map("pool_id") @db.Uuid
+  unitId          String    @map("unit_id") @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  leaseId         String?   @map("lease_id") @db.Uuid
+  billingMonth    Int       @map("billing_month") @db.SmallInt
+  billingYear     Int       @map("billing_year") @db.SmallInt
+  unitGlaSqft     Decimal   @map("unit_gla_sqft") @db.Decimal(10, 2)
+  totalGlaSqft    Decimal   @map("total_gla_sqft") @db.Decimal(12, 2)
+  allocationPct   Decimal   @map("allocation_pct") @db.Decimal(8, 6)
+  poolAmount      Decimal   @map("pool_amount") @db.Decimal(15, 2)
+  adminFee        Decimal   @default(0) @map("admin_fee") @db.Decimal(15, 2)
+  allocatedAmount Decimal   @map("allocated_amount") @db.Decimal(15, 2)
+  invoiceId       String?   @map("invoice_id") @db.Uuid
+  status          String    @default("pending") @db.VarChar(20)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id])
+  property        Property  @relation(fields: [propertyId], references: [id])
+  pool            CamCostPool @relation(fields: [poolId], references: [id])
+  unit            Unit      @relation(fields: [unitId], references: [id])
+  tenant          Tenant    @relation("CamBillingTenant", fields: [tenantId], references: [id])
+  lease           Lease?    @relation("CamBillingLease", fields: [leaseId], references: [id])
+  invoice         Invoice?  @relation("CamBillingInvoice", fields: [invoiceId], references: [id])
+
+  @@unique([poolId, unitId, billingMonth, billingYear], name: "uq_cam_billing")
+  @@map("cam_billings")
+}
+
+model CamReconciliation {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  propertyId        String    @map("property_id") @db.Uuid
+  poolId            String    @map("pool_id") @db.Uuid
+  unitId            String    @map("unit_id") @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  reconYear         Int       @map("recon_year") @db.SmallInt
+  totalEstimated    Decimal   @map("total_estimated") @db.Decimal(15, 2)
+  totalActual       Decimal   @map("total_actual") @db.Decimal(15, 2)
+  variance          Decimal   @db.Decimal(15, 2)
+  invoiceId         String?   @map("invoice_id") @db.Uuid
+  status            String    @default("draft") @db.VarChar(20)
+  finalizedAt       DateTime? @map("finalized_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company           Company   @relation(fields: [companyId], references: [id])
+  property          Property  @relation(fields: [propertyId], references: [id])
+  pool              CamCostPool @relation(fields: [poolId], references: [id])
+  unit              Unit      @relation(fields: [unitId], references: [id])
+  tenant            Tenant    @relation("CamReconTenant", fields: [tenantId], references: [id])
+  invoice           Invoice?  @relation("CamReconInvoice", fields: [invoiceId], references: [id])
+
+  @@unique([poolId, unitId, reconYear], name: "uq_cam_recon")
+  @@map("cam_reconciliations")
+}
+
+model MallEvent {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  propertyId        String    @map("property_id") @db.Uuid
+  title             String    @db.VarChar(255)
+  description       String?   @db.Text
+  eventType         String    @map("event_type") @db.VarChar(30)
+  category          String?   @db.VarChar(50)
+  startDate         DateTime  @map("start_date") @db.Date
+  endDate           DateTime  @map("end_date") @db.Date
+  startTime         String?   @map("start_time") @db.VarChar(10)
+  endTime           String?   @map("end_time") @db.VarChar(10)
+  venue             String?   @db.VarChar(255)
+  organizer         String?   @db.VarChar(150)
+  estimatedFootfall Int?      @map("estimated_footfall")
+  actualFootfall    Int?      @map("actual_footfall")
+  budget            Decimal?  @db.Decimal(15, 2)
+  actualCost        Decimal?  @map("actual_cost") @db.Decimal(15, 2)
+  status            String    @default("planned") @db.VarChar(20)
+  bannerUrl         String?   @map("banner_url") @db.VarChar(500)
+  isPublic          Boolean   @default(true) @map("is_public")
+  createdBy         String?   @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company           Company   @relation(fields: [companyId], references: [id])
+  property          Property  @relation(fields: [propertyId], references: [id])
+  creator           User?     @relation("EventCreator", fields: [createdBy], references: [id])
+  booths            BoothRental[]
+
+  @@index([propertyId, startDate])
+  @@map("mall_events")
+}
+
+model BoothRental {
+  id              String    @id @default(uuid()) @db.Uuid
+  eventId         String    @map("event_id") @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  boothNumber     String    @map("booth_number") @db.VarChar(20)
+  boothLocation   String?   @map("booth_location") @db.VarChar(150)
+  sizeSqft        Decimal?  @map("size_sqft") @db.Decimal(8, 2)
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  brandName       String?   @map("brand_name") @db.VarChar(150)
+  startDate       DateTime  @map("start_date") @db.Date
+  endDate         DateTime  @map("end_date") @db.Date
+  dailyRate       Decimal?  @map("daily_rate") @db.Decimal(10, 2)
+  totalAmount     Decimal?  @map("total_amount") @db.Decimal(12, 2)
+  deposit         Decimal   @default(0) @db.Decimal(12, 2)
+  status          String    @default("reserved") @db.VarChar(20)
+  invoiceId       String?   @map("invoice_id") @db.Uuid
+  notes           String?   @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  event           MallEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  company         Company   @relation(fields: [companyId], references: [id])
+  property        Property  @relation(fields: [propertyId], references: [id])
+  tenant          Tenant?   @relation("BoothTenant", fields: [tenantId], references: [id])
+  invoice         Invoice?  @relation("BoothInvoice", fields: [invoiceId], references: [id])
+
+  @@map("booth_rentals")
+}
+
+model FootfallSensor {
+  id            String    @id @default(uuid()) @db.Uuid
+  propertyId    String    @map("property_id") @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  sensorId      String    @map("sensor_id") @db.VarChar(100)
+  name          String    @db.VarChar(150)
+  location      String?   @db.VarChar(255)
+  zone          String?   @db.VarChar(50)
+  floor         String?   @db.VarChar(20)
+  sensorType    String    @default("stereo") @map("sensor_type") @db.VarChar(30)
+  vendor        String?   @db.VarChar(50)
+  apiEndpoint   String?   @map("api_endpoint") @db.VarChar(500)
+  apiKeyEnc     String?   @map("api_key_enc") @db.VarChar(500)
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property      Property  @relation(fields: [propertyId], references: [id])
+  company       Company   @relation(fields: [companyId], references: [id])
+
+  @@map("footfall_sensors")
+}
+
+// ─────────────────────────────────────────────
+// MODULE 6.2 — CONDO & RESIDENTIAL MODELS
+// ─────────────────────────────────────────────
+
+model SmartMeterReading {
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  meterId          String   @map("meter_id") @db.Uuid
+  unitId           String   @map("unit_id") @db.Uuid
+  propertyId       String   @map("property_id") @db.Uuid
+  readingValue     Decimal  @map("reading_value") @db.Decimal(14, 4)
+  readingUnit      String   @map("reading_unit") @db.VarChar(20) // 'kWh'|'m3'|'L'
+  readingAt        DateTime @map("reading_at") @db.Timestamptz
+  source           String   @default("manual") @db.VarChar(20)   // 'manual'|'smart_meter'|'api'
+  isEstimated      Boolean  @default(false) @map("is_estimated")
+  consumption      Decimal? @db.Decimal(12, 4) // delta from previous reading
+  billingTriggered Boolean  @default(false) @map("billing_triggered")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  meter            UtilityMeter @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  unit             Unit         @relation("ReadingUnit", fields: [unitId], references: [id])
+  property         Property     @relation("ReadingProperty", fields: [propertyId], references: [id])
+  company          Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([meterId, readingAt(sort: Desc)])
+  @@index([companyId])
+  @@map("smart_meter_readings")
+}
+
+model SmartMeterDevice {
+  id                      String    @id @default(uuid()) @db.Uuid
+  companyId               String    @map("company_id") @db.Uuid
+  meterId                 String    @unique @map("meter_id") @db.Uuid
+  propertyId              String    @map("property_id") @db.Uuid
+  protocol                String    @db.VarChar(20)    // 'modbus_tcp'|'mqtt'|'http'|'lora'
+  host                    String?   @db.VarChar(255)
+  port                    Int?      @db.SmallInt
+  modbusUnitId            Int?      @map("modbus_unit_id") @db.SmallInt
+  mqttTopic               String?   @map("mqtt_topic") @db.VarChar(500)
+  mqttBroker              String?   @map("mqtt_broker") @db.VarChar(255)
+  httpEndpoint            String?   @map("http_endpoint") @db.VarChar(500)
+  pollingIntervalMinutes  Int       @default(60) @map("polling_interval_minutes") @db.SmallInt
+  lastPolledAt            DateTime? @map("last_polled_at") @db.Timestamptz
+  lastReadingAt           DateTime? @map("last_reading_at") @db.Timestamptz
+  connectionStatus        String    @default("unknown") @map("connection_status") @db.VarChar(20)
+  errorMessage            String?   @map("error_message") @db.Text
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  meter                   UtilityMeter @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  property                Property     @relation("DeviceProperty", fields: [propertyId], references: [id])
+  company                 Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("smart_meter_devices")
+}
+
+model FundAccount {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  fundType        String    @map("fund_type") @db.VarChar(20) // 'sinking_fund'|'management_fund'|'reserve_fund'
+  name            String    @db.VarChar(150)
+  description     String?   @db.Text
+  openingBalance  Decimal   @default(0) @map("opening_balance") @db.Decimal(15, 2)
+  currentBalance  Decimal   @default(0) @map("current_balance") @db.Decimal(15, 2)
+  currency        String    @default("USD") @db.VarChar(3)
+  bankAccountId   String?   @map("bank_account_id") @db.Uuid
+  fiscalYear      Int       @map("fiscal_year") @db.SmallInt
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property        Property  @relation(fields: [propertyId], references: [id])
+  company         Company   @relation(fields: [companyId], references: [id])
+  transactions    FundTransaction[]
+
+  @@unique([propertyId, fundType, fiscalYear], name: "uq_fund_account")
+  @@index([companyId])
+  @@map("fund_accounts")
+}
+
+model FundTransaction {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  fundAccountId    String    @map("fund_account_id") @db.Uuid
+  transactionType  String    @map("transaction_type") @db.VarChar(20)
+                   // 'contribution'|'expenditure'|'interest'|'transfer'
+  amount           Decimal   @db.Decimal(15, 2)
+  description      String    @db.Text
+  transactionDate  DateTime  @map("transaction_date") @db.Date
+  referenceType    String?   @map("reference_type") @db.VarChar(30)
+                   // 'invoice'|'receipt'|'approval'|'manual'
+  referenceId      String?   @map("reference_id") @db.Uuid
+  unitId           String?   @map("unit_id") @db.Uuid
+  approvedBy       String?   @map("approved_by") @db.Uuid
+  glJournalId      String?   @map("gl_journal_id") @db.Uuid
+  notes            String?   @db.Text
+  createdBy        String    @map("created_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  fundAccount      FundAccount @relation(fields: [fundAccountId], references: [id], onDelete: Cascade)
+  unit             Unit?       @relation("FundTxnUnit", fields: [unitId], references: [id])
+  approver         User?       @relation("FundTxnApprover", fields: [approvedBy], references: [id])
+  creator          User        @relation("FundTxnCreator", fields: [createdBy], references: [id])
+  company          Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([fundAccountId])
+  @@index([companyId])
+  @@map("fund_transactions")
+}
+
+model GeneralMeeting {
+  id                   String    @id @default(uuid()) @db.Uuid
+  companyId            String    @map("company_id") @db.Uuid
+  propertyId           String    @map("property_id") @db.Uuid
+  meetingType          String    @map("meeting_type") @db.VarChar(10) // 'AGM'|'EGM'
+  title                String    @db.VarChar(255)
+  fiscalYear           Int?      @map("fiscal_year") @db.SmallInt
+  scheduledAt          DateTime  @map("scheduled_at") @db.Timestamptz
+  venue                String?   @db.VarChar(255)
+  quorumPercentage     Decimal   @default(30) @map("quorum_percentage") @db.Decimal(5, 2)
+  noticeDaysRequired   Int       @default(14) @map("notice_days_required") @db.SmallInt
+  status               String    @default("planned") @db.VarChar(20)
+                       // 'planned'|'notice_sent'|'in_progress'|'completed'|'adjourned'
+  agenda               Json      @default("[]") @db.JsonB
+  minutesUrl           String?   @map("minutes_url") @db.VarChar(500)
+  minutesPublishedAt   DateTime? @map("minutes_published_at") @db.Timestamptz
+  actualAttendees      Int?      @map("actual_attendees") @db.SmallInt
+  quorumMet            Boolean?  @map("quorum_met")
+  createdBy            String    @map("created_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property             Property  @relation(fields: [propertyId], references: [id])
+  company              Company   @relation(fields: [companyId], references: [id])
+  creator              User      @relation("MeetingCreator", fields: [createdBy], references: [id])
+  resolutions          MeetingResolution[]
+  proxies              MeetingProxy[]
+  votes                MeetingVote[]
+
+  @@index([propertyId])
+  @@index([companyId])
+  @@map("general_meetings")
+}
+
+model MeetingResolution {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  meetingId       String    @map("meeting_id") @db.Uuid
+  resolutionNo    Int       @map("resolution_no") @db.SmallInt
+  title           String    @db.VarChar(255)
+  description     String?   @db.Text
+  resolutionType  String    @default("ordinary") @map("resolution_type") @db.VarChar(20)
+                  // 'ordinary'|'special'|'unanimous'
+  votesFor        Int       @default(0) @map("votes_for") @db.SmallInt
+  votesAgainst    Int       @default(0) @map("votes_against") @db.SmallInt
+  votesAbstain    Int       @default(0) @map("votes_abstain") @db.SmallInt
+  totalVotes      Int       @default(0) @map("total_votes") @db.SmallInt
+  result          String?   @db.VarChar(10) // 'passed'|'rejected'|'tied'
+  passedAt        DateTime? @map("passed_at") @db.Timestamptz
+
+  meeting         GeneralMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  votes           MeetingVote[]
+
+  @@unique([meetingId, resolutionNo], name: "uq_resolution_no")
+  @@index([companyId])
+  @@map("meeting_resolutions")
+}
+
+model MeetingProxy {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  meetingId       String    @map("meeting_id") @db.Uuid
+  unitId          String    @map("unit_id") @db.Uuid
+  ownerName       String    @map("owner_name") @db.VarChar(200)
+  proxyName       String    @map("proxy_name") @db.VarChar(200)
+  proxyIdNumber   String?   @map("proxy_id_number") @db.VarChar(50)
+  submittedAt     DateTime  @default(now()) @map("submitted_at") @db.Timestamptz
+  isValid         Boolean   @default(true) @map("is_valid")
+
+  meeting         GeneralMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  unit            Unit           @relation(fields: [unitId], references: [id])
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  votes           MeetingVote[]
+
+  @@index([meetingId])
+  @@index([companyId])
+  @@map("meeting_proxies")
+}
+
+model MeetingVote {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  meetingId       String    @map("meeting_id") @db.Uuid
+  resolutionId    String    @map("resolution_id") @db.Uuid
+  unitId          String    @map("unit_id") @db.Uuid
+  voterUserId     String    @map("voter_user_id") @db.Uuid
+  vote            String    @db.VarChar(10) // 'for'|'against'|'abstain'
+  votedAt         DateTime  @default(now()) @map("voted_at") @db.Timestamptz
+  isProxy         Boolean   @default(false) @map("is_proxy")
+  proxyId         String?   @map("proxy_id") @db.Uuid
+
+  meeting         GeneralMeeting    @relation(fields: [meetingId], references: [id])
+  resolution      MeetingResolution @relation(fields: [resolutionId], references: [id])
+  unit            Unit              @relation("VoteUnit", fields: [unitId], references: [id])
+  voter           User              @relation("VoteCaster", fields: [voterUserId], references: [id])
+  proxy           MeetingProxy?     @relation(fields: [proxyId], references: [id])
+  company         Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([resolutionId, unitId], name: "uq_unit_vote_resolution")
+  @@index([meetingId])
+  @@index([companyId])
+  @@map("meeting_votes")
+}
+
+model Bylaw {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  bylawNo         String    @map("bylaw_no") @db.VarChar(30)
+  title           String    @db.VarChar(255)
+  content         String    @db.Text
+  category        String?   @db.VarChar(50) // 'noise'|'pets'|'parking'|'renovation'|'common_area'
+  effectiveDate   DateTime  @map("effective_date") @db.Date
+  isActive        Boolean   @default(true) @map("is_active")
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  property        Property  @relation(fields: [propertyId], references: [id])
+  company         Company   @relation(fields: [companyId], references: [id])
+  creator         User?     @relation("BylawCreator", fields: [createdBy], references: [id])
+  violations      BylawViolation[]
+
+  @@unique([propertyId, bylawNo], name: "uq_bylaw_no")
+  @@index([companyId])
+  @@map("bylaws")
+}
+
+model BylawViolation {
+  id                 String    @id @default(uuid()) @db.Uuid
+  companyId          String    @map("company_id") @db.Uuid
+  propertyId         String    @map("property_id") @db.Uuid
+  bylawId            String    @map("bylaw_id") @db.Uuid
+  unitId             String    @map("unit_id") @db.Uuid
+  residentId         String?   @map("resident_id") @db.Uuid
+  violationNo        String    @unique @map("violation_no") @db.VarChar(30)
+  description        String    @db.Text
+  evidenceUrls       String[]  @default([]) @map("evidence_urls")
+  severity           String    @default("warning") @db.VarChar(10)
+                     // 'warning'|'minor'|'major'
+  status             String    @default("open") @db.VarChar(20)
+                     // 'open'|'warned'|'fined'|'appealing'|'resolved'|'closed'
+  fineAmount         Decimal   @default(0) @map("fine_amount") @db.Decimal(12, 2)
+  invoiceId          String?   @map("invoice_id") @db.Uuid
+  warnedAt           DateTime? @map("warned_at") @db.Timestamptz
+  appealSubmittedAt  DateTime? @map("appeal_submitted_at") @db.Timestamptz
+  appealNotes        String?   @map("appeal_notes") @db.Text
+  resolvedAt         DateTime? @map("resolved_at") @db.Timestamptz
+  resolutionNotes    String?   @map("resolution_notes") @db.Text
+  reportedBy         String    @map("reported_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  bylaw              Bylaw     @relation(fields: [bylawId], references: [id])
+  property           Property  @relation("ViolationProperty", fields: [propertyId], references: [id])
+  unit               Unit      @relation("ViolationUnit", fields: [unitId], references: [id])
+  resident           Resident? @relation("ViolationResident", fields: [residentId], references: [id])
+  invoice            Invoice?  @relation("ViolationInvoice", fields: [invoiceId], references: [id])
+  reporter           User      @relation("ViolationReporter", fields: [reportedBy], references: [id])
+  company            Company   @relation(fields: [companyId], references: [id])
+
+  @@index([propertyId])
+  @@index([bylawId])
+  @@index([companyId])
+  @@map("bylaw_violations")
+}
+
+

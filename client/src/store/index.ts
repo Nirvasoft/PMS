@@ -30,6 +30,12 @@ import { facilityApi } from './api/facilityApi';
 import { inventoryApi } from './api/inventoryApi';
 import { housekeepingApi } from './api/housekeepingApi';
 import { securityApi } from './api/securityApi';
+import { portalApi } from './api/portalApi';
+import { visitorsApi } from './api/visitorsApi';
+import { bookingsApi } from './api/bookingsApi';
+import { communityApi } from './api/communityApi';
+import { mallApi } from './api/mallApi';
+import { condoApi } from './api/condoApi';
 
 export const store = configureStore({
   reducer: {
@@ -62,6 +68,12 @@ export const store = configureStore({
     [inventoryApi.reducerPath]: inventoryApi.reducer,
     [housekeepingApi.reducerPath]: housekeepingApi.reducer,
     [securityApi.reducerPath]: securityApi.reducer,
+    [portalApi.reducerPath]: portalApi.reducer,
+    [visitorsApi.reducerPath]: visitorsApi.reducer,
+    [bookingsApi.reducerPath]: bookingsApi.reducer,
+    [communityApi.reducerPath]: communityApi.reducer,
+    [mallApi.reducerPath]: mallApi.reducer,
+    [condoApi.reducerPath]: condoApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -81,6 +93,12 @@ export const store = configureStore({
       inventoryApi.middleware,
       housekeepingApi.middleware,
       securityApi.middleware,
+      portalApi.middleware,
+      visitorsApi.middleware,
+      bookingsApi.middleware,
+      communityApi.middleware,
+      mallApi.middleware,
+      condoApi.middleware,
     ),
 });
 
