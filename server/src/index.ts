@@ -264,8 +264,8 @@ async function bootstrap() {
   app.use('/api/v1/condo', requireFeature('condoModuleEnabled'), condoRouter);
 
   // Module 6.3 — Enterprise Integrations
-  app.use('/api/v1/integrations', requireAuth, integrationsRouter);
-  app.use('/api/v1/developer', requireAuth, developerRouter);
+  app.use('/api/v1/integrations', integrationsRouter);
+  app.use('/api/v1/developer', developerRouter);
 
   // Error handler (must be last)
   app.use(errorHandler);
