@@ -46,6 +46,23 @@ router.put('/meters/:meterId/device', validateRequest(upsertSmartDeviceSchema), 
   } catch (e) { next(e); }
 });
 
+router.post('/meters/:meterId/sync', async (req, res, next) => {
+  try {
+    const data = await condoService.syncMeter(getCompanyId(req), req.params.meterId);
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
+router.post('/meters/:unitId/generate-invoice', async (req, res, next) => {
+  try {
+    const data = await condoService.generateUtilityInvoice(
+      getCompanyId(req), req.params.unitId,
+      { from: req.body.from, to: req.body.to },
+    );
+    res.status(201).json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
 // ═══════ Funds ═══════
 
 router.get('/funds', async (req, res, next) => {
@@ -143,6 +160,20 @@ router.post('/meetings/:id/proxies', validateRequest(submitProxySchema), async (
   try {
     const data = await condoService.submitProxy(getCompanyId(req), req.params.id, req.body);
     res.status(201).json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
+router.post('/meetings/:id/send-notice', async (req, res, next) => {
+  try {
+    const data = await condoService.sendMeetingNotice(req.params.id, getCompanyId(req), getUserId(req));
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
+router.post('/meetings/:id/minutes', async (req, res, next) => {
+  try {
+    const data = await condoService.publishMinutes(req.params.id, getCompanyId(req), req.body);
+    res.json({ success: true, data });
   } catch (e) { next(e); }
 });
 

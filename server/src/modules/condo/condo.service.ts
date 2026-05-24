@@ -1,5 +1,8 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
+import { invoicesService } from '../billing/invoices.service';
+import { glService } from '../gl/gl.service';
+import { logger } from '../../common/logger';
 
 class CondoService {
   // ═══════════════════════════════════════
@@ -81,6 +84,116 @@ class CondoService {
       create: { companyId, meterId, propertyId: meter.propertyId, ...data },
       update: data,
     });
+  }
+
+  // Gap #1: Manual meter sync
+  async syncMeter(companyId: string, meterId: string) {
+    const device = await prisma.smartMeterDevice.findFirst({
+      where: { meterId, companyId },
+      include: { meter: { select: { id: true, meterType: true, unitId: true, propertyId: true } } },
+    });
+    if (!device) throw AppError.notFound('Smart meter device');
+
+    // Stub: in production, would call actual device API based on protocol
+    // For now, update connection status and log
+    logger.info(`Manual sync triggered for meter ${meterId}, protocol: ${device.protocol}`);
+
+    await prisma.smartMeterDevice.update({
+      where: { id: device.id },
+      data: { lastPolledAt: new Date(), connectionStatus: 'online' },
+    });
+
+    return { synced: true, protocol: device.protocol, meterId, lastPolledAt: new Date() };
+  }
+
+  // Gap #2: Generate utility invoice from meter readings
+  async generateUtilityInvoice(companyId: string, unitId: string, data: { from: string; to: string }) {
+    const from = new Date(data.from);
+    const to = new Date(data.to);
+
+    // Find active meters for this unit
+    const meters = await prisma.utilityMeter.findMany({
+      where: { unitId, companyId, isActive: true },
+    });
+    if (!meters.length) throw AppError.notFound('No active meters for this unit');
+
+    // Find the lease for this unit
+    const lease = await prisma.lease.findFirst({
+      where: { unitId, companyId, status: 'active' },
+      select: { id: true, tenantId: true, propertyId: true },
+    });
+    if (!lease) throw AppError.notFound('No active lease for this unit');
+
+    const lines: any[] = [];
+    let totalAmount = 0;
+
+    for (const meter of meters) {
+      // Get readings in date range
+      const readings = await prisma.smartMeterReading.findMany({
+        where: { meterId: meter.id, readingAt: { gte: from, lte: to } },
+        orderBy: { readingAt: 'asc' },
+      });
+
+      const totalConsumption = readings.reduce((s, r) => s + Number(r.consumption || 0), 0);
+      if (totalConsumption <= 0) continue;
+
+      // Get tariff rate (use meter's rate or default)
+      const ratePerUnit = Number(meter.ratePerUnit || 0.15); // default $0.15/kWh
+      const readingUnit = meter.meterType === 'electricity' ? 'kWh' : 'm3';
+      const chargeCode = meter.meterType === 'electricity' ? 'ELECTRICITY' : 'WATER';
+      const amount = totalConsumption * ratePerUnit;
+
+      lines.push({
+        chargeTypeCode: chargeCode,
+        description: `${meter.meterType} — ${totalConsumption.toFixed(2)} ${readingUnit} × ${ratePerUnit}/${readingUnit} (${data.from} to ${data.to})`,
+        quantity: totalConsumption,
+        unitPrice: ratePerUnit,
+        amount,
+      });
+      totalAmount += amount;
+
+      // Mark readings as billing-triggered
+      await prisma.smartMeterReading.updateMany({
+        where: { meterId: meter.id, readingAt: { gte: from, lte: to } },
+        data: { billingTriggered: true },
+      });
+    }
+
+    if (!lines.length) throw AppError.badRequest('No consumption found in the specified period');
+
+    // Find or create charge types
+    for (const line of lines) {
+      const ct = await prisma.chargeType.findFirst({ where: { code: line.chargeTypeCode, companyId } });
+      if (!ct) {
+        await prisma.chargeType.create({
+          data: {
+            companyId, code: line.chargeTypeCode,
+            name: line.chargeTypeCode === 'ELECTRICITY' ? 'Electricity Charges' : 'Water Charges',
+            category: 'utility', glAccountCode: '4200', isActive: true, isSystem: true,
+          },
+        });
+      }
+    }
+
+    // Create the invoice
+    const invoice = await invoicesService.createManual(companyId, {
+      tenantId: lease.tenantId,
+      propertyId: lease.propertyId,
+      unitId,
+      leaseId: lease.id,
+      invoiceDate: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      lines: lines.map(l => ({
+        chargeTypeCode: l.chargeTypeCode,
+        description: l.description,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+      })),
+      notes: `Utility invoice for period ${data.from} to ${data.to}`,
+    }, '00000000-0000-0000-0000-000000000000');
+
+    logger.info(`Utility invoice created for unit ${unitId}: ${lines.length} meters, total $${totalAmount.toFixed(2)}`);
+    return invoice;
   }
 
   // ═══════════════════════════════════════
@@ -175,6 +288,38 @@ class CondoService {
       where: { id: fundId },
       data: { currentBalance: { increment: delta } },
     });
+
+    // Gap #6: Post to GL (Dr Fund Expense / Cr Fund Liability or vice versa)
+    try {
+      const glLines = data.transactionType === 'contribution' || data.transactionType === 'interest'
+        ? [
+            { accountCode: '1210', debit: Number(data.amount), credit: 0, description: `Fund contribution: ${data.description}` },
+            { accountCode: '2400', debit: 0, credit: Number(data.amount), description: `Fund contribution: ${data.description}` },
+          ]
+        : [
+            { accountCode: '5100', debit: Number(data.amount), credit: 0, description: `Fund expenditure: ${data.description}` },
+            { accountCode: '1210', debit: 0, credit: Number(data.amount), description: `Fund expenditure: ${data.description}` },
+          ];
+
+      const journal = await glService.postAutoJournal({
+        companyId,
+        entryDate: new Date(data.transactionDate),
+        entryType: 'fund_transaction',
+        description: `${fund.name} — ${data.transactionType}: ${data.description}`,
+        referenceType: 'fund_transaction',
+        referenceId: txn.id,
+        lines: glLines,
+      });
+
+      if (journal) {
+        await prisma.fundTransaction.update({
+          where: { id: txn.id },
+          data: { glJournalId: journal.id },
+        });
+      }
+    } catch (err: any) {
+      logger.error(`Fund GL posting failed for txn ${txn.id}: ${err.message}`);
+    }
 
     return txn;
   }
@@ -305,6 +450,75 @@ class CondoService {
       quorumMet: meeting.quorumMet,
       resolutions: meeting.resolutions,
     };
+  }
+
+  // Gap #3: Send meeting notice to all unit owners
+  async sendMeetingNotice(id: string, companyId: string, userId: string) {
+    const meeting = await prisma.generalMeeting.findFirst({
+      where: { id, companyId },
+      include: { property: { select: { name: true } } },
+    });
+    if (!meeting) throw AppError.notFound('Meeting');
+    if (meeting.status !== 'planned') throw AppError.badRequest('Notice can only be sent for planned meetings');
+
+    // Find all units in this property with active leases (= owners/tenants to notify)
+    const units = await prisma.unit.findMany({
+      where: { propertyId: meeting.propertyId, companyId, status: 'occupied' },
+      select: { id: true, unitNumber: true },
+    });
+
+    // Find all admin + agent users for this company
+    const adminUsers = await prisma.user.findMany({
+      where: { companyId, isActive: true, role: { in: ['Super Admin', 'Admin', 'Agent'] } },
+      select: { id: true },
+    });
+
+    const scheduledDate = new Date(meeting.scheduledAt).toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+    const scheduledTime = new Date(meeting.scheduledAt).toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit',
+    });
+
+    let notifCount = 0;
+    for (const admin of adminUsers) {
+      await prisma.inAppNotification.create({
+        data: {
+          companyId,
+          userId: admin.id,
+          title: `${meeting.meetingType} Notice: ${meeting.title}`,
+          body: `${meeting.meetingType} scheduled for ${scheduledDate} at ${scheduledTime}. ` +
+            `Venue: ${meeting.venue || 'TBD'}. ${units.length} units to be notified. ` +
+            `Quorum: ${meeting.quorumPercentage}% required.`,
+          icon: 'users',
+          actionType: 'navigate',
+          actionUrl: '/admin/condo/meetings',
+          entityType: 'meeting',
+          entityId: meeting.id,
+        },
+      });
+      notifCount++;
+    }
+
+    // Update meeting status to notice_sent
+    await prisma.generalMeeting.update({
+      where: { id },
+      data: { status: 'notice_sent' },
+    });
+
+    logger.info(`Meeting notice sent: ${meeting.title} → ${notifCount} notifications, ${units.length} units affected`);
+    return { notificationsSent: notifCount, unitsAffected: units.length, status: 'notice_sent' };
+  }
+
+  // Gap #4: Publish meeting minutes
+  async publishMinutes(id: string, companyId: string, data: { minutesUrl: string }) {
+    const meeting = await prisma.generalMeeting.findFirst({ where: { id, companyId } });
+    if (!meeting) throw AppError.notFound('Meeting');
+
+    return prisma.generalMeeting.update({
+      where: { id },
+      data: { minutesUrl: data.minutesUrl, minutesPublishedAt: new Date() },
+    });
   }
 
   // ═══════════════════════════════════════

@@ -32,6 +32,14 @@ export const condoApi = createApi({
       query: ({ meterId, data }) => ({ url: `/meters/${meterId}/device`, method: 'PUT', body: data }),
       invalidatesTags: ['SmartDevices'],
     }),
+    syncMeter: builder.mutation<any, string>({
+      query: (meterId) => ({ url: `/meters/${meterId}/sync`, method: 'POST' }),
+      invalidatesTags: ['SmartDevices', 'SmartReadings'],
+    }),
+    generateUtilityInvoice: builder.mutation<any, { unitId: string; data: { from: string; to: string } }>({
+      query: ({ unitId, data }) => ({ url: `/meters/${unitId}/generate-invoice`, method: 'POST', body: data }),
+      invalidatesTags: ['SmartReadings'],
+    }),
 
     // ── Funds ──
     getFunds: builder.query<any, { propertyId: string; year?: number }>({
@@ -85,6 +93,14 @@ export const condoApi = createApi({
     getMeetingResults: builder.query<any, string>({
       query: (id) => `/meetings/${id}/results`,
     }),
+    sendMeetingNotice: builder.mutation<any, string>({
+      query: (id) => ({ url: `/meetings/${id}/send-notice`, method: 'POST' }),
+      invalidatesTags: ['Meetings', 'MeetingDetail'],
+    }),
+    publishMinutes: builder.mutation<any, { id: string; data: { minutesUrl: string } }>({
+      query: ({ id, data }) => ({ url: `/meetings/${id}/minutes`, method: 'POST', body: data }),
+      invalidatesTags: ['MeetingDetail'],
+    }),
 
     // ── Bylaws ──
     getBylaws: builder.query<any, { propertyId?: string; category?: string; isActive?: boolean }>({
@@ -127,12 +143,13 @@ export const condoApi = createApi({
 export const {
   useGetMeterReadingsQuery, useAddMeterReadingMutation,
   useGetSmartDevicesQuery, useUpsertSmartDeviceMutation,
+  useSyncMeterMutation, useGenerateUtilityInvoiceMutation,
   useGetFundsQuery, useCreateFundMutation,
   useGetFundTransactionsQuery, useAddFundTransactionMutation,
   useGetMeetingsQuery, useCreateMeetingMutation,
   useGetMeetingDetailQuery, useUpdateMeetingStatusMutation,
   useAddResolutionMutation, useCastVoteMutation, useSubmitProxyMutation,
-  useGetMeetingResultsQuery,
+  useGetMeetingResultsQuery, useSendMeetingNoticeMutation, usePublishMinutesMutation,
   useGetBylawsQuery, useCreateBylawMutation, useUpdateBylawMutation,
   useGetViolationsQuery, useCreateViolationMutation,
   useFineViolationMutation, useAppealViolationMutation, useResolveViolationMutation,

@@ -1247,6 +1247,7 @@ model UtilityMeter {
   smartMeterId     String?  @map("smart_meter_id") @db.VarChar(100)
   isActive         Boolean  @default(true) @map("is_active")
   installedAt      DateTime? @map("installed_at") @db.Date
+  ratePerUnit      Decimal?  @map("rate_per_unit") @db.Decimal(10, 4)
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
