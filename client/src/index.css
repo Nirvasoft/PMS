@@ -8208,6 +8208,61 @@ textarea.form-input {
   color: #10b981; font-weight: 600; font-size: 0.78rem;
 }
 
+/* ── Unit Picker (Searchable) ── */
+.shop-unit-picker {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.shop-unit-picker-input {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border: 1px solid var(--border-color, var(--border));
+  border-radius: 8px; background: var(--bg-body, var(--bg-primary));
+}
+.shop-unit-picker-input input {
+  flex: 1; border: none !important; background: transparent !important;
+  padding: 0 !important; font-size: 0.85rem; color: var(--text-primary);
+  outline: none; text-transform: none; letter-spacing: normal; font-weight: 400;
+}
+.shop-unit-picker-input svg { color: var(--text-muted); flex-shrink: 0; }
+.shop-unit-picker-clear {
+  background: none; border: none; cursor: pointer; padding: 2px;
+  color: var(--text-muted); border-radius: 4px;
+}
+.shop-unit-picker-clear:hover { color: var(--error); }
+
+.shop-unit-picker-selected {
+  padding: 10px 14px; border-radius: 8px; font-size: 0.85rem;
+  background: var(--accent-subtle); color: var(--accent);
+  border: 1px solid var(--accent-glow);
+}
+
+.shop-unit-picker-list {
+  max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color, var(--border));
+  border-radius: 8px; background: var(--bg-body, var(--bg-primary));
+}
+.shop-unit-picker-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 12px; border: none; background: transparent;
+  cursor: pointer; text-align: left; font-size: 0.82rem;
+  color: var(--text-primary); border-bottom: 1px solid var(--border-color, var(--border));
+  transition: background 0.15s;
+}
+.shop-unit-picker-item:last-child { border-bottom: none; }
+.shop-unit-picker-item:hover { background: var(--surface-hover, var(--bg-hover)); }
+.shop-unit-picker-num { font-weight: 600; min-width: 100px; }
+.shop-unit-picker-meta { flex: 1; color: var(--text-secondary); font-size: 0.78rem; }
+.shop-unit-picker-status {
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 6px; letter-spacing: 0.3px;
+}
+.shop-unit-picker-status.status-available { background: var(--success-bg); color: var(--success); }
+.shop-unit-picker-status.status-occupied { background: var(--accent-subtle); color: var(--accent); }
+.shop-unit-picker-status.status-reserved { background: var(--warning-bg); color: var(--warning); }
+.shop-unit-picker-status.status-maintenance { background: var(--error-bg); color: var(--error); }
+.shop-unit-picker-more {
+  padding: 10px 12px; text-align: center; font-size: 0.78rem;
+  color: var(--text-muted); font-style: italic;
+}
+
 /* ── Edit Modal ── */
 .shop-edit-modal {
   width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto;

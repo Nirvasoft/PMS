@@ -48,6 +48,7 @@ export default function ShopDirectoryPage() {
   const [formData, setFormData] = useState<any>({});
   const [showCreateShop, setShowCreateShop] = useState(false);
   const [createForm, setCreateForm] = useState<any>({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion', shopZone: 'atrium' });
+  const [unitSearch, setUnitSearch] = useState('');
 
   const { data: shopsData, isLoading } = useGetShopsQuery(
     { propertyId, ...filters },
@@ -629,18 +630,61 @@ export default function ShopDirectoryPage() {
               ) : (
                 <div className="mall-form-grid">
                   <label style={{ gridColumn: '1 / -1' }}>
-                    <span>Select Unit *</span>
-                    <select
-                      value={createForm.unitId}
-                      onChange={e => setCreateForm({ ...createForm, unitId: e.target.value, shopNumber: e.target.value ? availableUnits.find((u: any) => u.id === e.target.value)?.unitNumber || '' : '' })}
-                    >
-                      <option value="">Choose a unit...</option>
-                      {availableUnits.map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.unitNumber} — {u.floorLabel || `Floor ${u.floorNumber}`} — {Number(u.areaSqft || 0).toLocaleString()} sqft ({u.status})
-                        </option>
-                      ))}
-                    </select>
+                    <span>Search & Select Unit *</span>
+                    <div className="shop-unit-picker">
+                      <div className="shop-unit-picker-input">
+                        <Search size={14} />
+                        <input
+                          type="text"
+                          placeholder="Type unit number to search (e.g. BKG-01-015)..."
+                          value={unitSearch}
+                          onChange={e => { setUnitSearch(e.target.value); }}
+                        />
+                        {createForm.unitId && (
+                          <button className="shop-unit-picker-clear" onClick={() => {
+                            setCreateForm({ ...createForm, unitId: '', shopNumber: '' });
+                            setUnitSearch('');
+                          }}><X size={14} /></button>
+                        )}
+                      </div>
+                      {createForm.unitId ? (
+                        <div className="shop-unit-picker-selected">
+                          ✓ Selected: <strong>{createForm.shopNumber}</strong>
+                        </div>
+                      ) : (
+                        <div className="shop-unit-picker-list">
+                          {availableUnits
+                            .filter((u: any) => {
+                              if (!unitSearch.trim()) return true;
+                              const q = unitSearch.toLowerCase();
+                              return u.unitNumber.toLowerCase().includes(q) || (u.floorLabel || '').toLowerCase().includes(q);
+                            })
+                            .slice(0, 50)
+                            .map((u: any) => (
+                              <button
+                                key={u.id}
+                                className="shop-unit-picker-item"
+                                onClick={() => {
+                                  setCreateForm({ ...createForm, unitId: u.id, shopNumber: u.unitNumber });
+                                  setUnitSearch('');
+                                }}
+                              >
+                                <span className="shop-unit-picker-num">{u.unitNumber}</span>
+                                <span className="shop-unit-picker-meta">
+                                  {u.floorLabel || `Floor ${u.floorNumber}`} · {Number(u.areaSqft || 0).toLocaleString()} sqft
+                                </span>
+                                <span className={`shop-unit-picker-status status-${u.status}`}>{u.status}</span>
+                              </button>
+                            ))}
+                          {availableUnits.filter((u: any) => !unitSearch.trim() || u.unitNumber.toLowerCase().includes(unitSearch.toLowerCase())).length > 50 && (
+                            <div className="shop-unit-picker-more">Type to narrow down results...</div>
+                          )}
+                          {unitSearch && availableUnits.filter((u: any) => u.unitNumber.toLowerCase().includes(unitSearch.toLowerCase())).length === 0 && (
+                            <div className="shop-unit-picker-more">No matching units found</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </label>
                   <label>
                     <span>Shop Number</span>
