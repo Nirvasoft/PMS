@@ -63,6 +63,12 @@
   /* Sidebar */
   --sidebar-width: 260px;
 
+  /* Aliases for Phase 6 components */
+  --card-bg: var(--surface);
+  --border-color: var(--border);
+  --bg-body: var(--bg-primary);
+  --bg-hover: var(--surface-hover);
+
   /* Scrollbar */
   --scrollbar-bg: var(--bg-secondary);
   --scrollbar-thumb: var(--border);
@@ -117,6 +123,12 @@
   /* Scrollbar */
   --scrollbar-bg: var(--bg-primary);
   --scrollbar-thumb: var(--border);
+
+  /* Aliases for Phase 6 components */
+  --card-bg: var(--surface);
+  --border-color: var(--border);
+  --bg-body: var(--bg-primary);
+  --bg-hover: var(--surface-hover);
 }
 
 /* ─── Smooth theme transitions ─────────────── */
@@ -7694,7 +7706,8 @@ textarea.form-input {
 }
 
 .mall-modal {
-  background: var(--card-bg);
+  background: var(--card-bg, var(--surface));
+  border: 1px solid var(--border-color, var(--border));
   border-radius: 16px;
   width: 90%;
   max-width: 600px;
@@ -7744,6 +7757,14 @@ textarea.form-input {
 
 .mall-modal-body {
   padding: 24px;
+  color: var(--text-primary);
+}
+
+.mall-modal-body p {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.5;
 }
 
 .mall-modal-footer {
@@ -7765,9 +7786,11 @@ textarea.form-input {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .mall-form-grid input,
@@ -7775,19 +7798,22 @@ textarea.form-input {
 .mall-form-grid textarea {
   padding: 10px 14px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--card-bg);
+  border: 1px solid var(--border-color, var(--border));
+  background: var(--bg-body, var(--bg-primary));
   color: var(--text-primary);
   font-size: 0.85rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
   transition: border-color 0.2s;
 }
 
 .mall-form-grid input:focus,
 .mall-form-grid select:focus,
 .mall-form-grid textarea:focus {
-  border-color: #6366f1;
+  border-color: var(--accent);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .mall-form-checkbox {
@@ -8456,7 +8482,8 @@ textarea.form-input {
   animation: condoFadeIn 0.15s ease-out;
 }
 .condo-modal {
-  background: var(--card-bg); border-radius: 16px; width: 560px; max-width: 94vw;
+  background: var(--card-bg, var(--surface)); border: 1px solid var(--border-color, var(--border));
+  border-radius: 16px; width: 560px; max-width: 94vw;
   max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
   animation: condoSlideUp 0.2s ease-out;
 }
@@ -8468,7 +8495,7 @@ textarea.form-input {
 .condo-modal-header h3 { margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--text-primary); }
 .condo-modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-secondary); padding: 4px; }
 .condo-modal-close:hover { color: var(--text-primary); }
-.condo-modal-body { padding: 24px; }
+.condo-modal-body { padding: 24px; color: var(--text-primary); }
 .condo-modal-footer {
   display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px;
   border-top: 1px solid var(--border-color);
@@ -8476,14 +8503,19 @@ textarea.form-input {
 
 /* Forms */
 .condo-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.condo-form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); }
+.condo-form-grid label {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
 .condo-form-grid input, .condo-form-grid select, .condo-form-grid textarea {
-  padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px;
-  font-size: 0.9rem; background: var(--input-bg, var(--card-bg)); color: var(--text-primary);
+  padding: 8px 12px; border: 1px solid var(--border-color, var(--border)); border-radius: 8px;
+  font-size: 0.9rem; font-weight: 400; text-transform: none; letter-spacing: normal;
+  background: var(--bg-body, var(--bg-primary)); color: var(--text-primary);
   transition: border-color 0.15s;
 }
 .condo-form-grid input:focus, .condo-form-grid select:focus, .condo-form-grid textarea:focus {
-  outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-faded);
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 /* Animations */

@@ -165,8 +165,8 @@ export default function GtoManagementPage() {
               </div>
             </div>
             <div className="mall-modal-footer">
-              <button className="btn-secondary" onClick={() => setVerifyModal(null)}>Cancel</button>
-              <button className="btn-primary" onClick={handleVerify}>✓ Verify</button>
+              <button className="btn btn-ghost" onClick={() => setVerifyModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleVerify}>✓ Verify</button>
             </div>
           </div>
         </div>
