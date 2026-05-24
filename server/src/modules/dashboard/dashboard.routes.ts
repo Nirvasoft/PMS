@@ -10,8 +10,8 @@ import { getDrillDownData } from './widgets/drillDownProvider';
 export const dashboardRouter = Router();
 
 /** GET /dashboard/widgets — Widget catalog (grouped by category) */
-dashboardRouter.get('/widgets', asyncHandler(async (_req: Request, res: Response) => {
-  const catalog = await dashboardService.getWidgetCatalog();
+dashboardRouter.get('/widgets', asyncHandler(async (req: Request, res: Response) => {
+  const catalog = await dashboardService.getWidgetCatalog(req.user?.companyId);
   res.json({ success: true, data: catalog });
 }));
 

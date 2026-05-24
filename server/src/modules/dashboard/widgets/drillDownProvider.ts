@@ -709,26 +709,613 @@ async function drillMaintenanceSla(params: DrillDownParams): Promise<DrillDownRe
 }
 
 // ──────────────────────────────────────────────
+// CRM DRILL-DOWNS
+// ──────────────────────────────────────────────
+
+async function drillCrmActiveLeads(params: DrillDownParams): Promise<DrillDownResult> {
+  const leads = await prisma.lead.findMany({
+    where: {
+      companyId: params.companyId,
+      stage: { in: ['new', 'contacted', 'viewing', 'negotiating', 'proposal_sent'] },
+    },
+    select: {
+      leadNumber: true, firstName: true, lastName: true, companyName: true,
+      email: true, stage: true, source: true, createdAt: true,
+      property: { select: { name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: 'Active Leads',
+    columns: [
+      { key: 'lead', label: 'Lead #' }, { key: 'name', label: 'Name' },
+      { key: 'company', label: 'Company' }, { key: 'stage', label: 'Stage' },
+      { key: 'source', label: 'Source' }, { key: 'property', label: 'Property' },
+      { key: 'created', label: 'Created' },
+    ],
+    rows: leads.map((l) => ({
+      lead: l.leadNumber || '—',
+      name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || '—',
+      company: l.companyName || '—',
+      stage: (l.stage || '—').replace(/_/g, ' '),
+      source: l.source || '—',
+      property: l.property?.name || '—',
+      created: new Date(l.createdAt).toISOString().split('T')[0],
+    })),
+    total: leads.length,
+    navigateTo: '/admin/crm/leads',
+  };
+}
+
+async function drillCrmPipeline(params: DrillDownParams): Promise<DrillDownResult> {
+  const stageFilter = params.drillKey?.toLowerCase().replace(/ /g, '_');
+  const where: Record<string, unknown> = { companyId: params.companyId };
+  if (stageFilter && stageFilter !== 'all') where.stage = stageFilter;
+
+  const leads = await prisma.lead.findMany({
+    where,
+    select: {
+      leadNumber: true, firstName: true, lastName: true, companyName: true,
+      stage: true, source: true, createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: `Lead Pipeline — ${params.drillKey || 'All Stages'}`,
+    columns: [
+      { key: 'lead', label: 'Lead #' }, { key: 'name', label: 'Name' },
+      { key: 'company', label: 'Company' }, { key: 'stage', label: 'Stage' },
+      { key: 'source', label: 'Source' }, { key: 'created', label: 'Created' },
+    ],
+    rows: leads.map((l) => ({
+      lead: l.leadNumber || '—',
+      name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || '—',
+      company: l.companyName || '—',
+      stage: (l.stage || '—').replace(/_/g, ' '),
+      source: l.source || '—',
+      created: new Date(l.createdAt).toISOString().split('T')[0],
+    })),
+    total: leads.length,
+    navigateTo: '/admin/crm/leads',
+  };
+}
+
+async function drillCrmConversion(params: DrillDownParams): Promise<DrillDownResult> {
+  const leads = await prisma.lead.findMany({
+    where: { companyId: params.companyId, stage: 'won' },
+    select: {
+      leadNumber: true, firstName: true, lastName: true, companyName: true,
+      source: true, createdAt: true, updatedAt: true,
+    },
+    orderBy: { updatedAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: 'Converted Leads (Won)',
+    columns: [
+      { key: 'lead', label: 'Lead #' }, { key: 'name', label: 'Name' },
+      { key: 'company', label: 'Company' }, { key: 'source', label: 'Source' },
+      { key: 'created', label: 'Created' }, { key: 'won', label: 'Won Date' },
+    ],
+    rows: leads.map((l) => ({
+      lead: l.leadNumber || '—',
+      name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || '—',
+      company: l.companyName || '—',
+      source: l.source || '—',
+      created: new Date(l.createdAt).toISOString().split('T')[0],
+      won: new Date(l.updatedAt).toISOString().split('T')[0],
+    })),
+    total: leads.length,
+    navigateTo: '/admin/crm/leads',
+  };
+}
+
+// ──────────────────────────────────────────────
+// FACILITY BOOKING DRILL-DOWNS
+// ──────────────────────────────────────────────
+
+async function drillFacilityBookingsToday(params: DrillDownParams): Promise<DrillDownResult> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const bookings = await prisma.facilityBooking.findMany({
+    where: {
+      companyId: params.companyId,
+      bookingDate: { gte: today, lt: tomorrow },
+      status: { notIn: ['cancelled'] },
+    },
+    select: {
+      facility: { select: { name: true } },
+      startTime: true, endTime: true, paxCount: true, status: true, purpose: true,
+      unit: { select: { unitNumber: true } },
+    },
+    orderBy: { startTime: 'asc' },
+    take: 50,
+  });
+
+  return {
+    title: "Today's Facility Bookings",
+    columns: [
+      { key: 'facility', label: 'Facility' }, { key: 'time', label: 'Time' },
+      { key: 'unit', label: 'Unit' }, { key: 'pax', label: 'Pax' },
+      { key: 'purpose', label: 'Purpose' }, { key: 'status', label: 'Status' },
+    ],
+    rows: bookings.map((b) => ({
+      facility: b.facility?.name || '—',
+      time: `${b.startTime} - ${b.endTime}`,
+      unit: b.unit?.unitNumber || '—',
+      pax: String(b.paxCount),
+      purpose: b.purpose || '—',
+      status: b.status.replace(/_/g, ' '),
+    })),
+    total: bookings.length,
+    navigateTo: '/admin/facility-bookings',
+  };
+}
+
+async function drillFacilityUtilization(params: DrillDownParams): Promise<DrillDownResult> {
+  return drillFacilityBookingsToday(params); // reuse for now
+}
+
+// ──────────────────────────────────────────────
+// PARKING DRILL-DOWNS
+// ──────────────────────────────────────────────
+
+async function drillParkingOccupancy(params: DrillDownParams): Promise<DrillDownResult> {
+  const statusFilter = params.drillKey?.toLowerCase().replace(/ /g, '_');
+  const where: Record<string, unknown> = { companyId: params.companyId };
+  if (statusFilter && statusFilter !== 'all') where.status = statusFilter;
+
+  const slots = await prisma.parkingSlot.findMany({
+    where,
+    select: {
+      slotNumber: true, slotType: true, status: true, monthlyRate: true,
+      zone: { select: { name: true } },
+    },
+    orderBy: { slotNumber: 'asc' },
+    take: 50,
+  });
+
+  return {
+    title: `Parking Slots — ${params.drillKey || 'All'}`,
+    columns: [
+      { key: 'slot', label: 'Slot #' }, { key: 'zone', label: 'Zone' },
+      { key: 'type', label: 'Type' }, { key: 'rate', label: 'Monthly Rate' },
+      { key: 'status', label: 'Status' },
+    ],
+    rows: slots.map((s) => ({
+      slot: s.slotNumber,
+      zone: s.zone?.name || '—',
+      type: s.slotType.replace(/_/g, ' '),
+      rate: s.monthlyRate ? `$${s.monthlyRate.toNumber().toLocaleString()}` : '—',
+      status: s.status.replace(/_/g, ' '),
+    })),
+    total: slots.length,
+    navigateTo: '/admin/parking',
+  };
+}
+
+async function drillParkingRevenue(params: DrillDownParams): Promise<DrillDownResult> {
+  return drillParkingOccupancy({ ...params, drillKey: 'occupied' });
+}
+
+// ──────────────────────────────────────────────
+// SECURITY DRILL-DOWNS
+// ──────────────────────────────────────────────
+
+async function drillSecurityIncidents(params: DrillDownParams): Promise<DrillDownResult> {
+  const incidents = await prisma.securityIncident.findMany({
+    where: {
+      companyId: params.companyId,
+      status: { in: ['open', 'investigating'] },
+    },
+    select: {
+      incidentNumber: true, title: true, incidentType: true, severity: true,
+      status: true, incidentAt: true, locationDetail: true,
+      property: { select: { name: true } },
+    },
+    orderBy: { incidentAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: 'Open Security Incidents',
+    columns: [
+      { key: 'number', label: 'Incident #' }, { key: 'title', label: 'Title' },
+      { key: 'type', label: 'Type' }, { key: 'severity', label: 'Severity' },
+      { key: 'property', label: 'Property' }, { key: 'location', label: 'Location' },
+      { key: 'date', label: 'Date' }, { key: 'status', label: 'Status' },
+    ],
+    rows: incidents.map((i) => ({
+      number: i.incidentNumber,
+      title: i.title,
+      type: i.incidentType.replace(/_/g, ' '),
+      severity: i.severity,
+      property: i.property?.name || '—',
+      location: i.locationDetail || '—',
+      date: new Date(i.incidentAt).toISOString().split('T')[0],
+      status: i.status.replace(/_/g, ' '),
+    })),
+    total: incidents.length,
+    navigateTo: '/admin/security/incidents',
+  };
+}
+
+async function drillSecurityTrend(params: DrillDownParams): Promise<DrillDownResult> {
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  const incidents = await prisma.securityIncident.findMany({
+    where: { companyId: params.companyId, incidentAt: { gte: sixMonthsAgo } },
+    select: {
+      incidentNumber: true, title: true, incidentType: true, severity: true,
+      status: true, incidentAt: true,
+    },
+    orderBy: { incidentAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: 'Incidents — Last 6 Months',
+    columns: [
+      { key: 'number', label: 'Incident #' }, { key: 'title', label: 'Title' },
+      { key: 'type', label: 'Type' }, { key: 'severity', label: 'Severity' },
+      { key: 'date', label: 'Date' }, { key: 'status', label: 'Status' },
+    ],
+    rows: incidents.map((i) => ({
+      number: i.incidentNumber,
+      title: i.title,
+      type: i.incidentType.replace(/_/g, ' '),
+      severity: i.severity,
+      date: new Date(i.incidentAt).toISOString().split('T')[0],
+      status: i.status.replace(/_/g, ' '),
+    })),
+    total: incidents.length,
+    navigateTo: '/admin/security/incidents',
+  };
+}
+
+// ──────────────────────────────────────────────
+// VISITOR DRILL-DOWNS
+// ──────────────────────────────────────────────
+
+async function drillVisitorsToday(params: DrillDownParams): Promise<DrillDownResult> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const visitors = await prisma.visitor.findMany({
+    where: {
+      companyId: params.companyId,
+      checkedInAt: { gte: today, lt: tomorrow },
+    },
+    select: {
+      visitorName: true, visitorCompany: true, visitPurpose: true,
+      checkedInAt: true, checkedOutAt: true, status: true,
+      hostUnit: { select: { unitNumber: true } },
+    },
+    orderBy: { checkedInAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: "Today's Visitors",
+    columns: [
+      { key: 'name', label: 'Visitor' }, { key: 'company', label: 'Company' },
+      { key: 'unit', label: 'Host Unit' }, { key: 'purpose', label: 'Purpose' },
+      { key: 'checkIn', label: 'Check In' }, { key: 'checkOut', label: 'Check Out' },
+      { key: 'status', label: 'Status' },
+    ],
+    rows: visitors.map((v) => ({
+      name: v.visitorName,
+      company: v.visitorCompany || '—',
+      unit: v.hostUnit?.unitNumber || '—',
+      purpose: v.visitPurpose || '—',
+      checkIn: v.checkedInAt ? new Date(v.checkedInAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—',
+      checkOut: v.checkedOutAt ? new Date(v.checkedOutAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—',
+      status: v.status.replace(/_/g, ' '),
+    })),
+    total: visitors.length,
+    navigateTo: '/admin/visitors',
+  };
+}
+
+async function drillVisitorsTrend(params: DrillDownParams): Promise<DrillDownResult> {
+  return drillVisitorsToday(params); // reuse today's view
+}
+
+// ──────────────────────────────────────────────
+// HOUSEKEEPING DRILL-DOWNS
+// ──────────────────────────────────────────────
+
+async function drillCleaningSchedules(params: DrillDownParams): Promise<DrillDownResult> {
+  const schedules = await prisma.cleaningSchedule.findMany({
+    where: { companyId: params.companyId, status: 'active' },
+    select: {
+      name: true, frequencyType: true, scheduledTime: true, cleaningType: true,
+      staffCount: true, status: true,
+      zone: { select: { name: true } },
+    },
+    orderBy: { name: 'asc' },
+    take: 50,
+  });
+
+  return {
+    title: 'Active Cleaning Schedules',
+    columns: [
+      { key: 'name', label: 'Schedule' }, { key: 'zone', label: 'Zone' },
+      { key: 'type', label: 'Type' }, { key: 'frequency', label: 'Frequency' },
+      { key: 'time', label: 'Time' }, { key: 'staff', label: 'Staff' },
+    ],
+    rows: schedules.map((s) => ({
+      name: s.name,
+      zone: s.zone?.name || '—',
+      type: (s.cleaningType || '—').replace(/_/g, ' '),
+      frequency: s.frequencyType.replace(/_/g, ' '),
+      time: s.scheduledTime || '—',
+      staff: String(s.staffCount),
+    })),
+    total: schedules.length,
+    navigateTo: '/admin/housekeeping',
+  };
+}
+
+// ──────────────────────────────────────────────
+// PREVENTIVE MAINTENANCE DRILL-DOWNS
+// ──────────────────────────────────────────────
+
+async function drillPmUpcoming(params: DrillDownParams): Promise<DrillDownResult> {
+  const sevenDays = new Date();
+  sevenDays.setDate(sevenDays.getDate() + 7);
+
+  const workOrders = await prisma.pmWorkOrder.findMany({
+    where: {
+      companyId: params.companyId,
+      status: 'scheduled',
+      dueDate: { lte: sevenDays, gte: new Date() },
+    },
+    select: {
+      dueDate: true, status: true,
+      schedule: { select: { name: true, property: { select: { name: true } } } },
+    },
+    orderBy: { dueDate: 'asc' },
+    take: 50,
+  });
+
+  return {
+    title: 'PM Work Orders Due (7 Days)',
+    columns: [
+      { key: 'schedule', label: 'Schedule' }, { key: 'property', label: 'Property' },
+      { key: 'dueDate', label: 'Due Date' }, { key: 'status', label: 'Status' },
+    ],
+    rows: workOrders.map((wo) => ({
+      schedule: wo.schedule?.name || '—',
+      property: wo.schedule?.property?.name || '—',
+      dueDate: new Date(wo.dueDate).toISOString().split('T')[0],
+      status: wo.status.replace(/_/g, ' '),
+    })),
+    total: workOrders.length,
+    navigateTo: '/admin/preventive-maintenance',
+  };
+}
+
+async function drillPmCompliance(params: DrillDownParams): Promise<DrillDownResult> {
+  const workOrders = await prisma.pmWorkOrder.findMany({
+    where: { companyId: params.companyId, status: { in: ['overdue', 'completed'] } },
+    select: {
+      dueDate: true, status: true, completedAt: true,
+      schedule: { select: { name: true } },
+    },
+    orderBy: { dueDate: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: 'PM Compliance Details',
+    columns: [
+      { key: 'schedule', label: 'Schedule' }, { key: 'dueDate', label: 'Due Date' },
+      { key: 'completed', label: 'Completed' }, { key: 'status', label: 'Status' },
+    ],
+    rows: workOrders.map((wo) => ({
+      schedule: wo.schedule?.name || '—',
+      dueDate: new Date(wo.dueDate).toISOString().split('T')[0],
+      completed: wo.completedAt ? new Date(wo.completedAt).toISOString().split('T')[0] : '—',
+      status: wo.status.replace(/_/g, ' '),
+    })),
+    total: workOrders.length,
+    navigateTo: '/admin/preventive-maintenance',
+  };
+}
+
+// ──────────────────────────────────────────────
+// GL/BANKING DRILL-DOWNS
+// ──────────────────────────────────────────────
+
+async function drillGlNetIncome(params: DrillDownParams): Promise<DrillDownResult> {
+  const entries = await prisma.journalEntry.findMany({
+    where: { companyId: params.companyId, status: 'posted' },
+    select: {
+      journalNumber: true, entryDate: true, description: true,
+      totalDebit: true, totalCredit: true, status: true,
+    },
+    orderBy: { entryDate: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: 'Posted Journal Entries',
+    columns: [
+      { key: 'entry', label: 'Entry #' }, { key: 'date', label: 'Date' },
+      { key: 'description', label: 'Description' }, { key: 'debit', label: 'Debit' },
+      { key: 'credit', label: 'Credit' },
+    ],
+    rows: entries.map((e) => ({
+      entry: e.journalNumber || '—',
+      date: new Date(e.entryDate).toISOString().split('T')[0],
+      description: (e.description || '—').substring(0, 50),
+      debit: `$${(e.totalDebit?.toNumber() ?? 0).toLocaleString()}`,
+      credit: `$${(e.totalCredit?.toNumber() ?? 0).toLocaleString()}`,
+    })),
+    total: entries.length,
+    navigateTo: '/admin/gl/journal-entries',
+  };
+}
+
+async function drillBankBalances(params: DrillDownParams): Promise<DrillDownResult> {
+  const accounts = await prisma.bankAccount.findMany({
+    where: { companyId: params.companyId },
+    select: { bankName: true, accountName: true, currency: true, accountNumber: true },
+    orderBy: { bankName: 'asc' },
+    take: 20,
+  });
+
+  return {
+    title: 'Bank Accounts',
+    columns: [
+      { key: 'bank', label: 'Bank' }, { key: 'account', label: 'Account Name' },
+      { key: 'number', label: 'Account #' }, { key: 'currency', label: 'Currency' },
+    ],
+    rows: accounts.map((a) => ({
+      bank: a.bankName,
+      account: a.accountName,
+      number: a.accountNumber ? `***${a.accountNumber.slice(-4)}` : '—',
+      currency: a.currency,
+    })),
+    total: accounts.length,
+    navigateTo: '/admin/banking',
+  };
+}
+
+// ──────────────────────────────────────────────
+// INVENTORY DRILL-DOWNS
+// ──────────────────────────────────────────────
+
+async function drillInventoryLowStock(params: DrillDownParams): Promise<DrillDownResult> {
+  const items = await prisma.inventoryItem.findMany({
+    where: { companyId: params.companyId },
+    include: {
+      stockLevels: { select: { qtyOnHand: true } },
+    },
+    take: 100,
+  });
+
+  const lowItems = items
+    .map((item) => {
+      const totalOnHand = item.stockLevels.reduce((s: number, sl: { qtyOnHand: { toNumber(): number } | null }) => s + (sl.qtyOnHand?.toNumber() ?? 0), 0);
+      return { ...item, totalOnHand };
+    })
+    .filter((item) => item.totalOnHand <= (item.reorderPoint?.toNumber() ?? 0));
+
+  return {
+    title: 'Low Stock Items',
+    columns: [
+      { key: 'code', label: 'Item Code' }, { key: 'name', label: 'Name' },
+      { key: 'onHand', label: 'On Hand' }, { key: 'reorder', label: 'Reorder Point' },
+      { key: 'unit', label: 'Unit' },
+    ],
+    rows: lowItems.map((i) => ({
+      code: i.itemCode,
+      name: i.name,
+      onHand: String(i.totalOnHand),
+      reorder: String(i.reorderPoint?.toNumber() ?? 0),
+      unit: i.unitOfMeasure || '—',
+    })),
+    total: lowItems.length,
+    navigateTo: '/admin/inventory',
+  };
+}
+
+async function drillInventoryMovement(params: DrillDownParams): Promise<DrillDownResult> {
+  const movements = await prisma.stockMovement.findMany({
+    where: { companyId: params.companyId },
+    select: {
+      movementType: true, quantity: true, totalCost: true, notes: true, createdAt: true,
+      item: { select: { itemCode: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: 'Stock Movements',
+    columns: [
+      { key: 'date', label: 'Date' }, { key: 'item', label: 'Item' },
+      { key: 'type', label: 'Type' }, { key: 'qty', label: 'Quantity' },
+      { key: 'cost', label: 'Total Cost' }, { key: 'notes', label: 'Notes' },
+    ],
+    rows: movements.map((m) => ({
+      date: new Date(m.createdAt).toISOString().split('T')[0],
+      item: `${m.item?.itemCode || '—'} — ${m.item?.name || ''}`,
+      type: m.movementType.replace(/_/g, ' '),
+      qty: String(m.quantity?.toNumber() ?? 0),
+      cost: m.totalCost ? `$${m.totalCost.toNumber().toLocaleString()}` : '—',
+      notes: (m.notes || '—').substring(0, 40),
+    })),
+    total: movements.length,
+    navigateTo: '/admin/inventory',
+  };
+}
+
+// ──────────────────────────────────────────────
 // DRILL-DOWN REGISTRY
 // ──────────────────────────────────────────────
 
 const DRILL_PROVIDERS: Record<string, (params: DrillDownParams) => Promise<DrillDownResult>> = {
+  // Property
   occupancy_rate: drillOccupancyRate,
+  vacancy_trend: drillVacancyTrend,
+  unit_status_breakdown: drillUnitStatus,
+  lease_expiring_soon: drillLeaseExpiring,
+  // Finance
   revenue_mtd: drillRevenueMtd,
   revenue_ytd: drillRevenueMtd,
   collection_rate: drillCollectionRate,
   overdue_invoices: drillOverdueInvoices,
+  revenue_by_property: drillRevenueByProperty,
+  gl_net_income: drillGlNetIncome,
+  bank_balance_summary: drillBankBalances,
+  // Maintenance
   maintenance_open: drillMaintenanceOpen,
   maintenance_sla: drillMaintenanceSla,
+  tickets_by_category: drillTicketsByCategory,
+  maintenance_trend: drillMaintenanceTrend,
+  // CRM
+  crm_active_leads: drillCrmActiveLeads,
+  crm_lead_pipeline: drillCrmPipeline,
+  crm_conversion_rate: drillCrmConversion,
+  // Facility
+  facility_bookings_today: drillFacilityBookingsToday,
+  facility_utilization: drillFacilityUtilization,
+  // Parking
+  parking_occupancy: drillParkingOccupancy,
+  parking_revenue: drillParkingRevenue,
+  // Security
+  security_open_incidents: drillSecurityIncidents,
+  security_incidents_trend: drillSecurityTrend,
+  // Visitors
+  visitors_today: drillVisitorsToday,
+  visitors_trend: drillVisitorsTrend,
+  // Housekeeping
+  cleaning_completion_rate: drillCleaningSchedules,
+  cleaning_open_tasks: drillCleaningSchedules,
+  // Preventive Maintenance
+  pm_upcoming: drillPmUpcoming,
+  pm_compliance_rate: drillPmCompliance,
+  // Inventory
+  inventory_low_stock: drillInventoryLowStock,
+  inventory_movement_trend: drillInventoryMovement,
+  // Activity
   pending_tasks: drillPendingTasks,
   active_workflows: drillActiveWorkflows,
   documents_expiring: drillDocumentsExpiring,
-  vacancy_trend: drillVacancyTrend,
-  maintenance_trend: drillMaintenanceTrend,
-  revenue_by_property: drillRevenueByProperty,
-  unit_status_breakdown: drillUnitStatus,
-  tickets_by_category: drillTicketsByCategory,
-  lease_expiring_soon: drillLeaseExpiring,
   recent_activity: drillRecentActivity,
 };
 

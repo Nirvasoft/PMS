@@ -2,7 +2,22 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { WIDGET_DEFINITIONS, DEFAULT_LAYOUT } from './widgets/widgetDefinitions';
+import type { WidgetDef } from './widgets/widgetDefinitions';
 import { getRealWidgetData } from './widgets/realProvider';
+
+/** Read company settings and return feature flag checker */
+async function getFeatureChecker(companyId: string): Promise<(flag?: string) => boolean> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { settings: true },
+  });
+  const settings = (company?.settings ?? {}) as Record<string, unknown>;
+  return (flag?: string) => {
+    if (!flag) return true; // no flag required → always show
+    const val = settings[flag];
+    return val === undefined || val === null ? true : Boolean(val);
+  };
+}
 
 export class DashboardService {
   /**
@@ -33,17 +48,29 @@ export class DashboardService {
 
   /**
    * Get widget catalog grouped by category.
-   * Filters by user's permissions (Phase 1: return all since permissions not enforced yet).
+   * Filters out widgets whose requiredFeature is disabled for the company.
    */
-  async getWidgetCatalog() {
+  async getWidgetCatalog(companyId?: string) {
     const widgets = await prisma.widgetDefinition.findMany({
       where: { isActive: true },
       orderBy: { category: 'asc' },
     });
 
-    // Group by category
+    // Build feature checker
+    const isEnabled = companyId ? await getFeatureChecker(companyId) : () => true;
+
+    // Build a map of code → requiredFeature from definitions
+    const featureMap = new Map<string, string | undefined>();
+    for (const def of WIDGET_DEFINITIONS) {
+      featureMap.set(def.code, def.requiredFeature);
+    }
+
+    // Group by category, filtering by feature flag
     const catalog: Record<string, unknown[]> = {};
     for (const w of widgets) {
+      const flag = featureMap.get(w.code);
+      if (!isEnabled(flag)) continue; // skip disabled modules
+
       if (!catalog[w.category]) catalog[w.category] = [];
       catalog[w.category].push({
         code: w.code,
@@ -72,6 +99,17 @@ export class DashboardService {
     const widget = await prisma.widgetDefinition.findUnique({ where: { code } });
     if (!widget || !widget.isActive) {
       throw new AppError(404, 'WIDGET_NOT_FOUND', `Widget "${code}" not found`);
+    }
+
+    // Check feature flag
+    const featureMap = new Map<string, string | undefined>();
+    for (const def of WIDGET_DEFINITIONS) featureMap.set(def.code, def.requiredFeature);
+    const flag = featureMap.get(code);
+    if (flag) {
+      const isEnabled = await getFeatureChecker(companyId);
+      if (!isEnabled(flag)) {
+        return { type: widget.widgetType, label: widget.name, value: 0, unit: '', disabled: true };
+      }
     }
 
     // Parse date range
@@ -119,8 +157,8 @@ export class DashboardService {
     if (!Array.isArray(layout)) {
       throw new AppError(400, 'INVALID_LAYOUT', 'Layout must be an array');
     }
-    if (layout.length > 20) {
-      throw new AppError(400, 'TOO_MANY_WIDGETS', 'Maximum 20 widgets per layout');
+    if (layout.length > 35) {
+      throw new AppError(400, 'TOO_MANY_WIDGETS', 'Maximum 35 widgets per layout');
     }
 
     // Validate each widget

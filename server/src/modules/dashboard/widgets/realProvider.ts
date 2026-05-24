@@ -491,27 +491,512 @@ function getTimeAgo(date: Date): string {
 }
 
 // ──────────────────────────────────────────────
+// CRM
+// ──────────────────────────────────────────────
+
+async function crmActiveLeads(params: WidgetDataParams) {
+  const activeStages = ['new', 'contacted', 'viewing', 'negotiating', 'proposal_sent'];
+  const where: Record<string, unknown> = { stage: { in: activeStages } };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const [total, stages] = await Promise.all([
+    prisma.lead.count({ where }),
+    prisma.lead.groupBy({ by: ['stage'], where, _count: true }),
+  ]);
+
+  const breakdown: Record<string, number> = {};
+  for (const s of stages) breakdown[s.stage] = s._count;
+
+  return {
+    type: 'kpi_card', label: 'Active Leads', value: total, unit: '',
+    trend: { direction: total > 0 ? 'up' : 'flat', changePercent: 0, label: `${total} in pipeline` },
+    breakdown,
+  };
+}
+
+async function crmLeadPipeline(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const stages = await prisma.lead.groupBy({ by: ['stage'], where, _count: true });
+
+  const stageOrder = ['new', 'contacted', 'viewing', 'negotiating', 'proposal_sent', 'won', 'lost'];
+  const data = stageOrder.map((s) => {
+    const found = stages.find((st) => st.stage === s);
+    return { x: s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), y: found?._count || 0 };
+  }).filter((d) => d.y > 0);
+
+  return {
+    type: 'bar_chart', label: 'Lead Pipeline',
+    series: [{ name: 'Leads', data: data.length > 0 ? data : [{ x: 'No Data', y: 0 }] }],
+    yAxis: { label: 'Leads', unit: '' },
+  };
+}
+
+async function crmConversionRate(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const [total, won] = await Promise.all([
+    prisma.lead.count({ where }),
+    prisma.lead.count({ where: { ...where, stage: 'won' } }),
+  ]);
+
+  const rate = total > 0 ? +((won / total) * 100).toFixed(1) : 0;
+
+  return {
+    type: 'gauge', label: 'Conversion Rate', value: rate, unit: '%',
+    target: 25, breakdown: { won, total },
+  };
+}
+
+// ──────────────────────────────────────────────
+// FACILITY BOOKING
+// ──────────────────────────────────────────────
+
+async function facilityBookingsToday(params: WidgetDataParams) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const where: Record<string, unknown> = {
+    bookingDate: { gte: today, lt: tomorrow },
+    status: { notIn: ['cancelled'] },
+  };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const count = await prisma.facilityBooking.count({ where });
+
+  return {
+    type: 'kpi_card', label: "Today's Bookings", value: count, unit: '',
+    trend: { direction: count > 0 ? 'up' : 'flat', changePercent: 0, label: `${count} bookings today` },
+  };
+}
+
+async function facilityUtilization(params: WidgetDataParams) {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const where: Record<string, unknown> = {
+    bookingDate: { gte: thirtyDaysAgo },
+    status: { notIn: ['cancelled'] },
+  };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const bookings = await prisma.facilityBooking.findMany({
+    where,
+    select: { facility: { select: { name: true } } },
+  });
+
+  const byFacility: Record<string, number> = {};
+  for (const b of bookings) {
+    const name = b.facility?.name || 'Unknown';
+    byFacility[name] = (byFacility[name] || 0) + 1;
+  }
+
+  const data = Object.entries(byFacility)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([name, value]) => ({ x: name.length > 16 ? name.substring(0, 16) + '…' : name, y: value }));
+
+  return {
+    type: 'bar_chart', label: 'Facility Utilization (30d)',
+    series: [{ name: 'Bookings', data: data.length > 0 ? data : [{ x: 'No Bookings', y: 0 }] }],
+    yAxis: { label: 'Bookings', unit: '' },
+  };
+}
+
+// ──────────────────────────────────────────────
+// PARKING
+// ──────────────────────────────────────────────
+
+async function parkingOccupancy(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const [total, occupied] = await Promise.all([
+    prisma.parkingSlot.count({ where }),
+    prisma.parkingSlot.count({ where: { ...where, status: 'occupied' } }),
+  ]);
+
+  const rate = total > 0 ? +((occupied / total) * 100).toFixed(1) : 0;
+  const available = total - occupied;
+
+  return {
+    type: 'kpi_card', label: 'Parking Occupancy', value: rate, unit: '%',
+    trend: { direction: rate >= 90 ? 'up' : 'flat', changePercent: 0, label: `${available} available / ${total} total` },
+    breakdown: { occupied, available, total },
+  };
+}
+
+async function parkingRevenue(params: WidgetDataParams) {
+  const where: Record<string, unknown> = { status: 'occupied' };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const slots = await prisma.parkingSlot.findMany({
+    where,
+    select: { monthlyRate: true },
+  });
+
+  const totalRevenue = slots.reduce((s, sl) => s + (sl.monthlyRate?.toNumber() ?? 0), 0);
+
+  return {
+    type: 'kpi_card', label: 'Parking Revenue', value: Math.round(totalRevenue), unit: 'USD',
+    trend: { direction: totalRevenue > 0 ? 'up' : 'flat', changePercent: 0, label: `${slots.length} occupied slots` },
+  };
+}
+
+// ──────────────────────────────────────────────
+// SECURITY
+// ──────────────────────────────────────────────
+
+async function securityOpenIncidents(params: WidgetDataParams) {
+  const where: Record<string, unknown> = { status: { in: ['open', 'investigating'] } };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const [total, severities] = await Promise.all([
+    prisma.securityIncident.count({ where }),
+    prisma.securityIncident.groupBy({ by: ['severity'], where, _count: true }),
+  ]);
+
+  const breakdown: Record<string, number> = {};
+  for (const s of severities) breakdown[s.severity] = s._count;
+
+  return {
+    type: 'kpi_card', label: 'Open Incidents', value: total, unit: '',
+    trend: { direction: total > 0 ? 'up' : 'flat', changePercent: 0, label: total === 0 ? 'All clear' : `${total} active` },
+    breakdown,
+  };
+}
+
+async function securityIncidentsTrend(params: WidgetDataParams) {
+  const months = getMonthLabels(6);
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const incidents = await prisma.securityIncident.findMany({
+    where,
+    select: { incidentAt: true },
+  });
+
+  const byMonth: Record<string, number> = {};
+  for (const m of months) byMonth[m] = 0;
+  for (const i of incidents) {
+    const month = new Date(i.incidentAt).toISOString().slice(0, 7);
+    if (byMonth[month] !== undefined) byMonth[month]++;
+  }
+
+  return {
+    type: 'line_chart', label: 'Incidents Trend',
+    series: [{ name: 'Incidents', data: months.map((m) => ({ x: m, y: byMonth[m] })) }],
+    xAxis: { label: 'Month', type: 'category' },
+    yAxis: { label: 'Incidents', unit: '' },
+  };
+}
+
+// ──────────────────────────────────────────────
+// VISITORS
+// ──────────────────────────────────────────────
+
+async function visitorsToday(params: WidgetDataParams) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const where: Record<string, unknown> = {
+    checkedInAt: { gte: today, lt: tomorrow },
+  };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const count = await prisma.visitor.count({ where });
+
+  return {
+    type: 'kpi_card', label: "Today's Visitors", value: count, unit: '',
+    trend: { direction: count > 0 ? 'up' : 'flat', changePercent: 0, label: `${count} checked in today` },
+  };
+}
+
+async function visitorsTrend(params: WidgetDataParams) {
+  const weeks: { label: string; start: Date; end: Date }[] = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const start = new Date(now);
+    start.setDate(start.getDate() - i * 7);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    weeks.push({ label: `W${6 - i}`, start, end });
+  }
+
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const visitors = await prisma.visitor.findMany({
+    where: { ...where, checkedInAt: { gte: weeks[0].start } },
+    select: { checkedInAt: true },
+  });
+
+  const data = weeks.map((w) => ({
+    x: w.label,
+    y: visitors.filter((v) => v.checkedInAt && v.checkedInAt >= w.start && v.checkedInAt < w.end).length,
+  }));
+
+  return {
+    type: 'line_chart', label: 'Visitor Trend (6 Weeks)',
+    series: [{ name: 'Visitors', data }],
+    xAxis: { label: 'Week', type: 'category' },
+    yAxis: { label: 'Visitors', unit: '' },
+  };
+}
+
+// ──────────────────────────────────────────────
+// HOUSEKEEPING
+// ──────────────────────────────────────────────
+
+async function cleaningCompletionRate(params: WidgetDataParams) {
+  const where: Record<string, unknown> = { status: 'active' };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const [total, completed] = await Promise.all([
+    prisma.cleaningSchedule.count({ where }),
+    prisma.cleaningSchedule.count({ where: { ...where, status: 'completed' } }),
+  ]);
+
+  // Active schedules are "assigned", completed are done
+  // For a gauge, we show % of schedules that are actively running
+  const rate = total > 0 ? +((total / (total + completed || 1)) * 100).toFixed(1) : 100;
+
+  return {
+    type: 'gauge', label: 'Cleaning Coverage', value: total > 0 ? 100 : 0, unit: '%',
+    target: 100, breakdown: { active: total, completed },
+  };
+}
+
+async function cleaningOpenTasks(params: WidgetDataParams) {
+  const where: Record<string, unknown> = { status: 'active' };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const count = await prisma.cleaningSchedule.count({ where });
+
+  return {
+    type: 'kpi_card', label: 'Active Cleaning Schedules', value: count, unit: '',
+    trend: { direction: 'flat', changePercent: 0, label: `${count} active schedules` },
+  };
+}
+
+// ──────────────────────────────────────────────
+// PREVENTIVE MAINTENANCE
+// ──────────────────────────────────────────────
+
+async function pmUpcoming(params: WidgetDataParams) {
+  const sevenDays = new Date();
+  sevenDays.setDate(sevenDays.getDate() + 7);
+
+  const where: Record<string, unknown> = {
+    status: 'scheduled',
+    dueDate: { lte: sevenDays, gte: new Date() },
+  };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const count = await prisma.pmWorkOrder.count({ where });
+
+  return {
+    type: 'kpi_card', label: 'PM Due (7 Days)', value: count, unit: '',
+    trend: { direction: count > 5 ? 'up' : 'flat', changePercent: 0, label: count === 0 ? 'No upcoming PM' : `${count} work orders` },
+  };
+}
+
+async function pmComplianceRate(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const [total, completed, overdue] = await Promise.all([
+    prisma.pmWorkOrder.count({ where }),
+    prisma.pmWorkOrder.count({ where: { ...where, status: 'completed' } }),
+    prisma.pmWorkOrder.count({ where: { ...where, status: 'overdue' } }),
+  ]);
+
+  const rate = total > 0 ? +((completed / total) * 100).toFixed(1) : 100;
+
+  return {
+    type: 'gauge', label: 'PM Compliance Rate', value: rate, unit: '%',
+    target: 95, breakdown: { completed, overdue, total },
+  };
+}
+
+// ──────────────────────────────────────────────
+// GL / BANKING
+// ──────────────────────────────────────────────
+
+async function glNetIncome(params: WidgetDataParams) {
+  const where: Record<string, unknown> = { status: 'posted' };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const entries = await prisma.journalEntry.findMany({
+    where,
+    select: { totalDebit: true, totalCredit: true },
+  });
+
+  const totalDebit = entries.reduce((s, e) => s + (e.totalDebit?.toNumber() ?? 0), 0);
+  const totalCredit = entries.reduce((s, e) => s + (e.totalCredit?.toNumber() ?? 0), 0);
+  const netIncome = Math.round(totalCredit - totalDebit);
+
+  return {
+    type: 'kpi_card', label: 'Net Income (Period)', value: netIncome, unit: 'USD',
+    trend: {
+      direction: netIncome > 0 ? 'up' : netIncome < 0 ? 'down' : 'flat',
+      changePercent: 0,
+      label: `Dr: $${Math.round(totalDebit).toLocaleString()} / Cr: $${Math.round(totalCredit).toLocaleString()}`,
+    },
+    breakdown: { totalDebit: Math.round(totalDebit), totalCredit: Math.round(totalCredit) },
+  };
+}
+
+async function bankBalanceSummary(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const accounts = await prisma.bankAccount.findMany({
+    where,
+    select: { bankName: true, accountName: true, currency: true },
+    orderBy: { bankName: 'asc' },
+    take: 10,
+  });
+
+  const rows = accounts.map((a) => [
+    a.bankName,
+    a.accountName,
+    a.currency,
+  ]);
+
+  return {
+    type: 'data_table', label: 'Bank Accounts',
+    columns: ['Bank', 'Account', 'Currency'],
+    rows: rows.length > 0 ? rows : [['No bank accounts', '—', '—']],
+  };
+}
+
+// ──────────────────────────────────────────────
+// INVENTORY
+// ──────────────────────────────────────────────
+
+async function inventoryLowStock(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  // Find items with stock levels below reorder point
+  const items = await prisma.inventoryItem.findMany({
+    where,
+    select: { id: true, reorderPoint: true, stockLevels: { select: { qtyOnHand: true } } },
+  });
+
+  let lowCount = 0;
+  for (const item of items) {
+    const totalOnHand = item.stockLevels.reduce((s, sl) => s + (sl.qtyOnHand?.toNumber() ?? 0), 0);
+    if (totalOnHand <= (item.reorderPoint?.toNumber() ?? 0)) lowCount++;
+  }
+
+  return {
+    type: 'kpi_card', label: 'Low Stock Items', value: lowCount, unit: '',
+    trend: {
+      direction: lowCount > 0 ? 'up' : 'flat',
+      changePercent: 0,
+      label: lowCount === 0 ? 'All items stocked' : `${lowCount} need reorder`,
+    },
+  };
+}
+
+async function inventoryMovementTrend(params: WidgetDataParams) {
+  const months = getMonthLabels(6);
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const movements = await prisma.stockMovement.findMany({
+    where,
+    select: { createdAt: true, movementType: true },
+  });
+
+  const inbound: Record<string, number> = {};
+  const outbound: Record<string, number> = {};
+  for (const m of months) { inbound[m] = 0; outbound[m] = 0; }
+
+  for (const mov of movements) {
+    const month = new Date(mov.createdAt).toISOString().slice(0, 7);
+    if (inbound[month] !== undefined) {
+      if (['receive', 'purchase', 'adjustment_in', 'return_in'].includes(mov.movementType)) {
+        inbound[month]++;
+      } else {
+        outbound[month]++;
+      }
+    }
+  }
+
+  return {
+    type: 'line_chart', label: 'Stock Movement Trend',
+    series: [
+      { name: 'Inbound', data: months.map((m) => ({ x: m, y: inbound[m] })) },
+      { name: 'Outbound', data: months.map((m) => ({ x: m, y: outbound[m] })) },
+    ],
+    xAxis: { label: 'Month', type: 'category' },
+    yAxis: { label: 'Movements', unit: '' },
+  };
+}
+
+// ──────────────────────────────────────────────
 // PROVIDER REGISTRY
 // ──────────────────────────────────────────────
 
 const REAL_PROVIDERS: Record<string, (params: WidgetDataParams) => Promise<unknown>> = {
+  // Property
   occupancy_rate: occupancyRate,
+  vacancy_trend: vacancyTrend,
+  unit_status_breakdown: unitStatusBreakdown,
+  lease_expiring_soon: leaseExpiringSoon,
+  // Finance
   revenue_mtd: revenueMtd,
   revenue_ytd: revenueYtd,
   collection_rate: collectionRate,
   overdue_invoices: overdueInvoices,
+  revenue_by_property: revenueByProperty,
+  gl_net_income: glNetIncome,
+  bank_balance_summary: bankBalanceSummary,
+  // Maintenance
   maintenance_open: maintenanceOpen,
   maintenance_sla: maintenanceSla,
-  pending_tasks: pendingTasks,
-  active_workflows: activeWorkflows,
-  documents_expiring: documentsExpiring,
-  vacancy_trend: vacancyTrend,
-  maintenance_trend: maintenanceTrend,
-  revenue_by_property: revenueByProperty,
-  unit_status_breakdown: unitStatusBreakdown,
   tickets_by_category: ticketsByCategory,
-  lease_expiring_soon: leaseExpiringSoon,
+  maintenance_trend: maintenanceTrend,
+  // CRM
+  crm_active_leads: crmActiveLeads,
+  crm_lead_pipeline: crmLeadPipeline,
+  crm_conversion_rate: crmConversionRate,
+  // Facility
+  facility_bookings_today: facilityBookingsToday,
+  facility_utilization: facilityUtilization,
+  // Parking
+  parking_occupancy: parkingOccupancy,
+  parking_revenue: parkingRevenue,
+  // Security
+  security_open_incidents: securityOpenIncidents,
+  security_incidents_trend: securityIncidentsTrend,
+  // Visitors
+  visitors_today: visitorsToday,
+  visitors_trend: visitorsTrend,
+  // Housekeeping
+  cleaning_completion_rate: cleaningCompletionRate,
+  cleaning_open_tasks: cleaningOpenTasks,
+  // Preventive Maintenance
+  pm_upcoming: pmUpcoming,
+  pm_compliance_rate: pmComplianceRate,
+  // Inventory
+  inventory_low_stock: inventoryLowStock,
+  inventory_movement_trend: inventoryMovementTrend,
+  // Activity
   recent_activity: recentActivity,
+  active_workflows: activeWorkflows,
+  pending_tasks: pendingTasks,
+  documents_expiring: documentsExpiring,
 };
 
 /**
