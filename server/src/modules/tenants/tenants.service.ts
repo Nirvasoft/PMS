@@ -7,6 +7,7 @@ import {
   blacklistTenantSchema, whitelistTenantSchema, createEmergencyContactSchema,
   updateEmergencyContactSchema, createTenantNoteSchema, updateTenantNoteSchema
 } from './tenants.schema';
+import { webhookTenantCreated, webhookTenantBlacklisted } from '../../common/webhookHooks';
 
 // ══════════════════════════════════════════════
 // HELPERS
@@ -183,6 +184,7 @@ export class TenantsService {
     // Initialize KYC checklist
     await this.initKycChecklist(tenant.id, tenantType, companyId);
 
+    webhookTenantCreated(tenant);
     return { ...tenant, displayName: displayName(tenant) };
   }
 
@@ -438,6 +440,7 @@ export class BlacklistService {
     ]);
 
     logger.info(`Tenant ${tenantId} blacklisted by ${actionedBy}`);
+    webhookTenantBlacklisted(tenantId, parsedDto.reason, companyId);
   }
 
   async whitelist(tenantId: string, companyId: string, dto: { reason: string; notes?: string }, actionedBy: string) {

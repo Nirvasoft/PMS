@@ -335,12 +335,20 @@ class IntegrationsService {
       const errorMsg = err.name === 'AbortError' ? 'Request timeout (30s)' : err.message;
       logger.warn(`Webhook delivery failed to ${url}: ${errorMsg}`, { deliveryId });
 
+      // Compute next retry with exponential backoff: 10s, 30s, 90s, 270s, 810s
+      const MAX_ATTEMPTS = 5;
+      const current = await prisma.webhookDelivery.findUnique({ where: { id: deliveryId } });
+      const attemptNum = (current?.attemptCount ?? 0) + 1;
+      const backoffMs = Math.min(10_000 * Math.pow(3, attemptNum - 1), 900_000); // Cap at 15min
+      const nextRetryAt = attemptNum < MAX_ATTEMPTS ? new Date(Date.now() + backoffMs) : null;
+
       const updated = await prisma.webhookDelivery.update({
         where: { id: deliveryId },
         data: {
-          status: 'failed',
+          status: attemptNum >= MAX_ATTEMPTS ? 'failed' : 'retrying',
           responseBody: errorMsg.substring(0, 1000),
-          attemptCount: { increment: 1 },
+          attemptCount: attemptNum,
+          nextRetryAt,
         },
       });
 
@@ -359,7 +367,57 @@ class IntegrationsService {
         logger.warn(`Webhook endpoint ${endpoint.url} auto-disabled after 100 failures`);
       }
 
+      if (nextRetryAt) {
+        logger.info(`Webhook delivery ${deliveryId} scheduled retry #${attemptNum} at ${nextRetryAt.toISOString()}`);
+      }
+
       return updated;
+    }
+  }
+
+  /**
+   * Process pending retries — called by the retry cron job every 30 seconds.
+   * Picks up deliveries with status='retrying' and nextRetryAt <= now.
+   */
+  async processRetries() {
+    const pending = await prisma.webhookDelivery.findMany({
+      where: {
+        status: 'retrying',
+        nextRetryAt: { lte: new Date() },
+      },
+      include: { endpoint: true },
+      take: 20, // Process in batches
+      orderBy: { nextRetryAt: 'asc' },
+    });
+
+    if (pending.length === 0) return;
+
+    logger.info(`Webhook retry processor: ${pending.length} delivery(ies) to retry`);
+
+    for (const delivery of pending) {
+      if (!delivery.endpoint || !delivery.endpoint.isActive) {
+        // Endpoint deleted or disabled — mark failed
+        await prisma.webhookDelivery.update({
+          where: { id: delivery.id },
+          data: { status: 'failed', nextRetryAt: null },
+        });
+        continue;
+      }
+
+      // Clear nextRetryAt before attempting (deliverWebhook will set it again on failure)
+      await prisma.webhookDelivery.update({
+        where: { id: delivery.id },
+        data: { nextRetryAt: null },
+      });
+
+      this.deliverWebhook(
+        delivery.id,
+        delivery.endpoint.url,
+        delivery.endpoint.secret,
+        delivery.payload as Record<string, unknown>,
+      ).catch(err => {
+        logger.error(`Webhook retry error for ${delivery.id}:`, err);
+      });
     }
   }
 

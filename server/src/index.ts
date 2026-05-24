@@ -72,6 +72,7 @@ import { startGtoReminderJob } from './modules/mall/cron/gtoReminder.job';
 import { startCamBillingJob } from './modules/mall/cron/camBilling.job';
 import { startFootfallSyncJob } from './modules/mall/cron/footfallSync.job';
 import { startSmartMeterPollingJob } from './modules/condo/cron/meterPolling.job';
+import { startWebhookRetryJob } from './common/webhookRetry';
 import { securityRoutes } from './modules/security/security.routes';
 import { portalRouter } from './modules/portal/portal.routes';
 import { visitorsRouter, portalVisitorsRouter } from './modules/visitors/visitors.routes';
@@ -321,6 +322,7 @@ async function bootstrap() {
   try { startCamBillingJob(); } catch (e) { logger.warn('CAM billing cron skipped — tables not ready'); }
   try { startFootfallSyncJob(); } catch (e) { logger.warn('Footfall sync cron skipped — tables not ready'); }
   try { startSmartMeterPollingJob(); } catch (e) { logger.warn('Smart meter polling cron skipped — tables not ready'); }
+  try { startWebhookRetryJob(); } catch (e) { logger.warn('Webhook retry cron skipped'); }
 
   // Start server
   httpServer.listen(config.port, () => {

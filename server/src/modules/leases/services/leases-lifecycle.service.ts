@@ -5,6 +5,7 @@ import { calcLeaseTermMonths, nextLeaseNumber, calcEarlyTermPenalty } from './he
 import { escalationService } from './escalation.service';
 import { workflowEngine } from '../../workflow/services/engine.service';
 import { billingSchedulesService } from '../../billing/billingSchedules.service';
+import { webhookLeaseActivated, webhookLeaseTerminated, webhookLeaseRenewed } from '../../../common/webhookHooks';
 
 export class LeasesLifecycleService {
   // ── Submit for approval ───────────────────
@@ -83,7 +84,9 @@ export class LeasesLifecycleService {
     }
 
     logger.info(`Lease ${lease.leaseNumber} activated, unit → ${unitStatus}`);
-    return prisma.lease.findUniqueOrThrow({ where: { id } });
+    const result = await prisma.lease.findUniqueOrThrow({ where: { id } });
+    webhookLeaseActivated(result);
+    return result;
   }
 
   // ── Cancel ───────────────────────────────
@@ -119,7 +122,9 @@ export class LeasesLifecycleService {
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
     ]);
 
-    return { leaseId: id, status: 'terminated', terminationDate: dto.terminationDate, terminationType: isEarly ? 'early' : 'normal', earlyTerminationPenalty: penalty, penaltyBreakdown };
+    const result = { leaseId: id, status: 'terminated', terminationDate: dto.terminationDate, terminationType: isEarly ? 'early' : 'normal', earlyTerminationPenalty: penalty, penaltyBreakdown };
+    webhookLeaseTerminated(result, companyId);
+    return result;
   }
 
   // ── Create renewal ───────────────────────
@@ -148,6 +153,7 @@ export class LeasesLifecycleService {
     });
 
     await prisma.lease.update({ where: { id }, data: { renewalOfferedAt: new Date() } });
+    webhookLeaseRenewed(renewal);
     return renewal;
   }
 }

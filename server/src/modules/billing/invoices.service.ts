@@ -5,6 +5,7 @@ import { logger } from '../../common/logger';
 import { billingNotifications } from './billingNotifications.service';
 import { workflowEngine } from '../workflow/services/engine.service';
 import { glService } from '../gl/gl.service';
+import { webhookInvoiceIssued } from '../../common/webhookHooks';
 
 /** Adds computed `outstandingAmount` to an invoice object */
 function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T): T & { outstandingAmount: number } {
@@ -183,6 +184,7 @@ export class InvoicesService {
       companyId, tenantId: dto.tenantId as string,
     }, tenantName);
 
+    webhookInvoiceIssued(invoice);
     return invoice;
   }
 
@@ -318,6 +320,7 @@ export class InvoicesService {
     }, tenantName);
 
     logger.info(`Generated invoice ${invoiceNumber} for schedule ${scheduleId} (${amount} ${schedule.currency})`);
+    webhookInvoiceIssued({ ...invoice, companyId: schedule.companyId, tenantId: schedule.tenantId, currency: schedule.currency });
     return invoice;
   }
 

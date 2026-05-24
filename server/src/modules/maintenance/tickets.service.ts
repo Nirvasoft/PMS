@@ -4,6 +4,7 @@ import { logger } from '../../common/logger';
 import { slaService, addSlaHours } from './sla.service';
 import { io } from '../../common/socket';
 import { notificationService } from '../notifications/services/notification.service';
+import { webhookTicketCreated, webhookTicketAssigned, webhookTicketRated } from '../../common/webhookHooks';
 
 export class TicketsService {
   // ── Query ───────────────────────────────────
@@ -235,6 +236,7 @@ export class TicketsService {
       }
     }
 
+    webhookTicketCreated(ticket);
     return ticket;
   }
 
@@ -322,6 +324,7 @@ export class TicketsService {
       logger.warn(`Notification failed for WO ${woNumber}: ${err.message}`),
     );
 
+    webhookTicketAssigned(id, ticket.ticketNumber, dto.technicianId as string, companyId);
     return this.findById(id, companyId);
   }
 
@@ -492,7 +495,7 @@ export class TicketsService {
       throw AppError.validation('Can only rate completed tickets');
     }
 
-    return prisma.maintenanceTicket.update({
+    const updated = await prisma.maintenanceTicket.update({
       where: { id },
       data: {
         rating: dto.rating as number,
@@ -501,6 +504,9 @@ export class TicketsService {
         status: 'closed',
       },
     });
+
+    webhookTicketRated(id, dto.rating as number, companyId);
+    return updated;
   }
 
   // ── Stats ──────────────────────────────────

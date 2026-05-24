@@ -1,6 +1,7 @@
 import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { calcLeaseTermMonths, nextLeaseNumber, daysUntilExpiry } from './helpers';
+import { webhookLeaseCreated } from '../../../common/webhookHooks';
 
 export class LeasesService {
   // ── List ──────────────────────────────────
@@ -121,6 +122,7 @@ export class LeasesService {
       },
     });
 
+    webhookLeaseCreated(lease);
     return lease;
   }
 

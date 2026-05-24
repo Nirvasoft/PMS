@@ -2,6 +2,7 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { glService } from '../gl/gl.service';
+import { webhookPaymentReceived, webhookRefundProcessed } from '../../common/webhookHooks';
 
 export class ReceiptsService {
   // ── Receipt Number ──────────────────────────
@@ -150,6 +151,7 @@ export class ReceiptsService {
       logger.warn(`GL auto-post for receipt ${receiptNumber} failed: ${err.message}`);
     }
 
+    webhookPaymentReceived(receipt);
     return receipt;
   }
 
@@ -243,6 +245,7 @@ export class ReceiptsService {
     });
 
     logger.info(`Reversed receipt ${receipt.receiptNumber}: ${reason}`);
+    webhookRefundProcessed(receipt);
     return { id, status: 'reversed' };
   }
 
