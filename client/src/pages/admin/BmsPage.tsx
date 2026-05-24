@@ -454,50 +454,61 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
     try { await createDevice(form).unwrap(); onClose(); } catch {}
   };
 
-  const STEPS = ['Basic Info', 'Device Type', 'Network'];
+  const STEPS = ['Basic Info', 'Device Type', 'Network Config'];
 
   return (
-    <div style={overlay} onClick={onClose}>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)',
+    }} onClick={onClose}>
       <div style={{
-        background: 'var(--bg-card)', borderRadius: 20, padding: 0,
-        width: 560, maxWidth: '92vw', maxHeight: '90vh',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.35)', border: '1px solid var(--border)',
+        background: 'var(--bg-card)', borderRadius: 16, padding: 0,
+        width: 540, maxWidth: '92vw', maxHeight: '88vh',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.4)',
+        border: '1px solid var(--border)',
         overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        position: 'relative',
       }} onClick={e => e.stopPropagation()}>
 
-        {/* ── MODAL HEADER ── */}
-        <div style={{
-          padding: '24px 28px 20px',
-          borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-tertiary)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Add BMS Device</h2>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-                Configure a new building management device
-              </p>
-            </div>
-            <button onClick={onClose} style={{
-              width: 32, height: 32, borderRadius: 8, border: 'none',
-              background: 'var(--bg-card)', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-secondary)',
-            }}><X size={16} /></button>
-          </div>
+        {/* Close button - top right corner */}
+        <button onClick={onClose} style={{
+          position: 'absolute', top: 16, right: 16, zIndex: 2,
+          width: 28, height: 28, borderRadius: 6, border: 'none',
+          background: 'var(--bg-tertiary)', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--text-secondary)',
+        }}><X size={14} /></button>
 
-          {/* ── STEPPER ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+        {/* ── MODAL HEADER with stepper ── */}
+        <div style={{
+          padding: '24px 28px 22px',
+          borderBottom: '1px solid var(--border)',
+        }}>
+          {/* Title */}
+          <h2 style={{ margin: '0 0 2px', fontSize: 18, fontWeight: 700 }}>Add BMS Device</h2>
+          <p style={{ margin: '0 0 22px', fontSize: 12, color: 'var(--text-secondary)' }}>
+            Step {step} of 3 — {STEPS[step - 1]}
+          </p>
+
+          {/* Stepper bar */}
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            padding: '14px 16px', borderRadius: 10,
+            background: 'var(--bg-tertiary)',
+          }}>
             {STEPS.map((label, i) => {
               const num = i + 1;
               const done = step > num;
               const active = step === num;
+              const upcoming = step < num;
               return (
                 <React.Fragment key={num}>
                   {i > 0 && (
                     <div style={{
-                      flex: 1, height: 2, margin: '0 -1px',
+                      flex: 1, height: 2, margin: '0 6px',
                       background: done ? '#3b82f6' : 'var(--border)',
+                      borderRadius: 1,
                       transition: 'background 0.3s',
                     }} />
                   )}
@@ -506,22 +517,23 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       cursor: done ? 'pointer' : 'default',
+                      flexShrink: 0,
                     }}
                   >
                     <div style={{
-                      width: 30, height: 30, borderRadius: '50%',
-                      background: done ? '#3b82f6' : active ? '#3b82f6' : 'var(--bg-card)',
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: done || active ? '#3b82f6' : 'transparent',
                       border: `2px solid ${done || active ? '#3b82f6' : 'var(--border)'}`,
                       color: done || active ? '#fff' : 'var(--text-secondary)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 700, flexShrink: 0,
+                      fontSize: 11, fontWeight: 700, flexShrink: 0,
                       transition: 'all 0.3s',
                     }}>
-                      {done ? <Check size={14} /> : num}
+                      {done ? <Check size={13} /> : num}
                     </div>
                     <span style={{
                       fontSize: 12, fontWeight: active ? 600 : 400,
-                      color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      color: upcoming ? 'var(--text-secondary)' : 'var(--text-primary)',
                       whiteSpace: 'nowrap' as const,
                     }}>{label}</span>
                   </div>
@@ -535,7 +547,7 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
         <div style={{ padding: '24px 28px', flex: 1, overflow: 'auto' }}>
 
           {step === 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <Field label="Property" required>
                 <select value={form.propertyId} onChange={e => setForm(f => ({ ...f, propertyId: e.target.value }))}
                   required style={fieldInput}>
@@ -545,16 +557,26 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
               </Field>
               <Field label="Device Name" required>
                 <input value={form.deviceName} onChange={e => setForm(f => ({ ...f, deviceName: e.target.value }))}
-                  required placeholder="e.g. AHU B1 Controller" style={fieldInput} />
+                  required placeholder="e.g. AHU B1 Controller" style={fieldInput}
+                  autoFocus />
               </Field>
+              {/* Subtle help text */}
+              <div style={{
+                background: 'var(--bg-tertiary)', borderRadius: 10, padding: '12px 14px',
+                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5,
+                display: 'flex', gap: 8, alignItems: 'flex-start',
+              }}>
+                <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>Choose the property where this device is physically located. The device name should be descriptive enough to identify it on-site.</span>
+              </div>
             </div>
           )}
 
           {step === 2 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Device Type</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
                   {types.map((t: string) => {
                     const c = getCfg(t);
                     const sel = form.deviceType === t;
@@ -562,52 +584,52 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
                     return (
                       <button key={t} onClick={() => setForm(f => ({ ...f, deviceType: t }))} style={{
                         display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8,
-                        padding: '16px 10px', borderRadius: 12,
+                        padding: '14px 8px', borderRadius: 12,
                         border: `2px solid ${sel ? c.color : 'var(--border)'}`,
-                        background: sel ? `${c.color}0a` : 'var(--bg-tertiary)',
+                        background: sel ? `${c.color}08` : 'var(--bg-tertiary)',
                         cursor: 'pointer', transition: 'all 0.15s', color: 'var(--text-primary)',
                         position: 'relative' as const,
                       }}>
                         {sel && <div style={{
-                          position: 'absolute' as const, top: 6, right: 6,
+                          position: 'absolute' as const, top: 5, right: 5,
                           width: 16, height: 16, borderRadius: '50%',
                           background: c.color, color: '#fff',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}><Check size={10} /></div>}
+                        }}><Check size={9} /></div>}
                         <div style={{
-                          width: 40, height: 40, borderRadius: 12,
-                          background: sel ? c.gradient : `${c.color}15`,
+                          width: 38, height: 38, borderRadius: 10,
+                          background: sel ? c.gradient : `${c.color}12`,
                           color: sel ? '#fff' : c.color,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           transition: 'all 0.2s',
-                        }}><Icon size={20} /></div>
-                        <span style={{ fontSize: 12, fontWeight: sel ? 600 : 400, textAlign: 'center' as const }}>{c.label}</span>
+                        }}><Icon size={18} /></div>
+                        <span style={{ fontSize: 11, fontWeight: sel ? 600 : 400, textAlign: 'center' as const }}>{c.label}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Protocol</div>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Communication Protocol</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {protocols.map((p: string) => {
                     const sel = form.protocol === p;
                     return (
                       <button key={p} onClick={() => setForm(f => ({ ...f, protocol: p }))} style={{
                         display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '12px 16px', borderRadius: 10,
+                        padding: '11px 14px', borderRadius: 10,
                         border: `2px solid ${sel ? '#3b82f6' : 'var(--border)'}`,
-                        background: sel ? '#3b82f60a' : 'var(--bg-tertiary)',
+                        background: sel ? '#3b82f608' : 'var(--bg-tertiary)',
                         cursor: 'pointer', transition: 'all 0.15s', color: 'var(--text-primary)',
                         textAlign: 'left' as const, width: '100%',
                       }}>
                         <div style={{
-                          width: 18, height: 18, borderRadius: '50%',
+                          width: 16, height: 16, borderRadius: '50%',
                           border: `2px solid ${sel ? '#3b82f6' : 'var(--border)'}`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          flexShrink: 0,
+                          flexShrink: 0, transition: 'all 0.15s',
                         }}>
-                          {sel && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} />}
+                          {sel && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3b82f6' }} />}
                         </div>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: sel ? 600 : 500 }}>{PROTOCOL_LABELS[p] || p}</div>
@@ -622,25 +644,28 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
           )}
 
           {step === 3 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              {/* Preview */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Device preview card */}
               {(() => {
                 const c = getCfg(form.deviceType);
                 const Icon = c.icon;
                 return (
                   <div style={{
-                    background: 'var(--bg-tertiary)', borderRadius: 12, padding: '14px 16px',
-                    display: 'flex', gap: 12, alignItems: 'center', border: '1px solid var(--border)',
+                    borderRadius: 12, padding: '14px 16px',
+                    display: 'flex', gap: 12, alignItems: 'center',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-tertiary)',
                   }}>
                     <div style={{
                       width: 42, height: 42, borderRadius: 12,
                       background: c.gradient, color: '#fff',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: `0 3px 10px ${c.color}30`,
                     }}><Icon size={20} /></div>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{form.deviceName || 'Unnamed'}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                        {c.label} · {PROTOCOL_LABELS[form.protocol] || form.protocol}
+                        {getCfg(form.deviceType).label} · {PROTOCOL_LABELS[form.protocol] || form.protocol}
                       </div>
                     </div>
                   </div>
@@ -658,7 +683,7 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
                 </Field>
               </div>
               {form.protocol.includes('bacnet') && (
-                <Field label="BACnet Device Instance ID" hint="Unique BACnet identifier for this device">
+                <Field label="BACnet Device Instance ID" hint="Unique BACnet identifier assigned to this controller">
                   <input type="number" value={form.bacnetDeviceId}
                     onChange={e => setForm(f => ({ ...f, bacnetDeviceId: e.target.value }))}
                     placeholder="1001" style={fieldInput} />
@@ -670,15 +695,15 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
 
         {/* ── MODAL FOOTER ── */}
         <div style={{
-          display: 'flex', justifyContent: 'space-between', padding: '16px 28px',
-          borderTop: '1px solid var(--border)', background: 'var(--bg-tertiary)',
+          display: 'flex', justifyContent: 'space-between', padding: '14px 28px',
+          borderTop: '1px solid var(--border)',
         }}>
           <button onClick={() => step > 1 ? setStep(step - 1) : onClose()} style={outlineBtn}>
             {step === 1 ? 'Cancel' : '← Back'}
           </button>
           {step < 3 ? (
             <button onClick={() => setStep(step + 1)} disabled={!canNext} style={{
-              ...primaryBtn, opacity: canNext ? 1 : 0.5,
+              ...primaryBtn, opacity: canNext ? 1 : 0.5, cursor: canNext ? 'pointer' : 'not-allowed',
             }}>
               Next <ChevronRight size={15} />
             </button>
