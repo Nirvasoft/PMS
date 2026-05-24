@@ -172,6 +172,81 @@ export default function ShopDirectoryPage() {
           </div>
         )}
 
+        {/* Tenant Mix Chart */}
+        {mix?.byCategory?.length > 0 && (
+          <div className="mall-card" style={{ padding: 20, marginBottom: 20 }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Layers size={16} /> Tenant Mix by Category
+            </h3>
+            <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Donut Chart (SVG) */}
+              <svg viewBox="0 0 120 120" width={160} height={160}>
+                {(() => {
+                  const cats = mix.byCategory;
+                  const total = cats.reduce((s: number, c: any) => s + c.glaSqft, 0) || 1;
+                  let cum = 0;
+                  const palette = ['#f59e0b', '#6366f1', '#3b82f6', '#ec4899', '#14b8a6', '#a855f7', '#ef4444', '#6b7280'];
+                  return cats.map((c: any, i: number) => {
+                    const pct = c.glaSqft / total;
+                    const startAngle = cum * 2 * Math.PI - Math.PI / 2;
+                    cum += pct;
+                    const endAngle = cum * 2 * Math.PI - Math.PI / 2;
+                    const largeArc = pct > 0.5 ? 1 : 0;
+                    const r = 50, cx = 60, cy = 60;
+                    const x1 = cx + r * Math.cos(startAngle);
+                    const y1 = cy + r * Math.sin(startAngle);
+                    const x2 = cx + r * Math.cos(endAngle);
+                    const y2 = cy + r * Math.sin(endAngle);
+                    return (
+                      <path
+                        key={c.category}
+                        d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                        fill={palette[i % palette.length]}
+                        stroke="var(--card-bg, var(--surface))"
+                        strokeWidth={2}
+                        opacity={0.85}
+                      >
+                        <title>{c.category}: {c.pct}% ({c.shopCount} shops, {c.glaSqft.toLocaleString()} sqft)</title>
+                      </path>
+                    );
+                  });
+                })()}
+                <circle cx={60} cy={60} r={28} fill="var(--card-bg, var(--surface))" />
+                <text x={60} y={56} textAnchor="middle" fill="var(--text-primary)" fontSize={13} fontWeight={700}>
+                  {mix.totalShops}
+                </text>
+                <text x={60} y={70} textAnchor="middle" fill="var(--text-secondary)" fontSize={8}>
+                  shops
+                </text>
+              </svg>
+
+              {/* Legend */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 200 }}>
+                {mix.byCategory.map((c: any, i: number) => {
+                  const palette = ['#f59e0b', '#6366f1', '#3b82f6', '#ec4899', '#14b8a6', '#a855f7', '#ef4444', '#6b7280'];
+                  const catInfo = getCatStyle(c.category);
+                  return (
+                    <div key={c.category} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 12, height: 12, borderRadius: 3, background: palette[i % palette.length], flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                        {catInfo.icon} {c.category}
+                      </span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', minWidth: 40, textAlign: 'right' }}>
+                        {c.shopCount}
+                      </span>
+                      <div style={{ width: 80, height: 6, borderRadius: 3, background: 'var(--border-color, var(--border))', overflow: 'hidden' }}>
+                        <div style={{ width: `${c.pct}%`, height: '100%', borderRadius: 3, background: palette[i % palette.length] }} />
+                      </div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: palette[i % palette.length], minWidth: 38, textAlign: 'right' }}>
+                        {c.pct}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Search & Filters */}
         <div className="shop-dir-toolbar">
           <div className="shop-dir-search">

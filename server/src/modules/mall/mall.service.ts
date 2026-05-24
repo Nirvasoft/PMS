@@ -160,18 +160,49 @@ class MallService {
   }
 
   async upsertCommercialLease(leaseId: string, companyId: string, data: any) {
-    const lease = await prisma.lease.findFirst({ where: { id: leaseId, companyId } });
+    const lease = await prisma.lease.findFirst({
+      where: { id: leaseId, companyId },
+      include: { property: { select: { id: true, name: true } } },
+    });
     if (!lease) throw AppError.notFound('Lease');
 
     const mapped: any = { ...data };
     if (data.fitOutStartDate) mapped.fitOutStartDate = new Date(data.fitOutStartDate);
     if (data.fitOutEndDate) mapped.fitOutEndDate = new Date(data.fitOutEndDate);
 
-    return prisma.commercialLease.upsert({
+    // Exclusivity enforcement: check for conflicts
+    let exclusivityWarning: string | null = null;
+    if (data.exclusivityCategory) {
+      const conflicting = await prisma.commercialLease.findMany({
+        where: {
+          companyId,
+          exclusivityCategory: data.exclusivityCategory,
+          leaseId: { not: leaseId },
+          lease: { status: 'active', propertyId: lease.propertyId },
+        },
+        include: {
+          lease: {
+            select: { leaseNumber: true, tenant: { select: { companyName: true } }, unit: { select: { unitNumber: true } } },
+          },
+        },
+      });
+
+      if (conflicting.length > 0) {
+        const conflicts = conflicting.map(c =>
+          `${c.lease.tenant?.companyName || 'Unknown'} (Unit ${c.lease.unit?.unitNumber}, Lease ${c.lease.leaseNumber})`
+        ).join('; ');
+        exclusivityWarning = `Exclusivity conflict for "${data.exclusivityCategory}": ${conflicts}`;
+        logger.warn(`Exclusivity conflict on property ${lease.property?.name}: ${exclusivityWarning}`);
+      }
+    }
+
+    const result = await prisma.commercialLease.upsert({
       where: { leaseId },
       create: { leaseId, companyId, ...mapped },
       update: mapped,
     });
+
+    return { ...result, exclusivityWarning };
   }
 
   // ═══════════════════════════════════════
@@ -507,6 +538,17 @@ class MallService {
       for (const unit of units) {
         const lease = unit.leases[0];
         if (!lease) continue;
+
+        // Gap #11: Skip units in fit-out period (rent-free)
+        const cl = lease.commercialLease;
+        if (cl?.fitOutRentFree && cl.fitOutStartDate && cl.fitOutEndDate) {
+          const now = new Date();
+          const billingDate = new Date(year, month - 1, 1);
+          if (billingDate >= cl.fitOutStartDate && billingDate <= cl.fitOutEndDate) {
+            logger.info(`Skipping CAM billing for unit ${unit.id} — in fit-out period (${cl.fitOutStartDate.toISOString().split('T')[0]} to ${cl.fitOutEndDate.toISOString().split('T')[0]})`);
+            continue;
+          }
+        }
 
         const unitGla = Number(unit.areaSqft) || 0;
         const allocationPct = unitGla / totalGla;

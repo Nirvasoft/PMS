@@ -118,9 +118,21 @@ export default function GtoManagementPage() {
                   </td>
                   <td className="text-right"><strong>${Number(gto.totalRentDue || 0).toLocaleString()}</strong></td>
                   <td>
-                    <span className={`mall-status-badge mall-status-${gto.verified ? 'verified' : 'pending'}`}>
-                      {gto.verified ? '✓ Verified' : 'Pending'}
-                    </span>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span className={`mall-status-badge mall-status-${gto.verified ? 'verified' : 'pending'}`}>
+                        {gto.verified ? '✓ Verified' : 'Pending'}
+                      </span>
+                      {gto.posValidated && (
+                        <span className="mall-status-badge mall-status-active" title="POS data matches reported GTO within 5%">
+                          ✓ POS
+                        </span>
+                      )}
+                      {gto.verified && !gto.posValidated && gto.variancePct != null && Number(gto.variancePct) > 0.05 && (
+                        <span className="mall-status-badge mall-status-pending" title={`POS variance: ${(Number(gto.variancePct) * 100).toFixed(1)}%`}>
+                          ⚠ {(Number(gto.variancePct) * 100).toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     {!gto.verified && (
