@@ -3,7 +3,7 @@ import {
   useGetBmsSummaryQuery, useGetBmsDevicesQuery, useGetBmsMetaQuery,
   useCreateBmsDeviceMutation, useDeleteBmsDeviceMutation, usePollBmsDeviceMutation,
 } from '../../store/api/integrationsApi';
-import { useGetPropertiesQuery } from '../../store/api/propertyApi';
+import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
 import {
   Server, Plus, RefreshCw, Trash2, Wifi, WifiOff, AlertTriangle,
   Thermometer, Zap, Droplets, Shield, ArrowUpDown, Activity, ChevronDown, X,
