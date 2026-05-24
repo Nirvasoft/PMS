@@ -3,9 +3,11 @@ import { createPortal } from 'react-dom';
 import {
   useGetCamPoolsQuery, useCreateCamPoolMutation, useUpdateCamPoolMutation,
   useGetCamBillingsQuery, useGetCamReconciliationsQuery,
+  useGenerateCamBillingMutation, useRunCamReconciliationMutation,
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
-import { Plus, BarChart3 } from 'lucide-react';
+import { Plus, BarChart3, Zap, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const POOL_TYPES = ['controllable', 'uncontrollable', 'capital'];
 const ALLOC_BASIS = ['gla', 'equal', 'zone', 'custom'];
@@ -22,6 +24,9 @@ export default function CamManagementPage() {
     name: '', poolType: 'controllable', allocationBasis: 'gla',
     costCategories: '', year: new Date().getFullYear(), budgetedAmount: 0,
   });
+  const [genMonth, setGenMonth] = useState(new Date().getMonth() + 1);
+  const [genLoading, setGenLoading] = useState(false);
+  const [reconLoading, setReconLoading] = useState(false);
 
   const { data: poolsData, isLoading: loadingPools } = useGetCamPoolsQuery(
     { propertyId, year },
@@ -37,6 +42,8 @@ export default function CamManagementPage() {
   );
 
   const [createPool] = useCreateCamPoolMutation();
+  const [generateCamBilling] = useGenerateCamBillingMutation();
+  const [runCamReconciliation] = useRunCamReconciliationMutation();
 
   const pools = poolsData?.data || [];
   const billings = billingsData?.data || [];
@@ -149,7 +156,32 @@ export default function CamManagementPage() {
       )}
 
       {activeTab === 1 && (
-        <div className="mall-table-wrap">
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Month:
+              <select value={genMonth} onChange={e => setGenMonth(Number(e.target.value))} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border-color, var(--border))', background: 'var(--card-bg, var(--surface))', color: 'var(--text-primary)' }}>
+                {Array.from({length: 12}, (_, i) => <option key={i+1} value={i+1}>{new Date(2025, i).toLocaleString('default', {month:'long'})}</option>)}
+              </select>
+            </label>
+            <button
+              className="btn btn-primary"
+              disabled={genLoading || !propertyId}
+              onClick={async () => {
+                setGenLoading(true);
+                try {
+                  const res = await generateCamBilling({ propertyId, month: genMonth, year }).unwrap();
+                  toast.success(`Generated ${res.data.generated} billing records for ${res.data.pools} pools × ${res.data.units} units`);
+                } catch (e: any) {
+                  toast.error(e?.data?.message || 'Failed to generate');
+                }
+                setGenLoading(false);
+              }}
+            >
+              <Zap size={14} /> {genLoading ? 'Generating...' : 'Generate Billing'}
+            </button>
+          </div>
+          <div className="mall-table-wrap">
           <table className="mall-table">
             <thead>
               <tr>
@@ -183,11 +215,31 @@ export default function CamManagementPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
       {activeTab === 2 && (
-        <div className="mall-table-wrap">
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+            <button
+              className="btn btn-primary"
+              disabled={reconLoading || !propertyId}
+              onClick={async () => {
+                setReconLoading(true);
+                try {
+                  const res = await runCamReconciliation({ propertyId, year }).unwrap();
+                  toast.success(`Reconciliation complete: ${res.data.reconciliations} records, total variance: $${Number(res.data.totalVariance).toLocaleString()}`);
+                } catch (e: any) {
+                  toast.error(e?.data?.message || 'Failed to run reconciliation');
+                }
+                setReconLoading(false);
+              }}
+            >
+              <RefreshCw size={14} /> {reconLoading ? 'Running...' : `Run ${year} Reconciliation`}
+            </button>
+          </div>
+          <div className="mall-table-wrap">
           <table className="mall-table">
             <thead>
               <tr>
@@ -223,6 +275,7 @@ export default function CamManagementPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

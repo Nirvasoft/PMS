@@ -109,6 +109,15 @@ export const mallApi = createApi({
       providesTags: ['CamBillings'],
     }),
 
+    generateCamBilling: builder.mutation<any, { propertyId: string; month: number; year: number }>({
+      query: (body) => ({ url: '/cam/billing/generate', method: 'POST', body }),
+      invalidatesTags: ['CamBillings', 'MallDashboard'],
+    }),
+    runCamReconciliation: builder.mutation<any, { propertyId: string; year: number }>({
+      query: (body) => ({ url: '/cam/reconciliation/run', method: 'POST', body }),
+      invalidatesTags: ['CamBillings', 'MallDashboard'],
+    }),
+
     // ── Events ──
     getMallEvents: builder.query<any, {
       propertyId?: string; status?: string; from?: string; to?: string;
@@ -173,6 +182,8 @@ export const {
   useUpdateCamPoolMutation,
   useGetCamBillingsQuery,
   useGetCamReconciliationsQuery,
+  useGenerateCamBillingMutation,
+  useRunCamReconciliationMutation,
   useGetMallEventsQuery,
   useGetMallEventDetailQuery,
   useCreateMallEventMutation,

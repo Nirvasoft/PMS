@@ -360,6 +360,129 @@ class MallService {
     });
   }
 
+  /**
+   * Generate monthly CAM billings for all active pools in a property.
+   * For each pool × each active unit: allocate monthly cost proportionate to GLA.
+   */
+  async generateCamBillings(companyId: string, propertyId: string, month: number, year: number) {
+    const mall = await prisma.mallProperty.findFirst({ where: { propertyId, companyId } });
+    const adminFeePct = mall ? Number(mall.camAdminFeePct) : 0.10;
+
+    const pools = await prisma.camCostPool.findMany({
+      where: { companyId, propertyId, year, isActive: true },
+    });
+    if (!pools.length) throw AppError.badRequest('No active CAM pools for this property/year');
+
+    // Active units with CAM-included commercial leases
+    const units = await prisma.unit.findMany({
+      where: {
+        propertyId, companyId, isActive: true,
+        leases: {
+          some: {
+            status: 'active',
+            commercialLease: { camIncluded: true },
+          },
+        },
+      },
+      include: {
+        leases: {
+          where: { status: 'active' },
+          take: 1,
+          include: { commercialLease: true },
+          orderBy: { startDate: 'desc' },
+        },
+      },
+    });
+
+    if (!units.length) throw AppError.badRequest('No active units with CAM-included leases');
+
+    const totalGla = units.reduce((sum, u) => sum + (Number(u.areaSqft) || 0), 0);
+    if (totalGla === 0) throw AppError.badRequest('Total GLA is zero — cannot allocate');
+
+    const results: any[] = [];
+
+    for (const pool of pools) {
+      const monthlyPoolAmount = Number(pool.budgetedAmount) / 12;
+      const adminFeeTotal = monthlyPoolAmount * adminFeePct;
+      const totalPoolCost = monthlyPoolAmount + adminFeeTotal;
+
+      for (const unit of units) {
+        const lease = unit.leases[0];
+        if (!lease) continue;
+
+        const unitGla = Number(unit.areaSqft) || 0;
+        const allocationPct = unitGla / totalGla;
+        const allocatedAmount = totalPoolCost * allocationPct;
+        const adminFee = adminFeeTotal * allocationPct;
+
+        const billing = await prisma.camBilling.upsert({
+          where: {
+            poolId_unitId_billingMonth_billingYear: {
+              poolId: pool.id, unitId: unit.id,
+              billingMonth: month, billingYear: year,
+            },
+          },
+          update: { unitGlaSqft: unitGla, totalGlaSqft: totalGla, allocationPct, poolAmount: totalPoolCost, adminFee, allocatedAmount },
+          create: {
+            companyId, propertyId, poolId: pool.id, unitId: unit.id,
+            tenantId: lease.tenantId, leaseId: lease.id,
+            billingMonth: month, billingYear: year,
+            unitGlaSqft: unitGla, totalGlaSqft: totalGla,
+            allocationPct, poolAmount: totalPoolCost, adminFee, allocatedAmount,
+            status: 'pending',
+          },
+        });
+        results.push(billing);
+      }
+    }
+
+    return { generated: results.length, pools: pools.length, units: units.length, totalGla, month, year };
+  }
+
+  /**
+   * Annual CAM reconciliation: compare estimated monthly billings vs actual cost per pool/unit.
+   * variance = (actual_pool_cost × allocation%) − sum(monthly_billings)
+   */
+  async runCamReconciliation(companyId: string, propertyId: string, year: number) {
+    const mall = await prisma.mallProperty.findFirst({ where: { propertyId, companyId } });
+    const adminFeePct = mall ? Number(mall.camAdminFeePct) : 0.10;
+
+    const pools = await prisma.camCostPool.findMany({ where: { companyId, propertyId, year } });
+    if (!pools.length) throw AppError.badRequest('No CAM pools found for this year');
+
+    const results: any[] = [];
+
+    for (const pool of pools) {
+      const billings = await prisma.camBilling.findMany({ where: { poolId: pool.id, billingYear: year } });
+
+      const byUnit = new Map<string, typeof billings>();
+      for (const b of billings) {
+        if (!byUnit.has(b.unitId)) byUnit.set(b.unitId, []);
+        byUnit.get(b.unitId)!.push(b);
+      }
+
+      for (const [unitId, unitBillings] of byUnit) {
+        const totalEstimated = unitBillings.reduce((s, b) => s + Number(b.allocatedAmount), 0);
+        const allocationPct = Number(unitBillings[0].allocationPct);
+        const totalActual = Number(pool.actualAmount) * (1 + adminFeePct) * allocationPct;
+        const variance = totalActual - totalEstimated;
+
+        const recon = await prisma.camReconciliation.upsert({
+          where: { poolId_unitId_reconYear: { poolId: pool.id, unitId, reconYear: year } },
+          update: { totalEstimated, totalActual, variance, status: 'draft' },
+          create: {
+            companyId, propertyId, poolId: pool.id, unitId,
+            tenantId: unitBillings[0].tenantId,
+            reconYear: year, totalEstimated, totalActual, variance, status: 'draft',
+          },
+        });
+        results.push({ ...recon, action: variance > 0 ? 'debit_note' : variance < 0 ? 'credit_note' : 'none' });
+      }
+    }
+
+    return { year, reconciliations: results.length, totalVariance: results.reduce((s, r) => s + Number(r.variance), 0), data: results };
+  }
+
   // ═══════════════════════════════════════
   //  MALL EVENTS
   // ═══════════════════════════════════════

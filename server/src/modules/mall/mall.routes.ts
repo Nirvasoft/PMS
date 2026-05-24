@@ -154,6 +154,20 @@ router.get('/cam/reconciliations', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
+router.post('/cam/billing/generate', validateRequest(generateCamBillingSchema), asyncHandler(async (req, res) => {
+  const data = await mallService.generateCamBillings(
+    getCompanyId(req), req.body.propertyId, req.body.month, req.body.year,
+  );
+  res.status(201).json({ success: true, data });
+}));
+
+router.post('/cam/reconciliation/run', validateRequest(runReconciliationSchema), asyncHandler(async (req, res) => {
+  const data = await mallService.runCamReconciliation(
+    getCompanyId(req), req.body.propertyId, req.body.year,
+  );
+  res.json({ success: true, data });
+}));
+
 // ═══════════════════════════════════════
 //  EVENTS & BOOTHS
 // ═══════════════════════════════════════
