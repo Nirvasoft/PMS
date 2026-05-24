@@ -78,6 +78,7 @@ import { facilitiesRouter, bookingRulesRouter, portalBookingsRouter } from './mo
 import { portalCommunityRouter, adminCommunityRouter } from './modules/community/community.routes';
 import { mallRouter } from './modules/mall/mall.routes';
 import { condoRouter } from './modules/condo/condo.routes';
+import { biRouter } from './modules/bi/bi.routes';
 import { integrationsRouter, developerRouter } from './modules/integrations/integrations.routes';
 
 async function bootstrap() {
@@ -266,6 +267,7 @@ async function bootstrap() {
   // Module 6.1 — Shopping Mall
   app.use('/api/v1/mall', requireFeature('mallModuleEnabled'), mallRouter);
   app.use('/api/v1/condo', requireFeature('condoModuleEnabled'), condoRouter);
+  app.use('/api/v1/bi', authMiddleware, biRouter);
 
   // Module 6.3 — Enterprise Integrations
   app.use('/api/v1/integrations', integrationsRouter);

@@ -103,6 +103,7 @@ import BylawsPage from './pages/admin/BylawsPage';
 import IntegrationsPage from './pages/admin/IntegrationsPage';
 import WebhooksPage from './pages/admin/WebhooksPage';
 import ApiKeysPage from './pages/admin/ApiKeysPage';
+import ExecutiveDashboardPage from './pages/admin/ExecutiveDashboardPage';
 import { useEffect } from 'react';
 import { useRefreshTokensMutation } from './store/api/authApi';
 import { useAppDispatch } from './store';
@@ -241,6 +242,9 @@ function AppRoutes() {
           <Route path="/admin/condo/funds" element={<FundsPage />} />
           <Route path="/admin/condo/meetings" element={<MeetingsPage />} />
           <Route path="/admin/condo/bylaws" element={<BylawsPage />} />
+
+          {/* Module 6.3 — BI & Analytics */}
+          <Route path="/admin/bi" element={<ExecutiveDashboardPage />} />
 
           {/* Module 6.3 — Enterprise Integrations */}
           <Route path="/admin/developer/integrations" element={<IntegrationsPage />} />

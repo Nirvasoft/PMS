@@ -189,6 +189,8 @@ model Company {
   boothRentals             BoothRental[]
   footfallSensors          FootfallSensor[]
   footfallCounts           FootfallCount[]
+  biForecasts              BiForecast[]
+  biAnomalies              BiAnomaly[]
 
   // Relations — Condo (Module 6.2)
   smartMeterReadings       SmartMeterReading[]
@@ -209,6 +211,7 @@ model Company {
   webhookEndpoints         WebhookEndpoint[]
   webhookDeliveries        WebhookDelivery[]
   apiKeys                  ApiKey[]
+  biReports                BiReport[]
 
   @@index([parentId])
   @@map("companies")
@@ -401,6 +404,7 @@ model User {
   syncsInitiated             IntegrationSyncLog[]   @relation("SyncInitiator")
   webhooksCreated            WebhookEndpoint[]      @relation("WebhookCreator")
   apiKeysCreated             ApiKey[]               @relation("ApiKeyCreator")
+  biReportsCreated           BiReport[]             @relation("BiReportCreator")
 
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
@@ -942,6 +946,10 @@ model Property {
   generalMeetings      GeneralMeeting[]
   bylaws               Bylaw[]
   bylawViolations      BylawViolation[]   @relation("ViolationProperty")
+
+  // Relations — BI (Module 6.3)
+  biForecasts          BiForecast[]
+  biAnomalies          BiAnomaly[]
 
   @@unique([code, companyId], name: "uq_property_code_company")
   @@index([companyId])
@@ -5056,5 +5064,71 @@ model ApiKey {
 
   @@index([companyId])
   @@map("api_keys")
+}
+
+// ────────────────────────────────────────────────
+//  Module 6.3 — BI & Analytics
+// ────────────────────────────────────────────────
+
+model BiReport {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  name            String    @db.VarChar(255)
+  description     String?   @db.Text
+  reportType      String    @map("report_type") @db.VarChar(50)  // 'occupancy'|'revenue'|'maintenance'|'portfolio'|'custom'
+  config          Json      @default("{}")       // chart type, dimensions, filters, date range
+  isShared        Boolean   @default(false) @map("is_shared")
+  lastRunAt       DateTime? @map("last_run_at") @db.Timestamptz
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator         User      @relation("BiReportCreator", fields: [createdBy], references: [id])
+
+  @@index([companyId, reportType])
+  @@map("bi_reports")
+}
+
+model BiForecast {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String?   @map("property_id") @db.Uuid
+  forecastType    String    @map("forecast_type") @db.VarChar(30) // 'occupancy'|'revenue'|'maintenance_cost'
+  forecastPeriod  String    @map("forecast_period") @db.VarChar(10) // '6m'|'12m'
+  forecastData    Json      @map("forecast_data")   // [{ date, value, lowerBound, upperBound }]
+  accuracyScore   Decimal?  @map("accuracy_score") @db.Decimal(5, 4)
+  generatedAt     DateTime  @default(now()) @map("generated_at") @db.Timestamptz
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property        Property? @relation(fields: [propertyId], references: [id])
+
+  @@unique([companyId, propertyId, forecastType, forecastPeriod], name: "uq_forecast")
+  @@map("bi_forecasts")
+}
+
+model BiAnomaly {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String?   @map("property_id") @db.Uuid
+  anomalyType     String    @map("anomaly_type") @db.VarChar(50) // 'billing_spike'|'maintenance_surge'|'occupancy_drop'|'late_payment_risk'
+  entityType      String?   @map("entity_type") @db.VarChar(30)
+  entityId        String?   @map("entity_id") @db.Uuid
+  description     String    @db.Text
+  severity        String    @default("medium") @db.VarChar(10)  // 'low'|'medium'|'high'|'critical'
+  metricValue     Decimal?  @map("metric_value") @db.Decimal(15, 4)
+  expectedValue   Decimal?  @map("expected_value") @db.Decimal(15, 4)
+  deviationPct    Decimal?  @map("deviation_pct") @db.Decimal(8, 4)
+  detectedAt      DateTime  @default(now()) @map("detected_at") @db.Timestamptz
+  acknowledgedAt  DateTime? @map("acknowledged_at") @db.Timestamptz
+  acknowledgedBy  String?   @map("acknowledged_by") @db.Uuid
+  isFalsePositive Boolean   @default(false) @map("is_false_positive")
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property        Property? @relation(fields: [propertyId], references: [id])
+
+  @@index([companyId, anomalyType])
+  @@index([acknowledgedAt])
+  @@map("bi_anomalies")
 }
 

@@ -588,18 +588,32 @@ Sends meeting notice + proxy form to all unit owners.
 
 ---
 
-# Module 6.3 — Advanced BI & AI Insights
+# Module 6.3 — Advanced BI & Analytics
 
 **Phase:** 6  
-**Stack:** NestJS · PostgreSQL · Elasticsearch · OpenAI API · Python (FastAPI — AI microservice) · React 18 · Recharts  
-**Estimated Effort:** 3 weeks (2 backend, 1 frontend)  
+**Stack:** Express.js · PostgreSQL · Prisma · React 18 · RTK Query  
+**Estimated Effort:** 2 weeks (1.5 backend, 0.5 frontend)  
 **Depends On:** All Phase 1–5 modules (data sources), 1.7 (Dashboard framework)
+
+> **Implementation Note:** This module runs entirely within the existing Node.js server — **no separate Python microservice**. Statistical forecasting uses linear regression (not Prophet). AI features (NLQ, lease review) will use the `openai` npm package directly when enabled. Anomaly detection uses Z-score / IQR methods in pure TypeScript.
 
 ---
 
 ## Overview
 
-Elevates the Phase 1 dashboard stub into a full executive BI suite with multi-property portfolio consolidation, drill-down analytics, ML-based forecasting (Prophet), AI lease clause analysis (OpenAI), anomaly detection, and a natural language query interface ("Ask in English").
+Executive BI suite with multi-property portfolio consolidation, drill-down analytics, statistical forecasting (linear regression with confidence intervals), anomaly detection (Z-score), and saved report builder. AI features (NLQ, lease clause review) are planned as optional add-ons using the OpenAI npm SDK.
+
+### What's Implemented (Non-AI BI)
+- ✅ Executive Dashboard with portfolio KPIs
+- ✅ Per-property performance breakdown
+- ✅ Smart alerting (expiring leases, overdue invoices, vacancy, critical tickets)
+- ✅ Occupancy & revenue forecasting (linear regression + confidence intervals)
+- ✅ Anomaly detection (billing spikes, occupancy drops, late payment risk)
+- ✅ Saved reports CRUD + run (occupancy, revenue, maintenance, portfolio)
+
+### Planned (AI Add-ons — requires OpenAI API key)
+- ⬜ Natural Language Query (text-to-SQL)
+- ⬜ AI Lease Clause Review
 
 ---
 

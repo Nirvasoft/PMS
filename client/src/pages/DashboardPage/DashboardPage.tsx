@@ -455,6 +455,14 @@ export default function DashboardLayout() {
             </NavLink>
           </NavSection>
 
+          {/* BI & Analytics */}
+          <NavSection label="Analytics" storageKey="bi">
+            <NavLink to="/admin/bi" className="nav-item">
+              <BarChart3 size={18} />
+              <span>Executive Dashboard</span>
+            </NavLink>
+          </NavSection>
+
           {/* Developer / Integrations Section */}
           <NavSection label="Developer" storageKey="developer">
             <NavLink to="/admin/developer/integrations" className="nav-item">
