@@ -691,45 +691,56 @@ input.input-full:focus {
 
 /* ── Sidebar Property Selector ── */
 .sidebar-property-selector {
-  padding: 6px 12px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 14px 10px;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+}
+
+.sidebar-property-selector label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary, #888);
+  margin-bottom: 5px;
 }
 
 .sidebar-property-dropdown {
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 32px 9px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--sidebar-text, rgba(255, 255, 255, 0.9));
-  font-size: 0.78rem;
-  font-weight: 500;
+  border: 1px solid var(--border);
+  background-color: var(--card-bg, var(--surface));
+  color: var(--text-primary, #333);
+  font-size: 0.8rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
-  padding-right: 28px;
+  background-position: right 10px center;
   text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .sidebar-property-dropdown:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+  background-color: var(--bg-hover, rgba(0,0,0,0.03));
 }
 
 .sidebar-property-dropdown:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
 }
 
 .sidebar-property-dropdown option {
-  background: #1e1e2e;
-  color: #e0e0e0;
-  padding: 6px;
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #333);
+  padding: 8px;
 }
 
 .sidebar-nav {

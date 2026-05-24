@@ -286,9 +286,11 @@ class MallService {
   //  CAM COST POOLS
   // ═══════════════════════════════════════
 
-  async listCamPools(companyId: string, propertyId: string, year: number) {
+  async listCamPools(companyId: string, propertyId: string, year?: number) {
+    const where: any = { companyId, propertyId };
+    if (year && !isNaN(year)) where.year = year;
     return prisma.camCostPool.findMany({
-      where: { companyId, propertyId, year },
+      where,
       orderBy: { name: 'asc' },
       include: { _count: { select: { billings: true } } },
     });

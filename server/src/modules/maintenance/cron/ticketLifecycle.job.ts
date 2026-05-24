@@ -47,7 +47,7 @@ async function sendRatingRequests() {
           id: true,
           firstName: true,
           lastName: true,
-          userId: true,
+          email: true,
         },
       },
       property: { select: { name: true } },
@@ -60,13 +60,17 @@ async function sendRatingRequests() {
   let sent = 0;
   for (const ticket of tickets) {
     const tenant = ticket.reportedByTenant;
-    if (!tenant?.userId) continue;
+    if (!tenant?.email) continue;
+
+    // Look up linked user by email
+    const user = await prisma.user.findFirst({ where: { email: tenant.email, companyId: ticket.companyId }, select: { id: true } });
+    if (!user) continue;
 
     try {
       await notificationService.send({
         templateCode: 'rating_request',
         companyId: ticket.companyId,
-        recipientIds: [tenant.userId],
+        recipientIds: [user.id],
         channels: ['in_app', 'push'],
         variables: {
           ticketNumber: ticket.ticketNumber,

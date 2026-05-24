@@ -14,6 +14,14 @@ const getUserId = (req: Request) => (req as any).user.id;
 
 // ═══════ Smart Meters ═══════
 
+// IMPORTANT: static path "/meters/devices" must come before parameterized "/meters/:meterId/*"
+router.get('/meters/devices', async (req, res, next) => {
+  try {
+    const data = await condoService.listSmartDevices(getCompanyId(req), req.query.propertyId as string);
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
 router.get('/meters/:meterId/readings', async (req, res, next) => {
   try {
     const data = await condoService.listMeterReadings(
@@ -28,13 +36,6 @@ router.post('/meters/:meterId/readings', validateRequest(addMeterReadingSchema),
   try {
     const data = await condoService.addMeterReading(getCompanyId(req), req.params.meterId, req.body);
     res.status(201).json({ success: true, data });
-  } catch (e) { next(e); }
-});
-
-router.get('/meters/devices', async (req, res, next) => {
-  try {
-    const data = await condoService.listSmartDevices(getCompanyId(req), req.query.propertyId as string);
-    res.json({ success: true, data });
   } catch (e) { next(e); }
 });
 

@@ -81,11 +81,12 @@ export default function DashboardLayout() {
         {/* Property Selector */}
         {properties.length > 0 && (
           <div className="sidebar-property-selector">
+            <label htmlFor="sidebar-prop-select">Active Property</label>
             <select
+              id="sidebar-prop-select"
               value={selectedPropertyId || properties[0]?.id || ''}
               onChange={(e) => dispatch(setSelectedProperty(e.target.value))}
               className="sidebar-property-dropdown"
-              title="Select Property"
             >
               {properties.map((p: any) => (
                 <option key={p.id} value={p.id}>
