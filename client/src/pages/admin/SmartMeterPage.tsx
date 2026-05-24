@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useGetSmartDevicesQuery, useGetMeterReadingsQuery, useAddMeterReadingMutation,
 } from '../../store/api/condoApi';
@@ -182,7 +183,7 @@ export default function SmartMeterPage() {
           )}
 
           {/* Add Reading Modal */}
-          {showAddReading && (
+          {showAddReading && createPortal(
             <div className="condo-modal-overlay" onClick={() => setShowAddReading(false)}>
               <div className="condo-modal condo-modal-sm" onClick={e => e.stopPropagation()}>
                 <div className="condo-modal-header">
@@ -208,7 +209,7 @@ export default function SmartMeterPage() {
                 </div>
               </div>
             </div>
-          )}
+          , document.body)}
         </>
       )}
     </div>

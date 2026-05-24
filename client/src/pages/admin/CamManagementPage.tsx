@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useGetCamPoolsQuery, useCreateCamPoolMutation, useUpdateCamPoolMutation,
   useGetCamBillingsQuery, useGetCamReconciliationsQuery,
@@ -226,7 +227,7 @@ export default function CamManagementPage() {
       )}
 
       {/* Create Pool Modal */}
-      {showCreate && (
+      {showCreate && createPortal(
         <div className="mall-modal-overlay" onClick={() => setShowCreate(false)}>
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
@@ -265,7 +266,7 @@ export default function CamManagementPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

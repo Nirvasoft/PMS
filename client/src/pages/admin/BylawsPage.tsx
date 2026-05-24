@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useGetBylawsQuery, useCreateBylawMutation,
   useGetViolationsQuery, useCreateViolationMutation,
@@ -185,7 +186,7 @@ export default function BylawsPage() {
       )}
 
       {/* Create By-Law Modal */}
-      {showCreateBylaw && (
+      {showCreateBylaw && createPortal(
         <div className="condo-modal-overlay" onClick={() => setShowCreateBylaw(false)}>
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
@@ -219,10 +220,10 @@ export default function BylawsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Report Violation Modal */}
-      {showCreateViolation && (
+      {showCreateViolation && createPortal(
         <div className="condo-modal-overlay" onClick={() => setShowCreateViolation(false)}>
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
@@ -256,10 +257,10 @@ export default function BylawsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Fine Modal */}
-      {showFine && (
+      {showFine && createPortal(
         <div className="condo-modal-overlay" onClick={() => setShowFine(null)}>
           <div className="condo-modal condo-modal-sm" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
@@ -282,7 +283,7 @@ export default function BylawsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

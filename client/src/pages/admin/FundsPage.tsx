@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useGetFundsQuery, useCreateFundMutation, useGetFundTransactionsQuery, useAddFundTransactionMutation } from '../../store/api/condoApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { Wallet, Plus, X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
@@ -151,7 +152,7 @@ export default function FundsPage() {
       )}
 
       {/* Create Fund Modal */}
-      {showCreateFund && (
+      {showCreateFund && createPortal(
         <div className="condo-modal-overlay" onClick={() => setShowCreateFund(false)}>
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
@@ -185,10 +186,10 @@ export default function FundsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Add Transaction Modal */}
-      {showAddTxn && (
+      {showAddTxn && createPortal(
         <div className="condo-modal-overlay" onClick={() => setShowAddTxn(false)}>
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
@@ -222,7 +223,7 @@ export default function FundsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

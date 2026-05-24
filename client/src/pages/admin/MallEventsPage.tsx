@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useGetMallEventsQuery, useCreateMallEventMutation, useUpdateMallEventMutation,
   useGetMallEventDetailQuery, useCreateBoothMutation,
@@ -186,7 +187,7 @@ export default function MallEventsPage() {
       )}
 
       {/* Create Event Modal */}
-      {showCreate && (
+      {showCreate && createPortal(
         <div className="mall-modal-overlay" onClick={() => setShowCreate(false)}>
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
@@ -229,10 +230,10 @@ export default function MallEventsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Create Booth Modal */}
-      {showBooth && (
+      {showBooth && createPortal(
         <div className="mall-modal-overlay" onClick={() => setShowBooth(false)}>
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
@@ -273,7 +274,7 @@ export default function MallEventsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

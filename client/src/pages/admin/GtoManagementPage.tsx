@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useGetGtoSubmissionsQuery, useGetGtoSummaryQuery, useVerifyGtoMutation } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 
@@ -142,7 +143,7 @@ export default function GtoManagementPage() {
       )}
 
       {/* Verify Modal */}
-      {verifyModal && (
+      {verifyModal && createPortal(
         <div className="mall-modal-overlay" onClick={() => setVerifyModal(null)}>
           <div className="mall-modal mall-modal-sm" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
@@ -169,7 +170,7 @@ export default function GtoManagementPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

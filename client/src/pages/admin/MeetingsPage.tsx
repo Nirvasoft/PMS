@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useGetMeetingsQuery, useCreateMeetingMutation, useGetMeetingDetailQuery,
   useAddResolutionMutation, useUpdateMeetingStatusMutation,
@@ -212,7 +213,7 @@ export default function MeetingsPage() {
       )}
 
       {/* Create Meeting Modal */}
-      {showCreate && (
+      {showCreate && createPortal(
         <div className="condo-modal-overlay" onClick={() => setShowCreate(false)}>
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
@@ -252,10 +253,10 @@ export default function MeetingsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Add Resolution Modal */}
-      {showAddRes && (
+      {showAddRes && createPortal(
         <div className="condo-modal-overlay" onClick={() => setShowAddRes(false)}>
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
@@ -286,7 +287,7 @@ export default function MeetingsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
