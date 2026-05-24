@@ -95,7 +95,7 @@ export default function BmsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
             width: 48, height: 48, borderRadius: 14,
-            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+            background: 'var(--gradient-primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
             boxShadow: '0 4px 14px rgba(59,130,246,0.35)',
           }}><Server size={24} /></div>
@@ -121,7 +121,7 @@ export default function BmsPage() {
 
       {/* ── STATS ROW ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
-        <Stat icon={<Server size={20} />} label="Total Devices" value={stats.totalDevices} color="#3b82f6" />
+        <Stat icon={<Server size={20} />} label="Total Devices" value={stats.totalDevices} color="var(--accent-solid)" />
         <Stat icon={<Wifi size={20} />} label="Online" value={stats.activeDevices} color="#10b981" />
         <Stat icon={<AlertTriangle size={20} />} label="Faults" value={stats.faultDevices} color="#ef4444" />
         <Stat icon={<BarChart3 size={20} />} label="Readings" value={(stats.totalReadings || 0).toLocaleString()} color="#8b5cf6" />
@@ -138,14 +138,14 @@ export default function BmsPage() {
                 display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
                 borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer',
                 border: `1.5px solid ${active ? c.color : 'var(--border)'}`,
-                background: active ? `${c.color}14` : 'var(--bg-card)',
+                background: active ? `${c.color}14` : 'var(--surface)',
                 color: active ? c.color : 'var(--text-primary)',
                 transition: 'all 0.2s',
               }}>
                 {React.createElement(c.icon, { size: 14 })}
                 {c.label}
                 <span style={{
-                  background: active ? c.color : 'var(--bg-tertiary)',
+                  background: active ? c.color : 'var(--surface-elevated)',
                   color: active ? '#fff' : 'var(--text-secondary)',
                   borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700,
                   minWidth: 18, textAlign: 'center' as const,
@@ -174,11 +174,11 @@ export default function BmsPage() {
           <option value="offline">🔴 Offline</option>
         </select>
         {/* View toggle */}
-        <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: 8, padding: 3, gap: 2 }}>
+        <div style={{ display: 'flex', background: 'var(--surface-elevated)', borderRadius: 8, padding: 3, gap: 2 }}>
           {(['grid', 'list'] as const).map(v => (
             <button key={v} onClick={() => setView(v)} style={{
               border: 'none', borderRadius: 6, padding: '5px 9px', cursor: 'pointer',
-              background: view === v ? 'var(--bg-card)' : 'transparent',
+              background: view === v ? 'var(--surface)' : 'transparent',
               color: view === v ? 'var(--text-primary)' : 'var(--text-secondary)',
               boxShadow: view === v ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
               display: 'flex', alignItems: 'center',
@@ -247,12 +247,12 @@ function EmptyState({ hasDevices, onAdd }: { hasDevices: boolean; onAdd: () => v
   return (
     <div style={{
       textAlign: 'center' as const, padding: '60px 20px',
-      background: 'var(--bg-card)', borderRadius: 16,
+      background: 'var(--surface)', borderRadius: 16,
       border: '1.5px dashed var(--border)',
     }}>
       <div style={{
         width: 72, height: 72, borderRadius: 20,
-        background: 'linear-gradient(135deg, #3b82f610, #8b5cf610)',
+        background: 'var(--accent-subtle)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         margin: '0 auto 20px', color: 'var(--text-secondary)',
       }}><Server size={32} /></div>
@@ -333,7 +333,7 @@ function DeviceCard({ d, onPoll, onDelete, onSelect, polling }: any) {
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(readings.length, 3)}, 1fr)`, gap: 6, marginBottom: 12 }}>
             {readings.slice(0, 3).map((r: any, i: number) => (
               <div key={i} style={{
-                background: 'var(--bg-tertiary)', borderRadius: 8, padding: '8px 10px',
+                background: 'var(--surface-elevated)', borderRadius: 8, padding: '8px 10px',
               }}>
                 <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{r.pointName}</div>
                 <div style={{ fontFamily: '"SF Mono","Fira Code",monospace', fontWeight: 700, fontSize: 15 }}>
@@ -463,7 +463,7 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
       background: 'rgba(0,0,0,0.75)',
     }} onClick={onClose}>
       <div style={{
-        background: 'var(--bg-card)', borderRadius: 16, padding: 0,
+        background: 'var(--surface)', borderRadius: 16, padding: 0,
         width: 540, maxWidth: '92vw', maxHeight: '88vh',
         boxShadow: '0 25px 60px rgba(0,0,0,0.4)',
         border: '1px solid var(--border)',
@@ -475,7 +475,7 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
         <button onClick={onClose} style={{
           position: 'absolute', top: 16, right: 16, zIndex: 2,
           width: 28, height: 28, borderRadius: 6, border: 'none',
-          background: 'var(--bg-tertiary)', cursor: 'pointer',
+          background: 'var(--surface-elevated)', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: 'var(--text-secondary)',
         }}><X size={14} /></button>
@@ -514,7 +514,7 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
               </Field>
               {/* Subtle help text */}
               <div style={{
-                background: 'var(--bg-tertiary)', borderRadius: 10, padding: '12px 14px',
+                background: 'var(--surface-elevated)', borderRadius: 10, padding: '12px 14px',
                 fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5,
                 display: 'flex', gap: 8, alignItems: 'flex-start',
               }}>
@@ -538,7 +538,7 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
                         display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8,
                         padding: '14px 8px', borderRadius: 12,
                         border: `2px solid ${sel ? c.color : 'var(--border)'}`,
-                        background: sel ? `${c.color}08` : 'var(--bg-tertiary)',
+                        background: sel ? `${c.color}08` : 'var(--surface-elevated)',
                         cursor: 'pointer', transition: 'all 0.15s', color: 'var(--text-primary)',
                         position: 'relative' as const,
                       }}>
@@ -570,18 +570,18 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
                       <button key={p} onClick={() => setForm(f => ({ ...f, protocol: p }))} style={{
                         display: 'flex', alignItems: 'center', gap: 12,
                         padding: '11px 14px', borderRadius: 10,
-                        border: `2px solid ${sel ? '#3b82f6' : 'var(--border)'}`,
-                        background: sel ? '#3b82f608' : 'var(--bg-tertiary)',
+                        border: `2px solid ${sel ? 'var(--accent-solid)' : 'var(--border)'}`,
+                        background: sel ? 'var(--accent-subtle)' : 'var(--surface-elevated)',
                         cursor: 'pointer', transition: 'all 0.15s', color: 'var(--text-primary)',
                         textAlign: 'left' as const, width: '100%',
                       }}>
                         <div style={{
                           width: 16, height: 16, borderRadius: '50%',
-                          border: `2px solid ${sel ? '#3b82f6' : 'var(--border)'}`,
+                          border: `2px solid ${sel ? 'var(--accent-solid)' : 'var(--border)'}`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           flexShrink: 0, transition: 'all 0.15s',
                         }}>
-                          {sel && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3b82f6' }} />}
+                          {sel && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent-solid)' }} />}
                         </div>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: sel ? 600 : 500 }}>{PROTOCOL_LABELS[p] || p}</div>
@@ -606,7 +606,7 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
                     borderRadius: 12, padding: '14px 16px',
                     display: 'flex', gap: 12, alignItems: 'center',
                     border: '1px solid var(--border)',
-                    background: 'var(--bg-tertiary)',
+                    background: 'var(--surface-elevated)',
                   }}>
                     <div style={{
                       width: 42, height: 42, borderRadius: 12,
@@ -690,7 +690,7 @@ function StepIndicator({ steps, current, onStepClick }: {
             {i > 0 && (
               <div style={{
                 flex: 1, height: 2, margin: '0 4px',
-                background: done ? '#3b82f6' : '#d1d5db',
+                background: done ? 'var(--accent-solid)' : '#d1d5db',
                 borderRadius: 1,
               }} />
             )}
@@ -705,7 +705,7 @@ function StepIndicator({ steps, current, onStepClick }: {
               {/* Circle — always solid opaque */}
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
-                background: done || active ? '#3b82f6' : '#e2e4e9',
+                background: done || active ? 'var(--accent-solid)' : '#e2e4e9',
                 color: done || active ? '#fff' : '#9ca3af',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 700, flexShrink: 0,
@@ -770,7 +770,7 @@ function DetailDrawer({ device: d, onClose }: { device: any; onClose: () => void
       <div onClick={e => e.stopPropagation()} style={{
         position: 'fixed' as const, right: 0, top: 0, bottom: 0,
         width: 460, maxWidth: '95vw',
-        background: 'var(--bg-card)', boxShadow: '-12px 0 40px rgba(0,0,0,0.25)',
+        background: 'var(--surface)', boxShadow: '-12px 0 40px rgba(0,0,0,0.25)',
         display: 'flex', flexDirection: 'column', zIndex: 1001,
       }}>
         {/* Header */}
@@ -792,7 +792,7 @@ function DetailDrawer({ device: d, onClose }: { device: any; onClose: () => void
             </div>
             <button onClick={onClose} style={{
               width: 30, height: 30, borderRadius: 8, border: 'none',
-              background: 'var(--bg-tertiary)', cursor: 'pointer', color: 'var(--text-secondary)',
+              background: 'var(--surface-elevated)', cursor: 'pointer', color: 'var(--text-secondary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}><X size={16} /></button>
           </div>
@@ -814,8 +814,8 @@ function DetailDrawer({ device: d, onClose }: { device: any; onClose: () => void
                 display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px',
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: 12, fontWeight: tab === t.id ? 600 : 400,
-                color: tab === t.id ? '#3b82f6' : 'var(--text-secondary)',
-                borderBottom: `2px solid ${tab === t.id ? '#3b82f6' : 'transparent'}`,
+                color: tab === t.id ? 'var(--accent-solid)' : 'var(--text-secondary)',
+                borderBottom: `2px solid ${tab === t.id ? 'var(--accent-solid)' : 'transparent'}`,
                 transition: 'all 0.15s', marginBottom: -1,
               }}>{t.icon} {t.label}</button>
             ))}
@@ -833,7 +833,7 @@ function DetailDrawer({ device: d, onClose }: { device: any; onClose: () => void
                   { l: 'BACnet ID', v: d.bacnetDeviceId || '—' },
                   { l: 'Property', v: d.property?.name || '—' },
                 ].map(x => (
-                  <div key={x.l} style={{ background: 'var(--bg-tertiary)', borderRadius: 10, padding: '10px 12px' }}>
+                  <div key={x.l} style={{ background: 'var(--surface-elevated)', borderRadius: 10, padding: '10px 12px' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>{x.l}</div>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{x.v}</div>
                   </div>
@@ -851,13 +851,13 @@ function DetailDrawer({ device: d, onClose }: { device: any; onClose: () => void
 
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Latest Readings</div>
               {readings.length === 0 ? (
-                <div style={{ textAlign: 'center' as const, padding: 24, background: 'var(--bg-tertiary)', borderRadius: 10, color: 'var(--text-secondary)', fontSize: 12 }}>
+                <div style={{ textAlign: 'center' as const, padding: 24, background: 'var(--surface-elevated)', borderRadius: 10, color: 'var(--text-secondary)', fontSize: 12 }}>
                   No readings yet. Poll the device to generate data.
                 </div>
               ) : readings.map((r: any, i: number) => (
                 <div key={i} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '10px 14px', background: i % 2 === 0 ? 'var(--bg-tertiary)' : 'transparent',
+                  padding: '10px 14px', background: i % 2 === 0 ? 'var(--surface-elevated)' : 'transparent',
                   borderRadius: 8, marginBottom: 2,
                 }}>
                   <div>
@@ -877,11 +877,11 @@ function DetailDrawer({ device: d, onClose }: { device: any; onClose: () => void
             <>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Reading History (Last 50)</div>
               {allReadings.length === 0 ? (
-                <div style={{ textAlign: 'center' as const, padding: 24, background: 'var(--bg-tertiary)', borderRadius: 10, color: 'var(--text-secondary)', fontSize: 12 }}>No readings recorded.</div>
+                <div style={{ textAlign: 'center' as const, padding: 24, background: 'var(--surface-elevated)', borderRadius: 10, color: 'var(--text-secondary)', fontSize: 12 }}>No readings recorded.</div>
               ) : allReadings.map((r: any, i: number) => (
                 <div key={r.id || i} style={{
                   display: 'grid', gridTemplateColumns: '1fr 70px 50px 90px',
-                  padding: '7px 10px', background: i % 2 === 0 ? 'var(--bg-tertiary)' : 'transparent',
+                  padding: '7px 10px', background: i % 2 === 0 ? 'var(--surface-elevated)' : 'transparent',
                   borderRadius: 6, fontSize: 11, alignItems: 'center',
                 }}>
                   <span style={{ fontWeight: 500 }}>{r.pointName}</span>
@@ -911,7 +911,7 @@ function DetailDrawer({ device: d, onClose }: { device: any; onClose: () => void
                   {faults.historicalFaults.map((f: any, i: number) => (
                     <div key={i} style={{
                       display: 'grid', gridTemplateColumns: '1fr 70px 60px 90px',
-                      padding: '7px 10px', background: i % 2 === 0 ? 'var(--bg-tertiary)' : 'transparent',
+                      padding: '7px 10px', background: i % 2 === 0 ? 'var(--surface-elevated)' : 'transparent',
                       borderRadius: 6, fontSize: 11, alignItems: 'center',
                     }}>
                       <span style={{ fontWeight: 500 }}>{f.pointName}</span>
@@ -935,13 +935,13 @@ function DetailDrawer({ device: d, onClose }: { device: any; onClose: () => void
    ═══════════════════════════════════════════ */
 
 const cardBase: React.CSSProperties = {
-  background: 'var(--bg-card)', borderRadius: 14,
+  background: 'var(--surface)', borderRadius: 14,
   border: '1px solid var(--border)', transition: 'all 0.2s',
 };
 
 const inputBase: React.CSSProperties = {
   padding: '9px 12px', borderRadius: 10, border: '1px solid var(--border)',
-  background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 13,
+  background: 'var(--surface-elevated)', color: 'var(--text-primary)', fontSize: 13,
   outline: 'none',
 };
 
@@ -951,7 +951,7 @@ const selectBase: React.CSSProperties = {
 
 const fieldInput: React.CSSProperties = {
   padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)',
-  background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 13,
+  background: 'var(--surface-elevated)', color: 'var(--text-primary)', fontSize: 13,
   outline: 'none', width: '100%', boxSizing: 'border-box' as const,
 };
 
@@ -964,15 +964,15 @@ const overlay: React.CSSProperties = {
 const primaryBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '9px 18px', borderRadius: 10, border: 'none',
-  background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+  background: 'var(--gradient-primary)',
   color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-  boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
+  boxShadow: '0 2px 8px var(--accent-glow)',
 };
 
 const outlineBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '9px 16px', borderRadius: 10,
-  border: '1px solid var(--border)', background: 'var(--bg-card)',
+  border: '1px solid var(--border)', background: 'var(--surface)',
   color: 'var(--text-primary)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
 };
 
