@@ -79,6 +79,27 @@ class MallService {
     });
   }
 
+  async listAvailableUnits(companyId: string, propertyId: string) {
+    return prisma.unit.findMany({
+      where: {
+        companyId,
+        propertyId,
+        isActive: true,
+        shopProfiles: { none: {} }, // units without any shop profile
+      },
+      select: {
+        id: true,
+        unitNumber: true,
+        unitType: true,
+        floorLabel: true,
+        floorNumber: true,
+        areaSqft: true,
+        status: true,
+      },
+      orderBy: { unitNumber: 'asc' },
+    });
+  }
+
   async upsertShopProfile(unitId: string, companyId: string, data: any) {
     const unit = await prisma.unit.findFirst({ where: { id: unitId, companyId } });
     if (!unit) throw AppError.notFound('Unit');

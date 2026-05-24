@@ -48,6 +48,9 @@ export const mallApi = createApi({
       query: ({ propertyId }) => ({ url: '/tenant-mix', params: { propertyId } }),
       providesTags: ['Shops'],
     }),
+    getAvailableUnits: builder.query<any, { propertyId: string }>({
+      query: ({ propertyId }) => ({ url: '/shops/available-units', params: { propertyId } }),
+    }),
 
     // ── Commercial Leases ──
     getCommercialLease: builder.query<any, string>({
@@ -158,6 +161,7 @@ export const {
   useGetShopProfileQuery,
   useUpsertShopProfileMutation,
   useGetTenantMixQuery,
+  useGetAvailableUnitsQuery,
   useGetCommercialLeaseQuery,
   useUpsertCommercialLeaseMutation,
   useGetGtoSubmissionsQuery,

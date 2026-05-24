@@ -2,12 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetShopsQuery, useGetTenantMixQuery, useUpsertShopProfileMutation,
+  useGetAvailableUnitsQuery,
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import {
   Store, Search, X, MapPin, Maximize2, Calendar, DollarSign,
   Star, Tag, Building2, ChevronRight, Grid3x3, List, Edit3,
-  TrendingUp, Percent, ExternalLink, Package, Layers,
+  TrendingUp, Percent, ExternalLink, Package, Layers, Plus,
 } from 'lucide-react';
 
 const CATEGORIES = ['F&B', 'Fashion', 'Electronics', 'Beauty', 'Services', 'Entertainment', 'Anchor', 'Other'];
@@ -45,6 +46,8 @@ export default function ShopDirectoryPage() {
   const [showForm, setShowForm] = useState(false);
   const [detailShop, setDetailShop] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
+  const [showCreateShop, setShowCreateShop] = useState(false);
+  const [createForm, setCreateForm] = useState<any>({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion', shopZone: 'atrium' });
 
   const { data: shopsData, isLoading } = useGetShopsQuery(
     { propertyId, ...filters },
@@ -52,6 +55,8 @@ export default function ShopDirectoryPage() {
   );
   const { data: mixData } = useGetTenantMixQuery({ propertyId }, { skip: !propertyId });
   const [upsertProfile, { isLoading: isSaving }] = useUpsertShopProfileMutation();
+  const { data: availRes } = useGetAvailableUnitsQuery({ propertyId }, { skip: !propertyId || !showCreateShop });
+  const availableUnits = availRes?.data || [];
 
   const allShops = shopsData?.data || [];
   const mix = mixData?.data;
@@ -96,6 +101,24 @@ export default function ShopDirectoryPage() {
     } catch (e) { console.error(e); }
   };
 
+  const handleCreateShop = async () => {
+    if (!createForm.unitId) return;
+    try {
+      await upsertProfile({
+        unitId: createForm.unitId,
+        data: {
+          shopNumber: createForm.shopNumber || undefined,
+          brandName: createForm.brandName || undefined,
+          tradeCategory: createForm.tradeCategory || undefined,
+          tradeSubcategory: createForm.tradeSubcategory || undefined,
+          shopZone: createForm.shopZone || undefined,
+        },
+      }).unwrap();
+      setShowCreateShop(false);
+      setCreateForm({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion', shopZone: 'atrium' });
+    } catch (e) { console.error(e); }
+  };
+
   if (!propertyId) {
     return (
       <div className="page-content">
@@ -117,6 +140,9 @@ export default function ShopDirectoryPage() {
             <h1>Shop Directory</h1>
             <p className="mall-page-subtitle">Manage shop profiles, brands, and trade categories</p>
           </div>
+          <button className="btn btn-primary" onClick={() => setShowCreateShop(true)}>
+            <Plus size={16} /> Add Shop
+          </button>
         </div>
 
         {/* Stats Bar */}
@@ -574,6 +600,83 @@ export default function ShopDirectoryPage() {
               <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
                 {isSaving ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ── Create Shop Modal ── */}
+      {showCreateShop && createPortal(
+        <div className="mall-modal-overlay" onClick={() => setShowCreateShop(false)}>
+          <div className="mall-modal" onClick={e => e.stopPropagation()}>
+            <div className="mall-modal-header">
+              <div>
+                <h3>Add New Shop</h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Assign a shop profile to an available unit
+                </span>
+              </div>
+              <button className="mall-modal-close" onClick={() => setShowCreateShop(false)}>✕</button>
+            </div>
+            <div className="mall-modal-body">
+              {availableUnits.length === 0 ? (
+                <div className="mall-empty-state" style={{ padding: '24px 0' }}>
+                  <Building2 size={36} strokeWidth={1} />
+                  <h3 style={{ fontSize: '1rem', margin: '8px 0 4px' }}>No Available Units</h3>
+                  <p style={{ fontSize: '0.85rem' }}>All units in this property already have shop profiles, or no units exist yet.</p>
+                </div>
+              ) : (
+                <div className="mall-form-grid">
+                  <label style={{ gridColumn: '1 / -1' }}>
+                    <span>Select Unit *</span>
+                    <select
+                      value={createForm.unitId}
+                      onChange={e => setCreateForm({ ...createForm, unitId: e.target.value, shopNumber: e.target.value ? availableUnits.find((u: any) => u.id === e.target.value)?.unitNumber || '' : '' })}
+                    >
+                      <option value="">Choose a unit...</option>
+                      {availableUnits.map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.unitNumber} — {u.floorLabel || `Floor ${u.floorNumber}`} — {Number(u.areaSqft || 0).toLocaleString()} sqft ({u.status})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Shop Number</span>
+                    <input value={createForm.shopNumber} onChange={e => setCreateForm({ ...createForm, shopNumber: e.target.value })} placeholder="Auto from unit" />
+                  </label>
+                  <label>
+                    <span>Brand Name</span>
+                    <input value={createForm.brandName} onChange={e => setCreateForm({ ...createForm, brandName: e.target.value })} placeholder="e.g. Starbucks" />
+                  </label>
+                  <label>
+                    <span>Trade Category</span>
+                    <select value={createForm.tradeCategory} onChange={e => setCreateForm({ ...createForm, tradeCategory: e.target.value })}>
+                      {CATEGORIES.map(c => <option key={c} value={c}>{getCatStyle(c).icon} {c}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Sub-Category</span>
+                    <input value={createForm.tradeSubcategory || ''} onChange={e => setCreateForm({ ...createForm, tradeSubcategory: e.target.value })} placeholder="e.g. Coffee" />
+                  </label>
+                  <label style={{ gridColumn: '1 / -1' }}>
+                    <span>Shop Zone</span>
+                    <select value={createForm.shopZone} onChange={e => setCreateForm({ ...createForm, shopZone: e.target.value })}>
+                      {ZONES.map(z => <option key={z} value={z}>{formatZone(z)}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
+            </div>
+            <div className="mall-modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowCreateShop(false)}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={handleCreateShop}
+                disabled={!createForm.unitId || isSaving}
+              >
+                {isSaving ? 'Creating...' : '+ Create Shop'}
               </button>
             </div>
           </div>

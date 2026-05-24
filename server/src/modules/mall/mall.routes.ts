@@ -34,6 +34,11 @@ router.put('/properties/:propertyId/config', validateRequest(upsertMallPropertyS
 // ═══════════════════════════════════════
 //  SHOP PROFILES
 // ═══════════════════════════════════════
+// Static path must come before parameterized /shops/:unitId
+router.get('/shops/available-units', asyncHandler(async (req, res) => {
+  const data = await mallService.listAvailableUnits(getCompanyId(req), req.query.propertyId as string);
+  res.json({ success: true, data });
+}));
 
 router.get('/shops', asyncHandler(async (req, res) => {
   const result = await mallService.listShops(getCompanyId(req), {
