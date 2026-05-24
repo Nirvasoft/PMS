@@ -112,19 +112,53 @@ async function overdueInvoices(_params: WidgetDataParams) {
   };
 }
 
-async function maintenanceOpen(_params: WidgetDataParams) {
-  // No maintenance module yet
+async function maintenanceOpen(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {
+    status: { in: ['open', 'assigned', 'in_progress'] },
+  };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const [total, priorities] = await Promise.all([
+    prisma.maintenanceTicket.count({ where }),
+    prisma.maintenanceTicket.groupBy({
+      by: ['priority'],
+      where,
+      _count: true,
+    }),
+  ]);
+
+  const breakdown: Record<string, number> = {};
+  for (const p of priorities) {
+    breakdown[p.priority?.toLowerCase() || 'unknown'] = p._count;
+  }
+
   return {
-    type: 'kpi_card', label: 'Open Tickets', value: 0, unit: '',
-    trend: { direction: 'flat', changePercent: 0, label: 'Maintenance module pending' },
-    breakdown: { critical: 0, high: 0, medium: 0, low: 0 },
+    type: 'kpi_card', label: 'Open Tickets', value: total, unit: '',
+    trend: {
+      direction: total > 10 ? 'up' : total === 0 ? 'flat' : 'down',
+      changePercent: 0,
+      label: total === 0 ? 'All clear!' : `${total} open`,
+    },
+    breakdown,
   };
 }
 
-async function maintenanceSla(_params: WidgetDataParams) {
+async function maintenanceSla(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {
+    slaResolveMet: false,
+    status: { notIn: ['closed', 'cancelled'] },
+  };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const count = await prisma.maintenanceTicket.count({ where });
+
   return {
-    type: 'kpi_card', label: 'SLA Breaches', value: 0, unit: '',
-    trend: { direction: 'flat', changePercent: 0, label: 'Maintenance module pending' },
+    type: 'kpi_card', label: 'SLA Breaches', value: count, unit: '',
+    trend: {
+      direction: count > 0 ? 'up' : 'flat',
+      changePercent: 0,
+      label: count === 0 ? 'All within SLA' : `${count} breached`,
+    },
   };
 }
 
@@ -195,13 +229,34 @@ async function vacancyTrend(params: WidgetDataParams) {
   };
 }
 
-async function maintenanceTrend(_params: WidgetDataParams) {
+async function maintenanceTrend(params: WidgetDataParams) {
   const months = getMonthLabels(6);
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const tickets = await prisma.maintenanceTicket.findMany({
+    where,
+    select: { createdAt: true, resolvedAt: true },
+  });
+
+  const opened: Record<string, number> = {};
+  const closed: Record<string, number> = {};
+  for (const m of months) { opened[m] = 0; closed[m] = 0; }
+
+  for (const t of tickets) {
+    const createdMonth = new Date(t.createdAt).toISOString().slice(0, 7);
+    if (opened[createdMonth] !== undefined) opened[createdMonth]++;
+    if (t.resolvedAt) {
+      const resolvedMonth = new Date(t.resolvedAt).toISOString().slice(0, 7);
+      if (closed[resolvedMonth] !== undefined) closed[resolvedMonth]++;
+    }
+  }
+
   return {
     type: 'line_chart', label: 'Maintenance Trend',
     series: [
-      { name: 'Opened', data: months.map((m) => ({ x: m, y: 0 })) },
-      { name: 'Closed', data: months.map((m) => ({ x: m, y: 0 })) },
+      { name: 'Opened', data: months.map((m) => ({ x: m, y: opened[m] })) },
+      { name: 'Closed', data: months.map((m) => ({ x: m, y: closed[m] })) },
     ],
     xAxis: { label: 'Month', type: 'category' },
     yAxis: { label: 'Tickets', unit: '' },
@@ -269,11 +324,44 @@ async function unitStatusBreakdown(params: WidgetDataParams) {
   };
 }
 
-async function ticketsByCategory(_params: WidgetDataParams) {
-  // No maintenance module yet
+async function ticketsByCategory(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {};
+  if (params.companyId) where.companyId = params.companyId;
+
+  const tickets = await prisma.maintenanceTicket.findMany({
+    where,
+    select: { category: { select: { name: true } } },
+  });
+
+  // Group by category name
+  const byCat: Record<string, number> = {};
+  for (const t of tickets) {
+    const name = t.category?.name || 'Uncategorized';
+    byCat[name] = (byCat[name] || 0) + 1;
+  }
+
+  const categoryColors: Record<string, string> = {
+    Plumbing: '#00cec9',
+    Electrical: '#fdcb6e',
+    HVAC: '#6c5ce7',
+    Structural: '#e74c3c',
+    Cleaning: '#00b894',
+    General: '#74b9ff',
+    Landscaping: '#55efc4',
+    Security: '#fab1a0',
+  };
+
+  const data = Object.entries(byCat)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value]) => ({
+      name,
+      value,
+      color: categoryColors[name] || '#95a5a6',
+    }));
+
   return {
     type: 'pie_chart', label: 'Tickets by Category',
-    data: [{ name: 'No Data', value: 1, color: '#636e72' }],
+    data: data.length > 0 ? data : [{ name: 'No Tickets', value: 1, color: '#636e72' }],
   };
 }
 
