@@ -220,7 +220,7 @@ async function drillUnitStatus(params: DrillDownParams): Promise<DrillDownResult
       status: true,
       floorNumber: true,
       areaSqft: true,
-      baseRent: true,
+      unitType: true,
       property: { select: { name: true } },
       tower: { select: { name: true } },
     },
@@ -236,7 +236,7 @@ async function drillUnitStatus(params: DrillDownParams): Promise<DrillDownResult
       { key: 'tower', label: 'Tower' },
       { key: 'floor', label: 'Floor' },
       { key: 'area', label: 'Area' },
-      { key: 'rent', label: 'Base Rent' },
+      { key: 'type', label: 'Type' },
       { key: 'status', label: 'Status' },
     ],
     rows: units.map((u) => ({
@@ -245,7 +245,7 @@ async function drillUnitStatus(params: DrillDownParams): Promise<DrillDownResult
       tower: u.tower?.name || '—',
       floor: u.floorNumber ?? '—',
       area: u.areaSqft ? `${u.areaSqft} sqft` : '—',
-      rent: u.baseRent ? `$${u.baseRent.toNumber().toLocaleString()}` : '—',
+      type: (u.unitType || '—').replace(/_/g, ' '),
       status: u.status.replace(/_/g, ' '),
     })),
     total: units.length,
@@ -442,6 +442,173 @@ async function drillNotImplemented(label: string): Promise<DrillDownResult> {
   };
 }
 
+async function drillMaintenanceOpen(params: DrillDownParams): Promise<DrillDownResult> {
+  const where: Record<string, unknown> = {
+    companyId: params.companyId,
+    status: { in: ['open', 'assigned', 'in_progress'] },
+  };
+
+  const tickets = await prisma.maintenanceTicket.findMany({
+    where,
+    select: {
+      id: true,
+      ticketNumber: true,
+      title: true,
+      category: { select: { name: true } },
+      priority: true,
+      status: true,
+      createdAt: true,
+      slaResolveDueAt: true,
+      property: { select: { name: true } },
+      unit: { select: { unitNumber: true } },
+      assignedTo: { select: { profile: { select: { firstName: true, lastName: true } } } },
+    },
+    orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+    take: 50,
+  });
+
+  return {
+    title: 'Open Maintenance Tickets',
+    columns: [
+      { key: 'ticketNumber', label: 'Ticket #' },
+      { key: 'title', label: 'Title' },
+      { key: 'category', label: 'Category' },
+      { key: 'priority', label: 'Priority' },
+      { key: 'status', label: 'Status' },
+      { key: 'property', label: 'Property' },
+      { key: 'unit', label: 'Unit' },
+      { key: 'technician', label: 'Assigned To' },
+      { key: 'created', label: 'Created' },
+      { key: 'slaDue', label: 'SLA Due' },
+    ],
+    rows: tickets.map((t) => ({
+      ticketNumber: t.ticketNumber,
+      title: t.title || '—',
+      category: t.category?.name || '—',
+      priority: t.priority || '—',
+      status: (t.status || '—').replace(/_/g, ' '),
+      property: t.property?.name || '—',
+      unit: t.unit?.unitNumber || '—',
+      technician: t.assignedTo?.profile
+        ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}`
+        : 'Unassigned',
+      created: new Date(t.createdAt).toISOString().split('T')[0],
+      slaDue: t.slaResolveDueAt ? new Date(t.slaResolveDueAt).toISOString().split('T')[0] : '—',
+    })),
+    total: tickets.length,
+    navigateTo: '/admin/maintenance/tickets',
+  };
+}
+
+async function drillTicketsByCategory(params: DrillDownParams): Promise<DrillDownResult> {
+  const categoryName = params.drillKey; // drillKey is the category name from the pie slice
+  const where: Record<string, unknown> = {
+    companyId: params.companyId,
+  };
+  if (categoryName && categoryName !== 'all') {
+    where.category = { name: { equals: categoryName, mode: 'insensitive' } };
+  }
+
+  const tickets = await prisma.maintenanceTicket.findMany({
+    where,
+    select: {
+      id: true,
+      ticketNumber: true,
+      title: true,
+      category: { select: { name: true } },
+      priority: true,
+      status: true,
+      createdAt: true,
+      property: { select: { name: true } },
+      unit: { select: { unitNumber: true } },
+      assignedTo: { select: { profile: { select: { firstName: true, lastName: true } } } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: `Tickets — ${params.drillKey || 'All Categories'}`,
+    columns: [
+      { key: 'ticketNumber', label: 'Ticket #' },
+      { key: 'title', label: 'Title' },
+      { key: 'category', label: 'Category' },
+      { key: 'priority', label: 'Priority' },
+      { key: 'status', label: 'Status' },
+      { key: 'property', label: 'Property' },
+      { key: 'unit', label: 'Unit' },
+      { key: 'technician', label: 'Assigned To' },
+      { key: 'created', label: 'Created' },
+    ],
+    rows: tickets.map((t) => ({
+      ticketNumber: t.ticketNumber,
+      title: t.title || '—',
+      category: t.category?.name || '—',
+      priority: t.priority || '—',
+      status: (t.status || '—').replace(/_/g, ' '),
+      property: t.property?.name || '—',
+      unit: t.unit?.unitNumber || '—',
+      technician: t.assignedTo?.profile
+        ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}`
+        : 'Unassigned',
+      created: new Date(t.createdAt).toISOString().split('T')[0],
+    })),
+    total: tickets.length,
+    navigateTo: '/admin/maintenance/tickets',
+  };
+}
+
+async function drillMaintenanceSla(params: DrillDownParams): Promise<DrillDownResult> {
+  const tickets = await prisma.maintenanceTicket.findMany({
+    where: {
+      companyId: params.companyId,
+      slaResolveMet: false,
+      status: { notIn: ['closed', 'cancelled'] },
+    },
+    select: {
+      ticketNumber: true,
+      title: true,
+      category: { select: { name: true } },
+      priority: true,
+      status: true,
+      slaResolveDueAt: true,
+      createdAt: true,
+      property: { select: { name: true } },
+      assignedTo: { select: { profile: { select: { firstName: true, lastName: true } } } },
+    },
+    orderBy: { slaResolveDueAt: 'asc' },
+    take: 50,
+  });
+
+  return {
+    title: 'SLA Breached Tickets',
+    columns: [
+      { key: 'ticketNumber', label: 'Ticket #' },
+      { key: 'title', label: 'Title' },
+      { key: 'category', label: 'Category' },
+      { key: 'priority', label: 'Priority' },
+      { key: 'status', label: 'Status' },
+      { key: 'property', label: 'Property' },
+      { key: 'technician', label: 'Assigned To' },
+      { key: 'slaDue', label: 'SLA Deadline' },
+    ],
+    rows: tickets.map((t) => ({
+      ticketNumber: t.ticketNumber,
+      title: t.title || '—',
+      category: t.category?.name || '—',
+      priority: t.priority || '—',
+      status: (t.status || '—').replace(/_/g, ' '),
+      property: t.property?.name || '—',
+      technician: t.assignedTo?.profile
+        ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}`
+        : 'Unassigned',
+      slaDue: t.slaResolveDueAt ? new Date(t.slaResolveDueAt).toISOString().split('T')[0] : '—',
+    })),
+    total: tickets.length,
+    navigateTo: '/admin/maintenance/tickets',
+  };
+}
+
 // ──────────────────────────────────────────────
 // DRILL-DOWN REGISTRY
 // ──────────────────────────────────────────────
@@ -452,8 +619,8 @@ const DRILL_PROVIDERS: Record<string, (params: DrillDownParams) => Promise<Drill
   revenue_ytd: drillRevenueMtd,
   collection_rate: drillCollectionRate,
   overdue_invoices: () => drillNotImplemented('Overdue Invoices'),
-  maintenance_open: () => drillNotImplemented('Open Maintenance Tickets'),
-  maintenance_sla: () => drillNotImplemented('SLA Breaches'),
+  maintenance_open: drillMaintenanceOpen,
+  maintenance_sla: drillMaintenanceSla,
   pending_tasks: drillPendingTasks,
   active_workflows: drillActiveWorkflows,
   documents_expiring: drillDocumentsExpiring,
@@ -461,7 +628,7 @@ const DRILL_PROVIDERS: Record<string, (params: DrillDownParams) => Promise<Drill
   maintenance_trend: () => drillNotImplemented('Maintenance Trend'),
   revenue_by_property: drillRevenueByProperty,
   unit_status_breakdown: drillUnitStatus,
-  tickets_by_category: () => drillNotImplemented('Tickets by Category'),
+  tickets_by_category: drillTicketsByCategory,
   lease_expiring_soon: drillLeaseExpiring,
   recent_activity: drillRecentActivity,
 };
