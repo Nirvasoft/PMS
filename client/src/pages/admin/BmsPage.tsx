@@ -460,7 +460,7 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1000,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)',
+      background: 'rgba(0,0,0,0.75)',
     }} onClick={onClose}>
       <div style={{
         background: 'var(--bg-card)', borderRadius: 16, padding: 0,
@@ -492,55 +492,7 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
           </p>
 
           {/* Stepper bar */}
-          <div style={{
-            display: 'flex', alignItems: 'center',
-            padding: '14px 16px', borderRadius: 10,
-            background: 'var(--bg-tertiary)',
-          }}>
-            {STEPS.map((label, i) => {
-              const num = i + 1;
-              const done = step > num;
-              const active = step === num;
-              const upcoming = step < num;
-              return (
-                <React.Fragment key={num}>
-                  {i > 0 && (
-                    <div style={{
-                      flex: 1, height: 2, margin: '0 6px',
-                      background: done ? '#3b82f6' : 'var(--border)',
-                      borderRadius: 1,
-                      transition: 'background 0.3s',
-                    }} />
-                  )}
-                  <div
-                    onClick={() => { if (done) setStep(num); }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      cursor: done ? 'pointer' : 'default',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <div style={{
-                      width: 28, height: 28, borderRadius: '50%',
-                      background: done || active ? '#3b82f6' : 'transparent',
-                      border: `2px solid ${done || active ? '#3b82f6' : 'var(--border)'}`,
-                      color: done || active ? '#fff' : 'var(--text-secondary)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 700, flexShrink: 0,
-                      transition: 'all 0.3s',
-                    }}>
-                      {done ? <Check size={13} /> : num}
-                    </div>
-                    <span style={{
-                      fontSize: 12, fontWeight: active ? 600 : 400,
-                      color: upcoming ? 'var(--text-secondary)' : 'var(--text-primary)',
-                      whiteSpace: 'nowrap' as const,
-                    }}>{label}</span>
-                  </div>
-                </React.Fragment>
-              );
-            })}
-          </div>
+          <StepIndicator steps={STEPS} current={step} onStepClick={(n) => { if (step > n) setStep(n); }} />
         </div>
 
         {/* ── STEP CONTENT ── */}
@@ -714,6 +666,61 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
           )}
         </div>
       </div>
+    </div>
+  );
+}
+/* ═══════════════════════════════════════════
+   STEP INDICATOR
+   ═══════════════════════════════════════════ */
+
+function StepIndicator({ steps, current, onStepClick }: {
+  steps: string[]; current: number; onStepClick: (step: number) => void;
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center',
+      padding: '12px 4px',
+    }}>
+      {steps.map((label, i) => {
+        const num = i + 1;
+        const done = current > num;
+        const active = current === num;
+        return (
+          <React.Fragment key={num}>
+            {i > 0 && (
+              <div style={{
+                flex: 1, height: 2, margin: '0 4px',
+                background: done ? '#3b82f6' : '#d1d5db',
+                borderRadius: 1,
+              }} />
+            )}
+            <div
+              onClick={() => onStepClick(num)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                cursor: done ? 'pointer' : 'default',
+                flexShrink: 0,
+              }}
+            >
+              {/* Circle — always solid opaque */}
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: done || active ? '#3b82f6' : '#e2e4e9',
+                color: done || active ? '#fff' : '#9ca3af',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700, flexShrink: 0,
+              }}>
+                {done ? <Check size={13} /> : num}
+              </div>
+              <span style={{
+                fontSize: 12, fontWeight: active ? 600 : 400,
+                color: active ? 'var(--text-primary)' : '#9ca3af',
+                whiteSpace: 'nowrap' as const,
+              }}>{label}</span>
+            </div>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }
@@ -949,8 +956,8 @@ const fieldInput: React.CSSProperties = {
 };
 
 const overlay: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-  backdropFilter: 'blur(4px)', zIndex: 1000,
+  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+  zIndex: 1000,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 
