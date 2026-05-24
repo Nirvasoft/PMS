@@ -3,44 +3,54 @@ import {
   useGetFootfallDailyQuery, useGetFootfallTrendQuery,
   useGetFootfallHeatmapQuery, useGetFootfallSensorsQuery,
 } from '../../store/api/mallApi';
-import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
-import { Users, TrendingUp, Clock, BarChart3, MapPin, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import {
+  Users, TrendingUp, TrendingDown, Clock, BarChart3, MapPin, Activity,
+  ArrowUpRight, ArrowDownRight, Wifi, WifiOff, Radio, Calendar,
+  ChevronLeft, ChevronRight,
+} from 'lucide-react';
 
-const TABS = ['Daily View', 'Trend', 'Zone Heatmap', 'Sensors'];
+const TABS = [
+  { label: 'Daily View', icon: <BarChart3 size={15} /> },
+  { label: 'Trend', icon: <TrendingUp size={15} /> },
+  { label: 'Zone Heatmap', icon: <MapPin size={15} /> },
+  { label: 'Sensors', icon: <Radio size={15} /> },
+];
 
-function formatDate(d: Date): string {
-  return d.toISOString().split('T')[0];
-}
+function formatDate(d: Date): string { return d.toISOString().split('T')[0]; }
+function formatNum(n: number): string { return n.toLocaleString(); }
 
 export default function FootfallAnalyticsPage() {
-  const propertyId = useSelectedPropertyId();
+  const { data: propsRes } = useGetPropertiesQuery({ limit: 100 });
+  const properties = propsRes?.data || [];
+  const [propertyId, setPropertyId] = useState('');
+  const selectedPropId = propertyId || properties[0]?.id || '';
+
   const [tab, setTab] = useState(0);
   const [date, setDate] = useState(formatDate(new Date()));
   const [hour, setHour] = useState(12);
+  const [hoveredBar, setHoveredBar] = useState<number | null>(null);
 
-  // Trend range: last 30 days
   const trendFrom = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return formatDate(d);
+    const d = new Date(); d.setDate(d.getDate() - 30); return formatDate(d);
   }, []);
   const trendTo = useMemo(() => formatDate(new Date()), []);
 
   const { data: dailyData, isLoading: loadingDaily } = useGetFootfallDailyQuery(
-    { propertyId, date },
-    { skip: !propertyId || tab !== 0 },
+    { propertyId: selectedPropId, date },
+    { skip: !selectedPropId || tab !== 0 },
   );
   const { data: trendData, isLoading: loadingTrend } = useGetFootfallTrendQuery(
-    { propertyId, from: trendFrom, to: trendTo },
-    { skip: !propertyId || tab !== 1 },
+    { propertyId: selectedPropId, from: trendFrom, to: trendTo },
+    { skip: !selectedPropId || tab !== 1 },
   );
   const { data: heatmapData, isLoading: loadingHeatmap } = useGetFootfallHeatmapQuery(
-    { propertyId, date, hour },
-    { skip: !propertyId || tab !== 2 },
+    { propertyId: selectedPropId, date, hour },
+    { skip: !selectedPropId || tab !== 2 },
   );
   const { data: sensorsData } = useGetFootfallSensorsQuery(
-    { propertyId },
-    { skip: !propertyId || tab !== 3 },
+    { propertyId: selectedPropId },
+    { skip: !selectedPropId || tab !== 3 },
   );
 
   const daily = dailyData?.data;
@@ -48,32 +58,79 @@ export default function FootfallAnalyticsPage() {
   const heatmap = heatmapData?.data;
   const sensors = sensorsData?.data || [];
 
-  // Hourly chart max for bar height
   const maxHourlyEntries = daily?.byHour ? Math.max(...daily.byHour.map((h: any) => h.entries), 1) : 1;
   const maxTrendEntries = trend?.daily ? Math.max(...trend.daily.map((d: any) => d.entries), 1) : 1;
 
+  // Navigate date
+  const shiftDate = (days: number) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    setDate(formatDate(d));
+  };
+
+  const selectedPropName = properties.find((p: any) => p.id === selectedPropId)?.name || '';
+
   return (
-    <div className="mall-page" style={{ '--accent-hue': '200' } as React.CSSProperties}>
-      <div className="mall-page-header">
+    <div className="page-content" style={{ maxWidth: 1400, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 className="mall-page-title">Footfall Analytics</h2>
-          <p className="mall-page-subtitle">Visitor traffic data from entry/exit sensors</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Users size={24} style={{ color: 'hsl(200, 75%, 55%)' }} />
+            Footfall Analytics
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0', fontSize: 14 }}>
+            Visitor traffic across zones and time periods
+          </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <input
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color, var(--border))', background: 'var(--card-bg, var(--surface))', color: 'var(--text-primary)' }}
-          />
+          <select
+            value={selectedPropId}
+            onChange={e => setPropertyId(e.target.value)}
+            style={{
+              padding: '8px 12px', borderRadius: 8,
+              border: '1px solid var(--border-color)', background: 'var(--card-bg)',
+              color: 'var(--text-primary)', fontSize: 13, minWidth: 180,
+            }}
+          >
+            {properties.map((p: any) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button onClick={() => shiftDate(-1)} style={navBtnStyle}><ChevronLeft size={16} /></button>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              style={{
+                padding: '8px 10px', borderRadius: 8,
+                border: '1px solid var(--border-color)', background: 'var(--card-bg)',
+                color: 'var(--text-primary)', fontSize: 13,
+              }}
+            />
+            <button onClick={() => shiftDate(1)} style={navBtnStyle}><ChevronRight size={16} /></button>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="mall-tabs" style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: '2px solid var(--border-color)', paddingBottom: 0 }}>
         {TABS.map((t, i) => (
-          <button key={i} className={`mall-tab ${tab === i ? 'active' : ''}`} onClick={() => setTab(i)}>
-            {t}
+          <button
+            key={i}
+            onClick={() => setTab(i)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '10px 18px', fontSize: 13, fontWeight: tab === i ? 600 : 400,
+              border: 'none', borderBottom: tab === i ? '2px solid hsl(200, 75%, 55%)' : '2px solid transparent',
+              background: 'transparent',
+              color: tab === i ? 'hsl(200, 75%, 55%)' : 'var(--text-secondary)',
+              cursor: 'pointer', marginBottom: -2,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {t.icon} {t.label}
           </button>
         ))}
       </div>
@@ -81,123 +138,231 @@ export default function FootfallAnalyticsPage() {
       {/* ── Daily View ── */}
       {tab === 0 && (
         <div>
-          {/* Summary Cards */}
-          <div className="mall-stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-            <div className="mall-stat-card">
-              <div className="mall-stat-icon" style={{ background: 'linear-gradient(135deg, hsl(200, 75%, 55%), hsl(200, 75%, 40%))' }}>
-                <ArrowUpRight size={20} />
-              </div>
-              <div className="mall-stat-value">{(daily?.totalEntries || 0).toLocaleString()}</div>
-              <div className="mall-stat-label">Total Entries</div>
-            </div>
-            <div className="mall-stat-card">
-              <div className="mall-stat-icon" style={{ background: 'linear-gradient(135deg, hsl(340, 75%, 55%), hsl(340, 75%, 40%))' }}>
-                <ArrowDownRight size={20} />
-              </div>
-              <div className="mall-stat-value">{(daily?.totalExits || 0).toLocaleString()}</div>
-              <div className="mall-stat-label">Total Exits</div>
-            </div>
-            <div className="mall-stat-card">
-              <div className="mall-stat-icon" style={{ background: 'linear-gradient(135deg, hsl(45, 85%, 55%), hsl(45, 85%, 40%))' }}>
-                <Clock size={20} />
-              </div>
-              <div className="mall-stat-value">{daily?.peakHour || '--'}</div>
-              <div className="mall-stat-label">Peak Hour ({(daily?.peakHourCount || 0).toLocaleString()})</div>
-            </div>
-            <div className="mall-stat-card">
-              <div className="mall-stat-icon" style={{ background: 'linear-gradient(135deg, hsl(150, 65%, 45%), hsl(150, 65%, 35%))' }}>
-                <Users size={20} />
-              </div>
-              <div className="mall-stat-value">{Math.max(0, (daily?.totalEntries || 0) - (daily?.totalExits || 0)).toLocaleString()}</div>
-              <div className="mall-stat-label">Currently Inside (est.)</div>
-            </div>
+          {/* KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
+            <KpiCard icon={<ArrowUpRight size={20} />} label="Total Entries" value={formatNum(daily?.totalEntries || 0)} color="hsl(200, 75%, 55%)" />
+            <KpiCard icon={<ArrowDownRight size={20} />} label="Total Exits" value={formatNum(daily?.totalExits || 0)} color="hsl(340, 65%, 55%)" />
+            <KpiCard icon={<Clock size={20} />} label="Peak Hour" value={daily?.peakHour || '--'} sub={`${formatNum(daily?.peakHourCount || 0)} visitors`} color="hsl(45, 85%, 50%)" />
+            <KpiCard icon={<Users size={20} />} label="Currently Inside" value={formatNum(Math.max(0, (daily?.totalEntries || 0) - (daily?.totalExits || 0)))} sub="estimated" color="hsl(150, 65%, 45%)" />
           </div>
 
           {/* Hourly Bar Chart */}
-          <div className="mall-card" style={{ padding: 20, marginBottom: 20 }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text-primary)' }}>
-              <BarChart3 size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-              Hourly Breakdown
+          <div className="card" style={{ padding: 24, marginBottom: 20 }}>
+            <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <BarChart3 size={16} />
+              Hourly Breakdown — {new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </h3>
             {loadingDaily ? (
-              <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div className="spinner" /></div>
             ) : !daily?.byHour?.length || daily.byHour.every((h: any) => h.entries === 0) ? (
-              <div className="mall-empty-state">
-                <Activity size={40} strokeWidth={1} />
-                <h3>No Footfall Data</h3>
-                <p>No sensor data recorded for {date}. Connect sensors and wait for data sync.</p>
-              </div>
+              <EmptyState icon={<Activity size={48} />} title="No Footfall Data" subtitle={`No sensor data recorded for ${date}. Select a different date or property.`} />
             ) : (
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 200 }}>
-                {daily.byHour.map((h: any, i: number) => {
-                  const entryH = Math.max(1, (h.entries / maxHourlyEntries) * 180);
-                  const exitH = Math.max(1, (h.exits / maxHourlyEntries) * 180);
-                  return (
-                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                      <div style={{ display: 'flex', gap: 1, alignItems: 'flex-end', height: 180 }}>
-                        <div
-                          title={`${h.hour} — ${h.entries} entries`}
-                          style={{
+              <>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 220, padding: '0 4px' }}>
+                  {daily.byHour.map((h: any, i: number) => {
+                    const entryH = Math.max(2, (h.entries / maxHourlyEntries) * 190);
+                    const exitH = Math.max(2, (h.exits / maxHourlyEntries) * 190);
+                    const isHovered = hoveredBar === i;
+                    return (
+                      <div
+                        key={i}
+                        style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, position: 'relative' }}
+                        onMouseEnter={() => setHoveredBar(i)}
+                        onMouseLeave={() => setHoveredBar(null)}
+                      >
+                        {/* Tooltip */}
+                        {isHovered && (h.entries > 0 || h.exits > 0) && (
+                          <div style={{
+                            position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+                            background: 'var(--card-bg)', border: '1px solid var(--border-color)',
+                            borderRadius: 8, padding: '8px 12px', zIndex: 10,
+                            fontSize: 12, whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                            marginBottom: 4,
+                          }}>
+                            <div style={{ fontWeight: 600, marginBottom: 4 }}>{h.hour}</div>
+                            <div style={{ color: 'hsl(200, 75%, 55%)' }}>↑ {h.entries} entries</div>
+                            <div style={{ color: 'hsl(340, 65%, 55%)' }}>↓ {h.exits} exits</div>
+                            <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
+                              Net: {h.entries - h.exits >= 0 ? '+' : ''}{h.entries - h.exits}
+                            </div>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 1, alignItems: 'flex-end', height: 190 }}>
+                          <div style={{
                             width: '100%', height: entryH, borderRadius: '4px 4px 0 0',
-                            background: 'var(--primary, hsl(200, 75%, 55%))', minWidth: 6, opacity: 0.85,
-                            transition: 'height 0.3s ease',
-                          }}
-                        />
-                        <div
-                          title={`${h.hour} — ${h.exits} exits`}
-                          style={{
+                            background: isHovered
+                              ? 'linear-gradient(to top, hsl(200, 85%, 50%), hsl(200, 85%, 65%))'
+                              : 'linear-gradient(to top, hsl(200, 65%, 50%), hsl(200, 65%, 60%))',
+                            minWidth: 5, transition: 'all 0.2s ease',
+                            transform: isHovered ? 'scaleY(1.05)' : 'scaleY(1)',
+                            transformOrigin: 'bottom',
+                          }} />
+                          <div style={{
                             width: '100%', height: exitH, borderRadius: '4px 4px 0 0',
-                            background: 'hsl(340, 65%, 55%)', minWidth: 6, opacity: 0.65,
-                            transition: 'height 0.3s ease',
-                          }}
-                        />
+                            background: isHovered
+                              ? 'linear-gradient(to top, hsl(340, 75%, 50%), hsl(340, 75%, 65%))'
+                              : 'linear-gradient(to top, hsl(340, 55%, 50%), hsl(340, 55%, 60%))',
+                            minWidth: 5, opacity: 0.75, transition: 'all 0.2s ease',
+                            transform: isHovered ? 'scaleY(1.05)' : 'scaleY(1)',
+                            transformOrigin: 'bottom',
+                          }} />
+                        </div>
+                        <span style={{ fontSize: 10, color: isHovered ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isHovered ? 600 : 400 }}>
+                          {h.hour.slice(0, 2)}
+                        </span>
                       </div>
-                      <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>{i % 2 === 0 ? h.hour.slice(0,2) : ''}</span>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+                {/* Legend */}
+                <div style={{ display: 'flex', gap: 20, marginTop: 14, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: 3, background: 'linear-gradient(135deg, hsl(200, 65%, 50%), hsl(200, 65%, 60%))' }} /> Entries
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: 3, background: 'linear-gradient(135deg, hsl(340, 55%, 50%), hsl(340, 55%, 60%))', opacity: 0.75 }} /> Exits
+                  </span>
+                </div>
+              </>
             )}
-            <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--primary, hsl(200, 75%, 55%))', marginRight: 4 }} />Entries</span>
-              <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'hsl(340, 65%, 55%)', marginRight: 4 }} />Exits</span>
-            </div>
           </div>
 
           {/* Zone Breakdown */}
           {daily?.byZone?.length > 0 && (
-            <div className="mall-card" style={{ padding: 20 }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text-primary)' }}>
-                <MapPin size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                Zone Breakdown
+            <div className="card" style={{ padding: 24 }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <MapPin size={16} /> Zone Breakdown
               </h3>
-              <div className="mall-table-wrap">
-                <table className="mall-table">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                {daily.byZone.map((z: any) => {
+                  const pct = daily.totalEntries > 0 ? (z.entries / daily.totalEntries * 100) : 0;
+                  return (
+                    <div key={z.zone} style={{
+                      padding: '16px 18px', borderRadius: 12,
+                      border: '1px solid var(--border-color)',
+                      background: `linear-gradient(135deg, hsla(200, 70%, 55%, ${pct / 300}), transparent)`,
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontWeight: 600, fontSize: 14, textTransform: 'capitalize' }}>{z.zone.replace(/_/g, ' ')}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'hsl(200, 75%, 55%)', padding: '2px 8px', borderRadius: 6, background: 'hsla(200, 75%, 55%, 0.12)' }}>
+                          {pct.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--text-secondary)' }}>
+                        <span>↑ {z.entries.toLocaleString()}</span>
+                        <span>↓ {z.exits.toLocaleString()}</span>
+                        <span style={{ color: (z.entries - z.exits) >= 0 ? 'hsl(150, 65%, 45%)' : 'hsl(0, 65%, 55%)' }}>
+                          Net: {z.entries - z.exits >= 0 ? '+' : ''}{(z.entries - z.exits).toLocaleString()}
+                        </span>
+                      </div>
+                      <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: 'var(--border-color)' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, hsl(200, 75%, 55%), hsl(180, 70%, 50%))', transition: 'width 0.5s ease' }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Trend ── */}
+      {tab === 1 && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
+            <KpiCard icon={<TrendingUp size={20} />} label="Total Entries (30d)" value={formatNum(trend?.totalEntries || 0)} color="hsl(200, 75%, 55%)" />
+            <KpiCard icon={<Users size={20} />} label="Avg Daily" value={formatNum(trend?.avgDaily || 0)} color="hsl(45, 85%, 50%)" />
+            <KpiCard icon={<Calendar size={20} />} label="Days with Data" value={String(trend?.days || 0)} color="hsl(150, 65%, 45%)" />
+            <KpiCard icon={<TrendingDown size={20} />} label="Total Exits (30d)" value={formatNum(trend?.totalExits || 0)} color="hsl(340, 65%, 55%)" />
+          </div>
+
+          {/* Trend Chart */}
+          <div className="card" style={{ padding: 24, marginBottom: 20 }}>
+            <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 600 }}>
+              Daily Footfall — Last 30 Days
+            </h3>
+            {loadingTrend ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div className="spinner" /></div>
+            ) : !trend?.daily?.length ? (
+              <EmptyState icon={<Activity size={48} />} title="No Trend Data" subtitle="No footfall data in the last 30 days." />
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 200, overflowX: 'auto', paddingBottom: 4 }}>
+                  {trend.daily.map((d: any, i: number) => {
+                    const h = Math.max(3, (d.entries / maxTrendEntries) * 180);
+                    const isWeekend = [0, 6].includes(new Date(d.date).getDay());
+                    return (
+                      <div key={i} style={{ flex: '1 0 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 16 }}>
+                        <div style={{ fontSize: 9, color: 'var(--text-secondary)', height: 14 }}>
+                          {d.entries > 0 ? (d.entries / 1000).toFixed(1) + 'k' : ''}
+                        </div>
+                        <div
+                          title={`${d.date}: ${d.entries} entries, ${d.exits} exits`}
+                          style={{
+                            width: '100%', height: h, borderRadius: '4px 4px 0 0',
+                            background: isWeekend
+                              ? 'linear-gradient(to top, hsl(280, 60%, 50%), hsl(280, 60%, 65%))'
+                              : 'linear-gradient(to top, hsl(200, 70%, 45%), hsl(200, 70%, 60%))',
+                            transition: 'height 0.3s ease',
+                          }}
+                        />
+                        <span style={{ fontSize: 9, color: 'var(--text-secondary)', transform: 'rotate(-45deg)', transformOrigin: 'top left', width: 30, height: 20 }}>
+                          {i % 3 === 0 ? d.date.slice(5) : ''}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 20, marginTop: 16, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: 3, background: 'hsl(200, 70%, 55%)' }} /> Weekday
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: 3, background: 'hsl(280, 60%, 55%)' }} /> Weekend
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Recent Days Table */}
+          {trend?.daily?.length > 0 && (
+            <div className="card" style={{ padding: 24 }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>Recent 10 Days</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
-                    <tr>
-                      <th>Zone</th>
-                      <th className="text-right">Entries</th>
-                      <th className="text-right">Exits</th>
-                      <th className="text-right">Net</th>
-                      <th>Distribution</th>
+                    <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
+                      <th style={thStyle}>Date</th>
+                      <th style={thStyle}>Day</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>Entries</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>Exits</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>Net</th>
+                      <th style={thStyle}>vs Avg</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {daily.byZone.map((z: any) => {
-                      const pct = daily.totalEntries > 0 ? (z.entries / daily.totalEntries * 100).toFixed(1) : '0';
+                    {trend.daily.slice().reverse().slice(0, 10).map((d: any) => {
+                      const dayName = new Date(d.date).toLocaleDateString('en', { weekday: 'short' });
+                      const vsAvg = trend.avgDaily > 0 ? ((d.entries - trend.avgDaily) / trend.avgDaily * 100) : 0;
                       return (
-                        <tr key={z.zone}>
-                          <td style={{ fontWeight: 500 }}>{z.zone}</td>
-                          <td className="text-right">{z.entries.toLocaleString()}</td>
-                          <td className="text-right">{z.exits.toLocaleString()}</td>
-                          <td className="text-right">{(z.entries - z.exits).toLocaleString()}</td>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--border-color, var(--border))' }}>
-                                <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: 'var(--primary, hsl(200, 75%, 55%))' }} />
-                              </div>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', minWidth: 40, textAlign: 'right' }}>{pct}%</span>
-                            </div>
+                        <tr key={d.date} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={tdStyle}>{d.date}</td>
+                          <td style={tdStyle}>{dayName}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>{formatNum(d.entries)}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>{formatNum(d.exits)}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', color: d.net >= 0 ? 'hsl(150, 65%, 45%)' : 'hsl(0, 65%, 55%)' }}>
+                            {d.net >= 0 ? '+' : ''}{formatNum(d.net)}
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={{
+                              fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
+                              color: vsAvg >= 0 ? 'hsl(150, 65%, 45%)' : 'hsl(0, 65%, 55%)',
+                              background: vsAvg >= 0 ? 'hsla(150, 65%, 45%, 0.1)' : 'hsla(0, 65%, 55%, 0.1)',
+                            }}>
+                              {vsAvg >= 0 ? '+' : ''}{vsAvg.toFixed(0)}%
+                            </span>
                           </td>
                         </tr>
                       );
@@ -210,152 +375,77 @@ export default function FootfallAnalyticsPage() {
         </div>
       )}
 
-      {/* ── Trend ── */}
-      {tab === 1 && (
-        <div>
-          <div className="mall-stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-            <div className="mall-stat-card">
-              <div className="mall-stat-icon" style={{ background: 'linear-gradient(135deg, hsl(200, 75%, 55%), hsl(200, 75%, 40%))' }}>
-                <TrendingUp size={20} />
-              </div>
-              <div className="mall-stat-value">{(trend?.totalEntries || 0).toLocaleString()}</div>
-              <div className="mall-stat-label">Total Entries (30d)</div>
-            </div>
-            <div className="mall-stat-card">
-              <div className="mall-stat-icon" style={{ background: 'linear-gradient(135deg, hsl(45, 85%, 55%), hsl(45, 85%, 40%))' }}>
-                <Users size={20} />
-              </div>
-              <div className="mall-stat-value">{(trend?.avgDaily || 0).toLocaleString()}</div>
-              <div className="mall-stat-label">Avg Daily Entries</div>
-            </div>
-            <div className="mall-stat-card">
-              <div className="mall-stat-icon" style={{ background: 'linear-gradient(135deg, hsl(150, 65%, 45%), hsl(150, 65%, 35%))' }}>
-                <BarChart3 size={20} />
-              </div>
-              <div className="mall-stat-value">{trend?.days || 0}</div>
-              <div className="mall-stat-label">Days with Data</div>
-            </div>
-          </div>
-
-          {/* Trend Line Chart (CSS bars) */}
-          <div className="mall-card" style={{ padding: 20 }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text-primary)' }}>
-              Daily Footfall (Last 30 Days)
-            </h3>
-            {loadingTrend ? (
-              <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
-            ) : !trend?.daily?.length ? (
-              <div className="mall-empty-state">
-                <Activity size={40} strokeWidth={1} />
-                <h3>No Trend Data</h3>
-                <p>No footfall data in the last 30 days.</p>
-              </div>
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 200, overflowX: 'auto' }}>
-                  {trend.daily.map((d: any, i: number) => {
-                    const h = Math.max(2, (d.entries / maxTrendEntries) * 180);
-                    return (
-                      <div key={i} style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                        <div
-                          title={`${d.date}: ${d.entries} entries, ${d.exits} exits`}
-                          style={{
-                            width: 14, height: h, borderRadius: '4px 4px 0 0',
-                            background: `linear-gradient(to top, hsl(200, 75%, 45%), hsl(200, 75%, 60%))`,
-                            transition: 'height 0.3s ease',
-                          }}
-                        />
-                        <span style={{ fontSize: '0.5rem', color: 'var(--text-secondary)', writingMode: 'vertical-lr', height: 30 }}>
-                          {i % 3 === 0 ? d.date.slice(5) : ''}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Trend table */}
-                <div className="mall-table-wrap" style={{ marginTop: 16 }}>
-                  <table className="mall-table">
-                    <thead>
-                      <tr><th>Date</th><th className="text-right">Entries</th><th className="text-right">Exits</th><th className="text-right">Net</th></tr>
-                    </thead>
-                    <tbody>
-                      {trend.daily.slice().reverse().slice(0, 10).map((d: any) => (
-                        <tr key={d.date}>
-                          <td>{d.date}</td>
-                          <td className="text-right">{d.entries.toLocaleString()}</td>
-                          <td className="text-right">{d.exits.toLocaleString()}</td>
-                          <td className={`text-right ${d.net >= 0 ? 'text-success' : 'text-danger'}`}>{d.net >= 0 ? '+' : ''}{d.net.toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* ── Zone Heatmap ── */}
       {tab === 2 && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              Hour:
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <Clock size={14} /> Hour:
               <select
                 value={hour}
                 onChange={e => setHour(Number(e.target.value))}
-                style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border-color, var(--border))', background: 'var(--card-bg, var(--surface))', color: 'var(--text-primary)' }}
+                style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)', fontSize: 13 }}
               >
                 {Array.from({ length: 24 }, (_, i) => (
                   <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
                 ))}
               </select>
             </label>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              {selectedPropName} — {new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+            </span>
           </div>
 
           {loadingHeatmap ? (
-            <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div className="spinner" /></div>
           ) : !heatmap?.zones?.length ? (
-            <div className="mall-empty-state">
-              <MapPin size={40} strokeWidth={1} />
-              <h3>No Heatmap Data</h3>
-              <p>No footfall data for {date} at {String(hour).padStart(2, '0')}:00</p>
-            </div>
+            <EmptyState icon={<MapPin size={48} />} title="No Heatmap Data" subtitle={`No data for ${date} at ${String(hour).padStart(2, '0')}:00`} />
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
               {heatmap.zones.map((z: any) => {
-                const hue = z.intensity > 70 ? 0 : z.intensity > 40 ? 35 : 120;
-                const lightness = 50 - z.intensity * 0.1;
+                const hue = z.intensity > 70 ? 0 : z.intensity > 40 ? 30 : z.intensity > 20 ? 45 : 150;
                 return (
-                  <div
-                    key={z.zone}
-                    className="mall-card"
-                    style={{
-                      padding: 20,
-                      borderLeft: `4px solid hsl(${hue}, 70%, ${lightness}%)`,
-                      background: `linear-gradient(135deg, hsla(${hue}, 70%, ${lightness}%, 0.08), transparent)`,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{z.zone}</h4>
-                      <span style={{
-                        fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                        background: `hsl(${hue}, 70%, ${lightness}%)`, color: '#fff',
-                      }}>
-                        {z.intensity}%
-                      </span>
-                    </div>
-                    {z.floor && <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>Floor: {z.floor}</div>}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      <span>↑ {z.entries.toLocaleString()} in</span>
-                      <span>↓ {z.exits.toLocaleString()} out</span>
-                    </div>
-                    {z.sensors?.length > 0 && (
-                      <div style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                        Sensors: {z.sensors.join(', ')}
+                  <div key={z.zone} className="card" style={{
+                    padding: 20, position: 'relative', overflow: 'hidden',
+                    borderLeft: `4px solid hsl(${hue}, 70%, 50%)`,
+                  }}>
+                    {/* Intensity background glow */}
+                    <div style={{
+                      position: 'absolute', top: 0, right: 0, width: 120, height: 120,
+                      borderRadius: '50%', filter: 'blur(40px)',
+                      background: `hsla(${hue}, 70%, 50%, ${z.intensity / 400})`,
+                    }} />
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600, textTransform: 'capitalize' }}>
+                          {z.zone.replace(/_/g, ' ')}
+                        </h4>
+                        <span style={{
+                          fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 10,
+                          background: `hsl(${hue}, 70%, 50%)`, color: '#fff',
+                        }}>
+                          {z.intensity}%
+                        </span>
                       </div>
-                    )}
+                      {z.floor && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Floor {z.floor}</div>}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)' }}>
+                        <span>↑ {formatNum(z.entries)} in</span>
+                        <span>↓ {formatNum(z.exits)} out</span>
+                      </div>
+                      {/* Intensity bar */}
+                      <div style={{ marginTop: 10, height: 6, borderRadius: 3, background: 'var(--border-color)' }}>
+                        <div style={{
+                          width: `${z.intensity}%`, height: '100%', borderRadius: 3,
+                          background: `linear-gradient(90deg, hsl(${hue}, 70%, 55%), hsl(${hue}, 60%, 45%))`,
+                          transition: 'width 0.6s ease',
+                        }} />
+                      </div>
+                      {z.sensors?.length > 0 && (
+                        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-secondary)' }}>
+                          <Radio size={10} style={{ marginRight: 4 }} />{z.sensors.join(', ')}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -366,42 +456,91 @@ export default function FootfallAnalyticsPage() {
 
       {/* ── Sensors ── */}
       {tab === 3 && (
-        <div className="mall-table-wrap">
-          <table className="mall-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Sensor ID</th>
-                <th>Zone</th>
-                <th>Floor</th>
-                <th>Type</th>
-                <th>Vendor</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div>
+          {sensors.length === 0 ? (
+            <EmptyState icon={<Radio size={48} />} title="No Sensors" subtitle="No footfall sensors configured for this property." />
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
               {sensors.map((s: any) => (
-                <tr key={s.id}>
-                  <td style={{ fontWeight: 500 }}>{s.name}</td>
-                  <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{s.sensorId}</td>
-                  <td>{s.zone || '—'}</td>
-                  <td>{s.floor || '—'}</td>
-                  <td>{s.sensorType}</td>
-                  <td>{s.vendor || '—'}</td>
-                  <td>
-                    <span className={`mall-status-badge mall-status-${s.isActive ? 'active' : 'inactive'}`}>
-                      {s.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                </tr>
+                <div key={s.id} className="card" style={{ padding: 18, display: 'flex', gap: 14, alignItems: 'center' }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 12,
+                    background: s.isActive ? 'hsla(150, 65%, 45%, 0.12)' : 'hsla(0, 0%, 50%, 0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: s.isActive ? 'hsl(150, 65%, 45%)' : 'var(--text-secondary)',
+                  }}>
+                    {s.isActive ? <Wifi size={20} /> : <WifiOff size={20} />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                      {s.zone ? <span style={{ textTransform: 'capitalize' }}>{s.zone.replace(/_/g, ' ')}</span> : '—'}
+                      {s.floor && <span> · Floor {s.floor}</span>}
+                      {s.sensorType && <span> · {s.sensorType}</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'monospace', marginTop: 2 }}>
+                      ID: {s.sensorId}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8,
+                    color: s.isActive ? 'hsl(150, 65%, 45%)' : 'hsl(0, 0%, 55%)',
+                    background: s.isActive ? 'hsla(150, 65%, 45%, 0.1)' : 'hsla(0, 0%, 50%, 0.08)',
+                  }}>
+                    {s.isActive ? '● Online' : '○ Offline'}
+                  </span>
+                </div>
               ))}
-              {sensors.length === 0 && (
-                <tr><td colSpan={7} className="mall-table-empty">No sensors configured</td></tr>
-              )}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
+
+// ── Sub-components ──
+
+function KpiCard({ icon, label, value, sub, color }: {
+  icon: React.ReactNode; label: string; value: string; sub?: string; color: string;
+}) {
+  return (
+    <div className="card" style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{
+        width: 42, height: 42, borderRadius: 12,
+        background: `${color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', color,
+      }}>
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 2 }}>{label}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>{value}</div>
+        {sub && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle: string }) {
+  return (
+    <div style={{
+      textAlign: 'center', padding: '48px 24px',
+      color: 'var(--text-secondary)', borderRadius: 12,
+      border: '1px dashed var(--border-color)',
+    }}>
+      <div style={{ opacity: 0.3, marginBottom: 12 }}>{icon}</div>
+      <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</h3>
+      <p style={{ margin: 0, fontSize: 13 }}>{subtitle}</p>
+    </div>
+  );
+}
+
+// ── Styles ──
+const navBtnStyle: React.CSSProperties = {
+  padding: '6px 8px', borderRadius: 8,
+  border: '1px solid var(--border-color)', background: 'var(--card-bg)',
+  color: 'var(--text-primary)', cursor: 'pointer', display: 'flex',
+  alignItems: 'center', justifyContent: 'center',
+};
+const thStyle: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' };
+const tdStyle: React.CSSProperties = { padding: '10px 12px' };
