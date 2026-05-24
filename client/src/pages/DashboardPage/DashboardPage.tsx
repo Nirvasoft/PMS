@@ -15,6 +15,7 @@ import {
   Wrench, Calendar, Package, Layers, Sparkles,
   Store, TrendingUp, DollarSign,
   Zap, Gavel,
+  Plug, Webhook,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -447,6 +448,22 @@ export default function DashboardLayout() {
             <NavLink to="/portal" className="nav-item">
               <Home size={18} />
               <span>Portal Dashboard</span>
+            </NavLink>
+          </NavSection>
+
+          {/* Developer / Integrations Section */}
+          <NavSection label="Developer" storageKey="developer">
+            <NavLink to="/admin/developer/integrations" className="nav-item">
+              <Plug size={18} />
+              <span>Integrations</span>
+            </NavLink>
+            <NavLink to="/admin/developer/webhooks" className="nav-item">
+              <Webhook size={18} />
+              <span>Webhooks</span>
+            </NavLink>
+            <NavLink to="/admin/developer/api-keys" className="nav-item">
+              <Key size={18} />
+              <span>API Keys</span>
             </NavLink>
           </NavSection>
 

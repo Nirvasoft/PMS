@@ -36,6 +36,7 @@ import { bookingsApi } from './api/bookingsApi';
 import { communityApi } from './api/communityApi';
 import { mallApi } from './api/mallApi';
 import { condoApi } from './api/condoApi';
+import { integrationsApi } from './api/integrationsApi';
 
 export const store = configureStore({
   reducer: {
@@ -74,6 +75,7 @@ export const store = configureStore({
     [communityApi.reducerPath]: communityApi.reducer,
     [mallApi.reducerPath]: mallApi.reducer,
     [condoApi.reducerPath]: condoApi.reducer,
+    [integrationsApi.reducerPath]: integrationsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -99,6 +101,7 @@ export const store = configureStore({
       communityApi.middleware,
       mallApi.middleware,
       condoApi.middleware,
+      integrationsApi.middleware,
     ),
 });
 

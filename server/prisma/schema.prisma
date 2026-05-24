@@ -201,6 +201,14 @@ model Company {
   bylaws                   Bylaw[]
   bylawViolations          BylawViolation[]
 
+  // Module 6.3 — Enterprise Integrations
+  integrationConfigs       IntegrationConfig[]
+  integrationSyncLogs      IntegrationSyncLog[]
+  integrationEntityMaps    IntegrationEntityMap[]
+  webhookEndpoints         WebhookEndpoint[]
+  webhookDeliveries        WebhookDelivery[]
+  apiKeys                  ApiKey[]
+
   @@index([parentId])
   @@map("companies")
 }
@@ -386,6 +394,12 @@ model User {
   meetingVotesCast           MeetingVote[]          @relation("VoteCaster")
   bylawsCreated              Bylaw[]                @relation("BylawCreator")
   violationsReported         BylawViolation[]       @relation("ViolationReporter")
+
+  // Relations — Enterprise Integrations (Module 6.3)
+  integrationsCreated        IntegrationConfig[]    @relation("IntegrationCreator")
+  syncsInitiated             IntegrationSyncLog[]   @relation("SyncInitiator")
+  webhooksCreated            WebhookEndpoint[]      @relation("WebhookCreator")
+  apiKeysCreated             ApiKey[]               @relation("ApiKeyCreator")
 
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
@@ -4877,4 +4891,144 @@ model BylawViolation {
   @@map("bylaw_violations")
 }
 
+// ═══════════════════════════════════════════════
+// MODULE 6.3 — ENTERPRISE INTEGRATIONS
+// ═══════════════════════════════════════════════
+
+model IntegrationConfig {
+  id                String   @id @default(uuid()) @db.Uuid
+  companyId         String   @map("company_id") @db.Uuid
+  integrationType   String   @map("integration_type") @db.VarChar(50)
+  name              String   @db.VarChar(150)
+  description       String?  @db.Text
+  config            Json     @default("{}")
+  credentials       Json     @default("{}")
+  status            String   @default("configured") @db.VarChar(20)
+  lastSyncAt        DateTime? @map("last_sync_at") @db.Timestamptz
+  lastError         String?   @map("last_error") @db.Text
+  syncFrequency     String   @default("daily") @map("sync_frequency") @db.VarChar(20)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdBy         String?  @map("created_by") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator           User?    @relation("IntegrationCreator", fields: [createdBy], references: [id])
+  syncLogs          IntegrationSyncLog[]
+  entityMaps        IntegrationEntityMap[]
+
+  @@unique([companyId, integrationType])
+  @@index([companyId])
+  @@map("integration_configs")
+}
+
+model IntegrationSyncLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  companyId         String   @map("company_id") @db.Uuid
+  integrationId     String   @map("integration_id") @db.Uuid
+  syncType          String   @map("sync_type") @db.VarChar(50)
+  direction         String   @db.VarChar(10)
+  status            String   @db.VarChar(20)
+  recordsProcessed  Int      @default(0) @map("records_processed")
+  recordsCreated    Int      @default(0) @map("records_created")
+  recordsUpdated    Int      @default(0) @map("records_updated")
+  recordsFailed     Int      @default(0) @map("records_failed")
+  errorDetails      Json     @default("[]") @map("error_details")
+  durationMs        Int?     @map("duration_ms")
+  initiatedBy       String   @default("user") @map("initiated_by") @db.VarChar(20)
+  initiatedUserId   String?  @map("initiated_user_id") @db.Uuid
+  startedAt         DateTime @default(now()) @map("started_at") @db.Timestamptz
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz
+
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  integration       IntegrationConfig @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  initiatedUser     User?    @relation("SyncInitiator", fields: [initiatedUserId], references: [id])
+
+  @@index([integrationId])
+  @@index([companyId])
+  @@map("integration_sync_logs")
+}
+
+model IntegrationEntityMap {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  integrationId   String   @map("integration_id") @db.Uuid
+  entityType      String   @map("entity_type") @db.VarChar(50)
+  pmsId           String   @map("pms_id") @db.Uuid
+  externalId      String   @map("external_id") @db.VarChar(255)
+  externalRef     String?  @map("external_ref") @db.VarChar(255)
+  syncedAt        DateTime @default(now()) @map("synced_at") @db.Timestamptz
+
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  integration     IntegrationConfig @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, entityType, pmsId])
+  @@index([integrationId, entityType, pmsId])
+  @@map("integration_entity_map")
+}
+
+model WebhookEndpoint {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  url             String   @db.VarChar(1000)
+  secret          String   @db.VarChar(255)
+  description     String?  @db.VarChar(255)
+  events          String[] @default([])
+  isActive        Boolean  @default(true) @map("is_active")
+  failureCount    Int      @default(0) @map("failure_count") @db.SmallInt
+  lastSuccessAt   DateTime? @map("last_success_at") @db.Timestamptz
+  lastFailureAt   DateTime? @map("last_failure_at") @db.Timestamptz
+  createdBy       String?  @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator         User?    @relation("WebhookCreator", fields: [createdBy], references: [id])
+  deliveries      WebhookDelivery[]
+
+  @@index([companyId])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  endpointId      String   @map("endpoint_id") @db.Uuid
+  eventType       String   @map("event_type") @db.VarChar(100)
+  payload         Json
+  httpStatus      Int?     @map("http_status") @db.SmallInt
+  responseBody    String?  @map("response_body") @db.Text
+  attemptCount    Int      @default(1) @map("attempt_count") @db.SmallInt
+  status          String   @default("pending") @db.VarChar(20)
+  nextRetryAt     DateTime? @map("next_retry_at") @db.Timestamptz
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  deliveredAt     DateTime? @map("delivered_at") @db.Timestamptz
+
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  endpoint        WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId])
+  @@index([status, nextRetryAt])
+  @@map("webhook_deliveries")
+}
+
+model ApiKey {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  name            String   @db.VarChar(150)
+  keyHash         String   @unique @map("key_hash") @db.VarChar(255)
+  keyPrefix       String   @map("key_prefix") @db.VarChar(10)
+  scopes          String[] @default([])
+  rateLimitRpm    Int      @default(100) @map("rate_limit_rpm") @db.SmallInt
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz
+  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz
+  isActive        Boolean  @default(true) @map("is_active")
+  createdBy       String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator         User     @relation("ApiKeyCreator", fields: [createdBy], references: [id])
+
+  @@index([companyId])
+  @@map("api_keys")
+}
 
