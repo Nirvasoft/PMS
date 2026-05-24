@@ -326,8 +326,38 @@ class MallService {
   }
 
   async verifyGto(id: string, companyId: string, verifiedBy: string, data: any) {
-    const gto = await prisma.gtoSubmission.findFirst({ where: { id, companyId } });
+    const gto = await prisma.gtoSubmission.findFirst({
+      where: { id, companyId },
+      include: { unit: { include: { shopProfile: true } } },
+    });
     if (!gto) throw AppError.notFound('GTO submission');
+
+    let posValidated = false;
+    let variancePct = data.variancePct ?? null;
+
+    // Auto POS cross-validation:
+    // If the shop has a POS system configured, compare sales breakdown vs GTO total
+    if (gto.unit?.shopProfile?.posSystem) {
+      const salesBreakdown = [
+        Number(gto.cashSales || 0),
+        Number(gto.cardSales || 0),
+        Number(gto.onlineSales || 0),
+        Number(gto.otherSales || 0),
+      ];
+      const breakdownTotal = salesBreakdown.reduce((s, v) => s + v, 0);
+      const reportedGto = Number(gto.grossTurnover);
+
+      if (breakdownTotal > 0 && reportedGto > 0) {
+        // Calculate variance between sum of sales channels and reported total
+        variancePct = Math.abs((breakdownTotal - reportedGto) / reportedGto);
+        posValidated = variancePct <= 0.05; // within 5% = POS validated
+
+        logger.info(
+          `GTO ${id} POS cross-check: breakdown=${breakdownTotal}, reported=${reportedGto}, ` +
+          `variance=${(variancePct * 100).toFixed(2)}%, validated=${posValidated}`
+        );
+      }
+    }
 
     return prisma.gtoSubmission.update({
       where: { id },
@@ -335,7 +365,8 @@ class MallService {
         verified: data.verified,
         verifiedBy,
         verifiedAt: new Date(),
-        variancePct: data.variancePct,
+        variancePct: variancePct !== null ? variancePct : undefined,
+        posValidated,
         notes: data.notes || gto.notes,
       },
     });
