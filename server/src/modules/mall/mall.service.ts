@@ -1,5 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
+import { invoicesService } from '../billing/invoices.service';
+import { logger } from '../../common/logger';
 
 class MallService {
   // ═══════════════════════════════════════
@@ -203,7 +205,7 @@ class MallService {
       totalRentDue = Number(lease.rentAmount) + percentageRent;
     }
 
-    return prisma.gtoSubmission.create({
+    const submission = await prisma.gtoSubmission.create({
       data: {
         companyId,
         propertyId: data.propertyId,
@@ -228,6 +230,71 @@ class MallService {
         notes: data.notes,
       },
     });
+
+    // Generate supplementary invoice for percentage rent if > 0
+    if (percentageRent > 0.01) {
+      try {
+        // Find or create PERCENTAGE_RENT charge type
+        let chargeType = await prisma.chargeType.findFirst({
+          where: { code: 'PERCENTAGE_RENT' },
+        });
+        if (!chargeType) {
+          chargeType = await prisma.chargeType.create({
+            data: {
+              code: 'PERCENTAGE_RENT',
+              name: 'Percentage Rent',
+              category: 'rent',
+              glAccountCode: '4100',
+              isTaxable: false,
+              isSystem: true,
+              companyId: null,
+            },
+          });
+        }
+
+        const monthName = new Date(2025, data.submissionMonth - 1).toLocaleString('default', { month: 'long' });
+        const today = new Date();
+        const dueDate = new Date(today);
+        dueDate.setDate(dueDate.getDate() + 14);
+
+        const invoice = await invoicesService.createManual(
+          companyId,
+          {
+            propertyId: data.propertyId,
+            unitId: data.unitId,
+            tenantId: data.tenantId,
+            leaseId: data.leaseId,
+            invoiceDate: today.toISOString().split('T')[0],
+            dueDate: dueDate.toISOString().split('T')[0],
+            currency: data.currency || 'USD',
+            notes: `Percentage rent — ${monthName} ${data.submissionYear} (GTO: ${data.currency || 'USD'} ${Number(data.grossTurnover).toLocaleString()})`,
+            lines: [{
+              chargeTypeId: chargeType.id,
+              description: `Percentage Rent — ${monthName} ${data.submissionYear} (GTO above breakpoint: ${data.currency || 'USD'} ${gtoAboveBreakpoint?.toLocaleString()})`,
+              quantity: 1,
+              unitPrice: percentageRent,
+              taxRate: 0,
+            }],
+          },
+          submittedBy,
+        );
+
+        // Link invoice to GTO submission
+        await prisma.gtoSubmission.update({
+          where: { id: submission.id },
+          data: { invoiceId: invoice.id },
+        });
+
+        logger.info(`GTO submission ${submission.id}: Created percentage rent invoice ${invoice.invoiceNumber} for ${data.currency || 'USD'} ${percentageRent.toFixed(2)}`);
+
+        return { ...submission, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber };
+      } catch (err: any) {
+        logger.error(`GTO submission ${submission.id}: Failed to create percentage rent invoice: ${err.message}`);
+        // Return the submission even if invoice creation fails — don't block the GTO
+      }
+    }
+
+    return submission;
   }
 
   async listGtoSubmissions(companyId: string, params: {
