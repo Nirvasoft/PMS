@@ -359,7 +359,7 @@ class BiService {
     // Get monthly invoice totals per tenant for last 12 months
     const tenants = await prisma.tenant.findMany({
       where: { companyId },
-      select: { id: true, name: true },
+      select: { id: true, firstName: true, lastName: true },
     });
 
     const now = new Date();
@@ -391,7 +391,7 @@ class BiService {
             propertyId: inv.propertyId,
             entityType: 'tenant',
             entityId: tenant.id,
-            description: `${tenant.name}: Invoice of $${amt.toLocaleString()} is ${zScore.toFixed(1)}σ from average ($${mean.toFixed(0)})`,
+            description: `${tenant.firstName || ''} ${tenant.lastName || ''}: Invoice of $${amt.toLocaleString()} is ${zScore.toFixed(1)}σ from average ($${mean.toFixed(0)})`,
             severity: zScore > 5 ? 'high' : 'medium',
             metricValue: amt,
             expectedValue: mean,
@@ -438,7 +438,7 @@ class BiService {
 
     const tenants = await prisma.tenant.findMany({
       where: { companyId },
-      select: { id: true, name: true },
+      select: { id: true, firstName: true, lastName: true },
     });
 
     for (const tenant of tenants) {
@@ -459,7 +459,7 @@ class BiService {
           anomalyType: 'late_payment_risk',
           entityType: 'tenant',
           entityId: tenant.id,
-          description: `${tenant.name}: ${lateRate.toFixed(0)}% late payment rate (${late}/${total} invoices in 6 months)`,
+          description: `${tenant.firstName || ''} ${tenant.lastName || ''}: ${lateRate.toFixed(0)}% late payment rate (${late}/${total} invoices in 6 months)`,
           severity: lateRate > 75 ? 'high' : 'medium',
           metricValue: lateRate,
           expectedValue: 10,

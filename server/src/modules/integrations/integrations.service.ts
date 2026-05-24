@@ -1,6 +1,6 @@
 import crypto from 'crypto';
-import { prisma } from '../../config/database';
-import { AppError } from '../../middleware/errorHandler';
+import { prisma } from '../../common/database';
+import { AppError } from '../../common/errors';
 
 // ═════════════════════════════════════════
 // INTEGRATION TYPES REGISTRY
