@@ -46,6 +46,12 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
   }
 
   const token = authHeader.slice(7);
+
+  // API key requests are handled by apiKeyAuth middleware, skip JWT here
+  if (token.startsWith('pms_sk_')) {
+    return next();
+  }
+
   const payload = tokenService.verifyAccessToken(token);
 
   // Check blacklist (async but we handle it)

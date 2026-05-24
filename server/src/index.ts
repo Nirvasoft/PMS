@@ -9,6 +9,7 @@ import { logger } from './common/logger';
 import { prisma, connectDatabase, disconnectDatabase } from './common/database';
 import { disconnectRedis } from './common/redis';
 import { authMiddleware, requestContextMiddleware, errorHandler, tenantContextMiddleware } from './middleware';
+import { apiKeyAuth } from './middleware/apiKeyAuth';
 import { initSocketIO } from './common/socket';
 import { startSlaEscalationJob } from './common/slaEscalation';
 import { authRouter } from './modules/auth/auth.routes';
@@ -103,6 +104,7 @@ async function bootstrap() {
   app.use('/storage', express.static(path.join(process.cwd(), 'storage')));
 
   app.use(authMiddleware);
+  app.use(apiKeyAuth()); // Validate pms_sk_* API keys (after JWT passthrough)
   app.use(tenantContextMiddleware);
 
   // Health check

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
+import { logger } from '../../common/logger';
 
 // ═════════════════════════════════════════
 // INTEGRATION TYPES REGISTRY
@@ -35,16 +36,20 @@ export const WEBHOOK_EVENTS: Record<string, string> = {
   'ticket.assigned':        'Ticket assigned to technician',
   'ticket.completed':       'Ticket completed',
   'ticket.sla_breach':      'SLA breach detected',
+  'ticket.rated':           'Tenant rating submitted',
   'tenant.created':         'New tenant profile created',
   'tenant.kyc_verified':    'KYC verification completed',
+  'tenant.blacklisted':     'Tenant added to blacklist',
   'visitor.pre_registered': 'Visitor pass created',
   'visitor.checked_in':     'Visitor gate check-in',
   'visitor.checked_out':    'Visitor gate check-out',
+  'visitor.overstay':       'Visitor overstay detected',
   'booking.confirmed':      'Facility booking confirmed',
   'booking.cancelled':      'Facility booking cancelled',
   'incident.created':       'Security incident reported',
   'incident.resolved':      'Security incident resolved',
   'unit.status_changed':    'Unit status changed',
+  'property.status_changed':'Property status changed',
 };
 
 export const API_KEY_SCOPES = [
@@ -241,26 +246,164 @@ class IntegrationsService {
     const endpoint = await prisma.webhookEndpoint.findFirst({ where: { id, companyId } });
     if (!endpoint) throw AppError.notFound('Webhook');
 
-    // Create a test delivery record
+    const payload = {
+      event: 'test.ping',
+      timestamp: new Date().toISOString(),
+      companyId,
+      data: { message: 'Test webhook delivery from PMS' },
+    };
+
+    // Create delivery record
     const delivery = await prisma.webhookDelivery.create({
       data: {
         companyId,
         endpointId: id,
         eventType: 'test.ping',
-        payload: { event: 'test.ping', timestamp: new Date().toISOString(), data: { message: 'Test webhook delivery' } },
-        status: 'delivered',
-        httpStatus: 200,
-        responseBody: '{"ok": true}',
-        deliveredAt: new Date(),
+        payload: payload as any,
+        status: 'pending',
       },
     });
 
-    await prisma.webhookEndpoint.update({
-      where: { id },
-      data: { lastSuccessAt: new Date(), failureCount: 0 },
+    // Actually deliver
+    const result = await this.deliverWebhook(delivery.id, endpoint.url, endpoint.secret, payload);
+    return result;
+  }
+
+  /**
+   * Core webhook delivery — real HTTP POST with HMAC-SHA256 signature.
+   * Used by testWebhook, retryDelivery, and emitWebhookEvent.
+   */
+  private async deliverWebhook(
+    deliveryId: string,
+    url: string,
+    secret: string,
+    payload: Record<string, unknown>,
+  ) {
+    const body = JSON.stringify(payload);
+    const signature = `sha256=${crypto
+      .createHmac('sha256', secret)
+      .update(body)
+      .digest('hex')}`;
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-PMS-Signature': signature,
+          'X-PMS-Event': (payload.event as string) || 'unknown',
+          'X-PMS-Delivery': deliveryId,
+          'User-Agent': 'PMS-Webhook/1.0',
+        },
+        body,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+      const responseBody = await response.text().catch(() => '');
+
+      const updated = await prisma.webhookDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status: response.ok ? 'delivered' : 'failed',
+          httpStatus: response.status,
+          responseBody: responseBody.substring(0, 1000),
+          deliveredAt: response.ok ? new Date() : undefined,
+        },
+      });
+
+      // Update endpoint stats
+      if (response.ok) {
+        await prisma.webhookEndpoint.update({
+          where: { id: updated.endpointId },
+          data: { lastSuccessAt: new Date(), failureCount: 0 },
+        });
+      } else {
+        await prisma.webhookEndpoint.update({
+          where: { id: updated.endpointId },
+          data: { lastFailureAt: new Date(), failureCount: { increment: 1 } },
+        });
+      }
+
+      logger.info(`Webhook delivered to ${url} — status ${response.status}`, { deliveryId });
+      return updated;
+
+    } catch (err: any) {
+      const errorMsg = err.name === 'AbortError' ? 'Request timeout (30s)' : err.message;
+      logger.warn(`Webhook delivery failed to ${url}: ${errorMsg}`, { deliveryId });
+
+      const updated = await prisma.webhookDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status: 'failed',
+          responseBody: errorMsg.substring(0, 1000),
+          attemptCount: { increment: 1 },
+        },
+      });
+
+      await prisma.webhookEndpoint.update({
+        where: { id: updated.endpointId },
+        data: { lastFailureAt: new Date(), failureCount: { increment: 1 } },
+      });
+
+      // Auto-disable endpoint after 100 consecutive failures
+      const endpoint = await prisma.webhookEndpoint.findUnique({ where: { id: updated.endpointId } });
+      if (endpoint && endpoint.failureCount >= 100) {
+        await prisma.webhookEndpoint.update({
+          where: { id: endpoint.id },
+          data: { isActive: false },
+        });
+        logger.warn(`Webhook endpoint ${endpoint.url} auto-disabled after 100 failures`);
+      }
+
+      return updated;
+    }
+  }
+
+  /**
+   * Emit a webhook event — called by domain services (lease, invoice, etc.).
+   * Finds all matching active endpoints and delivers asynchronously.
+   */
+  async emitWebhookEvent(eventType: string, data: Record<string, unknown>, companyId: string) {
+    const endpoints = await prisma.webhookEndpoint.findMany({
+      where: {
+        companyId,
+        isActive: true,
+        events: { has: eventType },
+      },
     });
 
-    return delivery;
+    if (endpoints.length === 0) return;
+
+    const payload = {
+      event: eventType,
+      timestamp: new Date().toISOString(),
+      companyId,
+      data,
+    };
+
+    // Deliver to all matching endpoints (fire-and-forget, don't block caller)
+    for (const ep of endpoints) {
+      const delivery = await prisma.webhookDelivery.create({
+        data: {
+          companyId,
+          endpointId: ep.id,
+          eventType,
+          payload: payload as any,
+          status: 'pending',
+        },
+      });
+
+      // Deliver async — don't await to avoid blocking the domain service
+      this.deliverWebhook(delivery.id, ep.url, ep.secret, payload).catch(err => {
+        logger.error(`Webhook async delivery error for ${eventType}:`, err);
+      });
+    }
+
+    logger.info(`Webhook event ${eventType} dispatched to ${endpoints.length} endpoint(s)`);
   }
 
   async getDeliveries(endpointId: string, companyId: string, page = 1, limit = 20) {
@@ -278,20 +421,25 @@ class IntegrationsService {
   }
 
   async retryDelivery(deliveryId: string, companyId: string) {
-    const delivery = await prisma.webhookDelivery.findFirst({ where: { id: deliveryId, companyId } });
-    if (!delivery) throw AppError.notFound('Delivery');
-
-    // Stub: simulate retry success
-    return prisma.webhookDelivery.update({
-      where: { id: deliveryId },
-      data: {
-        status: 'delivered',
-        httpStatus: 200,
-        responseBody: '{"ok": true}',
-        attemptCount: delivery.attemptCount + 1,
-        deliveredAt: new Date(),
-      },
+    const delivery = await prisma.webhookDelivery.findFirst({
+      where: { id: deliveryId, companyId },
+      include: { endpoint: true },
     });
+    if (!delivery) throw AppError.notFound('Delivery');
+    if (!delivery.endpoint) throw AppError.notFound('Webhook endpoint');
+
+    // Reset status and re-deliver
+    await prisma.webhookDelivery.update({
+      where: { id: deliveryId },
+      data: { status: 'pending' },
+    });
+
+    return this.deliverWebhook(
+      deliveryId,
+      delivery.endpoint.url,
+      delivery.endpoint.secret,
+      delivery.payload as Record<string, unknown>,
+    );
   }
 
   // ── API Keys ──
