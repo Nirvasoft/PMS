@@ -25,6 +25,23 @@ import './AnalyticsDashboard.css';
 
 const CHART_COLORS = ['#6c5ce7', '#00cec9', '#fd79a8', '#fdcb6e', '#74b9ff', '#55efc4', '#a29bfe', '#fab1a0'];
 
+/** Read CSS variable values at render time so charts adapt to theme changes */
+function useChartTheme() {
+  const root = document.documentElement;
+  const get = (v: string) => getComputedStyle(root).getPropertyValue(v).trim();
+  const isDark = root.getAttribute('data-theme') !== 'light';
+  return {
+    gridStroke: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)',
+    tickFill: get('--text-muted') || '#8b95a5',
+    tooltipBg: get('--surface-card') || (isDark ? '#1a1f2e' : '#ffffff'),
+    tooltipBorder: get('--border') || (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'),
+    cursorFill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+    accent: get('--accent') || '#6c5ce7',
+    legendColor: get('--text-secondary') || '#a3b1c6',
+    gaugeBg: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)',
+  };
+}
+
 // ═══════════════════════════════════════════════════
 // DATE PRESETS
 // ═══════════════════════════════════════════════════
@@ -324,6 +341,7 @@ function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: 
 // LINE CHART
 // ═══════════════════════════════════════════════════
 function LineChartWidget({ data, onDrillDown }: { data: LineChartData; onDrillDown: (k?: string) => void }) {
+  const theme = useChartTheme();
   const chartData = data.series[0]?.data.map((point, i) => {
     const row: Record<string, unknown> = { x: point.x };
     data.series.forEach((s) => { row[s.name] = s.data[i]?.y; });
@@ -343,10 +361,10 @@ function LineChartWidget({ data, onDrillDown }: { data: LineChartData; onDrillDo
               </linearGradient>
             ))}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-          <XAxis dataKey="x" tick={{ fontSize: 11, fill: '#8b95a5' }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: '#8b95a5' }} tickLine={false} axisLine={false} width={40} />
-          <Tooltip contentStyle={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={theme.gridStroke} />
+          <XAxis dataKey="x" tick={{ fontSize: 11, fill: theme.tickFill }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: theme.tickFill }} tickLine={false} axisLine={false} width={40} />
+          <Tooltip contentStyle={{ background: theme.tooltipBg, border: `1px solid ${theme.tooltipBorder}`, borderRadius: 8, color: theme.tickFill }} />
           {data.series.map((s, i) => (
             <Area key={s.name} type="monotone" dataKey={s.name} stroke={CHART_COLORS[i]} fill={`url(#grad-${i})`} strokeWidth={2} dot={false} />
           ))}
@@ -361,6 +379,7 @@ function LineChartWidget({ data, onDrillDown }: { data: LineChartData; onDrillDo
 // BAR CHART
 // ═══════════════════════════════════════════════════
 function BarChartWidget({ data, onDrillDown }: { data: BarChartData; onDrillDown: (k?: string) => void }) {
+  const theme = useChartTheme();
   const chartData = data.series[0]?.data.map((d) => ({ name: d.x, value: d.y })) || [];
 
   return (
@@ -368,11 +387,11 @@ function BarChartWidget({ data, onDrillDown }: { data: BarChartData; onDrillDown
       <h4 className="chart-title" onClick={() => onDrillDown()}>{data.label}</h4>
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#8b95a5' }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: '#8b95a5' }} tickLine={false} axisLine={false} width={50} />
-          <Tooltip contentStyle={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-          <Bar dataKey="value" fill="#6c5ce7" radius={[4, 4, 0, 0]} onClick={(d) => onDrillDown(d.name)} />
+          <CartesianGrid strokeDasharray="3 3" stroke={theme.gridStroke} />
+          <XAxis dataKey="name" tick={{ fontSize: 11, fill: theme.tickFill }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: theme.tickFill }} tickLine={false} axisLine={false} width={50} />
+          <Tooltip contentStyle={{ background: theme.tooltipBg, border: `1px solid ${theme.tooltipBorder}`, borderRadius: 8, color: theme.tickFill }} cursor={{ fill: theme.cursorFill }} />
+          <Bar dataKey="value" fill={theme.accent} radius={[4, 4, 0, 0]} onClick={(d) => onDrillDown(d.name)} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -383,6 +402,7 @@ function BarChartWidget({ data, onDrillDown }: { data: BarChartData; onDrillDown
 // PIE CHART
 // ═══════════════════════════════════════════════════
 function PieChartWidget({ data, onDrillDown }: { data: PieChartData; onDrillDown: (k?: string) => void }) {
+  const theme = useChartTheme();
   return (
     <div className="chart-widget" style={{ cursor: 'pointer' }}>
       <h4 className="chart-title" onClick={() => onDrillDown()}>{data.label}</h4>
@@ -401,8 +421,8 @@ function PieChartWidget({ data, onDrillDown }: { data: PieChartData; onDrillDown
               <Cell key={i} fill={entry.color || CHART_COLORS[i]} />
             ))}
           </Pie>
-          <Tooltip contentStyle={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }} />
-          <Legend verticalAlign="bottom" height={36} formatter={(value: string) => <span style={{ color: '#a3b1c6', fontSize: 11 }}>{value}</span>} />
+          <Tooltip contentStyle={{ background: theme.tooltipBg, border: `1px solid ${theme.tooltipBorder}`, borderRadius: 8, color: theme.tickFill }} />
+          <Legend verticalAlign="bottom" height={36} formatter={(value: string) => <span style={{ color: theme.legendColor, fontSize: 11 }}>{value}</span>} />
         </PieChart>
       </ResponsiveContainer>
     </div>
@@ -413,6 +433,7 @@ function PieChartWidget({ data, onDrillDown }: { data: PieChartData; onDrillDown
 // GAUGE
 // ═══════════════════════════════════════════════════
 function GaugeWidget({ data, onDrillDown }: { data: GaugeData; onDrillDown: (k?: string) => void }) {
+  const theme = useChartTheme();
   const angle = (data.value / 100) * 180;
   const radius = 60;
   const cx = 80;
@@ -436,12 +457,12 @@ function GaugeWidget({ data, onDrillDown }: { data: GaugeData; onDrillDown: (k?:
           {/* Background arc */}
           <path
             d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
-            fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="12" strokeLinecap="round"
+            fill="none" stroke={theme.gaugeBg} strokeWidth="12" strokeLinecap="round"
           />
           {/* Value arc */}
           <path
             d={`M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`}
-            fill="none" stroke="#6c5ce7" strokeWidth="12" strokeLinecap="round"
+            fill="none" stroke={theme.accent} strokeWidth="12" strokeLinecap="round"
           />
         </svg>
         <div className="gauge-value">{data.value}{data.unit}</div>

@@ -1,34 +1,48 @@
 /* ═══════════════════════════════════════════════
-   Drill Down Modal Styles
+   Drill Down Modal Styles — Dark/Light Mode
    ═══════════════════════════════════════════════ */
 
 .drilldown-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
-  animation: fadeIn 0.2s ease-out;
+  animation: drillFadeIn 0.2s ease-out;
+}
+
+[data-theme="light"] .drilldown-overlay {
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .drilldown-modal {
-  background: var(--card-bg-solid, #1a1f2e);
-  border: 1px solid var(--border-light, rgba(255,255,255,0.08));
+  background: var(--surface-card);
+  border: 1px solid var(--border);
   border-radius: 16px;
   width: 100%;
   max-width: 900px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: drillSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--text-primary);
 }
 
-@keyframes slideUp {
+[data-theme="light"] .drilldown-modal {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+}
+
+@keyframes drillFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes drillSlideUp {
   from { opacity: 0; transform: translateY(20px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
@@ -38,24 +52,24 @@
   justify-content: space-between;
   align-items: flex-start;
   padding: 24px 28px 20px;
-  border-bottom: 1px solid var(--border-light, rgba(255,255,255,0.06));
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .drilldown-header h3 {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0 0 4px;
-  color: var(--text-primary, #e2e8f0);
+  color: var(--text-primary);
 }
 
 .drilldown-subtitle {
   font-size: 0.85rem;
-  color: var(--text-muted, #8b95a5);
+  color: var(--text-muted);
 }
 
 .drilldown-body {
   flex: 1;
-  overflow: hidden; /* Hide overflow on body, let table container scroll */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 200px;
@@ -70,16 +84,6 @@
   padding: 40px;
   color: var(--text-muted);
   gap: 16px;
-}
-
-.spinner {
-  color: var(--accent, #6c5ce7);
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 .drilldown-table-container {
@@ -97,33 +101,33 @@
 .drilldown-table-container th {
   position: sticky;
   top: 0;
-  background: var(--card-bg-solid, #1a1f2e);
+  background: var(--surface-card);
   text-align: left;
   padding: 14px 20px;
   font-weight: 600;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border-light, rgba(255,255,255,0.08));
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
   z-index: 1;
 }
 
 .drilldown-table-container td {
   padding: 12px 20px;
-  border-bottom: 1px solid var(--border-light, rgba(255,255,255,0.03));
+  border-bottom: 1px solid var(--border-subtle);
   color: var(--text-primary);
   white-space: nowrap;
 }
 
 .drilldown-table-container tr:hover td {
-  background: rgba(255,255,255,0.02);
+  background: var(--surface-hover);
 }
 
 .drilldown-footer {
   padding: 16px 28px;
-  border-top: 1px solid var(--border-light, rgba(255,255,255,0.06));
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   justify-content: flex-end;
-  background: rgba(0,0,0,0.1);
+  background: var(--surface-elevated);
   border-radius: 0 0 16px 16px;
 }
 
@@ -132,7 +136,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: var(--accent, #6c5ce7);
+  background: var(--accent);
   color: white;
   text-decoration: none;
   font-size: 0.85rem;
@@ -142,7 +146,7 @@
 }
 
 .drilldown-link-btn:hover {
-  background: #5b4cce;
+  background: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+  box-shadow: 0 4px 12px var(--accent-glow);
 }
