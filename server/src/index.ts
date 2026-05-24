@@ -81,6 +81,7 @@ import { mallRouter } from './modules/mall/mall.routes';
 import { condoRouter } from './modules/condo/condo.routes';
 import { biRouter } from './modules/bi/bi.routes';
 import { integrationsRouter, developerRouter } from './modules/integrations/integrations.routes';
+import { bmsRouter } from './modules/integrations/bms.routes';
 
 async function bootstrap() {
   const app = express();
@@ -274,6 +275,7 @@ async function bootstrap() {
   // Module 6.3 — Enterprise Integrations
   app.use('/api/v1/integrations', integrationsRouter);
   app.use('/api/v1/developer', developerRouter);
+  app.use('/api/v1/bms', bmsRouter);
 
   // Error handler (must be last)
   app.use(errorHandler);

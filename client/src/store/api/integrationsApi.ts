@@ -12,7 +12,7 @@ export const integrationsApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Integrations', 'SyncLogs', 'Webhooks', 'Deliveries', 'ApiKeys'],
+  tagTypes: ['Integrations', 'SyncLogs', 'Webhooks', 'Deliveries', 'ApiKeys', 'BmsDevices'],
   endpoints: (builder) => ({
 
     // ── Integrations ──
@@ -100,6 +100,57 @@ export const integrationsApi = createApi({
       query: (id) => ({ url: `/developer/api-keys/${id}/revoke`, method: 'POST' }),
       invalidatesTags: ['ApiKeys'],
     }),
+
+    // ── BMS (Building Management System) ──
+    getBmsSummary: builder.query<any, void>({
+      query: () => '/bms/summary',
+      providesTags: ['BmsDevices'],
+    }),
+    getBmsMeta: builder.query<any, void>({
+      query: () => '/bms/meta',
+    }),
+    getBmsDevices: builder.query<any, { propertyId?: string; deviceType?: string }>({
+      query: (params) => {
+        const qs = new URLSearchParams();
+        if (params?.propertyId) qs.set('propertyId', params.propertyId);
+        if (params?.deviceType) qs.set('deviceType', params.deviceType);
+        return `/bms/devices?${qs.toString()}`;
+      },
+      providesTags: ['BmsDevices'],
+    }),
+    getBmsDevice: builder.query<any, string>({
+      query: (id) => `/bms/devices/${id}`,
+      providesTags: ['BmsDevices'],
+    }),
+    createBmsDevice: builder.mutation<any, any>({
+      query: (body) => ({ url: '/bms/devices', method: 'POST', body }),
+      invalidatesTags: ['BmsDevices'],
+    }),
+    updateBmsDevice: builder.mutation<any, { id: string; data: any }>({
+      query: ({ id, data }) => ({ url: `/bms/devices/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['BmsDevices'],
+    }),
+    deleteBmsDevice: builder.mutation<any, string>({
+      query: (id) => ({ url: `/bms/devices/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['BmsDevices'],
+    }),
+    getBmsReadings: builder.query<any, { deviceId: string; pointName?: string; from?: string; to?: string; limit?: number }>({
+      query: ({ deviceId, ...params }) => {
+        const qs = new URLSearchParams();
+        if (params.pointName) qs.set('pointName', params.pointName);
+        if (params.from) qs.set('from', params.from);
+        if (params.to) qs.set('to', params.to);
+        if (params.limit) qs.set('limit', String(params.limit));
+        return `/bms/devices/${deviceId}/readings?${qs.toString()}`;
+      },
+    }),
+    getBmsFaults: builder.query<any, string>({
+      query: (deviceId) => `/bms/devices/${deviceId}/faults`,
+    }),
+    pollBmsDevice: builder.mutation<any, string>({
+      query: (id) => ({ url: `/bms/devices/${id}/poll`, method: 'POST' }),
+      invalidatesTags: ['BmsDevices'],
+    }),
   }),
 });
 
@@ -125,4 +176,16 @@ export const {
   useCreateApiKeyMutation,
   useDeleteApiKeyMutation,
   useRevokeApiKeyMutation,
+  // BMS
+  useGetBmsSummaryQuery,
+  useGetBmsMetaQuery,
+  useGetBmsDevicesQuery,
+  useGetBmsDeviceQuery,
+  useCreateBmsDeviceMutation,
+  useUpdateBmsDeviceMutation,
+  useDeleteBmsDeviceMutation,
+  useGetBmsReadingsQuery,
+  useGetBmsFaultsQuery,
+  usePollBmsDeviceMutation,
 } = integrationsApi;
+

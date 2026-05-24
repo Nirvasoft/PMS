@@ -15,7 +15,7 @@ import {
   Wrench, Calendar, Package, Layers, Sparkles,
   Store, TrendingUp, DollarSign,
   Zap, Gavel,
-  Plug, Webhook,
+  Plug, Webhook, Server,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -476,6 +476,10 @@ export default function DashboardLayout() {
             <NavLink to="/admin/developer/api-keys" className="nav-item">
               <Key size={18} />
               <span>API Keys</span>
+            </NavLink>
+            <NavLink to="/admin/developer/bms" className="nav-item">
+              <Server size={18} />
+              <span>BMS Devices</span>
             </NavLink>
           </NavSection>
 
