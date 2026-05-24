@@ -95,6 +95,7 @@ import ShopDirectoryPage from './pages/admin/ShopDirectoryPage';
 import GtoManagementPage from './pages/admin/GtoManagementPage';
 import CamManagementPage from './pages/admin/CamManagementPage';
 import MallEventsPage from './pages/admin/MallEventsPage';
+import FootfallAnalyticsPage from './pages/admin/FootfallAnalyticsPage';
 import SmartMeterPage from './pages/admin/SmartMeterPage';
 import FundsPage from './pages/admin/FundsPage';
 import MeetingsPage from './pages/admin/MeetingsPage';
@@ -233,6 +234,7 @@ function AppRoutes() {
           <Route path="/admin/mall/gto" element={<GtoManagementPage />} />
           <Route path="/admin/mall/cam" element={<CamManagementPage />} />
           <Route path="/admin/mall/events" element={<MallEventsPage />} />
+          <Route path="/admin/mall/footfall" element={<FootfallAnalyticsPage />} />
 
           {/* Module 6.2 — Condo */}
           <Route path="/admin/condo/smart-meters" element={<SmartMeterPage />} />

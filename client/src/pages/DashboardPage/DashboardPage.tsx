@@ -420,6 +420,10 @@ export default function DashboardLayout() {
                 <Calendar size={18} />
                 <span>Events</span>
               </NavLink>
+              <NavLink to="/admin/mall/footfall" className="nav-item">
+                <Activity size={18} />
+                <span>Footfall Analytics</span>
+              </NavLink>
             </NavSection>
           </FeatureGate>
 

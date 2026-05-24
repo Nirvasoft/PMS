@@ -154,6 +154,18 @@ export const mallApi = createApi({
       query: (body) => ({ url: '/footfall/sensors', method: 'POST', body }),
       invalidatesTags: ['Footfall'],
     }),
+    getFootfallDaily: builder.query<any, { propertyId: string; date: string }>({
+      query: (params) => ({ url: '/footfall/daily', params }),
+      providesTags: ['Footfall'],
+    }),
+    getFootfallTrend: builder.query<any, { propertyId: string; from: string; to: string }>({
+      query: (params) => ({ url: '/footfall/trend', params }),
+      providesTags: ['Footfall'],
+    }),
+    getFootfallHeatmap: builder.query<any, { propertyId: string; date: string; hour: number }>({
+      query: (params) => ({ url: '/footfall/heatmap', params }),
+      providesTags: ['Footfall'],
+    }),
 
     // ── Dashboard ──
     getMallDashboard: builder.query<any, { propertyId: string }>({
@@ -191,5 +203,8 @@ export const {
   useCreateBoothMutation,
   useGetFootfallSensorsQuery,
   useCreateFootfallSensorMutation,
+  useGetFootfallDailyQuery,
+  useGetFootfallTrendQuery,
+  useGetFootfallHeatmapQuery,
   useGetMallDashboardQuery,
 } = mallApi;

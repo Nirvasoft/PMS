@@ -676,6 +676,116 @@ class MallService {
   }
 
   // ═══════════════════════════════════════
+  //  FOOTFALL DATA QUERIES
+  // ═══════════════════════════════════════
+
+  async getFootfallDaily(companyId: string, propertyId: string, date: string) {
+    const dayStart = new Date(date + 'T00:00:00Z');
+    const dayEnd = new Date(date + 'T23:59:59Z');
+
+    const counts = await prisma.footfallCount.findMany({
+      where: { companyId, propertyId, countedAt: { gte: dayStart, lte: dayEnd }, periodType: 'hourly' },
+      orderBy: { countedAt: 'asc' },
+      include: { sensor: { select: { name: true, zone: true } } },
+    });
+
+    // By hour
+    const byHour: { hour: string; entries: number; exits: number }[] = [];
+    const hourMap = new Map<number, { entries: number; exits: number }>();
+    for (const c of counts) {
+      const h = c.countedAt.getUTCHours();
+      const existing = hourMap.get(h) || { entries: 0, exits: 0 };
+      existing.entries += c.entries;
+      existing.exits += c.exits;
+      hourMap.set(h, existing);
+    }
+    for (let h = 0; h < 24; h++) {
+      const data = hourMap.get(h) || { entries: 0, exits: 0 };
+      byHour.push({ hour: `${String(h).padStart(2, '0')}:00`, ...data });
+    }
+
+    // By zone
+    const zoneMap = new Map<string, { entries: number; exits: number }>();
+    for (const c of counts) {
+      const z = c.zone || c.sensor?.zone || 'unknown';
+      const existing = zoneMap.get(z) || { entries: 0, exits: 0 };
+      existing.entries += c.entries;
+      existing.exits += c.exits;
+      zoneMap.set(z, existing);
+    }
+    const byZone = Array.from(zoneMap.entries()).map(([zone, data]) => ({ zone, ...data }));
+
+    const totalEntries = counts.reduce((s, c) => s + c.entries, 0);
+    const totalExits = counts.reduce((s, c) => s + c.exits, 0);
+
+    // Peak hour
+    let peakHour = '00:00';
+    let peakHourCount = 0;
+    for (const h of byHour) {
+      if (h.entries > peakHourCount) { peakHour = h.hour; peakHourCount = h.entries; }
+    }
+
+    return { date, totalEntries, totalExits, peakHour, peakHourCount, byHour, byZone };
+  }
+
+  async getFootfallTrend(companyId: string, propertyId: string, from: string, to: string) {
+    const startDate = new Date(from + 'T00:00:00Z');
+    const endDate = new Date(to + 'T23:59:59Z');
+
+    const counts = await prisma.footfallCount.findMany({
+      where: { companyId, propertyId, countedAt: { gte: startDate, lte: endDate }, periodType: 'hourly' },
+      orderBy: { countedAt: 'asc' },
+    });
+
+    // Group by date
+    const dayMap = new Map<string, { entries: number; exits: number }>();
+    for (const c of counts) {
+      const dateKey = c.countedAt.toISOString().split('T')[0];
+      const existing = dayMap.get(dateKey) || { entries: 0, exits: 0 };
+      existing.entries += c.entries;
+      existing.exits += c.exits;
+      dayMap.set(dateKey, existing);
+    }
+
+    const daily = Array.from(dayMap.entries())
+      .map(([date, data]) => ({ date, ...data, net: data.entries - data.exits }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const totalEntries = daily.reduce((s, d) => s + d.entries, 0);
+    const totalExits = daily.reduce((s, d) => s + d.exits, 0);
+    const avgDaily = daily.length ? Math.round(totalEntries / daily.length) : 0;
+
+    return { from, to, days: daily.length, totalEntries, totalExits, avgDaily, daily };
+  }
+
+  async getFootfallHeatmap(companyId: string, propertyId: string, date: string, hour: number) {
+    const hourStart = new Date(`${date}T${String(hour).padStart(2, '0')}:00:00Z`);
+    const hourEnd = new Date(`${date}T${String(hour).padStart(2, '0')}:59:59Z`);
+
+    const counts = await prisma.footfallCount.findMany({
+      where: { companyId, propertyId, countedAt: { gte: hourStart, lte: hourEnd } },
+      include: { sensor: { select: { zone: true, floor: true, name: true, location: true } } },
+    });
+
+    const zoneMap = new Map<string, { entries: number; exits: number; floor: string; sensors: string[] }>();
+    for (const c of counts) {
+      const z = c.zone || c.sensor?.zone || 'unknown';
+      const existing = zoneMap.get(z) || { entries: 0, exits: 0, floor: c.sensor?.floor || '', sensors: [] };
+      existing.entries += c.entries;
+      existing.exits += c.exits;
+      if (c.sensor?.name && !existing.sensors.includes(c.sensor.name)) existing.sensors.push(c.sensor.name);
+      zoneMap.set(z, existing);
+    }
+
+    const maxEntries = Math.max(...Array.from(zoneMap.values()).map(v => v.entries), 1);
+    const zones = Array.from(zoneMap.entries()).map(([zone, data]) => ({
+      zone, ...data, intensity: Math.round((data.entries / maxEntries) * 100),
+    }));
+
+    return { date, hour, zones };
+  }
+
+  // ═══════════════════════════════════════
   //  MALL DASHBOARD STATS
   // ═══════════════════════════════════════
 

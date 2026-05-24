@@ -229,6 +229,33 @@ router.put('/footfall/sensors/:id', asyncHandler(async (req, res) => {
 }));
 
 // ═══════════════════════════════════════
+//  FOOTFALL DATA
+// ═══════════════════════════════════════
+
+router.get('/footfall/daily', asyncHandler(async (req, res) => {
+  const data = await mallService.getFootfallDaily(
+    getCompanyId(req), req.query.propertyId as string, req.query.date as string,
+  );
+  res.json({ success: true, data });
+}));
+
+router.get('/footfall/trend', asyncHandler(async (req, res) => {
+  const data = await mallService.getFootfallTrend(
+    getCompanyId(req), req.query.propertyId as string,
+    req.query.from as string, req.query.to as string,
+  );
+  res.json({ success: true, data });
+}));
+
+router.get('/footfall/heatmap', asyncHandler(async (req, res) => {
+  const data = await mallService.getFootfallHeatmap(
+    getCompanyId(req), req.query.propertyId as string,
+    req.query.date as string, Number(req.query.hour || 12),
+  );
+  res.json({ success: true, data });
+}));
+
+// ═══════════════════════════════════════
 //  DASHBOARD
 // ═══════════════════════════════════════
 

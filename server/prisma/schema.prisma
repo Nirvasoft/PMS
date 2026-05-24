@@ -188,6 +188,7 @@ model Company {
   mallEvents               MallEvent[]
   boothRentals             BoothRental[]
   footfallSensors          FootfallSensor[]
+  footfallCounts           FootfallCount[]
 
   // Relations — Condo (Module 6.2)
   smartMeterReadings       SmartMeterReading[]
@@ -932,6 +933,7 @@ model Property {
   mallEvents           MallEvent[]
   boothRentals         BoothRental[]
   footfallSensors      FootfallSensor[]
+  footfallCounts       FootfallCount[]
 
   // Relations — Condo (Module 6.2)
   smartMeterReadings   SmartMeterReading[] @relation("ReadingProperty")
@@ -4611,8 +4613,31 @@ model FootfallSensor {
 
   property      Property  @relation(fields: [propertyId], references: [id])
   company       Company   @relation(fields: [companyId], references: [id])
+  counts        FootfallCount[]
 
   @@map("footfall_sensors")
+}
+
+model FootfallCount {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  sensorId      String    @map("sensor_id") @db.Uuid
+  propertyId    String    @map("property_id") @db.Uuid
+  countedAt     DateTime  @map("counted_at") @db.Timestamptz
+  periodType    String    @default("hourly") @map("period_type") @db.VarChar(10)
+  entries       Int       @default(0)
+  exits         Int       @default(0)
+  zone          String?   @db.VarChar(50)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sensor        FootfallSensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  property      Property  @relation(fields: [propertyId], references: [id])
+
+  @@unique([sensorId, countedAt, periodType], name: "uq_footfall_sensor_period")
+  @@index([propertyId, countedAt(sort: Desc)], name: "idx_footfall_property")
+  @@index([sensorId, countedAt(sort: Desc)], name: "idx_footfall_sensor")
+  @@map("footfall_counts")
 }
 
 // ─────────────────────────────────────────────
