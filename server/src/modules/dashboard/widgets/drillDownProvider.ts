@@ -432,13 +432,112 @@ async function drillRecentActivity(params: DrillDownParams): Promise<DrillDownRe
   };
 }
 
-// Generic empty drill-down for modules not yet implemented
-async function drillNotImplemented(label: string): Promise<DrillDownResult> {
+async function drillOverdueInvoices(params: DrillDownParams): Promise<DrillDownResult> {
+  const now = new Date();
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      companyId: params.companyId,
+      status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
+      dueDate: { lt: now },
+    },
+    select: {
+      invoiceNumber: true,
+      totalAmount: true,
+      paidAmount: true,
+      dueDate: true,
+      invoiceDate: true,
+      status: true,
+      tenant: { select: { firstName: true, lastName: true, companyName: true } },
+      property: { select: { name: true } },
+      unit: { select: { unitNumber: true } },
+    },
+    orderBy: { dueDate: 'asc' },
+    take: 50,
+  });
+
   return {
-    title: label,
-    columns: [{ key: 'message', label: 'Info' }],
-    rows: [{ message: 'This module is not yet implemented. Detailed data will be available when the module ships.' }],
-    total: 0,
+    title: 'Overdue Invoices',
+    columns: [
+      { key: 'invoiceNumber', label: 'Invoice #' },
+      { key: 'tenant', label: 'Tenant' },
+      { key: 'property', label: 'Property' },
+      { key: 'unit', label: 'Unit' },
+      { key: 'total', label: 'Total' },
+      { key: 'paid', label: 'Paid' },
+      { key: 'outstanding', label: 'Outstanding' },
+      { key: 'dueDate', label: 'Due Date' },
+      { key: 'daysOverdue', label: 'Days Overdue' },
+      { key: 'status', label: 'Status' },
+    ],
+    rows: invoices.map((inv) => {
+      const total = inv.totalAmount?.toNumber() ?? 0;
+      const paid = inv.paidAmount?.toNumber() ?? 0;
+      return {
+        invoiceNumber: inv.invoiceNumber,
+        tenant: inv.tenant?.companyName || `${inv.tenant?.firstName || ''} ${inv.tenant?.lastName || ''}`.trim() || '—',
+        property: inv.property?.name || '—',
+        unit: inv.unit?.unitNumber || '—',
+        total: `$${total.toLocaleString()}`,
+        paid: `$${paid.toLocaleString()}`,
+        outstanding: `$${(total - paid).toLocaleString()}`,
+        dueDate: new Date(inv.dueDate).toISOString().split('T')[0],
+        daysOverdue: String(Math.ceil((now.getTime() - new Date(inv.dueDate).getTime()) / 86400000)),
+        status: inv.status.replace(/_/g, ' '),
+      };
+    }),
+    total: invoices.length,
+    navigateTo: '/admin/billing/invoices',
+  };
+}
+
+async function drillMaintenanceTrend(params: DrillDownParams): Promise<DrillDownResult> {
+  // Show tickets from the last 6 months
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  const tickets = await prisma.maintenanceTicket.findMany({
+    where: {
+      companyId: params.companyId,
+      createdAt: { gte: sixMonthsAgo },
+    },
+    select: {
+      ticketNumber: true,
+      title: true,
+      status: true,
+      priority: true,
+      createdAt: true,
+      resolvedAt: true,
+      category: { select: { name: true } },
+      property: { select: { name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    title: 'Maintenance Trend — Last 6 Months',
+    columns: [
+      { key: 'ticketNumber', label: 'Ticket #' },
+      { key: 'title', label: 'Title' },
+      { key: 'category', label: 'Category' },
+      { key: 'priority', label: 'Priority' },
+      { key: 'status', label: 'Status' },
+      { key: 'property', label: 'Property' },
+      { key: 'created', label: 'Created' },
+      { key: 'resolved', label: 'Resolved' },
+    ],
+    rows: tickets.map((t) => ({
+      ticketNumber: t.ticketNumber,
+      title: t.title || '—',
+      category: t.category?.name || '—',
+      priority: t.priority || '—',
+      status: (t.status || '—').replace(/_/g, ' '),
+      property: t.property?.name || '—',
+      created: new Date(t.createdAt).toISOString().split('T')[0],
+      resolved: t.resolvedAt ? new Date(t.resolvedAt).toISOString().split('T')[0] : '—',
+    })),
+    total: tickets.length,
+    navigateTo: '/admin/maintenance/tickets',
   };
 }
 
@@ -618,14 +717,14 @@ const DRILL_PROVIDERS: Record<string, (params: DrillDownParams) => Promise<Drill
   revenue_mtd: drillRevenueMtd,
   revenue_ytd: drillRevenueMtd,
   collection_rate: drillCollectionRate,
-  overdue_invoices: () => drillNotImplemented('Overdue Invoices'),
+  overdue_invoices: drillOverdueInvoices,
   maintenance_open: drillMaintenanceOpen,
   maintenance_sla: drillMaintenanceSla,
   pending_tasks: drillPendingTasks,
   active_workflows: drillActiveWorkflows,
   documents_expiring: drillDocumentsExpiring,
   vacancy_trend: drillVacancyTrend,
-  maintenance_trend: () => drillNotImplemented('Maintenance Trend'),
+  maintenance_trend: drillMaintenanceTrend,
   revenue_by_property: drillRevenueByProperty,
   unit_status_breakdown: drillUnitStatus,
   tickets_by_category: drillTicketsByCategory,

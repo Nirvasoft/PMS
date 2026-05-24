@@ -87,28 +87,59 @@ async function revenueYtd(params: WidgetDataParams) {
   };
 }
 
-async function collectionRate(_params: WidgetDataParams) {
-  // No invoicing module yet — derive from lease data
-  const leases = await prisma.lease.findMany({
-    where: { status: 'active' },
-    select: { rentAmount: true },
+async function collectionRate(params: WidgetDataParams) {
+  const where: Record<string, unknown> = {
+    status: { notIn: ['draft', 'void'] },
+  };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const invoices = await prisma.invoice.findMany({
+    where,
+    select: { totalAmount: true, paidAmount: true },
   });
-  const totalBilled = leases.reduce((s, l) => s + (l.rentAmount?.toNumber() ?? 0), 0);
-  // Simulate 92% collection for now (no actual payment tracking yet)
-  const rate = leases.length > 0 ? 92 : 0;
+
+  const totalBilled = invoices.reduce((s, i) => s + (i.totalAmount?.toNumber() ?? 0), 0);
+  const totalCollected = invoices.reduce((s, i) => s + (i.paidAmount?.toNumber() ?? 0), 0);
+  const rate = totalBilled > 0 ? +((totalCollected / totalBilled) * 100).toFixed(1) : 0;
 
   return {
     type: 'gauge', label: 'Collection Rate', value: rate, unit: '%',
-    target: 95, breakdown: { collected: Math.round(totalBilled * 0.92), billed: Math.round(totalBilled) },
+    target: 95,
+    breakdown: { collected: Math.round(totalCollected), billed: Math.round(totalBilled) },
   };
 }
 
-async function overdueInvoices(_params: WidgetDataParams) {
-  // No invoicing module — return 0 with note
+async function overdueInvoices(params: WidgetDataParams) {
+  const now = new Date();
+  const where: Record<string, unknown> = {
+    status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
+    dueDate: { lt: now },
+  };
+  if (params.companyId) where.companyId = params.companyId;
+
+  const invoices = await prisma.invoice.findMany({
+    where,
+    select: { totalAmount: true, paidAmount: true, dueDate: true },
+  });
+
+  const count = invoices.length;
+  const totalOverdue = invoices.reduce((s, i) =>
+    s + ((i.totalAmount?.toNumber() ?? 0) - (i.paidAmount?.toNumber() ?? 0)), 0);
+
+  // Average days overdue
+  const avgDays = count > 0
+    ? Math.round(invoices.reduce((s, i) =>
+        s + Math.ceil((now.getTime() - new Date(i.dueDate).getTime()) / 86400000), 0) / count)
+    : 0;
+
   return {
-    type: 'kpi_card', label: 'Overdue Invoices', value: 0, unit: '',
-    trend: { direction: 'flat', changePercent: 0, label: 'Invoicing module pending' },
-    breakdown: { totalAmount: 0, averageDays: 0 },
+    type: 'kpi_card', label: 'Overdue Invoices', value: count, unit: '',
+    trend: {
+      direction: count > 0 ? 'up' : 'flat',
+      changePercent: 0,
+      label: count === 0 ? 'All invoices current' : `$${Math.round(totalOverdue).toLocaleString()} outstanding`,
+    },
+    breakdown: { totalAmount: Math.round(totalOverdue), averageDays: avgDays },
   };
 }
 
