@@ -85,7 +85,7 @@ class MallService {
         companyId,
         propertyId,
         isActive: true,
-        shopProfiles: { none: {} }, // units without any shop profile
+        shopProfile: { is: null }, // units without a shop profile
       },
       select: {
         id: true,
