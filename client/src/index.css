@@ -8084,8 +8084,9 @@ textarea.form-input {
 
 /* ── Detail Drawer ── */
 .shop-detail-overlay {
-  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
-  z-index: 1000; display: flex; justify-content: flex-end;
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  z-index: 9999; display: flex; justify-content: flex-end;
   animation: mallFadeIn 0.2s ease;
 }
 .shop-detail-drawer {

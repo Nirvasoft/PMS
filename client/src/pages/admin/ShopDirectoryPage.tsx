@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useGetShopsQuery, useGetTenantMixQuery, useUpsertShopProfileMutation,
 } from '../../store/api/mallApi';
@@ -342,7 +343,7 @@ export default function ShopDirectoryPage() {
       )}
 
       {/* ── Detail Drawer ── */}
-      {detailShop && !showForm && (
+      {detailShop && !showForm && createPortal(
         <div className="shop-detail-overlay" onClick={closeDetail}>
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()}>
             <div className="shop-detail-header">
@@ -490,10 +491,10 @@ export default function ShopDirectoryPage() {
             )}
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ── Edit Modal ── */}
-      {showForm && (
+      {showForm && createPortal(
         <div className="mall-modal-overlay" onClick={() => setShowForm(false)}>
           <div className="shop-edit-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
@@ -577,7 +578,7 @@ export default function ShopDirectoryPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
