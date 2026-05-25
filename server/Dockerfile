@@ -86,11 +86,5 @@ RUN mkdir -p uploads/documents uploads/avatars uploads/logos uploads/leases
 
 EXPOSE 3000
 
-# Startup script: resolve failed migrations, apply pending, then start server
-CMD ["sh", "-c", "\
-  echo '=== Resolving any failed migrations ===' && \
-  npx prisma migrate resolve --rolled-back 20260521153900_add_journal_check_constraint 2>/dev/null; \
-  echo '=== Running prisma migrate deploy ===' && \
-  npx prisma migrate deploy && \
-  echo '=== Starting server ===' && \
-  node dist/index.js"]
+# Start the server (run migrations manually via DO Console if needed)
+CMD ["node", "dist/index.js"]
