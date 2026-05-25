@@ -86,6 +86,6 @@ RUN mkdir -p uploads/documents uploads/avatars uploads/logos uploads/leases
 
 EXPOSE 3000
 
-# Reset DB (drops all tables, re-applies all migrations from scratch), then start server
-# NOTE: Remove the reset line after first successful deploy and switch to migrate deploy
-CMD ["sh", "-c", "echo '=== Resetting database ===' && npx prisma migrate reset --force --skip-seed && echo '=== Starting server ===' && node dist/index.js"]
+# Use db push to sync schema directly (bypasses migration history issues)
+# NOTE: After first successful deploy, switch to: prisma migrate deploy
+CMD ["sh", "-c", "echo '=== Syncing database schema ===' && npx prisma db push --accept-data-loss 2>&1 && echo '=== Starting server ===' && node dist/index.js"]
