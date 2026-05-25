@@ -35,7 +35,7 @@ export const config = {
   },
 
   redis: {
-    url: optionalEnv('REDIS_URL', 'redis://localhost:6379'),
+    url: optionalEnv('REDIS_URL', ''),
     prefix: optionalEnv('REDIS_PREFIX', 'pms:'),
   },
 

@@ -5,7 +5,7 @@ import { branchesService } from './services/branches.service';
 import { regionsService } from './services/regions.service';
 import { businessUnitsService } from './services/business-units.service';
 import { propertiesService } from './services/properties.service';
-import { logoUpload, getFileUrl } from '../../common/upload';
+import { logoUpload, saveUploadedFileToSpaces } from '../../common/upload';
 import { prisma } from '../../common/database';
 import { invalidateFeatureFlagCache } from '../../common/featureFlags';
 
@@ -40,7 +40,7 @@ companyRouter.put('/settings', asyncHandler(async (req: Request, res: Response) 
 // Logo upload
 companyRouter.post('/logo', logoUpload.single('logo'), asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) { res.status(400).json({ success: false, errors: [{ message: 'No file uploaded' }] }); return; }
-  const logoUrl = getFileUrl('logos', req.file.filename);
+  const logoUrl = await saveUploadedFileToSpaces(req.file, 'logos');
   await prisma.company.update({ where: { id: req.user!.companyId }, data: { logoUrl } });
   res.json({ success: true, data: { logoUrl } });
 }));

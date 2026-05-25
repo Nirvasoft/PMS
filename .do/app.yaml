@@ -1,0 +1,106 @@
+name: pms
+region: sgp1
+
+services:
+  - name: server
+    github:
+      repo: Nirvasoft/PMS
+      branch: main
+      deploy_on_push: true
+    source_dir: server
+    dockerfile_path: server/Dockerfile
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: professional-xs
+    routes:
+      - path: /api
+      - path: /uploads
+      - path: /seed-photos
+      - path: /storage
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: "${pms-db.DATABASE_URL}"
+        type: SECRET
+      - key: JWT_SECRET
+        type: SECRET
+        value: "CHANGE_ME_GENERATE_WITH_openssl_rand_hex_64"
+      - key: JWT_MFA_SECRET
+        type: SECRET
+        value: "CHANGE_ME_GENERATE_WITH_openssl_rand_hex_64"
+      - key: ENCRYPTION_KEY
+        type: SECRET
+        value: "CHANGE_ME_GENERATE_WITH_openssl_rand_hex_32"
+      - key: FRONTEND_URL
+        value: ${APP_URL}
+      - key: JWT_ACCESS_EXPIRY
+        value: "900"
+      - key: JWT_REFRESH_EXPIRY
+        value: "86400"
+      - key: JWT_REFRESH_EXPIRY_LONG
+        value: "2592000"
+      - key: JWT_MFA_EXPIRY
+        value: "300"
+      - key: ENCRYPTION_IV_LENGTH
+        value: "16"
+      - key: PORT
+        value: "3000"
+      - key: HIBP_CHECK_ENABLED
+        value: "true"
+      - key: MAX_UPLOAD_SIZE
+        value: "524288000"
+      - key: UPLOAD_PATH
+        value: "uploads/documents"
+      # ── DigitalOcean Spaces (S3-compatible) ──
+      - key: STORAGE_PROVIDER
+        value: "spaces"
+      - key: DO_SPACES_KEY
+        type: SECRET
+        value: "PASTE_YOUR_SPACES_ACCESS_KEY"
+      - key: DO_SPACES_SECRET
+        type: SECRET
+        value: "PASTE_YOUR_SPACES_SECRET"
+      - key: DO_SPACES_ENDPOINT
+        value: "https://sgp1.digitaloceanspaces.com"
+      - key: DO_SPACES_BUCKET
+        value: "pms-uploads"
+      - key: DO_SPACES_CDN_URL
+        value: "https://pms-uploads.sgp1.cdn.digitaloceanspaces.com"
+      # ── SMTP ──
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        type: SECRET
+        value: "PASTE_YOUR_EMAIL"
+      - key: SMTP_PASS
+        type: SECRET
+        value: "PASTE_YOUR_APP_PASSWORD"
+      - key: SMTP_FROM
+        value: "PMS System <no-reply@yourcompany.com>"
+
+static_sites:
+  - name: client
+    github:
+      repo: Nirvasoft/PMS
+      branch: main
+      deploy_on_push: true
+    source_dir: client
+    build_command: npm ci && npm run build
+    output_dir: dist
+    index_document: index.html
+    error_document: index.html
+    routes:
+      - path: /
+    envs:
+      - key: VITE_API_URL
+        value: "/api/v1"
+
+databases:
+  - name: pms-db
+    engine: PG
+    version: "16"
+    production: false
+    cluster_name: db-postgresql-sgp1-pms1

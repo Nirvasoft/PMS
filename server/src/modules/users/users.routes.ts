@@ -5,7 +5,7 @@ import { rolesService } from './services/roles.service';
 import { permissionsService } from './services/permissions.service';
 import { departmentsService } from './services/departments.service';
 import { positionsService } from './services/positions.service';
-import { avatarUpload, getFileUrl } from '../../common/upload';
+import { avatarUpload, getFileUrl, saveUploadedFileToSpaces } from '../../common/upload';
 import { prisma } from '../../common/database';
 
 /** Helper to extract route param as string */
@@ -63,7 +63,7 @@ usersRouter.post('/:id/reset-password', asyncHandler(async (req: Request, res: R
 // Avatar upload
 usersRouter.post('/:id/avatar', avatarUpload.single('avatar'), asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) { res.status(400).json({ success: false, errors: [{ message: 'No file uploaded' }] }); return; }
-  const avatarUrl = getFileUrl('avatars', req.file.filename);
+  const avatarUrl = await saveUploadedFileToSpaces(req.file, 'avatars');
   await prisma.userProfile.update({ where: { userId: param(req, 'id') }, data: { avatarUrl } });
   res.json({ success: true, data: { avatarUrl } });
 }));

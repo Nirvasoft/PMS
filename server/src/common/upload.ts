@@ -3,10 +3,11 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { isSpacesEnabled, uploadToSpaces, getSpacesCdnUrl } from './spaces';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
-// Ensure upload subdirs exist
+// Ensure upload subdirs exist (for local storage)
 ['avatars', 'logos'].forEach(dir => {
   const p = path.join(UPLOAD_DIR, dir);
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
@@ -31,19 +32,29 @@ function imageFilter(_req: Express.Request, file: Express.Multer.File, cb: multe
   }
 }
 
+// In production with Spaces, use memory storage so we can upload the buffer to S3.
+// In local dev, use disk storage as before.
 export const avatarUpload = multer({
-  storage: buildStorage('avatars'),
+  storage: isSpacesEnabled() ? multer.memoryStorage() : buildStorage('avatars'),
   fileFilter: imageFilter,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
 export const logoUpload = multer({
-  storage: buildStorage('logos'),
+  storage: isSpacesEnabled() ? multer.memoryStorage() : buildStorage('logos'),
   fileFilter: imageFilter,
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
 });
 
+/**
+ * Get the URL for a file in a subdirectory.
+ * In Spaces mode, constructs the CDN URL.
+ * In local mode, returns the relative /uploads/ path.
+ */
 export function getFileUrl(subdir: string, filename: string): string {
+  if (isSpacesEnabled()) {
+    return getSpacesCdnUrl(`${subdir}/${filename}`);
+  }
   return `/uploads/${subdir}/${filename}`;
 }
 
@@ -53,12 +64,46 @@ export const memoryUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
+/**
+ * Process an avatar image (resize + convert to webp), save to storage.
+ * Supports both local filesystem and DigitalOcean Spaces.
+ */
 export async function processAvatar(buffer: Buffer): Promise<string> {
   const filename = `${crypto.randomBytes(16).toString('hex')}.webp`;
+  const processed = await sharp(buffer)
+    .resize(300, 300, { fit: 'cover' })
+    .webp({ quality: 80 })
+    .toBuffer();
+
+  if (isSpacesEnabled()) {
+    await uploadToSpaces(`avatars/${filename}`, processed, 'image/webp', { isPublic: true });
+    return getSpacesCdnUrl(`avatars/${filename}`);
+  }
+
+  // Local filesystem
   const p = path.join(UPLOAD_DIR, 'avatars', filename);
   await sharp(buffer)
     .resize(300, 300, { fit: 'cover' })
     .webp({ quality: 80 })
     .toFile(p);
   return getFileUrl('avatars', filename);
+}
+
+/**
+ * Save an uploaded file to Spaces (for routes using disk storage that need Spaces support).
+ * Call this after multer processes the file when in Spaces mode.
+ */
+export async function saveUploadedFileToSpaces(
+  file: Express.Multer.File,
+  subdir: string,
+): Promise<string> {
+  if (!isSpacesEnabled()) {
+    // Already saved to disk by multer
+    return getFileUrl(subdir, file.filename);
+  }
+
+  const filename = file.filename || `${crypto.randomBytes(16).toString('hex')}${path.extname(file.originalname)}`;
+  const buffer = file.buffer || fs.readFileSync(file.path);
+  await uploadToSpaces(`${subdir}/${filename}`, buffer, file.mimetype, { isPublic: true });
+  return getSpacesCdnUrl(`${subdir}/${filename}`);
 }
