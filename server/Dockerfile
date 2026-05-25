@@ -68,10 +68,11 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 COPY package.json package-lock.json ./
 RUN PUPPETEER_SKIP_DOWNLOAD=true npm ci --omit=dev
 
-# Copy Prisma schema + migrations + generated client
+# Copy Prisma schema + migrations + generated client + CLI
 COPY prisma ./prisma/
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # Copy compiled JavaScript
 COPY --from=builder /app/dist ./dist/
@@ -85,5 +86,11 @@ RUN mkdir -p uploads/documents uploads/avatars uploads/logos uploads/leases
 
 EXPOSE 3000
 
-# Run migrations on startup, then start the server
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# Startup script: resolve failed migrations, apply pending, then start server
+CMD ["sh", "-c", "\
+  echo '=== Resolving any failed migrations ===' && \
+  npx prisma migrate resolve --rolled-back 20260521153900_add_journal_check_constraint 2>/dev/null; \
+  echo '=== Running prisma migrate deploy ===' && \
+  npx prisma migrate deploy && \
+  echo '=== Starting server ===' && \
+  node dist/index.js"]
