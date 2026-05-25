@@ -86,5 +86,4 @@ RUN mkdir -p uploads/documents uploads/avatars uploads/logos uploads/leases
 
 EXPOSE 3000
 
-# Apply pending migrations on startup, then start the server
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["node", "dist/index.js"]
