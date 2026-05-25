@@ -86,6 +86,5 @@ RUN mkdir -p uploads/documents uploads/avatars uploads/logos uploads/leases
 
 EXPOSE 3000
 
-# Use db push to sync schema directly (bypasses migration history issues)
-# NOTE: After first successful deploy, switch to: prisma migrate deploy
-CMD ["sh", "-c", "echo '=== Syncing database schema ===' && npx prisma db push --accept-data-loss 2>&1 && echo '=== Starting server ===' && node dist/index.js"]
+# Apply pending migrations on startup, then start the server
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
