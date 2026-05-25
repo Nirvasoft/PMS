@@ -4,12 +4,15 @@
 # ═══════════════════════════════════════════════════════════
 
 # ─── Stage 1: Build ──────────────────────────────────────
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
 # Install OpenSSL (required by Prisma)
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Skip Puppeteer Chrome download during build (we use system Chromium in production)
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 # Copy package files first (layer caching)
 COPY package.json package-lock.json ./
@@ -25,7 +28,7 @@ COPY src ./src/
 RUN npm run build
 
 # ─── Stage 2: Production ─────────────────────────────────
-FROM node:20-slim
+FROM node:22-slim
 
 WORKDIR /app
 
@@ -57,12 +60,13 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 # Tell Puppeteer to use system Chromium instead of downloading its own
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Install production dependencies only
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN PUPPETEER_SKIP_DOWNLOAD=true npm ci --omit=dev
 
 # Copy Prisma schema + migrations + generated client
 COPY prisma ./prisma/
