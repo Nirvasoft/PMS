@@ -86,5 +86,6 @@ RUN mkdir -p uploads/documents uploads/avatars uploads/logos uploads/leases
 
 EXPOSE 3000
 
-# Start the server (run migrations manually via DO Console if needed)
-CMD ["node", "dist/index.js"]
+# Reset DB (drops all tables, re-applies all migrations from scratch), then start server
+# NOTE: Remove the reset line after first successful deploy and switch to migrate deploy
+CMD ["sh", "-c", "echo '=== Resetting database ===' && npx prisma migrate reset --force --skip-seed && echo '=== Starting server ===' && node dist/index.js"]
