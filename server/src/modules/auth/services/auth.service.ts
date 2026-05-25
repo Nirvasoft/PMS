@@ -22,12 +22,22 @@ export class AuthService {
     context: RequestContext,
   ): Promise<{ tokens?: AuthTokens; mfa?: MfaChallengeResponse; user?: Record<string, unknown> }> {
     const email = dto.email.toLowerCase().trim();
-    const companyCode = dto.companyCode.toUpperCase().trim();
+    const companyCode = (dto.companyCode || '').toUpperCase().trim();
 
-    // Resolve company by code (companies table is NOT RLS-protected)
-    const company = await prisma.company.findUnique({
-      where: { code: companyCode },
-    });
+    // Resolve company: if no code provided, auto-select when only one company exists
+    let company;
+    if (!companyCode) {
+      const companies = await prisma.company.findMany({ where: { isActive: true }, take: 2 });
+      if (companies.length === 1) {
+        company = companies[0];
+      } else {
+        await passwordService.dummyCompare();
+        throw AppError.invalidCredentials();
+      }
+    } else {
+      company = await prisma.company.findUnique({ where: { code: companyCode } });
+    }
+
     if (!company || !company.isActive) {
       await passwordService.dummyCompare();
       await auditService.log({
