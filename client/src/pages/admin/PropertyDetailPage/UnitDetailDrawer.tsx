@@ -9,7 +9,7 @@ import {
 import {
   X, Zap, Droplets, Wind, Star, ChevronRight, Settings2,
   Activity, Clock, Thermometer, Plus, Trash2, Pencil, Check,
-  Upload, FileImage, ExternalLink, FileText, CalendarDays,
+  Upload, FileImage, ExternalLink, FileText, CalendarDays, AlertCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './UnitDetailDrawer.css';
@@ -56,7 +56,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [addingMeter, setAddingMeter] = useState(false);
   const [meterForm, setMeterForm] = useState({ meterType: 'electricity', meterSerialNo: '', meterProvider: '', isSmartMeter: false });
 
-  const { data, isLoading } = useGetUnitQuery({ propertyId, unitId });
+  const { data, isLoading, isError, error } = useGetUnitQuery({ propertyId, unitId });
   const unit = data?.data;
 
   const [updateUnit, { isLoading: saving }] = useUpdateUnitMutation();
@@ -182,11 +182,35 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  if (isLoading || !unit) return (
+  if (isLoading) return (
     <div className="unit-drawer loading">
       <div className="drawer-spinner" />
     </div>
   );
+
+  if (isError || !unit) {
+    const errMsg = error && 'data' in error
+      ? (error.data as any)?.message || 'Unit not found'
+      : 'Failed to load unit details';
+    return (
+      <>
+        <div className="drawer-overlay" onClick={() => dispatch(closeDrawer())} />
+        <div className="unit-drawer">
+          <div className="drawer-header">
+            <div><div className="drawer-unit-no">Error</div></div>
+            <div className="drawer-header-right">
+              <button className="drawer-close" onClick={() => dispatch(closeDrawer())}><X size={18} /></button>
+            </div>
+          </div>
+          <div className="drawer-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '3rem 1.5rem', textAlign: 'center' }}>
+            <AlertCircle size={36} style={{ color: '#ef4444', opacity: 0.7 }} />
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>{errMsg}</p>
+            <button className="btn-ghost" onClick={() => dispatch(closeDrawer())} style={{ marginTop: 8 }}>Close</button>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   const transitions = STATUS_TRANSITIONS[unit.status] || [];
   const statusStyle = STATUS_COLORS[unit.status] || '#95a5a6';

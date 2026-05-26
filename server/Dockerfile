@@ -86,4 +86,5 @@ RUN mkdir -p uploads/documents uploads/avatars uploads/logos uploads/leases
 
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+# Auto-migrate database schema, then start server
+CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss && node dist/index.js"]
