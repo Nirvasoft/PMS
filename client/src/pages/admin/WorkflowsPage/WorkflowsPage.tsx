@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   useGetDefinitionsQuery, useCreateDefinitionMutation, usePublishDefinitionMutation,
   useDeprecateDefinitionMutation, useDeleteDefinitionMutation,
@@ -214,10 +214,20 @@ function InstancesTab() {
             )}
             {inst.status === 'running' && (
               <div className="wf-instance-actions" onClick={(e) => e.stopPropagation()}>
+                <Link to={`/admin/workflows/instances/${inst.id}`} className="btn btn-sm">
+                  View
+                </Link>
                 <button className="btn btn-sm btn-danger" onClick={() => {
                   setCancelModal({ id: inst.id, name: inst.definition.name });
                   setCancelReason('');
                 }}>Cancel</button>
+              </div>
+            )}
+            {inst.status !== 'running' && (
+              <div className="wf-instance-actions" onClick={(e) => e.stopPropagation()}>
+                <Link to={`/admin/workflows/instances/${inst.id}`} className="btn btn-sm">
+                  View
+                </Link>
               </div>
             )}
           </div>
@@ -301,7 +311,12 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
     <div className="wf-detail-panel">
       <div className="wf-detail-header">
         <h3>Instance Detail</h3>
-        <button className="btn-icon" onClick={onClose}>✕</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Link to={`/admin/workflows/instances/${id}`} className="btn btn-sm">
+            Open Full Page →
+          </Link>
+          <button className="btn-icon" onClick={onClose}>✕</button>
+        </div>
       </div>
 
       <div className="wf-detail-section">

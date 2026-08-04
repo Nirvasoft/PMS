@@ -56,6 +56,7 @@ import BankAccountsPage from './pages/admin/BankingPage/BankAccountsPage';
 import ReconciliationPage from './pages/admin/BankingPage/ReconciliationPage';
 import WorkflowsPage from './pages/admin/WorkflowsPage/WorkflowsPage';
 import DesignerPage from './pages/admin/WorkflowsPage/DesignerPage';
+import WorkflowInstancePage from './pages/admin/WorkflowInstancePage/WorkflowInstancePage';
 import MyTasksPage from './pages/admin/MyTasksPage/MyTasksPage';
 import UserDetailPage from './pages/admin/UserDetailPage/UserDetailPage';
 import NotificationsPage from './pages/NotificationsPage/NotificationsPage';
@@ -276,6 +277,7 @@ function AppRoutes() {
           <Route path="/admin/security/incidents" element={<SecurityIncidentsPage />} />
           <Route path="/admin/security/patrol" element={<PatrolLogsPage />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
+          <Route path="/admin/workflows/instances/:id" element={<WorkflowInstancePage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />
           <Route path="/tasks" element={<MyTasksPage />} />
           <Route path="/settings/security" element={<SecuritySettingsPage />} />

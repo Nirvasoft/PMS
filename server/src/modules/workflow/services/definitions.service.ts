@@ -135,6 +135,9 @@ export class DefinitionsService {
       throw AppError.validation('Graph must have nodes and edges');
     }
 
+    const nodeIds = new Set(nodes.map((n) => n.id));
+
+    // ── 1. Structural checks ─────────────────
     const startNodes = nodes.filter((n) => n.type === 'start');
     const endNodes = nodes.filter((n) => n.type === 'end');
     if (startNodes.length !== 1) throw AppError.validation('Graph must have exactly one start node');
@@ -145,7 +148,7 @@ export class DefinitionsService {
       if (node.type === 'end') continue;
       const outEdges = edges.filter((e) => e.source === node.id);
       if (outEdges.length === 0) {
-        throw AppError.validation(`Node "${node.id}" has no outgoing edges`);
+        throw AppError.validation(`Node "${node.data?.name || node.id}" has no outgoing edges`);
       }
     }
 
@@ -154,24 +157,130 @@ export class DefinitionsService {
       if (node.type === 'start') continue;
       const inEdges = edges.filter((e) => e.target === node.id);
       if (inEdges.length === 0) {
-        throw AppError.validation(`Node "${node.id}" has no incoming edges`);
+        throw AppError.validation(`Node "${node.data?.name || node.id}" has no incoming edges`);
       }
     }
 
-    // Approval nodes must have assignTo
+    // Edges must reference valid nodes
+    for (const edge of edges) {
+      if (!nodeIds.has(edge.source)) {
+        throw AppError.validation(`Edge "${edge.id}" references non-existent source node "${edge.source}"`);
+      }
+      if (!nodeIds.has(edge.target)) {
+        throw AppError.validation(`Edge "${edge.id}" references non-existent target node "${edge.target}"`);
+      }
+    }
+
+    // ── 2. Node-type-specific validation ─────
     for (const node of nodes) {
       if (node.type === 'approval' && !node.data?.assignTo) {
-        throw AppError.validation(`Approval node "${node.id}" must have assignTo`);
+        throw AppError.validation(`Approval node "${node.data?.name || node.id}" must have assignTo`);
+      }
+      if (node.type === 'condition') {
+        if (!node.data?.trueEdge || !node.data?.falseEdge) {
+          throw AppError.validation(`Condition node "${node.data?.name || node.id}" must have trueEdge and falseEdge`);
+        }
+      }
+      if (node.type === 'delay') {
+        const h = node.data?.delayHours;
+        if (h == null || h <= 0) {
+          throw AppError.validation(`Delay node "${node.data?.name || node.id}" must have delayHours > 0`);
+        }
       }
     }
 
-    // Condition nodes must have trueEdge and falseEdge
-    for (const node of nodes) {
-      if (node.type === 'condition') {
-        if (!node.data?.trueEdge || !node.data?.falseEdge) {
-          throw AppError.validation(`Condition node "${node.id}" must have trueEdge and falseEdge`);
+    // ── 3. Cycle detection (DFS) ─────────────
+    // Build adjacency list
+    const adj = new Map<string, string[]>();
+    for (const n of nodes) adj.set(n.id, []);
+    for (const e of edges) adj.get(e.source)?.push(e.target);
+
+    const WHITE = 0, GRAY = 1, BLACK = 2;
+    const color = new Map<string, number>();
+    for (const n of nodes) color.set(n.id, WHITE);
+
+    const cyclePath: string[] = [];
+
+    const dfs = (nodeId: string): boolean => {
+      color.set(nodeId, GRAY);
+      cyclePath.push(nodeId);
+
+      for (const neighbor of (adj.get(nodeId) ?? [])) {
+        if (color.get(neighbor) === GRAY) {
+          // Found a back edge → cycle
+          cyclePath.push(neighbor);
+          return true;
+        }
+        if (color.get(neighbor) === WHITE && dfs(neighbor)) {
+          return true;
         }
       }
+
+      cyclePath.pop();
+      color.set(nodeId, BLACK);
+      return false;
+    };
+
+    for (const n of nodes) {
+      if (color.get(n.id) === WHITE && dfs(n.id)) {
+        // Extract the cycle from the path
+        const cycleStart = cyclePath[cyclePath.length - 1];
+        const cycleStartIdx = cyclePath.indexOf(cycleStart);
+        const cycle = cyclePath.slice(cycleStartIdx);
+        const nodeLabels = cycle.map((id) => {
+          const nd = nodes.find((n) => n.id === id);
+          return nd?.data?.name || id;
+        });
+        throw AppError.validation(
+          `Cycle detected: ${nodeLabels.join(' → ')}. Workflows must not contain loops.`
+        );
+      }
+    }
+
+    // ── 4. Reachability from start ───────────
+    const reachableFromStart = new Set<string>();
+    const bfs = (startId: string, adjacency: Map<string, string[]>) => {
+      const visited = new Set<string>();
+      const queue = [startId];
+      visited.add(startId);
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        for (const neighbor of (adjacency.get(current) ?? [])) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push(neighbor);
+          }
+        }
+      }
+      return visited;
+    };
+
+    const forwardReachable = bfs('start', adj);
+    for (const node of nodes) {
+      if (!forwardReachable.has(node.id)) {
+        throw AppError.validation(
+          `Node "${node.data?.name || node.id}" is unreachable from start. Remove it or connect it to the workflow.`
+        );
+      }
+    }
+
+    // ── 5. Reachability to end ───────────────
+    // Build reverse adjacency
+    const reverseAdj = new Map<string, string[]>();
+    for (const n of nodes) reverseAdj.set(n.id, []);
+    for (const e of edges) reverseAdj.get(e.target)?.push(e.source);
+
+    // BFS backward from each end node
+    const reachableToEnd = new Set<string>();
+    for (const endNode of endNodes) {
+      const reached = bfs(endNode.id, reverseAdj);
+      for (const id of reached) reachableToEnd.add(id);
+    }
+
+    if (!reachableToEnd.has('start')) {
+      throw AppError.validation(
+        'No path from start to any end node. The workflow can never complete.'
+      );
     }
   }
 }
