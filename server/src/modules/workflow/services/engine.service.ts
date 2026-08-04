@@ -376,6 +376,7 @@ export class WorkflowEngine {
             assignee: { include: { profile: { select: { firstName: true, lastName: true } } } },
             delegatee: { include: { profile: { select: { firstName: true, lastName: true } } } },
             completer: { include: { profile: { select: { firstName: true, lastName: true } } } },
+            escalator: { include: { profile: { select: { firstName: true, lastName: true } } } },
           },
           orderBy: { createdAt: 'asc' },
         },

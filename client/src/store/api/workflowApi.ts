@@ -45,9 +45,11 @@ export interface WorkflowTask {
   delegatedTo: string | null; status: string; decision: string | null;
   comments: string | null; slaDueAt: string | null;
   slaBreached: boolean; completedAt: string | null;
+  remindedAt: string | null;
+  escalatedAt: string | null; escalatedTo: string | null;
   createdAt: string; minutesUntilSla: number | null;
   assignee: UserRef | null; delegatee: UserRef | null;
-  completer: UserRef | null;
+  completer: UserRef | null; escalator: UserRef | null;
   instance?: {
     id: string; entityType: string; entityId: string; status: string;
     context: Record<string, unknown>;

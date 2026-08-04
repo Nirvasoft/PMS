@@ -265,15 +265,38 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
         <h4>Tasks ({inst.tasks.length})</h4>
         {inst.tasks.map((t) => {
           const nm = t.assignee?.profile;
+          const escNm = t.escalator?.profile;
           return (
-            <div key={t.id} className="wf-task-item">
-              <span className={`status-badge ${t.status === 'pending' ? 'active' : t.status === 'approved' ? 'active' : 'danger'}`}>
-                {t.status}
-              </span>
-              <span><strong>{t.title}</strong></span>
-              <span className="text-muted text-small">
-                → {nm ? `${nm.firstName} ${nm.lastName}` : 'Unassigned'}
-              </span>
+            <div key={t.id} className={`wf-task-item ${t.slaBreached ? 'sla-breached' : ''}`}>
+              <div className="wf-task-item-row">
+                <span className={`status-badge ${t.status === 'pending' ? 'active' : t.status === 'approved' ? 'active' : 'danger'}`}>
+                  {t.status}
+                </span>
+                <span><strong>{t.title}</strong></span>
+                <span className="text-muted text-small">
+                  → {nm ? `${nm.firstName} ${nm.lastName}` : 'Unassigned'}
+                </span>
+              </div>
+              {t.slaBreached && (
+                <div className="wf-task-sla-info">
+                  <span className="sla-chip breached">
+                    {t.escalatedAt ? '🔺 Escalated' : '⚠️ SLA Breached'}
+                  </span>
+                  {escNm && (
+                    <span className="text-small text-muted">
+                      → Escalated to <strong>{escNm.firstName} {escNm.lastName}</strong>
+                      {t.escalatedAt && ` · ${new Date(t.escalatedAt).toLocaleString()}`}
+                    </span>
+                  )}
+                </div>
+              )}
+              {t.slaDueAt && !t.slaBreached && t.status === 'pending' && (
+                <div className="wf-task-sla-info">
+                  <span className={`sla-chip ${t.remindedAt ? 'reminded' : 'normal'}`}>
+                    ⏳ Due: {new Date(t.slaDueAt).toLocaleString()}
+                  </span>
+                </div>
+              )}
               {t.comments && <span className="text-small text-muted">"{t.comments}"</span>}
             </div>
           );

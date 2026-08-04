@@ -277,6 +277,7 @@ model User {
   assignedTasks       WorkflowTask[]          @relation("WfTaskAssignee")
   delegatedTasks      WorkflowTask[]          @relation("WfTaskDelegatee")
   completedTasks      WorkflowTask[]          @relation("WfTaskCompleter")
+  escalatedToTasks    WorkflowTask[]          @relation("WfTaskEscalator")
   wfHistoryActions    WorkflowHistory[]       @relation("WfHistoryPerformer")
 
   // Relations — Notifications (Module 1.5)
@@ -1788,6 +1789,9 @@ model WorkflowTask {
   comments      String?   @db.Text
   slaDueAt      DateTime? @map("sla_due_at") @db.Timestamptz
   slaBreached   Boolean   @default(false) @map("sla_breached")
+  remindedAt    DateTime? @map("reminded_at") @db.Timestamptz
+  escalatedAt   DateTime? @map("escalated_at") @db.Timestamptz
+  escalatedTo   String?   @map("escalated_to") @db.Uuid
   completedAt   DateTime? @map("completed_at") @db.Timestamptz
   completedBy   String?   @map("completed_by") @db.Uuid
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -1796,10 +1800,12 @@ model WorkflowTask {
   assignee      User?            @relation("WfTaskAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
   delegatee     User?            @relation("WfTaskDelegatee", fields: [delegatedTo], references: [id], onDelete: SetNull)
   completer     User?            @relation("WfTaskCompleter", fields: [completedBy], references: [id], onDelete: SetNull)
+  escalator     User?            @relation("WfTaskEscalator", fields: [escalatedTo], references: [id], onDelete: SetNull)
   historyItems  WorkflowHistory[]
 
   @@index([assignedTo, status])
   @@index([instanceId])
+  @@index([slaDueAt], map: "idx_wf_tasks_sla")
   @@map("workflow_tasks")
 }
 

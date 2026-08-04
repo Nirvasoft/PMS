@@ -89,9 +89,12 @@ export default function MyTasksPage() {
             const delegateeName = t.delegatee?.profile
               ? `${t.delegatee.profile.firstName} ${t.delegatee.profile.lastName}`
               : null;
+            const escalatorName = t.escalator?.profile
+              ? `${t.escalator.profile.firstName} ${t.escalator.profile.lastName}`
+              : null;
 
             return (
-              <div key={t.id} className={`task-card ${t.status === 'pending' ? '' : 'completed'}`}>
+              <div key={t.id} className={`task-card ${t.status === 'pending' ? '' : 'completed'} ${slaBreached ? 'sla-breached' : ''}`}>
                 <div className="task-card-header">
                   <div className="task-card-info">
                     <h3>{t.title}</h3>
@@ -105,10 +108,12 @@ export default function MyTasksPage() {
                       {t.status}
                     </span>
                     {t.slaDueAt && t.status === 'pending' && (
-                      <span className={`sla-chip ${slaBreached ? 'breached' : slaUrgent ? 'urgent' : 'normal'}`}>
-                        {slaBreached ? '⚠️ SLA Breached' :
-                          slaUrgent ? `⏰ ${slaMinutes}m left` :
-                            `⏳ ${Math.round((slaMinutes ?? 0) / 60)}h left`}
+                      <span className={`sla-chip ${slaBreached ? 'breached' : slaUrgent ? 'urgent' : t.remindedAt ? 'reminded' : 'normal'}`}>
+                        {slaBreached
+                          ? (t.escalatedAt ? '🔺 Escalated' : '⚠️ SLA Breached')
+                          : slaUrgent
+                            ? `⏰ ${slaMinutes}m left`
+                            : `⏳ ${Math.round((slaMinutes ?? 0) / 60)}h left`}
                       </span>
                     )}
                   </div>
@@ -122,6 +127,12 @@ export default function MyTasksPage() {
                     <span className="delegate-badge">
                       <ArrowRightLeft size={12} />
                       Delegated to <strong>{delegateeName}</strong>
+                    </span>
+                  )}
+                  {escalatorName && t.escalatedAt && (
+                    <span className="escalation-badge">
+                      🔺 Escalated to <strong>{escalatorName}</strong>
+                      <span className="text-muted text-small"> · {new Date(t.escalatedAt).toLocaleString()}</span>
                     </span>
                   )}
                   {t.comments && <span className="text-small task-comment">💬 "{t.comments}"</span>}

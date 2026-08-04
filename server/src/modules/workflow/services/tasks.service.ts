@@ -29,6 +29,7 @@ export class TasksService {
           },
           assignee: { include: { profile: { select: { firstName: true, lastName: true } } } },
           delegatee: { include: { profile: { select: { firstName: true, lastName: true } } } },
+          escalator: { include: { profile: { select: { firstName: true, lastName: true } } } },
         },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         skip: (page - 1) * limit,

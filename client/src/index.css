@@ -3315,9 +3315,63 @@ select.input-full:focus {
   color: var(--error);
 }
 
+.sla-chip.reminded {
+  background: rgba(251, 191, 36, 0.1);
+  color: #d97706;
+}
+
 @keyframes sla-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+
+/* ─── SLA Escalation UI ────────────────────── */
+
+.task-card.sla-breached {
+  border-left-color: var(--error);
+  background: linear-gradient(135deg, var(--surface), rgba(239, 68, 68, 0.03));
+}
+
+.escalation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  padding: 3px 10px;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.wf-task-item.sla-breached {
+  border-left: 3px solid var(--error);
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.wf-task-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wf-task-sla-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.wf-timeline-dot[data-action="sla_breach"] {
+  background: var(--error);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
+.wf-timeline-dot[data-action="notification_sent"] {
+  background: var(--info, #3b82f6);
 }
 
 /* ─── Delegate UI ───────────────────────────── */
