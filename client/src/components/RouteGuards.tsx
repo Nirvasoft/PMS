@@ -33,3 +33,43 @@ export function PublicRoute() {
   }
   return <Outlet />;
 }
+
+/**
+ * Route-level permission guard. Wraps a group of <Route> children.
+ * If the user lacks the required permission(s), shows an Access Denied page.
+ *
+ * Usage in App.tsx:
+ *   <Route element={<RequirePermission permission="users.read" />}>
+ *     <Route path="/admin/users" element={<UsersPage />} />
+ *   </Route>
+ */
+export function RequirePermission({
+  permission,
+  requireAll = false,
+}: {
+  permission: string | string[];
+  requireAll?: boolean;
+}) {
+  const permissions = useAppSelector((s) => s.auth.user?.permissions ?? []);
+  const perms = Array.isArray(permission) ? permission : [permission];
+  const hasAccess = requireAll
+    ? perms.every((p) => permissions.includes(p))
+    : perms.some((p) => permissions.includes(p));
+
+  if (!hasAccess) {
+    return (
+      <div className="page-content">
+        <div className="info-card" style={{ textAlign: 'center', padding: 60 }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+          <h2>Access Denied</h2>
+          <p className="text-muted">You don't have permission to access this page.</p>
+          <p className="text-small text-muted" style={{ marginTop: 8 }}>
+            Required: <code>{perms.join(', ')}</code>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return <Outlet />;
+}

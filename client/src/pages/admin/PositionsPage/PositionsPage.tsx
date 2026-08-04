@@ -12,7 +12,7 @@ export default function PositionsPage() {
   const departments = deptData?.data || [];
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', level: 1, departmentId: '' });
+  const [form, setForm] = useState({ name: '', level: 1, departmentId: '', canApprove: false, approvalLimit: '' });
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,9 +21,11 @@ export default function PositionsPage() {
         name: form.name,
         level: form.level,
         ...(form.departmentId ? { departmentId: form.departmentId } : {}),
+        canApprove: form.canApprove,
+        ...(form.approvalLimit ? { approvalLimit: parseFloat(form.approvalLimit) } : {}),
       }).unwrap();
       toast.success('Position created!');
-      setForm({ name: '', level: 1, departmentId: '' });
+      setForm({ name: '', level: 1, departmentId: '', canApprove: false, approvalLimit: '' });
       setShowForm(false);
     } catch { toast.error('Failed to create position'); }
   };
@@ -84,6 +86,19 @@ export default function PositionsPage() {
               ))}
             </select>
           </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 24 }}>
+            <input type="checkbox" id="canApprove" checked={form.canApprove}
+              onChange={e => setForm({ ...form, canApprove: e.target.checked })} />
+            <label htmlFor="canApprove" style={{ margin: 0 }}>Can Approve</label>
+          </div>
+          {form.canApprove && (
+            <div className="form-group" style={{ width: 140 }}>
+              <label>Approval Limit</label>
+              <input type="number" className="input-full" min={0} step="0.01" placeholder="No limit"
+                value={form.approvalLimit}
+                onChange={e => setForm({ ...form, approvalLimit: e.target.value })} />
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="submit" className="btn btn-primary">Create</button>
             <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
@@ -104,6 +119,7 @@ export default function PositionsPage() {
                 <th>Position Name</th>
                 <th>Level</th>
                 <th>Department</th>
+                <th>Approval</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -113,6 +129,17 @@ export default function PositionsPage() {
                   <td><strong>{p.name}</strong></td>
                   <td><span className="role-chip">Level {p.level}</span></td>
                   <td className="text-muted">{p.departmentId ? flatDepts.find(d => d.id === p.departmentId)?.name || '—' : 'All'}</td>
+                  <td>
+                    {(p as Record<string, unknown>).canApprove ? (
+                      <span className="status-badge active">
+                        ✓ {(p as Record<string, unknown>).approvalLimit
+                          ? `≤ ${Number((p as Record<string, unknown>).approvalLimit).toLocaleString()}`
+                          : 'Unlimited'}
+                      </span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
                   <td>
                     <button className="btn-icon btn-danger" onClick={() => handleDelete(p.id, p.name)}>
                       <Trash2 size={14} />

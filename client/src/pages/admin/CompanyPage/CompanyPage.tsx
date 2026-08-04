@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   useGetCompanyQuery, useUpdateCompanyMutation, useUpdateCompanySettingsMutation,
-  useGetBranchesQuery, useCreateBranchMutation, useDeleteBranchMutation,
-  useGetRegionsQuery, useCreateRegionMutation, useDeleteRegionMutation,
-  useGetBusinessUnitsQuery, useCreateBusinessUnitMutation, useDeleteBusinessUnitMutation,
+  useUploadLogoMutation, useGetCompanyHierarchyQuery,
+  useGetBranchesQuery, useCreateBranchMutation, useUpdateBranchMutation, useDeleteBranchMutation,
+  useGetRegionsQuery, useCreateRegionMutation, useUpdateRegionMutation, useDeleteRegionMutation,
+  useGetRegionPropertiesQuery, useAddRegionPropertyMutation, useRemoveRegionPropertyMutation,
+  useGetBusinessUnitsQuery, useCreateBusinessUnitMutation, useUpdateBusinessUnitMutation, useDeleteBusinessUnitMutation,
+  useGetPropertiesQuery,
 } from '../../../store/api/organizationApi';
+import { useGetUsersQuery } from '../../../store/api/usersApi';
 import toast from 'react-hot-toast';
 import { FEATURE_FLAGS } from '../../../hooks/useFeatureFlags';
 
@@ -56,6 +60,8 @@ export default function CompanyPage() {
 function GeneralTab() {
   const { data, isLoading } = useGetCompanyQuery();
   const [updateCompany, { isLoading: saving }] = useUpdateCompanyMutation();
+  const [uploadLogo, { isLoading: uploading }] = useUploadLogoMutation();
+  const fileRef = useRef<HTMLInputElement>(null);
   const company = data?.data;
 
   const [editing, setEditing] = useState(false);
@@ -90,6 +96,18 @@ function GeneralTab() {
     } catch {
       toast.error('Failed to update');
     }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Please select an image'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be less than 5MB'); return; }
+    try {
+      await uploadLogo(file).unwrap();
+      toast.success('Logo updated');
+    } catch { toast.error('Failed to upload logo'); }
+    e.target.value = '';
   };
 
   if (isLoading) return <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>;
@@ -145,7 +163,29 @@ function GeneralTab() {
       </div>
 
       <div className="org-detail-card">
-        <h3>Organization Summary</h3>
+        {/* Logo Upload */}
+        <h3>Logo & Branding</h3>
+        <div
+          className={`logo-upload-area ${uploading ? 'uploading' : ''}`}
+          onClick={() => fileRef.current?.click()}
+          title="Click to upload logo"
+        >
+          {company.logoUrl ? (
+            <img src={company.logoUrl} alt="Company Logo" className="company-logo-img" />
+          ) : (
+            <div className="logo-placeholder">
+              <span style={{ fontSize: 40 }}>🏢</span>
+              <span className="text-muted text-small">Click to upload logo</span>
+            </div>
+          )}
+          <div className="logo-upload-overlay">
+            {uploading ? '⏳ Uploading...' : '📷 Change Logo'}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+        </div>
+
+        {/* Summary Stats */}
+        <h3 style={{ marginTop: 24 }}>Organization Summary</h3>
         <div className="org-stats-mini">
           <div className="org-stat-item">
             <span className="org-stat-num">{company._count.branches}</span>
@@ -169,6 +209,7 @@ function GeneralTab() {
           </div>
         </div>
 
+        {/* Subsidiary List */}
         {company.subsidiaries.length > 0 && (
           <>
             <h4 style={{ marginTop: 20, marginBottom: 8 }}>Subsidiaries</h4>
@@ -193,15 +234,24 @@ function GeneralTab() {
 function BranchesTab() {
   const { data, isLoading } = useGetBranchesQuery();
   const [createBranch] = useCreateBranchMutation();
+  const [updateBranch] = useUpdateBranchMutation();
   const [deleteBranch] = useDeleteBranchMutation();
-  const [showCreate, setShowCreate] = useState(false);
+  const [showModal, setShowModal] = useState<'create' | string | null>(null);
   const branches = data?.data ?? [];
 
-  const handleCreate = async (form: Record<string, string>) => {
+  const editingBranch = typeof showModal === 'string' && showModal !== 'create'
+    ? branches.find(b => b.id === showModal) : null;
+
+  const handleSubmit = async (form: Record<string, string>) => {
     try {
-      await createBranch(form).unwrap();
-      toast.success('Branch created');
-      setShowCreate(false);
+      if (editingBranch) {
+        await updateBranch({ id: editingBranch.id, data: form }).unwrap();
+        toast.success('Branch updated');
+      } else {
+        await createBranch(form).unwrap();
+        toast.success('Branch created');
+      }
+      setShowModal(null);
     } catch (err: unknown) {
       const e = err as { data?: { errors?: { message: string }[] } };
       toast.error(e.data?.errors?.[0]?.message || 'Failed');
@@ -225,7 +275,7 @@ function BranchesTab() {
     <>
       <div className="toolbar">
         <span className="text-secondary">{branches.length} branch(es)</span>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Branch</button>
+        <button className="btn btn-primary" onClick={() => setShowModal('create')}>+ New Branch</button>
       </div>
 
       <div className="org-cards-grid">
@@ -248,26 +298,39 @@ function BranchesTab() {
               )}
             </div>
             <div className="org-card-actions">
+              <button className="btn btn-sm" onClick={() => setShowModal(b.id)}>Edit</button>
               <button className="btn btn-sm btn-danger" onClick={() => handleDelete(b.id, b.name)}>Delete</button>
             </div>
           </div>
         ))}
       </div>
 
-      {showCreate && (
+      {showModal && (
         <OrgFormModal
-          title="Create Branch"
+          title={editingBranch ? `Edit Branch: ${editingBranch.name}` : 'Create Branch'}
           fields={[
             { key: 'name', label: 'Branch Name', required: true },
             { key: 'code', label: 'Code (e.g. SG-HQ)' },
+            { key: 'managerId', label: 'Manager', type: 'user-select' },
             { key: 'phone', label: 'Phone' },
             { key: 'email', label: 'Email' },
             { key: 'addressLine1', label: 'Address' },
             { key: 'city', label: 'City' },
             { key: 'country', label: 'Country (2-letter)', maxLength: 2 },
           ]}
-          onClose={() => setShowCreate(false)}
-          onSubmit={handleCreate}
+          initialValues={editingBranch ? {
+            name: editingBranch.name,
+            code: editingBranch.code || '',
+            managerId: editingBranch.manager?.id || '',
+            phone: editingBranch.phone || '',
+            email: editingBranch.email || '',
+            addressLine1: editingBranch.addressLine1 || '',
+            city: editingBranch.city || '',
+            country: editingBranch.country || '',
+          } : undefined}
+          onClose={() => setShowModal(null)}
+          onSubmit={handleSubmit}
+          submitLabel={editingBranch ? 'Save' : 'Create'}
         />
       )}
     </>
@@ -279,15 +342,25 @@ function BranchesTab() {
 function RegionsTab() {
   const { data, isLoading } = useGetRegionsQuery();
   const [createRegion] = useCreateRegionMutation();
+  const [updateRegion] = useUpdateRegionMutation();
   const [deleteRegion] = useDeleteRegionMutation();
-  const [showCreate, setShowCreate] = useState(false);
+  const [showModal, setShowModal] = useState<'create' | string | null>(null);
+  const [pickerRegionId, setPickerRegionId] = useState<string | null>(null);
   const regions = data?.data ?? [];
 
-  const handleCreate = async (form: Record<string, string>) => {
+  const editingRegion = typeof showModal === 'string' && showModal !== 'create'
+    ? regions.find(r => r.id === showModal) : null;
+
+  const handleSubmit = async (form: Record<string, string>) => {
     try {
-      await createRegion(form).unwrap();
-      toast.success('Region created');
-      setShowCreate(false);
+      if (editingRegion) {
+        await updateRegion({ id: editingRegion.id, data: form }).unwrap();
+        toast.success('Region updated');
+      } else {
+        await createRegion(form).unwrap();
+        toast.success('Region created');
+      }
+      setShowModal(null);
     } catch { toast.error('Failed'); }
   };
 
@@ -297,7 +370,7 @@ function RegionsTab() {
     <>
       <div className="toolbar">
         <span className="text-secondary">{regions.length} region(s)</span>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Region</button>
+        <button className="btn btn-primary" onClick={() => setShowModal('create')}>+ New Region</button>
       </div>
 
       <div className="org-cards-grid">
@@ -313,8 +386,13 @@ function RegionsTab() {
             <div className="org-card-details">
               {r.description && <span>{r.description}</span>}
               <span>🏠 {r._count.regionProperties} properties</span>
+              {r.manager && (
+                <span>👤 {r.manager.profile ? `${r.manager.profile.firstName} ${r.manager.profile.lastName}` : 'Manager'}</span>
+              )}
             </div>
             <div className="org-card-actions">
+              <button className="btn btn-sm" onClick={() => setPickerRegionId(r.id)}>🏠 Properties</button>
+              <button className="btn btn-sm" onClick={() => setShowModal(r.id)}>Edit</button>
               <button className="btn btn-sm btn-danger" onClick={async () => {
                 if (!confirm(`Delete region "${r.name}"?`)) return;
                 try { await deleteRegion(r.id).unwrap(); toast.success('Deleted'); }
@@ -325,19 +403,108 @@ function RegionsTab() {
         ))}
       </div>
 
-      {showCreate && (
+      {showModal && (
         <OrgFormModal
-          title="Create Region"
+          title={editingRegion ? `Edit Region: ${editingRegion.name}` : 'Create Region'}
           fields={[
             { key: 'name', label: 'Region Name', required: true },
             { key: 'code', label: 'Code (e.g. SEA)' },
             { key: 'description', label: 'Description' },
+            { key: 'managerId', label: 'Manager', type: 'user-select' },
           ]}
-          onClose={() => setShowCreate(false)}
-          onSubmit={handleCreate}
+          initialValues={editingRegion ? {
+            name: editingRegion.name,
+            code: editingRegion.code || '',
+            description: editingRegion.description || '',
+            managerId: editingRegion.manager?.id || '',
+          } : undefined}
+          onClose={() => setShowModal(null)}
+          onSubmit={handleSubmit}
+          submitLabel={editingRegion ? 'Save' : 'Create'}
+        />
+      )}
+
+      {pickerRegionId && (
+        <RegionPropertyPicker
+          regionId={pickerRegionId}
+          onClose={() => setPickerRegionId(null)}
         />
       )}
     </>
+  );
+}
+
+/* ─── Region Property Picker ───────────────────── */
+
+function RegionPropertyPicker({ regionId, onClose }: { regionId: string; onClose: () => void }) {
+  const { data: regionProps, isLoading: loadingRegion } = useGetRegionPropertiesQuery(regionId);
+  const { data: allProps, isLoading: loadingAll } = useGetPropertiesQuery({ limit: '200' });
+  const [addProp] = useAddRegionPropertyMutation();
+  const [removeProp] = useRemoveRegionPropertyMutation();
+
+  const assigned = regionProps?.data ?? [];
+  const allProperties = allProps?.data ?? [];
+  const assignedIds = new Set(assigned.map(p => p.id));
+  const unassigned = allProperties.filter(p => !assignedIds.has(p.id));
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" style={{ maxWidth: 700 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Manage Region Properties</h2>
+          <button className="btn-icon" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{ maxHeight: 500, overflow: 'auto' }}>
+          {(loadingRegion || loadingAll) ? (
+            <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>
+          ) : (
+            <>
+              <h4>Assigned ({assigned.length})</h4>
+              {assigned.length === 0 ? (
+                <p className="text-muted text-small">No properties assigned to this region</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                  {assigned.map(p => (
+                    <div key={p.id} className="region-prop-row">
+                      <div>
+                        <strong>{p.name}</strong>
+                        {p.code && <span className="dept-code" style={{ marginLeft: 6 }}>{p.code}</span>}
+                        <span className="text-muted text-small" style={{ marginLeft: 8 }}>{p.city || ''}</span>
+                      </div>
+                      <button className="btn btn-sm btn-danger" onClick={async () => {
+                        try { await removeProp({ regionId, propertyId: p.id }).unwrap(); toast.success('Removed'); }
+                        catch { toast.error('Failed'); }
+                      }}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <h4>Available Properties ({unassigned.length})</h4>
+              {unassigned.length === 0 ? (
+                <p className="text-muted text-small">All properties are assigned to this region</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {unassigned.map(p => (
+                    <div key={p.id} className="region-prop-row">
+                      <div>
+                        <span>{p.name}</span>
+                        {p.code && <span className="dept-code" style={{ marginLeft: 6 }}>{p.code}</span>}
+                        <span className="text-muted text-small" style={{ marginLeft: 8 }}>{p.city || ''}</span>
+                      </div>
+                      <button className="btn btn-sm btn-primary" onClick={async () => {
+                        try { await addProp({ regionId, propertyId: p.id }).unwrap(); toast.success('Added'); }
+                        catch { toast.error('Failed'); }
+                      }}>+ Add</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -347,15 +514,24 @@ function BusinessUnitsTab() {
   const { data, isLoading } = useGetBusinessUnitsQuery();
   const { data: branchesData } = useGetBranchesQuery();
   const [createBU] = useCreateBusinessUnitMutation();
+  const [updateBU] = useUpdateBusinessUnitMutation();
   const [deleteBU] = useDeleteBusinessUnitMutation();
-  const [showCreate, setShowCreate] = useState(false);
+  const [showModal, setShowModal] = useState<'create' | string | null>(null);
   const units = data?.data ?? [];
 
-  const handleCreate = async (form: Record<string, string>) => {
+  const editingBU = typeof showModal === 'string' && showModal !== 'create'
+    ? units.find(u => u.id === showModal) : null;
+
+  const handleSubmit = async (form: Record<string, string>) => {
     try {
-      await createBU(form).unwrap();
-      toast.success('Business unit created');
-      setShowCreate(false);
+      if (editingBU) {
+        await updateBU({ id: editingBU.id, data: form }).unwrap();
+        toast.success('Business unit updated');
+      } else {
+        await createBU(form).unwrap();
+        toast.success('Business unit created');
+      }
+      setShowModal(null);
     } catch { toast.error('Failed'); }
   };
 
@@ -365,7 +541,7 @@ function BusinessUnitsTab() {
     <>
       <div className="toolbar">
         <span className="text-secondary">{units.length} business unit(s)</span>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Unit</button>
+        <button className="btn btn-primary" onClick={() => setShowModal('create')}>+ New Unit</button>
       </div>
 
       <div className="org-cards-grid">
@@ -381,8 +557,12 @@ function BusinessUnitsTab() {
             <div className="org-card-details">
               <span>📍 Branch: {bu.branch?.name || '—'}</span>
               <span>🏠 {bu._count.properties} properties</span>
+              {bu.manager && (
+                <span>👤 {bu.manager.profile ? `${bu.manager.profile.firstName} ${bu.manager.profile.lastName}` : 'Manager'}</span>
+              )}
             </div>
             <div className="org-card-actions">
+              <button className="btn btn-sm" onClick={() => setShowModal(bu.id)}>Edit</button>
               <button className="btn btn-sm btn-danger" onClick={async () => {
                 if (!confirm(`Delete "${bu.name}"?`)) return;
                 try { await deleteBU(bu.id).unwrap(); toast.success('Deleted'); }
@@ -396,16 +576,24 @@ function BusinessUnitsTab() {
         ))}
       </div>
 
-      {showCreate && (
+      {showModal && (
         <OrgFormModal
-          title="Create Business Unit"
+          title={editingBU ? `Edit: ${editingBU.name}` : 'Create Business Unit'}
           fields={[
             { key: 'name', label: 'Unit Name', required: true },
             { key: 'code', label: 'Code (e.g. BU-FIN)' },
             { key: 'branchId', label: 'Branch', type: 'select', options: branchesData?.data?.map((b) => ({ value: b.id, label: b.name })) ?? [] },
+            { key: 'managerId', label: 'Manager', type: 'user-select' },
           ]}
-          onClose={() => setShowCreate(false)}
-          onSubmit={handleCreate}
+          initialValues={editingBU ? {
+            name: editingBU.name,
+            code: editingBU.code || '',
+            branchId: editingBU.branch?.id || '',
+            managerId: editingBU.manager?.id || '',
+          } : undefined}
+          onClose={() => setShowModal(null)}
+          onSubmit={handleSubmit}
+          submitLabel={editingBU ? 'Save' : 'Create'}
         />
       )}
     </>
@@ -483,17 +671,24 @@ function InfoRow({ label, value, badge }: { label: string; value: string | null;
 
 interface FieldDef {
   key: string; label: string; required?: boolean;
-  type?: 'text' | 'select'; maxLength?: number;
+  type?: 'text' | 'select' | 'user-select'; maxLength?: number;
   options?: { value: string; label: string }[];
 }
 
-function OrgFormModal({ title, fields, onClose, onSubmit }: {
+function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitLabel }: {
   title: string; fields: FieldDef[];
   onClose: () => void; onSubmit: (form: Record<string, string>) => void;
+  initialValues?: Record<string, string>;
+  submitLabel?: string;
 }) {
   const [form, setForm] = useState<Record<string, string>>(
-    Object.fromEntries(fields.map((f) => [f.key, '']))
+    initialValues || Object.fromEntries(fields.map((f) => [f.key, '']))
   );
+
+  // Load users for user-select fields
+  const hasUserSelect = fields.some(f => f.type === 'user-select');
+  const { data: usersData } = useGetUsersQuery({}, { skip: !hasUserSelect });
+  const users = usersData?.data ?? [];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -518,6 +713,19 @@ function OrgFormModal({ title, fields, onClose, onSubmit }: {
                   <option value="">— Select —</option>
                   {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
+              ) : f.type === 'user-select' ? (
+                <select
+                  className="input-full"
+                  value={form[f.key]}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                >
+                  <option value="">— No Manager —</option>
+                  {users.map((u: Record<string, unknown>) => (
+                    <option key={u.id as string} value={u.id as string}>
+                      {String(u.firstName || '')} {String(u.lastName || '')} ({String(u.email)})
+                    </option>
+                  ))}
+                </select>
               ) : (
                 <input
                   className="input-full"
@@ -531,7 +739,7 @@ function OrgFormModal({ title, fields, onClose, onSubmit }: {
           ))}
           <div className="modal-actions">
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Create</button>
+            <button type="submit" className="btn btn-primary">{submitLabel || 'Create'}</button>
           </div>
         </form>
       </div>

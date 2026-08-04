@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   useGetDepartmentTreeQuery, useCreateDepartmentMutation,
   useUpdateDepartmentMutation, useDeleteDepartmentMutation,
+  useMoveDepartmentMutation,
 } from '../../../store/api/usersApi';
 import type { DepartmentNode } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -13,6 +14,7 @@ export default function DepartmentsPage() {
   const [deleteDepartment] = useDeleteDepartmentMutation();
   const [showCreate, setShowCreate] = useState(false);
   const [createParentId, setCreateParentId] = useState<string | undefined>();
+  const [movingDept, setMovingDept] = useState<{ id: string; name: string } | null>(null);
 
   const tree = data?.data ?? [];
 
@@ -69,6 +71,7 @@ export default function DepartmentsPage() {
               depth={0}
               onAddChild={(parentId) => { setCreateParentId(parentId); setShowCreate(true); }}
               onDelete={handleDelete}
+              onMove={(id, name) => setMovingDept({ id, name })}
             />
           ))}
         </div>
@@ -81,16 +84,26 @@ export default function DepartmentsPage() {
           onCreate={handleCreate}
         />
       )}
+
+      {movingDept && (
+        <MoveDeptModal
+          deptId={movingDept.id}
+          deptName={movingDept.name}
+          tree={tree}
+          onClose={() => setMovingDept(null)}
+        />
+      )}
     </div>
   );
 }
 
 function DeptTreeNode({
-  node, depth, onAddChild, onDelete,
+  node, depth, onAddChild, onDelete, onMove,
 }: {
   node: DepartmentNode; depth: number;
   onAddChild: (parentId: string) => void;
   onDelete: (id: string, name: string) => void;
+  onMove: (id: string, name: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
@@ -115,6 +128,9 @@ function DeptTreeNode({
           <PermissionGuard permission="departments.create">
             <button className="btn btn-sm" onClick={() => onAddChild(node.id)} title="Add sub-department">+</button>
           </PermissionGuard>
+          <PermissionGuard permission="departments.update">
+            <button className="btn btn-sm" onClick={() => onMove(node.id, node.name)} title="Move department">↕</button>
+          </PermissionGuard>
           <PermissionGuard permission="departments.delete">
             <button
               className="btn btn-sm btn-danger"
@@ -133,6 +149,7 @@ function DeptTreeNode({
               depth={depth + 1}
               onAddChild={onAddChild}
               onDelete={onDelete}
+              onMove={onMove}
             />
           ))}
         </div>
@@ -171,6 +188,89 @@ function CreateDeptModal({
             <button type="submit" className="btn btn-primary">Create</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Move Department Modal ────────────────── */
+
+function MoveDeptModal({
+  deptId, deptName, tree, onClose,
+}: {
+  deptId: string;
+  deptName: string;
+  tree: DepartmentNode[];
+  onClose: () => void;
+}) {
+  const [moveDepartment, { isLoading }] = useMoveDepartmentMutation();
+  const [selectedParentId, setSelectedParentId] = useState<string>('__root__');
+
+  // Flatten the tree for the dropdown, excluding the dept itself and its descendants
+  const flattenTree = (nodes: DepartmentNode[], depth: number, excludeId: string): { id: string; name: string; depth: number }[] => {
+    const result: { id: string; name: string; depth: number }[] = [];
+    for (const node of nodes) {
+      if (node.id === excludeId) continue; // Skip the moving dept and all its children
+      result.push({ id: node.id, name: node.name, depth });
+      result.push(...flattenTree(node.children, depth + 1, excludeId));
+    }
+    return result;
+  };
+
+  const options = flattenTree(tree, 0, deptId);
+
+  const handleMove = async () => {
+    const newParentId = selectedParentId === '__root__' ? null : selectedParentId;
+    try {
+      await moveDepartment({ id: deptId, newParentId }).unwrap();
+      toast.success(`"${deptName}" moved successfully`);
+      onClose();
+    } catch (err: unknown) {
+      const msg = (err as { data?: { errors?: { message: string }[] } })?.data?.errors?.[0]?.message;
+      toast.error(msg || 'Failed to move department');
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+        <div className="modal-header">
+          <h2>Move Department</h2>
+          <button className="btn-icon" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <p className="text-secondary" style={{ marginBottom: 16 }}>
+            Select a new parent for <strong>"{deptName}"</strong>
+          </p>
+
+          <div className="form-group">
+            <label>New Parent</label>
+            <select
+              className="input-full"
+              value={selectedParentId}
+              onChange={(e) => setSelectedParentId(e.target.value)}
+            >
+              <option value="__root__">— Root level (no parent) —</option>
+              {options.map(opt => (
+                <option key={opt.id} value={opt.id}>
+                  {'  '.repeat(opt.depth)}{'└ '}{opt.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="modal-actions">
+            <button type="button" className="btn" onClick={onClose}>Cancel</button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleMove}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Moving...' : 'Move Department'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   useGetMyTasksQuery, useApproveTaskMutation, useRejectTaskMutation,
+  useDelegateTaskMutation,
   type WorkflowTask,
 } from '../../../store/api/workflowApi';
+import { useGetUsersQuery } from '../../../store/api/usersApi';
 import toast from 'react-hot-toast';
+import { UserCheck, ArrowRightLeft, Search, X } from 'lucide-react';
 
 export default function MyTasksPage() {
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -20,6 +23,7 @@ export default function MyTasksPage() {
   const meta = data?.meta;
 
   const [actionTask, setActionTask] = useState<{ task: WorkflowTask; action: 'approve' | 'reject' } | null>(null);
+  const [delegateTask, setDelegateTask] = useState<WorkflowTask | null>(null);
   const [comments, setComments] = useState('');
 
   const handleAction = async () => {
@@ -68,6 +72,7 @@ export default function MyTasksPage() {
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
+          <option value="delegated">Delegated</option>
         </select>
       </div>
 
@@ -81,6 +86,9 @@ export default function MyTasksPage() {
             const slaMinutes = t.minutesUntilSla;
             const slaUrgent = slaMinutes !== null && slaMinutes < 120 && slaMinutes > 0;
             const slaBreached = t.slaBreached || (slaMinutes !== null && slaMinutes <= 0);
+            const delegateeName = t.delegatee?.profile
+              ? `${t.delegatee.profile.firstName} ${t.delegatee.profile.lastName}`
+              : null;
 
             return (
               <div key={t.id} className={`task-card ${t.status === 'pending' ? '' : 'completed'}`}>
@@ -93,7 +101,7 @@ export default function MyTasksPage() {
                     </div>
                   </div>
                   <div className="task-card-badges">
-                    <span className={`status-badge ${t.status === 'pending' ? 'active' : t.status === 'approved' ? 'active' : 'danger'}`}>
+                    <span className={`status-badge ${t.status === 'pending' ? 'active' : t.status === 'approved' ? 'active' : t.status === 'delegated' ? 'warning' : 'danger'}`}>
                       {t.status}
                     </span>
                     {t.slaDueAt && t.status === 'pending' && (
@@ -110,6 +118,12 @@ export default function MyTasksPage() {
                   <span className="text-small text-muted">
                     Initiated by {initiator ? `${initiator.firstName} ${initiator.lastName}` : 'Unknown'} · {new Date(t.createdAt).toLocaleString()}
                   </span>
+                  {delegateeName && (
+                    <span className="delegate-badge">
+                      <ArrowRightLeft size={12} />
+                      Delegated to <strong>{delegateeName}</strong>
+                    </span>
+                  )}
                   {t.comments && <span className="text-small task-comment">💬 "{t.comments}"</span>}
                 </div>
 
@@ -122,6 +136,10 @@ export default function MyTasksPage() {
                     <button className="btn btn-sm btn-danger"
                       onClick={() => { setActionTask({ task: t, action: 'reject' }); setComments(''); }}>
                       ✕ Reject
+                    </button>
+                    <button className="btn btn-sm btn-delegate"
+                      onClick={() => setDelegateTask(t)}>
+                      <ArrowRightLeft size={14} /> Delegate
                     </button>
                   </div>
                 )}
@@ -145,7 +163,7 @@ export default function MyTasksPage() {
         </div>
       )}
 
-      {/* Action Modal */}
+      {/* Approve / Reject Modal */}
       {actionTask && (
         <div className="modal-overlay" onClick={() => setActionTask(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
@@ -178,6 +196,196 @@ export default function MyTasksPage() {
           </div>
         </div>
       )}
+
+      {/* Delegate Modal */}
+      {delegateTask && (
+        <DelegateModal
+          task={delegateTask}
+          onClose={() => setDelegateTask(null)}
+          onDelegated={() => { setDelegateTask(null); refetch(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── Delegate Modal ───────────────────────── */
+
+function DelegateModal({ task, onClose, onDelegated }: {
+  task: WorkflowTask;
+  onClose: () => void;
+  onDelegated: () => void;
+}) {
+  const [delegateTaskMutation, { isLoading: isDelegating }] = useDelegateTaskMutation();
+  const { data: usersData, isLoading: usersLoading } = useGetUsersQuery({ limit: '200', isActive: 'true' });
+  const [search, setSearch] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+
+  const users = usersData?.data ?? [];
+
+  // Filter out the current assignee, and filter by search term
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      // Exclude current assignee
+      if (u.id === task.assignedTo) return false;
+      // Search by name, email, job title
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return (
+        u.fullName.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.jobTitle?.toLowerCase().includes(q)) ||
+        (u.department?.name.toLowerCase().includes(q))
+      );
+    });
+  }, [users, search, task.assignedTo]);
+
+  const selectedUser = users.find((u) => u.id === selectedUserId);
+
+  const handleDelegate = async () => {
+    if (!selectedUserId) return;
+    try {
+      await delegateTaskMutation({
+        taskId: task.id,
+        delegateTo: selectedUserId,
+        reason: reason.trim(),
+      }).unwrap();
+      toast.success(`Task delegated to ${selectedUser?.fullName || 'user'}`);
+      onDelegated();
+    } catch (err: unknown) {
+      const e = err as { data?: { errors?: { message: string }[] } };
+      toast.error(e.data?.errors?.[0]?.message || 'Delegation failed');
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card delegate-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2><ArrowRightLeft size={20} /> Delegate Task</h2>
+          <button className="btn-icon" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body">
+          {/* Task info */}
+          <div className="delegate-task-info">
+            <p className="delegate-task-title">{task.title}</p>
+            <p className="text-muted text-small">
+              {task.instance?.definition?.name} · <span className="role-chip">{task.instance?.entityType}</span>
+            </p>
+          </div>
+
+          {/* Selected user preview */}
+          {selectedUser && (
+            <div className="delegate-selected-user">
+              <UserCheck size={16} />
+              <div className="delegate-selected-info">
+                <strong>{selectedUser.fullName}</strong>
+                <span className="text-muted text-small">{selectedUser.email}</span>
+              </div>
+              <button className="btn-icon" onClick={() => setSelectedUserId(null)} title="Clear selection">
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* User picker */}
+          <div className="form-group">
+            <label>Select user to delegate to *</label>
+            <div className="delegate-search-wrapper">
+              <Search size={15} className="delegate-search-icon" />
+              <input
+                className="input-full delegate-search-input"
+                placeholder="Search by name, email, department…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button className="btn-icon delegate-search-clear" onClick={() => setSearch('')}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div className="delegate-user-list">
+              {usersLoading ? (
+                <div className="loading-inline" style={{ padding: 20 }}>
+                  <div className="loading-spinner" /> Loading users…
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="delegate-empty">
+                  <p className="text-muted text-small">No matching users found</p>
+                </div>
+              ) : (
+                filteredUsers.map((u) => (
+                  <div
+                    key={u.id}
+                    className={`delegate-user-item ${selectedUserId === u.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedUserId(u.id)}
+                  >
+                    <div className="delegate-user-avatar">
+                      {u.avatarUrl ? (
+                        <img src={u.avatarUrl} alt={u.fullName} />
+                      ) : (
+                        <span>{u.fullName.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="delegate-user-details">
+                      <span className="delegate-user-name">{u.fullName}</span>
+                      <span className="delegate-user-meta">
+                        {u.email}
+                        {u.jobTitle && ` · ${u.jobTitle}`}
+                        {u.department && ` · ${u.department.name}`}
+                      </span>
+                    </div>
+                    {u.roles.length > 0 && (
+                      <div className="delegate-user-roles">
+                        {u.roles.slice(0, 2).map((r) => (
+                          <span key={r.id} className="role-chip text-small">{r.name}</span>
+                        ))}
+                        {u.roles.length > 2 && (
+                          <span className="text-muted text-small">+{u.roles.length - 2}</span>
+                        )}
+                      </div>
+                    )}
+                    {selectedUserId === u.id && (
+                      <UserCheck size={16} className="delegate-check-icon" />
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div className="form-group">
+            <label>Reason for delegation *</label>
+            <textarea
+              className="input-full"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. On leave until Aug 20, please review in my absence…"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="modal-actions">
+            <button className="btn" onClick={onClose}>Cancel</button>
+            <button
+              className="btn btn-delegate-confirm"
+              onClick={handleDelegate}
+              disabled={!selectedUserId || !reason.trim() || isDelegating}
+            >
+              {isDelegating ? (
+                <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Delegating…</>
+              ) : (
+                <><ArrowRightLeft size={15} /> Delegate Task</>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

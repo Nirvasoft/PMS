@@ -132,6 +132,15 @@ export const usersApi = createApi({
       query: (id) => ({ url: `/users/${id}/reset-password`, method: 'POST' }),
     }),
 
+    uploadAvatar: builder.mutation<ApiResponse<{ avatarUrl: string }>, { userId: string; file: File }>({
+      query: ({ userId, file }) => {
+        const formData = new FormData();
+        formData.append('avatar', file);
+        return { url: `/users/${userId}/avatar`, method: 'POST', body: formData };
+      },
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'Users', id: userId }],
+    }),
+
     // ─── Roles ──────────────────────────────
     getRoles: builder.query<ApiResponse<RoleItem[]>, { includePermissions?: boolean } | void>({
       query: (params) => ({
@@ -166,6 +175,11 @@ export const usersApi = createApi({
       providesTags: ['RoleTemplates'],
     }),
 
+    createRoleFromTemplate: builder.mutation<ApiResponse<RoleItem>, { templateId: string; name: string }>({
+      query: (body) => ({ url: '/roles/from-template', method: 'POST', body }),
+      invalidatesTags: ['Roles'],
+    }),
+
     // ─── Permissions ────────────────────────
     getPermissions: builder.query<ApiResponse<PermissionsByModule>, { module?: string } | void>({
       query: (params) => ({ url: '/permissions', params: params || {} }),
@@ -190,6 +204,11 @@ export const usersApi = createApi({
 
     deleteDepartment: builder.mutation<void, string>({
       query: (id) => ({ url: `/departments/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Departments'],
+    }),
+
+    moveDepartment: builder.mutation<void, { id: string; newParentId: string | null }>({
+      query: ({ id, newParentId }) => ({ url: `/departments/${id}/move`, method: 'POST', body: { newParentId } }),
       invalidatesTags: ['Departments'],
     }),
 
@@ -224,6 +243,21 @@ export const usersApi = createApi({
       query: (id) => ({ url: `/invitations/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Invitations'],
     }),
+
+    acceptInvitation: builder.mutation<ApiResponse<{ id: string; email: string }>, { token: string; firstName: string; lastName: string; password: string }>({
+      query: (body) => ({ url: '/invitations/accept', method: 'POST', body }),
+    }),
+
+    // ─── Permission Overrides ────────────────
+    addPermissionOverride: builder.mutation<void, { userId: string; permissionCode: string; overrideType: 'grant' | 'revoke'; reason?: string; expiresAt?: string }>({
+      query: ({ userId, ...body }) => ({ url: `/users/${userId}/permission-overrides`, method: 'POST', body }),
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'Users', id: userId }],
+    }),
+
+    removePermissionOverride: builder.mutation<void, { userId: string; overrideId: string }>({
+      query: ({ userId, overrideId }) => ({ url: `/users/${userId}/permission-overrides/${overrideId}`, method: 'DELETE' }),
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'Users', id: userId }],
+    }),
   }),
 });
 
@@ -254,4 +288,10 @@ export const {
   useGetInvitationsQuery,
   useSendInvitationMutation,
   useRevokeInvitationMutation,
+  useAcceptInvitationMutation,
+  useAddPermissionOverrideMutation,
+  useRemovePermissionOverrideMutation,
+  useCreateRoleFromTemplateMutation,
+  useMoveDepartmentMutation,
+  useUploadAvatarMutation,
 } = usersApi;

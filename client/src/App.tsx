@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
 import { store } from './store';
-import { ProtectedRoute, PublicRoute } from './components/RouteGuards';
+import { ProtectedRoute, PublicRoute, RequirePermission } from './components/RouteGuards';
 import LoginPage from './pages/LoginPage/LoginPage';
 import MfaVerifyPage from './pages/MfaVerifyPage/MfaVerifyPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage/ForgotPasswordPage';
@@ -10,6 +10,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage/ResetPasswordPage';
 import DashboardLayout, { DashboardHome } from './pages/DashboardPage/DashboardPage';
 import SecuritySettingsPage from './pages/SecuritySettings/SecuritySettingsPage';
 import SsoCompletePage from './pages/SsoCompletePage/SsoCompletePage';
+import AcceptInvitePage from './pages/AcceptInvitePage/AcceptInvitePage';
 import SsoConfigPage from './pages/admin/SsoConfigPage';
 import UsersPage from './pages/admin/UsersPage/UsersPage';
 import RolesPage from './pages/admin/RolesPage/RolesPage';
@@ -107,6 +108,7 @@ import WebhooksPage from './pages/admin/WebhooksPage';
 import ApiKeysPage from './pages/admin/ApiKeysPage';
 import BmsPage from './pages/admin/BmsPage';
 import ExecutiveDashboardPage from './pages/admin/ExecutiveDashboardPage';
+import AdminCompaniesPage from './pages/admin/AdminCompaniesPage/AdminCompaniesPage';
 import { useEffect } from 'react';
 import { useRefreshTokensMutation } from './store/api/authApi';
 import { useAppDispatch } from './store';
@@ -156,6 +158,7 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/accept-invite" element={<AcceptInvitePage />} />
       </Route>
 
       {/* SSO callback — outside PublicRoute (handles auth transition) */}
@@ -165,72 +168,117 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardHome />} />
-          <Route path="/admin/users" element={<UsersPage />} />
-          <Route path="/admin/users/:id" element={<UserDetailPage />} />
-          <Route path="/admin/roles" element={<RolesPage />} />
-          <Route path="/admin/departments" element={<DepartmentsPage />} />
-          <Route path="/admin/company" element={<CompanyPage />} />
-          <Route path="/admin/properties" element={<PropertiesPage />} />
-          <Route path="/admin/properties/create" element={<CreatePropertyPage />} />
-          <Route path="/admin/properties/:id" element={<PropertyDetailPage />} />
-          <Route path="/admin/tenants" element={<TenantListPage />} />
-          <Route path="/admin/tenants/new" element={<CreateTenantPage />} />
-          <Route path="/admin/tenants/merge" element={<MergeTenantPage />} />
-          <Route path="/admin/tenants/:id" element={<TenantDetailPage />} />
-          <Route path="/admin/leases" element={<LeaseListPage />} />
-          <Route path="/admin/leases/new" element={<CreateLeasePage />} />
-          <Route path="/admin/leases/:id" element={<LeaseDetailPage />} />
-          <Route path="/admin/crm/leads" element={<LeadPipelinePage />} />
-          <Route path="/admin/crm/leads/:id" element={<CRMLeadDetailPage />} />
-          <Route path="/admin/crm/campaigns" element={<CampaignsPage />} />
-          <Route path="/admin/parking" element={<ParkingOverviewPage />} />
-          <Route path="/admin/parking/allocations" element={<AllocationManager />} />
-          <Route path="/admin/parking/visitors" element={<VisitorParkingPage />} />
-          <Route path="/admin/parking/gate-logs" element={<GateAccessLogsPage />} />
-          <Route path="/admin/billing/invoices" element={<InvoiceListPage />} />
-          <Route path="/admin/billing/invoices/new" element={<CreateInvoicePage />} />
-          <Route path="/admin/billing/invoices/:id" element={<InvoiceDetailPage />} />
-          <Route path="/admin/billing/schedules" element={<BillingSchedulesPage />} />
-          <Route path="/admin/ar/receipts" element={<ReceiptsPage />} />
-          <Route path="/admin/ar/aging" element={<AgingReportPage />} />
-          <Route path="/admin/ar/collections" element={<CollectionDashboard />} />
-          <Route path="/admin/ar/refunds" element={<RefundsPage />} />
-          <Route path="/admin/ar/statements" element={<TenantStatementPage />} />
-          <Route path="/admin/gl/accounts" element={<ChartOfAccountsPage />} />
-          <Route path="/admin/gl/journal-entries" element={<JournalEntriesPage />} />
-          <Route path="/admin/gl/fiscal-periods" element={<FiscalPeriodsPage />} />
-          <Route path="/admin/gl/trial-balance" element={<TrialBalancePage />} />
-          <Route path="/admin/gl/pnl" element={<ProfitAndLossPage />} />
-          <Route path="/admin/gl/balance-sheet" element={<BalanceSheetPage />} />
-          <Route path="/admin/gl/cash-flow" element={<CashFlowPage />} />
-          <Route path="/admin/budgets" element={<BudgetsPage />} />
-          <Route path="/admin/assets" element={<AssetsListPage />} />
-          <Route path="/admin/assets/:id" element={<AssetDetailPage />} />
-          <Route path="/admin/banking" element={<BankAccountsPage />} />
-          <Route path="/admin/banking/reconcile/:bankAccountId" element={<ReconciliationPage />} />
-          <Route path="/admin/maintenance" element={<MaintenanceDashboard />} />
-          <Route path="/admin/maintenance/tickets" element={<TicketListPage />} />
-          <Route path="/admin/maintenance/tickets/:id" element={<TicketDetailPage />} />
-          <Route path="/admin/maintenance/technicians" element={<TechnicianSchedulePage />} />
-          <Route path="/admin/maintenance/sla-config" element={<SlaConfigPage />} />
-          <Route path="/admin/maintenance/pm" element={<PmScheduleListPage />} />
-          <Route path="/admin/maintenance/pm/calendar" element={<PmCalendarPage />} />
-          <Route path="/admin/maintenance/pm/:id" element={<PmScheduleDetailPage />} />
-          <Route path="/admin/facility/assets" element={<AssetRegistryPage />} />
-          <Route path="/admin/facility/assets/:id" element={<FacilityAssetDetailPage />} />
-          <Route path="/admin/facility/cam-costs" element={<CamCostPage />} />
-          <Route path="/admin/inventory/items" element={<ItemCatalogPage />} />
-          <Route path="/admin/inventory/stock" element={<StockLevelsPage />} />
-          <Route path="/admin/inventory/movements" element={<MovementsPage />} />
+
+          {/* User & Role Management — requires users.read */}
+          <Route element={<RequirePermission permission="users.read" />}>
+            <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/users/:id" element={<UserDetailPage />} />
+            <Route path="/admin/roles" element={<RolesPage />} />
+            <Route path="/admin/departments" element={<DepartmentsPage />} />
+            <Route path="/admin/positions" element={<PositionsPage />} />
+          </Route>
+
+          {/* Company & SSO — requires company.manage */}
+          <Route element={<RequirePermission permission="company.manage" />}>
+            <Route path="/admin/company" element={<CompanyPage />} />
+            <Route path="/admin/sso" element={<SsoConfigPage />} />
+          </Route>
+
+          {/* Properties — requires properties.read */}
+          <Route element={<RequirePermission permission="properties.read" />}>
+            <Route path="/admin/properties" element={<PropertiesPage />} />
+            <Route path="/admin/properties/create" element={<CreatePropertyPage />} />
+            <Route path="/admin/properties/:id" element={<PropertyDetailPage />} />
+          </Route>
+
+          {/* Tenants — requires tenants.read */}
+          <Route element={<RequirePermission permission="tenants.read" />}>
+            <Route path="/admin/tenants" element={<TenantListPage />} />
+            <Route path="/admin/tenants/new" element={<CreateTenantPage />} />
+            <Route path="/admin/tenants/merge" element={<MergeTenantPage />} />
+            <Route path="/admin/tenants/:id" element={<TenantDetailPage />} />
+          </Route>
+
+          {/* Leases — requires leases.read */}
+          <Route element={<RequirePermission permission="leases.read" />}>
+            <Route path="/admin/leases" element={<LeaseListPage />} />
+            <Route path="/admin/leases/new" element={<CreateLeasePage />} />
+            <Route path="/admin/leases/:id" element={<LeaseDetailPage />} />
+          </Route>
+
+          {/* CRM — requires crm.read */}
+          <Route element={<RequirePermission permission="crm.read" />}>
+            <Route path="/admin/crm/leads" element={<LeadPipelinePage />} />
+            <Route path="/admin/crm/leads/:id" element={<CRMLeadDetailPage />} />
+            <Route path="/admin/crm/campaigns" element={<CampaignsPage />} />
+          </Route>
+
+          {/* Parking — requires parking.read */}
+          <Route element={<RequirePermission permission="parking.read" />}>
+            <Route path="/admin/parking" element={<ParkingOverviewPage />} />
+            <Route path="/admin/parking/allocations" element={<AllocationManager />} />
+            <Route path="/admin/parking/visitors" element={<VisitorParkingPage />} />
+            <Route path="/admin/parking/gate-logs" element={<GateAccessLogsPage />} />
+          </Route>
+
+          {/* Billing & Finance — requires billing.read */}
+          <Route element={<RequirePermission permission="billing.read" />}>
+            <Route path="/admin/billing/invoices" element={<InvoiceListPage />} />
+            <Route path="/admin/billing/invoices/new" element={<CreateInvoicePage />} />
+            <Route path="/admin/billing/invoices/:id" element={<InvoiceDetailPage />} />
+            <Route path="/admin/billing/schedules" element={<BillingSchedulesPage />} />
+            <Route path="/admin/ar/receipts" element={<ReceiptsPage />} />
+            <Route path="/admin/ar/aging" element={<AgingReportPage />} />
+            <Route path="/admin/ar/collections" element={<CollectionDashboard />} />
+            <Route path="/admin/ar/refunds" element={<RefundsPage />} />
+            <Route path="/admin/ar/statements" element={<TenantStatementPage />} />
+            <Route path="/admin/gl/accounts" element={<ChartOfAccountsPage />} />
+            <Route path="/admin/gl/journal-entries" element={<JournalEntriesPage />} />
+            <Route path="/admin/gl/fiscal-periods" element={<FiscalPeriodsPage />} />
+            <Route path="/admin/gl/trial-balance" element={<TrialBalancePage />} />
+            <Route path="/admin/gl/pnl" element={<ProfitAndLossPage />} />
+            <Route path="/admin/gl/balance-sheet" element={<BalanceSheetPage />} />
+            <Route path="/admin/gl/cash-flow" element={<CashFlowPage />} />
+            <Route path="/admin/budgets" element={<BudgetsPage />} />
+            <Route path="/admin/assets" element={<AssetsListPage />} />
+            <Route path="/admin/assets/:id" element={<AssetDetailPage />} />
+            <Route path="/admin/banking" element={<BankAccountsPage />} />
+            <Route path="/admin/banking/reconcile/:bankAccountId" element={<ReconciliationPage />} />
+          </Route>
+
+          {/* Maintenance — requires maintenance.read */}
+          <Route element={<RequirePermission permission="maintenance.read" />}>
+            <Route path="/admin/maintenance" element={<MaintenanceDashboard />} />
+            <Route path="/admin/maintenance/tickets" element={<TicketListPage />} />
+            <Route path="/admin/maintenance/tickets/:id" element={<TicketDetailPage />} />
+            <Route path="/admin/maintenance/technicians" element={<TechnicianSchedulePage />} />
+            <Route path="/admin/maintenance/sla-config" element={<SlaConfigPage />} />
+            <Route path="/admin/maintenance/pm" element={<PmScheduleListPage />} />
+            <Route path="/admin/maintenance/pm/calendar" element={<PmCalendarPage />} />
+            <Route path="/admin/maintenance/pm/:id" element={<PmScheduleDetailPage />} />
+          </Route>
+
+          {/* Facility — requires facility.read */}
+          <Route element={<RequirePermission permission="facility.read" />}>
+            <Route path="/admin/facility/assets" element={<AssetRegistryPage />} />
+            <Route path="/admin/facility/assets/:id" element={<FacilityAssetDetailPage />} />
+            <Route path="/admin/facility/cam-costs" element={<CamCostPage />} />
+          </Route>
+
+          {/* Inventory — requires inventory.read */}
+          <Route element={<RequirePermission permission="inventory.read" />}>
+            <Route path="/admin/inventory/items" element={<ItemCatalogPage />} />
+            <Route path="/admin/inventory/stock" element={<StockLevelsPage />} />
+            <Route path="/admin/inventory/movements" element={<MovementsPage />} />
+          </Route>
+
           <Route path="/admin/housekeeping" element={<HousekeepingTasksPage />} />
           <Route path="/admin/security/incidents" element={<SecurityIncidentsPage />} />
           <Route path="/admin/security/patrol" element={<PatrolLogsPage />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
-          <Route path="/admin/positions" element={<PositionsPage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />
           <Route path="/tasks" element={<MyTasksPage />} />
           <Route path="/settings/security" element={<SecuritySettingsPage />} />
-          <Route path="/admin/sso" element={<SsoConfigPage />} />
           <Route path="/settings/notifications" element={<NotificationPreferencesPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
@@ -258,6 +306,9 @@ function AppRoutes() {
           <Route path="/admin/developer/webhooks" element={<WebhooksPage />} />
           <Route path="/admin/developer/api-keys" element={<ApiKeysPage />} />
           <Route path="/admin/developer/bms" element={<BmsPage />} />
+
+          {/* System Admin */}
+          <Route path="/admin/system/companies" element={<AdminCompaniesPage />} />
         </Route>
 
         {/* Full-screen Workflow Designer — no sidebar layout */}

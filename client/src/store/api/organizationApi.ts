@@ -91,6 +91,18 @@ export const organizationApi = createApi({
       query: (body) => ({ url: '/company/settings', method: 'PUT', body }),
       invalidatesTags: ['Company'],
     }),
+    uploadLogo: builder.mutation<ApiResponse<{ logoUrl: string }>, File>({
+      query: (file) => {
+        const fd = new FormData();
+        fd.append('logo', file);
+        return { url: '/company/logo', method: 'POST', body: fd };
+      },
+      invalidatesTags: ['Company'],
+    }),
+    getCompanyHierarchy: builder.query<ApiResponse<Record<string, unknown>>, void>({
+      query: () => '/company/hierarchy',
+      providesTags: ['Company'],
+    }),
 
     // ─── Branches ───────────────────────────
     getBranches: builder.query<ApiResponse<BranchItem[]>, void>({
@@ -137,9 +149,45 @@ export const organizationApi = createApi({
       query: (body) => ({ url: '/business-units', method: 'POST', body }),
       invalidatesTags: ['BusinessUnits'],
     }),
+    updateBusinessUnit: builder.mutation<void, { id: string; data: Record<string, unknown> }>({
+      query: ({ id, data }) => ({ url: `/business-units/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['BusinessUnits'],
+    }),
     deleteBusinessUnit: builder.mutation<void, string>({
       query: (id) => ({ url: `/business-units/${id}`, method: 'DELETE' }),
       invalidatesTags: ['BusinessUnits'],
+    }),
+
+    // ─── Region Properties ───────────────────
+    getRegionProperties: builder.query<ApiResponse<PropertyItem[]>, string>({
+      query: (regionId) => `/regions/${regionId}/properties`,
+      providesTags: (_r, _e, id) => [{ type: 'Regions', id }],
+    }),
+    addRegionProperty: builder.mutation<void, { regionId: string; propertyId: string }>({
+      query: ({ regionId, propertyId }) => ({ url: `/regions/${regionId}/properties`, method: 'POST', body: { propertyId } }),
+      invalidatesTags: ['Regions'],
+    }),
+    removeRegionProperty: builder.mutation<void, { regionId: string; propertyId: string }>({
+      query: ({ regionId, propertyId }) => ({ url: `/regions/${regionId}/properties/${propertyId}`, method: 'DELETE' }),
+      invalidatesTags: ['Regions'],
+    }),
+
+    // ─── Admin Provisioning ──────────────────
+    getAdminCompanies: builder.query<ApiResponse<Array<Record<string, unknown>>>, void>({
+      query: () => '/admin/companies',
+      providesTags: ['Company'],
+    }),
+    provisionCompany: builder.mutation<ApiResponse<Record<string, unknown>>, Record<string, unknown>>({
+      query: (body) => ({ url: '/admin/companies/provision', method: 'POST', body }),
+      invalidatesTags: ['Company'],
+    }),
+    deactivateCompany: builder.mutation<void, string>({
+      query: (id) => ({ url: `/admin/companies/${id}/deactivate`, method: 'POST' }),
+      invalidatesTags: ['Company'],
+    }),
+    activateCompany: builder.mutation<void, string>({
+      query: (id) => ({ url: `/admin/companies/${id}/activate`, method: 'POST' }),
+      invalidatesTags: ['Company'],
     }),
 
     // ─── Properties ─────────────────────────
@@ -174,6 +222,8 @@ export const {
   useGetCompanyQuery,
   useUpdateCompanyMutation,
   useUpdateCompanySettingsMutation,
+  useUploadLogoMutation,
+  useGetCompanyHierarchyQuery,
   useGetBranchesQuery,
   useCreateBranchMutation,
   useUpdateBranchMutation,
@@ -182,8 +232,12 @@ export const {
   useCreateRegionMutation,
   useUpdateRegionMutation,
   useDeleteRegionMutation,
+  useGetRegionPropertiesQuery,
+  useAddRegionPropertyMutation,
+  useRemoveRegionPropertyMutation,
   useGetBusinessUnitsQuery,
   useCreateBusinessUnitMutation,
+  useUpdateBusinessUnitMutation,
   useDeleteBusinessUnitMutation,
   useGetPropertiesQuery,
   useGetPropertyQuery,
@@ -191,4 +245,8 @@ export const {
   useUpdatePropertyMutation,
   useDeletePropertyMutation,
   useGetPropertyStatsQuery,
+  useGetAdminCompaniesQuery,
+  useProvisionCompanyMutation,
+  useDeactivateCompanyMutation,
+  useActivateCompanyMutation,
 } = organizationApi;

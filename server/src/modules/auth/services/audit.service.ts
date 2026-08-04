@@ -20,6 +20,7 @@ export enum AuthEventType {
   SSO_LOGIN = 'sso_login',
   IP_BLOCKED = 'ip_blocked',
   TOKEN_REUSE = 'token_reuse',
+  PERMISSION_OVERRIDE_EXPIRED = 'permission_override_expired',
 }
 
 export class AuditService {
