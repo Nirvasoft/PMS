@@ -65,9 +65,11 @@ model Company {
   workflowSlaJobs     WorkflowSlaJob[]
 
   // Relations — Notifications (Module 1.5)
-  notificationTemplates NotificationTemplate[]
-  notificationLogs      NotificationLog[]
-  inAppNotifications    InAppNotification[]
+  notificationTemplates  NotificationTemplate[]
+  notificationLogs       NotificationLog[]
+  inAppNotifications     InAppNotification[]
+  scheduledNotifications ScheduledNotification[] @relation("ScheduledNotifications")
+  notificationQueue      NotificationQueueItem[] @relation("NotificationQueue")
 
   // Relations — SSO
   ssoConfigs          SsoConfig[]
@@ -285,6 +287,8 @@ model User {
   notificationLogs       NotificationLog[]       @relation("NotificationRecipient")
   inAppNotifications     InAppNotification[]     @relation("InAppNotifications")
   notificationPreferences NotificationPreference[] @relation("NotificationPreferences")
+  pushDeviceTokens       PushDeviceToken[]       @relation("PushDeviceTokens")
+  scheduledNotifications ScheduledNotification[] @relation("ScheduledNotificationCreator")
 
   // Relations — SSO
   ssoIdentities          SsoIdentity[]           @relation("UserSsoIdentities")
@@ -1954,6 +1958,79 @@ model NotificationPreference {
 
   @@id([userId, templateCode])
   @@map("notification_preferences")
+}
+
+/// Scheduled notifications for future delivery (rent reminders, lease expiry alerts).
+/// Supports one-shot and recurring (via recurrenceCron).
+model ScheduledNotification {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  templateCode    String    @map("template_code") @db.VarChar(100)
+  recipientIds    Json      @map("recipient_ids")          // string[] of user IDs
+  variables       Json?     @default("{}")                  // template variables
+  channels        String[]  @default([])                    // override channels
+  scheduledAt     DateTime  @map("scheduled_at") @db.Timestamptz
+  recurrenceCron  String?   @map("recurrence_cron") @db.VarChar(50)  // e.g. "0 9 1 * *" for monthly
+  status          String    @default("pending") @db.VarChar(20)      // pending | sent | cancelled | failed
+  sentAt          DateTime? @map("sent_at") @db.Timestamptz
+  errorMessage    String?   @map("error_message")
+  entityType      String?   @map("entity_type") @db.VarChar(50)
+  entityId        String?   @map("entity_id") @db.Uuid
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company         Company   @relation("ScheduledNotifications", fields: [companyId], references: [id], onDelete: Cascade)
+  creator         User?     @relation("ScheduledNotificationCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([companyId])
+  @@map("scheduled_notifications")
+}
+
+/// Push device tokens for mobile app push notifications.
+/// One user can have multiple devices.
+model PushDeviceToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  token       String    @db.VarChar(500)           // FCM / APNs token
+  platform    String    @db.VarChar(20)            // ios | android | web
+  deviceName  String?   @map("device_name") @db.VarChar(100)
+  lastUsedAt  DateTime  @default(now()) @map("last_used_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user        User      @relation("PushDeviceTokens", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
+  @@map("push_device_tokens")
+}
+
+/// DB-backed notification dispatch queue. Notifications are enqueued here
+/// and processed by a cron job every 10 seconds, with retry + backoff.
+model NotificationQueueItem {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  templateCode  String    @map("template_code") @db.VarChar(100)
+  recipientIds  Json      @map("recipient_ids")          // string[]
+  variables     Json?     @default("{}")
+  channels      String[]  @default([])
+  status        String    @default("pending") @db.VarChar(20) // pending | processing | sent | failed
+  priority      Int       @default(0)                     // higher = processed first
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(3) @map("max_attempts")
+  nextRetryAt   DateTime? @map("next_retry_at") @db.Timestamptz
+  errorMessage  String?   @map("error_message")
+  entityType    String?   @map("entity_type") @db.VarChar(50)
+  entityId      String?   @map("entity_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz
+
+  company       Company   @relation("NotificationQueue", fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status, priority, createdAt])
+  @@index([status, nextRetryAt])
+  @@map("notification_queue")
 }
 
 // ─────────────────────────────────────────────

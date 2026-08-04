@@ -236,3 +236,120 @@ templatesRouter.delete('/:id', asyncHandler(async (req: Request, res: Response) 
   await prisma.notificationTemplate.delete({ where: { id: template.id } });
   res.status(204).send();
 }));
+
+// ─── Scheduled Notifications ──────────────────
+
+notificationsRouter.post('/schedule', asyncHandler(async (req: Request, res: Response) => {
+  const { templateCode, recipientIds, variables, channels, scheduledAt, recurrenceCron, entityType, entityId } = req.body;
+
+  if (!templateCode || !recipientIds?.length || !scheduledAt) {
+    throw AppError.validation('templateCode, recipientIds, and scheduledAt are required');
+  }
+
+  const scheduled = await prisma.scheduledNotification.create({
+    data: {
+      companyId: req.user!.companyId,
+      templateCode,
+      recipientIds,
+      variables: variables || {},
+      channels: channels || [],
+      scheduledAt: new Date(scheduledAt),
+      recurrenceCron: recurrenceCron || null,
+      entityType,
+      entityId,
+      createdBy: req.user!.sub,
+    },
+  });
+
+  res.status(201).json({ success: true, data: scheduled });
+}));
+
+notificationsRouter.get('/schedule', asyncHandler(async (req: Request, res: Response) => {
+  const { status, page = '1', limit = '20' } = req.query;
+  const companyId = req.user!.companyId;
+
+  const where: Record<string, unknown> = { companyId };
+  if (status) where.status = status;
+
+  const pageNum = parseInt(page as string);
+  const limitNum = parseInt(limit as string);
+
+  const [data, total] = await Promise.all([
+    prisma.scheduledNotification.findMany({
+      where,
+      orderBy: { scheduledAt: 'asc' },
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
+      include: {
+        creator: {
+          select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } },
+        },
+      },
+    }),
+    prisma.scheduledNotification.count({ where }),
+  ]);
+
+  res.json({
+    success: true,
+    data,
+    meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+  });
+}));
+
+notificationsRouter.delete('/schedule/:id', asyncHandler(async (req: Request, res: Response) => {
+  const item = await prisma.scheduledNotification.findFirst({
+    where: { id: param(req, 'id'), companyId: req.user!.companyId },
+  });
+  if (!item) throw AppError.notFound('Scheduled notification');
+  if (item.status === 'sent') throw AppError.validation('Cannot cancel an already-sent notification');
+
+  await prisma.scheduledNotification.update({
+    where: { id: item.id },
+    data: { status: 'cancelled' },
+  });
+
+  res.json({ success: true });
+}));
+
+// ─── Push Device Tokens ───────────────────────
+
+notificationsRouter.post('/push-tokens', asyncHandler(async (req: Request, res: Response) => {
+  const { token, platform, deviceName } = req.body;
+  const userId = req.user!.sub;
+
+  if (!token || !platform) {
+    throw AppError.validation('token and platform are required');
+  }
+
+  if (!['ios', 'android', 'web'].includes(platform)) {
+    throw AppError.validation('platform must be ios, android, or web');
+  }
+
+  const deviceToken = await prisma.pushDeviceToken.upsert({
+    where: { userId_token: { userId, token } },
+    create: { userId, token, platform, deviceName: deviceName || null },
+    update: { platform, deviceName: deviceName || null, lastUsedAt: new Date() },
+  });
+
+  res.status(201).json({ success: true, data: deviceToken });
+}));
+
+notificationsRouter.get('/push-tokens', asyncHandler(async (req: Request, res: Response) => {
+  const tokens = await prisma.pushDeviceToken.findMany({
+    where: { userId: req.user!.sub },
+    orderBy: { lastUsedAt: 'desc' },
+  });
+
+  res.json({ success: true, data: tokens });
+}));
+
+notificationsRouter.delete('/push-tokens/:token', asyncHandler(async (req: Request, res: Response) => {
+  const token = decodeURIComponent(param(req, 'token'));
+  const userId = req.user!.sub;
+
+  await prisma.pushDeviceToken.deleteMany({
+    where: { userId, token },
+  });
+
+  res.status(204).send();
+}));

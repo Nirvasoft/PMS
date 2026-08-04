@@ -20,10 +20,48 @@ export interface SendNotificationDto {
 export class NotificationService {
 
   /**
-   * Primary entry point: resolve template, check preferences, dispatch per channel.
-   * For Phase 1, we only implement in_app and email (console log) channels.
+   * Primary entry point: enqueue notification for async dispatch.
+   * Critical templates bypass the queue and dispatch immediately.
    */
   async send(dto: SendNotificationDto): Promise<{ queued: number }> {
+    const { templateCode, companyId, recipientIds, variables = {}, entityType, entityId } = dto;
+
+    // Resolve template to check if it's critical
+    let template;
+    try {
+      template = await templateService.findByCode(templateCode, companyId);
+    } catch {
+      logger.warn(`Notification template '${templateCode}' not found — skipping`, { dto });
+      return { queued: 0 };
+    }
+
+    // Critical templates dispatch immediately (zero latency)
+    if (template.isCritical) {
+      return this.sendImmediate(dto);
+    }
+
+    // Enqueue for async dispatch
+    await prisma.notificationQueueItem.create({
+      data: {
+        companyId,
+        templateCode,
+        recipientIds: recipientIds as unknown as any,
+        variables: (variables || {}) as any,
+        channels: dto.channels || template.channels,
+        entityType,
+        entityId,
+        priority: 0,
+      },
+    });
+
+    return { queued: recipientIds.length };
+  }
+
+  /**
+   * Direct synchronous dispatch — used by queue processor and for critical templates.
+   * Resolves template, checks preferences + quiet hours, dispatches per channel.
+   */
+  async sendImmediate(dto: SendNotificationDto): Promise<{ queued: number }> {
     const { templateCode, companyId, recipientIds, variables = {}, entityType, entityId } = dto;
 
     // Resolve template
