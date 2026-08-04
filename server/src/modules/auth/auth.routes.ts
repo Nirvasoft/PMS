@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../../middleware';
+import { validateRequest } from '../../middleware/validateRequest';
 import { authService } from './services/auth.service';
 import { mfaService } from './services/mfa.service';
 import { deviceService } from './services/device.service';
@@ -8,6 +9,15 @@ import { ipPolicyService } from './services/ip-policy.service';
 import { prisma } from '../../common/database';
 import { setTenantContext } from '../../common/database';
 import type { RequestContext } from './interfaces/auth.interfaces';
+import { requireRole } from './guards/roleGuard';
+import {
+  loginSchema, mfaVerifySchema, mfaEnableSchema, mfaDisableSchema,
+  passwordResetRequestSchema, passwordResetSchema, passwordChangeSchema,
+  logoutSchema, verifyEmailSchema,
+  createIpPolicySchema, updatePasswordPolicySchema,
+  createSsoConfigSchema, updateSsoConfigSchema, toggleSsoConfigSchema,
+  uuidParamSchema, deviceIdParamSchema,
+} from './auth.schema';
 
 export const authRouter = Router();
 
@@ -51,7 +61,7 @@ authRouter.get('/company/validate', asyncHandler(async (req: Request, res: Respo
   res.json({ success: true, data: company ? { name: company.name, logoUrl: company.logoUrl } : null });
 }));
 
-authRouter.post('/login', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/login', validateRequest(loginSchema), asyncHandler(async (req: Request, res: Response) => {
   const result = await authService.login(req.body, getContext(req));
 
   if (result.mfa) {
@@ -81,7 +91,7 @@ authRouter.post('/login', asyncHandler(async (req: Request, res: Response) => {
   }
 }));
 
-authRouter.post('/mfa/verify', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/mfa/verify', validateRequest(mfaVerifySchema), asyncHandler(async (req: Request, res: Response) => {
   const { mfaToken, code } = req.body;
   const result = await authService.completeMfaLogin(mfaToken, code, getContext(req));
 
@@ -189,13 +199,13 @@ authRouter.post('/refresh', asyncHandler(async (req: Request, res: Response) => 
   });
 }));
 
-authRouter.post('/password/reset-request', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/password/reset-request', validateRequest(passwordResetRequestSchema), asyncHandler(async (req: Request, res: Response) => {
   await authService.requestPasswordReset(req.body.email, getContext(req));
   // Always return success to prevent email enumeration
   res.json({ success: true, data: { message: 'If that email exists, a reset link has been sent.' } });
 }));
 
-authRouter.post('/password/reset', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/password/reset', validateRequest(passwordResetSchema), asyncHandler(async (req: Request, res: Response) => {
   const { token, newPassword, confirmPassword } = req.body;
   if (newPassword !== confirmPassword) {
     res.status(422).json({ success: false, errors: [{ code: 'PASSWORD_MISMATCH', message: 'Passwords do not match' }] });
@@ -207,14 +217,14 @@ authRouter.post('/password/reset', asyncHandler(async (req: Request, res: Respon
 
 // ─── Authenticated Routes ──────────────────────
 
-authRouter.post('/logout', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/logout', validateRequest(logoutSchema), asyncHandler(async (req: Request, res: Response) => {
   const refreshToken = req.cookies?.refreshToken;
   await authService.logout(req.user!.sub, refreshToken, req.body.allDevices || false, getContext(req));
   res.clearCookie('refreshToken', { path: '/api/v1/auth' });
   res.status(204).send();
 }));
 
-authRouter.post('/password/change', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/password/change', validateRequest(passwordChangeSchema), asyncHandler(async (req: Request, res: Response) => {
   const { currentPassword, newPassword, confirmPassword } = req.body;
   if (newPassword !== confirmPassword) {
     res.status(422).json({ success: false, errors: [{ code: 'PASSWORD_MISMATCH', message: 'Passwords do not match' }] });
@@ -234,7 +244,7 @@ authRouter.post('/mfa/setup', asyncHandler(async (req: Request, res: Response) =
   res.json({ success: true, data: setup });
 }));
 
-authRouter.post('/mfa/enable', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/mfa/enable', validateRequest(mfaEnableSchema), asyncHandler(async (req: Request, res: Response) => {
   const { secret, code, backupCodes } = req.body;
   await mfaService.enableMfa(req.user!.sub, secret, code, backupCodes);
   await auditService.log({
@@ -247,7 +257,7 @@ authRouter.post('/mfa/enable', asyncHandler(async (req: Request, res: Response) 
   res.json({ success: true, data: { mfaEnabled: true } });
 }));
 
-authRouter.post('/mfa/disable', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/mfa/disable', validateRequest(mfaDisableSchema), asyncHandler(async (req: Request, res: Response) => {
   const user = await prisma.user.findUnique({ where: { id: req.user!.sub } });
   if (!user) { res.status(404).json({ success: false }); return; }
   await mfaService.disableMfa(req.user!.sub, user.mfaSecret, req.body.code);
@@ -268,7 +278,7 @@ authRouter.get('/devices', asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, data: devices });
 }));
 
-authRouter.delete('/devices/:deviceId', asyncHandler(async (req: Request, res: Response) => {
+authRouter.delete('/devices/:deviceId', validateRequest(deviceIdParamSchema), asyncHandler(async (req: Request, res: Response) => {
   await deviceService.revokeDevice(req.params.deviceId, req.user!.sub);
   await auditService.log({
     userId: req.user!.sub,
@@ -299,12 +309,14 @@ authRouter.get('/audit-logs', asyncHandler(async (req: Request, res: Response) =
 
 // ─── IP Policies (Admin) ──────────────────────
 
-authRouter.get('/ip-policies', asyncHandler(async (req: Request, res: Response) => {
+const adminOnly = requireRole('Super Admin', 'Admin');
+
+authRouter.get('/ip-policies', adminOnly, asyncHandler(async (req: Request, res: Response) => {
   const policies = await ipPolicyService.getPolicies(req.user!.companyId);
   res.json({ success: true, data: policies });
 }));
 
-authRouter.post('/ip-policies', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/ip-policies', adminOnly, validateRequest(createIpPolicySchema), asyncHandler(async (req: Request, res: Response) => {
   const policy = await ipPolicyService.createPolicy({
     ...req.body,
     companyId: req.user!.companyId,
@@ -313,21 +325,21 @@ authRouter.post('/ip-policies', asyncHandler(async (req: Request, res: Response)
   res.status(201).json({ success: true, data: policy });
 }));
 
-authRouter.delete('/ip-policies/:id', asyncHandler(async (req: Request, res: Response) => {
+authRouter.delete('/ip-policies/:id', adminOnly, validateRequest(uuidParamSchema), asyncHandler(async (req: Request, res: Response) => {
   await ipPolicyService.deletePolicy(req.params.id, req.user!.companyId);
   res.status(204).send();
 }));
 
 // ─── Password Policy (Admin) ──────────────────
 
-authRouter.get('/password-policy', asyncHandler(async (req: Request, res: Response) => {
+authRouter.get('/password-policy', adminOnly, asyncHandler(async (req: Request, res: Response) => {
   const policy = await prisma.passwordPolicy.findUnique({
     where: { companyId: req.user!.companyId },
   });
   res.json({ success: true, data: policy });
 }));
 
-authRouter.put('/password-policy', asyncHandler(async (req: Request, res: Response) => {
+authRouter.put('/password-policy', adminOnly, validateRequest(updatePasswordPolicySchema), asyncHandler(async (req: Request, res: Response) => {
   const policy = await prisma.passwordPolicy.upsert({
     where: { companyId: req.user!.companyId },
     create: { companyId: req.user!.companyId, ...req.body },
@@ -376,7 +388,7 @@ authRouter.post('/send-verification', asyncHandler(async (req: Request, res: Res
   res.json({ success: true, data: { message: 'Verification email sent', verifyUrl } });
 }));
 
-authRouter.post('/verify-email', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/verify-email', validateRequest(verifyEmailSchema), asyncHandler(async (req: Request, res: Response) => {
   const { token } = req.body;
   if (!token) { res.status(400).json({ success: false, errors: [{ message: 'Token required' }] }); return; }
 
@@ -401,6 +413,37 @@ authRouter.post('/verify-email', asyncHandler(async (req: Request, res: Response
 // ═══════════════════════════════════════════════════
 
 import { ssoService } from './services/sso.service';
+
+/**
+ * GET /auth/sso/providers?companyCode=ACME
+ * Public — Returns enabled SSO providers for the login page.
+ * Only returns name, provider type, and company ID — no secrets.
+ */
+authRouter.get('/sso/providers', asyncHandler(async (req: Request, res: Response) => {
+  const { companyCode } = req.query;
+  if (!companyCode) {
+    res.json({ success: true, data: [] });
+    return;
+  }
+
+  const company = await prisma.company.findFirst({
+    where: { code: companyCode as string },
+    select: { id: true },
+  });
+
+  if (!company) {
+    res.json({ success: true, data: [] });
+    return;
+  }
+
+  const configs = await prisma.ssoConfig.findMany({
+    where: { companyId: company.id, isEnabled: true },
+    select: { id: true, name: true, provider: true, protocol: true },
+    orderBy: { isDefault: 'desc' },
+  });
+
+  res.json({ success: true, data: configs.map(c => ({ ...c, companyId: company.id })) });
+}));
 
 /**
  * GET /auth/sso/initiate?provider=azure_ad
@@ -495,32 +538,32 @@ authRouter.get('/sso/callback', asyncHandler(async (req: Request, res: Response)
 
 // ─── SSO Admin Config CRUD ─────────────────────
 
-authRouter.get('/sso/configs', asyncHandler(async (req: Request, res: Response) => {
+authRouter.get('/sso/configs', adminOnly, asyncHandler(async (req: Request, res: Response) => {
   const configs = await ssoService.getConfigs(req.user!.companyId);
   res.json({ success: true, data: configs });
 }));
 
-authRouter.get('/sso/configs/:id', asyncHandler(async (req: Request, res: Response) => {
+authRouter.get('/sso/configs/:id', adminOnly, asyncHandler(async (req: Request, res: Response) => {
   const config = await ssoService.getConfig(req.params.id as string, req.user!.companyId);
   res.json({ success: true, data: config });
 }));
 
-authRouter.post('/sso/configs', asyncHandler(async (req: Request, res: Response) => {
+authRouter.post('/sso/configs', adminOnly, validateRequest(createSsoConfigSchema), asyncHandler(async (req: Request, res: Response) => {
   const config = await ssoService.createConfig(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data: config });
 }));
 
-authRouter.put('/sso/configs/:id', asyncHandler(async (req: Request, res: Response) => {
+authRouter.put('/sso/configs/:id', adminOnly, validateRequest(updateSsoConfigSchema), asyncHandler(async (req: Request, res: Response) => {
   const config = await ssoService.updateConfig(req.params.id as string, req.user!.companyId, req.body);
   res.json({ success: true, data: config });
 }));
 
-authRouter.delete('/sso/configs/:id', asyncHandler(async (req: Request, res: Response) => {
+authRouter.delete('/sso/configs/:id', adminOnly, validateRequest(uuidParamSchema), asyncHandler(async (req: Request, res: Response) => {
   await ssoService.deleteConfig(req.params.id as string, req.user!.companyId);
   res.status(204).send();
 }));
 
-authRouter.patch('/sso/configs/:id/toggle', asyncHandler(async (req: Request, res: Response) => {
+authRouter.patch('/sso/configs/:id/toggle', adminOnly, validateRequest(toggleSsoConfigSchema), asyncHandler(async (req: Request, res: Response) => {
   const config = await ssoService.toggleConfig(req.params.id as string, req.user!.companyId, req.body.enabled);
   res.json({ success: true, data: config });
 }));

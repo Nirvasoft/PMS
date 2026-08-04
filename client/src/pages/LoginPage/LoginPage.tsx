@@ -1,15 +1,17 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useLoginMutation, useLazyValidateCompanyCodeQuery, useGetCompanyInfoQuery } from '../../store/api/authApi';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useLoginMutation, useLazyValidateCompanyCodeQuery, useGetCompanyInfoQuery, useLazyGetSsoProvidersQuery } from '../../store/api/authApi';
 import { useAppSelector } from '../../store';
-import { Eye, EyeOff, Building2, Lock, Mail, AlertTriangle, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Eye, EyeOff, Building2, Lock, Mail, AlertTriangle, Loader2, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ThemeToggle from '../../components/ThemeToggle';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [login, { isLoading, error }] = useLoginMutation();
   const [validateCode] = useLazyValidateCompanyCodeQuery();
+  const [fetchSsoProviders] = useLazyGetSsoProvidersQuery();
   const { data: companyInfo, isLoading: loadingCompanyInfo, isError: companyInfoError } = useGetCompanyInfoQuery();
   const { mfaPending } = useAppSelector((s) => s.auth);
 
@@ -20,6 +22,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [ssoProviders, setSsoProviders] = useState<{ id: string; name: string; provider: string; companyId: string }[]>([]);
+  const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
+  const [lockoutDisplay, setLockoutDisplay] = useState('');
+  const ssoError = searchParams.get('sso_error');
 
   // Derive whether company code input should be shown
   // Hide company code while loading, on API error, or when only 1 company exists
@@ -32,8 +38,12 @@ export default function LoginPage() {
       setCompanyCode(singleCompany.code);
       setCompanyName(singleCompany.name);
       setCompanyValid(true);
+      // Fetch SSO providers for single company
+      fetchSsoProviders(singleCompany.code).unwrap()
+        .then(res => setSsoProviders(res.data || []))
+        .catch(() => {});
     }
-  }, [isSingleCompany, singleCompany]);
+  }, [isSingleCompany, singleCompany, fetchSsoProviders]);
 
   // Validate company code as user types (only when multiple companies)
   const handleCompanyCodeChange = useCallback(async (value: string) => {
@@ -41,6 +51,7 @@ export default function LoginPage() {
     setCompanyCode(code);
     setCompanyName(null);
     setCompanyValid(null);
+    setSsoProviders([]);
 
     if (code.length >= 2) {
       try {
@@ -48,6 +59,9 @@ export default function LoginPage() {
         if (result.data) {
           setCompanyName(result.data.name);
           setCompanyValid(true);
+          // Fetch SSO providers when company is valid
+          const ssoResult = await fetchSsoProviders(code).unwrap();
+          setSsoProviders(ssoResult.data || []);
         } else {
           setCompanyValid(false);
         }
@@ -55,7 +69,7 @@ export default function LoginPage() {
         setCompanyValid(false);
       }
     }
-  }, [validateCode]);
+  }, [validateCode, fetchSsoProviders]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,11 +82,35 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const apiErr = err as { data?: { errors?: Array<{ message: string; code: string; meta?: { unlockAt: string } }> } };
       const errData = apiErr?.data?.errors?.[0];
-      if (errData?.code === 'ACCOUNT_LOCKED') {
-        toast.error(errData.message);
+      if (errData?.code === 'ACCOUNT_LOCKED' && errData.meta?.unlockAt) {
+        setLockoutUntil(new Date(errData.meta.unlockAt));
       }
     }
   };
+
+  // Live countdown timer for account lockout
+  useEffect(() => {
+    if (!lockoutUntil) {
+      setLockoutDisplay('');
+      return;
+    }
+
+    const tick = () => {
+      const remaining = lockoutUntil.getTime() - Date.now();
+      if (remaining <= 0) {
+        setLockoutUntil(null);
+        setLockoutDisplay('');
+        return;
+      }
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      setLockoutDisplay(`${mins}:${secs.toString().padStart(2, '0')}`);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutUntil]);
 
   // Redirect to MFA page if needed
   if (mfaPending) {
@@ -81,7 +119,8 @@ export default function LoginPage() {
   }
 
   const apiError = (error as { data?: { errors?: Array<{ message: string }> } })?.data?.errors?.[0]?.message;
-  const canSubmit = isLoading ? false : isSingleCompany ? true : companyValid === true;
+  const isLockedOut = !!lockoutUntil;
+  const canSubmit = isLoading || isLockedOut ? false : isSingleCompany ? true : companyValid === true;
 
   return (
     <div className="auth-page">
@@ -101,10 +140,30 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {apiError && (
+        {apiError && !isLockedOut && (
           <div className="alert alert-error">
             <AlertTriangle size={18} />
             <span>{apiError}</span>
+          </div>
+        )}
+
+        {isLockedOut && (
+          <div className="lockout-banner">
+            <div className="lockout-icon">
+              <Lock size={24} />
+            </div>
+            <div className="lockout-info">
+              <strong>Account Temporarily Locked</strong>
+              <p>Too many failed login attempts. Please try again in:</p>
+            </div>
+            <div className="lockout-timer">{lockoutDisplay}</div>
+          </div>
+        )}
+
+        {ssoError && (
+          <div className="alert alert-error">
+            <AlertTriangle size={18} />
+            <span>SSO sign in failed: {decodeURIComponent(ssoError)}</span>
           </div>
         )}
 
@@ -216,6 +275,31 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {/* SSO Sign-In Buttons */}
+        {ssoProviders.length > 0 && (
+          <div className="sso-section">
+            <div className="sso-divider">
+              <span>or sign in with</span>
+            </div>
+            <div className="sso-buttons">
+              {ssoProviders.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="btn btn-outline btn-block sso-btn"
+                  onClick={() => {
+                    window.location.href = `/api/v1/auth/sso/initiate?provider=${encodeURIComponent(p.provider)}&companyId=${encodeURIComponent(p.companyId)}`;
+                  }}
+                >
+                  <SsoProviderIcon provider={p.provider} />
+                  {p.name}
+                  <ExternalLink size={14} style={{ marginLeft: 'auto', opacity: 0.5 }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="auth-footer">
           <p className="text-muted">Demo credentials</p>
           <p className="text-small text-muted">
@@ -227,4 +311,15 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+/** Maps SSO provider types to branded icons/labels */
+function SsoProviderIcon({ provider }: { provider: string }) {
+  const icons: Record<string, string> = {
+    azure_ad: '🔷',
+    google: '🔴',
+    okta: '🟡',
+    oidc: '🔑',
+  };
+  return <span style={{ fontSize: 18, marginRight: 8 }}>{icons[provider] || '🔐'}</span>;
 }

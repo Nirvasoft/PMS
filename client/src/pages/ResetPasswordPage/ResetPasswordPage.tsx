@@ -4,6 +4,7 @@ import { useResetPasswordMutation } from '../../store/api/authApi';
 import { Lock, ArrowLeft, Loader2, Eye, EyeOff, AlertTriangle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ThemeToggle from '../../components/ThemeToggle';
+import PasswordStrengthMeter from '../../components/PasswordStrengthMeter';
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -78,6 +79,7 @@ export default function ResetPasswordPage() {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              <PasswordStrengthMeter password={newPassword} />
             </div>
             <div className="form-group">
               <label htmlFor="confirmPassword">Confirm Password</label>

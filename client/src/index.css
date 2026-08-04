@@ -609,6 +609,418 @@ input.input-full:focus {
   border-top: 1px solid var(--border-subtle);
 }
 
+/* ─── MFA Stepper Wizard ───────────────────── */
+.mfa-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 24px;
+  padding: 16px 0;
+}
+
+.mfa-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mfa-step-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  border: 2px solid var(--border-subtle);
+  color: var(--text-muted);
+  background: var(--surface);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.mfa-step.active .mfa-step-circle {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.mfa-step.complete .mfa-step-circle {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+}
+
+.mfa-step-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.mfa-step.active .mfa-step-label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.mfa-step.complete .mfa-step-label {
+  color: var(--success);
+}
+
+.mfa-step-line {
+  width: 40px;
+  height: 2px;
+  background: var(--border-subtle);
+  margin: 0 8px;
+  flex-shrink: 0;
+  transition: background 0.3s ease;
+}
+
+.mfa-step.complete .mfa-step-line {
+  background: var(--success);
+}
+
+.mfa-wizard-panel {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.mfa-wizard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.mfa-qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.mfa-qr-wrapper {
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 16px;
+  display: inline-block;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.mfa-manual-entry {
+  margin-top: 16px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.mfa-secret-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.mfa-secret-code {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+  text-align: left;
+}
+
+.mfa-code-input-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.mfa-code-input {
+  font-size: 32px !important;
+  letter-spacing: 12px;
+  text-align: center;
+  max-width: 240px;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mfa-backup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mfa-backup-code {
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 14px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.mfa-backup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mfa-benefits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mfa-benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 600px) {
+  .mfa-stepper {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .mfa-step-line {
+    display: none;
+  }
+}
+
+/* ─── Password Strength Meter ──────────────── */
+.pw-strength {
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.pw-strength-bar {
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.pw-strength-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.pw-strength-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  transition: color 0.3s ease;
+}
+
+.pw-strength-rules {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
+
+.pw-strength-rules li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.pw-strength-rules li.passed {
+  color: var(--success);
+}
+
+/* ─── Account Lockout Banner ───────────────── */
+.lockout-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+.lockout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+  flex-shrink: 0;
+  animation: lockout-pulse 2s ease-in-out infinite;
+}
+
+@keyframes lockout-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.lockout-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.lockout-info strong {
+  display: block;
+  font-size: 14px;
+  color: var(--danger);
+  margin-bottom: 2px;
+}
+
+.lockout-info p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.lockout-timer {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--danger);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─── SSO Section ──────────────────────────── */
+.sso-section {
+  margin-top: 20px;
+}
+
+.sso-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sso-divider::before,
+.sso-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.sso-divider span {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.sso-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sso-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 10px 16px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.sso-btn:hover {
+  background: var(--surface-elevated);
+  border-color: var(--primary);
+}
+
+/* ─── SSO Admin Config Cards ───────────────── */
+.sso-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.sso-config-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.sso-config-card.enabled {
+  border-left: 3px solid var(--success);
+}
+
+.sso-config-card.disabled {
+  opacity: 0.75;
+}
+
+.sso-config-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sso-provider-icon {
+  font-size: 28px;
+}
+
+.sso-config-info h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.sso-config-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 12px;
+}
+
+.sso-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.sso-config-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 /* ─── Success State ─────────────────────────── */
 .success-state {
   text-align: center;
@@ -1079,6 +1491,40 @@ input.input-full:focus {
 }
 
 /* ─── Audit Table ───────────────────────────── */
+/* ─── Audit Filters ────────────────────────── */
+.audit-filters {
+  margin-bottom: 16px;
+}
+
+.audit-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.audit-filter-row .form-group.compact {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 140px;
+  max-width: 200px;
+}
+
+.audit-filter-row .form-group.compact label {
+  font-size: 11px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.audit-filter-row .form-group.compact select,
+.audit-filter-row .form-group.compact input {
+  padding: 6px 10px;
+  font-size: 13px;
+  height: 34px;
+}
+
 .audit-table-container {
   overflow-x: auto;
   border: 1px solid var(--border);

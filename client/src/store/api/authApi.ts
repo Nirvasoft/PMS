@@ -42,10 +42,36 @@ interface ApiResponse<T> {
   data: T;
 }
 
+// SSO Config types
+export interface SsoConfigSummary {
+  id: string;
+  name: string;
+  provider: string;
+  protocol: string;
+  isEnabled: boolean;
+  isDefault: boolean;
+  domainRestriction: string | null;
+  autoProvision: boolean;
+  scopes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SsoConfigDetail extends SsoConfigSummary {
+  clientId: string | null;
+  clientSecret: string | null;
+  issuerUrl: string | null;
+  authorizationUrl: string | null;
+  tokenUrl: string | null;
+  userInfoUrl: string | null;
+  defaultRoleId: string | null;
+  attributeMapping: Record<string, string>;
+}
+
 export const authApi = createApi({
   reducerPath: 'authApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Devices', 'AuditLogs', 'IpPolicies', 'PasswordPolicy', 'Me'],
+  tagTypes: ['Devices', 'AuditLogs', 'IpPolicies', 'PasswordPolicy', 'Me', 'SsoConfigs'],
   endpoints: (builder) => ({
     login: builder.mutation<ApiResponse<LoginSuccessData | MfaChallengeData>, LoginRequest>({
       query: (body) => ({ url: '/auth/login', method: 'POST', body }),
@@ -173,6 +199,43 @@ export const authApi = createApi({
     getCompanyInfo: builder.query<ApiResponse<{ count: number; singleCompany: { code: string; name: string; logoUrl: string | null } | null }>, void>({
       query: () => '/auth/company/info',
     }),
+
+    // SSO public — returns enabled providers for a company code (for login page buttons)
+    getSsoProviders: builder.query<ApiResponse<{ id: string; name: string; provider: string; protocol: string; companyId: string }[]>, string>({
+      query: (companyCode) => `/auth/sso/providers?companyCode=${encodeURIComponent(companyCode)}`,
+    }),
+
+    // ─── SSO Config Admin ────────────────────────
+
+    getSsoConfigs: builder.query<ApiResponse<SsoConfigSummary[]>, void>({
+      query: () => '/auth/sso/configs',
+      providesTags: ['SsoConfigs'],
+    }),
+
+    getSsoConfig: builder.query<ApiResponse<SsoConfigDetail>, string>({
+      query: (id) => `/auth/sso/configs/${id}`,
+      providesTags: ['SsoConfigs'],
+    }),
+
+    createSsoConfig: builder.mutation<ApiResponse<SsoConfigDetail>, Record<string, unknown>>({
+      query: (body) => ({ url: '/auth/sso/configs', method: 'POST', body }),
+      invalidatesTags: ['SsoConfigs'],
+    }),
+
+    updateSsoConfig: builder.mutation<ApiResponse<SsoConfigDetail>, { id: string; data: Record<string, unknown> }>({
+      query: ({ id, data }) => ({ url: `/auth/sso/configs/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['SsoConfigs'],
+    }),
+
+    deleteSsoConfig: builder.mutation<void, string>({
+      query: (id) => ({ url: `/auth/sso/configs/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['SsoConfigs'],
+    }),
+
+    toggleSsoConfig: builder.mutation<ApiResponse<SsoConfigDetail>, { id: string; enabled: boolean }>({
+      query: ({ id, enabled }) => ({ url: `/auth/sso/configs/${id}/toggle`, method: 'PATCH', body: { enabled } }),
+      invalidatesTags: ['SsoConfigs'],
+    }),
   }),
 });
 
@@ -198,4 +261,12 @@ export const {
   useUpdatePasswordPolicyMutation,
   useLazyValidateCompanyCodeQuery,
   useGetCompanyInfoQuery,
+  // SSO
+  useLazyGetSsoProvidersQuery,
+  useGetSsoConfigsQuery,
+  useGetSsoConfigQuery,
+  useCreateSsoConfigMutation,
+  useUpdateSsoConfigMutation,
+  useDeleteSsoConfigMutation,
+  useToggleSsoConfigMutation,
 } = authApi;

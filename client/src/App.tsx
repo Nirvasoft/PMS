@@ -9,6 +9,8 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage/ResetPasswordPage';
 import DashboardLayout, { DashboardHome } from './pages/DashboardPage/DashboardPage';
 import SecuritySettingsPage from './pages/SecuritySettings/SecuritySettingsPage';
+import SsoCompletePage from './pages/SsoCompletePage/SsoCompletePage';
+import SsoConfigPage from './pages/admin/SsoConfigPage';
 import UsersPage from './pages/admin/UsersPage/UsersPage';
 import RolesPage from './pages/admin/RolesPage/RolesPage';
 import DepartmentsPage from './pages/admin/DepartmentsPage/DepartmentsPage';
@@ -156,6 +158,9 @@ function AppRoutes() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
       </Route>
 
+      {/* SSO callback — outside PublicRoute (handles auth transition) */}
+      <Route path="/sso/complete" element={<SsoCompletePage />} />
+
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
@@ -225,6 +230,7 @@ function AppRoutes() {
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />
           <Route path="/tasks" element={<MyTasksPage />} />
           <Route path="/settings/security" element={<SecuritySettingsPage />} />
+          <Route path="/admin/sso" element={<SsoConfigPage />} />
           <Route path="/settings/notifications" element={<NotificationPreferencesPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

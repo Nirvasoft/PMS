@@ -28,6 +28,9 @@ const PUBLIC_ROUTES = [
   'POST /api/v1/auth/verify-email',
   'GET /api/v1/auth/company/validate',
   'GET /api/v1/auth/company/info',
+  'GET /api/v1/auth/sso/initiate',
+  'GET /api/v1/auth/sso/callback',
+  'GET /api/v1/auth/sso/providers',
 ];
 
 /**
