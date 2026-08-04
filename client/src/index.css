@@ -3313,6 +3313,59 @@ select.input-full:focus {
   margin-bottom: 8px;
 }
 
+/* ─── Entity Summary ───────────────────────── */
+
+.entity-summary {
+  padding: 8px 12px;
+  margin: 6px 0;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.entity-summary-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.entity-summary-type {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  background: rgba(52, 211, 153, 0.08);
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.6;
+}
+
+.entity-summary-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+}
+
+.entity-summary-field {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.entity-summary-label {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.entity-summary-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+
 .task-comment {
   font-style: italic;
   color: var(--text-secondary);

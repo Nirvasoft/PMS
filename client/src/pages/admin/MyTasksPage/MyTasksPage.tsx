@@ -119,6 +119,13 @@ export default function MyTasksPage() {
                   </div>
                 </div>
 
+                {/* Entity Summary */}
+                {inst?.context && Object.keys(inst.context).length > 0 && (
+                  <div className="entity-summary">
+                    <EntitySummary entityType={inst.entityType} context={inst.context} />
+                  </div>
+                )}
+
                 <div className="task-card-body">
                   <span className="text-small text-muted">
                     Initiated by {initiator ? `${initiator.firstName} ${initiator.lastName}` : 'Unknown'} · {new Date(t.createdAt).toLocaleString()}
@@ -396,6 +403,92 @@ function DelegateModal({ task, onClose, onDelegated }: {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Entity Summary ───────────────────────── */
+
+/** Format camelCase/snake_case keys into readable labels */
+function formatLabel(key: string): string {
+  return key
+    .replace(/([A-Z])/g, ' $1')       // camelCase → words
+    .replace(/[_-]/g, ' ')             // snake_case → words
+    .replace(/\b\w/g, c => c.toUpperCase()) // capitalize
+    .trim();
+}
+
+/** Format values for display */
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'number') {
+    // Format large numbers with commas
+    return value >= 1000 ? value.toLocaleString() : String(value);
+  }
+  if (typeof value === 'string') {
+    // Try to detect ISO dates
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) return d.toLocaleDateString();
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+/** Keys to skip in entity summary (internal/meta fields) */
+const SKIP_KEYS = new Set(['id', 'createdAt', 'updatedAt', 'deletedAt', 'companyId', 'workflowName']);
+
+/** Priority keys to show first (common PMS entity fields) */
+const PRIORITY_KEYS = [
+  'unitCode', 'unitNumber', 'propertyName', 'buildingName',
+  'tenantName', 'customerName', 'vendorName',
+  'leaseCode', 'contractNumber',
+  'rentAmount', 'amount', 'totalAmount',
+  'status', 'type', 'category',
+];
+
+function EntitySummary({ entityType, context }: { entityType: string; context: Record<string, unknown> }) {
+  const entries = Object.entries(context).filter(([key, val]) => {
+    if (SKIP_KEYS.has(key)) return false;
+    if (val === null || val === undefined || val === '') return false;
+    if (typeof val === 'object' && !Array.isArray(val)) return false; // skip nested objects
+    return true;
+  });
+
+  if (entries.length === 0) return null;
+
+  // Sort: priority keys first, then alphabetical
+  entries.sort(([a], [b]) => {
+    const ai = PRIORITY_KEYS.indexOf(a);
+    const bi = PRIORITY_KEYS.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  // Take top 5 fields for summary display
+  const displayEntries = entries.slice(0, 5);
+  const remaining = entries.length - displayEntries.length;
+
+  return (
+    <div className="entity-summary-content">
+      <span className="entity-summary-type">{entityType}</span>
+      <div className="entity-summary-fields">
+        {displayEntries.map(([key, val]) => (
+          <span key={key} className="entity-summary-field">
+            <span className="entity-summary-label">{formatLabel(key)}:</span>{' '}
+            <span className="entity-summary-value">{formatValue(val)}</span>
+          </span>
+        ))}
+        {remaining > 0 && (
+          <span className="text-muted text-small">+{remaining} more</span>
+        )}
       </div>
     </div>
   );
