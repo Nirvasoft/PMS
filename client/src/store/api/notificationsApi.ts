@@ -136,6 +136,21 @@ export const notificationsApi = createApi({
       query: () => '/notification-templates',
       providesTags: ['Templates'],
     }),
+
+    createTemplate: builder.mutation<ApiResponse<NotificationTemplate>, Partial<NotificationTemplate>>({
+      query: (body) => ({ url: '/notification-templates', method: 'POST', body }),
+      invalidatesTags: ['Templates'],
+    }),
+
+    updateTemplate: builder.mutation<ApiResponse<NotificationTemplate>, { id: string; data: Partial<NotificationTemplate> }>({
+      query: ({ id, data }) => ({ url: `/notification-templates/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['Templates'],
+    }),
+
+    deleteTemplate: builder.mutation<void, string>({
+      query: (id) => ({ url: `/notification-templates/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Templates'],
+    }),
   }),
 });
 
@@ -150,4 +165,7 @@ export const {
   useRetryNotificationMutation,
   useSendNotificationMutation,
   useGetNotificationTemplatesQuery,
+  useCreateTemplateMutation,
+  useUpdateTemplateMutation,
+  useDeleteTemplateMutation,
 } = notificationsApi;

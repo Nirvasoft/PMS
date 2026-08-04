@@ -1,5 +1,6 @@
 import { prisma } from '../../../common/database';
 import { logger } from '../../../common/logger';
+import { emitNotification } from '../../../common/socket';
 import { templateService } from './template.service';
 
 export interface SendNotificationDto {
@@ -41,6 +42,12 @@ export class NotificationService {
       // Check user preferences
       const prefs = await this.getPreferences(recipientId, templateCode);
       const channels = this.resolveChannels(requestedChannels, prefs);
+
+      // Quiet hours enforcement: skip non-critical notifications during quiet hours
+      if (this.isInQuietHours(prefs) && !template.isCritical) {
+        logger.info(`Notification suppressed (quiet hours) for user ${recipientId}: ${templateCode}`);
+        continue;
+      }
 
       for (const channel of channels) {
         try {
@@ -119,13 +126,13 @@ export class NotificationService {
     return log;
   }
 
-  /** Send an in-app notification (bell icon item) */
+  /** Send an in-app notification (bell icon item) + emit via WebSocket */
   private async sendInApp(
     userId: string, companyId: string,
     title: string, body: string,
     entityType?: string, entityId?: string,
   ) {
-    await prisma.inAppNotification.create({
+    const notif = await prisma.inAppNotification.create({
       data: {
         companyId,
         userId,
@@ -137,6 +144,15 @@ export class NotificationService {
         entityType,
         entityId,
       },
+    });
+
+    // Emit realtime notification via WebSocket
+    emitNotification(userId, {
+      id: notif.id,
+      title: notif.title,
+      body: notif.body,
+      icon: notif.icon,
+      actionUrl: notif.actionUrl,
     });
   }
 
@@ -169,6 +185,30 @@ export class NotificationService {
         default: return true;
       }
     });
+  }
+
+  /**
+   * Check if current time is within user's quiet hours.
+   * Handles overnight ranges (e.g., 22:00 → 07:00).
+   */
+  private isInQuietHours(prefs: { quietHoursStart: string | null; quietHoursEnd: string | null }): boolean {
+    if (!prefs.quietHoursStart || !prefs.quietHoursEnd) return false;
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const [startH, startM] = prefs.quietHoursStart.split(':').map(Number);
+    const [endH, endM] = prefs.quietHoursEnd.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    if (startMinutes <= endMinutes) {
+      // Same-day range (e.g., 09:00 → 17:00)
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    } else {
+      // Overnight range (e.g., 22:00 → 07:00)
+      return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+    }
   }
 
   /** Map entity type to icon */

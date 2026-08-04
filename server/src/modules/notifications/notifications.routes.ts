@@ -229,3 +229,10 @@ templatesRouter.put('/:id', asyncHandler(async (req: Request, res: Response) => 
   const data = await templateService.update(param(req, 'id'), req.body);
   res.json({ success: true, data });
 }));
+
+templatesRouter.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const template = await prisma.notificationTemplate.findUnique({ where: { id: param(req, 'id') } });
+  if (!template) throw AppError.notFound('Template');
+  await prisma.notificationTemplate.delete({ where: { id: template.id } });
+  res.status(204).send();
+}));
