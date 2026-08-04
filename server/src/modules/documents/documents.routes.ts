@@ -146,6 +146,28 @@ documentsRouter.post('/:id/share', asyncHandler(async (req: Request, res: Respon
   res.json({ success: true, data: result });
 }));
 
+/** GET /documents/:id/access-logs — Get access logs for a document */
+documentsRouter.get('/:id/access-logs', asyncHandler(async (req: Request, res: Response) => {
+  const result = await documentsService.getAccessLogs(
+    req.params.id as string,
+    req.user!.companyId,
+    parseInt(req.query.page as string) || 1,
+    parseInt(req.query.limit as string) || 20,
+  );
+  res.json({ success: true, ...result });
+}));
+
+/** GET /documents/:id/versions/:versionNumber/download — Download specific version */
+documentsRouter.get('/:id/versions/:versionNumber/download', asyncHandler(async (req: Request, res: Response) => {
+  const info = await documentsService.getVersionDownloadInfo(
+    req.params.id as string,
+    parseInt(req.params.versionNumber as string),
+    req.user!.companyId,
+    req.user!.sub,
+  );
+  res.download(info.filePath, info.filename);
+}));
+
 // ═══════════════════════════════════════════════════
 // DOCUMENT FOLDERS ROUTES
 // ═══════════════════════════════════════════════════
@@ -180,4 +202,25 @@ documentFoldersRouter.put('/:id', asyncHandler(async (req: Request, res: Respons
 documentFoldersRouter.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
   await foldersService.deleteFolder(req.params.id as string, req.user!.companyId);
   res.status(204).send();
+}));
+
+// ═══════════════════════════════════════════════════
+// PUBLIC SHARED DOCUMENT ROUTES (no auth required)
+// ═══════════════════════════════════════════════════
+
+export const sharedDocumentsRouter = Router();
+
+/** POST /shared/documents/:token — Resolve a share link (with optional password) */
+sharedDocumentsRouter.post('/:token', asyncHandler(async (req: Request, res: Response) => {
+  const result = await documentsService.resolveShareLink(
+    req.params.token as string,
+    req.body.password,
+  );
+  res.json({ success: true, data: result });
+}));
+
+/** GET /shared/documents/:token/download — Download shared document */
+sharedDocumentsRouter.get('/:token/download', asyncHandler(async (req: Request, res: Response) => {
+  const info = await documentsService.downloadSharedDocument(req.params.token as string);
+  res.download(info.filePath, info.filename);
 }));

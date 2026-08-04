@@ -1,9 +1,26 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
-import { WIDGET_DEFINITIONS, DEFAULT_LAYOUT } from './widgets/widgetDefinitions';
+import { WIDGET_DEFINITIONS, DEFAULT_LAYOUT, getDefaultLayoutForRole } from './widgets/widgetDefinitions';
 import type { WidgetDef } from './widgets/widgetDefinitions';
 import { getRealWidgetData } from './widgets/realProvider';
+import { redis } from '../../common/redis';
+
+/** Cache TTL (seconds) per widget category */
+const CACHE_TTL: Record<string, number> = {
+  property: 300,     // 5 min — occupancy changes infrequently
+  finance: 900,      // 15 min — invoices/revenue
+  maintenance: 60,   // 1 min — tickets change often
+  crm: 300,          // 5 min
+  facility: 120,     // 2 min
+  parking: 30,       // 30s — real-time occupancy
+  security: 60,      // 1 min
+  visitors: 30,      // 30s — real-time counts
+  housekeeping: 120, // 2 min
+  preventive: 300,   // 5 min
+  inventory: 300,    // 5 min
+  activity: 60,      // 1 min — recent events
+};
 
 /** Read company settings and return feature flag checker */
 async function getFeatureChecker(companyId: string): Promise<(flag?: string) => boolean> {
@@ -114,15 +131,38 @@ export class DashboardService {
 
     // Parse date range
     const [dateFrom, dateTo] = (query.dateRange || '').split(',');
+    const propertyKey = query.propertyId || 'all';
 
-    // Use real data provider
-    return getRealWidgetData(code, {
+    // ─── Redis cache ────────────────────────────
+    const widgetDef = WIDGET_DEFINITIONS.find((w) => w.code === code);
+    const ttl = CACHE_TTL[widgetDef?.category || ''] || 120;
+    const cacheKey = `widget:${companyId}:${code}:${propertyKey}:${dateFrom || ''}:${dateTo || ''}`;
+
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      // Cache miss or Redis error — fall through to compute
+      logger.debug(`Widget cache miss for ${cacheKey}`);
+    }
+
+    // Compute fresh data
+    const data = await getRealWidgetData(code, {
       companyId,
       propertyId: query.propertyId,
       dateFrom,
       dateTo,
       userId: query.userId,
     });
+
+    // Store in cache (non-blocking)
+    try {
+      await redis.set(cacheKey, JSON.stringify(data), 'EX', ttl);
+    } catch { /* ignore cache write errors */ }
+
+    return data;
   }
 
   /**
@@ -141,12 +181,25 @@ export class DashboardService {
       };
     }
 
-    // Return default layout for new users
+    // Return default layout for new users — based on their role
+    const roleName = await this.getUserPrimaryRoleName(userId);
     return {
       dashboardKey,
-      layout: DEFAULT_LAYOUT,
+      layout: getDefaultLayoutForRole(roleName),
       updatedAt: new Date(),
     };
+  }
+
+  /**
+   * Look up the user's primary role name (first role alphabetically).
+   */
+  private async getUserPrimaryRoleName(userId: string): Promise<string | undefined> {
+    const userRole = await prisma.userRole.findFirst({
+      where: { userId },
+      include: { role: { select: { name: true } } },
+      orderBy: { grantedAt: 'asc' }, // earliest assigned role = primary
+    });
+    return userRole?.role?.name;
   }
 
   /**
@@ -179,13 +232,16 @@ export class DashboardService {
   }
 
   /**
-   * Reset layout to default.
+   * Reset layout to role-appropriate default.
    */
   async resetLayout(userId: string, dashboardKey: string = 'main') {
+    const roleName = await this.getUserPrimaryRoleName(userId);
+    const layout = getDefaultLayoutForRole(roleName);
+
     await prisma.dashboardLayout.upsert({
       where: { uq_user_dashboard: { userId, dashboardKey } },
-      create: { userId, dashboardKey, layout: DEFAULT_LAYOUT as any },
-      update: { layout: DEFAULT_LAYOUT as any },
+      create: { userId, dashboardKey, layout: layout as any },
+      update: { layout: layout as any },
     });
   }
 

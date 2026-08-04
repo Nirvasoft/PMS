@@ -22,6 +22,7 @@ import NotificationBell from '../../components/notifications/NotificationBell';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
 import AnalyticsDashboard from './AnalyticsDashboard';
+import ExpiringDocumentsWidget from '../../components/widgets/ExpiringDocumentsWidget';
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 
 // ─── Collapsible Nav Section ──────────────────
@@ -461,6 +462,10 @@ export default function DashboardLayout() {
               <BarChart3 size={18} />
               <span>Executive Dashboard</span>
             </NavLink>
+            <NavLink to="/reports" className="nav-item">
+              <FileText size={18} />
+              <span>Reports</span>
+            </NavLink>
           </NavSection>
 
           {/* Developer / Integrations Section */}
@@ -531,5 +536,17 @@ export default function DashboardLayout() {
 }
 
 export function DashboardHome() {
-  return <AnalyticsDashboard />;
+  const navigate = useNavigate();
+  return (
+    <>
+      <AnalyticsDashboard />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px', marginTop: '20px', padding: '0 0 24px' }}>
+        <ExpiringDocumentsWidget
+          days={30}
+          limit={6}
+          onViewAll={() => navigate('/documents')}
+        />
+      </div>
+    </>
+  );
 }

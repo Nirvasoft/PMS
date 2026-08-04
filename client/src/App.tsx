@@ -66,6 +66,8 @@ import PositionsPage from './pages/admin/PositionsPage/PositionsPage';
 import NotificationAdminPage from './pages/admin/NotificationAdminPage/NotificationAdminPage';
 import VerifyEmailPage from './pages/VerifyEmailPage/VerifyEmailPage';
 import DocumentsPage from './pages/DocumentsPage/DocumentsPage';
+import SharedDocumentPage from './pages/SharedDocumentPage/SharedDocumentPage';
+import ReportsPage from './pages/ReportsPage/ReportsPage';
 import TicketListPage from './pages/admin/MaintenancePage/TicketListPage';
 import TicketDetailPage from './pages/admin/MaintenancePage/TicketDetailPage';
 import TechnicianSchedulePage from './pages/admin/MaintenancePage/TechnicianSchedulePage';
@@ -164,6 +166,9 @@ function AppRoutes() {
 
       {/* SSO callback — outside PublicRoute (handles auth transition) */}
       <Route path="/sso/complete" element={<SsoCompletePage />} />
+
+      {/* Public shared document viewer — no auth required */}
+      <Route path="/shared/documents/:token" element={<SharedDocumentPage />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
@@ -285,6 +290,7 @@ function AppRoutes() {
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
 
           {/* Module 6.1 — Mall */}
           <Route path="/admin/mall" element={<MallDashboard />} />

@@ -28,7 +28,7 @@ import { startEscalationJob } from './modules/leases/cron/escalation.job';
 import { startRenewalJob } from './modules/leases/cron/renewal.job';
 import { workflowDefinitionsRouter, workflowInstancesRouter, workflowTasksRouter } from './modules/workflow/workflow.routes';
 import { notificationsRouter, templatesRouter } from './modules/notifications/notifications.routes';
-import { documentsRouter, documentFoldersRouter } from './modules/documents/documents.routes';
+import { documentsRouter, documentFoldersRouter, sharedDocumentsRouter } from './modules/documents/documents.routes';
 import { startDocumentExpiryJob } from './modules/documents/documentExpiry';
 import { dashboardRouter, reportsRouter } from './modules/dashboard/dashboard.routes';
 import { startKycExpiryJob } from './modules/tenants/kycExpiry';
@@ -108,6 +108,9 @@ async function bootstrap() {
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
   app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos')));
   app.use('/storage', express.static(path.join(process.cwd(), 'storage')));
+
+  // Public API routes (no auth required)
+  app.use('/api/v1/shared/documents', sharedDocumentsRouter);
 
   app.use(authMiddleware);
   app.use(apiKeyAuth()); // Validate pms_sk_* API keys (after JWT passthrough)

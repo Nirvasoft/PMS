@@ -99,18 +99,33 @@ reportsRouter.delete('/:id', asyncHandler(async (req: Request, res: Response) =>
 }));
 
 /**
- * POST /reports/:type/export — Queue a report export (Phase 1: returns mock)
- * In Phase 2, this would queue a Bull job for Excel/PDF generation.
+ * POST /reports/:type/export — Generate and download a report export.
+ * Body: { format: 'xlsx' | 'csv', parameters?: { propertyId?, dateRange? } }
  */
 reportsRouter.post('/:type/export', asyncHandler(async (req: Request, res: Response) => {
-  // Phase 1 — stub response (no actual export generation)
-  res.status(202).json({
-    success: true,
-    data: {
-      exportId: `export_${Date.now()}`,
-      status: 'queued',
-      estimatedSeconds: 30,
-      message: 'Export generation is not yet implemented — coming in Phase 2',
-    },
-  });
+  const { exportToExcel, exportToCsv } = await import('./export.service');
+  const widgetCode = req.params.type as string;
+  const format = (req.body.format || 'xlsx') as string;
+  const parameters = (req.body.parameters || {}) as Record<string, string>;
+
+  const exportParams = {
+    companyId: req.user!.companyId,
+    propertyId: parameters.propertyId,
+    dateFrom: parameters.dateFrom || parameters.dateRange?.split(',')[0],
+    dateTo: parameters.dateTo || parameters.dateRange?.split(',')[1],
+    userId: req.user!.sub,
+  };
+
+  if (format === 'csv') {
+    const { content, filename } = await exportToCsv(widgetCode, exportParams);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(content);
+  } else {
+    const { buffer, filename } = await exportToExcel(widgetCode, exportParams);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
 }));
+

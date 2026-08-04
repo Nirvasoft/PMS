@@ -77,6 +77,9 @@ export const WIDGET_DEFINITIONS: WidgetDef[] = [
   { code: 'active_workflows',      name: 'Active Workflows',       category: 'activity',    widgetType: 'kpi_card',    dataProvider: 'real', defaultWidth: 3, defaultHeight: 1, requiredPermissions: [], requiredFeature: 'workflowEnabled' },
   { code: 'pending_tasks',         name: 'My Pending Tasks',       category: 'activity',    widgetType: 'kpi_card',    dataProvider: 'real', defaultWidth: 3, defaultHeight: 1, requiredPermissions: [] },
   { code: 'documents_expiring',    name: 'Documents Expiring',     category: 'activity',    widgetType: 'kpi_card',    dataProvider: 'real', defaultWidth: 3, defaultHeight: 1, requiredPermissions: [], requiredFeature: 'documentVaultEnabled' },
+
+  // ── Heatmap ──
+  { code: 'occupancy_heatmap',     name: 'Activity Heatmap',       category: 'property',    widgetType: 'heatmap',     dataProvider: 'real', defaultWidth: 6, defaultHeight: 3, requiredPermissions: [] },
 ];
 
 /**
@@ -101,3 +104,68 @@ export const DEFAULT_LAYOUT = [
   { id: 'w12', widgetCode: 'security_open_incidents',  x: 6, y: 5, w: 3, h: 1, config: {} },
   { id: 'w13', widgetCode: 'pm_upcoming',              x: 9, y: 5, w: 3, h: 1, config: {} },
 ];
+
+/**
+ * Role-specific default layouts — optimized for each role's daily workflow.
+ */
+export const ROLE_LAYOUTS: Record<string, typeof DEFAULT_LAYOUT> = {
+  finance: [
+    { id: 'f1', widgetCode: 'revenue_mtd',          x: 0, y: 0, w: 3, h: 1, config: {} },
+    { id: 'f2', widgetCode: 'revenue_ytd',          x: 3, y: 0, w: 3, h: 1, config: {} },
+    { id: 'f3', widgetCode: 'collection_rate',      x: 6, y: 0, w: 3, h: 2, config: {} },
+    { id: 'f4', widgetCode: 'overdue_invoices',     x: 9, y: 0, w: 3, h: 1, config: {} },
+    { id: 'f5', widgetCode: 'revenue_by_property',  x: 0, y: 1, w: 6, h: 3, config: {} },
+    { id: 'f6', widgetCode: 'gl_net_income',        x: 9, y: 1, w: 3, h: 1, config: {} },
+    { id: 'f7', widgetCode: 'bank_balance_summary', x: 6, y: 2, w: 6, h: 2, config: {} },
+    { id: 'f8', widgetCode: 'occupancy_rate',       x: 0, y: 4, w: 3, h: 1, config: {} },
+    { id: 'f9', widgetCode: 'lease_expiring_soon',  x: 3, y: 4, w: 9, h: 3, config: {} },
+  ],
+  maintenance: [
+    { id: 'm1', widgetCode: 'maintenance_open',     x: 0, y: 0, w: 3, h: 1, config: {} },
+    { id: 'm2', widgetCode: 'maintenance_sla',      x: 3, y: 0, w: 3, h: 1, config: {} },
+    { id: 'm3', widgetCode: 'pm_upcoming',          x: 6, y: 0, w: 3, h: 1, config: {} },
+    { id: 'm4', widgetCode: 'pm_compliance_rate',   x: 9, y: 0, w: 3, h: 2, config: {} },
+    { id: 'm5', widgetCode: 'tickets_by_category',  x: 0, y: 1, w: 4, h: 2, config: {} },
+    { id: 'm6', widgetCode: 'maintenance_trend',    x: 4, y: 1, w: 5, h: 2, config: {} },
+    { id: 'm7', widgetCode: 'inventory_low_stock',  x: 0, y: 3, w: 3, h: 1, config: {} },
+    { id: 'm8', widgetCode: 'cleaning_open_tasks',  x: 3, y: 3, w: 3, h: 1, config: {} },
+    { id: 'm9', widgetCode: 'cleaning_completion_rate', x: 6, y: 3, w: 3, h: 2, config: {} },
+  ],
+  security: [
+    { id: 's1', widgetCode: 'security_open_incidents', x: 0, y: 0, w: 3, h: 1, config: {} },
+    { id: 's2', widgetCode: 'visitors_today',          x: 3, y: 0, w: 3, h: 1, config: {} },
+    { id: 's3', widgetCode: 'parking_occupancy',       x: 6, y: 0, w: 3, h: 1, config: {} },
+    { id: 's4', widgetCode: 'occupancy_rate',          x: 9, y: 0, w: 3, h: 1, config: {} },
+    { id: 's5', widgetCode: 'security_incidents_trend', x: 0, y: 1, w: 6, h: 2, config: {} },
+    { id: 's6', widgetCode: 'visitors_trend',          x: 6, y: 1, w: 6, h: 2, config: {} },
+    { id: 's7', widgetCode: 'facility_bookings_today', x: 0, y: 3, w: 3, h: 1, config: {} },
+    { id: 's8', widgetCode: 'pending_tasks',           x: 3, y: 3, w: 3, h: 1, config: {} },
+  ],
+};
+
+/**
+ * Resolve the best default layout for a given role name.
+ * Falls back to the universal DEFAULT_LAYOUT for admin/manager/unknown roles.
+ */
+export function getDefaultLayoutForRole(roleName?: string): typeof DEFAULT_LAYOUT {
+  if (!roleName) return DEFAULT_LAYOUT;
+
+  const lower = roleName.toLowerCase();
+
+  // Finance / Accounting
+  if (lower.includes('finance') || lower.includes('account') || lower.includes('billing')) {
+    return ROLE_LAYOUTS.finance;
+  }
+  // Maintenance / Engineering / Facilities
+  if (lower.includes('maintenance') || lower.includes('engineer') || lower.includes('technician') || lower.includes('facilit')) {
+    return ROLE_LAYOUTS.maintenance;
+  }
+  // Security / Guard
+  if (lower.includes('security') || lower.includes('guard') || lower.includes('patrol')) {
+    return ROLE_LAYOUTS.security;
+  }
+
+  // Admin / Manager / Owner / everything else → universal default
+  return DEFAULT_LAYOUT;
+}
+

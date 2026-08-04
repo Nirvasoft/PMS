@@ -63,6 +63,20 @@ export interface FolderItem {
   children?: FolderItem[];
 }
 
+export interface AccessLogItem {
+  id: string;
+  documentId: string;
+  action: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    email: string;
+    profile?: { firstName: string; lastName: string };
+  } | null;
+}
+
 export const documentsApi = createApi({
   reducerPath: 'documentsApi',
   baseQuery: baseQueryWithReauth,
@@ -139,6 +153,17 @@ export const documentsApi = createApi({
       query: ({ id, data }) => ({ url: `/documents/${id}/share`, method: 'POST', body: data }),
     }),
 
+    // ─── Access Logs ────────────────────────
+    getDocumentAccessLogs: builder.query<
+      PaginatedResponse<AccessLogItem>,
+      { id: string; page?: number; limit?: number }
+    >({
+      query: ({ id, page = 1, limit = 20 }) => ({
+        url: `/documents/${id}/access-logs`,
+        params: { page: String(page), limit: String(limit) },
+      }),
+    }),
+
     // ─── Folders ────────────────────────────
     getFolders: builder.query<ApiResponse<FolderItem[]>, Record<string, string>>({
       query: (params) => ({ url: '/document-folders', params }),
@@ -173,6 +198,7 @@ export const {
   useUploadNewVersionMutation,
   useGetDocumentPreviewQuery,
   useCreateShareLinkMutation,
+  useGetDocumentAccessLogsQuery,
   useGetFoldersQuery,
   useCreateFolderMutation,
   useUpdateFolderMutation,

@@ -34,6 +34,7 @@ export interface KpiCardData {
   unit: string;
   trend?: WidgetTrend;
   breakdown?: Record<string, number>;
+  sparkline?: number[];
   updatedAt?: string;
 }
 
@@ -84,7 +85,17 @@ export interface DataTableData {
   updatedAt?: string;
 }
 
-export type WidgetData = KpiCardData | LineChartData | BarChartData | PieChartData | GaugeData | DataTableData;
+export interface HeatmapData {
+  type: 'heatmap';
+  label: string;
+  rows: string[];     // Y-axis labels (e.g. hours)
+  columns: string[];  // X-axis labels (e.g. days)
+  data: number[][];   // [row][col] intensity 0-100
+  maxValue?: number;
+  updatedAt?: string;
+}
+
+export type WidgetData = KpiCardData | LineChartData | BarChartData | PieChartData | GaugeData | DataTableData | HeatmapData;
 
 export interface DrillDownColumn {
   key: string;
@@ -114,6 +125,28 @@ export interface DashboardLayoutResponse {
   dashboardKey: string;
   layout: LayoutItem[];
   updatedAt: string;
+}
+
+export interface SavedReport {
+  id: string;
+  name: string;
+  reportType: string;
+  parameters: Record<string, unknown>;
+  schedule: Record<string, unknown> | null;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  creator?: {
+    id: string;
+    email: string;
+    profile?: { firstName: string; lastName: string };
+  };
+}
+
+interface PaginatedResponse<T> {
+  success: boolean;
+  data: T[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
 }
 
 // ─── API ─────────────────────────────────────
@@ -157,6 +190,28 @@ export const dashboardApi = createApi({
         params: { ...(drillKey && { drillKey }) },
       }),
     }),
+
+    // ─── Reports ──────────────────────────────
+    listReports: builder.query<
+      PaginatedResponse<SavedReport>,
+      { reportType?: string; page?: number; limit?: number }
+    >({
+      query: (params) => ({ url: '/reports', params }),
+      providesTags: ['Reports'],
+    }),
+
+    createReport: builder.mutation<
+      ApiResponse<SavedReport>,
+      { name: string; reportType: string; parameters?: Record<string, unknown> }
+    >({
+      query: (body) => ({ url: '/reports', method: 'POST', body }),
+      invalidatesTags: ['Reports'],
+    }),
+
+    deleteReport: builder.mutation<void, string>({
+      query: (id) => ({ url: `/reports/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Reports'],
+    }),
   }),
 });
 
@@ -167,4 +222,7 @@ export const {
   useSaveDashboardLayoutMutation,
   useResetDashboardLayoutMutation,
   useLazyGetDrillDownQuery,
+  useListReportsQuery,
+  useCreateReportMutation,
+  useDeleteReportMutation,
 } = dashboardApi;

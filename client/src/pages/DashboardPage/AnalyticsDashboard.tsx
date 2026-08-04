@@ -1,4 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
+import { Responsive, WidthProvider } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 import {
   useGetDashboardLayoutQuery,
   useGetWidgetDataQuery,
@@ -6,9 +9,10 @@ import {
   useSaveDashboardLayoutMutation,
   useResetDashboardLayoutMutation,
 } from '../../store/api/dashboardApi';
-import type { LayoutItem, WidgetData, KpiCardData, LineChartData, BarChartData, PieChartData, GaugeData, DataTableData, WidgetCatalogItem } from '../../store/api/dashboardApi';
+import type { LayoutItem, WidgetData, KpiCardData, LineChartData, BarChartData, PieChartData, GaugeData, DataTableData, HeatmapData, WidgetCatalogItem } from '../../store/api/dashboardApi';
+import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
 import { useAppSelector, useAppDispatch } from '../../store';
-import { setDatePreset, toggleEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } from '../../store/slices/dashboardSlice';
+import { setFilters, setDatePreset, toggleEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } from '../../store/slices/dashboardSlice';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -18,11 +22,13 @@ import {
   TrendingUp, TrendingDown, Minus, Plus, X, Settings2, RotateCcw,
   Calendar, LayoutGrid, Maximize2, GripVertical, Trash2, Search,
   BarChart3, PieChart as PieChartIcon, Table2, Gauge, Activity,
+  Building2, ChevronDown, Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DrillDownModal from './DrillDownModal';
 import './AnalyticsDashboard.css';
 
+const ResponsiveGridLayout = WidthProvider(Responsive);
 const CHART_COLORS = ['#6c5ce7', '#00cec9', '#fd79a8', '#fdcb6e', '#74b9ff', '#55efc4', '#a29bfe', '#fab1a0'];
 
 /** Read CSS variable values at render time so charts adapt to theme changes */
@@ -81,15 +87,27 @@ export default function AnalyticsDashboard() {
   const { data: layoutData, isLoading: layoutLoading } = useGetDashboardLayoutQuery('main');
   const [saveLayout] = useSaveDashboardLayoutMutation();
   const [resetLayout] = useResetDashboardLayoutMutation();
+  const { data: propertiesData } = useGetPropertiesQuery({});
 
   // Drill-down state
   const [drillDownData, setDrillDownData] = useState<{ widgetCode: string; drillKey?: string } | null>(null);
+  const [propDropdownOpen, setPropDropdownOpen] = useState(false);
 
   const layout = (layoutData?.data?.layout || []) as LayoutItem[];
+  const properties = (propertiesData as any)?.data || [];
+  const selectedPropertyId = filters.propertyIds.length === 1 ? filters.propertyIds[0] : undefined;
+  const selectedPropertyName = selectedPropertyId
+    ? properties.find((p: any) => p.id === selectedPropertyId)?.name || 'Selected'
+    : 'All Properties';
 
   const handlePreset = (preset: string) => {
     const range = getDateRange(preset);
     dispatch(setDatePreset({ preset: preset as any, ...range }));
+  };
+
+  const handlePropertyChange = (propertyId: string | null) => {
+    dispatch(setFilters({ propertyIds: propertyId ? [propertyId] : [] }));
+    setPropDropdownOpen(false);
   };
 
   const handleRemoveWidget = useCallback(async (widgetId: string) => {
@@ -120,12 +138,55 @@ export default function AnalyticsDashboard() {
   }, [layout, saveLayout, dispatch]);
 
   const handleReset = async () => {
-    if (!confirm('Reset to default dashboard layout?')) return;
+    if (!confirm('Reset to default dashboard layout? (Based on your role)')) return;
     try {
       await resetLayout().unwrap();
-      toast.success('Dashboard reset');
+      toast.success('Dashboard reset to role default');
     } catch { toast.error('Failed to reset'); }
   };
+
+  // ─── react-grid-layout integration ────────────
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Convert our LayoutItem[] → react-grid-layout's Layout[] */
+  const rglLayout = useMemo(() =>
+    layout.map((item) => ({
+      i: item.id,
+      x: item.x,
+      y: item.y,
+      w: item.w,
+      h: item.h,
+      minW: 2,
+      minH: 1,
+      static: !editMode,
+    })),
+  [layout, editMode]);
+
+  /** Called by RGL on every drag/resize stop. Debounce save to avoid spamming API. */
+  const handleLayoutChange = useCallback((newRglLayout: Array<{ i: string; x: number; y: number; w: number; h: number }>) => {
+    if (!editMode) return;
+    // Map RGL layout back to our LayoutItem format
+    const updated: LayoutItem[] = newRglLayout.map((rgl) => {
+      const existing = layout.find((l) => l.id === rgl.i);
+      return {
+        id: rgl.i,
+        widgetCode: existing?.widgetCode || '',
+        x: rgl.x,
+        y: rgl.y,
+        w: rgl.w,
+        h: rgl.h,
+        config: existing?.config || {},
+      };
+    }).filter((l) => l.widgetCode); // safety: skip unmapped items
+
+    // Debounced auto-save (800ms after last change)
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await saveLayout({ dashboardKey: 'main', layout: updated }).unwrap();
+      } catch { /* silent — user can manually retry */ }
+    }, 800);
+  }, [editMode, layout, saveLayout]);
 
   return (
     <div className="analytics-dashboard">
@@ -139,6 +200,44 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
         <div className="header-controls">
+          {/* Property picker */}
+          <div className="property-picker-wrapper">
+            <button
+              className={`property-picker-btn ${selectedPropertyId ? 'filtered' : ''}`}
+              onClick={() => setPropDropdownOpen(!propDropdownOpen)}
+            >
+              <Building2 size={14} />
+              <span>{selectedPropertyName}</span>
+              <ChevronDown size={14} className={`chevron ${propDropdownOpen ? 'open' : ''}`} />
+            </button>
+            {propDropdownOpen && (
+              <>
+                <div className="picker-backdrop" onClick={() => setPropDropdownOpen(false)} />
+                <div className="property-dropdown">
+                  <button
+                    className={`prop-option ${!selectedPropertyId ? 'active' : ''}`}
+                    onClick={() => handlePropertyChange(null)}
+                  >
+                    <Building2 size={14} />
+                    <span>All Properties</span>
+                    {!selectedPropertyId && <Check size={14} className="check-icon" />}
+                  </button>
+                  {properties.map((p: any) => (
+                    <button
+                      key={p.id}
+                      className={`prop-option ${selectedPropertyId === p.id ? 'active' : ''}`}
+                      onClick={() => handlePropertyChange(p.id)}
+                    >
+                      <Building2 size={14} />
+                      <span>{p.name}</span>
+                      {selectedPropertyId === p.id && <Check size={14} className="check-icon" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Date presets */}
           <div className="date-presets">
             <Calendar size={14} />
@@ -167,7 +266,7 @@ export default function AnalyticsDashboard() {
         </div>
       </div>
 
-      {/* Widget Grid */}
+      {/* Widget Grid — react-grid-layout */}
       <div className="widget-grid">
         {layoutLoading ? (
           <div className="grid-loading">
@@ -183,28 +282,33 @@ export default function AnalyticsDashboard() {
             </button>
           </div>
         ) : (
-          <div className="widget-rows">
-            {/* Render widgets in row order based on y position */}
-            {groupByRows(layout).map((row, ri) => (
-              <div key={ri} className="widget-row">
-                {row.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`widget-cell ${editMode ? 'edit-mode' : ''}`}
-                    style={{ flex: `0 0 ${(item.w / 12) * 100}%`, maxWidth: `${(item.w / 12) * 100}%` }}
-                  >
-                    <WidgetContainer
-                      item={item}
-                      dateRange={filters.dateRange}
-                      editMode={editMode}
-                      onRemove={() => handleRemoveWidget(item.id)}
-                      onDrillDown={(drillKey) => setDrillDownData({ widgetCode: item.widgetCode, drillKey })}
-                    />
-                  </div>
-                ))}
+          <ResponsiveGridLayout
+            className="rgl-grid"
+            layouts={{ lg: rglLayout }}
+            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480 }}
+            cols={{ lg: 12, md: 12, sm: 6, xs: 4 }}
+            rowHeight={120}
+            isDraggable={editMode}
+            isResizable={editMode}
+            draggableHandle=".drag-handle"
+            compactType="vertical"
+            margin={[12, 12]}
+            onLayoutChange={(newLayout) => handleLayoutChange(newLayout)}
+            useCSSTransforms
+          >
+            {layout.map((item) => (
+              <div key={item.id} className={`rgl-widget-wrapper ${editMode ? 'edit-mode' : ''}`}>
+                <WidgetContainer
+                  item={item}
+                  dateRange={filters.dateRange}
+                  propertyId={selectedPropertyId}
+                  editMode={editMode}
+                  onRemove={() => handleRemoveWidget(item.id)}
+                  onDrillDown={(drillKey) => setDrillDownData({ widgetCode: item.widgetCode, drillKey })}
+                />
               </div>
             ))}
-          </div>
+          </ResponsiveGridLayout>
         )}
       </div>
 
@@ -225,28 +329,13 @@ export default function AnalyticsDashboard() {
   );
 }
 
-/** Group layout items into visual rows based on y position */
-function groupByRows(layout: LayoutItem[]): LayoutItem[][] {
-  const sorted = [...layout].sort((a, b) => a.y - b.y || a.x - b.x);
-  const rows: LayoutItem[][] = [];
-  let currentY = -1;
-
-  for (const item of sorted) {
-    if (item.y !== currentY) {
-      rows.push([]);
-      currentY = item.y;
-    }
-    rows[rows.length - 1].push(item);
-  }
-  return rows;
-}
-
 // ═══════════════════════════════════════════════════
 // WIDGET CONTAINER
 // ═══════════════════════════════════════════════════
-function WidgetContainer({ item, dateRange, editMode, onRemove, onDrillDown }: {
+function WidgetContainer({ item, dateRange, propertyId, editMode, onRemove, onDrillDown }: {
   item: LayoutItem;
   dateRange: { from: string; to: string };
+  propertyId?: string;
   editMode: boolean;
   onRemove: () => void;
   onDrillDown: (drillKey?: string) => void;
@@ -254,6 +343,7 @@ function WidgetContainer({ item, dateRange, editMode, onRemove, onDrillDown }: {
   const { data, isLoading, error, refetch } = useGetWidgetDataQuery({
     code: item.widgetCode,
     dateRange: `${dateRange.from},${dateRange.to}`,
+    propertyId,
   });
 
   const widgetData = data?.data;
@@ -294,6 +384,7 @@ function WidgetRenderer({ data, onDrillDown }: { data: WidgetData; onDrillDown: 
     case 'pie_chart': return <PieChartWidget data={data} onDrillDown={onDrillDown} />;
     case 'gauge': return <GaugeWidget data={data} onDrillDown={onDrillDown} />;
     case 'data_table': return <DataTableWidget data={data} onDrillDown={onDrillDown} />;
+    case 'heatmap': return <HeatmapWidget data={data as HeatmapData} />;
     default: return <div className="widget-unknown">Unknown type: {(data as any).type}</div>;
   }
 }
@@ -310,6 +401,35 @@ function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: 
 
   return (
     <div className="kpi-card" onClick={() => onDrillDown()} style={{ cursor: 'pointer' }}>
+      {/* Sparkline background */}
+      {data.sparkline && data.sparkline.length > 1 && (
+        <svg className="kpi-sparkline" viewBox="0 0 100 40" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={`spark-${data.label.replace(/\s+/g, '')}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--accent, #6c5ce7)" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="var(--accent, #6c5ce7)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {(() => {
+            const min = Math.min(...data.sparkline!);
+            const max = Math.max(...data.sparkline!);
+            const range = max - min || 1;
+            const pts = data.sparkline!.map((v, i) => {
+              const x = (i / (data.sparkline!.length - 1)) * 100;
+              const y = 40 - ((v - min) / range) * 36;
+              return `${x},${y}`;
+            });
+            const linePath = `M${pts.join(' L')}`;
+            const areaPath = `${linePath} L100,40 L0,40 Z`;
+            return (
+              <>
+                <path d={areaPath} fill={`url(#spark-${data.label.replace(/\s+/g, '')})`} />
+                <path d={linePath} fill="none" stroke="var(--accent, #6c5ce7)" strokeWidth="1.5" strokeLinecap="round" />
+              </>
+            );
+          })()}
+        </svg>
+      )}
       <div className="kpi-header">
         <span className="kpi-label">{data.label}</span>
         {data.trend && (
@@ -572,6 +692,62 @@ function AddWidgetPanel({ onAdd, onClose }: {
           })}
         </div>
       </aside>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// HEATMAP WIDGET
+// ═══════════════════════════════════════════════════
+function HeatmapWidget({ data }: { data: HeatmapData }) {
+  const getColor = (intensity: number): string => {
+    if (intensity === 0) return 'var(--surface-hover, rgba(255,255,255,0.03))';
+    // Purple gradient: low = light, high = vivid
+    const alpha = 0.1 + (intensity / 100) * 0.8;
+    return `rgba(108, 92, 231, ${alpha})`;
+  };
+
+  // Show only business hours (6AM - 10PM) to keep it readable
+  const startHour = 6;
+  const endHour = 22;
+  const visibleRows = data.rows.slice(startHour, endHour);
+  const visibleData = data.data.slice(startHour, endHour);
+
+  return (
+    <div className="heatmap-widget">
+      <div className="heatmap-header">
+        <span className="heatmap-label">{data.label}</span>
+        <span className="heatmap-sublabel">Last 30 days • Intensity by hour</span>
+      </div>
+      <div className="heatmap-grid">
+        {/* Column headers */}
+        <div className="heatmap-row heatmap-col-headers">
+          <div className="heatmap-hour-label" />
+          {data.columns.map((col) => (
+            <div key={col} className="heatmap-col-label">{col}</div>
+          ))}
+        </div>
+        {/* Data rows */}
+        {visibleData.map((row, ri) => (
+          <div key={ri} className="heatmap-row">
+            <div className="heatmap-hour-label">{visibleRows[ri]}</div>
+            {row.map((val, ci) => (
+              <div
+                key={ci}
+                className="heatmap-cell"
+                style={{ background: getColor(val) }}
+                title={`${visibleRows[ri]} ${data.columns[ci]}: ${val}%`}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      {/* Legend */}
+      <div className="heatmap-legend">
+        <span>Low</span>
+        <div className="heatmap-legend-gradient" />
+        <span>High</span>
+      </div>
     </div>
   );
 }

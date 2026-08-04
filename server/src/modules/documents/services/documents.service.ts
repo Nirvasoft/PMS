@@ -438,6 +438,190 @@ export class DocumentsService {
     };
   }
 
+  /**
+   * Get access logs for a document (paginated).
+   */
+  async getAccessLogs(id: string, companyId: string, page = 1, limit = 20) {
+    const doc = await prisma.document.findFirst({ where: { id, companyId, deletedAt: null } });
+    if (!doc) throw new AppError(404, 'DOCUMENT_NOT_FOUND', 'Document not found');
+
+    const where = { documentId: id };
+
+    const [data, total] = await Promise.all([
+      prisma.documentAccessLog.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              profile: { select: { firstName: true, lastName: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.documentAccessLog.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  /**
+   * Get download info for a specific version of a document.
+   */
+  async getVersionDownloadInfo(
+    documentId: string,
+    versionNumber: number,
+    companyId: string,
+    userId: string,
+  ) {
+    const doc = await prisma.document.findFirst({ where: { id: documentId, companyId, deletedAt: null } });
+    if (!doc) throw new AppError(404, 'DOCUMENT_NOT_FOUND', 'Document not found');
+
+    // If current version, use the document's storageKey directly
+    if (versionNumber === doc.currentVersion) {
+      await prisma.documentAccessLog.create({
+        data: { documentId, userId, action: 'download' },
+      });
+      return {
+        filePath: storageService.getFilePath(doc.storageKey),
+        filename: doc.originalFilename,
+        mimeType: doc.mimeType,
+      };
+    }
+
+    // Otherwise, find the version record
+    const version = await prisma.documentVersion.findUnique({
+      where: { uq_doc_version: { documentId, versionNumber } },
+    });
+    if (!version) throw new AppError(404, 'VERSION_NOT_FOUND', `Version ${versionNumber} not found`);
+
+    await prisma.documentAccessLog.create({
+      data: { documentId, userId, action: 'download' },
+    });
+
+    return {
+      filePath: storageService.getFilePath(version.storageKey),
+      filename: version.originalFilename,
+      mimeType: version.mimeType,
+    };
+  }
+
+  /**
+   * Resolve a public share link token and return document info.
+   * Validates token, expiry, max accesses, and optionally password.
+   */
+  async resolveShareLink(rawToken: string, password?: string) {
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    const share = await prisma.documentShare.findUnique({
+      where: { tokenHash },
+      include: {
+        document: {
+          select: {
+            id: true, name: true, originalFilename: true,
+            mimeType: true, fileSize: true, extension: true,
+            storageKey: true, description: true, category: true,
+            createdAt: true, deletedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!share) throw new AppError(404, 'SHARE_NOT_FOUND', 'Share link not found or expired');
+    if (share.document.deletedAt) throw new AppError(404, 'DOCUMENT_DELETED', 'Document has been deleted');
+
+    // Check expiry
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      throw new AppError(410, 'SHARE_EXPIRED', 'This share link has expired');
+    }
+
+    // Check max accesses
+    if (share.maxAccesses && share.accessCount >= share.maxAccesses) {
+      throw new AppError(410, 'SHARE_MAX_REACHED', 'This share link has reached its maximum access count');
+    }
+
+    // Check password
+    if (share.passwordHash) {
+      if (!password) {
+        // Return a flag indicating password is required
+        return {
+          requiresPassword: true,
+          documentName: share.document.name,
+          shareType: share.shareType,
+        };
+      }
+      const bcrypt = await import('bcryptjs');
+      const valid = await bcrypt.compare(password, share.passwordHash);
+      if (!valid) throw new AppError(401, 'INVALID_PASSWORD', 'Incorrect password');
+    }
+
+    // Increment access count
+    await prisma.documentShare.update({
+      where: { id: share.id },
+      data: { accessCount: { increment: 1 } },
+    });
+
+    // Log the access
+    await prisma.documentAccessLog.create({
+      data: { documentId: share.documentId, action: 'view' },
+    });
+
+    const previewUrl = storageService.getFileUrl(share.document.storageKey);
+
+    return {
+      requiresPassword: false,
+      shareType: share.shareType,
+      document: {
+        id: share.document.id,
+        name: share.document.name,
+        originalFilename: share.document.originalFilename,
+        mimeType: share.document.mimeType,
+        fileSize: Number(share.document.fileSize),
+        fileSizeFormatted: this.formatFileSize(Number(share.document.fileSize)),
+        extension: share.document.extension,
+        description: share.document.description,
+        category: share.document.category,
+        createdAt: share.document.createdAt,
+        previewUrl,
+      },
+    };
+  }
+
+  /**
+   * Download a shared document (validates token again).
+   */
+  async downloadSharedDocument(rawToken: string) {
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    const share = await prisma.documentShare.findUnique({
+      where: { tokenHash },
+      include: { document: true },
+    });
+
+    if (!share) throw new AppError(404, 'SHARE_NOT_FOUND', 'Share link not found');
+    if (share.document.deletedAt) throw new AppError(404, 'DOCUMENT_DELETED', 'Document deleted');
+    if (share.shareType !== 'download') throw new AppError(403, 'DOWNLOAD_NOT_ALLOWED', 'Download not allowed for this share link');
+    if (share.expiresAt && share.expiresAt < new Date()) throw new AppError(410, 'SHARE_EXPIRED', 'Share link expired');
+    if (share.maxAccesses && share.accessCount >= share.maxAccesses) throw new AppError(410, 'SHARE_MAX_REACHED', 'Max accesses reached');
+
+    await prisma.documentAccessLog.create({
+      data: { documentId: share.documentId, action: 'download' },
+    });
+
+    return {
+      filePath: storageService.getFilePath(share.document.storageKey),
+      filename: share.document.originalFilename,
+      mimeType: share.document.mimeType,
+    };
+  }
+
   // ─── Helpers ──────────────────────────────────
 
   private serializeDocument(doc: Record<string, unknown>) {

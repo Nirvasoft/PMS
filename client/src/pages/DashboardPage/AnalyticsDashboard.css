@@ -50,6 +50,106 @@
   gap: 16px;
 }
 
+/* ─── Property Picker ────────────────────────── */
+.property-picker-wrapper {
+  position: relative;
+}
+
+.property-picker-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.property-picker-btn:hover {
+  border-color: var(--accent);
+}
+
+.property-picker-btn.filtered {
+  background: rgba(108, 92, 231, 0.08);
+  border-color: rgba(108, 92, 231, 0.25);
+  color: var(--accent);
+}
+
+.property-picker-btn .chevron {
+  transition: transform 0.2s;
+  opacity: 0.5;
+}
+
+.property-picker-btn .chevron.open {
+  transform: rotate(180deg);
+}
+
+.picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.property-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface-card, #1a1f2e);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 4px;
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: dropdownSlide 0.15s ease-out;
+}
+
+@keyframes dropdownSlide {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.prop-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.prop-option:hover {
+  background: var(--surface-hover);
+}
+
+.prop-option.active {
+  background: rgba(108, 92, 231, 0.1);
+  color: var(--accent);
+}
+
+.prop-option .check-icon {
+  margin-left: auto;
+  color: var(--accent);
+}
+
 /* ─── Date Presets ────────────────────────────── */
 .date-presets {
   display: flex;
@@ -122,29 +222,63 @@
 }
 
 /* ─── Widget Grid ────────────────────────────── */
-.widget-grid {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 28px;
+/* ─── React Grid Layout ─────────────────────── */
+.rgl-grid {
+  margin: 0 -6px; /* account for margin offset */
 }
 
-.widget-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.rgl-widget-wrapper {
+  overflow: hidden;
 }
 
-.widget-row {
-  display: flex;
-  gap: 12px;
+.rgl-widget-wrapper > .widget-container {
+  height: 100% !important;
+  box-sizing: border-box;
 }
 
-.widget-cell {
-  min-width: 0;
-}
-
-.widget-cell.edit-mode .widget-container {
+.rgl-widget-wrapper.edit-mode > .widget-container {
   border: 1px dashed var(--accent);
+}
+
+/* Drag placeholder */
+.react-grid-placeholder {
+  background: var(--accent, #6c5ce7) !important;
+  opacity: 0.08 !important;
+  border-radius: 14px !important;
+  border: 2px dashed var(--accent, #6c5ce7) !important;
+}
+
+/* Resize handle */
+.react-resizable-handle {
+  z-index: 10;
+}
+
+.react-resizable-handle::after {
+  border-right-color: var(--text-muted, #8b95a5) !important;
+  border-bottom-color: var(--text-muted, #8b95a5) !important;
+}
+
+/* Smooth animation during drag */
+.react-grid-item.cssTransforms {
+  transition-property: none;
+}
+
+.react-grid-item:not(.react-draggable-dragging):not(.resizing) {
+  transition: all 0.2s ease;
+}
+
+/* Dragging state */
+.react-grid-item.react-draggable-dragging {
+  z-index: 100;
+  opacity: 0.9;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  border-radius: 14px;
+}
+
+/* Resizing state */
+.react-grid-item.resizing {
+  opacity: 0.85;
+  border-radius: 14px;
 }
 
 /* ─── Widget Container ───────────────────────── */
@@ -251,6 +385,19 @@
 .kpi-card {
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-sparkline {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  pointer-events: none;
+  opacity: 0.6;
+  z-index: 0;
 }
 
 .kpi-header {
@@ -614,10 +761,108 @@
   font-size: 0.75rem !important;
 }
 
+/* ─── Heatmap Widget ─────────────────────────── */
+.heatmap-widget {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 8px;
+}
+
+.heatmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.heatmap-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.heatmap-sublabel {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.heatmap-grid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.heatmap-row {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.heatmap-col-headers {
+  margin-bottom: 2px;
+}
+
+.heatmap-hour-label {
+  width: 36px;
+  flex-shrink: 0;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-align: right;
+  padding-right: 4px;
+}
+
+.heatmap-col-label {
+  flex: 1;
+  text-align: center;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.heatmap-cell {
+  flex: 1;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  min-height: 8px;
+  transition: transform 0.1s, box-shadow 0.1s;
+  cursor: default;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.2);
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.heatmap-legend-gradient {
+  width: 80px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg,
+    rgba(108, 92, 231, 0.05) 0%,
+    rgba(108, 92, 231, 0.3) 30%,
+    rgba(108, 92, 231, 0.6) 60%,
+    rgba(108, 92, 231, 0.9) 100%
+  );
+}
+
 /* ─── Responsive ─────────────────────────────── */
 @media (max-width: 768px) {
-  .widget-row { flex-direction: column; }
-  .widget-cell { flex: 1 1 100% !important; max-width: 100% !important; }
   .date-presets { display: none; }
   .grid-loading { grid-template-columns: 1fr 1fr; }
+  .property-picker-wrapper { display: none; }
 }
