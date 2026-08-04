@@ -161,6 +161,8 @@ function InstancesTab() {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cancelModal, setCancelModal] = useState<{ id: string; name: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   const params: Record<string, string> = { page: String(page), limit: '15' };
   if (statusFilter) params.status = statusFilter;
@@ -205,12 +207,16 @@ function InstancesTab() {
               </span>
               <span className="text-muted text-small">Tasks: {inst._count?.tasks ?? '?'}</span>
             </div>
+            {inst.status === 'cancelled' && inst.cancelReason && (
+              <div className="wf-instance-cancel-reason">
+                <span className="text-small text-muted">💬 {inst.cancelReason}</span>
+              </div>
+            )}
             {inst.status === 'running' && (
               <div className="wf-instance-actions" onClick={(e) => e.stopPropagation()}>
-                <button className="btn btn-sm btn-danger" onClick={async () => {
-                  if (!confirm('Cancel this workflow?')) return;
-                  try { await cancelInstance({ id: inst.id, reason: 'Cancelled by admin' }).unwrap(); toast.success('Cancelled'); }
-                  catch { toast.error('Failed'); }
+                <button className="btn btn-sm btn-danger" onClick={() => {
+                  setCancelModal({ id: inst.id, name: inst.definition.name });
+                  setCancelReason('');
                 }}>Cancel</button>
               </div>
             )}
@@ -230,6 +236,53 @@ function InstancesTab() {
           <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
           <span className="text-secondary">Page {meta.page} of {meta.totalPages}</span>
           <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next →</button>
+        </div>
+      )}
+
+      {/* Cancel Instance Modal */}
+      {cancelModal && (
+        <div className="modal-overlay" onClick={() => setCancelModal(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div className="modal-header">
+              <h2>Cancel Workflow</h2>
+              <button className="btn-icon" onClick={() => setCancelModal(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="cancel-modal-info">
+                <p>You are about to cancel <strong>{cancelModal.name}</strong>.</p>
+                <p className="text-muted text-small">This action cannot be undone. All pending tasks will be terminated.</p>
+              </div>
+              <div className="form-group">
+                <label>Reason for cancellation *</label>
+                <textarea
+                  className="input-full"
+                  rows={3}
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="e.g. Duplicate request, requirements changed, submitted in error…"
+                />
+              </div>
+              <div className="modal-actions">
+                <button className="btn" onClick={() => setCancelModal(null)}>Close</button>
+                <button
+                  className="btn btn-danger"
+                  disabled={!cancelReason.trim()}
+                  onClick={async () => {
+                    try {
+                      await cancelInstance({ id: cancelModal.id, reason: cancelReason.trim() }).unwrap();
+                      toast.success('Workflow cancelled');
+                      setCancelModal(null);
+                      setCancelReason('');
+                    } catch {
+                      toast.error('Failed to cancel');
+                    }
+                  }}
+                >
+                  Confirm Cancellation
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </>
@@ -259,6 +312,11 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
         <span className="text-small text-muted" style={{ marginLeft: 8 }}>
           Current: {inst.currentNodeIds.join(', ')}
         </span>
+        {inst.status === 'cancelled' && inst.cancelReason && (
+          <div className="wf-cancel-reason-display">
+            <span className="text-small">💬 <strong>Cancel reason:</strong> {inst.cancelReason}</span>
+          </div>
+        )}
       </div>
 
       <div className="wf-detail-section">

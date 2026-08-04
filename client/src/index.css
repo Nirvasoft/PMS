@@ -3135,6 +3135,40 @@ select.input-full:focus {
   justify-content: flex-end;
 }
 
+.wf-instance-cancel-reason {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(239, 68, 68, 0.04);
+  border-left: 3px solid var(--error);
+  border-radius: 4px;
+  font-style: italic;
+}
+
+.wf-cancel-reason-display {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+  border-left: 3px solid var(--error);
+  border-radius: var(--radius-md);
+}
+
+.cancel-modal-info {
+  padding: 14px 16px;
+  background: rgba(239, 68, 68, 0.04);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.cancel-modal-info p {
+  margin: 0 0 4px 0;
+}
+
+.cancel-modal-info p:last-child {
+  margin-bottom: 0;
+}
+
 /* ─── Instance Detail Panel ─────────────────── */
 .wf-detail-panel {
   margin-top: 16px;
