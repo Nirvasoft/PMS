@@ -135,7 +135,7 @@ export default function AnalyticsDashboard() {
           <BarChart3 size={24} className="header-icon" />
           <div>
             <h1>Analytics Dashboard</h1>
-            <p className="subtitle">Real-time overview of your property portfolio.</p>
+            <p className="subtitle">Real-time overview of your property portfolio</p>
           </div>
         </div>
         <div className="header-controls">
