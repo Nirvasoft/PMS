@@ -12,6 +12,7 @@ import { authMiddleware, requestContextMiddleware, errorHandler, tenantContextMi
 import { apiKeyAuth } from './middleware/apiKeyAuth';
 import { initSocketIO } from './common/socket';
 import { startSlaEscalationJob } from './common/slaEscalation';
+import { startWorkflowDelayResumeJob } from './common/workflowDelayResume';
 import { authRouter } from './modules/auth/auth.routes';
 import { adminRouter } from './modules/admin/admin.routes';
 import { usersRouter, rolesRouter, roleTemplatesRouter, permissionsRouter, departmentsRouter, positionsRouter } from './modules/users/users.routes';
@@ -299,6 +300,7 @@ async function bootstrap() {
 
   // Start SLA escalation cron job
   startSlaEscalationJob();
+  startWorkflowDelayResumeJob();
 
   // Start document expiry cron job
   startDocumentExpiryJob();

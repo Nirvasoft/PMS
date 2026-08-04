@@ -169,12 +169,16 @@ export class WorkflowEngine {
         await this.handleNotification(instanceId, graph, node, context);
         break;
 
+      case 'delay':
+        await this.handleDelay(instanceId, node);
+        break;
+
       case 'end':
         await this.completeInstance(instanceId, 'approved');
         break;
 
       default:
-        // start, delay — just advance
+        // start — just advance
         await this.advance(instanceId, graph, node.id, context);
     }
   }
@@ -213,6 +217,65 @@ export class WorkflowEngine {
       where: { id: instanceId },
       data: { currentNodeIds: currentNodes },
     });
+  }
+
+  /**
+   * Handle delay node — pause the workflow for N hours.
+   * Stores delayedUntil and delayNodeId on the instance.
+   * A cron job (workflowDelayResume) picks it up when the time arrives.
+   */
+  private async handleDelay(instanceId: string, node: GraphNode) {
+    const delayHours = node.data?.delayHours ?? 1;
+    const delayedUntil = new Date(Date.now() + delayHours * 60 * 60 * 1000);
+
+    // Update instance with delay info + set current node to the delay node
+    const inst = await prisma.workflowInstance.findUnique({ where: { id: instanceId } });
+    const currentNodes = (inst?.currentNodeIds ?? []).filter((n) => n !== 'start');
+    if (!currentNodes.includes(node.id)) currentNodes.push(node.id);
+
+    await prisma.workflowInstance.update({
+      where: { id: instanceId },
+      data: {
+        currentNodeIds: currentNodes,
+        delayedUntil,
+        delayNodeId: node.id,
+      },
+    });
+
+    // Record history
+    await this.recordHistory(
+      instanceId, null, null, node.id, 'delayed',
+      null,
+      `Workflow paused for ${delayHours}h. Resumes at ${delayedUntil.toISOString()}`,
+    );
+  }
+
+  /**
+   * Resume a delayed instance — called by the delay cron job.
+   * Clears the delay fields and advances past the delay node.
+   */
+  async resumeDelayedInstance(instanceId: string) {
+    const instance = await prisma.workflowInstance.findUnique({
+      where: { id: instanceId },
+      include: { definition: { select: { graph: true } } },
+    });
+    if (!instance || !instance.delayNodeId) return;
+
+    const graph = instance.definition.graph as unknown as WorkflowGraph;
+    const delayNodeId = instance.delayNodeId;
+    const context = instance.context as Record<string, unknown>;
+
+    // Clear delay fields
+    await prisma.workflowInstance.update({
+      where: { id: instanceId },
+      data: { delayedUntil: null, delayNodeId: null },
+    });
+
+    // Record history
+    await this.recordHistory(instanceId, null, delayNodeId, null, 'delay_resumed', null, 'Delay completed, workflow resumed.');
+
+    // Advance past the delay node
+    await this.advance(instanceId, graph, delayNodeId, context);
   }
 
   private async handleCondition(
@@ -327,7 +390,7 @@ export class WorkflowEngine {
 
     if (assignTo.startsWith('role:')) {
       const roleName = assignTo.slice(5);
-      // Find first user with this role in the company
+      // Find first active user with this role in the company
       const userRole = await prisma.userRole.findFirst({
         where: {
           role: { name: { equals: roleName, mode: 'insensitive' }, companyId },
@@ -335,8 +398,87 @@ export class WorkflowEngine {
         },
         select: { userId: true },
       });
-      // Fall back to initiator if no user found with that role
       return userRole?.userId ?? initiatedBy;
+    }
+
+    // position:<level> — find an active user whose position.level >= N
+    if (assignTo.startsWith('position:')) {
+      const level = parseInt(assignTo.slice(9), 10);
+      if (isNaN(level)) return initiatedBy;
+
+      const profile = await prisma.userProfile.findFirst({
+        where: {
+          position: {
+            companyId,
+            level: { gte: level },
+            isActive: true,
+          },
+          user: { isActive: true },
+        },
+        orderBy: { position: { level: 'asc' } },  // lowest qualifying level first
+        select: { userId: true },
+      });
+      return profile?.userId ?? initiatedBy;
+    }
+
+    // department:<code> — find the manager of the department with that code
+    if (assignTo.startsWith('department:')) {
+      const deptCode = assignTo.slice(11);
+      const dept = await prisma.department.findFirst({
+        where: {
+          code: { equals: deptCode, mode: 'insensitive' },
+          companyId,
+          isActive: true,
+        },
+        select: { managerId: true },
+      });
+      return dept?.managerId ?? initiatedBy;
+    }
+
+    // initiator.manager — find the direct manager via position hierarchy
+    // Logic: get the initiator's department, find the department's manager
+    if (assignTo === 'initiator.manager') {
+      const initiatorProfile = await prisma.userProfile.findUnique({
+        where: { userId: initiatedBy },
+        select: {
+          departmentId: true,
+          position: { select: { level: true, departmentId: true } },
+        },
+      });
+
+      if (initiatorProfile?.departmentId) {
+        // Option 1: Use department manager
+        const dept = await prisma.department.findUnique({
+          where: { id: initiatorProfile.departmentId },
+          select: { managerId: true },
+        });
+        if (dept?.managerId && dept.managerId !== initiatedBy) {
+          return dept.managerId;
+        }
+      }
+
+      // Option 2: Find a user with a higher position level in the same department
+      if (initiatorProfile?.position?.level != null) {
+        const deptId = initiatorProfile.departmentId || initiatorProfile.position.departmentId;
+        if (deptId) {
+          const higherPosition = await prisma.userProfile.findFirst({
+            where: {
+              departmentId: deptId,
+              position: {
+                level: { gt: initiatorProfile.position.level },
+                isActive: true,
+              },
+              user: { isActive: true },
+              userId: { not: initiatedBy },
+            },
+            orderBy: { position: { level: 'asc' } },
+            select: { userId: true },
+          });
+          if (higherPosition) return higherPosition.userId;
+        }
+      }
+
+      return initiatedBy;
     }
 
     return initiatedBy;

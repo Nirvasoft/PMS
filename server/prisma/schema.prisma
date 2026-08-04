@@ -1762,6 +1762,8 @@ model WorkflowInstance {
   cancelReason      String?   @map("cancel_reason") @db.Text
   context           Json      @default("{}")
   metadata          Json      @default("{}")
+  delayedUntil      DateTime? @map("delayed_until") @db.Timestamptz
+  delayNodeId       String?   @map("delay_node_id") @db.VarChar(100)
 
   definition        WorkflowDefinition @relation(fields: [definitionId], references: [id])
   company           Company            @relation(fields: [companyId], references: [id])
