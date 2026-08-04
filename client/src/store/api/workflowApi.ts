@@ -27,16 +27,23 @@ export interface GraphNode {
   id: string; type: string;
   data?: {
     name?: string; assignTo?: string; parallel?: boolean;
-    sla?: { hours: number; escalateTo?: string };
+    sla?: { hours: number; escalateTo?: string; mode?: 'calendar' | 'business' };
     allowDelegate?: boolean; expression?: string;
     trueEdge?: string; falseEdge?: string;
     template?: string; channels?: string[];
     recipients?: string[]; delayHours?: number;
+    scriptAction?: string;
+    scriptConfig?: Record<string, unknown>;
   };
 }
 
 export interface GraphEdge {
   id: string; source: string; target: string; label?: string;
+}
+
+export interface TaskAttachment {
+  name: string; url: string; size: number;
+  type: string; uploadedBy: string; uploadedAt: string;
 }
 
 export interface WorkflowTask {
@@ -47,6 +54,7 @@ export interface WorkflowTask {
   slaBreached: boolean; completedAt: string | null;
   remindedAt: string | null;
   escalatedAt: string | null; escalatedTo: string | null;
+  attachments: TaskAttachment[];
   createdAt: string; minutesUntilSla: number | null;
   assignee: UserRef | null; delegatee: UserRef | null;
   completer: UserRef | null; escalator: UserRef | null;
@@ -146,6 +154,10 @@ export const workflowApi = createApi({
       query: ({ taskId, ...body }) => ({ url: `/workflow-tasks/${taskId}/delegate`, method: 'POST', body }),
       invalidatesTags: ['Tasks'],
     }),
+    uploadTaskAttachment: builder.mutation<ApiResponse<TaskAttachment[]>, { taskId: string; files: FormData }>({
+      query: ({ taskId, files }) => ({ url: `/workflow-tasks/${taskId}/attachments`, method: 'POST', body: files }),
+      invalidatesTags: ['Tasks'],
+    }),
   }),
 });
 
@@ -165,4 +177,5 @@ export const {
   useApproveTaskMutation,
   useRejectTaskMutation,
   useDelegateTaskMutation,
+  useUploadTaskAttachmentMutation,
 } = workflowApi;

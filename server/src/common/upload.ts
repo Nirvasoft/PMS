@@ -8,7 +8,7 @@ import { isSpacesEnabled, uploadToSpaces, getSpacesCdnUrl } from './spaces';
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
 // Ensure upload subdirs exist (for local storage)
-['avatars', 'logos'].forEach(dir => {
+['avatars', 'logos', 'workflow-attachments'].forEach(dir => {
   const p = path.join(UPLOAD_DIR, dir);
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 });
@@ -63,6 +63,35 @@ export const memoryUpload = multer({
   fileFilter: imageFilter,
   limits: { fileSize: 5 * 1024 * 1024 },
 });
+
+/** General file upload (no image filter) for attachments etc. */
+export const fileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+});
+
+/**
+ * Persist an uploaded file buffer to local disk or Spaces.
+ * Returns the public URL.
+ */
+export async function persistUploadedFile(
+  file: Express.Multer.File,
+  subdir: string,
+): Promise<string> {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const filename = `${crypto.randomBytes(16).toString('hex')}${ext}`;
+
+  if (isSpacesEnabled()) {
+    await uploadToSpaces(`${subdir}/${filename}`, file.buffer, file.mimetype, { isPublic: true });
+    return getSpacesCdnUrl(`${subdir}/${filename}`);
+  }
+
+  // Local storage
+  const dirPath = path.join(UPLOAD_DIR, subdir);
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+  fs.writeFileSync(path.join(dirPath, filename), file.buffer);
+  return `/uploads/${subdir}/${filename}`;
+}
 
 /**
  * Process an avatar image (resize + convert to webp), save to storage.

@@ -3371,6 +3371,39 @@ select.input-full:focus {
   color: var(--text-secondary);
 }
 
+/* ─── Task Attachments ─────────────────────── */
+
+.task-attachments {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  color: var(--text-tertiary);
+}
+
+.task-attachment-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 10px;
+  color: var(--info, #3b82f6);
+  text-decoration: none;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.task-attachment-chip:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
 .task-card-actions {
   display: flex;
   gap: 8px;

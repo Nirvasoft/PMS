@@ -4,12 +4,12 @@ import { AppError } from '../../../common/errors';
 // ─── Graph types ──────────────────────────────
 export interface GraphNode {
   id: string;
-  type: 'start' | 'end' | 'approval' | 'condition' | 'notification' | 'delay';
+  type: 'start' | 'end' | 'approval' | 'condition' | 'notification' | 'delay' | 'script';
   data?: {
     name?: string;
     assignTo?: string;
     parallel?: boolean;
-    sla?: { hours: number; escalateTo?: string };
+    sla?: { hours: number; escalateTo?: string; mode?: 'calendar' | 'business' };
     allowDelegate?: boolean;
     expression?: string;
     trueEdge?: string;
@@ -17,7 +17,11 @@ export interface GraphNode {
     template?: string;
     channels?: string[];
     recipients?: string[];
+    recipientType?: string;
+    message?: string;
     delayHours?: number;
+    scriptAction?: string;   // 'update_entity_status' | 'send_email' | 'set_context' | 'webhook'
+    scriptConfig?: Record<string, unknown>;
   };
 }
 
@@ -185,6 +189,14 @@ export class DefinitionsService {
         const h = node.data?.delayHours;
         if (h == null || h <= 0) {
           throw AppError.validation(`Delay node "${node.data?.name || node.id}" must have delayHours > 0`);
+        }
+      }
+      if (node.type === 'script') {
+        const validActions = ['update_entity_status', 'send_email', 'set_context', 'webhook'];
+        if (!node.data?.scriptAction || !validActions.includes(node.data.scriptAction)) {
+          throw AppError.validation(
+            `Script node "${node.data?.name || node.id}" must have scriptAction (${validActions.join(', ')})`
+          );
         }
       }
     }

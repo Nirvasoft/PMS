@@ -1,12 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   useGetMyTasksQuery, useApproveTaskMutation, useRejectTaskMutation,
-  useDelegateTaskMutation,
+  useDelegateTaskMutation, useUploadTaskAttachmentMutation,
   type WorkflowTask,
 } from '../../../store/api/workflowApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
 import toast from 'react-hot-toast';
-import { UserCheck, ArrowRightLeft, Search, X } from 'lucide-react';
+import { UserCheck, ArrowRightLeft, Search, X, Paperclip, Upload } from 'lucide-react';
 
 export default function MyTasksPage() {
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -143,6 +143,19 @@ export default function MyTasksPage() {
                     </span>
                   )}
                   {t.comments && <span className="text-small task-comment">💬 "{t.comments}"</span>}
+
+                  {/* Attachments */}
+                  {t.attachments && t.attachments.length > 0 && (
+                    <div className="task-attachments">
+                      <Paperclip size={12} />
+                      {t.attachments.map((a, i) => (
+                        <a key={i} href={a.url} target="_blank" rel="noopener noreferrer"
+                          className="task-attachment-chip" title={`${a.name} (${formatFileSize(a.size)})`}>
+                          {a.name}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {t.status === 'pending' && (
@@ -159,6 +172,7 @@ export default function MyTasksPage() {
                       onClick={() => setDelegateTask(t)}>
                       <ArrowRightLeft size={14} /> Delegate
                     </button>
+                    <AttachButton taskId={t.id} />
                   </div>
                 )}
               </div>
@@ -492,4 +506,49 @@ function EntitySummary({ entityType, context }: { entityType: string; context: R
       </div>
     </div>
   );
+}
+
+/* ─── Attachment Button ────────────────────── */
+
+function AttachButton({ taskId }: { taskId: string }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadAttachment, { isLoading }] = useUploadTaskAttachmentMutation();
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i]);
+    }
+
+    try {
+      await uploadAttachment({ taskId, files: formData }).unwrap();
+      toast.success(`${files.length} file(s) attached`);
+    } catch {
+      toast.error('Failed to upload attachment');
+    }
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  return (
+    <>
+      <input type="file" ref={fileRef} multiple hidden
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv"
+        onChange={handleUpload} />
+      <button className="btn btn-sm" disabled={isLoading}
+        onClick={() => fileRef.current?.click()}>
+        {isLoading ? '…' : <><Paperclip size={14} /> Attach</>}
+      </button>
+    </>
+  );
+}
+
+/* ─── Helpers ──────────────────────────────── */
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1048576).toFixed(1)} MB`;
 }

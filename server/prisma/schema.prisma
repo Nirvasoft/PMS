@@ -62,6 +62,7 @@ model Company {
   // Relations — Workflow (Module 1.4)
   workflowDefinitions WorkflowDefinition[]
   workflowInstances   WorkflowInstance[]
+  workflowSlaJobs     WorkflowSlaJob[]
 
   // Relations — Notifications (Module 1.5)
   notificationTemplates NotificationTemplate[]
@@ -1770,6 +1771,7 @@ model WorkflowInstance {
   initiator         User               @relation("WfInstanceInitiator", fields: [initiatedBy], references: [id])
   tasks             WorkflowTask[]
   history           WorkflowHistory[]
+  slaJobs           WorkflowSlaJob[]
 
   @@index([entityType, entityId])
   @@index([status])
@@ -1796,6 +1798,7 @@ model WorkflowTask {
   escalatedTo   String?   @map("escalated_to") @db.Uuid
   completedAt   DateTime? @map("completed_at") @db.Timestamptz
   completedBy   String?   @map("completed_by") @db.Uuid
+  attachments   Json      @default("[]")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   instance      WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
@@ -1804,6 +1807,7 @@ model WorkflowTask {
   completer     User?            @relation("WfTaskCompleter", fields: [completedBy], references: [id], onDelete: SetNull)
   escalator     User?            @relation("WfTaskEscalator", fields: [escalatedTo], references: [id], onDelete: SetNull)
   historyItems  WorkflowHistory[]
+  slaJobs       WorkflowSlaJob[]
 
   @@index([assignedTo, status])
   @@index([instanceId])
@@ -1829,6 +1833,27 @@ model WorkflowHistory {
 
   @@index([instanceId, createdAt])
   @@map("workflow_history")
+}
+
+model WorkflowSlaJob {
+  id           String    @id @default(uuid()) @db.Uuid
+  taskId       String    @map("task_id") @db.Uuid
+  instanceId   String    @map("instance_id") @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  type         String    @db.VarChar(30)   // 'reminder' | 'breach' | 'escalation'
+  scheduledAt  DateTime  @map("scheduled_at") @db.Timestamptz
+  executedAt   DateTime? @map("executed_at") @db.Timestamptz
+  status       String    @default("pending") @db.VarChar(20) // 'pending' | 'executed' | 'cancelled'
+  metadata     Json      @default("{}")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  task         WorkflowTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  instance     WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([taskId])
+  @@map("workflow_sla_jobs")
 }
 
 // ═══════════════════════════════════════════════

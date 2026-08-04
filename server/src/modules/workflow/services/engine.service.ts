@@ -1,5 +1,6 @@
 import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
+import { logger } from '../../../common/logger';
 import { notificationService } from '../../notifications/services/notification.service';
 import type { WorkflowGraph, GraphNode } from './definitions.service';
 
@@ -75,6 +76,12 @@ export class WorkflowEngine {
         completedAt: new Date(),
         completedBy,
       },
+    });
+
+    // Cancel any pending SLA jobs for this task
+    await prisma.workflowSlaJob.updateMany({
+      where: { taskId, status: 'pending' },
+      data: { status: 'cancelled', executedAt: new Date() },
     });
 
     await this.recordHistory(task.instanceId, taskId, task.nodeId, task.nodeId, decision, completedBy, comments);
@@ -173,6 +180,10 @@ export class WorkflowEngine {
         await this.handleDelay(instanceId, node);
         break;
 
+      case 'script':
+        await this.handleScript(instanceId, graph, node, context);
+        break;
+
       case 'end':
         await this.completeInstance(instanceId, 'approved');
         break;
@@ -189,7 +200,9 @@ export class WorkflowEngine {
     // Calculate SLA due date
     let slaDueAt: Date | null = null;
     if (sla?.hours) {
-      slaDueAt = new Date(Date.now() + sla.hours * 60 * 60 * 1000);
+      slaDueAt = sla.mode === 'business'
+        ? calculateBusinessHourDeadline(sla.hours)
+        : new Date(Date.now() + sla.hours * 60 * 60 * 1000);
     }
 
     // Resolve assignee
@@ -197,7 +210,7 @@ export class WorkflowEngine {
     const assigneeId = await this.resolveAssignee(assignTo || '', instance!.companyId, instance!.initiatedBy);
 
     // Create task
-    await prisma.workflowTask.create({
+    const task = await prisma.workflowTask.create({
       data: {
         instanceId,
         nodeId: node.id,
@@ -208,6 +221,39 @@ export class WorkflowEngine {
         slaDueAt,
       },
     });
+
+    // Create SLA jobs if SLA configured
+    if (slaDueAt && instance) {
+      const jobs: { taskId: string; instanceId: string; companyId: string; type: string; scheduledAt: Date; metadata?: object }[] = [];
+
+      // Reminder: 2 hours before deadline
+      const reminderAt = new Date(slaDueAt.getTime() - 2 * 60 * 60 * 1000);
+      if (reminderAt > new Date()) {
+        jobs.push({
+          taskId: task.id, instanceId, companyId: instance.companyId,
+          type: 'reminder', scheduledAt: reminderAt,
+        });
+      }
+
+      // Breach: at deadline
+      jobs.push({
+        taskId: task.id, instanceId, companyId: instance.companyId,
+        type: 'breach', scheduledAt: slaDueAt,
+      });
+
+      // Escalation: at deadline (processed together with breach)
+      if (sla?.escalateTo) {
+        jobs.push({
+          taskId: task.id, instanceId, companyId: instance.companyId,
+          type: 'escalation', scheduledAt: slaDueAt,
+          metadata: { escalateTo: sla.escalateTo },
+        });
+      }
+
+      if (jobs.length > 0) {
+        await prisma.workflowSlaJob.createMany({ data: jobs as any });
+      }
+    }
 
     // Update instance current node
     const inst = await prisma.workflowInstance.findUnique({ where: { id: instanceId } });
@@ -276,6 +322,121 @@ export class WorkflowEngine {
 
     // Advance past the delay node
     await this.advance(instanceId, graph, delayNodeId, context);
+  }
+
+  /**
+   * Handle script node — execute a predefined action and auto-advance.
+   */
+  private async handleScript(
+    instanceId: string,
+    graph: WorkflowGraph,
+    node: GraphNode,
+    context: Record<string, unknown>,
+  ) {
+    const { scriptAction, scriptConfig, name } = node.data ?? {};
+    const config = scriptConfig ?? {};
+    let resultMessage = '';
+
+    try {
+      switch (scriptAction) {
+        case 'update_entity_status': {
+          // Update a status field in the context
+          const field = (config.field as string) || 'status';
+          const value = config.value as string;
+          if (value) {
+            context[field] = value;
+            await prisma.workflowInstance.update({
+              where: { id: instanceId },
+              data: { context: context as any },
+            });
+            resultMessage = `Set context.${field} = "${value}"`;
+          }
+          break;
+        }
+
+        case 'send_email': {
+          // Send email via notification service
+          const instance = await prisma.workflowInstance.findUnique({
+            where: { id: instanceId },
+            select: { companyId: true, initiatedBy: true },
+          });
+          if (instance) {
+            const recipients = (config.recipients as string[]) || [instance.initiatedBy];
+            const template = (config.template as string) || 'workflow_script_notification';
+            try {
+              await notificationService.send({
+                templateCode: template,
+                companyId: instance.companyId,
+                recipientIds: recipients,
+                channels: ['in_app'],
+                variables: {
+                  workflowName: (context.workflowName as string) || 'Workflow',
+                  message: (config.message as string) || `Script node "${name || node.id}" executed.`,
+                },
+              });
+              resultMessage = `Notification sent to ${recipients.length} recipient(s)`;
+            } catch {
+              resultMessage = 'Notification send attempted (template may not exist)';
+            }
+          }
+          break;
+        }
+
+        case 'set_context': {
+          // Merge key-value pairs into context
+          const values = config.values as Record<string, unknown>;
+          if (values && typeof values === 'object') {
+            Object.assign(context, values);
+            await prisma.workflowInstance.update({
+              where: { id: instanceId },
+              data: { context: context as any },
+            });
+            resultMessage = `Set ${Object.keys(values).length} context value(s)`;
+          }
+          break;
+        }
+
+        case 'webhook': {
+          // Call external URL with context data
+          const url = config.url as string;
+          const method = (config.method as string) || 'POST';
+          if (url) {
+            try {
+              const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: method !== 'GET' ? JSON.stringify({
+                  instanceId,
+                  nodeId: node.id,
+                  context,
+                  timestamp: new Date().toISOString(),
+                }) : undefined,
+              });
+              resultMessage = `Webhook ${method} ${url} → ${response.status}`;
+            } catch (err: any) {
+              resultMessage = `Webhook failed: ${err.message}`;
+              logger.error(`Script webhook failed for instance ${instanceId}:`, err);
+            }
+          }
+          break;
+        }
+
+        default:
+          resultMessage = `Unknown script action: ${scriptAction}`;
+      }
+    } catch (err: any) {
+      resultMessage = `Script error: ${err.message}`;
+      logger.error(`Script node ${node.id} error for instance ${instanceId}:`, err);
+    }
+
+    // Record history
+    await this.recordHistory(
+      instanceId, null, null, node.id, 'script_executed',
+      null, `${name || node.id}: ${resultMessage}`,
+    );
+
+    // Auto-advance
+    await this.advance(instanceId, graph, node.id, context);
   }
 
   private async handleCondition(
@@ -534,3 +695,59 @@ export class WorkflowEngine {
 }
 
 export const workflowEngine = new WorkflowEngine();
+
+// ─── Business Hours Utility ──────────────────
+
+const WORK_START_HOUR = 9;   // 9:00 AM
+const WORK_END_HOUR = 18;    // 6:00 PM
+const WORK_HOURS_PER_DAY = WORK_END_HOUR - WORK_START_HOUR; // 9 hours
+
+/**
+ * Calculate a deadline counting only business hours (Mon-Fri 9:00-18:00).
+ * For example, 4 business hours starting at 4:00 PM Friday would
+ * resolve to 1:00 PM Monday.
+ */
+function calculateBusinessHourDeadline(hours: number): Date {
+  const now = new Date();
+  let remaining = hours * 60; // convert to minutes for precision
+
+  const cursor = new Date(now);
+
+  // If we're before work hours, jump to work start
+  if (cursor.getHours() < WORK_START_HOUR) {
+    cursor.setHours(WORK_START_HOUR, 0, 0, 0);
+  }
+  // If we're after work hours, jump to next business day start
+  if (cursor.getHours() >= WORK_END_HOUR) {
+    cursor.setDate(cursor.getDate() + 1);
+    cursor.setHours(WORK_START_HOUR, 0, 0, 0);
+  }
+  // Skip weekends
+  while (cursor.getDay() === 0 || cursor.getDay() === 6) {
+    cursor.setDate(cursor.getDate() + 1);
+    cursor.setHours(WORK_START_HOUR, 0, 0, 0);
+  }
+
+  while (remaining > 0) {
+    // Calculate remaining work minutes today
+    const endOfDayMinutes = WORK_END_HOUR * 60;
+    const currentMinutes = cursor.getHours() * 60 + cursor.getMinutes();
+    const availableToday = endOfDayMinutes - currentMinutes;
+
+    if (remaining <= availableToday) {
+      cursor.setMinutes(cursor.getMinutes() + remaining);
+      remaining = 0;
+    } else {
+      remaining -= availableToday;
+      // Move to next day
+      cursor.setDate(cursor.getDate() + 1);
+      cursor.setHours(WORK_START_HOUR, 0, 0, 0);
+      // Skip weekends
+      while (cursor.getDay() === 0 || cursor.getDay() === 6) {
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+  }
+
+  return cursor;
+}
