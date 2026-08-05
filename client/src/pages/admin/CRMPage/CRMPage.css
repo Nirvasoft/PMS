@@ -915,6 +915,53 @@
   margin-bottom: 20px;
 }
 
+/* Blacklist banner & button */
+.blacklisted-banner {
+  background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.04));
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 12px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #ef4444;
+  margin-bottom: 20px;
+}
+.blacklisted-banner strong { font-weight: 700; }
+.blacklisted-banner .bl-date { color: var(--text-tertiary); font-size: 11px; }
+.btn-blacklist {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(239,68,68,0.08);
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,0.2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-blacklist:hover {
+  background: rgba(239,68,68,0.15);
+  border-color: rgba(239,68,68,0.4);
+}
+.blacklist-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(239,68,68,0.1);
+  color: #ef4444;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* ── Stage Pipeline Visual ──────────────────── */
 .stage-badge {
   display: inline-flex;

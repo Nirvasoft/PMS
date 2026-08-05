@@ -363,6 +363,98 @@ export class LeadsService {
     }
     return null;
   }
+
+  // ── Blacklist ───────────────────────────────
+  async blacklist(id: string, companyId: string, reason: string, userId: string) {
+    const lead = await prisma.lead.findFirst({ where: { id, companyId, deletedAt: null } });
+    if (!lead) throw AppError.notFound('Lead');
+    if (lead.isBlacklisted) throw AppError.conflict('Lead is already blacklisted');
+
+    const updated = await prisma.lead.update({
+      where: { id },
+      data: {
+        isBlacklisted: true,
+        blacklistedAt: new Date(),
+        blacklistedBy: userId,
+        blacklistReason: reason,
+        stage: 'lost',
+        lostReason: `Blacklisted: ${reason}`,
+        lostAt: new Date(),
+      },
+    });
+
+    // Log activity
+    await prisma.leadActivity.create({
+      data: {
+        leadId: id,
+        activityType: 'blacklist',
+        description: `Lead blacklisted. Reason: ${reason}`,
+        performedBy: userId,
+        metadata: { action: 'blacklist', reason },
+      },
+    });
+
+    return updated;
+  }
+
+  async unblacklist(id: string, companyId: string, userId: string) {
+    const lead = await prisma.lead.findFirst({ where: { id, companyId, deletedAt: null } });
+    if (!lead) throw AppError.notFound('Lead');
+    if (!lead.isBlacklisted) throw AppError.conflict('Lead is not blacklisted');
+
+    const updated = await prisma.lead.update({
+      where: { id },
+      data: {
+        isBlacklisted: false,
+        blacklistedAt: null,
+        blacklistedBy: null,
+        blacklistReason: null,
+        stage: 'new',
+        lostReason: null,
+        lostAt: null,
+      },
+    });
+
+    await prisma.leadActivity.create({
+      data: {
+        leadId: id,
+        activityType: 'blacklist',
+        description: 'Lead removed from blacklist',
+        performedBy: userId,
+        metadata: { action: 'unblacklist' },
+      },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Check if an email is blacklisted in this company.
+   * Returns the blacklisted lead if found.
+   */
+  async checkEmailBlacklist(email: string, companyId: string): Promise<{ blacklisted: boolean; lead?: any }> {
+    if (!email) return { blacklisted: false };
+
+    const blacklisted = await prisma.lead.findFirst({
+      where: {
+        companyId,
+        email: { equals: email, mode: 'insensitive' },
+        isBlacklisted: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        blacklistReason: true,
+        blacklistedAt: true,
+      },
+    });
+
+    return blacklisted
+      ? { blacklisted: true, lead: blacklisted }
+      : { blacklisted: false };
+  }
 }
 
 export const leadsService = new LeadsService();

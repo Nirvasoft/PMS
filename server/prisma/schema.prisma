@@ -353,6 +353,7 @@ model User {
   leadViewingsAgent      LeadViewing[]           @relation("ViewingAgent")
   leadActivitiesPerformed LeadActivity[]          @relation("ActivityPerformer")
   campaignsCreated       MarketingCampaign[]     @relation("CampaignCreator")
+  leadBlacklists         Lead[]                  @relation("LeadBlacklister")
 
   // Relations — Parking (Module 2.6)
   parkingAllocationsCreated ParkingAllocation[]   @relation("AllocationCreator")
@@ -2365,6 +2366,11 @@ model Lead {
   convertedTenantId String?   @map("converted_tenant_id") @db.Uuid
   notes             String?   @db.Text
   tags              String[]  @default([])
+  // Blacklist
+  isBlacklisted     Boolean   @default(false) @map("is_blacklisted")
+  blacklistedAt     DateTime? @map("blacklisted_at") @db.Timestamptz
+  blacklistedBy     String?   @map("blacklisted_by") @db.Uuid
+  blacklistReason   String?   @map("blacklist_reason") @db.Text
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
@@ -2377,10 +2383,12 @@ model Lead {
   convertedTenant   Tenant?   @relation("ConvertedTenant", fields: [convertedTenantId], references: [id], onDelete: SetNull)
   viewings          LeadViewing[]
   activities        LeadActivity[]
+  blacklister       User?     @relation("LeadBlacklister", fields: [blacklistedBy], references: [id], onDelete: SetNull)
 
   @@index([companyId])
   @@index([stage])
   @@index([assignedTo])
+  @@index([isBlacklisted])
   @@map("leads")
 }
 

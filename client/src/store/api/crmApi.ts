@@ -21,6 +21,9 @@ export interface LeadListItem {
   unitTypePreference: string | null;
   leaseTermMonths: number | null;
   tags: string[];
+  isBlacklisted: boolean;
+  blacklistedAt: string | null;
+  blacklistReason: string | null;
   createdAt: string;
   property: { id: string; name: string } | null;
   agent: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
@@ -155,6 +158,16 @@ export const crmApi = createApi({
       invalidatesTags: ['Leads', 'Pipeline', 'LeadStats'],
     }),
 
+    blacklistLead: builder.mutation<ApiResponse<LeadListItem>, { id: string; reason: string }>({
+      query: ({ id, reason }) => ({ url: `/leads/${id}/blacklist`, method: 'POST', body: { reason } }),
+      invalidatesTags: (_, __, { id }) => [{ type: 'LeadDetail', id }, 'Leads', 'Pipeline', 'LeadStats'],
+    }),
+
+    unblacklistLead: builder.mutation<ApiResponse<LeadListItem>, string>({
+      query: (id) => ({ url: `/leads/${id}/unblacklist`, method: 'POST' }),
+      invalidatesTags: ['Leads', 'Pipeline', 'LeadStats'],
+    }),
+
     getPipeline: builder.query<ApiResponse<{ stages: PipelineStage[] }>, { propertyId?: string }>({
       query: (params) => ({ url: '/leads/pipeline', params }),
       providesTags: ['Pipeline'],
@@ -269,4 +282,6 @@ export const {
   useGetCalendarStatusQuery,
   useGetCalendarAuthUrlQuery,
   useDisconnectCalendarMutation,
+  useBlacklistLeadMutation,
+  useUnblacklistLeadMutation,
 } = crmApi;

@@ -60,6 +60,13 @@ leadsRouter.post('/', validateRequest(createLeadSchema), asyncHandler(async (req
   res.status(201).json({ success: true, data });
 }));
 
+/** GET /leads/check-blacklist?email=... */
+leadsRouter.get('/check-blacklist', asyncHandler(async (req, res) => {
+  const email = req.query.email as string;
+  const data = await leadsService.checkEmailBlacklist(email || '', req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
 /** GET /leads/:id */
 leadsRouter.get('/:id', asyncHandler(async (req, res) => {
   const data = await leadsService.findById(p(req, 'id'), req.user!.companyId);
@@ -93,6 +100,24 @@ leadsRouter.post('/:id/convert', validateRequest(convertLeadSchema), asyncHandle
   );
   res.json({ success: true, data });
 }));
+
+/** POST /leads/:id/blacklist */
+leadsRouter.post('/:id/blacklist', asyncHandler(async (req, res) => {
+  const { reason } = req.body;
+  if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+    res.status(400).json({ success: false, message: 'Blacklist reason is required' });
+    return;
+  }
+  const data = await leadsService.blacklist(p(req, 'id'), req.user!.companyId, reason.trim(), req.user!.sub);
+  res.json({ success: true, data });
+}));
+
+/** POST /leads/:id/unblacklist */
+leadsRouter.post('/:id/unblacklist', asyncHandler(async (req, res) => {
+  const data = await leadsService.unblacklist(p(req, 'id'), req.user!.companyId, req.user!.sub);
+  res.json({ success: true, data });
+}));
+
 
 // ── Activities ─────────────────────────────
 

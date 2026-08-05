@@ -7,6 +7,7 @@ import {
   useRescheduleViewingMutation,
   useConvertLeadMutation, useDeleteLeadMutation,
   useGetCalendarStatusQuery, useDisconnectCalendarMutation,
+  useBlacklistLeadMutation, useUnblacklistLeadMutation,
   type LeadViewing, type LeadActivityItem,
 } from '../../../store/api/crmApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
@@ -17,6 +18,7 @@ import {
   ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
   Edit3, Save, X, Trash2, Repeat, Search, UserPlus, Link, AlertTriangle, RefreshCw,
+  ShieldOff, Shield,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CRMPage.css';
@@ -41,7 +43,11 @@ export default function LeadDetailPage() {
   const [activeTab, setActiveTab] = useState('info');
   const [showConvert, setShowConvert] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showBlacklistConfirm, setShowBlacklistConfirm] = useState(false);
+  const [blacklistReason, setBlacklistReason] = useState('');
   const [deleteLead, { isLoading: isDeleting }] = useDeleteLeadMutation();
+  const [blacklistLead, { isLoading: isBlacklisting }] = useBlacklistLeadMutation();
+  const [unblacklistLead] = useUnblacklistLeadMutation();
 
   const { data, isLoading } = useGetLeadQuery(id!);
   const lead = data?.data;
@@ -53,6 +59,28 @@ export default function LeadDetailPage() {
       navigate('/admin/crm/leads');
     } catch (e: any) {
       toast.error(e?.data?.errors?.[0]?.message || 'Failed to delete');
+    }
+  };
+
+  const handleBlacklist = async () => {
+    if (!blacklistReason.trim()) { toast.error('Please provide a reason'); return; }
+    try {
+      await blacklistLead({ id: id!, reason: blacklistReason.trim() }).unwrap();
+      toast.success('Lead blacklisted');
+      setShowBlacklistConfirm(false);
+      setBlacklistReason('');
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || e?.data?.message || 'Failed to blacklist');
+    }
+  };
+
+  const handleUnblacklist = async () => {
+    if (!confirm('Remove this lead from the blacklist?')) return;
+    try {
+      await unblacklistLead(id!).unwrap();
+      toast.success('Lead removed from blacklist');
+    } catch (e: any) {
+      toast.error(e?.data?.message || 'Failed to unblacklist');
     }
   };
 
@@ -81,9 +109,18 @@ export default function LeadDetailPage() {
           </div>
         </div>
         <div className="lead-header-actions">
-          {canConvert && (
+          {canConvert && !lead.isBlacklisted && (
             <button className="btn-convert" onClick={() => setShowConvert(true)}>
               <Repeat size={14} /> Convert to Lease
+            </button>
+          )}
+          {lead.isBlacklisted ? (
+            <button className="btn-sm btn-secondary" onClick={handleUnblacklist} title="Remove from blacklist">
+              <Shield size={14} /> Unblacklist
+            </button>
+          ) : (
+            <button className="btn-sm btn-blacklist" onClick={() => setShowBlacklistConfirm(true)} title="Blacklist lead">
+              <ShieldOff size={14} /> Blacklist
             </button>
           )}
           <StageSelector leadId={lead.id} currentStage={lead.stage} />
@@ -101,6 +138,20 @@ export default function LeadDetailPage() {
           <button className="btn-ghost" onClick={() => navigate(`/admin/leases/${lead.convertedLease!.id}`)}>
             View Lease <ChevronRight size={12} />
           </button>
+        </div>
+      )}
+
+      {/* Blacklisted Banner */}
+      {lead.isBlacklisted && (
+        <div className="blacklisted-banner">
+          <ShieldOff size={16} />
+          <div>
+            <strong>This lead is blacklisted</strong>
+            {lead.blacklistReason && <span> — {lead.blacklistReason}</span>}
+            {lead.blacklistedAt && (
+              <span className="bl-date"> (since {new Date(lead.blacklistedAt).toLocaleDateString()})</span>
+            )}
+          </div>
         </div>
       )}
 
@@ -144,6 +195,39 @@ export default function LeadDetailPage() {
               <button className="btn-secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
               <button className="btn-danger" onClick={handleDelete} disabled={isDeleting}>
                 {isDeleting ? 'Deleting…' : 'Delete Lead'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Blacklist Confirmation */}
+      {showBlacklistConfirm && (
+        <div className="crm-modal-overlay" onClick={() => setShowBlacklistConfirm(false)}>
+          <div className="crm-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <div className="delete-confirm-icon" style={{ background: 'rgba(239,68,68,0.1)' }}>
+              <ShieldOff size={28} color="#ef4444" />
+            </div>
+            <h2 style={{ textAlign: 'center' }}>Blacklist Lead?</h2>
+            <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+              <strong>{displayName}</strong> will be moved to &ldquo;Lost&rdquo; stage and flagged as blacklisted.
+              Future leads with the same email will trigger a warning.
+            </p>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">Reason for blacklisting *</label>
+              <textarea
+                className="form-textarea"
+                rows={3}
+                value={blacklistReason}
+                onChange={(e) => setBlacklistReason(e.target.value)}
+                placeholder="e.g. Fraudulent identity, repeated no-shows, abusive behavior..."
+                style={{ resize: 'vertical' }}
+              />
+            </div>
+            <div className="modal-actions" style={{ justifyContent: 'center' }}>
+              <button className="btn-secondary" onClick={() => { setShowBlacklistConfirm(false); setBlacklistReason(''); }}>Cancel</button>
+              <button className="btn-danger" onClick={handleBlacklist} disabled={isBlacklisting || !blacklistReason.trim()}>
+                {isBlacklisting ? 'Blacklisting…' : 'Blacklist Lead'}
               </button>
             </div>
           </div>

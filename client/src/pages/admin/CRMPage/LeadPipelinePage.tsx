@@ -8,7 +8,7 @@ import {
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
   Target, Plus, Search, X, TrendingUp, Users, Clock, BarChart3, ChevronRight,
-  Phone, Mail, Calendar,
+  Phone, Mail, Calendar, ShieldOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CRMPage.css';
@@ -171,6 +171,7 @@ function KanbanColumn({ stage, meta, onDrop, onClickLead }: {
             )}
             <div className="lc-footer">
               <span className={`priority-chip ${lead.priority}`}>{lead.priority}</span>
+              {lead.isBlacklisted && <span className="blacklist-chip"><ShieldOff size={9} /> Blacklisted</span>}
               {lead.source && <span className="lc-source">{lead.source.replace(/_/g, ' ')}</span>}
               {lead.agent && (
                 <span className="lc-agent">
