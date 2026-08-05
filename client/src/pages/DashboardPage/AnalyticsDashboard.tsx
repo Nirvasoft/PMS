@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { Responsive, WidthProvider } from 'react-grid-layout';
+import { ResponsiveGridLayout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import {
@@ -28,7 +28,8 @@ import toast from 'react-hot-toast';
 import DrillDownModal from './DrillDownModal';
 import './AnalyticsDashboard.css';
 
-const ResponsiveGridLayout = WidthProvider(Responsive);
+
+
 const CHART_COLORS = ['#6c5ce7', '#00cec9', '#fd79a8', '#fdcb6e', '#74b9ff', '#55efc4', '#a29bfe', '#fab1a0'];
 
 /** Read CSS variable values at render time so charts adapt to theme changes */
