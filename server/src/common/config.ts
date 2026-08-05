@@ -64,4 +64,10 @@ export const config = {
     apiUrl: optionalEnv('HIBP_API_URL', 'https://api.pwnedpasswords.com'),
     enabled: boolEnv('HIBP_CHECK_ENABLED', false),
   },
+
+  google: {
+    clientId: optionalEnv('GOOGLE_CLIENT_ID', ''),
+    clientSecret: optionalEnv('GOOGLE_CLIENT_SECRET', ''),
+    calendarRedirectUri: optionalEnv('GOOGLE_CALENDAR_REDIRECT_URI', ''),
+  },
 } as const;

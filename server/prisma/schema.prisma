@@ -436,6 +436,9 @@ model User {
   apiKeysCreated             ApiKey[]               @relation("ApiKeyCreator")
   biReportsCreated           BiReport[]             @relation("BiReportCreator")
 
+  // Relations — Integrations (Google Calendar, etc.)
+  integrations               UserIntegration[]      @relation("UserIntegrations")
+
   @@unique([email, companyId], name: "uq_users_email_company")
   @@index([email])
   @@index([companyId])
@@ -461,6 +464,24 @@ model RefreshToken {
   @@index([expiresAt])
   @@index([family])
   @@map("refresh_tokens")
+}
+
+model UserIntegration {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  provider     String    @db.VarChar(50)  // e.g. "google_calendar"
+  accessToken  String    @map("access_token") @db.Text
+  refreshToken String?   @map("refresh_token") @db.Text
+  tokenExpiry  DateTime? @map("token_expiry") @db.Timestamptz
+  scope        String?   @db.VarChar(500)
+  metadata     Json      @default("{}")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user         User      @relation("UserIntegrations", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider], name: "uq_user_integration")
+  @@map("user_integrations")
 }
 
 model UserDevice {

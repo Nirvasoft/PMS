@@ -33,7 +33,7 @@ import { startDocumentExpiryJob } from './modules/documents/documentExpiry';
 import { dashboardRouter, reportsRouter } from './modules/dashboard/dashboard.routes';
 import { startKycExpiryJob } from './modules/tenants/kycExpiry';
 import { dashboardService } from './modules/dashboard/dashboard.service';
-import { leadsRouter, campaignsRouter } from './modules/crm/crm.routes';
+import { leadsRouter, campaignsRouter, calendarRouter } from './modules/crm/crm.routes';
 import {
   parkingZonesRouter, parkingSlotsRouter, parkingAllocationsRouter,
   tenantVehiclesRouter, visitorPassesRouter, parkingRfidRouter
@@ -179,6 +179,7 @@ async function bootstrap() {
   // Module 2.5 — CRM & Leasing
   app.use('/api/v1/leads', requireFeature('crmEnabled'), leadsRouter);
   app.use('/api/v1/marketing-campaigns', requireFeature('crmEnabled'), campaignsRouter);
+  app.use('/api/v1/crm/google-calendar', requireFeature('crmEnabled'), calendarRouter);
 
   // Module 2.6 — Parking Management
   app.use('/api/v1/properties/:propertyId/parking/zones', requireFeature('parkingEnabled'), parkingZonesRouter);

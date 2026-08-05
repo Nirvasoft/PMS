@@ -436,6 +436,42 @@
 .viewing-card:hover { border-color: color-mix(in srgb, var(--accent-primary) 30%, var(--border-subtle)); }
 .viewing-card.vc-cancelled { opacity: 0.55; }
 
+/* Google Calendar badges */
+.gcal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.gcal-badge.gcal-connected {
+  background: color-mix(in srgb, #34a853 12%, transparent);
+  color: #34a853;
+  cursor: default;
+}
+.gcal-badge.gcal-connect {
+  background: color-mix(in srgb, #4285f4 10%, transparent);
+  color: #4285f4;
+  border: 1px dashed color-mix(in srgb, #4285f4 30%, transparent);
+}
+.gcal-badge.gcal-connect:hover {
+  background: color-mix(in srgb, #4285f4 18%, transparent);
+  border-color: #4285f4;
+}
+.vc-gcal-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #4285f4 10%, transparent);
+  color: #4285f4;
+  font-weight: 600;
+}
+
 .viewing-card .vc-header {
   display: flex;
   justify-content: space-between;

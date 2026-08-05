@@ -6,6 +6,7 @@ import {
   useGetViewingsQuery, useScheduleViewingMutation, useCompleteViewingMutation,
   useRescheduleViewingMutation,
   useConvertLeadMutation, useDeleteLeadMutation,
+  useGetCalendarStatusQuery, useDisconnectCalendarMutation,
   type LeadViewing, type LeadActivityItem,
 } from '../../../store/api/crmApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
@@ -756,9 +757,13 @@ function ViewingsTab({ leadId }: { leadId: string }) {
   const [scheduleViewing] = useScheduleViewingMutation();
   const [completeViewing] = useCompleteViewingMutation();
   const [rescheduleViewing] = useRescheduleViewingMutation();
+  const { data: calendarStatus } = useGetCalendarStatusQuery();
+  const [disconnectCalendar] = useDisconnectCalendarMutation();
   const [showSchedule, setShowSchedule] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<LeadViewing | null>(null);
   const viewings = data?.data || [];
+  const calendarConnected = calendarStatus?.data?.connected;
+  const calendarConfigured = calendarStatus?.data?.configured;
 
   const handleSchedule = async (formData: Record<string, unknown>) => {
     try {
@@ -797,9 +802,36 @@ function ViewingsTab({ leadId }: { leadId: string }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600 }}>Viewings ({viewings.length})</h3>
-        <button className="btn-primary" onClick={() => setShowSchedule(true)}><Calendar size={14} /> Schedule Viewing</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {calendarConfigured && (
+            calendarConnected ? (
+              <span className="gcal-badge gcal-connected" title="Google Calendar synced">
+                <Calendar size={11} /> Calendar Synced
+              </span>
+            ) : (
+              <a
+                className="gcal-badge gcal-connect"
+                href={`${import.meta.env.VITE_API_URL || ''}/api/v1/crm/google-calendar/auth-url`}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  try {
+                    const resp = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/crm/google-calendar/auth-url`, {
+                      headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}` },
+                    });
+                    const json = await resp.json();
+                    if (json?.data?.url) window.open(json.data.url, '_blank', 'width=500,height=700');
+                  } catch { toast.error('Failed to get auth URL'); }
+                }}
+                title="Connect Google Calendar"
+              >
+                <Calendar size={11} /> Connect Calendar
+              </a>
+            )
+          )}
+          <button className="btn-primary" onClick={() => setShowSchedule(true)}><Calendar size={14} /> Schedule Viewing</button>
+        </div>
       </div>
       {viewings.length === 0 ? (
         <div className="table-empty" style={{ padding: 40 }}><Eye size={40} /><p>No viewings scheduled</p></div>
@@ -817,6 +849,9 @@ function ViewingsTab({ leadId }: { leadId: string }) {
                 {v.status === 'no_show' && <X size={10} />}
                 {v.status}
               </span>
+              {v.calendarEventId && (
+                <span className="vc-gcal-badge" title="Synced to Google Calendar">📅 Synced</span>
+              )}
             </div>
             <div className="vc-detail">
               {v.unit && <span>🏢 Unit {v.unit.unitNumber}</span>}

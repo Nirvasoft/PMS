@@ -46,6 +46,7 @@ export interface LeadViewing {
   status: string;
   outcome: string | null;
   agentNotes: string | null;
+  calendarEventId: string | null;
   createdAt: string;
   unit: { id: string; unitNumber: string; unitType?: string } | null;
   agent: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
@@ -113,7 +114,7 @@ interface PaginatedResponse<T> {
 export const crmApi = createApi({
   reducerPath: 'crmApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Leads', 'LeadDetail', 'Pipeline', 'LeadStats', 'Viewings', 'Activities', 'Campaigns'],
+  tagTypes: ['Leads', 'LeadDetail', 'Pipeline', 'LeadStats', 'Viewings', 'Activities', 'Campaigns', 'CalendarStatus'],
   endpoints: (builder) => ({
 
     getLeads: builder.query<PaginatedResponse<LeadListItem>, {
@@ -220,6 +221,27 @@ export const crmApi = createApi({
       query: (id) => ({ url: `/marketing-campaigns/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Campaigns'],
     }),
+
+    // ── Google Calendar Integration ──
+
+    getCalendarStatus: builder.query<ApiResponse<{
+      connected: boolean;
+      configured: boolean;
+      email?: string;
+      connectedAt?: string;
+    }>, void>({
+      query: () => '/crm/google-calendar/status',
+      providesTags: ['CalendarStatus'],
+    }),
+
+    getCalendarAuthUrl: builder.query<ApiResponse<{ url: string }>, void>({
+      query: () => '/crm/google-calendar/auth-url',
+    }),
+
+    disconnectCalendar: builder.mutation<{ success: boolean }, void>({
+      query: () => ({ url: '/crm/google-calendar/disconnect', method: 'DELETE' }),
+      invalidatesTags: ['CalendarStatus'],
+    }),
   }),
 });
 
@@ -244,4 +266,7 @@ export const {
   useUpdateCampaignMutation,
   useGetCampaignROIQuery,
   useDeleteCampaignMutation,
+  useGetCalendarStatusQuery,
+  useGetCalendarAuthUrlQuery,
+  useDisconnectCalendarMutation,
 } = crmApi;

@@ -4,6 +4,7 @@ import { validateRequest } from '../../middleware/validateRequest';
 import { leadsService } from './leads.service';
 import { viewingsService } from './viewings.service';
 import { campaignsService } from './campaigns.service';
+import { googleCalendarService } from './googleCalendar.service';
 import {
   createLeadSchema, updateLeadSchema, updateStageSchema, convertLeadSchema,
   createViewingSchema, updateViewingSchema, completeViewingSchema,
@@ -15,6 +16,7 @@ const p = (req: Request, key: string) => req.params[key] as string;
 
 export const leadsRouter     = Router();
 export const campaignsRouter = Router();
+export const calendarRouter  = Router();
 
 // ════════════════════════════════════════════════
 // LEADS
@@ -175,4 +177,45 @@ campaignsRouter.get('/:id/roi', asyncHandler(async (req, res) => {
 campaignsRouter.delete('/:id', asyncHandler(async (req, res) => {
   await campaignsService.delete(p(req, 'id'), req.user!.companyId);
   res.json({ success: true, message: 'Campaign deleted' });
+}));
+
+// ════════════════════════════════════════════════
+// GOOGLE CALENDAR INTEGRATION
+// ════════════════════════════════════════════════
+
+/** GET /crm/google-calendar/status — Check connection status */
+calendarRouter.get('/status', asyncHandler(async (req, res) => {
+  const data = await googleCalendarService.getConnectionStatus(req.user!.sub);
+  res.json({ success: true, data: { ...data, configured: googleCalendarService.isConfigured() } });
+}));
+
+/** GET /crm/google-calendar/auth-url — Get OAuth authorization URL */
+calendarRouter.get('/auth-url', asyncHandler(async (req, res) => {
+  if (!googleCalendarService.isConfigured()) {
+    res.status(501).json({ success: false, message: 'Google Calendar integration is not configured' });
+    return;
+  }
+  const url = googleCalendarService.getAuthUrl(req.user!.sub);
+  res.json({ success: true, data: { url } });
+}));
+
+/** GET /crm/google-calendar/callback — Handle OAuth callback */
+calendarRouter.get('/callback', asyncHandler(async (req, res) => {
+  const { code, state } = req.query as { code?: string; state?: string };
+  if (!code || !state) {
+    res.status(400).json({ success: false, message: 'Missing code or state' });
+    return;
+  }
+
+  await googleCalendarService.handleCallback(code, state);
+
+  // Redirect back to the frontend settings page
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  res.redirect(`${frontendUrl}/admin/settings?calendar=connected`);
+}));
+
+/** DELETE /crm/google-calendar/disconnect — Remove connection */
+calendarRouter.delete('/disconnect', asyncHandler(async (req, res) => {
+  await googleCalendarService.disconnect(req.user!.sub);
+  res.json({ success: true, message: 'Google Calendar disconnected' });
 }));
