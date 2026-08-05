@@ -36,6 +36,7 @@ import ParkingOverviewPage from './pages/admin/ParkingPage/ParkingOverviewPage';
 import AllocationManager from './pages/admin/ParkingPage/AllocationManager';
 import VisitorParkingPage from './pages/admin/ParkingPage/VisitorParkingPage';
 import GateAccessLogsPage from './pages/admin/ParkingPage/GateAccessLogsPage';
+import VehicleRegistryPage from './pages/admin/ParkingPage/VehicleRegistryPage';
 import InvoiceListPage from './pages/admin/BillingPage/InvoiceListPage';
 import InvoiceDetailPage from './pages/admin/BillingPage/InvoiceDetailPage';
 import CreateInvoicePage from './pages/admin/BillingPage/CreateInvoicePage';
@@ -231,6 +232,7 @@ function AppRoutes() {
             <Route path="/admin/parking/allocations" element={<AllocationManager />} />
             <Route path="/admin/parking/visitors" element={<VisitorParkingPage />} />
             <Route path="/admin/parking/gate-logs" element={<GateAccessLogsPage />} />
+            <Route path="/admin/parking/vehicles" element={<VehicleRegistryPage />} />
           </Route>
 
           {/* Billing & Finance — requires billing.read */}

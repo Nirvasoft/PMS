@@ -192,6 +192,10 @@ export default function DashboardLayout() {
                 <span className="nav-icon"><Activity size={16} /></span>
                 <span className="nav-label">Gate Logs</span>
               </NavLink>
+              <NavLink to="/admin/parking/vehicles" className="nav-item">
+                <span className="nav-icon"><Car size={16} /></span>
+                <span className="nav-label">Vehicle Registry</span>
+              </NavLink>
             </NavSection>
           </FeatureGate>
 

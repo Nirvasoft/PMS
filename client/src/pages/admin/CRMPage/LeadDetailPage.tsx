@@ -1,15 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useGetLeadQuery, useUpdateLeadMutation, useUpdateLeadStageMutation,
   useGetActivitiesQuery, useCreateActivityMutation,
   useGetViewingsQuery, useScheduleViewingMutation, useCompleteViewingMutation,
-  useConvertLeadMutation,
+  useConvertLeadMutation, useDeleteLeadMutation,
   type LeadViewing, type LeadActivityItem,
 } from '../../../store/api/crmApi';
+import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import { useGetLeasesQuery } from '../../../store/api/leasesApi';
+import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetUsersQuery } from '../../../store/api/usersApi';
 import {
   ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
+  Edit3, Save, X, Trash2, Repeat, Search, UserPlus, Link, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CRMPage.css';
@@ -26,19 +31,35 @@ const STAGE_META: Record<string, { label: string; color: string }> = {
   duplicate:          { label: 'Duplicate',         color: '#9ca3af' },
 };
 
+const SOURCES = ['website', 'walk_in', 'referral', 'agent', 'portal'];
+
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('info');
+  const [showConvert, setShowConvert] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLead, { isLoading: isDeleting }] = useDeleteLeadMutation();
 
   const { data, isLoading } = useGetLeadQuery(id!);
   const lead = data?.data;
+
+  const handleDelete = async () => {
+    try {
+      await deleteLead(id!).unwrap();
+      toast.success('Lead deleted');
+      navigate('/admin/crm/leads');
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to delete');
+    }
+  };
 
   if (isLoading) return <div className="lead-detail-page"><div className="table-loading"><div className="lp" /><div className="lp" /></div></div>;
   if (!lead) return <div className="lead-detail-page"><p>Lead not found</p></div>;
 
   const displayName = lead.companyName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unknown Lead';
   const stageMeta = STAGE_META[lead.stage] || { label: lead.stage, color: '#666' };
+  const canConvert = !['lost', 'duplicate', 'lease_signed'].includes(lead.stage);
 
   return (
     <div className="lead-detail-page">
@@ -58,7 +79,15 @@ export default function LeadDetailPage() {
           </div>
         </div>
         <div className="lead-header-actions">
+          {canConvert && (
+            <button className="btn-convert" onClick={() => setShowConvert(true)}>
+              <Repeat size={14} /> Convert to Lease
+            </button>
+          )}
           <StageSelector leadId={lead.id} currentStage={lead.stage} />
+          <button className="btn-ghost btn-danger-ghost" onClick={() => setShowDeleteConfirm(true)} title="Delete Lead">
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
 
@@ -87,9 +116,37 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'info' && <InfoTab lead={lead} />}
+      {activeTab === 'info' && <InfoTab lead={lead} leadId={lead.id} />}
       {activeTab === 'viewings' && <ViewingsTab leadId={lead.id} />}
       {activeTab === 'activity' && <ActivityTab leadId={lead.id} />}
+
+      {/* Convert Modal */}
+      {showConvert && (
+        <ConvertLeadModal
+          leadId={lead.id}
+          leadName={displayName}
+          onClose={() => setShowConvert(false)}
+        />
+      )}
+
+      {/* Delete Confirmation */}
+      {showDeleteConfirm && (
+        <div className="crm-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="crm-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="delete-confirm-icon"><AlertTriangle size={28} /></div>
+            <h2 style={{ textAlign: 'center' }}>Delete Lead?</h2>
+            <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              This will permanently delete <strong>{displayName}</strong> and all associated viewings, activities, and data.
+            </p>
+            <div className="modal-actions" style={{ justifyContent: 'center' }}>
+              <button className="btn-secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+              <button className="btn-danger" onClick={handleDelete} disabled={isDeleting}>
+                {isDeleting ? 'Deleting…' : 'Delete Lead'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -148,43 +205,545 @@ function StageSelector({ leadId, currentStage }: { leadId: string; currentStage:
   );
 }
 
-// ── Info Tab ────────────────────────────────────
+// ── Info Tab (Editable) ────────────────────────
 
-function InfoTab({ lead }: { lead: any }) {
-  return (
-    <div className="lead-info-grid">
-      <div className="lead-info-section">
-        <h3>Contact Information</h3>
-        <div className="info-row"><span className="info-label">First Name</span><span className="info-value">{lead.firstName || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Last Name</span><span className="info-value">{lead.lastName || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Company</span><span className="info-value">{lead.companyName || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Email</span><span className="info-value">{lead.email || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Phone</span><span className="info-value">{lead.phone || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Mobile</span><span className="info-value">{lead.mobile || '—'}</span></div>
-      </div>
-      <div className="lead-info-section">
-        <h3>Requirements</h3>
-        <div className="info-row"><span className="info-label">Unit Type</span><span className="info-value">{lead.unitTypePreference || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Budget</span><span className="info-value">{lead.budgetMin || lead.budgetMax ? `${Number(lead.budgetMin || 0).toLocaleString()} – ${Number(lead.budgetMax || 0).toLocaleString()}` : '—'}</span></div>
-        <div className="info-row"><span className="info-label">Area (sqft)</span><span className="info-value">{lead.minAreaSqft || lead.maxAreaSqft ? `${lead.minAreaSqft || '—'} – ${lead.maxAreaSqft || '—'}` : '—'}</span></div>
-        <div className="info-row"><span className="info-label">Move-in Date</span><span className="info-value">{lead.moveInDate ? new Date(lead.moveInDate).toLocaleDateString() : '—'}</span></div>
-        <div className="info-row"><span className="info-label">Lease Term</span><span className="info-value">{lead.leaseTermMonths ? `${lead.leaseTermMonths} months` : '—'}</span></div>
-      </div>
-      <div className="lead-info-section">
-        <h3>Pipeline Details</h3>
-        <div className="info-row"><span className="info-label">Source</span><span className="info-value">{lead.source?.replace(/_/g, ' ') || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Property</span><span className="info-value">{lead.property?.name || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Assigned To</span><span className="info-value">{lead.agent?.profile ? `${lead.agent.profile.firstName} ${lead.agent.profile.lastName}` : lead.agent?.email || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Campaign</span><span className="info-value">{lead.campaign?.name || '—'}</span></div>
-        <div className="info-row"><span className="info-label">Created</span><span className="info-value">{new Date(lead.createdAt).toLocaleString()}</span></div>
-        {lead.lostReason && <div className="info-row"><span className="info-label">Lost Reason</span><span className="info-value">{lead.lostReason}</span></div>}
-      </div>
-      {lead.notes && (
-        <div className="lead-info-section" style={{ gridColumn: '1 / -1' }}>
-          <h3>Notes</h3>
-          <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{lead.notes}</p>
+function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [updateLead, { isLoading: isSaving }] = useUpdateLeadMutation();
+  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const { data: usersData } = useGetUsersQuery({ page: 1, limit: 200 });
+  const properties = propertiesData?.data || [];
+  const users = usersData?.data || [];
+
+  const [form, setForm] = useState({
+    firstName: lead.firstName || '',
+    lastName: lead.lastName || '',
+    companyName: lead.companyName || '',
+    email: lead.email || '',
+    phone: lead.phone || '',
+    mobile: lead.mobile || '',
+    unitTypePreference: lead.unitTypePreference || '',
+    budgetMin: lead.budgetMin ? Number(lead.budgetMin) : '',
+    budgetMax: lead.budgetMax ? Number(lead.budgetMax) : '',
+    minAreaSqft: lead.minAreaSqft ? Number(lead.minAreaSqft) : '',
+    maxAreaSqft: lead.maxAreaSqft ? Number(lead.maxAreaSqft) : '',
+    moveInDate: lead.moveInDate ? lead.moveInDate.substring(0, 10) : '',
+    leaseTermMonths: lead.leaseTermMonths ?? '',
+    priority: lead.priority || 'medium',
+    source: lead.source || '',
+    propertyId: lead.property?.id || '',
+    assignedTo: lead.agent?.id || '',
+    notes: lead.notes || '',
+    tags: (lead.tags || []).join(', '),
+  });
+
+  // Reset form when lead data changes
+  useEffect(() => {
+    setForm({
+      firstName: lead.firstName || '',
+      lastName: lead.lastName || '',
+      companyName: lead.companyName || '',
+      email: lead.email || '',
+      phone: lead.phone || '',
+      mobile: lead.mobile || '',
+      unitTypePreference: lead.unitTypePreference || '',
+      budgetMin: lead.budgetMin ? Number(lead.budgetMin) : '',
+      budgetMax: lead.budgetMax ? Number(lead.budgetMax) : '',
+      minAreaSqft: lead.minAreaSqft ? Number(lead.minAreaSqft) : '',
+      maxAreaSqft: lead.maxAreaSqft ? Number(lead.maxAreaSqft) : '',
+      moveInDate: lead.moveInDate ? lead.moveInDate.substring(0, 10) : '',
+      leaseTermMonths: lead.leaseTermMonths ?? '',
+      priority: lead.priority || 'medium',
+      source: lead.source || '',
+      propertyId: lead.property?.id || '',
+      assignedTo: lead.agent?.id || '',
+      notes: lead.notes || '',
+      tags: (lead.tags || []).join(', '),
+    });
+  }, [lead]);
+
+  const set = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleSave = async () => {
+    try {
+      const payload: Record<string, unknown> = {};
+      if (form.firstName !== (lead.firstName || ''))   payload.firstName = form.firstName || null;
+      if (form.lastName !== (lead.lastName || ''))      payload.lastName = form.lastName || null;
+      if (form.companyName !== (lead.companyName || ''))payload.companyName = form.companyName || null;
+      if (form.email !== (lead.email || ''))            payload.email = form.email || null;
+      if (form.phone !== (lead.phone || ''))            payload.phone = form.phone || null;
+      if (form.mobile !== (lead.mobile || ''))          payload.mobile = form.mobile || null;
+      if (form.unitTypePreference !== (lead.unitTypePreference || '')) payload.unitTypePreference = form.unitTypePreference || null;
+
+      const bMin = form.budgetMin === '' ? null : Number(form.budgetMin);
+      const bMax = form.budgetMax === '' ? null : Number(form.budgetMax);
+      if (bMin !== (lead.budgetMin ? Number(lead.budgetMin) : null)) payload.budgetMin = bMin;
+      if (bMax !== (lead.budgetMax ? Number(lead.budgetMax) : null)) payload.budgetMax = bMax;
+
+      const aMin = form.minAreaSqft === '' ? null : Number(form.minAreaSqft);
+      const aMax = form.maxAreaSqft === '' ? null : Number(form.maxAreaSqft);
+      if (aMin !== (lead.minAreaSqft ? Number(lead.minAreaSqft) : null)) payload.minAreaSqft = aMin;
+      if (aMax !== (lead.maxAreaSqft ? Number(lead.maxAreaSqft) : null)) payload.maxAreaSqft = aMax;
+
+      if (form.moveInDate !== (lead.moveInDate ? lead.moveInDate.substring(0, 10) : '')) payload.moveInDate = form.moveInDate || null;
+
+      const lTerm = form.leaseTermMonths === '' ? null : Number(form.leaseTermMonths);
+      if (lTerm !== lead.leaseTermMonths) payload.leaseTermMonths = lTerm;
+
+      if (form.priority !== lead.priority) payload.priority = form.priority;
+      if (form.source !== (lead.source || '')) payload.source = form.source || null;
+      if (form.propertyId !== (lead.property?.id || '')) payload.propertyId = form.propertyId || null;
+      if (form.assignedTo !== (lead.agent?.id || '')) payload.assignedTo = form.assignedTo || null;
+      if (form.notes !== (lead.notes || '')) payload.notes = form.notes || null;
+
+      const newTags = form.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+      const oldTags = lead.tags || [];
+      if (JSON.stringify(newTags) !== JSON.stringify(oldTags)) payload.tags = newTags;
+
+      if (Object.keys(payload).length === 0) {
+        setIsEditing(false);
+        return;
+      }
+
+      await updateLead({ id: leadId, data: payload }).unwrap();
+      toast.success('Lead updated');
+      setIsEditing(false);
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to save');
+    }
+  };
+
+  const handleCancel = () => {
+    setForm({
+      firstName: lead.firstName || '',
+      lastName: lead.lastName || '',
+      companyName: lead.companyName || '',
+      email: lead.email || '',
+      phone: lead.phone || '',
+      mobile: lead.mobile || '',
+      unitTypePreference: lead.unitTypePreference || '',
+      budgetMin: lead.budgetMin ? Number(lead.budgetMin) : '',
+      budgetMax: lead.budgetMax ? Number(lead.budgetMax) : '',
+      minAreaSqft: lead.minAreaSqft ? Number(lead.minAreaSqft) : '',
+      maxAreaSqft: lead.maxAreaSqft ? Number(lead.maxAreaSqft) : '',
+      moveInDate: lead.moveInDate ? lead.moveInDate.substring(0, 10) : '',
+      leaseTermMonths: lead.leaseTermMonths ?? '',
+      priority: lead.priority || 'medium',
+      source: lead.source || '',
+      propertyId: lead.property?.id || '',
+      assignedTo: lead.agent?.id || '',
+      notes: lead.notes || '',
+      tags: (lead.tags || []).join(', '),
+    });
+    setIsEditing(false);
+  };
+
+  // ─── Read-only View ───
+  if (!isEditing) {
+    return (
+      <div>
+        <div className="info-tab-header">
+          <button className="btn-edit" onClick={() => setIsEditing(true)}>
+            <Edit3 size={14} /> Edit Lead
+          </button>
         </div>
-      )}
+        <div className="lead-info-grid">
+          <div className="lead-info-section">
+            <h3>Contact Information</h3>
+            <div className="info-row"><span className="info-label">First Name</span><span className="info-value">{lead.firstName || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Last Name</span><span className="info-value">{lead.lastName || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Company</span><span className="info-value">{lead.companyName || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Email</span><span className="info-value">{lead.email || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Phone</span><span className="info-value">{lead.phone || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Mobile</span><span className="info-value">{lead.mobile || '—'}</span></div>
+          </div>
+          <div className="lead-info-section">
+            <h3>Requirements</h3>
+            <div className="info-row"><span className="info-label">Unit Type</span><span className="info-value">{lead.unitTypePreference || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Budget</span><span className="info-value">{lead.budgetMin || lead.budgetMax ? `${Number(lead.budgetMin || 0).toLocaleString()} – ${Number(lead.budgetMax || 0).toLocaleString()}` : '—'}</span></div>
+            <div className="info-row"><span className="info-label">Area (sqft)</span><span className="info-value">{lead.minAreaSqft || lead.maxAreaSqft ? `${lead.minAreaSqft || '—'} – ${lead.maxAreaSqft || '—'}` : '—'}</span></div>
+            <div className="info-row"><span className="info-label">Move-in Date</span><span className="info-value">{lead.moveInDate ? new Date(lead.moveInDate).toLocaleDateString() : '—'}</span></div>
+            <div className="info-row"><span className="info-label">Lease Term</span><span className="info-value">{lead.leaseTermMonths ? `${lead.leaseTermMonths} months` : '—'}</span></div>
+          </div>
+          <div className="lead-info-section">
+            <h3>Pipeline Details</h3>
+            <div className="info-row"><span className="info-label">Source</span><span className="info-value">{lead.source?.replace(/_/g, ' ') || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Priority</span><span className="info-value"><span className={`priority-chip ${lead.priority}`}>{lead.priority}</span></span></div>
+            <div className="info-row"><span className="info-label">Property</span><span className="info-value">{lead.property?.name || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Assigned To</span><span className="info-value">{lead.agent?.profile ? `${lead.agent.profile.firstName} ${lead.agent.profile.lastName}` : lead.agent?.email || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Campaign</span><span className="info-value">{lead.campaign?.name || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Tags</span><span className="info-value">{lead.tags?.length ? lead.tags.join(', ') : '—'}</span></div>
+            <div className="info-row"><span className="info-label">Created</span><span className="info-value">{new Date(lead.createdAt).toLocaleString()}</span></div>
+            {lead.lostReason && <div className="info-row"><span className="info-label">Lost Reason</span><span className="info-value">{lead.lostReason}</span></div>}
+          </div>
+          {lead.notes && (
+            <div className="lead-info-section" style={{ gridColumn: '1 / -1' }}>
+              <h3>Notes</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{lead.notes}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Edit View ───
+  return (
+    <div>
+      <div className="info-tab-header">
+        <div className="edit-actions">
+          <button className="btn-secondary" onClick={handleCancel} disabled={isSaving}>
+            <X size={14} /> Cancel
+          </button>
+          <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
+            <Save size={14} /> {isSaving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+      <div className="lead-edit-grid">
+        {/* Contact Information */}
+        <div className="lead-edit-section">
+          <h3><User size={14} /> Contact Information</h3>
+          <div className="edit-form-row">
+            <div className="form-group">
+              <label>First Name</label>
+              <input className="form-input" value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="First name" />
+            </div>
+            <div className="form-group">
+              <label>Last Name</label>
+              <input className="form-input" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Last name" />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Company Name</label>
+            <input className="form-input" value={form.companyName} onChange={e => set('companyName', e.target.value)} placeholder="Company name" />
+          </div>
+          <div className="form-group">
+            <label>Email</label>
+            <input className="form-input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@example.com" />
+          </div>
+          <div className="edit-form-row">
+            <div className="form-group">
+              <label>Phone</label>
+              <input className="form-input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+65-xxxx-xxxx" />
+            </div>
+            <div className="form-group">
+              <label>Mobile</label>
+              <input className="form-input" value={form.mobile} onChange={e => set('mobile', e.target.value)} placeholder="+65-xxxx-xxxx" />
+            </div>
+          </div>
+        </div>
+
+        {/* Requirements */}
+        <div className="lead-edit-section">
+          <h3><FileText size={14} /> Requirements</h3>
+          <div className="form-group">
+            <label>Unit Type Preference</label>
+            <input className="form-input" value={form.unitTypePreference} onChange={e => set('unitTypePreference', e.target.value)} placeholder="e.g. 2br, studio, office" />
+          </div>
+          <div className="edit-form-row">
+            <div className="form-group">
+              <label>Budget Min</label>
+              <input className="form-input" type="number" value={form.budgetMin} onChange={e => set('budgetMin', e.target.value)} placeholder="0" />
+            </div>
+            <div className="form-group">
+              <label>Budget Max</label>
+              <input className="form-input" type="number" value={form.budgetMax} onChange={e => set('budgetMax', e.target.value)} placeholder="0" />
+            </div>
+          </div>
+          <div className="edit-form-row">
+            <div className="form-group">
+              <label>Area Min (sqft)</label>
+              <input className="form-input" type="number" value={form.minAreaSqft} onChange={e => set('minAreaSqft', e.target.value)} placeholder="0" />
+            </div>
+            <div className="form-group">
+              <label>Area Max (sqft)</label>
+              <input className="form-input" type="number" value={form.maxAreaSqft} onChange={e => set('maxAreaSqft', e.target.value)} placeholder="0" />
+            </div>
+          </div>
+          <div className="edit-form-row">
+            <div className="form-group">
+              <label>Move-in Date</label>
+              <input className="form-input" type="date" value={form.moveInDate} onChange={e => set('moveInDate', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Lease Term (months)</label>
+              <input className="form-input" type="number" min="1" max="120" value={form.leaseTermMonths} onChange={e => set('leaseTermMonths', e.target.value)} placeholder="12" />
+            </div>
+          </div>
+        </div>
+
+        {/* Pipeline Details */}
+        <div className="lead-edit-section">
+          <h3><Target size={14} /> Pipeline Details</h3>
+          <div className="edit-form-row">
+            <div className="form-group">
+              <label>Priority</label>
+              <select className="form-input" value={form.priority} onChange={e => set('priority', e.target.value)}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Source</label>
+              <select className="form-input" value={form.source} onChange={e => set('source', e.target.value)}>
+                <option value="">— None —</option>
+                {SOURCES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Property</label>
+            <select className="form-input" value={form.propertyId} onChange={e => set('propertyId', e.target.value)}>
+              <option value="">— None —</option>
+              {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Assigned To</label>
+            <select className="form-input" value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)}>
+              <option value="">— Auto-assign —</option>
+              {users.map((u: any) => (
+                <option key={u.id} value={u.id}>
+                  {u.profile ? `${u.profile.firstName} ${u.profile.lastName}` : u.email}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Tags (comma separated)</label>
+            <input className="form-input" value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="tag1, tag2, tag3" />
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div className="lead-edit-section" style={{ gridColumn: '1 / -1' }}>
+          <h3><MessageSquare size={14} /> Notes</h3>
+          <textarea className="form-input" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Internal notes about this lead…" rows={4} style={{ width: '100%', resize: 'vertical' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Convert Lead Modal ─────────────────────────
+
+function ConvertLeadModal({ leadId, leadName, onClose }: { leadId: string; leadName: string; onClose: () => void }) {
+  const [convertLead, { isLoading: isConverting }] = useConvertLeadMutation();
+  const [tenantSearch, setTenantSearch] = useState('');
+  const [leaseSearch, setLeaseSearch] = useState('');
+  const [selectedTenantId, setSelectedTenantId] = useState('');
+  const [selectedLeaseId, setSelectedLeaseId] = useState('');
+  const [step, setStep] = useState<'tenant' | 'lease'>('tenant');
+
+  // Fetch tenants with search
+  const { data: tenantsData, isFetching: isFetchingTenants } = useGetTenantsQuery(
+    { search: tenantSearch || undefined, page: 1, limit: 20 },
+    { skip: false }
+  );
+  const tenants = tenantsData?.data || [];
+
+  // Fetch leases for selected tenant
+  const { data: leasesData, isFetching: isFetchingLeases } = useGetLeasesQuery(
+    { tenantId: selectedTenantId, status: 'active', page: 1, limit: 20 },
+    { skip: !selectedTenantId }
+  );
+  // Also fetch draft/pending leases
+  const { data: draftLeasesData } = useGetLeasesQuery(
+    { tenantId: selectedTenantId, status: 'draft', page: 1, limit: 20 },
+    { skip: !selectedTenantId }
+  );
+  const allLeases = useMemo(() => {
+    const active = leasesData?.data || [];
+    const draft = draftLeasesData?.data || [];
+    return [...active, ...draft];
+  }, [leasesData, draftLeasesData]);
+
+  const selectedTenant = tenants.find((t: any) => t.id === selectedTenantId);
+  const selectedLease = allLeases.find((l: any) => l.id === selectedLeaseId);
+
+  const handleConvert = async () => {
+    if (!selectedTenantId || !selectedLeaseId) {
+      toast.error('Please select both a tenant and a lease');
+      return;
+    }
+    try {
+      await convertLead({ id: leadId, leaseId: selectedLeaseId, tenantId: selectedTenantId }).unwrap();
+      toast.success('Lead converted successfully!');
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to convert lead');
+    }
+  };
+
+  return (
+    <div className="crm-modal-overlay" onClick={onClose}>
+      <div className="crm-modal convert-modal" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="convert-modal-header">
+          <div className="convert-icon"><Repeat size={22} /></div>
+          <h2>Convert Lead to Lease</h2>
+          <p className="convert-subtitle">
+            Link <strong>{leadName}</strong> to an existing tenant and lease
+          </p>
+        </div>
+
+        {/* Steps Indicator */}
+        <div className="convert-steps">
+          <div className={`convert-step ${step === 'tenant' ? 'active' : selectedTenantId ? 'completed' : ''}`}
+               onClick={() => setStep('tenant')}>
+            <span className="step-number">{selectedTenantId ? <CheckCircle size={14} /> : '1'}</span>
+            <span className="step-label">Select Tenant</span>
+          </div>
+          <div className="step-divider" />
+          <div className={`convert-step ${step === 'lease' ? 'active' : selectedLeaseId ? 'completed' : ''}`}
+               onClick={() => selectedTenantId && setStep('lease')}>
+            <span className="step-number">{selectedLeaseId ? <CheckCircle size={14} /> : '2'}</span>
+            <span className="step-label">Select Lease</span>
+          </div>
+        </div>
+
+        {/* Step 1: Tenant Selection */}
+        {step === 'tenant' && (
+          <div className="convert-step-content">
+            <div className="search-box-wrap">
+              <Search size={14} />
+              <input
+                className="form-input"
+                value={tenantSearch}
+                onChange={e => setTenantSearch(e.target.value)}
+                placeholder="Search tenants by name, email, company…"
+                autoFocus
+              />
+            </div>
+            <div className="convert-list">
+              {isFetchingTenants ? (
+                <div className="convert-list-empty">Searching…</div>
+              ) : tenants.length === 0 ? (
+                <div className="convert-list-empty">
+                  <UserPlus size={24} />
+                  <span>No tenants found. Create a tenant first.</span>
+                </div>
+              ) : (
+                tenants.map((t: any) => {
+                  const name = t.displayName || t.companyName || `${t.firstName || ''} ${t.lastName || ''}`.trim();
+                  return (
+                    <div
+                      key={t.id}
+                      className={`convert-list-item ${selectedTenantId === t.id ? 'selected' : ''}`}
+                      onClick={() => { setSelectedTenantId(t.id); setSelectedLeaseId(''); }}
+                    >
+                      <div className="cli-avatar">
+                        {t.avatarUrl ? (
+                          <img src={t.avatarUrl} alt="" />
+                        ) : (
+                          <span>{(name[0] || '?').toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className="cli-info">
+                        <div className="cli-name">{name}</div>
+                        <div className="cli-meta">
+                          {t.email && <span><Mail size={10} /> {t.email}</span>}
+                          <span className={`cli-type ${t.tenantType}`}>{t.tenantType}</span>
+                          {t.activeLeases > 0 && <span>{t.activeLeases} active lease{t.activeLeases > 1 ? 's' : ''}</span>}
+                        </div>
+                      </div>
+                      {selectedTenantId === t.id && <CheckCircle size={16} className="cli-check" />}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={onClose}>Cancel</button>
+              <button className="btn-primary" disabled={!selectedTenantId} onClick={() => setStep('lease')}>
+                Next: Select Lease <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Lease Selection */}
+        {step === 'lease' && (
+          <div className="convert-step-content">
+            {selectedTenant && (
+              <div className="selected-tenant-banner">
+                <User size={14} />
+                <span>Tenant: <strong>{(selectedTenant as any).displayName}</strong></span>
+                <button className="btn-ghost" onClick={() => setStep('tenant')} style={{ marginLeft: 'auto', fontSize: 11 }}>
+                  Change
+                </button>
+              </div>
+            )}
+            <div className="convert-list">
+              {isFetchingLeases ? (
+                <div className="convert-list-empty">Loading leases…</div>
+              ) : allLeases.length === 0 ? (
+                <div className="convert-list-empty">
+                  <Link size={24} />
+                  <span>No leases found for this tenant. Create a lease first.</span>
+                </div>
+              ) : (
+                allLeases.map((l: any) => (
+                  <div
+                    key={l.id}
+                    className={`convert-list-item ${selectedLeaseId === l.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedLeaseId(l.id)}
+                  >
+                    <div className="cli-lease-icon">
+                      <FileText size={16} />
+                    </div>
+                    <div className="cli-info">
+                      <div className="cli-name">{l.leaseNumber}</div>
+                      <div className="cli-meta">
+                        <span>{l.property?.name}</span>
+                        <span>Unit {l.unit?.unitNumber}</span>
+                        <span className={`cli-lease-status status-${l.status}`}>{l.status}</span>
+                      </div>
+                      <div className="cli-meta" style={{ marginTop: 2 }}>
+                        <span>{new Date(l.startDate).toLocaleDateString()} → {new Date(l.endDate).toLocaleDateString()}</span>
+                        <span>{l.currency} {Number(l.rentAmount).toLocaleString()}/mo</span>
+                      </div>
+                    </div>
+                    {selectedLeaseId === l.id && <CheckCircle size={16} className="cli-check" />}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Summary */}
+            {selectedLeaseId && selectedLease && (
+              <div className="convert-summary">
+                <div className="convert-summary-title">Conversion Summary</div>
+                <div className="convert-summary-row">
+                  <span>Lead</span><span>{leadName}</span>
+                </div>
+                <div className="convert-summary-row">
+                  <span>Tenant</span><span>{(selectedTenant as any)?.displayName}</span>
+                </div>
+                <div className="convert-summary-row">
+                  <span>Lease</span><span>{(selectedLease as any)?.leaseNumber} — {(selectedLease as any)?.unit?.unitNumber}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setStep('tenant')}>
+                <ArrowLeft size={14} /> Back
+              </button>
+              <button
+                className="btn-convert-confirm"
+                disabled={!selectedLeaseId || isConverting}
+                onClick={handleConvert}
+              >
+                <CheckCircle size={14} />
+                {isConverting ? 'Converting…' : 'Convert Lead'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

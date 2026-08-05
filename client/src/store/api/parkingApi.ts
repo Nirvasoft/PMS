@@ -194,6 +194,16 @@ export const parkingApi = createApi({
       invalidatesTags: (_, __, { tenantId }) => [{ type: 'Vehicles', id: tenantId }],
     }),
 
+    updateVehicle: builder.mutation<ApiResponse<TenantVehicle>, { tenantId: string; vehicleId: string; data: Record<string, unknown> }>({
+      query: ({ tenantId, vehicleId, data }) => ({ url: `/tenants/${tenantId}/vehicles/${vehicleId}`, method: 'PUT', body: data }),
+      invalidatesTags: (_, __, { tenantId }) => [{ type: 'Vehicles', id: tenantId }],
+    }),
+
+    deactivateVehicle: builder.mutation<void, { tenantId: string; vehicleId: string }>({
+      query: ({ tenantId, vehicleId }) => ({ url: `/tenants/${tenantId}/vehicles/${vehicleId}`, method: 'DELETE' }),
+      invalidatesTags: (_, __, { tenantId }) => [{ type: 'Vehicles', id: tenantId }],
+    }),
+
     // ── Visitor Passes ─────────────────────
     getVisitorPasses: builder.query<PaginatedResponse<VisitorPass>, {
       propertyId?: string; status?: string; page?: number; limit?: number;
@@ -240,6 +250,8 @@ export const {
   useCancelAllocationMutation,
   useGetVehiclesQuery,
   useAddVehicleMutation,
+  useUpdateVehicleMutation,
+  useDeactivateVehicleMutation,
   useGetVisitorPassesQuery,
   useIssueVisitorPassMutation,
   useScanVisitorPassMutation,

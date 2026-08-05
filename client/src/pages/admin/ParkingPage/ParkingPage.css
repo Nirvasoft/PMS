@@ -232,6 +232,104 @@
 .alloc-row:hover { background: var(--surface-hover); }
 .alloc-row:last-child { border-bottom: none; }
 
+.alloc-row-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.row-btn-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: all 0.12s;
+}
+.row-btn-edit:hover {
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  color: var(--accent-primary);
+}
+
+/* ── Edit Allocation Modal ─────────────────── */
+
+.alloc-edit-modal { max-width: 560px !important; }
+.alloc-edit-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.alloc-edit-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 15%, transparent), color-mix(in srgb, #8b5cf6 10%, transparent));
+  color: var(--accent-primary);
+  margin: 0 auto 12px;
+}
+
+.alloc-edit-summary {
+  background: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.aes-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.aes-row + .aes-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.aes-label {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+.aes-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.alloc-edit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.alloc-edit-fields .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.alloc-edit-fields .form-group {
+  margin-bottom: 14px;
+}
+.alloc-edit-fields .form-group label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 5px;
+}
+.form-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  display: block;
+}
+
 /* ── Visitor Pass Card ──────────────────────── */
 
 .visitor-pass-grid {
@@ -373,6 +471,423 @@
   overflow-y: auto;
 }
 
+/* ── Vehicle Registry Page ──────────────────── */
+
+.vr-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.vr-page-header .page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+.vr-page-header .page-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* Layout: Tenant Selector + Vehicle Panel */
+.vr-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+  min-height: 60vh;
+}
+
+/* Tenant Panel */
+.vr-tenant-panel {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 180px);
+}
+
+.vr-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 6px 12px;
+  color: var(--text-tertiary);
+  transition: border-color 0.15s;
+}
+.vr-search-box:focus-within {
+  border-color: var(--accent-primary);
+}
+.vr-search-box .form-input {
+  border: none !important;
+  background: transparent !important;
+  padding: 4px 0 !important;
+  font-size: 13px;
+  flex: 1;
+  outline: none;
+}
+.vr-search-sm {
+  flex: 0 0 200px;
+}
+
+.vr-tenant-list {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vr-tenant-list::-webkit-scrollbar { width: 4px; }
+.vr-tenant-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.vr-tenant-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: none;
+  text-align: left;
+  width: 100%;
+  transition: all 0.12s;
+  font: inherit;
+  color: inherit;
+}
+.vr-tenant-item:hover {
+  background: var(--surface-hover);
+}
+.vr-tenant-item.selected {
+  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent-primary) 25%, transparent);
+}
+.vr-tenant-empty {
+  padding: 30px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.vti-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-primary), #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.vti-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.vti-avatar span { font-size: 13px; font-weight: 700; color: #fff; }
+
+.vti-info { min-width: 0; flex: 1; }
+.vti-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vti-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+}
+
+/* Vehicle Panel */
+.vr-vehicle-panel {
+  min-height: 400px;
+}
+
+.vr-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 40px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+.vr-empty-state h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.vr-empty-state p {
+  font-size: 13px;
+  max-width: 340px;
+  margin: 0;
+}
+
+/* Toolbar */
+.vr-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.vr-toolbar-left { flex: 1; min-width: 0; }
+.vr-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vr-tenant-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vr-vehicle-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  padding: 2px 10px;
+  border-radius: 20px;
+}
+
+/* Vehicle Cards Grid */
+.vr-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.vehicle-card {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.vehicle-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+  border-color: var(--border-default);
+}
+.vehicle-card.inactive {
+  opacity: 0.55;
+  filter: grayscale(0.5);
+}
+.vehicle-card.inactive:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.vehicle-card .vc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vc-plate-badge {
+  background: var(--surface-base);
+  border: 2px solid var(--border-default);
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+.vc-plate {
+  font-size: 16px;
+  font-weight: 800;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--text-primary);
+  letter-spacing: 1.5px;
+}
+
+.vc-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.vehicle-card .vc-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vc-make-model {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.vc-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.vc-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.1);
+  flex-shrink: 0;
+}
+.vc-rfid {
+  color: var(--accent-primary);
+  font-weight: 500;
+  font-size: 11px;
+}
+.vc-rfid span {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  letter-spacing: 0.5px;
+}
+
+.vehicle-card .vc-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+  margin-top: 2px;
+}
+.btn-danger-text { color: var(--text-tertiary); }
+.btn-danger-text:hover { color: #ef4444 !important; }
+
+.vc-inactive-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+}
+
+.vr-inactive-section {
+  margin-top: 28px;
+}
+.vr-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Vehicle Form Modal */
+.vr-modal { max-width: 520px !important; }
+.vr-modal-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.vr-modal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 15%, transparent), color-mix(in srgb, #8b5cf6 10%, transparent));
+  color: var(--accent-primary);
+  margin: 0 auto 12px;
+}
+
+.vr-plate-input {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  letter-spacing: 2px !important;
+  text-align: center !important;
+  font-family: 'SF Mono', 'Fira Code', monospace !important;
+  text-transform: uppercase;
+}
+
+.vr-rfid-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 4px 12px;
+  color: var(--accent-primary);
+  transition: border-color 0.15s;
+}
+.vr-rfid-input-wrap:focus-within {
+  border-color: var(--accent-primary);
+}
+.vr-rfid-input-wrap .form-input {
+  border: none !important;
+  background: transparent !important;
+  padding: 6px 0 !important;
+}
+
+.vr-delete-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fef2f2;
+  color: #ef4444;
+  margin: 0 auto 16px;
+}
+[data-theme="dark"] .vr-delete-icon {
+  background: #7f1d1d40;
+  color: #fca5a5;
+}
+
+/* btn-danger shared from CRMPage, but define here too in case used standalone */
+.parking-page .btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.parking-page .btn-danger:hover {
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  transform: translateY(-1px);
+}
+.parking-page .btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* ── Responsive ─────────────────────────────── */
 
 @media (max-width: 768px) {
@@ -382,4 +897,9 @@
   .slot-table-header, .slot-row { grid-template-columns: 1fr 1fr 1fr; }
   .alloc-table-header, .alloc-row { grid-template-columns: 1fr 1fr 1fr; }
   .visitor-pass-grid { grid-template-columns: 1fr; }
+  .vr-layout { grid-template-columns: 1fr; }
+  .vr-tenant-panel { max-height: 300px; }
+  .vr-cards-grid { grid-template-columns: 1fr; }
+  .vr-toolbar { flex-direction: column; align-items: stretch; }
+  .vr-toolbar-right { flex-wrap: wrap; }
 }

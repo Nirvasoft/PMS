@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import {
   useGetAllocationsQuery, useCreateAllocationMutation, useCancelAllocationMutation,
+  useUpdateAllocationMutation, useGetVehiclesQuery,
   useGetSlotsQuery, type ParkingAllocation,
 } from '../../../store/api/parkingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
-import { Link2, Plus, Trash2, Car } from 'lucide-react';
+import { Link2, Plus, Trash2, Car, Edit3, Save, X, Calendar, DollarSign, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './ParkingPage.css';
 
@@ -13,6 +14,7 @@ export default function AllocationManager() {
   const [propertyFilter, setPropertyFilter] = useState('');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingAlloc, setEditingAlloc] = useState<ParkingAllocation | null>(null);
 
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data, isLoading } = useGetAllocationsQuery({ propertyId: propertyFilter || undefined, page, limit: 20 });
@@ -90,11 +92,16 @@ export default function AllocationManager() {
                     {a.status}
                   </span>
                 </div>
-                <div>
+                <div className="alloc-row-actions">
                   {a.status === 'active' && (
-                    <button className="row-btn-delete" onClick={() => handleCancel(a.id, a.slot.slotNumber)}>
-                      <Trash2 size={13} />
-                    </button>
+                    <>
+                      <button className="row-btn-edit" onClick={() => setEditingAlloc(a)} title="Edit allocation">
+                        <Edit3 size={13} />
+                      </button>
+                      <button className="row-btn-delete" onClick={() => handleCancel(a.id, a.slot.slotNumber)} title="Cancel allocation">
+                        <Trash2 size={13} />
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -112,9 +119,184 @@ export default function AllocationManager() {
       )}
 
       {showCreate && <CreateAllocationModal properties={properties} onClose={() => setShowCreate(false)} />}
+      {editingAlloc && (
+        <EditAllocationModal
+          allocation={editingAlloc}
+          onClose={() => setEditingAlloc(null)}
+        />
+      )}
     </div>
   );
 }
+
+// ── Edit Allocation Modal ──────────────────
+
+function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAllocation; onClose: () => void }) {
+  const [updateAllocation, { isLoading }] = useUpdateAllocationMutation();
+
+  // Fetch vehicles for the tenant so they can link one
+  const tenantId = allocation.tenant?.id;
+  const { data: vehiclesData } = useGetVehiclesQuery(tenantId || '', { skip: !tenantId });
+  const vehicles = (vehiclesData?.data || []).filter(v => v.isActive);
+
+  const [form, setForm] = useState({
+    endDate: allocation.endDate ? allocation.endDate.substring(0, 10) : '',
+    monthlyRate: Number(allocation.monthlyRate).toString(),
+    billingDay: allocation.billingDay.toString(),
+    vehicleId: allocation.vehicle?.id || '',
+    notes: allocation.notes || '',
+  });
+
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = async () => {
+    try {
+      const data: Record<string, unknown> = {};
+
+      // Only send changed fields
+      const newEndDate = form.endDate || null;
+      const oldEndDate = allocation.endDate ? allocation.endDate.substring(0, 10) : null;
+      if (newEndDate !== oldEndDate) data.endDate = newEndDate;
+
+      const newRate = Number(form.monthlyRate);
+      if (newRate !== Number(allocation.monthlyRate)) data.monthlyRate = newRate;
+
+      const newBillingDay = Number(form.billingDay);
+      if (newBillingDay !== allocation.billingDay) data.billingDay = newBillingDay;
+
+      const newVehicleId = form.vehicleId || null;
+      const oldVehicleId = allocation.vehicle?.id || null;
+      if (newVehicleId !== oldVehicleId) data.vehicleId = newVehicleId;
+
+      const newNotes = form.notes || null;
+      const oldNotes = allocation.notes || null;
+      if (newNotes !== oldNotes) data.notes = newNotes;
+
+      if (Object.keys(data).length === 0) {
+        onClose();
+        return;
+      }
+
+      await updateAllocation({ id: allocation.id, data }).unwrap();
+      toast.success('Allocation updated');
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to update');
+    }
+  };
+
+  const tenantName = allocation.tenant.tenantType === 'company'
+    ? allocation.tenant.companyName
+    : `${allocation.tenant.firstName} ${allocation.tenant.lastName}`;
+
+  return (
+    <div className="crm-modal-overlay" onClick={onClose}>
+      <div className="crm-modal alloc-edit-modal" onClick={e => e.stopPropagation()}>
+        <div className="alloc-edit-header">
+          <div className="alloc-edit-icon"><Edit3 size={20} /></div>
+          <h2>Edit Allocation</h2>
+        </div>
+
+        {/* Read-only summary */}
+        <div className="alloc-edit-summary">
+          <div className="aes-row">
+            <span className="aes-label">Slot</span>
+            <span className="aes-value">{allocation.slot.slotNumber} {allocation.slot.zone ? `(${allocation.slot.zone.name})` : ''}</span>
+          </div>
+          <div className="aes-row">
+            <span className="aes-label">Tenant</span>
+            <span className="aes-value">{tenantName}</span>
+          </div>
+          {allocation.unit && (
+            <div className="aes-row">
+              <span className="aes-label">Unit</span>
+              <span className="aes-value">{allocation.unit.unitNumber}</span>
+            </div>
+          )}
+          <div className="aes-row">
+            <span className="aes-label">Start Date</span>
+            <span className="aes-value">{new Date(allocation.startDate).toLocaleDateString()}</span>
+          </div>
+        </div>
+
+        {/* Editable fields */}
+        <div className="alloc-edit-fields">
+          <div className="form-row">
+            <div className="form-group">
+              <label><Calendar size={11} /> End Date</label>
+              <input
+                className="form-input"
+                type="date"
+                value={form.endDate}
+                onChange={e => set('endDate', e.target.value)}
+              />
+              <span className="form-hint">Leave empty for ongoing allocation</span>
+            </div>
+            <div className="form-group">
+              <label><DollarSign size={11} /> Monthly Rate</label>
+              <input
+                className="form-input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.monthlyRate}
+                onChange={e => set('monthlyRate', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Billing Day</label>
+              <select className="form-input" value={form.billingDay} onChange={e => set('billingDay', e.target.value)}>
+                {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                  <option key={d} value={d}>{d}{d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'} of month</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label><Car size={11} /> Vehicle</label>
+              <select className="form-input" value={form.vehicleId} onChange={e => set('vehicleId', e.target.value)}>
+                <option value="">— No vehicle linked —</option>
+                {vehicles.map(v => (
+                  <option key={v.id} value={v.id}>
+                    {v.plateNumber} {v.make ? `(${v.make} ${v.model || ''})` : ''}
+                  </option>
+                ))}
+              </select>
+              {vehicles.length === 0 && tenantId && (
+                <span className="form-hint">No vehicles registered for this tenant</span>
+              )}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label><FileText size={11} /> Notes</label>
+            <textarea
+              className="form-input"
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+              placeholder="Internal notes about this allocation…"
+              rows={3}
+              style={{ resize: 'vertical' }}
+            />
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}>
+            <X size={14} /> Cancel
+          </button>
+          <button className="btn-primary" onClick={handleSubmit} disabled={isLoading}>
+            <Save size={14} /> {isLoading ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Create Allocation Modal ────────────────
 
 function CreateAllocationModal({ properties, onClose }: { properties: any[]; onClose: () => void }) {
   const [createAllocation, { isLoading }] = useCreateAllocationMutation();
