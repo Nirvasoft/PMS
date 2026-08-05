@@ -77,6 +77,7 @@ import { startWebhookRetryJob } from './common/webhookRetry';
 import { startPermissionOverrideExpiryJob } from './modules/users/cron/permissionOverrideExpiry.job';
 import { startNotificationQueueJob } from './modules/notifications/cron/notificationQueue.job';
 import { startScheduledNotificationJob } from './modules/notifications/cron/scheduledNotification.job';
+import { startViewingReminderJob } from './modules/crm/cron/viewingReminder.job';
 import { securityRoutes } from './modules/security/security.routes';
 import { portalRouter } from './modules/portal/portal.routes';
 import { visitorsRouter, portalVisitorsRouter } from './modules/visitors/visitors.routes';
@@ -340,6 +341,9 @@ async function bootstrap() {
   // Start notification queue + scheduler cron jobs
   try { startNotificationQueueJob(); } catch (e) { logger.warn('Notification queue processor skipped'); }
   try { startScheduledNotificationJob(); } catch (e) { logger.warn('Scheduled notification processor skipped'); }
+
+  // Start CRM cron jobs
+  try { startViewingReminderJob(); } catch (e) { logger.warn('Viewing reminder cron skipped'); }
 
   // Start server
   httpServer.listen(config.port, () => {
