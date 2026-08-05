@@ -114,3 +114,4 @@ export function asyncHandler(fn: (req: Request, res: Response, next: NextFunctio
 }
 export * from './validateRequest';
 export { tenantContextMiddleware } from './tenantContext';
+export { propertyAccessGuard, createPropertyAccessGuard, getUserPropertyScope } from './propertyAccessGuard';

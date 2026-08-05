@@ -1,6 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import { geocodingService } from '../../common/geocoding.service';
 import { storageService } from '../documents/services/storage.service';
 import { PROPERTY_TYPES, FACILITY_TYPES } from './seeds/seedData';
 
@@ -40,9 +41,15 @@ export class PropertiesService {
     search?: string; branchId?: string; propertyType?: string;
     status?: string; regionId?: string;
     page?: number; limit?: number; sort?: string; order?: string;
+    propertyIds?: string[];
   }) {
-    const { search, branchId, propertyType, status, regionId, page = 1, limit = 20 } = query;
+    const { search, branchId, propertyType, status, regionId, propertyIds, page = 1, limit = 20 } = query;
     const where: Record<string, unknown> = { companyId, deletedAt: null };
+
+    // Property-level access scoping
+    if (propertyIds && propertyIds.length > 0) {
+      where.id = { in: propertyIds };
+    }
 
     if (branchId) where.branchId = branchId;
     if (propertyType) where.propertyType = propertyType;
@@ -122,6 +129,16 @@ export class PropertiesService {
       throw new AppError(400, 'INVALID_YEAR_BUILT', `Year built must be between 1800 and ${currentYear + 5}`);
     }
 
+    // Auto-geocode if address present but no coordinates
+    if ((dto.addressLine1 || dto.city) && !dto.geoLat && !dto.geoLng) {
+      const coords = await geocodingService.geocodeFromFields(dto as any);
+      if (coords) {
+        dto.geoLat = coords.lat;
+        dto.geoLng = coords.lng;
+        logger.info(`Auto-geocoded new property "${dto.name}" → ${coords.lat}, ${coords.lng}`);
+      }
+    }
+
     const property = await prisma.property.create({
       data: { companyId, ...(dto as any) },
     });
@@ -138,6 +155,25 @@ export class PropertiesService {
   async update(propertyId: string, dto: Record<string, unknown>, companyId: string) {
     const existing = await prisma.property.findFirst({ where: { id: propertyId, companyId, deletedAt: null } });
     if (!existing) throw AppError.notFound('Property');
+
+    // Auto-geocode if address changed but no coordinates provided
+    const addressChanged = dto.addressLine1 || dto.city || dto.state || dto.country || dto.postalCode;
+    if (addressChanged && !dto.geoLat && !dto.geoLng) {
+      const merged = {
+        addressLine1: (dto.addressLine1 as string) ?? existing.addressLine1,
+        city: (dto.city as string) ?? existing.city,
+        state: (dto.state as string) ?? existing.state,
+        postalCode: (dto.postalCode as string) ?? existing.postalCode,
+        country: (dto.country as string) ?? existing.country,
+      };
+      const coords = await geocodingService.geocodeFromFields(merged);
+      if (coords) {
+        dto.geoLat = coords.lat;
+        dto.geoLng = coords.lng;
+        logger.info(`Auto-geocoded updated property ${propertyId} → ${coords.lat}, ${coords.lng}`);
+      }
+    }
+
     return prisma.property.update({ where: { id: propertyId }, data: dto as any });
   }
 
@@ -289,6 +325,7 @@ export class PropertiesService {
   }
 
   async uploadPhotos(propertyId: string, files: Express.Multer.File[], uploadedBy: string) {
+    const sharp = (await import('sharp')).default;
     const property = await prisma.property.findUnique({ where: { id: propertyId } });
     if (!property) throw AppError.notFound('Property');
 
@@ -298,16 +335,47 @@ export class PropertiesService {
     const created = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const key = `photos/${propertyId}/${Date.now()}_${i}_${file.originalname}`;
-      const { path: filePath } = await storageService.saveFile(key, file.buffer);
+      const ts = Date.now();
+      const baseName = file.originalname.replace(/\.[^.]+$/, '');
 
-      const url = storageService.getFileUrl(key);
+      // ── Resize main image (max 1920px wide, JPEG 85%) ──
+      let mainBuffer: Buffer;
+      try {
+        mainBuffer = await sharp(file.buffer)
+          .resize({ width: 1920, withoutEnlargement: true })
+          .jpeg({ quality: 85, progressive: true })
+          .toBuffer();
+      } catch {
+        // If sharp fails (e.g. non-image), fall back to original buffer
+        mainBuffer = file.buffer;
+      }
+
+      const mainKey = `photos/${propertyId}/${ts}_${i}_${baseName}.jpg`;
+      await storageService.saveFile(mainKey, mainBuffer, 'image/jpeg');
+      const mainUrl = storageService.getFileUrl(mainKey);
+
+      // ── Generate thumbnail (300px wide, JPEG 70%) ──
+      let thumbUrl: string | null = null;
+      try {
+        const thumbBuffer = await sharp(file.buffer)
+          .resize({ width: 300, withoutEnlargement: true })
+          .jpeg({ quality: 70 })
+          .toBuffer();
+        const thumbKey = `photos/${propertyId}/${ts}_${i}_${baseName}_thumb.jpg`;
+        await storageService.saveFile(thumbKey, thumbBuffer, 'image/jpeg');
+        thumbUrl = storageService.getFileUrl(thumbKey);
+      } catch {
+        // Thumbnail generation failed — proceed without it
+        logger.warn(`Thumbnail generation failed for ${file.originalname}`);
+      }
+
       const isCover = hasNoCover && i === 0 && existing === 0;
       const photo = await prisma.propertyPhoto.create({
         data: {
           propertyId,
-          storageKey: key,
-          url,
+          storageKey: mainKey,
+          url: mainUrl,
+          thumbnailUrl: thumbUrl,
           isCover,
           sortOrder: existing + i,
           uploadedBy,
@@ -315,10 +383,11 @@ export class PropertiesService {
       });
 
       if (isCover) {
-        await prisma.property.update({ where: { id: propertyId }, data: { coverImageUrl: url } });
+        await prisma.property.update({ where: { id: propertyId }, data: { coverImageUrl: mainUrl } });
       }
 
       created.push(photo);
+      logger.info(`Photo uploaded: ${mainKey} (${file.buffer.length} → ${mainBuffer.length} bytes)`);
     }
 
     return created;
@@ -363,6 +432,69 @@ export class PropertiesService {
         await prisma.property.update({ where: { id: propertyId }, data: { coverImageUrl: null } });
       }
     }
+  }
+
+  // ── Nearby Search (Haversine) ──────────────
+  async findNearby(companyId: string, query: {
+    lat: number; lng: number; radiusKm?: number;
+    excludePropertyId?: string; limit?: number;
+  }) {
+    const { lat, lng, radiusKm = 5, excludePropertyId, limit = 20 } = query;
+    const EARTH_RADIUS_KM = 6371;
+
+    // Build exclude clause
+    const excludeClause = excludePropertyId
+      ? `AND p.id != '${excludePropertyId}'`
+      : '';
+
+    // Haversine distance formula in raw SQL
+    const results = await prisma.$queryRawUnsafe<Array<{
+      id: string; name: string; code: string | null;
+      property_type: string; status: string;
+      address_line1: string | null; city: string | null; country: string | null;
+      geo_lat: number; geo_lng: number;
+      cover_image_url: string | null;
+      distance_km: number;
+    }>>(
+      `SELECT
+        p.id, p.name, p.code, p.property_type, p.status,
+        p.address_line1, p.city, p.country,
+        p.geo_lat, p.geo_lng, p.cover_image_url,
+        (
+          $1 * ACOS(
+            LEAST(1.0, COS(RADIANS($2)) * COS(RADIANS(p.geo_lat))
+            * COS(RADIANS(p.geo_lng) - RADIANS($3))
+            + SIN(RADIANS($2)) * SIN(RADIANS(p.geo_lat)))
+          )
+        ) AS distance_km
+      FROM properties p
+      WHERE p.company_id = $4::uuid
+        AND p.deleted_at IS NULL
+        AND p.geo_lat IS NOT NULL
+        AND p.geo_lng IS NOT NULL
+        ${excludeClause}
+      ORDER BY distance_km ASC
+      LIMIT $5`,
+      EARTH_RADIUS_KM, lat, lng, companyId, limit,
+    );
+
+    // Filter by radius in JS (cheaper than HAVING with the same expression)
+    return results
+      .filter((r) => r.distance_km <= radiusKm)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        code: r.code,
+        propertyType: r.property_type,
+        status: r.status,
+        addressLine1: r.address_line1,
+        city: r.city,
+        country: r.country,
+        geoLat: r.geo_lat,
+        geoLng: r.geo_lng,
+        coverImageUrl: r.cover_image_url,
+        distanceKm: Math.round(r.distance_km * 100) / 100,
+      }));
   }
 
   // ── Helper ────────────────────────────────────

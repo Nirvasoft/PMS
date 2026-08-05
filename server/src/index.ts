@@ -299,6 +299,8 @@ async function bootstrap() {
   try { await maintenanceCategoriesService.seedDefaults(); } catch (e) { logger.warn('Maintenance tables not ready — skipping seed'); }
   const { seedBillingNotificationTemplates } = await import('./modules/billing/billingNotifications.service');
   await seedBillingNotificationTemplates();
+  const { seedPhase2NotificationTemplates } = await import('./modules/notifications/phase2Templates.seed');
+  await seedPhase2NotificationTemplates();
 
   // Start Socket.IO
   initSocketIO(httpServer, config.frontendUrl);
@@ -314,6 +316,8 @@ async function bootstrap() {
   // Start lease cron jobs
   startEscalationJob();
   startRenewalJob();
+  const { startPhase2CronStubs } = await import('./modules/properties/cron/phase2Crons');
+  startPhase2CronStubs();
 
   // Start billing cron jobs
   startDailyBillingJob();

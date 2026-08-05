@@ -282,17 +282,33 @@
 }
 
 .occupancy-bar {
-  height: 4px;
+  height: 6px;
   background: rgba(255,255,255,0.06);
-  border-radius: 2px;
-  margin: 10px 0 5px;
+  border-radius: 3px;
+  margin: 10px 0 6px;
   overflow: hidden;
+  position: relative;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: 2px;
-  transition: width 0.5s ease;
+  border-radius: 3px;
+  transition: width 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  position: relative;
+}
+
+.bar-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+  animation: bar-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes bar-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
 }
 
 .card-stats {
@@ -300,6 +316,11 @@
   justify-content: space-between;
   font-size: 0.72rem;
   color: var(--text-muted);
+}
+
+.occupancy-pct {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ─── List View ──────────────────────────────── */

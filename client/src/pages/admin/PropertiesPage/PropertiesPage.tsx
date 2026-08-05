@@ -19,11 +19,28 @@ const STATUS_COLORS: Record<string, string> = {
   decommissioned: '#e74c3c',
 };
 
-/** Returns bar colour based on occupancy % thresholds from spec */
-function occupancyColor(rate: number): string {
-  if (rate >= 90) return '#2ecc71'; // green
-  if (rate >= 70) return '#f39c12'; // yellow-orange
-  return '#e74c3c';                 // red
+/** Returns bar colour + gradient based on occupancy % thresholds */
+function occupancyColor(rate: number): { color: string; gradient: string; glow: string } {
+  if (rate >= 90) return {
+    color: '#2ecc71',
+    gradient: 'linear-gradient(90deg, #27ae60, #2ecc71)',
+    glow: 'rgba(46,204,113,.25)',
+  };
+  if (rate >= 70) return {
+    color: '#f39c12',
+    gradient: 'linear-gradient(90deg, #e67e22, #f1c40f)',
+    glow: 'rgba(243,156,18,.25)',
+  };
+  if (rate >= 40) return {
+    color: '#e74c3c',
+    gradient: 'linear-gradient(90deg, #e74c3c, #f39c12)',
+    glow: 'rgba(231,76,60,.2)',
+  };
+  return {
+    color: '#e74c3c',
+    gradient: 'linear-gradient(90deg, #c0392b, #e74c3c)',
+    glow: 'rgba(231,76,60,.3)',
+  };
 }
 
 const TYPE_ICONS: Record<string, JSX.Element> = {
@@ -182,7 +199,7 @@ function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onDelete }: {
   const rate  = stats?.occupancyRate ?? 0;
   const occupied = stats?.occupiedUnits ?? 0;
   const total    = stats?.totalUnits ?? p.totalUnits;
-  const barColor = occupancyColor(rate);
+  const barStyle = occupancyColor(rate);
 
   return (
     <div className="property-card" onClick={onView}>
@@ -217,12 +234,16 @@ function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onDelete }: {
         >
           <div
             className="bar-fill"
-            style={{ width: `${rate}%`, background: barColor }}
+            style={{
+              width: `${rate}%`,
+              background: barStyle.gradient,
+              boxShadow: rate > 0 ? `0 0 8px ${barStyle.glow}` : 'none',
+            }}
           />
         </div>
         <div className="card-stats">
-          <span>{total} units</span>
-          <span className="occupancy-pct" style={{ color: total > 0 ? barColor : undefined }}>
+          <span>{occupied}/{total} units</span>
+          <span className="occupancy-pct" style={{ color: total > 0 ? barStyle.color : undefined }}>
             {rate}% occupied
           </span>
         </div>

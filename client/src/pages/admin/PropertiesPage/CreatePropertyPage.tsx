@@ -242,14 +242,50 @@ export default function CreatePropertyPage() {
                 </select>
               </div>
             </div>
-            <div className="cp-geo-row">
-              <div className="cp-field">
-                <label>Latitude <span className="opt">(optional)</span></label>
-                <input type="number" step="any" placeholder="e.g. 1.2839" value={form.geoLat} onChange={e => set('geoLat', e.target.value)} />
+            <div className="cp-geo-section">
+              <label className="cp-geo-label">
+                <MapPin size={14} /> Location on Map <span className="opt">(click map or enter coordinates)</span>
+              </label>
+              <div className="cp-map-container">
+                {form.geoLat && form.geoLng ? (
+                  <iframe
+                    className="cp-map-embed"
+                    title="Property Map"
+                    src={`https://maps.google.com/maps?q=${form.geoLat},${form.geoLng}&z=16&output=embed`}
+                    loading="lazy"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div className="cp-map-placeholder" onClick={() => {
+                    /* Default to Singapore if empty */
+                    set('geoLat', '1.3521');
+                    set('geoLng', '103.8198');
+                  }}>
+                    <MapPin size={32} />
+                    <span>Click to set location on map</span>
+                    <span className="hint">Or enter coordinates below</span>
+                  </div>
+                )}
               </div>
-              <div className="cp-field">
-                <label>Longitude <span className="opt">(optional)</span></label>
-                <input type="number" step="any" placeholder="e.g. 103.8607" value={form.geoLng} onChange={e => set('geoLng', e.target.value)} />
+              <div className="cp-geo-inputs">
+                <div className="cp-field">
+                  <label>Latitude</label>
+                  <input type="number" step="any" placeholder="e.g. 1.2839" value={form.geoLat}
+                    onChange={e => set('geoLat', e.target.value)} />
+                </div>
+                <div className="cp-field">
+                  <label>Longitude</label>
+                  <input type="number" step="any" placeholder="e.g. 103.8607" value={form.geoLng}
+                    onChange={e => set('geoLng', e.target.value)} />
+                </div>
+                {form.geoLat && form.geoLng && (
+                  <button type="button" className="btn-text-danger" onClick={() => {
+                    set('geoLat', '');
+                    set('geoLng', '');
+                  }}>
+                    <X size={12} /> Clear
+                  </button>
+                )}
               </div>
             </div>
           </div>

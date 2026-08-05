@@ -449,31 +449,123 @@
 
 .photo-actions button.danger { background: rgba(231,76,60,0.8); }
 
-/* ─── Lightbox ───────────────────────────────── */
+/* ─── DnD & Photo Enhancements ───────────────── */
+.section-header-actions {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.drag-hint {
+  display: flex; align-items: center; gap: 4px;
+  font-size: .72rem; color: var(--text-muted);
+  opacity: .6;
+}
+
+.photo-drag-handle {
+  position: absolute; top: 6px; left: 6px;
+  width: 26px; height: 26px; border-radius: 6px;
+  background: rgba(0,0,0,.5); color: rgba(255,255,255,.6);
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; opacity: 0; transition: opacity .2s;
+  z-index: 3;
+}
+.photo-card:hover .photo-drag-handle { opacity: 1; }
+.photo-drag-handle:active { cursor: grabbing; }
+
+.photo-sort-badge {
+  position: absolute; top: 6px; right: 6px;
+  padding: 2px 7px; border-radius: 6px;
+  background: rgba(0,0,0,.55); color: rgba(255,255,255,.7);
+  font-size: .68rem; font-weight: 600;
+  backdrop-filter: blur(4px);
+}
+
+.photo-card.dragging {
+  opacity: .35; transform: scale(.95);
+  outline: 2px dashed var(--accent);
+}
+
+.photo-card.drag-over {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  transform: scale(1.02);
+  box-shadow: 0 0 20px rgba(108,92,231,.25);
+}
+
+/* ─── Lightbox (Enhanced) ────────────────────── */
 .lightbox {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.85);
+  background: rgba(0,0,0,.9);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px;
+  outline: none;
+  backdrop-filter: blur(8px);
 }
 
-.lightbox img {
-  max-width: 90vw;
+.lightbox-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 92vw;
+  max-height: 88vh;
+}
+
+.lightbox-inner img {
+  max-width: 85vw;
   max-height: 85vh;
   border-radius: 10px;
   object-fit: contain;
+  box-shadow: 0 8px 40px rgba(0,0,0,.5);
+  animation: lightbox-fade-in .25s ease;
+}
+
+@keyframes lightbox-fade-in {
+  from { opacity: 0; transform: scale(.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(255,255,255,.08);
+  color: white;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+  backdrop-filter: blur(6px);
+  z-index: 10;
+}
+.lightbox-nav:hover {
+  background: rgba(255,255,255,.2);
+  border-color: rgba(255,255,255,.3);
+  transform: translateY(-50%) scale(1.1);
+}
+.lightbox-prev { left: -60px; }
+.lightbox-next { right: -60px; }
+
+.lightbox-counter {
+  position: absolute;
+  bottom: -36px; left: 50%; transform: translateX(-50%);
+  padding: 4px 14px; border-radius: 12px;
+  background: rgba(255,255,255,.1);
+  color: rgba(255,255,255,.7);
+  font-size: .78rem; font-weight: 500;
+  backdrop-filter: blur(4px);
 }
 
 .lightbox-close {
   position: absolute;
   top: 20px;
   right: 20px;
-  background: rgba(255,255,255,0.1);
-  border: none;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
   color: white;
   width: 40px;
   height: 40px;
@@ -482,6 +574,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all .2s;
+  backdrop-filter: blur(4px);
+}
+.lightbox-close:hover {
+  background: rgba(255,255,255,.2);
 }
 
 /* ─── History ────────────────────────────────── */
@@ -1187,3 +1284,166 @@
   background: rgba(108,92,231,0.08);
 }
 
+/* ═══════════════════════════════════════════════════
+   LEASES TAB
+   ═══════════════════════════════════════════════════ */
+.filter-select {
+  padding: 6px 10px; border-radius: 7px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04); color: inherit;
+  font-size: .78rem; cursor: pointer;
+}
+.filter-select option { background: #1a1f2e; }
+
+.leases-table-wrap {
+  overflow-x: auto; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.06);
+}
+
+.leases-table {
+  width: 100%; border-collapse: collapse; font-size: .82rem;
+}
+.leases-table th {
+  text-align: left; padding: 10px 14px;
+  font-weight: 600; font-size: .72rem;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-muted);
+  background: rgba(255,255,255,.02);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.leases-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.leases-table tbody tr:hover { background: rgba(108,92,231,.04); }
+
+.lease-link {
+  color: var(--accent, #6c5ce7); font-weight: 600;
+  text-decoration: none;
+}
+.lease-link:hover { text-decoration: underline; }
+
+.tenant-cell { display: flex; flex-direction: column; gap: 2px; }
+.tenant-name { font-weight: 500; }
+.tenant-type { font-size: .7rem; color: var(--text-muted); text-transform: capitalize; }
+
+.status-badge {
+  display: inline-block; padding: 3px 9px; border-radius: 6px;
+  font-size: .72rem; font-weight: 600; text-transform: capitalize;
+}
+
+.rent-amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.expiry-text { display: flex; align-items: center; gap: 6px; }
+.expiry-text.expiring-soon { color: #e74c3c; }
+.days-badge {
+  padding: 1px 6px; border-radius: 4px;
+  background: rgba(231,76,60,.12); color: #e74c3c;
+  font-size: .68rem; font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════
+   DOCUMENTS TAB
+   ═══════════════════════════════════════════════════ */
+.documents-grid {
+  display: flex; flex-direction: column; gap: 6px;
+}
+
+.document-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 10px;
+  background: rgba(255,255,255,.03); color: inherit;
+  border: 1px solid rgba(255,255,255,.06);
+  transition: all .2s;
+}
+.document-card:hover {
+  background: rgba(108,92,231,.06);
+  border-color: rgba(108,92,231,.15);
+  transform: translateX(3px);
+}
+
+.doc-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: rgba(108,92,231,.1); color: var(--accent, #6c5ce7);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.doc-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.doc-name { font-weight: 500; font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-meta { font-size: .72rem; color: var(--text-muted); }
+
+.doc-status {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .72rem; color: var(--text-muted);
+  text-transform: capitalize; flex-shrink: 0;
+}
+.status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+.doc-expiry {
+  font-size: .72rem; color: var(--text-muted); flex-shrink: 0;
+}
+.doc-expiry.expiring-soon { color: #e74c3c; font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════
+   FINANCE TAB (Placeholder)
+   ═══════════════════════════════════════════════════ */
+.finance-placeholder {
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+.finance-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.finance-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px; border-radius: 12px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+}
+
+.fc-icon {
+  width: 42px; height: 42px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.fc-body { display: flex; flex-direction: column; gap: 2px; }
+.fc-label { font-size: .72rem; color: var(--text-muted); }
+.fc-value { font-size: 1rem; font-weight: 700; }
+.fc-value.capitalize { text-transform: capitalize; }
+
+.coming-soon-banner {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 18px 20px; border-radius: 12px;
+  background: rgba(108,92,231,.06);
+  border: 1px solid rgba(108,92,231,.12);
+  color: var(--text-secondary);
+}
+.coming-soon-banner strong { display: block; font-size: .88rem; margin-bottom: 4px; }
+.coming-soon-banner p { font-size: .78rem; color: var(--text-muted); margin: 0; }
+
+/* ── Finance Tab (Extended) ── */
+.finance-settings-row {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  padding: 12px 16px; border-radius: 10px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+  font-size: .78rem; color: var(--text-muted);
+  margin-top: 12px;
+}
+.finance-settings-row span {
+  display: flex; align-items: center; gap: 5px;
+}
+.finance-settings-row strong { color: var(--text-primary); }
+
+.finance-sub-title {
+  font-size: .84rem; font-weight: 600;
+  margin: 20px 0 10px; padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  display: flex; align-items: center; gap: 8px;
+}
+
+.finance-cards { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }

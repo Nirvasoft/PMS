@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   useGetPropertyQuery, useGetStatusHistoryQuery,
   useUpdatePropertyStatusMutation, useGetPhotosQuery,
@@ -8,20 +8,23 @@ import {
   useAddFacilityMutation, useRemoveFacilityMutation,
   useAddContactMutation, useRemoveContactMutation, useUpdateContactMutation,
   useGetFacilityTypesQuery, useUploadPhotosMutation,
-  useUpdatePropertyMutation,
+  useUpdatePropertyMutation, useReorderPhotosMutation,
 } from '../../../store/api/propertiesApi';
+import { useGetLeasesQuery } from '../../../store/api/leasesApi';
+import { useGetDocumentsQuery } from '../../../store/api/documentsApi';
+import { useGetInvoicesQuery, useGetBillingSchedulesQuery } from '../../../store/api/billingApi';
 import UnitsTab from './UnitsTab';
 import {
   ArrowLeft, Building2, MapPin, Calendar, Users, Phone, Mail,
   Settings2, Globe, Clock, Star, Trash2, Plus, Upload, CheckCircle,
-  AlertCircle, Wrench, ChevronRight, X, Camera, Tag, Edit3,
-  Waves, Dumbbell, Flame, TreePine, Lock, Zap, Car, Coffee,
+  AlertCircle, Wrench, ChevronRight, ChevronLeft, X, Camera, Tag, Edit3, GripVertical,
+  Waves, Dumbbell, Flame, TreePine, Lock, Zap, Car, Coffee, FileText, DollarSign, Briefcase,
   Wifi, Shield, ArrowUp, ShoppingBag, UtensilsCrossed, MonitorSmartphone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './PropertyDetailPage.css';
 
-type Tab = 'overview' | 'units' | 'facilities' | 'contacts' | 'photos' | 'history' | 'settings';
+type Tab = 'overview' | 'units' | 'leases' | 'documents' | 'facilities' | 'contacts' | 'photos' | 'history' | 'finance' | 'settings';
 
 const STATUS_TRANSITIONS: Record<string, Array<{ value: string; label: string }>> = {
   active:           [{ value: 'under_renovation', label: 'Put Under Renovation' }, { value: 'decommissioned', label: 'Decommission' }],
@@ -122,7 +125,7 @@ export default function PropertyDetailPage() {
 
       {/* Tab navigation */}
       <div className="detail-tabs">
-        {(['overview', 'units', 'facilities', 'contacts', 'photos', 'history', 'settings'] as Tab[]).map((tab) => (
+        {(['overview', 'units', 'leases', 'documents', 'facilities', 'contacts', 'photos', 'history', 'finance', 'settings'] as Tab[]).map((tab) => (
           <button key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
@@ -133,10 +136,13 @@ export default function PropertyDetailPage() {
       <div className={`detail-content${activeTab === 'units' ? ' units-content' : ''}`}>
         {activeTab === 'overview' && <OverviewTab property={property} />}
         {activeTab === 'units' && <UnitsTab />}
+        {activeTab === 'leases' && <LeasesTab propertyId={id!} />}
+        {activeTab === 'documents' && <DocumentsTab propertyId={id!} />}
         {activeTab === 'facilities' && <FacilitiesTab propertyId={id!} />}
         {activeTab === 'contacts' && <ContactsTab propertyId={id!} />}
         {activeTab === 'photos' && <PhotosTab propertyId={id!} />}
         {activeTab === 'history' && <HistoryTab propertyId={id!} />}
+        {activeTab === 'finance' && <FinanceTab property={property} />}
         {activeTab === 'settings' && <SettingsTab property={property} />}
       </div>
 
@@ -554,7 +560,11 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
   const [uploadPhotos] = useUploadPhotosMutation();
   const [setCover] = useSetCoverPhotoMutation();
   const [deletePhoto] = useDeletePhotoMutation();
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [reorderPhotos] = useReorderPhotosMutation();
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const lightboxRef = useRef<HTMLDivElement>(null);
 
   const photos = [...(data?.data || [])].sort((a, b) => {
     if (a.isCover !== b.isCover) return a.isCover ? -1 : 1;
@@ -573,22 +583,86 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
     e.target.value = '';
   };
 
+  // ── DnD handlers ──
+  const handleDragStart = useCallback((idx: number) => {
+    setDragIdx(idx);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  }, []);
+
+  const handleDrop = useCallback(async (targetIdx: number) => {
+    if (dragIdx === null || dragIdx === targetIdx) {
+      setDragIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    // Reorder locally then send to API
+    const reordered = [...photos];
+    const [moved] = reordered.splice(dragIdx, 1);
+    reordered.splice(targetIdx, 0, moved);
+    const newOrder = reordered.map((p) => p.id);
+    setDragIdx(null);
+    setDragOverIdx(null);
+    try {
+      await reorderPhotos({ propertyId, order: newOrder }).unwrap();
+      toast.success('Photo order saved');
+    } catch { toast.error('Failed to reorder'); }
+  }, [dragIdx, photos, propertyId, reorderPhotos]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragIdx(null);
+    setDragOverIdx(null);
+  }, []);
+
+  // ── Lightbox keyboard navigation ──
+  useEffect(() => {
+    if (lightboxIdx === null) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxIdx(null);
+      else if (e.key === 'ArrowRight' && lightboxIdx < photos.length - 1) setLightboxIdx(lightboxIdx + 1);
+      else if (e.key === 'ArrowLeft' && lightboxIdx > 0) setLightboxIdx(lightboxIdx - 1);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lightboxIdx, photos.length]);
+
+  // Focus lightbox on open for keyboard events
+  useEffect(() => {
+    if (lightboxIdx !== null) lightboxRef.current?.focus();
+  }, [lightboxIdx]);
+
   return (
     <div className="tab-section">
       <div className="section-header">
         <h3>Photo Gallery</h3>
-        <label className="btn-secondary upload-label">
-          <Upload size={14} /> Upload Photos
-          <input type="file" multiple accept="image/*" hidden onChange={handleUpload} />
-        </label>
+        <div className="section-header-actions">
+          {photos.length > 1 && <span className="drag-hint"><GripVertical size={12} /> Drag to reorder</span>}
+          <label className="btn-secondary upload-label">
+            <Upload size={14} /> Upload Photos
+            <input type="file" multiple accept="image/*" hidden onChange={handleUpload} />
+          </label>
+        </div>
       </div>
 
       {photos.length === 0
         ? <div className="empty-section"><Camera size={32} /><p>No photos uploaded yet</p></div>
         : <div className="photos-grid">
-            {photos.map((photo) => (
-              <div key={photo.id} className={`photo-card ${photo.isCover ? 'is-cover' : ''}`}>
-                <img src={photo.url} alt="" loading="lazy" onClick={() => setLightbox(photo.url)} />
+            {photos.map((photo, idx) => (
+              <div
+                key={photo.id}
+                className={`photo-card${photo.isCover ? ' is-cover' : ''}${dragIdx === idx ? ' dragging' : ''}${dragOverIdx === idx ? ' drag-over' : ''}`}
+                draggable
+                onDragStart={() => handleDragStart(idx)}
+                onDragOver={(e) => handleDragOver(e, idx)}
+                onDrop={() => handleDrop(idx)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="photo-drag-handle"><GripVertical size={14} /></div>
+                <img src={photo.url} alt="" loading="lazy" onClick={() => setLightboxIdx(idx)} />
+                <div className="photo-sort-badge">#{idx + 1}</div>
                 {photo.isCover && <div className="cover-badge"><Star size={12} /> Cover</div>}
                 <div className="photo-actions">
                   {!photo.isCover && (
@@ -608,10 +682,26 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
           </div>
       }
 
-      {lightbox && (
-        <div className="lightbox" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="Full size" onClick={(e) => e.stopPropagation()} />
-          <button className="lightbox-close" onClick={() => setLightbox(null)}><X size={24} /></button>
+      {/* Enhanced Lightbox with prev/next */}
+      {lightboxIdx !== null && photos[lightboxIdx] && (
+        <div className="lightbox" ref={lightboxRef} tabIndex={-1} onClick={() => setLightboxIdx(null)}>
+          <div className="lightbox-inner" onClick={(e) => e.stopPropagation()}>
+            {lightboxIdx > 0 && (
+              <button className="lightbox-nav lightbox-prev" onClick={() => setLightboxIdx(lightboxIdx - 1)}>
+                <ChevronLeft size={28} />
+              </button>
+            )}
+            <img src={photos[lightboxIdx].url} alt="Full size" />
+            {lightboxIdx < photos.length - 1 && (
+              <button className="lightbox-nav lightbox-next" onClick={() => setLightboxIdx(lightboxIdx + 1)}>
+                <ChevronRight size={28} />
+              </button>
+            )}
+            <div className="lightbox-counter">
+              {lightboxIdx + 1} / {photos.length}
+            </div>
+          </div>
+          <button className="lightbox-close" onClick={() => setLightboxIdx(null)}><X size={24} /></button>
         </div>
       )}
     </div>
@@ -788,6 +878,298 @@ function SettingsTab({ property }: { property: any }) {
         </div>
         <p className="settings-note">Changes take effect on the next billing cycle.</p>
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// LEASES TAB
+// ═══════════════════════════════════════════════════
+function LeasesTab({ propertyId }: { propertyId: string }) {
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const { data, isLoading } = useGetLeasesQuery({ propertyId, status: statusFilter || undefined, limit: 50 });
+  const leases = data?.data || [];
+
+  const STATUS_COLORS: Record<string, string> = {
+    draft: '#6c757d', pending_approval: '#f39c12', approved: '#3498db',
+    active: '#27ae60', expired: '#95a5a6', terminated: '#e74c3c',
+    renewed: '#8e44ad', cancelled: '#c0392b',
+  };
+
+  return (
+    <div className="tab-section">
+      <div className="section-header">
+        <h3><Briefcase size={16} /> Leases</h3>
+        <div className="section-header-actions">
+          <select className="filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">All statuses</option>
+            {['draft','pending_approval','approved','active','expired','terminated','renewed'].map(s => (
+              <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
+          <Link to="/admin/leases/new" className="btn-secondary" style={{ textDecoration: 'none' }}>
+            <Plus size={14} /> New Lease
+          </Link>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="empty-section">Loading leases…</div>
+      ) : leases.length === 0 ? (
+        <div className="empty-section"><Briefcase size={32} /><p>No leases found for this property</p></div>
+      ) : (
+        <div className="leases-table-wrap">
+          <table className="leases-table">
+            <thead>
+              <tr>
+                <th>Lease #</th>
+                <th>Tenant</th>
+                <th>Unit</th>
+                <th>Status</th>
+                <th>Term</th>
+                <th>Rent</th>
+                <th>Expiry</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leases.map(lease => (
+                <tr key={lease.id}>
+                  <td>
+                    <Link to={`/admin/leases/${lease.id}`} className="lease-link">{lease.leaseNumber}</Link>
+                  </td>
+                  <td className="tenant-cell">
+                    <span className="tenant-name">{lease.tenant.displayName}</span>
+                    <span className="tenant-type">{lease.tenant.tenantType}</span>
+                  </td>
+                  <td>{lease.unit.unitNumber}</td>
+                  <td>
+                    <span className="status-badge" style={{ background: `${STATUS_COLORS[lease.status] || '#6c757d'}22`, color: STATUS_COLORS[lease.status] || '#6c757d' }}>
+                      {lease.status.replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td>{lease.leaseTermMonths}mo</td>
+                  <td><span className="rent-amount">{lease.currency} {Number(lease.rentAmount).toLocaleString()}</span></td>
+                  <td>
+                    <span className={`expiry-text ${lease.daysUntilExpiry <= 30 ? 'expiring-soon' : ''}`}>
+                      {new Date(lease.endDate).toLocaleDateString()}
+                      {lease.daysUntilExpiry > 0 && lease.daysUntilExpiry <= 90 && (
+                        <span className="days-badge">{lease.daysUntilExpiry}d</span>
+                      )}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// DOCUMENTS TAB
+// ═══════════════════════════════════════════════════
+function DocumentsTab({ propertyId }: { propertyId: string }) {
+  const { data, isLoading } = useGetDocumentsQuery({ entityType: 'property', entityId: propertyId, limit: '50' });
+  const documents = data?.data || [];
+
+  const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+    contract: <Briefcase size={14} />, legal: <Shield size={14} />,
+    financial: <DollarSign size={14} />, compliance: <CheckCircle size={14} />,
+    photo: <Camera size={14} />, other: <FileText size={14} />,
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    active: '#27ae60', expired: '#e74c3c', archived: '#95a5a6', pending_review: '#f39c12',
+  };
+
+  return (
+    <div className="tab-section">
+      <div className="section-header">
+        <h3><FileText size={16} /> Documents</h3>
+        <Link to="/admin/documents" className="btn-secondary" style={{ textDecoration: 'none' }}>
+          <Plus size={14} /> Manage Documents
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <div className="empty-section">Loading documents…</div>
+      ) : documents.length === 0 ? (
+        <div className="empty-section"><FileText size={32} /><p>No documents linked to this property</p></div>
+      ) : (
+        <div className="documents-grid">
+          {documents.map(doc => (
+            <Link key={doc.id} to={`/admin/documents`} className="document-card" style={{ textDecoration: 'none' }}>
+              <div className="doc-icon">
+                {CATEGORY_ICONS[doc.category || 'other'] || <FileText size={14} />}
+              </div>
+              <div className="doc-info">
+                <span className="doc-name">{doc.name}</span>
+                <span className="doc-meta">
+                  {doc.extension?.toUpperCase()} · {doc.fileSizeFormatted} · v{doc.currentVersion}
+                </span>
+              </div>
+              <div className="doc-status">
+                <span className="status-dot" style={{ background: STATUS_COLORS[doc.status] || '#95a5a6' }} />
+                {doc.status.replace(/_/g, ' ')}
+              </div>
+              {doc.expiryDate && (
+                <div className={`doc-expiry ${doc.daysUntilExpiry !== undefined && doc.daysUntilExpiry <= 30 ? 'expiring-soon' : ''}`}>
+                  Expires {new Date(doc.expiryDate).toLocaleDateString()}
+                </div>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// FINANCE TAB
+// ═══════════════════════════════════════════════════
+function FinanceTab({ property }: { property: any }) {
+  const { data: invData, isLoading: invLoading } = useGetInvoicesQuery({ propertyId: property.id, limit: 10 });
+  const { data: schedData } = useGetBillingSchedulesQuery({ propertyId: property.id, status: 'active', limit: 20 });
+  const invoices = invData?.data || [];
+  const schedules = schedData?.data || [];
+
+  // Compute KPIs from invoice data
+  const totalInvoiced = invoices.reduce((s, inv) => s + parseFloat(inv.totalAmount || '0'), 0);
+  const totalPaid = invoices.reduce((s, inv) => s + parseFloat(inv.paidAmount || '0'), 0);
+  const totalOutstanding = invoices.reduce((s, inv) => s + (inv.outstandingAmount || 0), 0);
+  const overdueCount = invoices.filter(inv => inv.status === 'overdue').length;
+  const currency = property.currency || 'USD';
+
+  const INV_STATUS_COLORS: Record<string, string> = {
+    draft: '#6c757d', pending: '#f39c12', sent: '#3498db',
+    partially_paid: '#e67e22', paid: '#27ae60', overdue: '#e74c3c',
+    void: '#95a5a6', cancelled: '#c0392b',
+  };
+
+  return (
+    <div className="tab-section">
+      <div className="section-header">
+        <h3><DollarSign size={16} /> Finance Overview</h3>
+        <Link to="/admin/billing" className="btn-secondary" style={{ textDecoration: 'none' }}>
+          <DollarSign size={14} /> Billing Dashboard
+        </Link>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="finance-cards">
+        <div className="finance-card">
+          <div className="fc-icon" style={{ background: 'rgba(108,92,231,.12)', color: '#6c5ce7' }}><DollarSign size={20} /></div>
+          <div className="fc-body">
+            <span className="fc-label">Total Invoiced</span>
+            <span className="fc-value">{currency} {totalInvoiced.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+          </div>
+        </div>
+        <div className="finance-card">
+          <div className="fc-icon" style={{ background: 'rgba(39,174,96,.12)', color: '#27ae60' }}><CheckCircle size={20} /></div>
+          <div className="fc-body">
+            <span className="fc-label">Total Paid</span>
+            <span className="fc-value">{currency} {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+          </div>
+        </div>
+        <div className="finance-card">
+          <div className="fc-icon" style={{ background: 'rgba(243,156,18,.12)', color: '#f39c12' }}><AlertCircle size={20} /></div>
+          <div className="fc-body">
+            <span className="fc-label">Outstanding</span>
+            <span className="fc-value">{currency} {totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+          </div>
+        </div>
+        <div className="finance-card">
+          <div className="fc-icon" style={{ background: 'rgba(231,76,60,.12)', color: '#e74c3c' }}><AlertCircle size={20} /></div>
+          <div className="fc-body">
+            <span className="fc-label">Overdue Invoices</span>
+            <span className="fc-value">{overdueCount}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Billing Settings Summary */}
+      <div className="finance-settings-row">
+        <span><Calendar size={13} /> Billing: <strong className="capitalize">{property.billingCycle || 'monthly'}</strong> on day <strong>{property.billingDay || 1}</strong></span>
+        <span><Clock size={13} /> Currency: <strong>{currency}</strong></span>
+        <span><DollarSign size={13} /> Active Schedules: <strong>{schedules.length}</strong></span>
+      </div>
+
+      {/* Recent Invoices Table */}
+      <h4 className="finance-sub-title">Recent Invoices</h4>
+      {invLoading ? (
+        <div className="empty-section">Loading invoices…</div>
+      ) : invoices.length === 0 ? (
+        <div className="empty-section"><DollarSign size={28} /><p>No invoices for this property yet</p></div>
+      ) : (
+        <div className="leases-table-wrap">
+          <table className="leases-table">
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Tenant</th>
+                <th>Status</th>
+                <th>Amount</th>
+                <th>Paid</th>
+                <th>Outstanding</th>
+                <th>Due Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map(inv => (
+                <tr key={inv.id}>
+                  <td>
+                    <Link to={`/admin/billing/invoices/${inv.id}`} className="lease-link">{inv.invoiceNumber}</Link>
+                  </td>
+                  <td>{inv.tenant.companyName || [inv.tenant.firstName, inv.tenant.lastName].filter(Boolean).join(' ')}</td>
+                  <td>
+                    <span className="status-badge" style={{ background: `${INV_STATUS_COLORS[inv.status] || '#6c757d'}22`, color: INV_STATUS_COLORS[inv.status] || '#6c757d' }}>
+                      {inv.status.replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td className="rent-amount">{currency} {parseFloat(inv.totalAmount).toLocaleString()}</td>
+                  <td>{currency} {parseFloat(inv.paidAmount).toLocaleString()}</td>
+                  <td className={inv.outstandingAmount > 0 ? 'expiring-soon' : ''} style={{ fontWeight: inv.outstandingAmount > 0 ? 600 : 400 }}>
+                    {currency} {inv.outstandingAmount.toLocaleString()}
+                  </td>
+                  <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Active Billing Schedules */}
+      {schedules.length > 0 && (
+        <>
+          <h4 className="finance-sub-title">Active Billing Schedules</h4>
+          <div className="documents-grid">
+            {schedules.map(s => (
+              <div key={s.id} className="document-card" style={{ cursor: 'default' }}>
+                <div className="doc-icon">
+                  <Calendar size={14} />
+                </div>
+                <div className="doc-info">
+                  <span className="doc-name">{s.chargeType.name}</span>
+                  <span className="doc-meta">
+                    {s.tenant.companyName || [s.tenant.firstName, s.tenant.lastName].filter(Boolean).join(' ')}
+                    {s.unit ? ` · Unit ${s.unit.unitNumber}` : ''}
+                  </span>
+                </div>
+                <div className="doc-status">
+                  <span className="rent-amount">{s.currency} {parseFloat(s.amount).toLocaleString()}</span>
+                </div>
+                <div className="doc-expiry">
+                  {s.billingCycle} · Day {s.billingDay}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

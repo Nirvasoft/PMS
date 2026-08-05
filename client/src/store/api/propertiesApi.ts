@@ -276,6 +276,18 @@ export const propertiesApi = createApi({
       query: ({ propertyId, contactId }) => ({ url: `/properties/${propertyId}/contacts/${contactId}`, method: 'DELETE' }),
       invalidatesTags: (_, __, { propertyId }) => [{ type: 'PropertyContacts', id: propertyId }],
     }),
+
+    // ── Nearby Search ──
+    getNearbyProperties: builder.query<{ success: boolean; data: Array<{
+      id: string; name: string; code: string | null;
+      propertyType: string; status: string;
+      addressLine1: string | null; city: string | null; country: string | null;
+      geoLat: number; geoLng: number; coverImageUrl: string | null;
+      distanceKm: number;
+    }> }, { lat: number; lng: number; radiusKm?: number; excludePropertyId?: string; limit?: number }>({
+      query: (params) => ({ url: '/properties/nearby', params }),
+      providesTags: ['Properties'],
+    }),
   }),
 });
 
@@ -304,4 +316,5 @@ export const {
   useAddContactMutation,
   useUpdateContactMutation,
   useRemoveContactMutation,
+  useGetNearbyPropertiesQuery,
 } = propertiesApi;

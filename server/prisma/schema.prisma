@@ -218,8 +218,30 @@ model Company {
   bmsDevices               BmsDevice[]
   bmsReadings              BmsReading[]
 
+  // Relations — Company Sequences (Phase 2 Cross-Cutting)
+  companySequences         CompanySequence[]
+
   @@index([parentId])
   @@map("companies")
+}
+
+// ─────────────────────────────────────────────
+// COMPANY SEQUENCES — per-company sequential counters
+// ─────────────────────────────────────────────
+
+model CompanySequence {
+  companyId   String   @map("company_id") @db.Uuid
+  sequenceKey String   @map("sequence_key") @db.VarChar(50)
+  prefix      String?  @db.VarChar(20)
+  currentVal  BigInt   @default(0) @map("current_val")
+  padLength   Int      @default(5) @map("pad_length") @db.SmallInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, sequenceKey])
+  @@map("company_sequences")
 }
 
 // ─────────────────────────────────────────────
