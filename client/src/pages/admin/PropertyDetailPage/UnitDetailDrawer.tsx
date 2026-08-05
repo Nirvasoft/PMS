@@ -3,8 +3,8 @@ import { useAppDispatch } from '../../../store';
 import { closeDrawer } from '../../../store/slices/unitsSlice';
 import {
   useGetUnitQuery, useUpdateUnitMutation, useUpdateUnitStatusMutation,
-  useAddMeterMutation, useDeleteMeterMutation, useSetAmenitiesMutation,
-  useUploadFloorPlanMutation, useGetUnitTypesQuery,
+  useAddMeterMutation, useDeleteMeterMutation, useUpdateMeterMutation,
+  useSetAmenitiesMutation, useUploadFloorPlanMutation, useGetUnitTypesQuery,
 } from '../../../store/api/unitsApi';
 import {
   X, Zap, Droplets, Wind, Star, ChevronRight, Settings2,
@@ -54,7 +54,15 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [statusReason, setStatusReason] = useState('');
   const [estimatedCompletion, setEstimatedCompletion] = useState('');
   const [addingMeter, setAddingMeter] = useState(false);
-  const [meterForm, setMeterForm] = useState({ meterType: 'electricity', meterSerialNo: '', meterProvider: '', isSmartMeter: false });
+  const [meterForm, setMeterForm] = useState({
+    meterType: 'electricity', meterSerialNo: '', meterProvider: '',
+    isSmartMeter: false, location: '', installedAt: '', smartMeterId: '',
+  });
+  const [editingMeterId, setEditingMeterId] = useState<string | null>(null);
+  const [meterEditForm, setMeterEditForm] = useState<Record<string, any>>({});
+  const [readingMeterId, setReadingMeterId] = useState<string | null>(null);
+  const [readingValue, setReadingValue] = useState('');
+  const [readingDate, setReadingDate] = useState(new Date().toISOString().split('T')[0]);
 
   const { data, isLoading, isError, error } = useGetUnitQuery({ propertyId, unitId });
   const unit = data?.data;
@@ -63,6 +71,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [updateStatus] = useUpdateUnitStatusMutation();
   const [addMeter] = useAddMeterMutation();
   const [deleteMeter] = useDeleteMeterMutation();
+  const [updateMeter] = useUpdateMeterMutation();
   const [setAmenities] = useSetAmenitiesMutation();
   const [uploadFloorPlan, { isLoading: uploading }] = useUploadFloorPlanMutation();
   const { data: typesData } = useGetUnitTypesQuery();
@@ -87,6 +96,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       ownershipType: unit.ownershipType,
       ownerName: unit.ownerName ?? '',
       ownerContact: unit.ownerContact ?? '',
+      purchaseDate: unit.purchaseDate ? unit.purchaseDate.split('T')[0] : '',
+      purchasePrice: unit.purchasePrice ?? '',
+      currentMarketValue: unit.currentMarketValue ?? '',
       description: unit.description ?? '',
       notes: unit.notes ?? '',
     });
@@ -112,6 +124,10 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       if (editForm.ownershipType !== unit!.ownershipType) payload.ownershipType = editForm.ownershipType;
       if (editForm.ownerName !== (unit!.ownerName ?? '')) payload.ownerName = editForm.ownerName || null;
       if (editForm.ownerContact !== (unit!.ownerContact ?? '')) payload.ownerContact = editForm.ownerContact || null;
+      const origPurchaseDate = unit!.purchaseDate ? unit!.purchaseDate.split('T')[0] : '';
+      if (editForm.purchaseDate !== origPurchaseDate) payload.purchaseDate = editForm.purchaseDate || null;
+      if (editForm.purchasePrice !== '' && Number(editForm.purchasePrice) !== unit!.purchasePrice) payload.purchasePrice = Number(editForm.purchasePrice) || null;
+      if (editForm.currentMarketValue !== '' && Number(editForm.currentMarketValue) !== unit!.currentMarketValue) payload.currentMarketValue = Number(editForm.currentMarketValue) || null;
       if (editForm.description !== (unit!.description ?? '')) payload.description = editForm.description || null;
       if (editForm.notes !== (unit!.notes ?? '')) payload.notes = editForm.notes || null;
 
@@ -149,10 +165,52 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const handleAddMeter = async () => {
     if (!meterForm.meterSerialNo) return;
     try {
-      await addMeter({ propertyId, unitId, data: meterForm }).unwrap();
+      await addMeter({ propertyId, unitId, data: {
+        ...meterForm,
+        location: meterForm.location || undefined,
+        installedAt: meterForm.installedAt || undefined,
+        smartMeterId: meterForm.smartMeterId || undefined,
+      }}).unwrap();
       toast.success('Meter added');
       setAddingMeter(false);
-      setMeterForm({ meterType: 'electricity', meterSerialNo: '', meterProvider: '', isSmartMeter: false });
+      setMeterForm({ meterType: 'electricity', meterSerialNo: '', meterProvider: '', isSmartMeter: false, location: '', installedAt: '', smartMeterId: '' });
+    } catch (e: any) { toast.error(e?.data?.message || 'Failed'); }
+  };
+
+  const handleMeterEdit = (m: any) => {
+    setEditingMeterId(m.id);
+    setMeterEditForm({
+      meterSerialNo: m.meterSerialNo,
+      meterProvider: m.meterProvider || '',
+      location: m.location || '',
+      isSmartMeter: m.isSmartMeter,
+      smartMeterId: m.smartMeterId || '',
+    });
+  };
+
+  const handleMeterEditSave = async () => {
+    if (!editingMeterId) return;
+    try {
+      await updateMeter({ propertyId, unitId, meterId: editingMeterId, data: {
+        ...meterEditForm,
+        location: meterEditForm.location || null,
+        smartMeterId: meterEditForm.smartMeterId || null,
+      }}).unwrap();
+      toast.success('Meter updated');
+      setEditingMeterId(null);
+    } catch (e: any) { toast.error(e?.data?.message || 'Failed to update meter'); }
+  };
+
+  const handleRecordReading = async () => {
+    if (!readingMeterId || !readingValue) return;
+    try {
+      await updateMeter({ propertyId, unitId, meterId: readingMeterId, data: {
+        lastReading: Number(readingValue),
+        lastReadingDate: readingDate,
+      }}).unwrap();
+      toast.success('Reading recorded');
+      setReadingMeterId(null);
+      setReadingValue('');
     } catch (e: any) { toast.error(e?.data?.message || 'Failed'); }
   };
 
@@ -342,6 +400,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     <EditField label="Owner" value={editForm.ownerName} onChange={(v) => ef('ownerName', v)} />
                     <EditField label="Contact" value={editForm.ownerContact} onChange={(v) => ef('ownerContact', v)} />
                   </div>
+                  <div className="ef-grid">
+                    <EditField label="Purchase Date" type="date" value={editForm.purchaseDate} onChange={(v) => ef('purchaseDate', v)} />
+                    <EditField label="Purchase Price" type="number" value={editForm.purchasePrice} onChange={(v) => ef('purchasePrice', v)} />
+                    <EditField label="Market Value" type="number" value={editForm.currentMarketValue} onChange={(v) => ef('currentMarketValue', v)} />
+                  </div>
 
                   <div className="ef-section-title">Notes</div>
                   <div className="ef-field full-width">
@@ -374,6 +437,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       <InfoItem label="Type"   value={unit.ownershipType} />
                       <InfoItem label="Owner"  value={unit.ownerName || '—'} />
                       <InfoItem label="Contact" value={unit.ownerContact || '—'} />
+                      <InfoItem label="Purchase Date" value={unit.purchaseDate ? new Date(unit.purchaseDate).toLocaleDateString() : '—'} />
+                      <InfoItem label="Purchase Price" value={unit.purchasePrice ? `${Number(unit.purchasePrice).toLocaleString()}` : '—'} />
+                      <InfoItem label="Market Value" value={unit.currentMarketValue ? `${Number(unit.currentMarketValue).toLocaleString()}` : '—'} />
                     </div>
                   </div>
 
@@ -423,6 +489,24 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     onChange={(e) => setMeterForm({ ...meterForm, meterSerialNo: e.target.value })} />
                   <input placeholder="Provider" value={meterForm.meterProvider}
                     onChange={(e) => setMeterForm({ ...meterForm, meterProvider: e.target.value })} />
+                  <input placeholder="Location (e.g. DB Box at main door)" value={meterForm.location}
+                    onChange={(e) => setMeterForm({ ...meterForm, location: e.target.value })} />
+                  <div className="meter-form-row">
+                    <div className="ef-field">
+                      <label>Install Date</label>
+                      <input type="date" value={meterForm.installedAt}
+                        onChange={(e) => setMeterForm({ ...meterForm, installedAt: e.target.value })} />
+                    </div>
+                    <label className="meter-checkbox">
+                      <input type="checkbox" checked={meterForm.isSmartMeter}
+                        onChange={(e) => setMeterForm({ ...meterForm, isSmartMeter: e.target.checked })} />
+                      Smart Meter
+                    </label>
+                  </div>
+                  {meterForm.isSmartMeter && (
+                    <input placeholder="Smart Meter ID" value={meterForm.smartMeterId}
+                      onChange={(e) => setMeterForm({ ...meterForm, smartMeterId: e.target.value })} />
+                  )}
                   <div className="form-row">
                     <button className="btn-primary-sm" onClick={handleAddMeter}>Save</button>
                     <button className="btn-ghost-sm" onClick={() => setAddingMeter(false)}>Cancel</button>
@@ -434,18 +518,91 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                 ? <div className="empty-sm">No meters assigned</div>
                 : unit.meters.map((m) => (
                     <div key={m.id} className="meter-card">
-                      <div className="meter-icon">{METER_ICONS[m.meterType] || <Activity size={14} />}</div>
-                      <div className="meter-info">
-                        <div className="meter-type">{m.meterType.replace(/_/g, ' ')}</div>
-                        <div className="meter-serial">{m.meterSerialNo}</div>
-                        {m.meterProvider && <div className="meter-provider">{m.meterProvider}</div>}
-                        {m.lastReading !== null && <div className="meter-reading">{m.lastReading} (last: {m.lastReadingDate})</div>}
-                        {m.isSmartMeter && <span className="smart-badge">Smart</span>}
-                      </div>
-                      <button className="meter-delete" onClick={async () => {
-                        try { await deleteMeter({ propertyId, unitId, meterId: m.id }).unwrap(); toast.success('Removed'); }
-                        catch { toast.error('Failed'); }
-                      }}><Trash2 size={13} /></button>
+                      {editingMeterId === m.id ? (
+                        /* ── Inline Meter Edit ── */
+                        <div className="meter-edit-inline">
+                          <input value={meterEditForm.meterSerialNo}
+                            onChange={(e) => setMeterEditForm({ ...meterEditForm, meterSerialNo: e.target.value })}
+                            placeholder="Serial No." />
+                          <input value={meterEditForm.meterProvider}
+                            onChange={(e) => setMeterEditForm({ ...meterEditForm, meterProvider: e.target.value })}
+                            placeholder="Provider" />
+                          <input value={meterEditForm.location}
+                            onChange={(e) => setMeterEditForm({ ...meterEditForm, location: e.target.value })}
+                            placeholder="Location" />
+                          <label className="meter-checkbox">
+                            <input type="checkbox" checked={meterEditForm.isSmartMeter}
+                              onChange={(e) => setMeterEditForm({ ...meterEditForm, isSmartMeter: e.target.checked })} />
+                            Smart
+                          </label>
+                          {meterEditForm.isSmartMeter && (
+                            <input value={meterEditForm.smartMeterId}
+                              onChange={(e) => setMeterEditForm({ ...meterEditForm, smartMeterId: e.target.value })}
+                              placeholder="Smart Meter ID" />
+                          )}
+                          <div className="form-row">
+                            <button className="btn-primary-sm" onClick={handleMeterEditSave}><Check size={12} /> Save</button>
+                            <button className="btn-ghost-sm" onClick={() => setEditingMeterId(null)}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : readingMeterId === m.id ? (
+                        /* ── Record Reading Inline ── */
+                        <div className="meter-edit-inline">
+                          <div className="meter-reading-header">
+                            {METER_ICONS[m.meterType] || <Activity size={14} />}
+                            <span>Record Reading — {m.meterSerialNo}</span>
+                          </div>
+                          <div className="meter-form-row">
+                            <div className="ef-field">
+                              <label>Reading Value</label>
+                              <input type="number" step="0.001" value={readingValue}
+                                onChange={(e) => setReadingValue(e.target.value)}
+                                placeholder="e.g. 1250.5" autoFocus />
+                            </div>
+                            <div className="ef-field">
+                              <label>Date</label>
+                              <input type="date" value={readingDate}
+                                onChange={(e) => setReadingDate(e.target.value)} />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <button className="btn-primary-sm" onClick={handleRecordReading}><Check size={12} /> Save</button>
+                            <button className="btn-ghost-sm" onClick={() => setReadingMeterId(null)}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* ── Normal Meter Card View ── */
+                        <>
+                          <div className="meter-icon">{METER_ICONS[m.meterType] || <Activity size={14} />}</div>
+                          <div className="meter-info">
+                            <div className="meter-type">{m.meterType.replace(/_/g, ' ')}</div>
+                            <div className="meter-serial">{m.meterSerialNo}</div>
+                            {m.meterProvider && <div className="meter-provider">{m.meterProvider}</div>}
+                            {m.location && <div className="meter-provider">{m.location}</div>}
+                            {m.lastReading !== null && (
+                              <div className="meter-reading">
+                                Reading: <strong>{m.lastReading}</strong>
+                                {m.lastReadingDate && <span> · {new Date(m.lastReadingDate).toLocaleDateString()}</span>}
+                              </div>
+                            )}
+                            {m.installedAt && <div className="meter-provider">Installed: {new Date(m.installedAt).toLocaleDateString()}</div>}
+                            {m.isSmartMeter && <span className="smart-badge">Smart{m.smartMeterId ? ` · ${m.smartMeterId}` : ''}</span>}
+                          </div>
+                          <div className="meter-actions">
+                            <button className="meter-action-btn" title="Record Reading"
+                              onClick={() => { setReadingMeterId(m.id); setReadingValue(m.lastReading != null ? String(m.lastReading) : ''); }}>
+                              <Activity size={12} />
+                            </button>
+                            <button className="meter-action-btn" title="Edit Meter" onClick={() => handleMeterEdit(m)}>
+                              <Pencil size={12} />
+                            </button>
+                            <button className="meter-delete" onClick={async () => {
+                              try { await deleteMeter({ propertyId, unitId, meterId: m.id }).unwrap(); toast.success('Removed'); }
+                              catch { toast.error('Failed'); }
+                            }}><Trash2 size={13} /></button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))
               }

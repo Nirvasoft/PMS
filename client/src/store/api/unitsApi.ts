@@ -59,6 +59,8 @@ export interface UtilityMeter {
   isSmartMeter: boolean;
   isActive: boolean;
   installedAt: string | null;
+  location: string | null;
+  smartMeterId: string | null;
 }
 
 export interface UnitStatusHistory {
@@ -114,6 +116,9 @@ export interface UnitDetail extends UnitListItem {
   ownershipType: string;
   ownerName: string | null;
   ownerContact: string | null;
+  purchaseDate: string | null;
+  purchasePrice: number | null;
+  currentMarketValue: number | null;
   floorPlanUrl: string | null;
   description: string | null;
   notes: string | null;

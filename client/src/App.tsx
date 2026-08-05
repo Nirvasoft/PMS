@@ -23,6 +23,7 @@ import TenantListPage from './pages/admin/TenantsPage/TenantListPage';
 import TenantDetailPage from './pages/admin/TenantsPage/TenantDetailPage';
 import CreateTenantPage from './pages/admin/TenantsPage/CreateTenantPage';
 import MergeTenantPage from './pages/admin/TenantsPage/MergeTenantPage';
+import KycRequirementsPage from './pages/admin/TenantsPage/KycRequirementsPage';
 import LeaseListPage from './pages/admin/LeasesPage/LeaseListPage';
 import LeaseDetailPage from './pages/admin/LeasesPage/LeaseDetailPage';
 import CreateLeasePage from './pages/admin/LeasesPage/CreateLeasePage';
@@ -202,6 +203,7 @@ function AppRoutes() {
             <Route path="/admin/tenants" element={<TenantListPage />} />
             <Route path="/admin/tenants/new" element={<CreateTenantPage />} />
             <Route path="/admin/tenants/merge" element={<MergeTenantPage />} />
+            <Route path="/admin/tenants/kyc-requirements" element={<KycRequirementsPage />} />
             <Route path="/admin/tenants/:id" element={<TenantDetailPage />} />
           </Route>
 

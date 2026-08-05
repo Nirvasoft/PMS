@@ -4,7 +4,8 @@ import {
   useGetTenantQuery, useUpdateTenantMutation, useBlacklistTenantMutation,
   useWhitelistTenantMutation, useGetBlacklistHistoryQuery,
   useGetEmergencyContactsQuery, useAddEmergencyContactMutation,
-  useDeleteEmergencyContactMutation, useGetTenantNotesQuery,
+  useUpdateEmergencyContactMutation, useDeleteEmergencyContactMutation,
+  useGetTenantNotesQuery,
   useAddTenantNoteMutation, useUpdateTenantNoteMutation,
   useDeleteTenantNoteMutation, useGetTenantKycQuery, useUploadAvatarMutation,
   useReviewKycDocumentMutation, useSubmitKycDocumentMutation, useGetLeaseHistoryQuery,
@@ -14,7 +15,7 @@ import {
   ArrowLeft, User, Building2, Shield, ShieldOff, Phone, Mail,
   Plus, Trash2, Pin, PinOff, CheckCircle, XCircle, Clock,
   AlertCircle, FileText, Users2, Edit2, X, ChevronRight, Save,
-  FolderOpen, Upload, Download, Camera,
+  FolderOpen, Upload, Download, Camera, Pencil, CalendarClock,
 } from 'lucide-react';
 import { useGetDocumentsQuery, useUploadDocumentMutation, useDeleteDocumentMutation, type DocumentItem } from '../../../store/api/documentsApi';
 import toast from 'react-hot-toast';
@@ -91,6 +92,17 @@ export default function TenantDetailPage() {
                 <span className="bl-badge"><ShieldOff size={10} /> Blacklisted</span>
               )}
               {tenant.source && <span className="source-badge">{tenant.source.replace(/_/g, ' ')}</span>}
+              {tenant.kycExpiryDate && (() => {
+                const days = Math.ceil((new Date(tenant.kycExpiryDate).getTime() - Date.now()) / 86400000);
+                const isExpiringSoon = days >= 0 && days <= 30;
+                const isExpired = days < 0;
+                return (
+                  <span className={`kyc-expiry-badge ${isExpired ? 'expired' : isExpiringSoon ? 'warning' : ''}`}>
+                    <CalendarClock size={10} />
+                    {isExpired ? 'KYC Expired' : `KYC expires ${new Date(tenant.kycExpiryDate).toLocaleDateString()}`}
+                  </span>
+                );
+              })()}
             </div>
             <div className="td-contacts">
               {tenant.email  && <span><Mail size={12} />{tenant.email}</span>}
@@ -151,14 +163,16 @@ function KycProgressStrip({ summary }: { summary: { status: string; submitted: n
 function BlacklistButton({ tenantId }: { tenantId: string }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
+  const [scope, setScope] = useState<'company' | 'property'>('company');
+  const [notes, setNotes] = useState('');
   const [blacklist, { isLoading }] = useBlacklistTenantMutation();
 
   const handleSubmit = async () => {
     if (!reason.trim()) { toast.error('Reason is required'); return; }
     try {
-      await blacklist({ id: tenantId, reason }).unwrap();
+      await blacklist({ id: tenantId, reason, scope, notes: notes || undefined }).unwrap();
       toast.success('Tenant blacklisted');
-      setOpen(false); setReason('');
+      setOpen(false); setReason(''); setNotes('');
     } catch { toast.error('Failed'); }
   };
 
@@ -171,7 +185,18 @@ function BlacklistButton({ tenantId }: { tenantId: string }) {
             <div className="modal-header"><h3>Blacklist Tenant</h3><button onClick={() => setOpen(false)}><X size={18} /></button></div>
             <div className="modal-body">
               <label>Reason *</label>
-              <textarea rows={4} placeholder="Reason for blacklisting…" value={reason} onChange={(e) => setReason(e.target.value)} />
+              <textarea rows={3} placeholder="Reason for blacklisting…" value={reason} onChange={(e) => setReason(e.target.value)} />
+              <label style={{ marginTop: 10 }}>Scope</label>
+              <div className="scope-toggle">
+                <button className={scope === 'company' ? 'active' : ''} onClick={() => setScope('company')}>
+                  <Building2 size={12} /> Company-wide
+                </button>
+                <button className={scope === 'property' ? 'active' : ''} onClick={() => setScope('property')}>
+                  <Shield size={12} /> Property only
+                </button>
+              </div>
+              <label style={{ marginTop: 10 }}>Internal Notes</label>
+              <textarea rows={2} placeholder="Additional notes (optional)…" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
             <div className="modal-footer">
               <button className="btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
@@ -504,9 +529,12 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 function EmergencyContactsSection({ tenantId }: { tenantId: string }) {
   const { data } = useGetEmergencyContactsQuery(tenantId);
   const [add] = useAddEmergencyContactMutation();
+  const [update] = useUpdateEmergencyContactMutation();
   const [del] = useDeleteEmergencyContactMutation();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', relationship: 'spouse', phone: '', email: '', isPrimary: false });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', relationship: 'spouse', phone: '', email: '', isPrimary: false });
 
   const contacts = data?.data || [];
 
@@ -518,6 +546,20 @@ function EmergencyContactsSection({ tenantId }: { tenantId: string }) {
       setShowForm(false);
       setForm({ name: '', relationship: 'spouse', phone: '', email: '', isPrimary: false });
     } catch { toast.error('Failed'); }
+  };
+
+  const startEdit = (c: EmergencyContact) => {
+    setEditingId(c.id);
+    setEditForm({ name: c.name, relationship: c.relationship, phone: c.phone, email: c.email || '', isPrimary: c.isPrimary });
+  };
+
+  const handleEditSave = async () => {
+    if (!editingId || !editForm.name || !editForm.phone) return;
+    try {
+      await update({ tenantId, contactId: editingId, data: editForm }).unwrap();
+      toast.success('Contact updated');
+      setEditingId(null);
+    } catch { toast.error('Failed to update'); }
   };
 
   return (
@@ -550,16 +592,41 @@ function EmergencyContactsSection({ tenantId }: { tenantId: string }) {
       {contacts.length === 0 ? <div className="empty-sm">No emergency contacts</div> : (
         contacts.map((c: EmergencyContact) => (
           <div key={c.id} className="ec-card">
-            {c.isPrimary && <span className="primary-dot" title="Primary" />}
-            <div className="ec-info">
-              <div className="ec-name">{c.name} <span className="ec-rel">({c.relationship})</span></div>
-              <div className="ec-contact"><Phone size={11} />{c.phone}</div>
-              {c.email && <div className="ec-contact"><Mail size={11} />{c.email}</div>}
-            </div>
-            <button className="ec-del" onClick={async () => {
-              try { await del({ tenantId, contactId: c.id }).unwrap(); toast.success('Removed'); }
-              catch { toast.error('Failed'); }
-            }}><Trash2 size={12} /></button>
+            {editingId === c.id ? (
+              <div className="ec-edit-inline">
+                <div className="form-row-2">
+                  <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Name *" />
+                  <select value={editForm.relationship} onChange={(e) => setEditForm({ ...editForm, relationship: e.target.value })}>
+                    {['spouse','parent','sibling','colleague','other'].map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="form-row-2">
+                  <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Phone *" />
+                  <input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="Email" />
+                </div>
+                <div className="form-actions-sm">
+                  <label><input type="checkbox" checked={editForm.isPrimary} onChange={(e) => setEditForm({ ...editForm, isPrimary: e.target.checked })} /> Primary</label>
+                  <button className="btn-primary-sm" onClick={handleEditSave}><Save size={11} /> Save</button>
+                  <button className="btn-ghost-sm" onClick={() => setEditingId(null)}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {c.isPrimary && <span className="primary-dot" title="Primary" />}
+                <div className="ec-info">
+                  <div className="ec-name">{c.name} <span className="ec-rel">({c.relationship})</span></div>
+                  <div className="ec-contact"><Phone size={11} />{c.phone}</div>
+                  {c.email && <div className="ec-contact"><Mail size={11} />{c.email}</div>}
+                </div>
+                <div className="ec-actions">
+                  <button className="ec-edit" onClick={() => startEdit(c)} title="Edit"><Pencil size={12} /></button>
+                  <button className="ec-del" onClick={async () => {
+                    try { await del({ tenantId, contactId: c.id }).unwrap(); toast.success('Removed'); }
+                    catch { toast.error('Failed'); }
+                  }}><Trash2 size={12} /></button>
+                </div>
+              </>
+            )}
           </div>
         ))
       )}
@@ -613,6 +680,16 @@ function KycTab({ tenantId }: { tenantId: string }) {
                 {doc.status}
               </div>
               {doc.rejectionReason && <div className="kyc-reject-reason">⚠ {doc.rejectionReason}</div>}
+              {doc.expiryDate && (() => {
+                const days = Math.ceil((new Date(doc.expiryDate).getTime() - Date.now()) / 86400000);
+                return (
+                  <div className={`kyc-doc-expiry ${days < 0 ? 'expired' : days <= 30 ? 'warning' : ''}`}>
+                    <CalendarClock size={11} />
+                    {days < 0 ? 'Expired' : `Expires ${new Date(doc.expiryDate).toLocaleDateString()}`}
+                    {days >= 0 && days <= 30 && <span> ({days}d left)</span>}
+                  </div>
+                );
+              })()}
               {doc.reviewedAt && <div className="kyc-reviewed-by">
                 Reviewed by {doc.reviewedBy?.profile ? `${doc.reviewedBy.profile.firstName} ${doc.reviewedBy.profile.lastName}` : doc.reviewedBy?.email}
               </div>}

@@ -178,14 +178,59 @@
 .smart-badge { font-size: 0.62rem; background: rgba(46,204,113,0.15); color: #2ecc71; padding: 1px 5px; border-radius: 3px; }
 
 .meter-delete {
-  position: absolute; top: 6px; right: 6px;
   background: rgba(231,76,60,0.1); border: none;
   color: #e74c3c; border-radius: 5px; cursor: pointer; padding: 4px;
   opacity: 0; transition: opacity 0.15s;
   display: flex;
 }
 
-.meter-card:hover .meter-delete { opacity: 1; }
+.meter-card:hover .meter-delete,
+.meter-card:hover .meter-actions { opacity: 1; }
+
+.meter-actions {
+  display: flex; flex-direction: column; gap: 3px;
+  position: absolute; top: 6px; right: 6px;
+  opacity: 0; transition: opacity 0.15s;
+}
+
+.meter-action-btn {
+  background: rgba(108,92,231,0.1); border: none;
+  color: #6c5ce7; border-radius: 4px; cursor: pointer; padding: 4px;
+  display: flex; transition: background 0.15s;
+}
+.meter-action-btn:hover { background: rgba(108,92,231,0.2); }
+
+.meter-edit-inline {
+  display: flex; flex-direction: column; gap: 8px;
+  width: 100%;
+}
+.meter-edit-inline input,
+.meter-edit-inline select {
+  padding: 6px 8px; border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary); font-size: .78rem;
+}
+
+.meter-form-row {
+  display: flex; gap: 10px; align-items: flex-end;
+}
+.meter-form-row .ef-field { flex: 1; }
+
+.meter-checkbox {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .78rem; color: var(--text-secondary); cursor: pointer;
+  white-space: nowrap;
+}
+.meter-checkbox input[type="checkbox"] { accent-color: #6c5ce7; }
+
+.meter-reading-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .78rem; font-weight: 600;
+  color: var(--text-primary);
+}
+
+.meter-reading strong { color: var(--text-primary); }
 .empty-sm { color: var(--text-muted); font-size: 0.82rem; text-align: center; padding: 20px 0; }
 
 /* ─── History ─────────────────────────────────── */

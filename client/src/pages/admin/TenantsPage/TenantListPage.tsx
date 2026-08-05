@@ -79,6 +79,9 @@ export default function TenantListPage() {
           </div>
         </div>
         <div className="page-actions">
+          <button className="btn-ghost" onClick={() => navigate('/admin/tenants/kyc-requirements')}>
+            <Shield size={14} /> KYC Requirements
+          </button>
           <button className="btn-ghost" onClick={() => navigate('/admin/tenants/merge')}>
             <GitMerge size={14} /> Merge
           </button>
