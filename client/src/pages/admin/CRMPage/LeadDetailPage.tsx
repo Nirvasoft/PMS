@@ -4,6 +4,7 @@ import {
   useGetLeadQuery, useUpdateLeadMutation, useUpdateLeadStageMutation,
   useGetActivitiesQuery, useCreateActivityMutation,
   useGetViewingsQuery, useScheduleViewingMutation, useCompleteViewingMutation,
+  useRescheduleViewingMutation,
   useConvertLeadMutation, useDeleteLeadMutation,
   type LeadViewing, type LeadActivityItem,
 } from '../../../store/api/crmApi';
@@ -14,7 +15,7 @@ import { useGetUsersQuery } from '../../../store/api/usersApi';
 import {
   ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
-  Edit3, Save, X, Trash2, Repeat, Search, UserPlus, Link, AlertTriangle,
+  Edit3, Save, X, Trash2, Repeat, Search, UserPlus, Link, AlertTriangle, RefreshCw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CRMPage.css';
@@ -754,7 +755,9 @@ function ViewingsTab({ leadId }: { leadId: string }) {
   const { data } = useGetViewingsQuery(leadId);
   const [scheduleViewing] = useScheduleViewingMutation();
   const [completeViewing] = useCompleteViewingMutation();
+  const [rescheduleViewing] = useRescheduleViewingMutation();
   const [showSchedule, setShowSchedule] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<LeadViewing | null>(null);
   const viewings = data?.data || [];
 
   const handleSchedule = async (formData: Record<string, unknown>) => {
@@ -767,11 +770,29 @@ function ViewingsTab({ leadId }: { leadId: string }) {
     }
   };
 
+  const handleReschedule = async (viewingId: string, formData: Record<string, unknown>) => {
+    try {
+      await rescheduleViewing({ leadId, viewingId, data: formData }).unwrap();
+      toast.success('Viewing rescheduled');
+      setRescheduleTarget(null);
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to reschedule');
+    }
+  };
+
   const handleComplete = async (viewingId: string, outcome: string) => {
     try {
       await completeViewing({ leadId, viewingId, data: { outcome } }).unwrap();
       toast.success('Viewing completed');
     } catch { toast.error('Failed'); }
+  };
+
+  const handleCancel = async (viewing: LeadViewing) => {
+    if (!confirm(`Cancel viewing on ${new Date(viewing.scheduledAt).toLocaleString()}?`)) return;
+    try {
+      await rescheduleViewing({ leadId, viewingId: viewing.id, data: { status: 'cancelled' } }).unwrap();
+      toast.success('Viewing cancelled');
+    } catch { toast.error('Failed to cancel'); }
   };
 
   return (
@@ -784,25 +805,48 @@ function ViewingsTab({ leadId }: { leadId: string }) {
         <div className="table-empty" style={{ padding: 40 }}><Eye size={40} /><p>No viewings scheduled</p></div>
       ) : (
         viewings.map((v: LeadViewing) => (
-          <div key={v.id} className="viewing-card">
+          <div key={v.id} className={`viewing-card ${v.status === 'cancelled' ? 'vc-cancelled' : ''}`}>
             <div className="vc-header">
-              <span className="vc-date">{new Date(v.scheduledAt).toLocaleString()}</span>
-              <span className="status-pill" style={{ color: v.status === 'completed' ? '#10b981' : v.status === 'cancelled' ? '#ef4444' : '#f59e0b', background: v.status === 'completed' ? '#10b98118' : v.status === 'cancelled' ? '#ef444418' : '#f59e0b18', borderColor: 'transparent', fontSize: 11, padding: '2px 10px' }}>
+              <span className="vc-date">
+                <Calendar size={12} style={{ marginRight: 6 }} />
+                {new Date(v.scheduledAt).toLocaleString()}
+              </span>
+              <span className={`vc-status-badge vc-status-${v.status}`}>
+                {v.status === 'scheduled' && <Clock size={10} />}
+                {v.status === 'completed' && <CheckCircle size={10} />}
+                {v.status === 'no_show' && <X size={10} />}
                 {v.status}
               </span>
             </div>
             <div className="vc-detail">
-              {v.unit && <span>Unit: {v.unit.unitNumber}</span>}
-              <span>Duration: {v.durationMinutes}min</span>
-              {v.agent && <span>Agent: {v.agent.profile ? `${v.agent.profile.firstName} ${v.agent.profile.lastName}` : v.agent.email}</span>}
-              {v.outcome && <span>Outcome: {v.outcome}</span>}
+              {v.unit && <span>🏢 Unit {v.unit.unitNumber}</span>}
+              <span>⏱ {v.durationMinutes} min</span>
+              {v.agent && <span>👤 {v.agent.profile ? `${v.agent.profile.firstName} ${v.agent.profile.lastName}` : v.agent.email}</span>}
+              {v.outcome && <span className={`vc-outcome vc-outcome-${v.outcome}`}>{v.outcome.replace(/_/g, ' ')}</span>}
             </div>
             {v.agentNotes && <div className="vc-notes">{v.agentNotes}</div>}
             {v.status === 'scheduled' && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button className="btn-sm btn-primary" onClick={() => handleComplete(v.id, 'interested')}>✓ Interested</button>
-                <button className="btn-sm btn-secondary" onClick={() => handleComplete(v.id, 'not_interested')}>✗ Not Interested</button>
-                <button className="btn-sm btn-ghost" onClick={() => handleComplete(v.id, 'undecided')}>? Undecided</button>
+              <div className="vc-actions">
+                <div className="vc-outcome-group">
+                  <span className="vc-action-label">Mark as:</span>
+                  <button className="btn-sm btn-primary" onClick={() => handleComplete(v.id, 'interested')}>
+                    <CheckCircle size={12} /> Interested
+                  </button>
+                  <button className="btn-sm btn-secondary" onClick={() => handleComplete(v.id, 'not_interested')}>
+                    <X size={12} /> Not Interested
+                  </button>
+                  <button className="btn-sm btn-ghost" onClick={() => handleComplete(v.id, 'undecided')}>
+                    ? Undecided
+                  </button>
+                </div>
+                <div className="vc-manage-group">
+                  <button className="btn-sm btn-reschedule" onClick={() => setRescheduleTarget(v)} title="Reschedule">
+                    <RefreshCw size={12} /> Reschedule
+                  </button>
+                  <button className="btn-sm btn-cancel-viewing" onClick={() => handleCancel(v)} title="Cancel viewing">
+                    <Trash2 size={12} /> Cancel
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -810,6 +854,13 @@ function ViewingsTab({ leadId }: { leadId: string }) {
       )}
       {showSchedule && (
         <ScheduleViewingModal onClose={() => setShowSchedule(false)} onSubmit={handleSchedule} />
+      )}
+      {rescheduleTarget && (
+        <RescheduleViewingModal
+          viewing={rescheduleTarget}
+          onClose={() => setRescheduleTarget(null)}
+          onSubmit={(data) => handleReschedule(rescheduleTarget.id, data)}
+        />
       )}
     </div>
   );
@@ -822,19 +873,93 @@ function ScheduleViewingModal({ onClose, onSubmit }: { onClose: () => void; onSu
   return (
     <div className="crm-modal-overlay" onClick={onClose}>
       <div className="crm-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Schedule Viewing</h2>
+        <div className="viewing-modal-header">
+          <div className="viewing-modal-icon"><Calendar size={20} /></div>
+          <h2>Schedule Viewing</h2>
+        </div>
         <div className="form-group">
           <label>Date & Time *</label>
-          <input className="form-input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+          <input className="form-input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} autoFocus />
         </div>
         <div className="form-group">
           <label>Duration (minutes)</label>
-          <input className="form-input" type="number" value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} />
+          <input className="form-input" type="number" value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} min="15" max="240" />
         </div>
         <div className="modal-actions">
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-secondary" onClick={onClose}><X size={14} /> Cancel</button>
           <button className="btn-primary" disabled={!scheduledAt} onClick={() => onSubmit({ scheduledAt: new Date(scheduledAt).toISOString(), durationMinutes: Number(durationMinutes) })}>
-            Schedule
+            <Calendar size={14} /> Schedule
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RescheduleViewingModal({ viewing, onClose, onSubmit }: {
+  viewing: LeadViewing;
+  onClose: () => void;
+  onSubmit: (data: Record<string, unknown>) => void;
+}) {
+  // Pre-fill with the current viewing's date/time
+  const currentDate = new Date(viewing.scheduledAt);
+  const formattedDate = currentDate.toISOString().slice(0, 16);
+  const [scheduledAt, setScheduledAt] = useState(formattedDate);
+  const [durationMinutes, setDurationMinutes] = useState(viewing.durationMinutes.toString());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    const data: Record<string, unknown> = {};
+    const newDate = new Date(scheduledAt).toISOString();
+    if (newDate !== viewing.scheduledAt) data.scheduledAt = newDate;
+    const newDuration = Number(durationMinutes);
+    if (newDuration !== viewing.durationMinutes) data.durationMinutes = newDuration;
+    if (Object.keys(data).length === 0) { onClose(); return; }
+    await onSubmit(data);
+    setIsSubmitting(false);
+  };
+
+  const hasChanges = scheduledAt !== formattedDate || Number(durationMinutes) !== viewing.durationMinutes;
+
+  return (
+    <div className="crm-modal-overlay" onClick={onClose}>
+      <div className="crm-modal reschedule-modal" onClick={e => e.stopPropagation()}>
+        <div className="viewing-modal-header">
+          <div className="viewing-modal-icon reschedule-icon"><RefreshCw size={20} /></div>
+          <h2>Reschedule Viewing</h2>
+        </div>
+
+        {/* Current viewing info */}
+        <div className="reschedule-current">
+          <div className="rc-label">Current Schedule</div>
+          <div className="rc-value">
+            <Calendar size={13} />
+            {currentDate.toLocaleString()}
+            <span className="rc-duration">({viewing.durationMinutes} min)</span>
+          </div>
+          {viewing.unit && <div className="rc-unit">Unit {viewing.unit.unitNumber}</div>}
+          {viewing.agent && (
+            <div className="rc-agent">
+              👤 {viewing.agent.profile ? `${viewing.agent.profile.firstName} ${viewing.agent.profile.lastName}` : viewing.agent.email}
+            </div>
+          )}
+        </div>
+
+        {/* New date/time */}
+        <div className="form-group">
+          <label>New Date & Time *</label>
+          <input className="form-input" type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} autoFocus />
+        </div>
+        <div className="form-group">
+          <label>Duration (minutes)</label>
+          <input className="form-input" type="number" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} min="15" max="240" />
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}><X size={14} /> Cancel</button>
+          <button className="btn-primary" disabled={isSubmitting || !scheduledAt || !hasChanges} onClick={handleSubmit}>
+            <RefreshCw size={14} /> {isSubmitting ? 'Rescheduling…' : 'Reschedule'}
           </button>
         </div>
       </div>

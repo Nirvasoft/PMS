@@ -180,6 +180,11 @@ export const crmApi = createApi({
       invalidatesTags: (_, __, { leadId }) => [{ type: 'Viewings', id: leadId }, { type: 'LeadDetail', id: leadId }, 'Pipeline'],
     }),
 
+    rescheduleViewing: builder.mutation<ApiResponse<LeadViewing>, { leadId: string; viewingId: string; data: Record<string, unknown> }>({
+      query: ({ leadId, viewingId, data }) => ({ url: `/leads/${leadId}/viewings/${viewingId}`, method: 'PUT', body: data }),
+      invalidatesTags: (_, __, { leadId }) => [{ type: 'Viewings', id: leadId }, { type: 'LeadDetail', id: leadId }, 'Pipeline'],
+    }),
+
     // Activities
     getActivities: builder.query<ApiResponse<LeadActivityItem[]>, string>({
       query: (leadId) => `/leads/${leadId}/activities`,
@@ -226,6 +231,7 @@ export const {
   useGetViewingsQuery,
   useScheduleViewingMutation,
   useCompleteViewingMutation,
+  useRescheduleViewingMutation,
   useGetActivitiesQuery,
   useCreateActivityMutation,
   useGetCampaignsQuery,
