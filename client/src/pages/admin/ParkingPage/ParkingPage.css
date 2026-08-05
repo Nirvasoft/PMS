@@ -382,21 +382,168 @@
   color: var(--text-primary);
   font-weight: 500;
 }
-.visitor-pass-card .vpc-qr {
-  text-align: center;
+.visitor-pass-card .vpc-qr-section {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   padding: 12px;
   background: var(--surface-base);
   border-radius: 10px;
-  font-family: monospace;
-  font-size: 13px;
-  color: var(--text-secondary);
-  letter-spacing: 1px;
   border: 1px dashed var(--border-default);
 }
+.visitor-pass-card .vpc-qr-code {
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.15s, box-shadow 0.15s;
+  line-height: 0;
+}
+.visitor-pass-card .vpc-qr-code:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.visitor-pass-card .vpc-qr-code canvas {
+  border-radius: 4px;
+}
+.visitor-pass-card .vpc-qr-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.visitor-pass-card .vpc-qr-token {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+  word-break: break-all;
+}
+.visitor-pass-card .vpc-qr-expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+.visitor-pass-card .vpc-qr-expand:hover { text-decoration: underline; }
+
+.visitor-pass-card.vpc-dimmed { opacity: 0.5; }
+
 .visitor-pass-card .vpc-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+/* ── QR Code Full View Modal ───────────────── */
+
+.qr-modal { max-width: 440px !important; text-align: center; }
+.qr-modal-header { margin-bottom: 20px; }
+.qr-modal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6c5ce720, #a78bfa18);
+  color: #6c5ce7;
+  margin: 0 auto 12px;
+}
+.qr-modal-subtitle {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.qr-modal-code {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: #fff;
+  border-radius: 16px;
+  border: 2px solid var(--border-subtle);
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+}
+.qr-modal-code canvas {
+  border-radius: 4px;
+}
+.qr-modal-code.qr-expired { opacity: 0.35; }
+.qr-expired-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 800;
+  color: #ef4444;
+  letter-spacing: 3px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 14px;
+}
+
+.qr-token-display {
+  display: inline-block;
+  font-family: monospace;
+  font-size: 16px;
+  letter-spacing: 2px;
+  padding: 8px 20px;
+  background: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.qr-pass-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  text-align: left;
+  padding: 14px 18px;
+  background: var(--surface-base);
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 16px;
+}
+.qr-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.qr-detail span {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.qr-detail strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.qr-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.qr-modal-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-style: italic;
 }
 
 /* ── Parking Tabs ───────────────────────────── */
