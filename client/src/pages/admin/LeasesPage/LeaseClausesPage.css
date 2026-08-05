@@ -1,0 +1,62 @@
+/* ─── Lease Clauses Page ───────────────────── */
+.lc-page { display: flex; flex-direction: column; gap: 20px; padding: 24px 28px; max-width: 1000px; }
+.lc-header { display: flex; flex-direction: column; gap: 12px; }
+.lc-title-row h1 { display: flex; align-items: center; gap: 10px; font-size: 1.35rem; font-weight: 700; }
+.lc-subtitle { font-size: .82rem; color: var(--text-muted); margin: 0; }
+.lc-header .btn-primary { align-self: flex-start; }
+
+/* Filters */
+.lc-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.lc-filters button {
+  padding: 6px 14px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03); color: var(--text-secondary);
+  font-size: .78rem; cursor: pointer; transition: all .15s; text-transform: capitalize;
+}
+.lc-filters button.active { border-color: #6c5ce7; background: rgba(108,92,231,.1); color: #6c5ce7; }
+.lc-filters button:hover:not(.active) { background: rgba(255,255,255,.06); }
+
+/* Form */
+.lc-form { padding: 20px; border-radius: 14px; background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.08); }
+.lc-form h3 { font-size: 1rem; font-weight: 700; margin: 0 0 14px; }
+.lc-form-fields { display: flex; flex-direction: column; gap: 10px; }
+.lc-form-fields .field-row { display: flex; gap: 12px; }
+.lc-form-fields .field label { display: block; font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
+.lc-form-fields .field input, .lc-form-fields .field select, .lc-form-fields .field textarea {
+  width: 100%; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+  color: var(--text-primary); font-size: .82rem;
+  outline: none; box-sizing: border-box;
+}
+.lc-form-fields .field textarea { resize: vertical; }
+.lc-form-fields .checkbox-field label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: .82rem; color: var(--text-secondary); cursor: pointer;
+}
+.lc-form-fields .checkbox-field input[type="checkbox"] { accent-color: #6c5ce7; }
+.lc-form-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+/* Category sections */
+.lc-category { display: flex; flex-direction: column; gap: 8px; }
+.lc-cat-title { font-size: .88rem; font-weight: 700; text-transform: capitalize; border-bottom: 1px solid rgba(255,255,255,.06); padding: 6px 0; margin: 0; }
+.lc-clauses-list { display: flex; flex-direction: column; gap: 6px; }
+
+.lc-clause-card {
+  padding: 14px 18px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.05);
+  background: rgba(255,255,255,.02); transition: border-color .12s;
+}
+.lc-clause-card:hover { border-color: rgba(255,255,255,.1); }
+.lc-clause-header { display: flex; justify-content: space-between; align-items: center; }
+.lc-clause-title { font-size: .85rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.standard-star { color: #f39c12; }
+.lc-clause-content { font-size: .78rem; color: var(--text-secondary); margin: 6px 0 0; line-height: 1.5; }
+.lc-clause-delete { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; opacity: 0; transition: opacity .15s; }
+.lc-clause-card:hover .lc-clause-delete { opacity: 1; }
+.lc-clause-delete:hover { color: #e74c3c; }
+
+.lc-page .empty-state { display: flex; flex-direction: column; align-items: center; padding: 60px 20px; color: var(--text-muted); gap: 8px; }
+.lc-page .empty-state h3 { font-size: 1rem; color: var(--text-secondary); margin: 0; }
+.lc-page .empty-state p { font-size: .82rem; margin: 0; }
+.loading-center { text-align: center; padding: 40px; color: var(--text-muted); }

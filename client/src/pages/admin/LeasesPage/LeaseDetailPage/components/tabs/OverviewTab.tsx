@@ -19,6 +19,20 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
           <InfoRow label="Payment Due"   value={`${lease.paymentDueDays} days after invoice`} />
         </InfoCard>
 
+        <InfoCard title="Security Deposit">
+          <InfoRow label="Amount"   value={`${lease.property.currency} ${Number(lease.securityDeposit).toLocaleString()}`} />
+          <InfoRow label="Status"   value={lease.depositPaid ? '✓ Paid' : '✗ Unpaid'} />
+          {lease.depositPaid && lease.depositPaidAt && (
+            <InfoRow label="Paid On"  value={new Date(lease.depositPaidAt).toLocaleDateString()} />
+          )}
+          {lease.depositRefunded && (
+            <>
+              <InfoRow label="Refunded" value="✓ Yes" />
+              {lease.depositRefundedAt && <InfoRow label="Refunded On" value={new Date(lease.depositRefundedAt).toLocaleDateString()} />}
+            </>
+          )}
+        </InfoCard>
+
         {lease.parentLease && (
           <InfoCard title="Renewal Chain">
             <InfoRow label="Parent Lease" value={lease.parentLease.leaseNumber} />
@@ -35,6 +49,13 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
           </InfoCard>
         )}
       </div>
+
+      {lease.notes && (
+        <div className="special-conditions">
+          <div className="sc-label">Notes</div>
+          <p>{lease.notes}</p>
+        </div>
+      )}
 
       {lease.specialConditions && (
         <div className="special-conditions">

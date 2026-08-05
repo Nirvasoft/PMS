@@ -125,3 +125,31 @@
 .recipient-form-row { display: grid; grid-template-columns: 80px 1fr 1fr; gap: 8px; align-items: center; }
 .rf-type { font-size: .75rem; color: var(--text-muted); text-transform: capitalize; }
 .recipient-form-row input { padding: 7px 10px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 7px; color: var(--text-primary); font-size: .8rem; outline: none; }
+
+/* Edit button */
+.btn-action-edit     { background: rgba(108,92,231,.1);  border-color: rgba(108,92,231,.3);   color: #6c5ce7; }
+
+/* Larger modal */
+.modal-lg { max-width: 680px; }
+
+/* Edit Draft Form */
+.edit-draft-form { max-height: 70vh; overflow-y: auto; }
+.edf-section { border-bottom: 1px solid rgba(255,255,255,.04); padding-bottom: 14px; margin-bottom: 2px; }
+.edf-section:last-child { border-bottom: none; margin-bottom: 0; }
+.edf-section h4 { font-size: .78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin: 0 0 8px; letter-spacing: .04em; }
+.edf-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.edf-row label { display: flex; flex-direction: column; gap: 4px; font-size: .72rem; color: var(--text-muted); font-weight: 600; }
+.edf-row input, .edf-row select {
+  padding: 8px 10px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+  color: var(--text-primary); font-size: .82rem;
+  outline: none;
+}
+.edit-draft-form textarea {
+  width: 100%; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+  color: var(--text-primary); font-size: .82rem;
+  outline: none; resize: vertical; box-sizing: border-box;
+}

@@ -28,6 +28,8 @@ export interface LeaseDetail extends LeaseListItem {
   securityDeposit: string;
   depositPaid: boolean;
   depositPaidAt: string | null;
+  depositRefunded: boolean;
+  depositRefundedAt: string | null;
   escalationType: string | null;
   escalationValue: string | null;
   escalationFrequency: string | null;
@@ -181,6 +183,16 @@ export const leasesApi = createApi({
       invalidatesTags: ['Leases'],
     }),
 
+    acceptRenewal: builder.mutation<ApiResponse<LeaseDetail>, string>({
+      query: (id) => ({ url: `/leases/${id}/renewal/accept`, method: 'POST' }),
+      invalidatesTags: (_, __, id) => [{ type: 'Leases', id }, 'Leases'],
+    }),
+
+    declineRenewal: builder.mutation<ApiResponse<LeaseDetail>, string>({
+      query: (id) => ({ url: `/leases/${id}/renewal/decline`, method: 'POST' }),
+      invalidatesTags: (_, __, id) => [{ type: 'Leases', id }, 'Leases'],
+    }),
+
     getAmendments: builder.query<ApiResponse<LeaseAmendment[]>, string>({
       query: (leaseId) => `/leases/${leaseId}/amendments`,
       providesTags: (_, __, id) => [{ type: 'LeaseAmendments', id }],
@@ -244,6 +256,8 @@ export const {
   useCancelLeaseMutation,
   useTerminateLeaseMutation,
   useCreateRenewalMutation,
+  useAcceptRenewalMutation,
+  useDeclineRenewalMutation,
   useGetAmendmentsQuery,
   useCreateAmendmentMutation,
   useApproveAmendmentMutation,

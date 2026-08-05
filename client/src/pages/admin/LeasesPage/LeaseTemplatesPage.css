@@ -1,0 +1,44 @@
+/* ─── Lease Templates Page ──────────────────── */
+.lt-page { display: flex; flex-direction: column; gap: 20px; padding: 24px 28px; max-width: 1000px; }
+.lt-header { display: flex; flex-direction: column; gap: 12px; }
+.lt-title-row h1 { display: flex; align-items: center; gap: 10px; font-size: 1.35rem; font-weight: 700; }
+.lt-subtitle { font-size: .82rem; color: var(--text-muted); margin: 0; }
+.lt-header .btn-primary { align-self: flex-start; }
+
+/* Form */
+.lt-form { padding: 20px; border-radius: 14px; background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.08); }
+.lt-form h3 { font-size: 1rem; font-weight: 700; margin: 0 0 14px; }
+.lt-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.lt-form-grid .field label { display: block; font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
+.lt-form-grid .field input, .lt-form-grid .field select {
+  width: 100%; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+  color: var(--text-primary); font-size: .82rem;
+}
+.field-group-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); padding-top: 8px; letter-spacing: .05em; border-top: 1px solid rgba(255,255,255,.04); }
+.lt-form-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+/* Card grid */
+.lt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.lt-card {
+  padding: 18px 20px; border-radius: 14px;
+  background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06);
+  display: flex; flex-direction: column; gap: 8px; transition: border-color .15s;
+}
+.lt-card:hover { border-color: rgba(108,92,231,.3); }
+.lt-card.inactive { opacity: .6; }
+.lt-card-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lt-card-header h3 { font-size: .92rem; font-weight: 700; margin: 0; }
+.lt-type-badge { padding: 2px 8px; border-radius: 4px; font-size: .65rem; background: rgba(108,92,231,.1); color: #6c5ce7; text-transform: capitalize; }
+.lt-inactive-badge { padding: 2px 8px; border-radius: 4px; font-size: .65rem; background: rgba(231,76,60,.1); color: #e74c3c; }
+.lt-card-desc { font-size: .78rem; color: var(--text-secondary); margin: 0; }
+.lt-card-terms { display: flex; flex-wrap: wrap; gap: 6px; }
+.lt-card-terms span { padding: 3px 8px; border-radius: 5px; background: rgba(255,255,255,.04); font-size: .68rem; color: var(--text-muted); text-transform: capitalize; }
+.lt-card-footer { display: flex; justify-content: space-between; font-size: .68rem; color: var(--text-muted); }
+
+/* Empty state */
+.lt-page .empty-state { display: flex; flex-direction: column; align-items: center; padding: 60px 20px; color: var(--text-muted); gap: 8px; }
+.lt-page .empty-state h3 { font-size: 1rem; color: var(--text-secondary); margin: 0; }
+.lt-page .empty-state p { font-size: .82rem; margin: 0; }
+.loading-center { text-align: center; padding: 40px; color: var(--text-muted); }

@@ -156,6 +156,37 @@ export class LeasesLifecycleService {
     webhookLeaseRenewed(renewal);
     return renewal;
   }
+
+  async acceptRenewal(id: string, companyId: string) {
+    const renewal = await prisma.lease.findFirst({ where: { id, companyId, deletedAt: null } });
+    if (!renewal) throw AppError.notFound('Lease');
+    if (renewal.status !== 'draft' || !renewal.parentLeaseId) throw new AppError(400, 'INVALID_STATE', 'This lease is not a renewal offer');
+
+    // Mark original lease as 'renewed'
+    await prisma.lease.update({ where: { id: renewal.parentLeaseId }, data: { isRenewed: true, status: 'renewed' } });
+
+    // Mark renewal as accepted (ready for approval/activation)
+    const updated = await prisma.lease.update({
+      where: { id },
+      data: { renewalAcceptedAt: new Date() },
+    });
+
+    return updated;
+  }
+
+  async declineRenewal(id: string, companyId: string) {
+    const renewal = await prisma.lease.findFirst({ where: { id, companyId, deletedAt: null } });
+    if (!renewal) throw AppError.notFound('Lease');
+    if (renewal.status !== 'draft' || !renewal.parentLeaseId) throw new AppError(400, 'INVALID_STATE', 'This lease is not a renewal offer');
+
+    // Cancel the renewal draft
+    const updated = await prisma.lease.update({
+      where: { id },
+      data: { status: 'cancelled' },
+    });
+
+    return updated;
+  }
 }
 
 export const leasesLifecycleService = new LeasesLifecycleService();

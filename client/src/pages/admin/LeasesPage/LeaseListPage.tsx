@@ -53,9 +53,17 @@ export default function LeaseListPage() {
             <p>{meta ? `${meta.total} total leases` : 'Loading…'}</p>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => navigate('/admin/leases/new')}>
-          <Plus size={15} /> New Lease
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-ghost" onClick={() => navigate('/admin/leases/templates')}>
+            <FileText size={14} /> Templates
+          </button>
+          <button className="btn-ghost" onClick={() => navigate('/admin/leases/clauses')}>
+            <Archive size={14} /> Clauses
+          </button>
+          <button className="btn-primary" onClick={() => navigate('/admin/leases/new')}>
+            <Plus size={15} /> New Lease
+          </button>
+        </div>
       </div>
 
       {/* Expiry alert */}

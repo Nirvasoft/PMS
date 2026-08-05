@@ -92,6 +92,18 @@ leasesRouter.post('/:id/renewal', validateRequest(createRenewalSchema), asyncHan
   res.status(201).json({ success: true, data });
 }));
 
+/** POST /leases/:id/renewal/accept */
+leasesRouter.post('/:id/renewal/accept', asyncHandler(async (req, res) => {
+  const data = await leasesLifecycleService.acceptRenewal(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
+/** POST /leases/:id/renewal/decline */
+leasesRouter.post('/:id/renewal/decline', asyncHandler(async (req, res) => {
+  const data = await leasesLifecycleService.declineRenewal(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
 // ── Amendments ──────────────────────────────
 
 /** GET /leases/:id/amendments */

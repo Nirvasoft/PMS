@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useGetLeaseQuery, useSubmitLeaseMutation, useActivateLeaseMutation,
-  useCancelLeaseMutation,
+  useCancelLeaseMutation, useUpdateLeaseMutation,
 } from '../../../store/api/leasesApi';
 import {
   ArrowLeft, CheckCircle, XCircle, PenLine, AlertTriangle,
-  Send, RefreshCw, Scissors, ChevronRight,
+  Send, RefreshCw, Scissors, ChevronRight, Edit2, Save, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './LeaseDetailPage.css';
@@ -40,6 +40,7 @@ export default function LeaseDetailPage() {
   const [showRenewalModal,   setShowRenewalModal]   = useState(false);
   const [showAmendModal,     setShowAmendModal]      = useState(false);
   const [showEsignModal,     setShowEsignModal]      = useState(false);
+  const [showEditDraft,      setShowEditDraft]        = useState(false);
 
   const { data, isLoading } = useGetLeaseQuery(id!);
   const lease = data?.data;
@@ -90,6 +91,7 @@ export default function LeaseDetailPage() {
 
           {/* Action toolbar */}
           <div className="ld-actions">
+            {isDraft  && <button className="btn-action-edit" onClick={() => setShowEditDraft(true)}><Edit2 size={14}/> Edit</button>}
             {isDraft  && <button className="btn-action-submit" onClick={handleSubmit}  disabled={submitting}><Send size={14}/> Submit</button>}
             {(isApproved || isPending) && <button className="btn-action-activate" onClick={handleActivate} disabled={activating}><CheckCircle size={14}/> Activate</button>}
             {isActive  && <button className="btn-action-amend"     onClick={() => setShowAmendModal(true)}><PenLine size={14}/> Amend</button>}
@@ -152,6 +154,7 @@ export default function LeaseDetailPage() {
       {showRenewalModal   && <RenewalModal   leaseId={id!} lease={lease} onClose={() => setShowRenewalModal(false)} />}
       {showAmendModal     && <AmendModal     leaseId={id!} onClose={() => setShowAmendModal(false)} />}
       {showEsignModal     && <EsignSendModal leaseId={id!} tenantEmail={lease.tenant.email || ''} tenantName={lease.tenant.displayName} onClose={() => setShowEsignModal(false)} />}
+      {showEditDraft       && <EditDraftModal lease={lease} onClose={() => setShowEditDraft(false)} />}
     </div>
   );
 }
@@ -162,6 +165,115 @@ function Metric({ label, value, sub, highlight }: { label: string; value: string
       <div className="metric-label">{label}</div>
       <div className="metric-value" style={highlight ? { color: '#e74c3c' } : {}}>{value}</div>
       {sub && <div className="metric-sub">{sub}</div>}
+    </div>
+  );
+}
+
+// ── Edit Draft Modal ────────────────────────
+function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/leasesApi').LeaseDetail; onClose: () => void }) {
+  const [update, { isLoading }] = useUpdateLeaseMutation();
+  const [form, setForm] = useState({
+    rentAmount: Number(lease.rentAmount),
+    billingCycle: lease.billingCycle,
+    billingDay: lease.billingDay,
+    paymentDueDays: lease.paymentDueDays,
+    securityDeposit: Number(lease.securityDeposit),
+    startDate: lease.startDate.split('T')[0],
+    endDate: lease.endDate.split('T')[0],
+    handoverDate: lease.handoverDate?.split('T')[0] || '',
+    escalationType: lease.escalationType || '',
+    escalationValue: lease.escalationValue ? Number(lease.escalationValue) : '',
+    escalationFrequency: lease.escalationFrequency || 'annual',
+    notes: lease.notes || '',
+    specialConditions: lease.specialConditions || '',
+  });
+
+  const set = (key: string, val: unknown) => setForm((f) => ({ ...f, [key]: val }));
+
+  const handleSave = async () => {
+    try {
+      await update({
+        id: lease.id,
+        data: {
+          ...form,
+          rentAmount: Number(form.rentAmount),
+          securityDeposit: Number(form.securityDeposit),
+          escalationValue: form.escalationValue ? Number(form.escalationValue) : null,
+          escalationType: form.escalationType || null,
+          handoverDate: form.handoverDate || null,
+          notes: form.notes || null,
+          specialConditions: form.specialConditions || null,
+        },
+      }).unwrap();
+      toast.success('Draft updated');
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.data?.message || 'Update failed');
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header"><h3>Edit Draft Lease</h3><button onClick={onClose}><X size={18} /></button></div>
+        <div className="modal-body edit-draft-form">
+          <div className="edf-section">
+            <h4>Dates</h4>
+            <div className="edf-row">
+              <label>Start Date<input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} /></label>
+              <label>End Date<input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} /></label>
+              <label>Handover<input type="date" value={form.handoverDate} onChange={(e) => set('handoverDate', e.target.value)} /></label>
+            </div>
+          </div>
+          <div className="edf-section">
+            <h4>Financial</h4>
+            <div className="edf-row">
+              <label>Rent Amount<input type="number" value={form.rentAmount} onChange={(e) => set('rentAmount', e.target.value)} /></label>
+              <label>Security Deposit<input type="number" value={form.securityDeposit} onChange={(e) => set('securityDeposit', e.target.value)} /></label>
+            </div>
+            <div className="edf-row">
+              <label>Billing Cycle
+                <select value={form.billingCycle} onChange={(e) => set('billingCycle', e.target.value)}>
+                  {['monthly','quarterly','semi_annual','annual'].map((c) => <option key={c} value={c}>{c.replace(/_/g,' ')}</option>)}
+                </select>
+              </label>
+              <label>Billing Day<input type="number" min={1} max={28} value={form.billingDay} onChange={(e) => set('billingDay', Number(e.target.value))} /></label>
+              <label>Payment Due Days<input type="number" min={1} max={30} value={form.paymentDueDays} onChange={(e) => set('paymentDueDays', Number(e.target.value))} /></label>
+            </div>
+          </div>
+          <div className="edf-section">
+            <h4>Escalation</h4>
+            <div className="edf-row">
+              <label>Type
+                <select value={form.escalationType} onChange={(e) => set('escalationType', e.target.value)}>
+                  <option value="">None</option>
+                  {['fixed_percent','fixed_amount','cpi','stepped'].map((t) => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+                </select>
+              </label>
+              {form.escalationType && (
+                <label>Value<input type="number" value={form.escalationValue} onChange={(e) => set('escalationValue', e.target.value)} /></label>
+              )}
+              {form.escalationType && (
+                <label>Frequency
+                  <select value={form.escalationFrequency} onChange={(e) => set('escalationFrequency', e.target.value)}>
+                    <option value="annual">Annual</option>
+                    <option value="biennial">Biennial</option>
+                  </select>
+                </label>
+              )}
+            </div>
+          </div>
+          <div className="edf-section">
+            <h4>Notes</h4>
+            <textarea rows={3} value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Internal notes…" />
+            <textarea rows={3} value={form.specialConditions} onChange={(e) => set('specialConditions', e.target.value)} placeholder="Special conditions…" style={{ marginTop: 8 }} />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave} disabled={isLoading}><Save size={14}/> {isLoading ? 'Saving…' : 'Save Changes'}</button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -27,6 +27,8 @@ import KycRequirementsPage from './pages/admin/TenantsPage/KycRequirementsPage';
 import LeaseListPage from './pages/admin/LeasesPage/LeaseListPage';
 import LeaseDetailPage from './pages/admin/LeasesPage/LeaseDetailPage';
 import CreateLeasePage from './pages/admin/LeasesPage/CreateLeasePage';
+import LeaseTemplatesPage from './pages/admin/LeasesPage/LeaseTemplatesPage';
+import LeaseClausesPage from './pages/admin/LeasesPage/LeaseClausesPage';
 import LeadPipelinePage from './pages/admin/CRMPage/LeadPipelinePage';
 import CRMLeadDetailPage from './pages/admin/CRMPage/LeadDetailPage';
 import CampaignsPage from './pages/admin/CRMPage/CampaignsPage';
@@ -211,6 +213,8 @@ function AppRoutes() {
           <Route element={<RequirePermission permission="leases.read" />}>
             <Route path="/admin/leases" element={<LeaseListPage />} />
             <Route path="/admin/leases/new" element={<CreateLeasePage />} />
+            <Route path="/admin/leases/templates" element={<LeaseTemplatesPage />} />
+            <Route path="/admin/leases/clauses" element={<LeaseClausesPage />} />
             <Route path="/admin/leases/:id" element={<LeaseDetailPage />} />
           </Route>
 
