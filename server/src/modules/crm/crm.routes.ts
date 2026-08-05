@@ -170,3 +170,9 @@ campaignsRouter.get('/:id/roi', asyncHandler(async (req, res) => {
   const data = await campaignsService.getROI(p(req, 'id'), req.user!.companyId);
   res.json({ success: true, data });
 }));
+
+/** DELETE /marketing-campaigns/:id */
+campaignsRouter.delete('/:id', asyncHandler(async (req, res) => {
+  await campaignsService.delete(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, message: 'Campaign deleted' });
+}));

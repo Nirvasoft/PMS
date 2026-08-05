@@ -88,6 +88,20 @@ export class CampaignsService {
       roi,
     };
   }
+
+  async delete(id: string, companyId: string) {
+    const campaign = await prisma.marketingCampaign.findFirst({ where: { id, companyId } });
+    if (!campaign) throw AppError.notFound('Campaign');
+
+    await prisma.$transaction([
+      // Null out campaign references on leads
+      prisma.lead.updateMany({ where: { campaignId: id }, data: { campaignId: null } }),
+      // Delete the campaign
+      prisma.marketingCampaign.delete({ where: { id } }),
+    ]);
+
+    return { id };
+  }
 }
 
 export const campaignsService = new CampaignsService();

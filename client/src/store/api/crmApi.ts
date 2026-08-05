@@ -215,6 +215,11 @@ export const crmApi = createApi({
     getCampaignROI: builder.query<ApiResponse<CampaignROI>, string>({
       query: (id) => `/marketing-campaigns/${id}/roi`,
     }),
+
+    deleteCampaign: builder.mutation<{ success: boolean; message: string }, string>({
+      query: (id) => ({ url: `/marketing-campaigns/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Campaigns'],
+    }),
   }),
 });
 
@@ -238,4 +243,5 @@ export const {
   useCreateCampaignMutation,
   useUpdateCampaignMutation,
   useGetCampaignROIQuery,
+  useDeleteCampaignMutation,
 } = crmApi;

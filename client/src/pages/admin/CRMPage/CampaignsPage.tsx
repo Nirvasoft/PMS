@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import {
   useGetCampaignsQuery, useCreateCampaignMutation, useUpdateCampaignMutation,
+  useDeleteCampaignMutation,
   useGetCampaignROIQuery, type CampaignItem,
 } from '../../../store/api/crmApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
-  Megaphone, Plus, Edit3, Save, X, Calendar, DollarSign,
+  Megaphone, Plus, Edit3, Save, X, Calendar, DollarSign, Trash2, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CRMPage.css';
@@ -86,40 +87,84 @@ export default function CampaignsPage() {
 
 function CampaignRow({ campaign, onEdit }: { campaign: CampaignItem; onEdit: () => void }) {
   const { data: roiData } = useGetCampaignROIQuery(campaign.id);
+  const [deleteCampaign, { isLoading: isDeleting }] = useDeleteCampaignMutation();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const roi = roiData?.data;
 
+  const handleDelete = async () => {
+    try {
+      await deleteCampaign(campaign.id).unwrap();
+      toast.success('Campaign deleted');
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to delete');
+    }
+  };
+
   return (
-    <div className="campaign-row">
-      <div>
-        <div className="camp-name">{campaign.name}</div>
-        <div className="camp-status-row">
-          <span className={`camp-status-badge status-${campaign.status}`}>{campaign.status}</span>
-          {campaign.property && <span className="camp-property-name">{campaign.property.name}</span>}
+    <>
+      <div className="campaign-row">
+        <div>
+          <div className="camp-name">{campaign.name}</div>
+          <div className="camp-status-row">
+            <span className={`camp-status-badge status-${campaign.status}`}>{campaign.status}</span>
+            {campaign.property && <span className="camp-property-name">{campaign.property.name}</span>}
+          </div>
+        </div>
+        <div>
+          {campaign.channel && <span className="camp-channel">{campaign.channel.replace(/_/g, ' ')}</span>}
+        </div>
+        <div>{campaign.budget ? `$${Number(campaign.budget).toLocaleString()}` : '—'}</div>
+        <div style={{ fontSize: 12 }}>
+          {campaign.startDate ? new Date(campaign.startDate).toLocaleDateString() : '—'}
+          {campaign.endDate ? ` → ${new Date(campaign.endDate).toLocaleDateString()}` : ''}
+        </div>
+        <div style={{ fontWeight: 600 }}>{campaign.totalLeads}</div>
+        <div style={{ fontWeight: 600 }}>{campaign.totalConversions}</div>
+        <div>
+          {roi ? (
+            <span className={`camp-roi ${roi.roi >= 0 ? 'positive' : 'negative'}`}>
+              {roi.roi >= 0 ? '+' : ''}{roi.roi}%
+            </span>
+          ) : '—'}
+        </div>
+        <div className="camp-actions">
+          <button className="row-btn-edit" onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Edit campaign">
+            <Edit3 size={13} />
+          </button>
+          <button className="row-btn-delete" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }} title="Delete campaign">
+            <Trash2 size={13} />
+          </button>
         </div>
       </div>
-      <div>
-        {campaign.channel && <span className="camp-channel">{campaign.channel.replace(/_/g, ' ')}</span>}
-      </div>
-      <div>{campaign.budget ? `$${Number(campaign.budget).toLocaleString()}` : '—'}</div>
-      <div style={{ fontSize: 12 }}>
-        {campaign.startDate ? new Date(campaign.startDate).toLocaleDateString() : '—'}
-        {campaign.endDate ? ` → ${new Date(campaign.endDate).toLocaleDateString()}` : ''}
-      </div>
-      <div style={{ fontWeight: 600 }}>{campaign.totalLeads}</div>
-      <div style={{ fontWeight: 600 }}>{campaign.totalConversions}</div>
-      <div>
-        {roi ? (
-          <span className={`camp-roi ${roi.roi >= 0 ? 'positive' : 'negative'}`}>
-            {roi.roi >= 0 ? '+' : ''}{roi.roi}%
-          </span>
-        ) : '—'}
-      </div>
-      <div className="camp-actions">
-        <button className="row-btn-edit" onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Edit campaign">
-          <Edit3 size={13} />
-        </button>
-      </div>
-    </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="crm-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="crm-modal delete-confirm-modal" onClick={e => e.stopPropagation()}>
+            <div className="delete-confirm-header">
+              <div className="delete-confirm-icon"><AlertTriangle size={28} /></div>
+              <h2>Delete Campaign</h2>
+            </div>
+            <p className="delete-confirm-msg">
+              Are you sure you want to delete <strong>{campaign.name}</strong>?
+              {campaign.totalLeads > 0 && (
+                <span className="delete-confirm-warning">
+                  This campaign has {campaign.totalLeads} associated lead{campaign.totalLeads > 1 ? 's' : ''}. They will be unlinked but not deleted.
+                </span>
+              )}
+            </p>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
+                <X size={14} /> Cancel
+              </button>
+              <button className="btn-danger" onClick={handleDelete} disabled={isDeleting}>
+                <Trash2 size={14} /> {isDeleting ? 'Deleting…' : 'Delete Campaign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
