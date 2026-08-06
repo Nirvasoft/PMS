@@ -148,6 +148,35 @@ export class SlaService {
     });
   }
 
+  /** Update an SLA config */
+  async updateConfig(id: string, companyId: string, dto: Record<string, unknown>) {
+    const existing = await prisma.maintenanceSlaConfig.findFirst({
+      where: { id, companyId },
+    });
+    if (!existing) throw new Error('SLA config not found');
+
+    const data: any = {};
+    if (dto.responseHours !== undefined) data.responseHours = dto.responseHours;
+    if (dto.resolutionHours !== undefined) data.resolutionHours = dto.resolutionHours;
+    if (dto.workingHoursOnly !== undefined) data.workingHoursOnly = dto.workingHoursOnly;
+    if (dto.escalationContactId !== undefined) data.escalationContactId = dto.escalationContactId || null;
+    if (dto.priority !== undefined) data.priority = dto.priority;
+    if (dto.propertyId !== undefined) data.propertyId = dto.propertyId || null;
+    if (dto.categoryId !== undefined) data.categoryId = dto.categoryId || null;
+
+    return prisma.maintenanceSlaConfig.update({ where: { id }, data });
+  }
+
+  /** Delete an SLA config */
+  async deleteConfig(id: string, companyId: string) {
+    const existing = await prisma.maintenanceSlaConfig.findFirst({
+      where: { id, companyId },
+    });
+    if (!existing) throw new Error('SLA config not found');
+
+    return prisma.maintenanceSlaConfig.delete({ where: { id } });
+  }
+
   /**
    * SLA breach check — called by cron job.
    * Finds tickets that have breached response or resolution SLA deadlines
@@ -283,6 +312,140 @@ export class SlaService {
       });
     } catch (err: any) {
       logger.warn(`SLA breach notification failed for ${ticketNumber}: ${err.message}`);
+    }
+  }
+
+  // ── SLA Warning (2h pre-breach) ─────────────
+
+  /**
+   * Check for tickets approaching SLA breach within 2 hours.
+   * Uses SlaBreachEvent with 'response_warning'/'resolution_warning' types
+   * to ensure each warning is sent only once per ticket.
+   */
+  async checkWarnings() {
+    const now = new Date();
+    const twoHoursFromNow = new Date(now.getTime() + 2 * 3600000);
+
+    // Response SLA warnings: due within 2h, no response yet, warning not already sent
+    const responseAtRisk = await prisma.maintenanceTicket.findMany({
+      where: {
+        slaResponseDueAt: { gt: now, lte: twoHoursFromNow },
+        slaResponseMet: null,
+        firstResponseAt: null,
+        status: { notIn: ['completed', 'closed', 'cancelled'] },
+        deletedAt: null,
+      },
+      select: { id: true, companyId: true, ticketNumber: true, priority: true, assignedToId: true, slaResponseDueAt: true },
+    });
+
+    let warnings = 0;
+
+    for (const ticket of responseAtRisk) {
+      // Check if warning already sent
+      const existing = await prisma.slaBreachEvent.findFirst({
+        where: { ticketId: ticket.id, breachType: 'response_warning' },
+      });
+      if (existing) continue;
+
+      // Record warning event to prevent re-sending
+      await prisma.slaBreachEvent.create({
+        data: {
+          companyId: ticket.companyId,
+          ticketId: ticket.id,
+          breachType: 'response_warning',
+          notified: true,
+        },
+      });
+
+      const hoursLeft = this.formatTimeLeft(ticket.slaResponseDueAt!, now);
+      this.notifySlaWarning(ticket.companyId, ticket.id, ticket.ticketNumber, ticket.priority, 'Response SLA', hoursLeft, ticket.assignedToId);
+      logger.info(`SLA response warning: ticket ${ticket.ticketNumber} — ${hoursLeft} until breach`);
+      warnings++;
+    }
+
+    // Resolution SLA warnings: due within 2h, not resolved, warning not already sent
+    const resolveAtRisk = await prisma.maintenanceTicket.findMany({
+      where: {
+        slaResolveDueAt: { gt: now, lte: twoHoursFromNow },
+        slaResolveMet: null,
+        resolvedAt: null,
+        status: { notIn: ['completed', 'closed', 'cancelled'] },
+        deletedAt: null,
+      },
+      select: { id: true, companyId: true, ticketNumber: true, priority: true, assignedToId: true, slaResolveDueAt: true },
+    });
+
+    for (const ticket of resolveAtRisk) {
+      const existing = await prisma.slaBreachEvent.findFirst({
+        where: { ticketId: ticket.id, breachType: 'resolution_warning' },
+      });
+      if (existing) continue;
+
+      await prisma.slaBreachEvent.create({
+        data: {
+          companyId: ticket.companyId,
+          ticketId: ticket.id,
+          breachType: 'resolution_warning',
+          notified: true,
+        },
+      });
+
+      const hoursLeft = this.formatTimeLeft(ticket.slaResolveDueAt!, now);
+      this.notifySlaWarning(ticket.companyId, ticket.id, ticket.ticketNumber, ticket.priority, 'Resolution SLA', hoursLeft, ticket.assignedToId);
+      logger.info(`SLA resolution warning: ticket ${ticket.ticketNumber} — ${hoursLeft} until breach`);
+      warnings++;
+    }
+
+    if (warnings > 0) {
+      logger.info(`SLA monitor: sent ${warnings} pre-breach warning(s)`);
+    }
+    return warnings;
+  }
+
+  /** Format remaining time as human-readable string */
+  private formatTimeLeft(dueAt: Date, now: Date): string {
+    const diffMs = dueAt.getTime() - now.getTime();
+    const mins = Math.round(diffMs / 60000);
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    const remainMins = mins % 60;
+    return remainMins > 0 ? `${hours}h ${remainMins}m` : `${hours}h`;
+  }
+
+  /**
+   * Send pre-breach warning notification.
+   */
+  private async notifySlaWarning(
+    companyId: string, ticketId: string, ticketNumber: string,
+    priority: string, warningType: string, hoursLeft: string, assignedToId: string | null,
+  ) {
+    try {
+      const recipientIds: string[] = [];
+
+      if (assignedToId) recipientIds.push(assignedToId);
+
+      // Find escalation contact from SLA config
+      const slaConfig = await prisma.maintenanceSlaConfig.findFirst({
+        where: { companyId, priority, escalationContactId: { not: null } },
+        select: { escalationContactId: true },
+      });
+      if (slaConfig?.escalationContactId && !recipientIds.includes(slaConfig.escalationContactId)) {
+        recipientIds.push(slaConfig.escalationContactId);
+      }
+
+      if (recipientIds.length === 0) return;
+
+      await notificationService.send({
+        templateCode: 'ticket_sla_warning',
+        companyId,
+        recipientIds,
+        channels: ['in_app', 'email', 'push'],
+        variables: { ticketNumber, priority, warningType, hoursLeft },
+        entityType: 'maintenance_ticket',
+        entityId: ticketId,
+      });
+    } catch (err: any) {
+      logger.warn(`SLA warning notification failed for ${ticketNumber}: ${err.message}`);
     }
   }
 }

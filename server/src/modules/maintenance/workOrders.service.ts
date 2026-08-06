@@ -2,6 +2,8 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { facilityService } from '../facility/facility.service';
+import { glService } from '../gl/gl.service';
+import { emitToCompany } from '../../common/socket';
 
 export class WorkOrdersService {
   // ── Query ───────────────────────────────────
@@ -124,6 +126,10 @@ export class WorkOrdersService {
       }),
     ]);
 
+    emitToCompany(companyId, 'ticket:updated', {
+      ticketId: wo.ticketId, status: 'in_progress', woId: id, woStatus: 'in_progress',
+    });
+
     return updatedWo;
   }
 
@@ -211,7 +217,20 @@ export class WorkOrdersService {
 
     logger.info(`Work order ${wo.woNumber} completed. Cost: ${totalCost}`);
 
-    // Auto-create CAM cost entry if totalCost > 0 (Gap 9)
+    emitToCompany(companyId, 'ticket:completed', {
+      ticketId: wo.ticketId, status: 'completed', woId: id, woStatus: 'completed',
+      totalCost,
+    });
+
+    // Auto-post GL journal when totalCost > 0
+    // Dr: 5100 Maintenance & Repairs (expense)
+    // Cr: 2300 Accrued Expenses (liability) — until matched to AP invoice
+    if (totalCost > 0) {
+      this.postGlJournal(companyId, userId, wo.woNumber, wo.ticketId, wo.ticket.title, totalCost)
+        .catch((err: any) => logger.warn(`GL posting failed for WO ${wo.woNumber}: ${err.message}`));
+    }
+
+    // Auto-create CAM cost entry if totalCost > 0
     if (totalCost > 0 && wo.ticket?.propertyId) {
       facilityService.autoCreateCamFromWorkOrder({
         companyId, propertyId: wo.ticket.propertyId,
@@ -242,6 +261,10 @@ export class WorkOrdersService {
       }),
     ]);
 
+    emitToCompany(companyId, 'ticket:updated', {
+      ticketId: wo.ticketId, status: 'pending_parts', woId: id, woStatus: 'on_hold',
+    });
+
     return this.findById(id, companyId);
   }
 
@@ -265,7 +288,53 @@ export class WorkOrdersService {
       }),
     ]);
 
+    emitToCompany(companyId, 'ticket:updated', {
+      ticketId: wo.ticketId, status: 'in_progress', woId: id, woStatus: 'in_progress',
+    });
+
     return this.findById(id, companyId);
+  }
+
+  // ── GL Journal Posting ─────────────────────
+
+  /**
+   * Post a GL journal entry for a completed work order.
+   * Dr: 5100 Maintenance & Repairs (expense)
+   * Cr: 2300 Accrued Expenses (liability)
+   * Then auto-posts the entry and marks ticket.gl_posted = true.
+   */
+  private async postGlJournal(
+    companyId: string, userId: string,
+    woNumber: string, ticketId: string, ticketTitle: string,
+    totalCost: number,
+  ) {
+    try {
+      const je = await glService.createJournalEntry(companyId, userId, {
+        entryDate: new Date().toISOString(),
+        entryType: 'auto',
+        description: `Maintenance cost — ${woNumber}: ${ticketTitle}`,
+        referenceType: 'work_order',
+        referenceId: ticketId,
+        lines: [
+          { accountCode: '5100', debit: totalCost, credit: 0, description: `Labor + materials — ${woNumber}` },
+          { accountCode: '2300', debit: 0, credit: totalCost, description: `Accrued payable — ${woNumber}` },
+        ],
+      });
+
+      // Auto-post the journal entry
+      await glService.postJournalEntry(je.id, companyId, userId);
+
+      // Mark ticket as GL-posted
+      await prisma.maintenanceTicket.update({
+        where: { id: ticketId },
+        data: { glPosted: true },
+      });
+
+      logger.info(`GL journal ${je.journalNumber} posted for WO ${woNumber} (${totalCost})`);
+    } catch (err: any) {
+      logger.error(`GL journal posting failed for WO ${woNumber}: ${err.message}`);
+      // Don't throw — GL posting failure should not block WO completion
+    }
   }
 }
 

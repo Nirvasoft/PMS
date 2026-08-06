@@ -4,14 +4,14 @@ import {
   useEscalateTicketMutation, useCancelTicketMutation, useRateTicketMutation,
   useStartWorkOrderMutation, useCompleteWorkOrderMutation,
   useOnHoldWorkOrderMutation, useResumeWorkOrderMutation,
-  useGetTechniciansQuery,
+  useGetTechniciansQuery, useUploadTicketPhotosMutation,
 } from '../../../store/api/maintenanceApi';
 import {
   Wrench, ArrowLeft, Clock, AlertTriangle, User, MapPin, Star,
   Play, CheckCircle2, PauseCircle, XCircle, UserPlus, Zap,
-  Loader2, Camera, Package, ChevronDown, ChevronUp,
+  Loader2, Camera, Package, ChevronDown, ChevronUp, Upload, ImagePlus, X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
 const PRIORITIES: Record<string, { label: string; color: string }> = {
@@ -58,6 +58,13 @@ export default function TicketDetailPage() {
   const [completeWo] = useCompleteWorkOrderMutation();
   const [holdWo] = useOnHoldWorkOrderMutation();
   const [resumeWo] = useResumeWorkOrderMutation();
+  const [uploadPhotos, { isLoading: isUploading }] = useUploadTicketPhotosMutation();
+
+  // Photo upload state
+  const [photoType, setPhotoType] = useState<'before' | 'during' | 'after'>('before');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (isLoading) return <div className="loading-state"><Loader2 size={24} className="spinner" /> Loading...</div>;
   if (!ticket) return <div className="empty-state">Ticket not found</div>;
@@ -100,6 +107,38 @@ export default function TicketDetailPage() {
       refetch();
     } catch (err: any) {
       toast.error(err?.data?.errors?.[0]?.message || `Failed to ${action}`);
+    }
+  };
+
+  // ── Photo upload handlers ──────────────────
+
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+      toast.error('Only image files are allowed');
+      return;
+    }
+    setPendingFiles((prev) => [...prev, ...imageFiles].slice(0, 10));
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+  }, [addFiles]);
+
+  const handleUploadPhotos = async () => {
+    if (pendingFiles.length === 0 || !ticket) return;
+    const formData = new FormData();
+    pendingFiles.forEach((f) => formData.append('photos', f));
+    formData.append('photoType', photoType);
+    try {
+      await uploadPhotos({ ticketId: ticket.id, formData }).unwrap();
+      toast.success(`${pendingFiles.length} photo(s) uploaded`);
+      setPendingFiles([]);
+      refetch();
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Upload failed');
     }
   };
 
@@ -253,9 +292,13 @@ export default function TicketDetailPage() {
           )}
 
           {/* Photos */}
-          {ticket.photos.length > 0 && (
-            <div className="detail-card">
+          <div className="detail-card">
+            <div className="photo-section-header">
               <h3><Camera size={16} /> Photos ({ticket.photos.length})</h3>
+            </div>
+
+            {/* Existing Photos Gallery */}
+            {ticket.photos.length > 0 && (
               <div className="photo-gallery">
                 {ticket.photos.map((photo) => (
                   <div key={photo.id} className="photo-item">
@@ -264,8 +307,84 @@ export default function TicketDetailPage() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Upload Zone — show on non-closed/cancelled tickets */}
+            {!['closed', 'cancelled'].includes(ticket.status) && (
+              <div className="photo-upload-section">
+                <div
+                  className={`photo-drop-zone ${isDragging ? 'dragging' : ''} ${pendingFiles.length > 0 ? 'has-files' : ''}`}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }}
+                  />
+                  {pendingFiles.length === 0 ? (
+                    <>
+                      <ImagePlus size={28} className="drop-zone-icon" />
+                      <span className="drop-zone-text">Drop photos here or click to browse</span>
+                      <span className="drop-zone-hint">Up to 10 images, 10MB each</span>
+                    </>
+                  ) : (
+                    <div className="pending-photos-grid">
+                      {pendingFiles.map((f, i) => (
+                        <div key={i} className="pending-photo-thumb">
+                          <img src={URL.createObjectURL(f)} alt={f.name} />
+                          <button
+                            className="pending-photo-remove"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPendingFiles((prev) => prev.filter((_, j) => j !== i));
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="pending-photo-add">
+                        <ImagePlus size={20} />
+                        <span>Add more</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {pendingFiles.length > 0 && (
+                  <div className="photo-upload-controls">
+                    <div className="photo-type-selector">
+                      <label>Photo type:</label>
+                      {(['before', 'during', 'after'] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          className={`photo-type-btn ${photoType === t ? 'active' : ''}`}
+                          onClick={() => setPhotoType(t)}
+                        >
+                          {t.charAt(0).toUpperCase() + t.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={handleUploadPhotos}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? <Loader2 size={14} className="spinner" /> : <Upload size={14} />}
+                      Upload {pendingFiles.length} photo{pendingFiles.length > 1 ? 's' : ''}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Work Orders */}
           <div className="detail-card">

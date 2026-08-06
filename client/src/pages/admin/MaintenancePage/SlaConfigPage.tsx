@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import {
-  useGetSlaConfigsQuery, useCreateSlaConfigMutation, useGetCategoriesQuery,
+  useGetSlaConfigsQuery, useCreateSlaConfigMutation,
+  useUpdateSlaConfigMutation, useDeleteSlaConfigMutation,
+  useGetCategoriesQuery,
 } from '../../../store/api/maintenanceApi';
+import type { SlaConfigItem } from '../../../store/api/maintenanceApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
-  Shield, Plus, Loader2, XCircle, Clock,
+  Shield, Plus, Loader2, XCircle, Clock, Pencil, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -17,6 +20,9 @@ export default function SlaConfigPage() {
   const { data: configsData, isLoading } = useGetSlaConfigsQuery();
   const { data: categoriesData } = useGetCategoriesQuery();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editConfig, setEditConfig] = useState<SlaConfigItem | null>(null);
+  const [deleteConfig] = useDeleteSlaConfigMutation();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const configs = configsData?.data || [];
   const categories = categoriesData?.data || [];
@@ -27,6 +33,19 @@ export default function SlaConfigPage() {
     color: PRIORITY_COLORS[p],
     configs: configs.filter((c) => c.priority === p),
   }));
+
+  const handleDelete = async (config: SlaConfigItem) => {
+    if (!confirm(`Delete SLA config for ${config.priority}${config.category ? ` / ${config.category.name}` : ''}?`)) return;
+    setDeletingId(config.id);
+    try {
+      await deleteConfig(config.id).unwrap();
+      toast.success('SLA config deleted');
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to delete');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="maint-page">
@@ -96,6 +115,7 @@ export default function SlaConfigPage() {
                 <th>Resolution Time</th>
                 <th>Working Hours Only</th>
                 <th>Escalation Contact</th>
+                <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -123,6 +143,25 @@ export default function SlaConfigPage() {
                           : '—'}
                       </span>
                     </td>
+                    <td>
+                      <div className="sla-row-actions">
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          title="Edit"
+                          onClick={() => setEditConfig(c)}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm btn-danger-ghost"
+                          title="Delete"
+                          disabled={deletingId === c.id}
+                          onClick={() => handleDelete(c)}
+                        >
+                          {deletingId === c.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -132,41 +171,71 @@ export default function SlaConfigPage() {
       )}
 
       {showCreateModal && (
-        <CreateSlaConfigModal
+        <SlaConfigModal
+          mode="create"
           categories={categories}
           onClose={() => setShowCreateModal(false)}
+        />
+      )}
+
+      {editConfig && (
+        <SlaConfigModal
+          mode="edit"
+          initialData={editConfig}
+          categories={categories}
+          onClose={() => setEditConfig(null)}
         />
       )}
     </div>
   );
 }
 
-function CreateSlaConfigModal({ categories, onClose }: { categories: any[]; onClose: () => void }) {
-  const [createConfig, { isLoading }] = useCreateSlaConfigMutation();
+// ── Shared Create/Edit Modal ────────────────────
+function SlaConfigModal({ mode, initialData, categories, onClose }: {
+  mode: 'create' | 'edit';
+  initialData?: SlaConfigItem;
+  categories: any[];
+  onClose: () => void;
+}) {
+  const [createConfig, { isLoading: isCreating }] = useCreateSlaConfigMutation();
+  const [updateConfig, { isLoading: isUpdating }] = useUpdateSlaConfigMutation();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
   const properties = propertiesData?.data || [];
 
+  const isEdit = mode === 'edit';
+  const isLoading = isCreating || isUpdating;
+
   const [form, setForm] = useState({
-    propertyId: '', categoryId: '', priority: 'P3',
-    responseHours: '8', resolutionHours: '72',
-    workingHoursOnly: false,
+    propertyId: initialData?.propertyId || '',
+    categoryId: initialData?.categoryId || '',
+    priority: initialData?.priority || 'P3',
+    responseHours: String(initialData?.responseHours || '8'),
+    resolutionHours: String(initialData?.resolutionHours || '72'),
+    workingHoursOnly: initialData?.workingHoursOnly || false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createConfig({
+      const payload = {
         propertyId: form.propertyId || undefined,
         categoryId: form.categoryId || undefined,
         priority: form.priority,
         responseHours: parseInt(form.responseHours),
         resolutionHours: parseInt(form.resolutionHours),
         workingHoursOnly: form.workingHoursOnly,
-      }).unwrap();
-      toast.success('SLA config created');
+      };
+
+      if (isEdit && initialData) {
+        await updateConfig({ id: initialData.id, ...payload }).unwrap();
+        toast.success('SLA config updated');
+      } else {
+        await createConfig(payload).unwrap();
+        toast.success('SLA config created');
+      }
       onClose();
     } catch (err: any) {
-      toast.error(err?.data?.errors?.[0]?.message || 'Failed to create');
+      toast.error(err?.data?.errors?.[0]?.message || `Failed to ${isEdit ? 'update' : 'create'}`);
     }
   };
 
@@ -176,7 +245,7 @@ function CreateSlaConfigModal({ categories, onClose }: { categories: any[]; onCl
         <div className="maint-modal-header">
           <h2>
             <span className="modal-icon"><Shield size={18} /></span>
-            Create SLA Configuration
+            {isEdit ? 'Edit SLA Configuration' : 'Create SLA Configuration'}
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
@@ -231,7 +300,7 @@ function CreateSlaConfigModal({ categories, onClose }: { categories: any[]; onCl
           <div className="maint-modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? <Loader2 size={16} className="spin" /> : 'Create Config'}
+              {isLoading ? <Loader2 size={16} className="spin" /> : isEdit ? 'Update Config' : 'Create Config'}
             </button>
           </div>
         </form>

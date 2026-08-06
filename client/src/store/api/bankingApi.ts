@@ -36,10 +36,28 @@ export interface ReconciliationSummary {
   excluded: number; unmatched: number;
 }
 
+export interface GatewayTransaction {
+  id: string; companyId: string; propertyId: string | null;
+  gateway: string; gatewayTxnId: string; gatewayStatus: string;
+  amount: string; currency: string; feeAmount: string; netAmount: string | null;
+  paymentMethod: string | null; payerEmail: string | null; payerName: string | null;
+  tenantId: string | null; invoiceId: string | null; receiptId: string | null;
+  metadata: any; initiatedAt: string; completedAt: string | null;
+  failedAt: string | null; failureReason: string | null;
+  tenant?: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string } | null;
+  invoice?: { id: string; invoiceNumber: string; totalAmount: string; status: string } | null;
+}
+
+export interface GatewaySummary {
+  totalTransactions: number; completedCount: number;
+  failedCount: number; pendingCount: number; refundedCount: number;
+  totalCompleted: number; totalFees: number; totalNet: number;
+}
+
 export const bankingApi = createApi({
   reducerPath: 'bankingApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['BankAccounts', 'StatementLines', 'Imports', 'ReconSummary'],
+  tagTypes: ['BankAccounts', 'StatementLines', 'Imports', 'ReconSummary', 'GatewayTxns'],
   endpoints: (b) => ({
     // ── Bank Accounts ────────────
     getBankAccounts: b.query<BankAccount[], void>({
@@ -98,6 +116,42 @@ export const bankingApi = createApi({
       query: (lineId) => ({ url: `/banking/bank-statement-lines/${lineId}/unmatch`, method: 'POST' }),
       invalidatesTags: ['StatementLines', 'ReconSummary'],
     }),
+
+    // ── Payment Gateway ────────────
+    getGatewayTransactions: b.query<{ data: GatewayTransaction[]; meta: any }, {
+      gateway?: string; status?: string; tenantId?: string;
+      from?: string; to?: string; page?: number; limit?: number;
+    }>({
+      query: (params) => ({ url: '/banking/gateway-transactions', params: params as any }),
+      transformResponse: (r: any) => ({ data: r.data, meta: r.meta }),
+      providesTags: ['GatewayTxns'],
+    }),
+    getGatewayTransaction: b.query<GatewayTransaction, string>({
+      query: (id) => `/banking/gateway-transactions/${id}`,
+      transformResponse: (r: any) => r.data,
+      providesTags: (_, __, id) => [{ type: 'GatewayTxns', id }],
+    }),
+    getGatewaySummary: b.query<GatewaySummary, void>({
+      query: () => '/banking/gateway-transactions/summary',
+      transformResponse: (r: any) => r.data,
+      providesTags: ['GatewayTxns'],
+    }),
+    initiatePayment: b.mutation<{ transactionId: string; checkoutUrl: string; sessionId: string }, {
+      gateway: string; invoiceId: string; tenantId: string;
+      amount: number; currency: string; returnUrl: string;
+      payerEmail?: string; payerName?: string;
+    }>({
+      query: (body) => ({ url: '/banking/gateway-transactions/initiate', method: 'POST', body }),
+      invalidatesTags: ['GatewayTxns'],
+    }),
+    confirmGatewayPayment: b.mutation<GatewayTransaction, { id: string; data?: any }>({
+      query: ({ id, data }) => ({ url: `/banking/gateway-transactions/${id}/confirm`, method: 'POST', body: data }),
+      invalidatesTags: ['GatewayTxns'],
+    }),
+    refundGatewayPayment: b.mutation<GatewayTransaction, { id: string; reason: string }>({
+      query: ({ id, reason }) => ({ url: `/banking/gateway-transactions/${id}/refund`, method: 'POST', body: { reason } }),
+      invalidatesTags: ['GatewayTxns'],
+    }),
   }),
 });
 
@@ -106,4 +160,7 @@ export const {
   useGetBalanceQuery, useImportStatementMutation, useGetImportsQuery,
   useGetStatementLinesQuery, useGetReconciliationSummaryQuery,
   useMatchLineMutation, useExcludeLineMutation, useUnmatchLineMutation,
+  useGetGatewayTransactionsQuery, useGetGatewayTransactionQuery,
+  useGetGatewaySummaryQuery, useInitiatePaymentMutation,
+  useConfirmGatewayPaymentMutation, useRefundGatewayPaymentMutation,
 } = bankingApi;

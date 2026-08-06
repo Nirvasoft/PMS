@@ -59,6 +59,10 @@ export const pmApi = createApi({
       query: ({ id, data }) => ({ url: `/pm/work-orders/${id}/complete`, method: 'POST', body: data }),
       invalidatesTags: ['PmWorkOrders', 'PmSchedules'],
     }),
+    skipPmWorkOrder: builder.mutation<any, { id: string; reason?: string }>({
+      query: ({ id, reason }) => ({ url: `/pm/work-orders/${id}/skip`, method: 'POST', body: { reason } }),
+      invalidatesTags: ['PmWorkOrders', 'PmSchedules'],
+    }),
 
     // ── Upcoming ──────────────────────────────
     getUpcomingPm: builder.query<any, { propertyId?: string; days?: number }>({
@@ -80,5 +84,6 @@ export const {
   useGetPmWorkOrdersQuery,
   useGetPmWorkOrderByIdQuery,
   useCompletePmWorkOrderMutation,
+  useSkipPmWorkOrderMutation,
   useGetUpcomingPmQuery,
 } = pmApi;

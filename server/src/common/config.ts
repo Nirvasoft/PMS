@@ -70,4 +70,10 @@ export const config = {
     clientSecret: optionalEnv('GOOGLE_CLIENT_SECRET', ''),
     calendarRedirectUri: optionalEnv('GOOGLE_CALENDAR_REDIRECT_URI', ''),
   },
+
+  stripe: {
+    secretKey: optionalEnv('STRIPE_SECRET_KEY', ''),
+    webhookSecret: optionalEnv('STRIPE_WEBHOOK_SECRET', ''),
+    apiVersion: optionalEnv('STRIPE_API_VERSION', '2024-06-20'),
+  },
 } as const;

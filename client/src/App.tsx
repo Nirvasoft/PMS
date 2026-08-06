@@ -41,11 +41,21 @@ import InvoiceListPage from './pages/admin/BillingPage/InvoiceListPage';
 import InvoiceDetailPage from './pages/admin/BillingPage/InvoiceDetailPage';
 import CreateInvoicePage from './pages/admin/BillingPage/CreateInvoicePage';
 import BillingSchedulesPage from './pages/admin/BillingPage/BillingSchedulesPage';
+import BillingDashboardPage from './pages/admin/BillingPage/BillingDashboardPage';
+import ChargeTypesPage from './pages/admin/BillingPage/ChargeTypesPage';
+import PenaltyConfigPage from './pages/admin/BillingPage/PenaltyConfigPage';
+import TaxConfigPage from './pages/admin/BillingPage/TaxConfigPage';
+import BillingSettingsPage from './pages/admin/BillingPage/BillingSettingsPage';
 import ReceiptsPage from './pages/admin/ARPage/ReceiptsPage';
 import AgingReportPage from './pages/admin/ARPage/AgingReportPage';
 import CollectionDashboard from './pages/admin/ARPage/CollectionDashboard';
 import RefundsPage from './pages/admin/ARPage/RefundsPage';
 import TenantStatementPage from './pages/admin/ARPage/TenantStatementPage';
+import TenantCreditsPage from './pages/admin/ARPage/TenantCreditsPage';
+import ApInvoiceListPage from './pages/admin/APPage/ApInvoiceListPage';
+import ApInvoiceDetailPage from './pages/admin/APPage/ApInvoiceDetailPage';
+import PaymentVouchersPage from './pages/admin/APPage/PaymentVouchersPage';
+import ExpensesPage from './pages/admin/APPage/ExpensesPage';
 import ChartOfAccountsPage from './pages/admin/GLPage/ChartOfAccountsPage';
 import JournalEntriesPage from './pages/admin/GLPage/JournalEntriesPage';
 import FiscalPeriodsPage from './pages/admin/GLPage/FiscalPeriodsPage';
@@ -57,6 +67,7 @@ import BudgetsPage from './pages/admin/AssetsPage/BudgetsPage';
 import AssetsListPage from './pages/admin/AssetsPage/AssetsListPage';
 import AssetDetailPage from './pages/admin/AssetsPage/AssetDetailPage';
 import BankAccountsPage from './pages/admin/BankingPage/BankAccountsPage';
+import GatewayTransactionsPage from './pages/admin/BankingPage/GatewayTransactionsPage';
 import ReconciliationPage from './pages/admin/BankingPage/ReconciliationPage';
 import WorkflowsPage from './pages/admin/WorkflowsPage/WorkflowsPage';
 import DesignerPage from './pages/admin/WorkflowsPage/DesignerPage';
@@ -76,13 +87,18 @@ import TicketListPage from './pages/admin/MaintenancePage/TicketListPage';
 import TicketDetailPage from './pages/admin/MaintenancePage/TicketDetailPage';
 import TechnicianSchedulePage from './pages/admin/MaintenancePage/TechnicianSchedulePage';
 import SlaConfigPage from './pages/admin/MaintenancePage/SlaConfigPage';
+import SlaReportPage from './pages/admin/MaintenancePage/SlaReportPage';
+import CategoriesPage from './pages/admin/MaintenancePage/CategoriesPage';
 import PmScheduleListPage from './pages/admin/MaintenancePage/PmScheduleListPage';
+import PmWorkOrderListPage from './pages/admin/MaintenancePage/PmWorkOrderListPage';
 import PmScheduleDetailPage from './pages/admin/MaintenancePage/PmScheduleDetailPage';
 import PmCalendarPage from './pages/admin/MaintenancePage/PmCalendarPage';
 import MaintenanceDashboard from './pages/admin/MaintenancePage/MaintenanceDashboard';
 import AssetRegistryPage from './pages/admin/FacilityPage/AssetRegistryPage';
 import FacilityAssetDetailPage from './pages/admin/FacilityPage/AssetDetailPage';
 import CamCostPage from './pages/admin/FacilityPage/CamCostPage';
+import UtilitySystemsPage from './pages/admin/FacilityPage/UtilitySystemsPage';
+import QrScanLandingPage from './pages/admin/FacilityPage/QrScanLandingPage';
 import ItemCatalogPage from './pages/admin/InventoryPage/ItemCatalogPage';
 import StockLevelsPage from './pages/admin/InventoryPage/StockLevelsPage';
 import MovementsPage from './pages/admin/InventoryPage/MovementsPage';
@@ -241,11 +257,21 @@ function AppRoutes() {
             <Route path="/admin/billing/invoices/new" element={<CreateInvoicePage />} />
             <Route path="/admin/billing/invoices/:id" element={<InvoiceDetailPage />} />
             <Route path="/admin/billing/schedules" element={<BillingSchedulesPage />} />
+            <Route path="/admin/billing/dashboard" element={<BillingDashboardPage />} />
+            <Route path="/admin/billing/charge-types" element={<ChargeTypesPage />} />
+            <Route path="/admin/billing/penalty-configs" element={<PenaltyConfigPage />} />
+            <Route path="/admin/billing/tax-configs" element={<TaxConfigPage />} />
+            <Route path="/admin/billing/settings" element={<BillingSettingsPage />} />
             <Route path="/admin/ar/receipts" element={<ReceiptsPage />} />
             <Route path="/admin/ar/aging" element={<AgingReportPage />} />
             <Route path="/admin/ar/collections" element={<CollectionDashboard />} />
             <Route path="/admin/ar/refunds" element={<RefundsPage />} />
             <Route path="/admin/ar/statements" element={<TenantStatementPage />} />
+            <Route path="/admin/ar/credits" element={<TenantCreditsPage />} />
+            <Route path="/admin/ap/invoices" element={<ApInvoiceListPage />} />
+            <Route path="/admin/ap/invoices/:id" element={<ApInvoiceDetailPage />} />
+            <Route path="/admin/ap/vouchers" element={<PaymentVouchersPage />} />
+            <Route path="/admin/ap/expenses" element={<ExpensesPage />} />
             <Route path="/admin/gl/accounts" element={<ChartOfAccountsPage />} />
             <Route path="/admin/gl/journal-entries" element={<JournalEntriesPage />} />
             <Route path="/admin/gl/fiscal-periods" element={<FiscalPeriodsPage />} />
@@ -258,6 +284,7 @@ function AppRoutes() {
             <Route path="/admin/assets/:id" element={<AssetDetailPage />} />
             <Route path="/admin/banking" element={<BankAccountsPage />} />
             <Route path="/admin/banking/reconcile/:bankAccountId" element={<ReconciliationPage />} />
+            <Route path="/admin/banking/gateway-transactions" element={<GatewayTransactionsPage />} />
           </Route>
 
           {/* Maintenance — requires maintenance.read */}
@@ -267,16 +294,21 @@ function AppRoutes() {
             <Route path="/admin/maintenance/tickets/:id" element={<TicketDetailPage />} />
             <Route path="/admin/maintenance/technicians" element={<TechnicianSchedulePage />} />
             <Route path="/admin/maintenance/sla-config" element={<SlaConfigPage />} />
+            <Route path="/admin/maintenance/sla-report" element={<SlaReportPage />} />
+            <Route path="/admin/maintenance/categories" element={<CategoriesPage />} />
             <Route path="/admin/maintenance/pm" element={<PmScheduleListPage />} />
             <Route path="/admin/maintenance/pm/calendar" element={<PmCalendarPage />} />
+            <Route path="/admin/maintenance/pm/work-orders" element={<PmWorkOrderListPage />} />
             <Route path="/admin/maintenance/pm/:id" element={<PmScheduleDetailPage />} />
           </Route>
 
           {/* Facility — requires facility.read */}
           <Route element={<RequirePermission permission="facility.read" />}>
             <Route path="/admin/facility/assets" element={<AssetRegistryPage />} />
+            <Route path="/admin/facility/assets/:id/scan" element={<QrScanLandingPage />} />
             <Route path="/admin/facility/assets/:id" element={<FacilityAssetDetailPage />} />
             <Route path="/admin/facility/cam-costs" element={<CamCostPage />} />
+            <Route path="/admin/facility/utility-systems" element={<UtilitySystemsPage />} />
           </Route>
 
           {/* Inventory — requires inventory.read */}

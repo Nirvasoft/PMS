@@ -13,7 +13,7 @@ import {
   Banknote, BarChart3, Clock, RotateCcw,
   BookOpen, Calculator, Scale, PieChart, Landmark, Wallet, Box,
   Wrench, Calendar, Package, Layers, Sparkles,
-  Store, TrendingUp, DollarSign,
+  Store, TrendingUp, DollarSign, Coins,
   Zap, Gavel,
   Plug, Webhook, Server,
 } from 'lucide-react';
@@ -201,6 +201,10 @@ export default function DashboardLayout() {
 
           {/* Billing Section */}
           <NavSection label="Billing" storageKey="billing" defaultOpen>
+            <NavLink to="/admin/billing/dashboard" className="nav-item">
+              <LayoutDashboard size={18} />
+              <span>Dashboard</span>
+            </NavLink>
             <NavLink to="/admin/billing/invoices" className="nav-item">
               <Receipt size={18} />
               <span>Invoices</span>
@@ -208,6 +212,14 @@ export default function DashboardLayout() {
             <NavLink to="/admin/billing/schedules" className="nav-item">
               <CalendarClock size={18} />
               <span>Schedules</span>
+            </NavLink>
+            <NavLink to="/admin/billing/charge-types" className="nav-item">
+              <DollarSign size={18} />
+              <span>Charge Types</span>
+            </NavLink>
+            <NavLink to="/admin/billing/settings" className="nav-item">
+              <Settings size={18} />
+              <span>Settings</span>
             </NavLink>
           </NavSection>
 
@@ -232,6 +244,26 @@ export default function DashboardLayout() {
             <NavLink to="/admin/ar/statements" className="nav-item">
               <FileText size={18} />
               <span>Statements</span>
+            </NavLink>
+            <NavLink to="/admin/ar/credits" className="nav-item">
+              <Coins size={18} />
+              <span>Tenant Credits</span>
+            </NavLink>
+          </NavSection>
+
+          {/* Accounts Payable Section */}
+          <NavSection label="Accounts Payable" storageKey="ap" defaultOpen>
+            <NavLink to="/admin/ap/invoices" className="nav-item">
+              <FileText size={18} />
+              <span>AP Invoices</span>
+            </NavLink>
+            <NavLink to="/admin/ap/vouchers" className="nav-item">
+              <Wallet size={18} />
+              <span>Payment Vouchers</span>
+            </NavLink>
+            <NavLink to="/admin/ap/expenses" className="nav-item">
+              <Receipt size={18} />
+              <span>Expenses</span>
             </NavLink>
           </NavSection>
 
@@ -276,6 +308,10 @@ export default function DashboardLayout() {
             <NavLink to="/admin/banking" className="nav-item">
               <Building2 size={18} />
               <span>Banking</span>
+            </NavLink>
+            <NavLink to="/admin/banking/gateway-transactions" className="nav-item">
+              <Zap size={18} />
+              <span>Gateway Payments</span>
             </NavLink>
           </NavSection>
 

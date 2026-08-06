@@ -4,7 +4,7 @@ import { baseQueryWithReauth } from './baseQuery';
 export const facilityApi = createApi({
   reducerPath: 'facilityApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['FacilityAssets', 'CamCosts', 'FacilityStats'],
+  tagTypes: ['FacilityAssets', 'CamCosts', 'FacilityStats', 'UtilitySystems'],
   endpoints: (builder) => ({
     // ── Assets ──────────────────────────────
     getFacilityAssets: builder.query<any, {
@@ -50,6 +50,14 @@ export const facilityApi = createApi({
       query: (body) => ({ url: '/facility/cam-costs', method: 'POST', body }),
       invalidatesTags: ['CamCosts'],
     }),
+    updateCamCost: builder.mutation<any, { id: string; data: any }>({
+      query: ({ id, data }) => ({ url: `/facility/cam-costs/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['CamCosts'],
+    }),
+    deleteCamCost: builder.mutation<any, string>({
+      query: (id) => ({ url: `/facility/cam-costs/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['CamCosts'],
+    }),
     getCamCostSummary: builder.query<any, { propertyId: string; year: number; month: number }>({
       query: (params) => ({ url: '/facility/cam-costs/summary', params }),
       providesTags: ['CamCosts'],
@@ -68,6 +76,24 @@ export const facilityApi = createApi({
     getAssetServiceHistory: builder.query<any, string>({
       query: (assetId) => `/pm/work-orders/asset-history/${assetId}`,
     }),
+
+    // ── Utility Systems ─────────────────────
+    getUtilitySystems: builder.query<any, { propertyId?: string }>({
+      query: (params) => ({ url: '/facility/utility-systems', params }),
+      providesTags: ['UtilitySystems'],
+    }),
+    createUtilitySystem: builder.mutation<any, any>({
+      query: (body) => ({ url: '/facility/utility-systems', method: 'POST', body }),
+      invalidatesTags: ['UtilitySystems'],
+    }),
+    updateUtilitySystem: builder.mutation<any, { id: string; data: any }>({
+      query: ({ id, data }) => ({ url: `/facility/utility-systems/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['UtilitySystems'],
+    }),
+    deleteUtilitySystem: builder.mutation<any, string>({
+      query: (id) => ({ url: `/facility/utility-systems/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['UtilitySystems'],
+    }),
   }),
 });
 
@@ -81,8 +107,14 @@ export const {
   useGetWarrantyExpiringAssetsQuery,
   useGetCamCostsQuery,
   useCreateCamCostMutation,
+  useUpdateCamCostMutation,
+  useDeleteCamCostMutation,
   useGetCamCostSummaryQuery,
   useGetFacilityStatsQuery,
   useScanFacilityAssetQuery,
   useGetAssetServiceHistoryQuery,
+  useGetUtilitySystemsQuery,
+  useCreateUtilitySystemMutation,
+  useUpdateUtilitySystemMutation,
+  useDeleteUtilitySystemMutation,
 } = facilityApi;

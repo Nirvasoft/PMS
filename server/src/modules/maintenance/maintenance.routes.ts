@@ -11,7 +11,8 @@ import {
   escalateTicketSchema, cancelTicketSchema, rateTicketSchema,
   startWorkOrderSchema, completeWorkOrderSchema, onHoldWorkOrderSchema,
   updateWorkOrderSchema, upsertTechnicianProfileSchema,
-  createSlaConfigSchema,
+  createSlaConfigSchema, updateSlaConfigSchema,
+  createCategorySchema, updateCategorySchema,
 } from './maintenance.schema';
 import multer from 'multer';
 import path from 'path';
@@ -265,6 +266,24 @@ maintenanceCategoriesRouter.get('/', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
+/** POST /maintenance/categories */
+maintenanceCategoriesRouter.post('/', validateRequest(createCategorySchema), asyncHandler(async (req, res) => {
+  const data = await categoriesService.create(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+/** PUT /maintenance/categories/:id */
+maintenanceCategoriesRouter.put('/:id', validateRequest(updateCategorySchema), asyncHandler(async (req, res) => {
+  const data = await categoriesService.update(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+/** DELETE /maintenance/categories/:id */
+maintenanceCategoriesRouter.delete('/:id', asyncHandler(async (req, res) => {
+  await categoriesService.delete(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, message: 'Category deleted' });
+}));
+
 // ────────────────────────────────────────────────
 // STATS
 // ────────────────────────────────────────────────
@@ -304,4 +323,16 @@ maintenanceSlaConfigsRouter.get('/', asyncHandler(async (req, res) => {
 maintenanceSlaConfigsRouter.post('/', validateRequest(createSlaConfigSchema), asyncHandler(async (req, res) => {
   const data = await slaService.createConfig(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
+}));
+
+/** PUT /maintenance/sla-configs/:id */
+maintenanceSlaConfigsRouter.put('/:id', validateRequest(updateSlaConfigSchema), asyncHandler(async (req, res) => {
+  const data = await slaService.updateConfig(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+/** DELETE /maintenance/sla-configs/:id */
+maintenanceSlaConfigsRouter.delete('/:id', asyncHandler(async (req, res) => {
+  await slaService.deleteConfig(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, message: 'SLA config deleted' });
 }));

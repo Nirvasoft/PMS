@@ -159,10 +159,15 @@ export interface TechScheduleEvent {
 
 export interface MaintenanceCategory {
   id: string;
+  companyId: string | null;
   name: string;
   icon: string | null;
+  description: string | null;
+  parentId: string | null;
+  isActive: boolean;
   sortOrder: number;
   children: MaintenanceCategory[];
+  _count: { tickets: number };
 }
 
 export interface MaintenanceStats {
@@ -191,6 +196,22 @@ export interface SlaConfigItem {
   escalationContact: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
 }
 
+export interface SlaReportGroup {
+  group: string;
+  totalTickets: number;
+  slaResponse: { met: number; total: number; rate: number };
+  slaResolution: { met: number; total: number; rate: number };
+  breaches: number;
+  avgResolutionHours: number | null;
+}
+
+export interface SlaReportData {
+  groupBy: string;
+  totalTickets: number;
+  overall: { responseRate: number; resolutionRate: number; totalBreaches: number };
+  groups: SlaReportGroup[];
+}
+
 interface ApiResponse<T> { success: boolean; data: T; }
 interface PaginatedResponse<T> {
   success: boolean; data: T[];
@@ -202,7 +223,7 @@ interface PaginatedResponse<T> {
 export const maintenanceApi = createApi({
   reducerPath: 'maintenanceApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Tickets', 'TicketDetail', 'WorkOrders', 'WoDetail', 'Technicians', 'MaintenanceStats', 'Categories', 'SlaConfigs'],
+  tagTypes: ['Tickets', 'TicketDetail', 'WorkOrders', 'WoDetail', 'Technicians', 'MaintenanceStats', 'Categories', 'SlaConfigs', 'SlaReport'],
   endpoints: (builder) => ({
 
     // ── Tickets ──────────────────────────
@@ -316,6 +337,21 @@ export const maintenanceApi = createApi({
       providesTags: ['Categories'],
     }),
 
+    createCategory: builder.mutation<ApiResponse<MaintenanceCategory>, Record<string, unknown>>({
+      query: (body) => ({ url: '/maintenance/categories', method: 'POST', body }),
+      invalidatesTags: ['Categories'],
+    }),
+
+    updateCategory: builder.mutation<ApiResponse<MaintenanceCategory>, { id: string } & Record<string, unknown>>({
+      query: ({ id, ...body }) => ({ url: `/maintenance/categories/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['Categories'],
+    }),
+
+    deleteCategory: builder.mutation<{ success: boolean }, string>({
+      query: (id) => ({ url: `/maintenance/categories/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Categories'],
+    }),
+
     // ── Stats ───────────────────────────
     getMaintenanceStats: builder.query<ApiResponse<MaintenanceStats>, { propertyId?: string; from?: string; to?: string }>({
       query: (params) => ({ url: '/maintenance/stats', params }),
@@ -331,6 +367,35 @@ export const maintenanceApi = createApi({
     createSlaConfig: builder.mutation<ApiResponse<SlaConfigItem>, Record<string, unknown>>({
       query: (body) => ({ url: '/maintenance/sla-configs', method: 'POST', body }),
       invalidatesTags: ['SlaConfigs'],
+    }),
+
+    updateSlaConfig: builder.mutation<ApiResponse<SlaConfigItem>, { id: string } & Record<string, unknown>>({
+      query: ({ id, ...body }) => ({ url: `/maintenance/sla-configs/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['SlaConfigs'],
+    }),
+
+    deleteSlaConfig: builder.mutation<{ success: boolean }, string>({
+      query: (id) => ({ url: `/maintenance/sla-configs/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['SlaConfigs'],
+    }),
+
+    // ── Photo Upload ────────────────────
+    uploadTicketPhotos: builder.mutation<ApiResponse<TicketPhoto[]>, { ticketId: string; formData: FormData }>({
+      query: ({ ticketId, formData }) => ({
+        url: `/maintenance/tickets/${ticketId}/photos`,
+        method: 'POST',
+        body: formData,
+      }),
+      invalidatesTags: (_, __, { ticketId }) => [{ type: 'TicketDetail', id: ticketId }, 'Tickets'],
+    }),
+
+    // ── SLA Report ─────────────────────
+    getSlaReport: builder.query<ApiResponse<SlaReportData>, {
+      propertyId?: string; from?: string; to?: string;
+      groupBy?: 'priority' | 'property' | 'category' | 'technician';
+    }>({
+      query: (params) => ({ url: '/maintenance/sla-report', params }),
+      providesTags: ['SlaReport'],
     }),
   }),
 });
@@ -356,7 +421,14 @@ export const {
   useGetTechScheduleQuery,
   useUpsertTechProfileMutation,
   useGetCategoriesQuery,
+  useCreateCategoryMutation,
+  useUpdateCategoryMutation,
+  useDeleteCategoryMutation,
   useGetMaintenanceStatsQuery,
   useGetSlaConfigsQuery,
   useCreateSlaConfigMutation,
+  useUpdateSlaConfigMutation,
+  useDeleteSlaConfigMutation,
+  useUploadTicketPhotosMutation,
+  useGetSlaReportQuery,
 } = maintenanceApi;

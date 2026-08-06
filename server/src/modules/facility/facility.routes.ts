@@ -3,7 +3,7 @@ import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { facilityService } from './facility.service';
 import {
-  createFacilityAssetSchema, updateFacilityAssetSchema, createCamCostSchema,
+  createFacilityAssetSchema, updateFacilityAssetSchema, createCamCostSchema, updateCamCostSchema,
 } from './facility.schema';
 
 const p = (req: Request, key: string) => req.params[key] as string;
@@ -110,6 +110,18 @@ facilityCamRouter.get('/summary', asyncHandler(async (req, res) => {
     month: parseInt(req.query.month as string),
   });
   res.json({ success: true, data });
+}));
+
+/** PUT /facility/cam-costs/:id */
+facilityCamRouter.put('/:id', validateRequest(updateCamCostSchema), asyncHandler(async (req, res) => {
+  const data = await facilityService.updateCamCost(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+/** DELETE /facility/cam-costs/:id */
+facilityCamRouter.delete('/:id', asyncHandler(async (req, res) => {
+  await facilityService.deleteCamCost(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, message: 'CAM cost entry deleted' });
 }));
 
 // ────────────────────────────────────────────

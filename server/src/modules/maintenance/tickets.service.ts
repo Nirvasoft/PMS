@@ -2,7 +2,7 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { slaService, addSlaHours } from './sla.service';
-import { io } from '../../common/socket';
+import { emitToCompany } from '../../common/socket';
 import { notificationService } from '../notifications/services/notification.service';
 import { webhookTicketCreated, webhookTicketAssigned, webhookTicketRated } from '../../common/webhookHooks';
 
@@ -215,7 +215,10 @@ export class TicketsService {
     });
 
     // Emit real-time event
-    this.emitEvent('ticket:created', ticket);
+    this.emitEvent(companyId, 'ticket:created', {
+      ticketId: ticket.id, ticketNumber: ticket.ticketNumber,
+      status: 'open', priority: ticket.priority,
+    });
 
     logger.info(`Maintenance ticket ${ticketNumber} created (${priority}) by user ${userId}`);
 
@@ -315,7 +318,10 @@ export class TicketsService {
       }),
     ]);
 
-    this.emitEvent('ticket:assigned', { ticketId: id, technicianId: dto.technicianId, woId: workOrder.id });
+    this.emitEvent(companyId, 'ticket:assigned', {
+      ticketId: id, ticketNumber: ticket.ticketNumber,
+      status: 'assigned', technicianId: dto.technicianId, woId: workOrder.id,
+    });
 
     logger.info(`Ticket ${ticket.ticketNumber} assigned to tech ${dto.technicianId}, WO ${woNumber}`);
 
@@ -432,7 +438,9 @@ export class TicketsService {
       return [updatedTicket];
     });
 
-    this.emitEvent('ticket:escalated', { ticketId: id, escalatedTo: dto.escalateTo });
+    this.emitEvent(companyId, 'ticket:escalated', {
+      ticketId: id, ticketNumber: ticket.ticketNumber, escalatedTo: dto.escalateTo,
+    });
 
     logger.info(`Ticket ${ticket.ticketNumber} escalated to level ${updated.escalationLevel}`);
 
@@ -475,13 +483,19 @@ export class TicketsService {
       data: { status: 'cancelled', cancelledReason: reason },
     });
 
-    return prisma.maintenanceTicket.update({
+    const updated = await prisma.maintenanceTicket.update({
       where: { id },
       data: {
         status: 'cancelled',
         resolutionNotes: reason,
       },
     });
+
+    this.emitEvent(companyId, 'ticket:cancelled', {
+      ticketId: id, ticketNumber: ticket.ticketNumber, status: 'cancelled',
+    });
+
+    return updated;
   }
 
   // ── Rate ───────────────────────────────────
@@ -503,6 +517,11 @@ export class TicketsService {
         ratedAt: new Date(),
         status: 'closed',
       },
+    });
+
+    this.emitEvent(companyId, 'ticket:rated', {
+      ticketId: id, ticketNumber: ticket.ticketNumber, status: 'closed',
+      rating: dto.rating,
     });
 
     webhookTicketRated(id, dto.rating as number, companyId);
@@ -753,9 +772,9 @@ export class TicketsService {
     return `${prefix}${String(seq).padStart(5, '0')}`;
   }
 
-  private emitEvent(event: string, data: unknown) {
+  private emitEvent(companyId: string, event: string, data: unknown) {
     try {
-      if (io) io.emit(event, data);
+      emitToCompany(companyId, event, data);
     } catch {
       // Socket not initialized yet — ignore
     }

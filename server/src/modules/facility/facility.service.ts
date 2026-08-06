@@ -271,6 +271,32 @@ class FacilityService {
     return { year: params.year, month: params.month, propertyId: params.propertyId, categories, total };
   }
 
+  async updateCamCost(id: string, companyId: string, data: any) {
+    await setTenantContext(companyId);
+    const existing = await prisma.camCostEntry.findFirst({ where: { id, companyId } });
+    if (!existing) throw AppError.notFound('CAM Cost Entry');
+
+    const fields = ['costCategory', 'description', 'amount', 'currency', 'periodMonth', 'periodYear', 'sourceType'];
+    const updateData: any = {};
+    for (const f of fields) {
+      if (data[f] !== undefined) updateData[f] = data[f];
+    }
+
+    return prisma.camCostEntry.update({
+      where: { id },
+      data: updateData,
+      include: { property: { select: { id: true, name: true } } },
+    });
+  }
+
+  async deleteCamCost(id: string, companyId: string) {
+    await setTenantContext(companyId);
+    const existing = await prisma.camCostEntry.findFirst({ where: { id, companyId } });
+    if (!existing) throw AppError.notFound('CAM Cost Entry');
+    await prisma.camCostEntry.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   // ── Stats ────────────────────────────────────
 
   async getAssetStats(companyId: string, propertyId?: string) {

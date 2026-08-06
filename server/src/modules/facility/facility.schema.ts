@@ -64,3 +64,15 @@ export const createCamCostSchema = z.object({
     sourceId: z.string().uuid().optional(),
   }),
 });
+
+export const updateCamCostSchema = z.object({
+  body: z.object({
+    costCategory: z.enum(['cleaning', 'security', 'landscaping', 'utilities', 'insurance', 'management_fee', 'repairs', 'other']).optional(),
+    description: z.string().min(1).max(500).optional(),
+    amount: z.number().min(0).optional(),
+    currency: z.string().length(3).optional(),
+    periodMonth: z.number().int().min(1).max(12).optional(),
+    periodYear: z.number().int().min(2000).max(2100).optional(),
+    sourceType: z.enum(['ap_invoice', 'work_order', 'manual']).optional(),
+  }),
+});

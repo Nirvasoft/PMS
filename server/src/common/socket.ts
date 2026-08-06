@@ -30,9 +30,12 @@ export function initSocketIO(httpServer: HttpServer, frontendUrl: string): Socke
 
   io.on('connection', (socket: Socket) => {
     const userId = socket.data.userId as string;
+    const companyId = socket.data.companyId as string;
     // Join personal room for targeted notifications
     socket.join(`user:${userId}`);
-    logger.info(`WS connected: user=${userId} socket=${socket.id}`);
+    // Join company room for broadcast events (maintenance, etc.)
+    if (companyId) socket.join(`company:${companyId}`);
+    logger.info(`WS connected: user=${userId} company=${companyId} socket=${socket.id}`);
 
     socket.on('disconnect', () => {
       logger.info(`WS disconnected: user=${userId} socket=${socket.id}`);
@@ -53,6 +56,12 @@ export function emitNotification(userId: string, payload: {
 }) {
   if (!io) return;
   io.to(`user:${userId}`).emit('notification', payload);
+}
+
+/** Emit an event to all connected users of a company */
+export function emitToCompany(companyId: string, event: string, data: unknown) {
+  if (!io) return;
+  io.to(`company:${companyId}`).emit(event, data);
 }
 
 export { io };

@@ -3,11 +3,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetFacilityAssetsQuery, useCreateFacilityAssetMutation, useGetFacilityStatsQuery,
+  useGetServiceDueAssetsQuery, useGetWarrantyExpiringAssetsQuery,
 } from '../../../store/api/facilityApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
   Box, Plus, Search, Loader2, XCircle, Wrench, AlertTriangle,
-  CheckCircle2, ShieldAlert, Clock, Settings2,
+  CheckCircle2, ShieldAlert, Clock, Settings2, Shield, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -55,6 +56,20 @@ export default function AssetRegistryPage() {
   const properties = propertiesData?.data || [];
   const stats = statsData?.data || {};
 
+  const [showServiceDue, setShowServiceDue] = useState(false);
+  const [showWarrantyExpiring, setShowWarrantyExpiring] = useState(false);
+
+  const { data: serviceDueData } = useGetServiceDueAssetsQuery(
+    { propertyId: filters.propertyId || undefined },
+    { skip: !showServiceDue },
+  );
+  const { data: warrantyExpData } = useGetWarrantyExpiringAssetsQuery(
+    { propertyId: filters.propertyId || undefined },
+    { skip: !showWarrantyExpiring },
+  );
+  const serviceDueAssets = serviceDueData?.data || [];
+  const warrantyExpAssets = warrantyExpData?.data || [];
+
   return (
     <div className="maint-page">
       {/* Header */}
@@ -90,17 +105,78 @@ export default function AssetRegistryPage() {
           <span className="msc-value">{stats.fault || 0}</span>
           <span className="msc-label">Fault</span>
         </div>
-        <div className="maint-stat-card amber">
+        <div className="maint-stat-card amber" style={{ cursor: 'pointer' }} onClick={() => setShowServiceDue(p => !p)}>
           <div className="msc-icon"><Wrench size={18} /></div>
           <span className="msc-value">{stats.serviceDue || 0}</span>
-          <span className="msc-label">Service Due</span>
+          <span className="msc-label">Service Due {showServiceDue ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>
         </div>
-        <div className="maint-stat-card purple">
+        <div className="maint-stat-card purple" style={{ cursor: 'pointer' }} onClick={() => setShowWarrantyExpiring(p => !p)}>
           <div className="msc-icon"><ShieldAlert size={18} /></div>
           <span className="msc-value">{stats.warrantyExpiring || 0}</span>
-          <span className="msc-label">Warranty Expiring</span>
+          <span className="msc-label">Warranty Expiring {showWarrantyExpiring ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>
         </div>
       </div>
+
+      {/* Service Due Alerts */}
+      {showServiceDue && (
+        <div className="asset-alert-widget">
+          <div className="asset-alert-header amber">
+            <Wrench size={14} /> Assets Needing Service
+          </div>
+          {serviceDueAssets.length === 0 ? (
+            <div className="asset-alert-empty">No assets currently due for service</div>
+          ) : (
+            <div className="asset-alert-list">
+              {serviceDueAssets.map((a: any) => {
+                const days = a.nextServiceDue ? Math.ceil((new Date(a.nextServiceDue).getTime() - Date.now()) / 86400000) : 0;
+                return (
+                  <div key={a.id} className="asset-alert-item" onClick={() => navigate(`/admin/facility/assets/${a.id}`)}>
+                    <span style={{ fontSize: '16px' }}>{ASSET_TYPES[a.assetType]?.icon || '🔧'}</span>
+                    <div className="asset-alert-info">
+                      <span className="asset-alert-name">{a.name}</span>
+                      <span className="asset-alert-sub">{a.property?.name} · {a.assetNumber}</span>
+                    </div>
+                    <span className={`sla-chip ${days < 0 ? 'breached' : 'at_risk'}`}>
+                      <Clock size={10} />
+                      {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Warranty Expiring Alerts */}
+      {showWarrantyExpiring && (
+        <div className="asset-alert-widget">
+          <div className="asset-alert-header purple">
+            <Shield size={14} /> Warranties Expiring Soon
+          </div>
+          {warrantyExpAssets.length === 0 ? (
+            <div className="asset-alert-empty">No warranties expiring soon</div>
+          ) : (
+            <div className="asset-alert-list">
+              {warrantyExpAssets.map((a: any) => {
+                const days = a.warrantyExpiry ? Math.ceil((new Date(a.warrantyExpiry).getTime() - Date.now()) / 86400000) : 0;
+                return (
+                  <div key={a.id} className="asset-alert-item" onClick={() => navigate(`/admin/facility/assets/${a.id}`)}>
+                    <span style={{ fontSize: '16px' }}>{ASSET_TYPES[a.assetType]?.icon || '🔧'}</span>
+                    <div className="asset-alert-info">
+                      <span className="asset-alert-name">{a.name}</span>
+                      <span className="asset-alert-sub">{a.property?.name} · {a.assetNumber}</span>
+                    </div>
+                    <span className={`sla-chip ${days < 0 ? 'breached' : days <= 30 ? 'at_risk' : 'on_track'}`}>
+                      {days < 0 ? 'Expired' : `${days}d left`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="maint-filters">

@@ -7,6 +7,7 @@ import { tenantCreditsService } from './tenantCredits.service';
 import {
   createReceiptSchema, reverseReceiptSchema,
   createRefundSchema, rejectRefundSchema, markRefundPaidSchema,
+  createTenantCreditSchema, applyCreditSchema,
 } from './ar.schema';
 
 const p = (req: Request, key: string) => req.params[key] as string;
@@ -127,6 +128,38 @@ export const tenantCreditsRouter = Router({ mergeParams: true });
 
 tenantCreditsRouter.get('/:tenantId/credits', asyncHandler(async (req, res) => {
   const data = await tenantCreditsService.findByTenant(req.user!.companyId, p(req, 'tenantId'));
+  res.json({ success: true, data });
+}));
+
+// ════════════════════════════════════════════════
+// CREDITS (company-wide) — /api/v1/credits
+// ════════════════════════════════════════════════
+export const creditsRouter = Router();
+
+creditsRouter.get('/', asyncHandler(async (req, res) => {
+  const result = await tenantCreditsService.findAll(req.user!.companyId, {
+    tenantId: req.query.tenantId as string,
+    sourceType: req.query.sourceType as string,
+    page: Number(req.query.page) || 1,
+    limit: Number(req.query.limit) || 20,
+  });
+  res.json({ success: true, ...result });
+}));
+
+creditsRouter.get('/summary', asyncHandler(async (req, res) => {
+  const data = await tenantCreditsService.getSummary(req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
+creditsRouter.post('/', validateRequest(createTenantCreditSchema), asyncHandler(async (req, res) => {
+  const data = await tenantCreditsService.create(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+creditsRouter.post('/:id/apply', validateRequest(applyCreditSchema), asyncHandler(async (req, res) => {
+  const data = await tenantCreditsService.applyToInvoice(
+    req.user!.companyId, p(req, 'id'), req.body.invoiceId, req.body.amount,
+  );
   res.json({ success: true, data });
 }));
 

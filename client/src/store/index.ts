@@ -6,6 +6,7 @@ import themeReducer from './slices/themeSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import propertiesReducer from './slices/propertiesSlice';
 import unitsReducer from './slices/unitsSlice';
+import maintenanceReducer from './slices/maintenanceSlice';
 import { authApi } from './api/authApi';
 import { usersApi } from './api/usersApi';
 import { organizationApi } from './api/organizationApi';
@@ -21,6 +22,7 @@ import { crmApi } from './api/crmApi';
 import { parkingApi } from './api/parkingApi';
 import { billingApi } from './api/billingApi';
 import { arApi } from './api/arApi';
+import { apApi } from './api/apApi';
 import { glApi } from './api/glApi';
 import { assetsApi } from './api/assetsApi';
 import { bankingApi } from './api/bankingApi';
@@ -46,6 +48,7 @@ export const store = configureStore({
     dashboard: dashboardReducer,
     properties: propertiesReducer,
     units: unitsReducer,
+    maintenance: maintenanceReducer,
     [authApi.reducerPath]: authApi.reducer,
     [usersApi.reducerPath]: usersApi.reducer,
     [organizationApi.reducerPath]: organizationApi.reducer,
@@ -61,6 +64,7 @@ export const store = configureStore({
     [parkingApi.reducerPath]: parkingApi.reducer,
     [billingApi.reducerPath]: billingApi.reducer,
     [arApi.reducerPath]: arApi.reducer,
+    [apApi.reducerPath]: apApi.reducer,
     [glApi.reducerPath]: glApi.reducer,
     [assetsApi.reducerPath]: assetsApi.reducer,
     [bankingApi.reducerPath]: bankingApi.reducer,
@@ -88,6 +92,7 @@ export const store = configureStore({
       parkingApi.middleware,
       billingApi.middleware,
       arApi.middleware,
+      apApi.middleware,
       glApi.middleware,
       assetsApi.middleware,
       bankingApi.middleware,

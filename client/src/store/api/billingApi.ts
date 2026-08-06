@@ -81,6 +81,21 @@ export interface InvoiceDetail extends InvoiceListItem {
   voidReason: string | null;
   lines: InvoiceLine[];
   creditNotes: { id: string; invoiceNumber: string; totalAmount: string; status: string }[];
+  receiptAllocations: {
+    id: string;
+    amount: string;
+    allocatedAt: string;
+    receipt: {
+      id: string;
+      receiptNumber: string;
+      receiptDate: string;
+      paymentMethod: string;
+      paymentReference: string | null;
+      amount: string;
+      currency: string;
+      status: string;
+    };
+  }[];
 }
 
 interface ApiResponse<T> { success: boolean; data: T; }

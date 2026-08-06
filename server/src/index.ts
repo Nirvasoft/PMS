@@ -49,11 +49,15 @@ import { startPenaltyCheckJob } from './modules/billing/cron/penaltyCheck.job';
 import { startOverdueTransitionJob } from './modules/billing/cron/overdueTransition.job';
 import {
   receiptsRouter, arReportsRouter, refundsRouter,
-  tenantCreditsRouter, tenantStatementRouter,
+  tenantCreditsRouter, tenantStatementRouter, creditsRouter,
 } from './modules/ar/ar.routes';
+import {
+  apInvoicesRouter, paymentVouchersRouter,
+  expensesRouter as apExpensesRouter, apReportsRouter,
+} from './modules/ap/ap.routes';
 import { glRouter } from './modules/gl/gl.routes';
 import { budgetsRouter, assetsRouter } from './modules/assets/assets.routes';
-import { bankingRouter } from './modules/banking/banking.routes';
+import { bankingRouter, stripeWebhookRouter } from './modules/banking/banking.routes';
 import {
   maintenanceTicketsRouter, maintenanceWorkOrdersRouter,
   maintenanceTechniciansRouter, maintenanceCategoriesRouter,
@@ -112,6 +116,7 @@ async function bootstrap() {
 
   // Public API routes (no auth required)
   app.use('/api/v1/shared/documents', sharedDocumentsRouter);
+  app.use('/api/v1/webhooks', stripeWebhookRouter);  // Stripe webhook — uses signature, not JWT
 
   app.use(authMiddleware);
   app.use(apiKeyAuth()); // Validate pms_sk_* API keys (after JWT passthrough)
@@ -202,7 +207,14 @@ async function bootstrap() {
   app.use('/api/v1/ar', arReportsRouter);
   app.use('/api/v1/refunds', refundsRouter);
   app.use('/api/v1/tenants', tenantCreditsRouter);
+  app.use('/api/v1/credits', creditsRouter);
   app.use('/api/v1/tenants', tenantStatementRouter);
+
+  // Module 3.3 — Accounts Payable
+  app.use('/api/v1/ap/invoices', apInvoicesRouter);
+  app.use('/api/v1/ap/payment-vouchers', paymentVouchersRouter);
+  app.use('/api/v1/expenses', apExpensesRouter);
+  app.use('/api/v1/ap', apReportsRouter);
 
   // Module 3.4 — General Ledger
   app.use('/api/v1/gl', glRouter);

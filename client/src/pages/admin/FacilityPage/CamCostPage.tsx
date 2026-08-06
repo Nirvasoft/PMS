@@ -1,11 +1,13 @@
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import {
-  useGetCamCostsQuery, useCreateCamCostMutation, useGetCamCostSummaryQuery,
+  useGetCamCostsQuery, useCreateCamCostMutation, useUpdateCamCostMutation,
+  useDeleteCamCostMutation, useGetCamCostSummaryQuery,
 } from '../../../store/api/facilityApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
   Receipt, Plus, Loader2, XCircle, PieChart, DollarSign,
+  Pencil, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -27,7 +29,9 @@ const MONTHS = [
 
 export default function CamCostPage() {
   const today = new Date();
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editEntry, setEditEntry] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     propertyId: '', year: today.getFullYear(), month: today.getMonth() + 1,
     page: 1, limit: 50,
@@ -50,8 +54,30 @@ export default function CamCostPage() {
     month: filters.month,
   }, { skip: !filters.propertyId && !properties[0]?.id });
 
+  const [deleteCamCost, { isLoading: deleting }] = useDeleteCamCostMutation();
+
   const costs = costsData?.data || [];
   const summary = summaryData?.data;
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteCamCost(id).unwrap();
+      toast.success('CAM cost entry deleted');
+      setDeleteConfirm(null);
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to delete');
+    }
+  };
+
+  const openEdit = (entry: any) => {
+    setEditEntry(entry);
+    setShowModal(true);
+  };
+
+  const openCreate = () => {
+    setEditEntry(null);
+    setShowModal(true);
+  };
 
   return (
     <div className="maint-page">
@@ -65,7 +91,7 @@ export default function CamCostPage() {
           </div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+          <button className="btn btn-primary" onClick={openCreate}>
             <Plus size={16} /> Add Entry
           </button>
         </div>
@@ -158,7 +184,7 @@ export default function CamCostPage() {
           <div className="maint-empty">
             <div className="empty-icon"><Receipt size={28} /></div>
             <p>No CAM cost entries for this period</p>
-            <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={() => setShowAddModal(true)}>
+            <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={openCreate}>
               <Plus size={16} /> Add Entry
             </button>
           </div>
@@ -173,6 +199,7 @@ export default function CamCostPage() {
                   <th>Amount</th>
                   <th>Source</th>
                   <th>Created</th>
+                  <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,6 +231,16 @@ export default function CamCostPage() {
                       <span className="cell-mono">{c.sourceType || 'manual'}</span>
                     </td>
                     <td><span className="cell-secondary">{new Date(c.createdAt).toLocaleDateString()}</span></td>
+                    <td>
+                      <div className="sla-row-actions">
+                        <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(c)}>
+                          <Pencil size={14} />
+                        </button>
+                        <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Delete" onClick={() => setDeleteConfirm(c.id)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -212,45 +249,90 @@ export default function CamCostPage() {
         )}
       </div>
 
-      {showAddModal && (
-        <AddCamEntryModal
+      {/* Create / Edit Modal */}
+      {showModal && (
+        <CamEntryModal
+          entry={editEntry}
           properties={properties}
           defaultMonth={filters.month}
           defaultYear={filters.year}
-          onClose={() => setShowAddModal(false)}
+          onClose={() => { setShowModal(false); setEditEntry(null); }}
         />
+      )}
+
+      {/* Delete Confirm */}
+      {deleteConfirm && (
+        <div className="maint-modal-backdrop" onClick={() => setDeleteConfirm(null)}>
+          <div className="maint-modal" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="maint-modal-header">
+              <h2><span className="modal-icon"><Trash2 size={18} /></span> Delete CAM Entry</h2>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDeleteConfirm(null)}><XCircle size={20} /></button>
+            </div>
+            <div style={{ padding: '0 24px 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              Are you sure you want to delete this cost entry? This action cannot be undone.
+            </div>
+            <div className="maint-modal-footer">
+              <button className="btn btn-ghost" onClick={() => setDeleteConfirm(null)}>Cancel</button>
+              <button className="btn btn-primary" disabled={deleting}
+                style={{ background: '#ef4444', borderColor: '#ef4444' }}
+                onClick={() => handleDelete(deleteConfirm)}
+              >
+                {deleting ? <Loader2 size={16} className="spin" /> : <><Trash2 size={16} /> Delete</>}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-// ── Add CAM Entry Modal ────────────────────
+// ── Create / Edit CAM Entry Modal ────────────────
 
-function AddCamEntryModal({ properties, defaultMonth, defaultYear, onClose }: {
-  properties: any[]; defaultMonth: number; defaultYear: number; onClose: () => void;
+function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }: {
+  entry: any | null;
+  properties: any[];
+  defaultMonth: number;
+  defaultYear: number;
+  onClose: () => void;
 }) {
-  const [createCamCost, { isLoading }] = useCreateCamCostMutation();
+  const isEdit = !!entry;
+  const [createCamCost, { isLoading: creating }] = useCreateCamCostMutation();
+  const [updateCamCost, { isLoading: updating }] = useUpdateCamCostMutation();
+  const isLoading = creating || updating;
+
   const [form, setForm] = useState({
-    propertyId: '', costCategory: 'cleaning', description: '',
-    amount: '', currency: 'USD',
-    periodMonth: String(defaultMonth), periodYear: String(defaultYear),
-    sourceType: 'manual',
+    propertyId: entry?.propertyId || '',
+    costCategory: entry?.costCategory || 'cleaning',
+    description: entry?.description || '',
+    amount: entry ? String(Number(entry.amount)) : '',
+    currency: entry?.currency || 'USD',
+    periodMonth: String(entry?.periodMonth || defaultMonth),
+    periodYear: String(entry?.periodYear || defaultYear),
+    sourceType: entry?.sourceType || 'manual',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = {
+      propertyId: form.propertyId,
+      costCategory: form.costCategory,
+      description: form.description,
+      amount: parseFloat(form.amount),
+      currency: form.currency,
+      periodMonth: parseInt(form.periodMonth),
+      periodYear: parseInt(form.periodYear),
+      sourceType: form.sourceType,
+    };
+
     try {
-      await createCamCost({
-        propertyId: form.propertyId,
-        costCategory: form.costCategory,
-        description: form.description,
-        amount: parseFloat(form.amount),
-        currency: form.currency,
-        periodMonth: parseInt(form.periodMonth),
-        periodYear: parseInt(form.periodYear),
-        sourceType: form.sourceType,
-      }).unwrap();
-      toast.success('CAM cost entry added');
+      if (isEdit) {
+        await updateCamCost({ id: entry.id, data: payload }).unwrap();
+        toast.success('CAM cost entry updated');
+      } else {
+        await createCamCost(payload).unwrap();
+        toast.success('CAM cost entry added');
+      }
       onClose();
     } catch (err: any) {
       toast.error(err?.data?.errors?.[0]?.message || 'Failed');
@@ -262,8 +344,8 @@ function AddCamEntryModal({ properties, defaultMonth, defaultYear, onClose }: {
       <div className="maint-modal" onClick={(e) => e.stopPropagation()}>
         <div className="maint-modal-header">
           <h2>
-            <span className="modal-icon"><Receipt size={18} /></span>
-            Add CAM Cost Entry
+            <span className="modal-icon">{isEdit ? <Pencil size={18} /> : <Receipt size={18} />}</span>
+            {isEdit ? 'Edit' : 'Add'} CAM Cost Entry
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
@@ -271,10 +353,13 @@ function AddCamEntryModal({ properties, defaultMonth, defaultYear, onClose }: {
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Property <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.propertyId} onChange={(e) => setForm(f => ({ ...f, propertyId: e.target.value }))}>
+              <select required value={form.propertyId} disabled={isEdit}
+                onChange={(e) => setForm(f => ({ ...f, propertyId: e.target.value }))}
+              >
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              {isEdit && <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '2px' }}>Property cannot be changed</span>}
             </div>
             <div className="maint-field">
               <label>Category <span style={{ color: '#f87171' }}>*</span></label>
@@ -342,8 +427,10 @@ function AddCamEntryModal({ properties, defaultMonth, defaultYear, onClose }: {
           <div className="maint-modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
-              Add Entry
+              {isLoading ? <Loader2 size={16} className="spin" /> : isEdit
+                ? <><Pencil size={16} /> Update Entry</>
+                : <><Plus size={16} /> Add Entry</>
+              }
             </button>
           </div>
         </form>

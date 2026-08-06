@@ -107,6 +107,18 @@ export interface TenantCreditItem {
   createdAt: string;
 }
 
+export interface TenantCreditWithTenant extends TenantCreditItem {
+  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
+}
+
+export interface CreditsSummary {
+  totalIssued: number;
+  totalUsed: number;
+  totalAvailable: number;
+  totalCredits: number;
+  activeCredits: number;
+}
+
 interface ApiResponse<T> { success: boolean; data: T; }
 interface PaginatedResponse<T> {
   success: boolean; data: T[];
@@ -221,6 +233,33 @@ export const arApi = createApi({
       query: (tenantId) => `/tenants/${tenantId}/credits`,
       providesTags: ['TenantCredits'],
     }),
+
+    getCredits: builder.query<PaginatedResponse<TenantCreditWithTenant>, {
+      tenantId?: string; sourceType?: string; page?: number; limit?: number;
+    }>({
+      query: (params) => ({ url: '/credits', params }),
+      providesTags: ['TenantCredits'],
+    }),
+
+    getCreditsSummary: builder.query<ApiResponse<CreditsSummary>, void>({
+      query: () => '/credits/summary',
+      providesTags: ['TenantCredits'],
+    }),
+
+    createCredit: builder.mutation<ApiResponse<TenantCreditWithTenant>, {
+      tenantId: string; amount: number; currency: string;
+      sourceType: string; description?: string;
+    }>({
+      query: (body) => ({ url: '/credits', method: 'POST', body }),
+      invalidatesTags: ['TenantCredits'],
+    }),
+
+    applyCredit: builder.mutation<ApiResponse<{ creditId: string; invoiceId: string; appliedAmount: number; newStatus: string }>, {
+      creditId: string; invoiceId: string; amount: number;
+    }>({
+      query: ({ creditId, ...body }) => ({ url: `/credits/${creditId}/apply`, method: 'POST', body }),
+      invalidatesTags: ['TenantCredits'],
+    }),
   }),
 });
 
@@ -242,4 +281,8 @@ export const {
   useRejectRefundMutation,
   useMarkRefundPaidMutation,
   useGetTenantCreditsQuery,
+  useGetCreditsQuery,
+  useGetCreditsSummaryQuery,
+  useCreateCreditMutation,
+  useApplyCreditMutation,
 } = arApi;

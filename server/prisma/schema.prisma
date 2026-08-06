@@ -130,6 +130,7 @@ model Company {
   // Relations — Banking (Module 3.6)
   bankAccounts          BankAccount[]
   bankStatementImports  BankStatementImport[]
+  paymentGatewayTxns    PaymentGatewayTransaction[]
 
   // Relations — Maintenance (Module 4.1)
   maintenanceCategories    MaintenanceCategory[]
@@ -220,6 +221,11 @@ model Company {
 
   // Relations — Company Sequences (Phase 2 Cross-Cutting)
   companySequences         CompanySequence[]
+
+  // Relations — AP (Module 3.3)
+  apInvoices               ApInvoice[]
+  paymentVouchers          PaymentVoucher[]
+  expenses                 Expense[]
 
   @@index([parentId])
   @@map("companies")
@@ -363,6 +369,14 @@ model User {
   receiptsCreated            Receipt[]             @relation("ReceiptCreator")
   refundsApproved            RefundRequest[]       @relation("RefundApprover")
   refundsCreated             RefundRequest[]       @relation("RefundCreator")
+
+  // Relations — AP (Module 3.3)
+  apInvoicesCreated          ApInvoice[]           @relation("ApInvoiceCreator")
+  apInvoicesApproved         ApInvoice[]           @relation("ApInvoiceApprover")
+  paymentVouchersCreated     PaymentVoucher[]      @relation("PvCreator")
+  paymentVouchersApproved    PaymentVoucher[]      @relation("PvApprover")
+  expensesSubmitted          Expense[]             @relation("ExpenseSubmitter")
+  expensesApproved           Expense[]             @relation("ExpenseApprover")
 
   // Relations — Maintenance (Module 4.1)
   technicianProfile          TechnicianProfile?
@@ -653,6 +667,10 @@ model Department {
   manager    User?      @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
   positions  Position[]
   profiles   UserProfile[]
+
+  // Relations — AP (Module 3.3)
+  apInvoices  ApInvoice[]
+  expenses    Expense[]
 
   @@unique([code, companyId], name: "uq_dept_code_company")
   @@index([companyId])
@@ -945,6 +963,13 @@ model Property {
 
   // Relations — AR (Module 3.2)
   receipts         Receipt[]         @relation("ReceiptProperty")
+
+  // Relations — AP (Module 3.3)
+  apInvoices       ApInvoice[]
+  expenses         Expense[]
+
+  // Relations — Banking (Module 3.6)
+  paymentGatewayTxns PaymentGatewayTransaction[]
 
   // Relations — Maintenance (Module 4.1)
   maintenanceTickets MaintenanceTicket[]
@@ -1431,6 +1456,9 @@ model Tenant {
   // Relations — Maintenance (Module 4.1)
   maintenanceTickets   MaintenanceTicket[] @relation("TicketReportedByTenant")
   securityIncidents    SecurityIncident[]
+
+  // Relations — Banking (Module 3.6)
+  paymentGatewayTxns   PaymentGatewayTransaction[] @relation("GatewayTenant")
 
   // Relations — Portal (Module 5.1)
   residents            Resident[]         @relation("ResidentTenant")
@@ -2634,6 +2662,7 @@ model ChargeType {
   billingSchedules BillingSchedule[]
   invoiceLines    InvoiceLine[]
   penaltyConfigs  PenaltyConfiguration[] @relation("PenaltyChargeType")
+  apInvoiceLines  ApInvoiceLine[]
 
   @@unique([code, companyId], name: "uq_charge_type_code_company")
   @@index([category])
@@ -2745,6 +2774,9 @@ model Invoice {
 
   // Relations — Condo (Module 6.2)
   bylawViolations     BylawViolation[]   @relation("ViolationInvoice")
+
+  // Relations — Banking (Module 3.6)
+  paymentGatewayTxns  PaymentGatewayTransaction[]
 
   @@index([tenantId])
   @@index([leaseId])
@@ -3164,6 +3196,7 @@ model BankAccount {
   company           Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   statementImports  BankStatementImport[]
   statementLines    BankStatementLine[]
+  paymentVouchers   PaymentVoucher[]
 
   @@index([companyId])
   @@map("bank_accounts")
@@ -3218,6 +3251,43 @@ model BankStatementLine {
   @@index([importId])
   @@index([matchStatus])
   @@map("bank_statement_lines")
+}
+
+model PaymentGatewayTransaction {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String?   @map("property_id") @db.Uuid
+  gateway         String    @db.VarChar(30)
+                            // 'stripe' | 'paytabs' | 'paypal'
+  gatewayTxnId    String    @unique @map("gateway_txn_id") @db.VarChar(255)
+  gatewayStatus   String    @map("gateway_status") @db.VarChar(30)
+                            // 'initiated' | 'completed' | 'failed' | 'refunded'
+  amount          Decimal   @db.Decimal(15, 2)
+  currency        String    @db.VarChar(3)
+  feeAmount       Decimal   @default(0) @map("fee_amount") @db.Decimal(15, 2)
+  netAmount       Decimal?  @map("net_amount") @db.Decimal(15, 2)
+  paymentMethod   String?   @map("payment_method") @db.VarChar(30)
+                            // 'card' | 'bank' | 'wallet'
+  payerEmail      String?   @map("payer_email") @db.VarChar(255)
+  payerName       String?   @map("payer_name") @db.VarChar(200)
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  invoiceId       String?   @map("invoice_id") @db.Uuid
+  receiptId       String?   @map("receipt_id") @db.Uuid
+  metadata        Json?     @default("{}")
+  initiatedAt     DateTime  @default(now()) @map("initiated_at") @db.Timestamptz()
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz()
+  failedAt        DateTime? @map("failed_at") @db.Timestamptz()
+  failureReason   String?   @map("failure_reason") @db.Text
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  property Property? @relation(fields: [propertyId], references: [id])
+  tenant   Tenant?   @relation("GatewayTenant", fields: [tenantId], references: [id])
+  invoice  Invoice?  @relation(fields: [invoiceId], references: [id])
+
+  @@index([companyId, initiatedAt(sort: Desc)])
+  @@index([gatewayStatus])
+  @@index([tenantId])
+  @@map("payment_gateway_transactions")
 }
 
 // ─────────────────────────────────────────────
@@ -5342,4 +5412,149 @@ model BmsReading {
   @@index([deviceId, readAt(sort: Desc)])
   @@map("bms_readings")
 }
+
+// ─────────────────────────────────────────────
+// MODULE 3.3 — ACCOUNTS PAYABLE
+// ─────────────────────────────────────────────
+
+model ApInvoice {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  propertyId          String?   @map("property_id") @db.Uuid
+  vendorName          String    @map("vendor_name") @db.VarChar(255)
+  vendorInvoiceNo     String?   @map("vendor_invoice_no") @db.VarChar(100)
+  apInvoiceNumber     String    @unique @map("ap_invoice_number") @db.VarChar(50)
+  invoiceDate         DateTime  @map("invoice_date") @db.Date
+  dueDate             DateTime  @map("due_date") @db.Date
+  description         String?   @db.Text
+  subtotal            Decimal   @db.Decimal(15, 2)
+  taxAmount           Decimal   @default(0) @map("tax_amount") @db.Decimal(15, 2)
+  totalAmount         Decimal   @map("total_amount") @db.Decimal(15, 2)
+  paidAmount          Decimal   @default(0) @map("paid_amount") @db.Decimal(15, 2)
+  currency            String    @default("USD") @db.VarChar(3)
+  status              String    @default("pending") @db.VarChar(20)
+  costCenter          String?   @map("cost_center") @db.VarChar(100)
+  departmentId        String?   @map("department_id") @db.Uuid
+  poReference         String?   @map("po_reference") @db.VarChar(100)
+  approvedBy          String?   @map("approved_by") @db.Uuid
+  approvedAt          DateTime? @map("approved_at") @db.Timestamptz
+  rejectionReason     String?   @map("rejection_reason") @db.Text
+  glPosted            Boolean   @default(false) @map("gl_posted")
+  glJournalId         String?   @map("gl_journal_id") @db.Uuid
+  attachmentUrl       String?   @map("attachment_url") @db.VarChar(500)
+  notes               String?   @db.Text
+  createdBy           String    @map("created_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company             Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property            Property? @relation(fields: [propertyId], references: [id])
+  department          Department? @relation(fields: [departmentId], references: [id])
+  approver            User?     @relation("ApInvoiceApprover", fields: [approvedBy], references: [id])
+  creator             User      @relation("ApInvoiceCreator", fields: [createdBy], references: [id])
+  lines               ApInvoiceLine[]
+  pvAllocations       PvAllocation[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("ap_invoices")
+}
+
+model ApInvoiceLine {
+  id              String   @id @default(uuid()) @db.Uuid
+  apInvoiceId     String   @map("ap_invoice_id") @db.Uuid
+  chargeTypeId    String?  @map("charge_type_id") @db.Uuid
+  description     String   @db.VarChar(500)
+  quantity        Decimal  @default(1) @db.Decimal(10, 4)
+  unitPrice       Decimal  @map("unit_price") @db.Decimal(15, 4)
+  amount          Decimal  @db.Decimal(15, 2)
+  taxRate         Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  taxAmount       Decimal  @default(0) @map("tax_amount") @db.Decimal(15, 2)
+  lineTotal       Decimal  @map("line_total") @db.Decimal(15, 2)
+  glAccountCode   String?  @map("gl_account_code") @db.VarChar(20)
+  sortOrder       Int      @default(0) @map("sort_order") @db.SmallInt
+
+  apInvoice       ApInvoice  @relation(fields: [apInvoiceId], references: [id], onDelete: Cascade)
+  chargeType      ChargeType? @relation(fields: [chargeTypeId], references: [id])
+
+  @@index([apInvoiceId])
+  @@map("ap_invoice_lines")
+}
+
+model PaymentVoucher {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  voucherNumber     String    @unique @map("voucher_number") @db.VarChar(50)
+  voucherDate       DateTime  @map("voucher_date") @db.Date
+  paymentMethod     String    @map("payment_method") @db.VarChar(30)
+  bankAccountId     String?   @map("bank_account_id") @db.Uuid
+  vendorName        String    @map("vendor_name") @db.VarChar(255)
+  vendorBankName    String?   @map("vendor_bank_name") @db.VarChar(100)
+  vendorBankAcc     String?   @map("vendor_bank_acc") @db.VarChar(50)
+  totalAmount       Decimal   @map("total_amount") @db.Decimal(15, 2)
+  currency          String    @db.VarChar(3)
+  paymentReference  String?   @map("payment_reference") @db.VarChar(255)
+  status            String    @default("pending") @db.VarChar(20)
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz
+  approvedBy        String?   @map("approved_by") @db.Uuid
+  glPosted          Boolean   @default(false) @map("gl_posted")
+  glJournalId       String?   @map("gl_journal_id") @db.Uuid
+  notes             String?   @db.Text
+  createdBy         String    @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company           Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccount       BankAccount? @relation(fields: [bankAccountId], references: [id])
+  approver          User?        @relation("PvApprover", fields: [approvedBy], references: [id])
+  creator           User         @relation("PvCreator", fields: [createdBy], references: [id])
+  allocations       PvAllocation[]
+
+  @@index([companyId])
+  @@index([status])
+  @@map("payment_vouchers")
+}
+
+model PvAllocation {
+  id            String   @id @default(uuid()) @db.Uuid
+  voucherId     String   @map("voucher_id") @db.Uuid
+  apInvoiceId   String   @map("ap_invoice_id") @db.Uuid
+  amount        Decimal  @db.Decimal(15, 2)
+
+  voucher       PaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  apInvoice     ApInvoice      @relation(fields: [apInvoiceId], references: [id])
+
+  @@unique([voucherId, apInvoiceId])
+  @@map("pv_allocations")
+}
+
+model Expense {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String?   @map("property_id") @db.Uuid
+  departmentId    String?   @map("department_id") @db.Uuid
+  expenseDate     DateTime  @map("expense_date") @db.Date
+  category        String    @db.VarChar(100)
+  description     String    @db.Text
+  amount          Decimal   @db.Decimal(15, 2)
+  currency        String    @db.VarChar(3)
+  receiptUrl      String?   @map("receipt_url") @db.VarChar(500)
+  submittedBy     String    @map("submitted_by") @db.Uuid
+  status          String    @default("pending") @db.VarChar(20)
+  approvedBy      String?   @map("approved_by") @db.Uuid
+  approvedAt      DateTime? @map("approved_at") @db.Timestamptz
+  glAccountCode   String?   @map("gl_account_code") @db.VarChar(20)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  company         Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property        Property?   @relation(fields: [propertyId], references: [id])
+  department      Department? @relation(fields: [departmentId], references: [id])
+  submitter       User        @relation("ExpenseSubmitter", fields: [submittedBy], references: [id])
+  approver        User?       @relation("ExpenseApprover", fields: [approvedBy], references: [id])
+
+  @@index([companyId])
+  @@index([status])
+  @@map("expenses")
+}
+
 

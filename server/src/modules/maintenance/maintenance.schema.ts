@@ -126,6 +126,29 @@ export const upsertTechnicianProfileSchema = z.object({
   }),
 });
 
+// ── Categories ─────────────────────────────
+
+export const createCategorySchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(150),
+    icon: z.string().max(50).optional(),
+    description: z.string().max(500).optional(),
+    parentId: z.string().uuid().optional(),
+    sortOrder: z.number().int().min(0).optional(),
+  }),
+});
+
+export const updateCategorySchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(150).optional(),
+    icon: z.string().max(50).nullable().optional(),
+    description: z.string().max(500).nullable().optional(),
+    parentId: z.string().uuid().nullable().optional(),
+    sortOrder: z.number().int().min(0).optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
 // ── SLA Config ─────────────────────────────
 
 export const createSlaConfigSchema = z.object({
@@ -137,6 +160,18 @@ export const createSlaConfigSchema = z.object({
     resolutionHours: z.number().int().min(1),
     workingHoursOnly: z.boolean().optional(),
     escalationContactId: z.string().uuid().optional(),
+  }),
+});
+
+export const updateSlaConfigSchema = z.object({
+  body: z.object({
+    propertyId: z.string().uuid().nullable().optional(),
+    categoryId: z.string().uuid().nullable().optional(),
+    priority: z.enum(['P1', 'P2', 'P3', 'P4']).optional(),
+    responseHours: z.number().int().min(1).optional(),
+    resolutionHours: z.number().int().min(1).optional(),
+    workingHoursOnly: z.boolean().optional(),
+    escalationContactId: z.string().uuid().nullable().optional(),
   }),
 });
 

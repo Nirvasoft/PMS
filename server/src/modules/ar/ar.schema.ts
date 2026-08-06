@@ -57,3 +57,22 @@ export const markRefundPaidSchema = z.object({
     paidAt: dateString.optional(),
   }),
 });
+
+// ── Tenant Credits ────────────────────────────
+
+export const createTenantCreditSchema = z.object({
+  body: z.object({
+    tenantId: z.string().uuid(),
+    amount: z.number().positive('Amount must be positive'),
+    currency: z.string().length(3).optional().default('USD'),
+    sourceType: z.enum(['overpayment', 'credit_note', 'adjustment']),
+    description: z.string().max(500).optional(),
+  }),
+});
+
+export const applyCreditSchema = z.object({
+  body: z.object({
+    invoiceId: z.string().uuid(),
+    amount: z.number().positive('Amount must be positive'),
+  }),
+});

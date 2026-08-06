@@ -3,13 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import {
   useGetMaintenanceStatsQuery, useGetTicketsQuery,
 } from '../../../store/api/maintenanceApi';
+import { useGetUpcomingPmQuery } from '../../../store/api/pmApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
   BarChart3, Wrench, Inbox, TrendingUp, AlertOctagon,
   ShieldCheck, Star, DollarSign, Clock, CheckCircle2,
-  ArrowUpRight, AlertTriangle, Activity,
+  ArrowUpRight, AlertTriangle, Activity, CalendarClock,
 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
+import { useMaintenanceSocket } from '../../../hooks/useMaintenanceSocket';
+import { useAppSelector, useAppDispatch } from '../../../store';
+import { setDashboardPropertyId } from '../../../store/slices/maintenanceSlice';
 
 // ── Priority colors ──────────────────────────
 const PRIORITY_COLORS: Record<string, string> = {
@@ -170,10 +174,75 @@ function RecentTicketsFeed({ tickets, onClickTicket }: {
   );
 }
 
+// ── Upcoming PM Widget ───────────────────────
+function UpcomingPmWidget({ propertyId, onClickSchedule }: {
+  propertyId?: string;
+  onClickSchedule: (id: string) => void;
+}) {
+  const { data: upcomingData } = useGetUpcomingPmQuery({
+    propertyId: propertyId || undefined,
+    days: 30,
+  });
+  const schedules = upcomingData?.data || [];
+
+  const getDaysUntilDue = (dateStr: string) => {
+    return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  };
+
+  return (
+    <div className="md-chart-card md-upcoming-pm">
+      <h3 className="md-chart-title">
+        <CalendarClock size={16} />
+        Upcoming PM ({schedules.length})
+      </h3>
+      <div className="md-feed-list">
+        {schedules.slice(0, 8).map((s: any) => {
+          const days = getDaysUntilDue(s.nextDueDate);
+          const urgency = days < 0 ? 'overdue' : days <= 3 ? 'urgent' : days <= 7 ? 'soon' : 'ok';
+          return (
+            <div key={s.id} className="md-feed-item" onClick={() => onClickSchedule(s.id)}>
+              <div className="md-feed-left">
+                <span className={`md-pm-due-badge ${urgency}`}>
+                  {days < 0 ? `${Math.abs(days)}d late` : days === 0 ? 'Today' : `${days}d`}
+                </span>
+                <div className="md-feed-info">
+                  <span className="md-feed-number">{s.name}</span>
+                  <span className="md-feed-title">
+                    {s.property?.name}
+                    {s.category?.name ? ` · ${s.category.name}` : ''}
+                  </span>
+                </div>
+              </div>
+              <div className="md-feed-right">
+                <span className={`maint-priority ${s.priority?.toLowerCase()}`}>{s.priority}</span>
+                {s.assignedTo?.profile && (
+                  <span className="md-feed-time">
+                    {s.assignedTo.profile.firstName} {s.assignedTo.profile.lastName?.[0]}.
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {schedules.length === 0 && (
+          <div className="empty-message">No upcoming PM in the next 30 days</div>
+        )}
+        {schedules.length > 8 && (
+          <div className="md-pm-more">
+            +{schedules.length - 8} more schedule{schedules.length - 8 !== 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ───────────────────────────
 export default function MaintenanceDashboard() {
   const navigate = useNavigate();
-  const [propertyFilter, setPropertyFilter] = useState<string>('');
+  const dispatch = useAppDispatch();
+  useMaintenanceSocket();
+  const propertyFilter = useAppSelector((s) => s.maintenance.dashboardPropertyId);
 
   const { data: statsData, isLoading } = useGetMaintenanceStatsQuery({
     propertyId: propertyFilter || undefined,
@@ -231,7 +300,7 @@ export default function MaintenanceDashboard() {
           <select
             className="filter-select"
             value={propertyFilter}
-            onChange={(e) => setPropertyFilter(e.target.value)}
+            onChange={(e) => dispatch(setDashboardPropertyId(e.target.value))}
           >
             <option value="">All Properties</option>
             {properties.map((p: any) => (
@@ -377,12 +446,16 @@ export default function MaintenanceDashboard() {
             </div>
           </div>
 
-          {/* Category Breakdown + Recent Tickets */}
+          {/* Category Breakdown + Recent Tickets + Upcoming PM */}
           <div className="md-charts-row">
             <CategoryBreakdown data={stats.byCategory} />
             <RecentTicketsFeed
               tickets={recentTickets as any}
               onClickTicket={(id) => navigate(`/admin/maintenance/tickets/${id}`)}
+            />
+            <UpcomingPmWidget
+              propertyId={propertyFilter || undefined}
+              onClickSchedule={(id) => navigate(`/admin/maintenance/pm/${id}`)}
             />
           </div>
         </>

@@ -1,8 +1,16 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGetInvoicesQuery, useRunBillingMutation } from '../../../store/api/billingApi';
-import { FileText, Plus, Play, Search, ChevronLeft, ChevronRight, DollarSign, AlertTriangle, CheckCircle, Receipt } from 'lucide-react';
+import {
+  useGetInvoicesQuery, useRunBillingMutation,
+  useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
+} from '../../../store/api/billingApi';
+import {
+  FileText, Plus, Play, Search, ChevronLeft, ChevronRight,
+  DollarSign, AlertTriangle, CheckCircle, Receipt,
+  Send, Ban, Download, XCircle,
+} from 'lucide-react';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 import './BillingPage.css';
 
 const STATUS_OPTIONS = ['', 'draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
@@ -14,9 +22,14 @@ export default function InvoiceListPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const { data, isFetching } = useGetInvoicesQuery({ status: status || undefined, page, limit: 15 });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
+  const [voidInvoice] = useVoidInvoiceMutation();
+  const [sendInvoice] = useSendInvoiceMutation();
+  const [triggerPdf] = useLazyGetInvoicePdfQuery();
 
   const invoices = data?.data || [];
   const meta = data?.meta;
@@ -39,10 +52,88 @@ export default function InvoiceListPage() {
         (inv.tenant?.companyName || '').toLowerCase().includes(search.toLowerCase()))
     : invoices;
 
+  // ── Selection Helpers ──────────────────────
+  const toggleSelect = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedIds.size === filteredInvoices.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredInvoices.map(i => i.id)));
+    }
+  }, [filteredInvoices, selectedIds.size]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const selectedInvoices = useMemo(
+    () => filteredInvoices.filter(inv => selectedIds.has(inv.id)),
+    [filteredInvoices, selectedIds],
+  );
+
+  // ── Bulk Actions ───────────────────────────
+  const handleBulkSend = async () => {
+    const sendable = selectedInvoices.filter(inv => ['draft', 'issued'].includes(inv.status));
+    if (sendable.length === 0) return toast.error('No sendable invoices selected (must be draft or issued)');
+    if (!confirm(`Send ${sendable.length} invoice(s) to tenants via email?`)) return;
+
+    setBulkProcessing(true);
+    let success = 0, failed = 0;
+    for (const inv of sendable) {
+      try { await sendInvoice(inv.id).unwrap(); success++; }
+      catch { failed++; }
+    }
+    setBulkProcessing(false);
+    clearSelection();
+    toast.success(`Sent ${success} invoice(s)${failed > 0 ? `, ${failed} failed` : ''}`);
+  };
+
+  const handleBulkVoid = async () => {
+    const voidable = selectedInvoices.filter(inv => ['draft', 'issued', 'sent'].includes(inv.status));
+    if (voidable.length === 0) return toast.error('No voidable invoices selected (must be draft, issued, or sent)');
+    const reason = prompt(`Void ${voidable.length} invoice(s)? Enter reason:`);
+    if (!reason) return;
+
+    setBulkProcessing(true);
+    let success = 0, failed = 0;
+    for (const inv of voidable) {
+      try { await voidInvoice({ id: inv.id, reason }).unwrap(); success++; }
+      catch { failed++; }
+    }
+    setBulkProcessing(false);
+    clearSelection();
+    toast.success(`Voided ${success} invoice(s)${failed > 0 ? `, ${failed} failed` : ''}`);
+  };
+
+  const handleBulkDownload = async () => {
+    setBulkProcessing(true);
+    let success = 0, failed = 0;
+    for (const inv of selectedInvoices) {
+      try {
+        const result = await triggerPdf(inv.id).unwrap();
+        if (result.data?.url) {
+          window.open(result.data.url, '_blank');
+          success++;
+        }
+      } catch { failed++; }
+    }
+    setBulkProcessing(false);
+    toast.success(`Opened ${success} PDF(s)${failed > 0 ? `, ${failed} failed` : ''}`);
+  };
+
   const handleRunBilling = async () => {
     if (!confirm('This will generate invoices for all due billing schedules. Continue?')) return;
     const result = await runBilling().unwrap();
-    alert(`Generated ${result.data.generated} invoices from ${result.data.processed} schedules.${result.data.errors.length > 0 ? '\n\nErrors:\n' + result.data.errors.join('\n') : ''}`);
+    toast.success(`Generated ${result.data.generated} invoices from ${result.data.processed} schedules.`);
+    if (result.data.errors.length > 0) {
+      toast.error(`${result.data.errors.length} errors occurred during billing run`);
+    }
   };
 
   const getTenantName = (inv: any) => {
@@ -51,6 +142,9 @@ export default function InvoiceListPage() {
       ? inv.tenant.companyName || ''
       : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
   };
+
+  const allSelected = filteredInvoices.length > 0 && selectedIds.size === filteredInvoices.length;
+  const someSelected = selectedIds.size > 0;
 
   return (
     <div className="billing-page">
@@ -115,7 +209,7 @@ export default function InvoiceListPage() {
           <Search size={15} className="search-icon" />
           <input type="text" placeholder="Search invoices…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select className="filter-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
+        <select className="filter-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); clearSelection(); }}>
           <option value="">All Statuses</option>
           {STATUS_OPTIONS.filter(Boolean).map(s => (
             <option key={s} value={s}>{s.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
@@ -128,6 +222,16 @@ export default function InvoiceListPage() {
         <table className="billing-table">
           <thead>
             <tr>
+              <th style={{ width: 40, paddingLeft: 12 }}>
+                <input
+                  type="checkbox"
+                  className="inv-checkbox"
+                  checked={allSelected}
+                  ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                  onChange={toggleSelectAll}
+                  title="Select all"
+                />
+              </th>
               <th style={{ width: 140 }}>Invoice #</th>
               <th style={{ width: 160 }}>Tenant</th>
               <th style={{ width: 180 }}>Property / Unit</th>
@@ -141,7 +245,7 @@ export default function InvoiceListPage() {
           <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <div className="billing-empty">
                     {isFetching ? 'Loading invoices…' : 'No invoices found.'}
                   </div>
@@ -151,9 +255,24 @@ export default function InvoiceListPage() {
               filteredInvoices.map(inv => {
                 const paidNum = Number(inv.paidAmount);
                 const totalNum = Number(inv.totalAmount);
+                const isSelected = selectedIds.has(inv.id);
 
                 return (
-                  <tr key={inv.id} className="clickable" onClick={() => navigate(`/admin/billing/invoices/${inv.id}`)}>
+                  <tr
+                    key={inv.id}
+                    className="clickable"
+                    onClick={() => navigate(`/admin/billing/invoices/${inv.id}`)}
+                    style={isSelected ? { background: 'rgba(99,102,241,0.06)' } : undefined}
+                  >
+                    <td style={{ paddingLeft: 12 }} onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="inv-checkbox"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        onClick={(e) => toggleSelect(inv.id, e)}
+                      />
+                    </td>
                     <td>
                       <div className="cell-primary">{inv.invoiceNumber}</div>
                       {inv.invoiceType !== 'invoice' && (
@@ -215,6 +334,33 @@ export default function InvoiceListPage() {
           </div>
         )}
       </div>
+
+      {/* ═══ Bulk Actions Bar ═══ */}
+      {someSelected && (
+        <div className="bulk-actions-bar">
+          <div className="bulk-info">
+            <span className="bulk-count">{selectedIds.size}</span>
+            <span>invoice{selectedIds.size !== 1 ? 's' : ''} selected</span>
+          </div>
+          <div className="bulk-btns">
+            <button className="bulk-btn send" onClick={handleBulkSend} disabled={bulkProcessing}
+              title="Send selected invoices to tenants">
+              <Send size={14} /> Send
+            </button>
+            <button className="bulk-btn download" onClick={handleBulkDownload} disabled={bulkProcessing}
+              title="Download PDF for selected invoices">
+              <Download size={14} /> Download PDFs
+            </button>
+            <button className="bulk-btn void" onClick={handleBulkVoid} disabled={bulkProcessing}
+              title="Void selected invoices">
+              <Ban size={14} /> Void
+            </button>
+            <button className="bulk-btn deselect" onClick={clearSelection} disabled={bulkProcessing}>
+              <XCircle size={14} /> Deselect All
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

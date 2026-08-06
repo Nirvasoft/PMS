@@ -1,17 +1,20 @@
 import './MaintenancePage.css';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAppSelector, useAppDispatch } from '../../../store';
 import {
   useGetTicketsQuery, useCreateTicketMutation, useGetCategoriesQuery,
-  useGetMaintenanceStatsQuery,
+  useGetMaintenanceStatsQuery, useUploadTicketPhotosMutation,
 } from '../../../store/api/maintenanceApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
   Wrench, Plus, Search, LayoutGrid, List, AlertTriangle,
   Clock, CheckCircle2, XCircle, Loader2,
-  Inbox, TrendingUp, ShieldAlert, Star, AlertOctagon,
+  Inbox, TrendingUp, ShieldAlert, Star, AlertOctagon, ImagePlus, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useMaintenanceSocket } from '../../../hooks/useMaintenanceSocket';
+import { setTicketFilters, setViewMode as setViewModeAction } from '../../../store/slices/maintenanceSlice';
 
 const PRIORITIES = [
   { value: 'P1', label: 'P1 — Emergency', color: '#ef4444' },
@@ -60,12 +63,11 @@ function SlaChip({ slaStatus, hoursUntilSla }: { slaStatus: string | null; hours
 
 export default function TicketListPage() {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  const dispatch = useAppDispatch();
+  useMaintenanceSocket();
+  const viewMode = useAppSelector((s) => s.maintenance.viewMode);
+  const filters = useAppSelector((s) => s.maintenance.ticketFilters);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [filters, setFilters] = useState({
-    status: '', priority: '', categoryId: '', search: '', propertyId: '',
-    page: 1, limit: 20,
-  });
 
   const { data: ticketsData, isLoading } = useGetTicketsQuery({
     ...filters,
@@ -116,10 +118,10 @@ export default function TicketListPage() {
         </div>
         <div className="header-actions">
           <div className="view-toggle">
-            <button className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>
+            <button className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => dispatch(setViewModeAction('table'))}>
               <List size={16} />
             </button>
-            <button className={`toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`} onClick={() => setViewMode('kanban')}>
+            <button className={`toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`} onClick={() => dispatch(setViewModeAction('kanban'))}>
               <LayoutGrid size={16} />
             </button>
           </div>
@@ -168,22 +170,22 @@ export default function TicketListPage() {
           <input
             type="text" placeholder="Search tickets..."
             value={filters.search}
-            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value, page: 1 }))}
+            onChange={(e) => dispatch(setTicketFilters({ search: e.target.value, page: 1 }))}
           />
         </div>
-        <select className="filter-select" value={filters.propertyId} onChange={(e) => setFilters((f) => ({ ...f, propertyId: e.target.value, page: 1 }))}>
+        <select className="filter-select" value={filters.propertyId} onChange={(e) => dispatch(setTicketFilters({ propertyId: e.target.value, page: 1 }))}>
           <option value="">All Properties</option>
           {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        <select className="filter-select" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value, page: 1 }))}>
+        <select className="filter-select" value={filters.status} onChange={(e) => dispatch(setTicketFilters({ status: e.target.value, page: 1 }))}>
           <option value="">All Statuses</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <select className="filter-select" value={filters.priority} onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value, page: 1 }))}>
+        <select className="filter-select" value={filters.priority} onChange={(e) => dispatch(setTicketFilters({ priority: e.target.value, page: 1 }))}>
           <option value="">All Priorities</option>
           {PRIORITIES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
         </select>
-        <select className="filter-select" value={filters.categoryId} onChange={(e) => setFilters((f) => ({ ...f, categoryId: e.target.value, page: 1 }))}>
+        <select className="filter-select" value={filters.categoryId} onChange={(e) => dispatch(setTicketFilters({ categoryId: e.target.value, page: 1 }))}>
           <option value="">All Categories</option>
           {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
@@ -254,8 +256,8 @@ export default function TicketListPage() {
             <div className="maint-pagination">
               <span className="page-info">Page {meta.page} of {meta.totalPages} ({meta.total} tickets)</span>
               <div className="page-btns">
-                <button disabled={filters.page <= 1} onClick={() => setFilters((f) => ({ ...f, page: f.page - 1 }))}>Previous</button>
-                <button disabled={filters.page >= meta.totalPages} onClick={() => setFilters((f) => ({ ...f, page: f.page + 1 }))}>Next</button>
+                <button disabled={filters.page <= 1} onClick={() => dispatch(setTicketFilters({ page: filters.page - 1 }))}>Previous</button>
+                <button disabled={filters.page >= meta.totalPages} onClick={() => dispatch(setTicketFilters({ page: filters.page + 1 }))}>Next</button>
               </div>
             </div>
           )}
@@ -321,15 +323,38 @@ function CreateTicketModal({ categories, properties, onClose }: {
   categories: any[]; properties: any[]; onClose: () => void;
 }) {
   const [createTicket, { isLoading }] = useCreateTicketMutation();
+  const [uploadPhotos] = useUploadTicketPhotosMutation();
   const [form, setForm] = useState({
     propertyId: '', unitId: '', title: '', description: '', categoryId: '',
     priority: 'P3', source: 'staff', locationDetail: '', isUrgent: false,
   });
+  const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = (files: FileList | null) => {
+    if (!files) return;
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    setPendingPhotos((prev) => [...prev, ...imageFiles].slice(0, 10));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createTicket(form).unwrap();
+      const result = await createTicket(form).unwrap();
+      const ticketId = result?.data?.id;
+
+      // Upload photos if any were selected
+      if (ticketId && pendingPhotos.length > 0) {
+        const formData = new FormData();
+        pendingPhotos.forEach((f) => formData.append('photos', f));
+        formData.append('photoType', 'before');
+        try {
+          await uploadPhotos({ ticketId, formData }).unwrap();
+        } catch {
+          toast.error('Ticket created but photo upload failed');
+        }
+      }
+
       toast.success('Ticket created successfully');
       onClose();
     } catch (err: any) {
@@ -406,6 +431,55 @@ function CreateTicketModal({ categories, properties, onClose }: {
               <input type="text" value={form.locationDetail} onChange={(e) => setForm((f) => ({ ...f, locationDetail: e.target.value }))} placeholder="e.g., Master bathroom near light fixture" />
             </div>
           </div>
+
+          {/* Photo Upload Zone */}
+          <div className="maint-form-grid cols-1">
+            <div className="maint-field">
+              <label>Photos (optional)</label>
+              <div
+                className={`photo-drop-zone compact ${pendingPhotos.length > 0 ? 'has-files' : ''}`}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
+                />
+                {pendingPhotos.length === 0 ? (
+                  <>
+                    <ImagePlus size={22} className="drop-zone-icon" />
+                    <span className="drop-zone-text">Add photos of the issue</span>
+                  </>
+                ) : (
+                  <div className="pending-photos-grid">
+                    {pendingPhotos.map((f, i) => (
+                      <div key={i} className="pending-photo-thumb">
+                        <img src={URL.createObjectURL(f)} alt={f.name} />
+                        <button
+                          className="pending-photo-remove"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingPhotos((prev) => prev.filter((_, j) => j !== i));
+                          }}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="pending-photo-add">
+                      <ImagePlus size={16} />
+                      <span>Add</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div style={{ marginTop: '12px' }}>
             <label className="checkbox-label">
               <input type="checkbox" checked={form.isUrgent} onChange={(e) => setForm((f) => ({ ...f, isUrgent: e.target.checked }))} />
@@ -416,7 +490,7 @@ function CreateTicketModal({ categories, properties, onClose }: {
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isLoading}>
               {isLoading ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
-              Create Ticket
+              Create Ticket{pendingPhotos.length > 0 ? ` + ${pendingPhotos.length} photo${pendingPhotos.length > 1 ? 's' : ''}` : ''}
             </button>
           </div>
         </form>

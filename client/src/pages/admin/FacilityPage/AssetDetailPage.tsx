@@ -1,10 +1,10 @@
 import '../MaintenancePage/MaintenancePage.css';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useGetFacilityAssetByIdQuery, useUpdateFacilityAssetMutation, useGetAssetServiceHistoryQuery } from '../../../store/api/facilityApi';
+import { useGetFacilityAssetByIdQuery, useUpdateFacilityAssetMutation, useDeleteFacilityAssetMutation, useGetAssetServiceHistoryQuery } from '../../../store/api/facilityApi';
 import { useGetPmSchedulesQuery } from '../../../store/api/pmApi';
 import {
   ArrowLeft, Loader2, MapPin, Shield,
-  CalendarClock, FileText, History,
+  CalendarClock, FileText, History, Trash2, XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
@@ -49,6 +49,9 @@ export default function AssetDetailPage() {
     ? Math.ceil((new Date(asset.nextServiceDue).getTime() - today.getTime()) / 86400000) : null;
 
   const [statusChanging, setStatusChanging] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteAsset, { isLoading: deleting }] = useDeleteFacilityAssetMutation();
+
   const handleStatusChange = async (newStatus: string) => {
     setStatusChanging(true);
     try {
@@ -56,6 +59,16 @@ export default function AssetDetailPage() {
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
     } catch { toast.error('Failed'); }
     setStatusChanging(false);
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteAsset(id!).unwrap();
+      toast.success('Asset deleted');
+      navigate('/admin/facility/assets');
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to delete');
+    }
   };
 
   if (isLoading) return <div className="maint-page"><div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div></div>;
@@ -88,6 +101,9 @@ export default function AssetDetailPage() {
             <option value="fault">⚠️ Fault</option>
             <option value="decommissioned">🚫 Decommissioned</option>
           </select>
+          <button className="btn btn-ghost btn-danger-ghost" onClick={() => setShowDeleteConfirm(true)}>
+            <Trash2 size={16} /> Delete
+          </button>
         </div>
       </div>
 
@@ -231,6 +247,30 @@ export default function AssetDetailPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Delete Confirmation */}
+      {showDeleteConfirm && (
+        <div className="maint-modal-backdrop" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="maint-modal" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="maint-modal-header">
+              <h2><span className="modal-icon"><Trash2 size={18} /></span> Delete Asset</h2>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowDeleteConfirm(false)}><XCircle size={20} /></button>
+            </div>
+            <div style={{ padding: '0 24px 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              Are you sure you want to delete <strong>{asset.name}</strong> ({asset.assetNumber})? This will also remove all linked service history. This action cannot be undone.
+            </div>
+            <div className="maint-modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+              <button className="btn btn-primary" disabled={deleting}
+                style={{ background: '#ef4444', borderColor: '#ef4444' }}
+                onClick={handleDelete}
+              >
+                {deleting ? <Loader2 size={16} className="spin" /> : <><Trash2 size={16} /> Delete Asset</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

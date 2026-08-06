@@ -62,6 +62,18 @@ export class InvoicesService {
         unit: { select: { id: true, unitNumber: true } },
         property: { select: { id: true, name: true } },
         creditNotes: { select: { id: true, invoiceNumber: true, totalAmount: true, status: true } },
+        receiptAllocations: {
+          include: {
+            receipt: {
+              select: {
+                id: true, receiptNumber: true, receiptDate: true,
+                paymentMethod: true, paymentReference: true,
+                amount: true, currency: true, status: true,
+              },
+            },
+          },
+          orderBy: { allocatedAt: 'desc' },
+        },
       },
     });
     if (!invoice) throw AppError.notFound('Invoice');
