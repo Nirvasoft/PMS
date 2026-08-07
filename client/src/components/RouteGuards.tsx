@@ -51,10 +51,14 @@ export function RequirePermission({
   requireAll?: boolean;
 }) {
   const permissions = useAppSelector((s) => s.auth.user?.permissions ?? []);
+  const roles = useAppSelector((s) => s.auth.user?.roles ?? []);
   const perms = Array.isArray(permission) ? permission : [permission];
-  const hasAccess = requireAll
+
+  // Admin / super_admin bypass all permission checks
+  const isAdmin = roles.some((r) => ['admin', 'super_admin'].includes(r));
+  const hasAccess = isAdmin || (requireAll
     ? perms.every((p) => permissions.includes(p))
-    : perms.some((p) => permissions.includes(p));
+    : perms.some((p) => permissions.includes(p)));
 
   if (!hasAccess) {
     return (

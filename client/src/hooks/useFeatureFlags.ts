@@ -5,6 +5,11 @@ import { useGetCompanyQuery } from '../store/api/organizationApi';
  * Keys are stored in company.settings JSON field.
  */
 export const FEATURE_FLAGS = {
+  maintenanceEnabled:  { label: 'Maintenance Management',        desc: 'Enable tickets, PM schedules, SLA, and technician management', module: 'maintenance' },
+  facilityEnabled:     { label: 'Facility Management',           desc: 'Enable asset registry, QR scanning, CAM costs, and utilities', module: 'facility' },
+  inventoryEnabled:    { label: 'Inventory Management',          desc: 'Enable item catalog, stock levels, movements, and purchase requisitions', module: 'inventory' },
+  housekeepingEnabled: { label: 'Housekeeping',                  desc: 'Enable zones, schedules, tasks, and inspections',             module: 'housekeeping' },
+  securityEnabled:     { label: 'Security Management',           desc: 'Enable incidents, patrol management, and access control',     module: 'security' },
   crmEnabled:          { label: 'CRM & Lead Management',       desc: 'Enable lead pipeline, campaigns, and sales tracking',   module: 'crm' },
   parkingEnabled:      { label: 'Parking Management',           desc: 'Enable parking zones, slots, allocations and visitor passes', module: 'parking' },
   workflowEnabled:     { label: 'Workflow Engine',              desc: 'Enable approval workflows, task inbox, and visual designer',  module: 'workflow' },
