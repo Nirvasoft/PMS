@@ -12,10 +12,10 @@ import {
   Users2, ClipboardList, Target, Megaphone, Car, Link2, Ticket, Activity, Receipt, CalendarClock,
   Banknote, BarChart3, Clock, RotateCcw,
   BookOpen, Calculator, Scale, PieChart, Landmark, Wallet, Box,
-  Wrench, Calendar, Package, Layers, Sparkles,
+  Wrench, Calendar, Package, Layers, Sparkles, ClipboardCheck,
   Store, TrendingUp, DollarSign, Coins,
   Zap, Gavel,
-  Plug, Webhook, Server,
+  Plug, Webhook, Server, DoorOpen, QrCode,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -375,6 +375,10 @@ export default function DashboardLayout() {
           {/* Inventory Section */}
           <FeatureGate flag="maintenanceEnabled">
             <NavSection label="Inventory" storageKey="inventory">
+              <NavLink to="/admin/inventory/dashboard" className="nav-item">
+                <LayoutDashboard size={18} />
+                <span>Dashboard</span>
+              </NavLink>
               <NavLink to="/admin/inventory/items" className="nav-item">
                 <Package size={18} />
                 <span>Item Catalog</span>
@@ -383,9 +387,17 @@ export default function DashboardLayout() {
                 <Layers size={18} />
                 <span>Stock Levels</span>
               </NavLink>
+              <NavLink to="/admin/inventory/stores" className="nav-item">
+                <Store size={18} />
+                <span>Stores</span>
+              </NavLink>
               <NavLink to="/admin/inventory/movements" className="nav-item">
                 <Activity size={18} />
                 <span>Movements</span>
+              </NavLink>
+              <NavLink to="/admin/inventory/purchase-requisitions" className="nav-item">
+                <ClipboardList size={18} />
+                <span>Purchase Requisitions</span>
               </NavLink>
             </NavSection>
           </FeatureGate>
@@ -393,9 +405,25 @@ export default function DashboardLayout() {
           {/* Housekeeping Section */}
           <FeatureGate flag="maintenanceEnabled">
             <NavSection label="Housekeeping" storageKey="housekeeping">
+              <NavLink to="/admin/housekeeping/dashboard" className="nav-item">
+                <LayoutDashboard size={18} />
+                <span>Dashboard</span>
+              </NavLink>
               <NavLink to="/admin/housekeeping" className="nav-item">
                 <Sparkles size={18} />
-                <span>Tasks & Schedules</span>
+                <span>Tasks</span>
+              </NavLink>
+              <NavLink to="/admin/housekeeping/schedules" className="nav-item">
+                <Calendar size={18} />
+                <span>Schedules</span>
+              </NavLink>
+              <NavLink to="/admin/housekeeping/zones" className="nav-item">
+                <MapPin size={18} />
+                <span>Zones</span>
+              </NavLink>
+              <NavLink to="/admin/housekeeping/inspections" className="nav-item">
+                <ClipboardCheck size={18} />
+                <span>Inspections</span>
               </NavLink>
             </NavSection>
           </FeatureGate>
@@ -403,13 +431,29 @@ export default function DashboardLayout() {
           {/* Security Section */}
           <FeatureGate flag="maintenanceEnabled">
             <NavSection label="Security" storageKey="security">
+              <NavLink to="/admin/security/dashboard" className="nav-item">
+                <LayoutDashboard size={18} />
+                <span>Dashboard</span>
+              </NavLink>
               <NavLink to="/admin/security/incidents" className="nav-item">
                 <Shield size={18} />
                 <span>Incidents</span>
               </NavLink>
               <NavLink to="/admin/security/patrol" className="nav-item">
                 <MapPin size={18} />
-                <span>Patrol Mgmt</span>
+                <span>Patrol Logs</span>
+              </NavLink>
+              <NavLink to="/admin/security/patrol/schedules" className="nav-item">
+                <Clock size={18} />
+                <span>Patrol Schedules</span>
+              </NavLink>
+              <NavLink to="/admin/security/patrol/scan" className="nav-item">
+                <QrCode size={18} />
+                <span>Patrol Scan</span>
+              </NavLink>
+              <NavLink to="/admin/security/access-events" className="nav-item">
+                <DoorOpen size={18} />
+                <span>Access Events</span>
               </NavLink>
             </NavSection>
           </FeatureGate>

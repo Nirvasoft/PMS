@@ -100,11 +100,23 @@ import CamCostPage from './pages/admin/FacilityPage/CamCostPage';
 import UtilitySystemsPage from './pages/admin/FacilityPage/UtilitySystemsPage';
 import QrScanLandingPage from './pages/admin/FacilityPage/QrScanLandingPage';
 import ItemCatalogPage from './pages/admin/InventoryPage/ItemCatalogPage';
+import InventoryDashboard from './pages/admin/InventoryPage/InventoryDashboard';
 import StockLevelsPage from './pages/admin/InventoryPage/StockLevelsPage';
+import StoreManagementPage from './pages/admin/InventoryPage/StoreManagementPage';
 import MovementsPage from './pages/admin/InventoryPage/MovementsPage';
+import PurchaseRequisitionsPage from './pages/admin/InventoryPage/PurchaseRequisitionsPage';
 import HousekeepingTasksPage from './pages/admin/HousekeepingPage/HousekeepingTasksPage';
+import HousekeepingDashboard from './pages/admin/HousekeepingPage/HousekeepingDashboard';
+import InspectionsPage from './pages/admin/HousekeepingPage/InspectionsPage';
+import ZoneManagementPage from './pages/admin/HousekeepingPage/ZoneManagementPage';
+import ScheduleManagementPage from './pages/admin/HousekeepingPage/ScheduleManagementPage';
 import SecurityIncidentsPage from './pages/admin/SecurityPage/SecurityIncidentsPage';
+import SecurityDashboard from './pages/admin/SecurityPage/SecurityDashboard';
+import IncidentDetailPage from './pages/admin/SecurityPage/IncidentDetailPage';
 import PatrolLogsPage from './pages/admin/SecurityPage/PatrolLogsPage';
+import PatrolScheduleManagement from './pages/admin/SecurityPage/PatrolScheduleManagement';
+import PatrolScanPage from './pages/admin/SecurityPage/PatrolScanPage';
+import AccessEventsPage from './pages/admin/SecurityPage/AccessEventsPage';
 import PortalLayout from './pages/PortalPage/PortalLayout';
 import PortalDashboard from './pages/PortalPage/PortalDashboard';
 import PortalInvoices from './pages/PortalPage/PortalInvoices';
@@ -313,14 +325,26 @@ function AppRoutes() {
 
           {/* Inventory — requires inventory.read */}
           <Route element={<RequirePermission permission="inventory.read" />}>
+            <Route path="/admin/inventory/dashboard" element={<InventoryDashboard />} />
             <Route path="/admin/inventory/items" element={<ItemCatalogPage />} />
             <Route path="/admin/inventory/stock" element={<StockLevelsPage />} />
+            <Route path="/admin/inventory/stores" element={<StoreManagementPage />} />
             <Route path="/admin/inventory/movements" element={<MovementsPage />} />
+            <Route path="/admin/inventory/purchase-requisitions" element={<PurchaseRequisitionsPage />} />
           </Route>
 
+          <Route path="/admin/housekeeping/dashboard" element={<HousekeepingDashboard />} />
           <Route path="/admin/housekeeping" element={<HousekeepingTasksPage />} />
+          <Route path="/admin/housekeeping/inspections" element={<InspectionsPage />} />
+          <Route path="/admin/housekeeping/zones" element={<ZoneManagementPage />} />
+          <Route path="/admin/housekeeping/schedules" element={<ScheduleManagementPage />} />
+          <Route path="/admin/security/dashboard" element={<SecurityDashboard />} />
           <Route path="/admin/security/incidents" element={<SecurityIncidentsPage />} />
+          <Route path="/admin/security/incidents/:id" element={<IncidentDetailPage />} />
           <Route path="/admin/security/patrol" element={<PatrolLogsPage />} />
+          <Route path="/admin/security/patrol/schedules" element={<PatrolScheduleManagement />} />
+          <Route path="/admin/security/patrol/scan" element={<PatrolScanPage />} />
+          <Route path="/admin/security/access-events" element={<AccessEventsPage />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
           <Route path="/admin/workflows/instances/:id" element={<WorkflowInstancePage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />

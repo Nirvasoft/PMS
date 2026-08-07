@@ -1,5 +1,6 @@
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   useGetSecurityIncidentsQuery, useCreateSecurityIncidentMutation,
   useResolveSecurityIncidentMutation, useGetSecurityStatsQuery,
@@ -37,6 +38,7 @@ export default function SecurityIncidentsPage() {
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [resolveId, setResolveId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const { data: incData, isLoading } = useGetSecurityIncidentsQuery({
     severity: severity || undefined, status: status || undefined, page, limit: 20,
@@ -185,10 +187,11 @@ export default function SecurityIncidentsPage() {
                 background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
                 borderRadius: '14px', padding: '18px 20px', position: 'relative', overflow: 'hidden',
                 display: 'flex', gap: '16px', alignItems: 'center',
-                transition: 'transform 0.15s, box-shadow 0.15s',
+                transition: 'transform 0.15s, box-shadow 0.15s', cursor: 'pointer',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+              onClick={() => navigate(`/admin/security/incidents/${inc.id}`)}
               >
                 {/* Severity indicator */}
                 <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: '4px', background: sev.color, borderRadius: '4px 0 0 4px' }} />
@@ -231,7 +234,7 @@ export default function SecurityIncidentsPage() {
                     <StIcon size={11} /> {inc.status}
                   </span>
                   {(inc.status === 'open' || inc.status === 'investigating') && (
-                    <button className="btn btn-success btn-sm" onClick={() => setResolveId(inc.id)} style={{ fontSize: '11px' }}>
+                    <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); setResolveId(inc.id); }} style={{ fontSize: '11px' }}>
                       <CheckCircle2 size={11} /> Resolve
                     </button>
                   )}

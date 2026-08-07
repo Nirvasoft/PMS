@@ -10,7 +10,7 @@ import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
   Sparkles, Loader2, Plus, Play, CheckCircle2,
   Calendar, Users, MapPin, ClipboardList, XCircle,
-  Clock, Timer, TrendingUp, LayoutGrid,
+  Clock, Timer, TrendingUp, LayoutGrid, Star,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -55,11 +55,41 @@ export default function HousekeepingTasksPage() {
   const stats = statsData?.data;
   const properties = propsData?.data || [];
 
+  const [completeTaskId, setCompleteTaskId] = useState<string | null>(null);
+  const [clChecklist, setClChecklist] = useState<{ item: string; checked: boolean; notes: string }[]>([]);
+  const [clScore, setClScore] = useState(4);
+  const [clNotes, setClNotes] = useState('');
+
   const handleStartTask = async (id: string) => {
     try { await startTask(id).unwrap(); toast.success('Task started'); } catch { toast.error('Failed'); }
   };
-  const handleCompleteTask = async (id: string) => {
-    try { await completeTask({ id, data: {} }).unwrap(); toast.success('Task completed'); } catch { toast.error('Failed'); }
+
+  const openCompleteModal = (task: any) => {
+    const scheduleChecklist = Array.isArray(task.schedule?.checklist) ? task.schedule.checklist : [];
+    setClChecklist(
+      scheduleChecklist.length > 0
+        ? scheduleChecklist.map((c: any) => ({ item: c.item || c, checked: false, notes: '' }))
+        : [{ item: 'General cleaning completed', checked: false, notes: '' }]
+    );
+    setClScore(4);
+    setClNotes('');
+    setCompleteTaskId(task.id);
+  };
+
+  const handleCompleteWithChecklist = async () => {
+    if (!completeTaskId) return;
+    try {
+      await completeTask({
+        id: completeTaskId,
+        data: {
+          checklistResults: clChecklist,
+          qualityScore: clScore,
+          notes: clNotes || undefined,
+        },
+      }).unwrap();
+      toast.success('Task completed');
+      setCompleteTaskId(null);
+    } catch { toast.error('Failed to complete task'); }
   };
 
   const handleCreateZone = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -224,7 +254,7 @@ export default function HousekeepingTasksPage() {
                       </button>
                     )}
                     {t.status === 'in_progress' && (
-                      <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => handleCompleteTask(t.id)}>
+                      <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => openCompleteModal(t)}>
                         <CheckCircle2 size={12} /> Mark Complete
                       </button>
                     )}
@@ -366,6 +396,86 @@ export default function HousekeepingTasksPage() {
                 <button type="submit" className="btn btn-primary">Create</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Complete Task with Checklist Modal ── */}
+      {completeTaskId && (
+        <div className="maint-modal-backdrop" onClick={() => setCompleteTaskId(null)}>
+          <div className="maint-modal" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="maint-modal-header">
+              <h2><span className="modal-icon"><CheckCircle2 size={18} /></span> Complete Task</h2>
+              <button className="btn btn-ghost btn-sm" onClick={() => setCompleteTaskId(null)}>
+                <XCircle size={20} />
+              </button>
+            </div>
+            <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
+              {/* Checklist */}
+              <label style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', display: 'block' }}>
+                Checklist ({clChecklist.filter(c => c.checked).length}/{clChecklist.length} done)
+              </label>
+              <div className="insp-checklist-form">
+                {clChecklist.map((item, idx) => (
+                  <div key={idx} className="hk-cl-row">
+                    <label className="hk-cl-check">
+                      <input type="checkbox" checked={item.checked}
+                        onChange={(e) => {
+                          const u = [...clChecklist];
+                          u[idx] = { ...u[idx], checked: e.target.checked };
+                          setClChecklist(u);
+                        }} />
+                      <span className={item.checked ? 'hk-cl-done' : ''}>{item.item}</span>
+                    </label>
+                    <input className="insp-cl-notes" placeholder="Notes..."
+                      value={item.notes}
+                      onChange={(e) => {
+                        const u = [...clChecklist];
+                        u[idx] = { ...u[idx], notes: e.target.value };
+                        setClChecklist(u);
+                      }} />
+                  </div>
+                ))}
+              </div>
+
+              {/* Quality Score */}
+              <div style={{ marginTop: '14px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', display: 'block' }}>
+                  Quality Score
+                </label>
+                <div className="insp-score-picker">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <button key={s} type="button"
+                      className={`insp-score-btn ${clScore === s ? 'active' : ''}`}
+                      style={{ '--score-color': s >= 4 ? '#10b981' : s >= 3 ? '#eab308' : '#ef4444' } as any}
+                      onClick={() => setClScore(s)}>
+                      <Star size={16} fill={clScore >= s ? (s >= 4 ? '#10b981' : s >= 3 ? '#eab308' : '#ef4444') : 'none'}
+                        color={clScore >= s ? (s >= 4 ? '#10b981' : s >= 3 ? '#eab308' : '#ef4444') : 'var(--text-tertiary)'}
+                        strokeWidth={clScore >= s ? 0 : 1.5} />
+                      <span style={{ fontSize: '10px' }}>{s}</span>
+                    </button>
+                  ))}
+                  <span style={{ fontSize: '12px', fontWeight: 600, marginLeft: '8px',
+                    color: clScore >= 4 ? '#10b981' : clScore >= 3 ? '#eab308' : '#ef4444' }}>
+                    {['', 'Poor', 'Below Avg', 'Average', 'Good', 'Excellent'][clScore]}
+                  </span>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>Notes</label>
+                <textarea value={clNotes} onChange={(e) => setClNotes(e.target.value)}
+                  rows={2} placeholder="Any additional notes..." />
+              </div>
+            </div>
+            <div className="maint-modal-footer">
+              <button className="btn btn-ghost" onClick={() => setCompleteTaskId(null)}>Cancel</button>
+              <button className="btn btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }}
+                onClick={handleCompleteWithChecklist}>
+                <CheckCircle2 size={16} /> Complete Task
+              </button>
+            </div>
           </div>
         </div>
       )}

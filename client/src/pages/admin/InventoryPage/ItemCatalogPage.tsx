@@ -2,13 +2,14 @@ import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import {
   useGetInventoryItemsQuery, useCreateInventoryItemMutation,
+  useUpdateInventoryItemMutation,
   useGetStoresQuery, useCreateStoreMutation,
   useGetInventoryStatsQuery,
 } from '../../../store/api/inventoryApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
   Package, Plus, Search, Loader2, AlertTriangle, Filter,
-  Warehouse, TrendingDown, DollarSign, BarChart3,
+  Warehouse, TrendingDown, DollarSign, BarChart3, Edit3, XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,6 +25,7 @@ export default function ItemCatalogPage() {
   const [lowStock, setLowStock] = useState(false);
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
   const [showStoreModal, setShowStoreModal] = useState(false);
 
   const { data: itemsData, isLoading } = useGetInventoryItemsQuery({
@@ -33,6 +35,7 @@ export default function ItemCatalogPage() {
   const { data: storesData } = useGetStoresQuery({});
   const { data: propsData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const [createItem] = useCreateInventoryItemMutation();
+  const [updateItem] = useUpdateInventoryItemMutation();
   const [createStore] = useCreateStoreMutation();
 
   const items = itemsData?.data || [];
@@ -41,22 +44,40 @@ export default function ItemCatalogPage() {
   const stores = storesData?.data || [];
   const properties = propsData?.data || [];
 
-  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const payload = {
+      name: fd.get('name') as string,
+      category: fd.get('category') as string,
+      unitOfMeasure: fd.get('unitOfMeasure') as string,
+      unitCost: parseFloat(fd.get('unitCost') as string) || 0,
+      reorderPoint: parseFloat(fd.get('reorderPoint') as string) || 0,
+      reorderQty: parseFloat(fd.get('reorderQty') as string) || 1,
+      maxStock: parseFloat(fd.get('maxStock') as string) || undefined,
+      description: (fd.get('description') as string) || undefined,
+    };
     try {
-      await createItem({
-        itemCode: fd.get('itemCode'), name: fd.get('name'),
-        category: fd.get('category'), unitOfMeasure: fd.get('unitOfMeasure'),
-        unitCost: parseFloat(fd.get('unitCost') as string) || 0,
-        reorderPoint: parseFloat(fd.get('reorderPoint') as string) || 0,
-        reorderQty: parseFloat(fd.get('reorderQty') as string) || 1,
-        maxStock: parseFloat(fd.get('maxStock') as string) || undefined,
-        description: fd.get('description') || undefined,
-      }).unwrap();
-      toast.success('Item created');
+      if (editItem) {
+        await updateItem({ id: editItem.id, data: payload }).unwrap();
+        toast.success('Item updated');
+      } else {
+        await createItem({ ...payload, itemCode: fd.get('itemCode') as string }).unwrap();
+        toast.success('Item created');
+      }
       setShowModal(false);
-    } catch { toast.error('Failed to create item'); }
+      setEditItem(null);
+    } catch { toast.error(editItem ? 'Failed to update item' : 'Failed to create item'); }
+  };
+
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setShowModal(true);
+  };
+
+  const openCreate = () => {
+    setEditItem(null);
+    setShowModal(true);
   };
 
   const handleCreateStore = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -120,7 +141,7 @@ export default function ItemCatalogPage() {
           <button className="btn btn-secondary btn-sm" onClick={() => setShowStoreModal(true)}>
             <Warehouse size={14} /> Add Store
           </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
+          <button className="btn btn-primary btn-sm" onClick={openCreate}>
             <Plus size={14} /> Add Item
           </button>
         </div>
@@ -159,6 +180,7 @@ export default function ItemCatalogPage() {
                 <th style={{ textAlign: 'right' }}>On Hand</th>
                 <th style={{ textAlign: 'right' }}>Reorder Pt</th>
                 <th>Status</th>
+                <th style={{ width: 60, textAlign: 'center' }}>Edit</th>
               </tr>
             </thead>
             <tbody>
@@ -186,6 +208,12 @@ export default function ItemCatalogPage() {
                       <span className="maint-status completed">✅ OK</span>
                     )}
                   </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button className="btn btn-ghost btn-sm" title="Edit Item"
+                      onClick={() => openEdit(item)}>
+                      <Edit3 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -202,32 +230,48 @@ export default function ItemCatalogPage() {
         </div>
       )}
 
-      {/* Create Item Modal */}
+      {/* Create/Edit Item Modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditItem(null); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
-            <h2><Package size={18} /> New Inventory Item</h2>
-            <form onSubmit={handleCreate}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2><Package size={18} /> {editItem ? 'Edit Item' : 'New Inventory Item'}</h2>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setShowModal(false); setEditItem(null); }}><XCircle size={20} /></button>
+            </div>
+            <form onSubmit={handleSave}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="form-group"><label>Item Code *</label><input name="itemCode" required placeholder="PIPE-25MM" /></div>
-                <div className="form-group"><label>Name *</label><input name="name" required placeholder="25mm Copper Pipe" /></div>
+                <div className="form-group">
+                  <label>Item Code *</label>
+                  <input name="itemCode" required placeholder="PIPE-25MM"
+                    defaultValue={editItem?.itemCode || ''}
+                    disabled={!!editItem}
+                    style={editItem ? { opacity: 0.6, cursor: 'not-allowed' } : {}} />
+                </div>
+                <div className="form-group">
+                  <label>Name *</label>
+                  <input name="name" required placeholder="25mm Copper Pipe" defaultValue={editItem?.name || ''} />
+                </div>
                 <div className="form-group">
                   <label>Category</label>
-                  <select name="category">{CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+                  <select name="category" defaultValue={editItem?.category || 'plumbing'}>
+                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label>Unit of Measure *</label>
-                  <select name="unitOfMeasure">{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                  <select name="unitOfMeasure" defaultValue={editItem?.unitOfMeasure || 'pcs'}>
+                    {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
                 </div>
-                <div className="form-group"><label>Unit Cost</label><input name="unitCost" type="number" step="0.01" defaultValue="0" /></div>
-                <div className="form-group"><label>Reorder Point</label><input name="reorderPoint" type="number" step="0.001" defaultValue="0" /></div>
-                <div className="form-group"><label>Reorder Qty</label><input name="reorderQty" type="number" step="0.001" defaultValue="1" /></div>
-                <div className="form-group"><label>Max Stock</label><input name="maxStock" type="number" step="0.001" /></div>
+                <div className="form-group"><label>Unit Cost</label><input name="unitCost" type="number" step="0.01" defaultValue={editItem ? Number(editItem.unitCost) : 0} /></div>
+                <div className="form-group"><label>Reorder Point</label><input name="reorderPoint" type="number" step="0.001" defaultValue={editItem ? Number(editItem.reorderPoint) : 0} /></div>
+                <div className="form-group"><label>Reorder Qty</label><input name="reorderQty" type="number" step="0.001" defaultValue={editItem ? Number(editItem.reorderQty) : 1} /></div>
+                <div className="form-group"><label>Max Stock</label><input name="maxStock" type="number" step="0.001" defaultValue={editItem?.maxStock ? Number(editItem.maxStock) : ''} /></div>
               </div>
-              <div className="form-group"><label>Description</label><textarea name="description" rows={2} /></div>
+              <div className="form-group"><label>Description</label><textarea name="description" rows={2} defaultValue={editItem?.description || ''} /></div>
               <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Create Item</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowModal(false); setEditItem(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">{editItem ? 'Update Item' : 'Create Item'}</button>
               </div>
             </form>
           </div>

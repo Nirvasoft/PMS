@@ -4,7 +4,7 @@ import { baseQueryWithReauth } from './baseQuery';
 export const securityApi = createApi({
   reducerPath: 'securityApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['SecurityIncidents', 'PatrolCheckpoints', 'PatrolLogs', 'AccessEvents'],
+  tagTypes: ['SecurityIncidents', 'PatrolCheckpoints', 'PatrolSchedules', 'PatrolLogs', 'AccessEvents'],
   endpoints: (builder) => ({
     getSecurityIncidents: builder.query<any, any>({
       query: (params) => ({ url: '/security/incidents', params }),
@@ -46,6 +46,20 @@ export const securityApi = createApi({
       query: (params) => ({ url: '/security/access-events', params }),
       providesTags: ['AccessEvents'],
     }),
+    // Patrol Schedules
+    getPatrolSchedules: builder.query<any, { propertyId?: string }>({
+      query: (params) => ({ url: '/security/patrol/schedules', params }),
+      providesTags: ['PatrolSchedules'],
+    }),
+    createPatrolSchedule: builder.mutation<any, any>({
+      query: (body) => ({ url: '/security/patrol/schedules', method: 'POST', body }),
+      invalidatesTags: ['PatrolSchedules'],
+    }),
+    // Scan
+    scanCheckpoint: builder.mutation<any, any>({
+      query: (body) => ({ url: '/security/patrol/scan', method: 'POST', body }),
+      invalidatesTags: ['PatrolLogs'],
+    }),
   }),
 });
 
@@ -54,7 +68,8 @@ export const {
   useCreateSecurityIncidentMutation, useUpdateSecurityIncidentMutation,
   useResolveSecurityIncidentMutation,
   useGetPatrolCheckpointsQuery, useCreatePatrolCheckpointMutation,
-  useGetPatrolLogsQuery,
+  useGetPatrolSchedulesQuery, useCreatePatrolScheduleMutation,
+  useGetPatrolLogsQuery, useScanCheckpointMutation,
   useGetSecurityStatsQuery,
   useGetAccessEventsQuery,
 } = securityApi;
