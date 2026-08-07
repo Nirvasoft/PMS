@@ -3,8 +3,9 @@ import {
   useGetBillingSchedulesQuery, usePauseScheduleMutation,
   useResumeScheduleMutation, useCancelScheduleMutation,
   useCreateBillingScheduleMutation, useUpdateScheduleMutation,
-  useGetChargeTypesQuery, BillingSchedule,
+  useGetChargeTypesQuery,
 } from '../../../store/api/billingApi';
+import type { BillingSchedule } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil } from 'lucide-react';

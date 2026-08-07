@@ -2,8 +2,8 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   useGetBudgetsQuery, useCreateBudgetMutation, useUpdateBudgetMutation,
   useDeleteBudgetMutation, useApproveBudgetMutation, useGetBudgetVarianceQuery,
-  Budget,
 } from '../../../store/api/assetsApi';
+import type { Budget } from '../../../store/api/assetsApi';
 import { useGetGlAccountsQuery } from '../../../store/api/glApi';
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,

@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import {
   useGetGatewayTransactionsQuery, useGetGatewaySummaryQuery,
-  useRefundGatewayPaymentMutation, GatewayTransaction,
+  useRefundGatewayPaymentMutation,
 } from '../../../store/api/bankingApi';
+import type { GatewayTransaction } from '../../../store/api/bankingApi';
 import {
   Zap, Search, ChevronLeft, ChevronRight, X,
   CreditCard, DollarSign, AlertTriangle, RefreshCw,

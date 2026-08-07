@@ -2,8 +2,8 @@ import { useState, useMemo } from 'react';
 import {
   useGetCreditsQuery, useGetCreditsSummaryQuery,
   useCreateCreditMutation, useApplyCreditMutation,
-  TenantCreditWithTenant,
 } from '../../../store/api/arApi';
+import type { TenantCreditWithTenant } from '../../../store/api/arApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetInvoicesQuery } from '../../../store/api/billingApi';
 import {
