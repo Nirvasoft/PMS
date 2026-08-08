@@ -1,7 +1,9 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout';
+import { Responsive, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+
+const ResponsiveGridLayout = WidthProvider(Responsive);
 
 import {
   useGetDashboardLayoutQuery,
@@ -90,7 +92,6 @@ export default function AnalyticsDashboard() {
   const [saveLayout] = useSaveDashboardLayoutMutation();
   const [resetLayout] = useResetDashboardLayoutMutation();
   const { data: propertiesData } = useGetPropertiesQuery({});
-  const { ref: gridContainerRef, width: containerWidth } = useContainerWidth();
 
   // Drill-down state
   const [drillDownData, setDrillDownData] = useState<{ widgetCode: string; drillKey?: string } | null>(null);
@@ -270,7 +271,7 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Widget Grid — react-grid-layout */}
-      <div className="widget-grid" ref={gridContainerRef}>
+      <div className="widget-grid">
         {layoutLoading ? (
           <div className="grid-loading">
             {[1,2,3,4].map((i) => <div key={i} className="widget-skeleton" />)}
@@ -291,7 +292,6 @@ export default function AnalyticsDashboard() {
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480 }}
             cols={{ lg: 12, md: 12, sm: 6, xs: 4 }}
             rowHeight={120}
-            width={containerWidth || 1200}
             isDraggable={editMode}
             isResizable={editMode}
             draggableHandle=".drag-handle"
