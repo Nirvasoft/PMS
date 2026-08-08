@@ -55,7 +55,11 @@ export function RequirePermission({
   const perms = Array.isArray(permission) ? permission : [permission];
 
   // Admin / super_admin bypass all permission checks
-  const isAdmin = roles.some((r) => ['admin', 'super_admin'].includes(r));
+  // Normalize role names: "Super Admin" → "super_admin" for comparison
+  const isAdmin = roles.some((r) => {
+    const normalized = r.toLowerCase().replace(/\s+/g, '_');
+    return ['admin', 'super_admin'].includes(normalized);
+  });
   const hasAccess = isAdmin || (requireAll
     ? perms.every((p) => permissions.includes(p))
     : perms.some((p) => permissions.includes(p)));

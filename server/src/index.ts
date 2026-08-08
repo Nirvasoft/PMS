@@ -83,10 +83,11 @@ import { startNotificationQueueJob } from './modules/notifications/cron/notifica
 import { startScheduledNotificationJob } from './modules/notifications/cron/scheduledNotification.job';
 import { startViewingReminderJob } from './modules/crm/cron/viewingReminder.job';
 import { securityRoutes } from './modules/security/security.routes';
-import { portalRouter } from './modules/portal/portal.routes';
-import { visitorsRouter, portalVisitorsRouter } from './modules/visitors/visitors.routes';
-import { facilitiesRouter, bookingRulesRouter, portalBookingsRouter } from './modules/facility-booking/booking.routes';
+import { portalRouter, adminQuickActionsRouter, adminPortalAnalyticsRouter, adminAccessCardsRouter, adminPortalBrandingRouter } from './modules/portal/portal.routes';
+import { visitorsRouter, portalVisitorsRouter, blacklistRouter } from './modules/visitors/visitors.routes';
+import { facilitiesRouter, bookingRulesRouter, portalBookingsRouter, adminFacilityBookingsRouter } from './modules/facility-booking/booking.routes';
 import { portalCommunityRouter, adminCommunityRouter } from './modules/community/community.routes';
+import { tenantPortalGuard } from './modules/auth/guards/tenantPortalGuard';
 import { mallRouter } from './modules/mall/mall.routes';
 import { condoRouter } from './modules/condo/condo.routes';
 import { biRouter } from './modules/bi/bi.routes';
@@ -274,19 +275,25 @@ async function bootstrap() {
   app.use('/api/v1/security/access-events', requireFeature('maintenanceEnabled'), sec.accessEventsRouter);
 
   // Module 5.1 — Tenant & Resident Portal
-  app.use('/api/v1/portal', portalRouter);
+  app.use('/api/v1/portal', tenantPortalGuard, portalRouter);
+  app.use('/api/v1/admin/portal/quick-actions', adminQuickActionsRouter);
+  app.use('/api/v1/admin/portal/analytics', adminPortalAnalyticsRouter);
+  app.use('/api/v1/admin/access-cards', adminAccessCardsRouter);
+  app.use('/api/v1/admin/portal/branding', adminPortalBrandingRouter);
 
   // Module 5.2 — Visitor Management
   app.use('/api/v1/visitors', visitorsRouter);
-  app.use('/api/v1/portal/visitors', portalVisitorsRouter);
+  app.use('/api/v1/visitors/blacklist', blacklistRouter);
+  app.use('/api/v1/portal/visitors', tenantPortalGuard, portalVisitorsRouter);
 
   // Module 5.3 — Facility Booking
   app.use('/api/v1/facilities', facilitiesRouter);
   app.use('/api/v1/facility-booking-rules', bookingRulesRouter);
-  app.use('/api/v1/portal/bookings', portalBookingsRouter);
+  app.use('/api/v1/portal/bookings', tenantPortalGuard, portalBookingsRouter);
+  app.use('/api/v1/admin/facility-bookings', adminFacilityBookingsRouter);
 
   // Module 5.4 — Community Management
-  app.use('/api/v1/portal/community', portalCommunityRouter);
+  app.use('/api/v1/portal/community', tenantPortalGuard, portalCommunityRouter);
   app.use('/api/v1/admin/community', adminCommunityRouter);
 
   // Module 6.1 — Shopping Mall

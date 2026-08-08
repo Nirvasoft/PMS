@@ -6327,6 +6327,178 @@ textarea.form-input {
   text-align: center;
 }
 
+/* ── Facility Schedule Grid ───────────────── */
+.facility-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  min-height: 400px;
+}
+.facility-schedule-day {
+  border: 1px solid var(--border-color, rgba(128,128,128,0.15));
+  border-radius: 10px;
+  background: var(--card-bg, #fff);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.facility-schedule-today {
+  border-color: var(--primary, #6366f1);
+  box-shadow: 0 0 0 1px var(--primary, #6366f1);
+}
+.facility-schedule-day-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color, rgba(128,128,128,0.1));
+  background: var(--bg-secondary, rgba(128,128,128,0.04));
+}
+.facility-day-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.facility-day-date {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.facility-schedule-today .facility-day-date {
+  background: var(--primary, #6366f1);
+  color: #fff;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+.facility-day-count {
+  margin-left: auto;
+  background: var(--primary, #6366f1);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+.facility-schedule-day-body {
+  flex: 1;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 120px;
+  overflow-y: auto;
+}
+.facility-schedule-empty {
+  font-size: 0.75rem;
+  opacity: 0.35;
+  text-align: center;
+  padding: 24px 0;
+}
+.facility-booking-card {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border-left: 3px solid var(--border-color);
+  background: var(--bg-secondary, rgba(128,128,128,0.04));
+  font-size: 0.75rem;
+  transition: background 0.15s;
+}
+.facility-booking-card:hover {
+  background: rgba(99,102,241,0.06);
+}
+.facility-booking-card.booking-confirmed { border-left-color: var(--success, #22c55e); }
+.facility-booking-card.booking-pending { border-left-color: var(--warning, #f59e0b); }
+.facility-booking-card.booking-cancelled { border-left-color: var(--danger, #ef4444); opacity: 0.5; }
+.facility-booking-card.booking-completed { border-left-color: var(--info, #3b82f6); }
+.facility-booking-card.booking-no_show { border-left-color: var(--danger, #ef4444); }
+.facility-booking-time {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 600;
+  font-size: 0.7rem;
+  color: var(--primary, #6366f1);
+}
+.facility-booking-name {
+  font-weight: 600;
+  font-size: 0.78rem;
+  margin: 2px 0;
+}
+.facility-booking-meta {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  opacity: 0.65;
+}
+.facility-booking-purpose {
+  font-size: 0.68rem;
+  opacity: 0.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 1024px) {
+  .facility-schedule-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .facility-schedule-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Quick Actions Grid ───────────────────── */
+.portal-quick-actions {
+  margin-bottom: 24px;
+}
+.portal-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+  opacity: 0.8;
+}
+.portal-quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.portal-quick-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, rgba(128,128,128,0.15));
+  background: var(--card-bg, #fff);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font: inherit;
+  color: inherit;
+}
+.portal-quick-action-btn:hover {
+  background: var(--hover-bg, rgba(99,102,241,0.06));
+  border-color: var(--primary, #6366f1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99,102,241,0.12);
+}
+.portal-qa-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.portal-qa-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.2;
+}
+
 /* ── Dashboard Grid ────────────────────────── */
 .portal-dashboard-grid {
   display: grid;

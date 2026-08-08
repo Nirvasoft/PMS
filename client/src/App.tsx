@@ -97,6 +97,7 @@ import MaintenanceDashboard from './pages/admin/MaintenancePage/MaintenanceDashb
 import AssetRegistryPage from './pages/admin/FacilityPage/AssetRegistryPage';
 import FacilityAssetDetailPage from './pages/admin/FacilityPage/AssetDetailPage';
 import CamCostPage from './pages/admin/FacilityPage/CamCostPage';
+import FacilitySchedulePage from './pages/admin/FacilitySchedulePage/FacilitySchedulePage';
 import UtilitySystemsPage from './pages/admin/FacilityPage/UtilitySystemsPage';
 import QrScanLandingPage from './pages/admin/FacilityPage/QrScanLandingPage';
 import ItemCatalogPage from './pages/admin/InventoryPage/ItemCatalogPage';
@@ -117,17 +118,25 @@ import PatrolLogsPage from './pages/admin/SecurityPage/PatrolLogsPage';
 import PatrolScheduleManagement from './pages/admin/SecurityPage/PatrolScheduleManagement';
 import PatrolScanPage from './pages/admin/SecurityPage/PatrolScanPage';
 import AccessEventsPage from './pages/admin/SecurityPage/AccessEventsPage';
+import VisitorBlacklistPage from './pages/admin/SecurityPage/VisitorBlacklistPage';
 import PortalLayout from './pages/PortalPage/PortalLayout';
 import PortalDashboard from './pages/PortalPage/PortalDashboard';
 import PortalInvoices from './pages/PortalPage/PortalInvoices';
+import PaymentSuccessPage from './pages/PortalPage/PaymentSuccessPage';
 import PortalMaintenance from './pages/PortalPage/PortalMaintenance';
 import PortalLease from './pages/PortalPage/PortalLease';
 import PortalResidents from './pages/PortalPage/PortalResidents';
 import PortalProfile from './pages/PortalPage/PortalProfile';
+import PortalKyc from './pages/PortalPage/PortalKyc';
 import PortalVisitors from './pages/PortalPage/PortalVisitors';
 import PortalBookings from './pages/PortalPage/PortalBookings';
 import PortalCommunity from './pages/PortalPage/PortalCommunity';
 import PortalMoveRequests from './pages/PortalPage/PortalMoveRequests';
+import CommunityAdminPage from './pages/admin/CommunityAdminPage/CommunityAdminPage';
+import QuickActionsAdminPage from './pages/admin/QuickActionsAdminPage/QuickActionsAdminPage';
+import PortalAnalyticsPage from './pages/admin/PortalAnalyticsPage/PortalAnalyticsPage';
+import AccessCardsPage from './pages/admin/AccessCardsPage/AccessCardsPage';
+import PortalBrandingPage from './pages/admin/PortalBrandingPage/PortalBrandingPage';
 import MallDashboard from './pages/admin/MallDashboard';
 import ShopDirectoryPage from './pages/admin/ShopDirectoryPage';
 import GtoManagementPage from './pages/admin/GtoManagementPage';
@@ -321,6 +330,7 @@ function AppRoutes() {
             <Route path="/admin/facility/assets/:id" element={<FacilityAssetDetailPage />} />
             <Route path="/admin/facility/cam-costs" element={<CamCostPage />} />
             <Route path="/admin/facility/utility-systems" element={<UtilitySystemsPage />} />
+            <Route path="/admin/facility/schedule" element={<FacilitySchedulePage />} />
           </Route>
 
           {/* Inventory — requires inventory.read */}
@@ -345,6 +355,7 @@ function AppRoutes() {
           <Route path="/admin/security/patrol/schedules" element={<PatrolScheduleManagement />} />
           <Route path="/admin/security/patrol/scan" element={<PatrolScanPage />} />
           <Route path="/admin/security/access-events" element={<AccessEventsPage />} />
+          <Route path="/admin/security/blacklist" element={<VisitorBlacklistPage />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
           <Route path="/admin/workflows/instances/:id" element={<WorkflowInstancePage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />
@@ -363,6 +374,13 @@ function AppRoutes() {
           <Route path="/admin/mall/cam" element={<CamManagementPage />} />
           <Route path="/admin/mall/events" element={<MallEventsPage />} />
           <Route path="/admin/mall/footfall" element={<FootfallAnalyticsPage />} />
+
+          {/* Community Admin */}
+          <Route path="/admin/community" element={<CommunityAdminPage />} />
+          <Route path="/admin/portal/quick-actions" element={<QuickActionsAdminPage />} />
+          <Route path="/admin/portal/analytics" element={<PortalAnalyticsPage />} />
+          <Route path="/admin/access-cards" element={<AccessCardsPage />} />
+          <Route path="/admin/portal/branding" element={<PortalBrandingPage />} />
 
           {/* Module 6.2 — Condo */}
           <Route path="/admin/condo/smart-meters" element={<SmartMeterPage />} />
@@ -390,10 +408,12 @@ function AppRoutes() {
         <Route element={<PortalLayout />}>
           <Route path="/portal" element={<PortalDashboard />} />
           <Route path="/portal/invoices" element={<PortalInvoices />} />
+          <Route path="/portal/payments/success" element={<PaymentSuccessPage />} />
           <Route path="/portal/maintenance" element={<PortalMaintenance />} />
           <Route path="/portal/lease" element={<PortalLease />} />
           <Route path="/portal/residents" element={<PortalResidents />} />
           <Route path="/portal/profile" element={<PortalProfile />} />
+          <Route path="/portal/kyc" element={<PortalKyc />} />
           <Route path="/portal/visitors" element={<PortalVisitors />} />
           <Route path="/portal/bookings" element={<PortalBookings />} />
           <Route path="/portal/community" element={<PortalCommunity />} />

@@ -12,6 +12,15 @@ declare global {
         ipAddress: string;
         userAgent: string;
       };
+      /** Populated by TenantPortalGuard for /portal routes */
+      portalContext?: {
+        residentId: string | null;
+        tenantId: string | null;
+        propertyId: string | null;
+        unitId: string | null;
+        residentType: string | null;
+        isAdmin: boolean;
+      } | null;
     }
   }
 }

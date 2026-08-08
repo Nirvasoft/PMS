@@ -358,6 +358,110 @@ class BookingService {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
+  // ══════════════════════════════════════════════
+  //  ADMIN SCHEDULE VIEW
+  // ══════════════════════════════════════════════
+
+  /**
+   * Get all bookings for a specific facility in a date range (admin view).
+   */
+  async getFacilitySchedule(companyId: string, facilityId: string, filters: {
+    startDate: string; endDate: string;
+  }) {
+    const facility = await prisma.propertyFacility.findFirst({
+      where: { id: facilityId },
+      select: { id: true, name: true, operatingHours: true },
+    });
+    if (!facility) throw AppError.notFound('Facility');
+
+    const bookings = await prisma.facilityBooking.findMany({
+      where: {
+        companyId,
+        facilityId,
+        bookingDate: {
+          gte: new Date(filters.startDate),
+          lte: new Date(filters.endDate),
+        },
+        status: { notIn: ['cancelled'] },
+      },
+      include: {
+        resident: { select: { id: true, firstName: true, lastName: true } },
+        unit: { select: { id: true, unitNumber: true } },
+        approver: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: [{ bookingDate: 'asc' }, { startTime: 'asc' }],
+    });
+
+    return { facility, bookings };
+  }
+
+  /**
+   * Get all bookings across all facilities for a property (admin overview).
+   */
+  async getAdminBookingsOverview(companyId: string, filters: {
+    propertyId?: string; facilityId?: string; status?: string;
+    startDate?: string; endDate?: string;
+    page?: number; limit?: number;
+  }) {
+    const { page = 1, limit = 25 } = filters;
+    const where: any = { companyId };
+    if (filters.propertyId) where.propertyId = filters.propertyId;
+    if (filters.facilityId) where.facilityId = filters.facilityId;
+    if (filters.status) where.status = filters.status;
+    if (filters.startDate || filters.endDate) {
+      where.bookingDate = {};
+      if (filters.startDate) where.bookingDate.gte = new Date(filters.startDate);
+      if (filters.endDate) where.bookingDate.lte = new Date(filters.endDate);
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.facilityBooking.findMany({
+        where,
+        include: {
+          facility: { select: { id: true, name: true } },
+          resident: { select: { id: true, firstName: true, lastName: true } },
+          unit: { select: { id: true, unitNumber: true } },
+        },
+        orderBy: [{ bookingDate: 'desc' }, { startTime: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.facilityBooking.count({ where }),
+    ]);
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  /**
+   * Admin approve a pending booking.
+   */
+  async approveBooking(companyId: string, userId: string, bookingId: string) {
+    const booking = await prisma.facilityBooking.findFirst({
+      where: { id: bookingId, companyId, status: 'pending' },
+    });
+    if (!booking) throw AppError.notFound('Pending booking');
+
+    return prisma.facilityBooking.update({
+      where: { id: bookingId },
+      data: { status: 'confirmed', approvedBy: userId, approvedAt: new Date() },
+    });
+  }
+
+  /**
+   * Admin reject a pending booking.
+   */
+  async rejectBooking(companyId: string, userId: string, bookingId: string, reason: string) {
+    const booking = await prisma.facilityBooking.findFirst({
+      where: { id: bookingId, companyId, status: 'pending' },
+    });
+    if (!booking) throw AppError.notFound('Pending booking');
+
+    return prisma.facilityBooking.update({
+      where: { id: bookingId },
+      data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: reason },
+    });
+  }
+
   private async getActiveResident(companyId: string, userId: string) {
     const resident = await prisma.resident.findFirst({
       where: { companyId, userId, isActive: true },

@@ -7,7 +7,7 @@ import NotificationBell from '../../components/notifications/NotificationBell';
 import toast from 'react-hot-toast';
 import {
   LayoutDashboard, Receipt, Wrench, FileText, Users, User, LogOut,
-  Building2, ChevronRight, UserPlus, CalendarDays, Megaphone, Truck,
+  Building2, ChevronRight, UserPlus, CalendarDays, Megaphone, Truck, FileCheck, Bell,
 } from 'lucide-react';
 
 export default function PortalLayout() {
@@ -30,12 +30,19 @@ export default function PortalLayout() {
     ? `Unit ${dashboard.unit.unitNumber}`
     : '';
 
+  const branding = (dashboard as any)?.branding;
+  const primaryColor = branding?.primaryColor || '#6366f1';
+
   return (
-    <div className="app-layout">
+    <div className="app-layout" style={{ '--portal-primary': primaryColor } as React.CSSProperties}>
       <aside className="sidebar portal-sidebar">
         <div className="sidebar-header">
-          <div className="portal-brand-icon">
-            <Building2 size={22} />
+          <div className="portal-brand-icon" style={{ background: primaryColor }}>
+            {branding?.logoUrl ? (
+              <img src={branding.logoUrl} alt="Logo" style={{ height: 20, maxWidth: 36, objectFit: 'contain' }} />
+            ) : (
+              <Building2 size={22} />
+            )}
           </div>
           <div className="portal-brand-text">
             <span className="sidebar-brand">{propertyName}</span>
@@ -67,6 +74,14 @@ export default function PortalLayout() {
           <NavLink to="/portal/profile" className="nav-item" id="portal-nav-profile">
             <User size={18} />
             <span>My Profile</span>
+          </NavLink>
+          <NavLink to="/settings/notifications" className="nav-item" id="portal-nav-notif-prefs">
+            <Bell size={18} />
+            <span>Notification Preferences</span>
+          </NavLink>
+          <NavLink to="/portal/kyc" className="nav-item" id="portal-nav-kyc">
+            <FileCheck size={18} />
+            <span>KYC Documents</span>
           </NavLink>
 
           <div className="portal-nav-divider" />

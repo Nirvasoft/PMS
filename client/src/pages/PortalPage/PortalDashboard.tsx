@@ -116,6 +116,31 @@ export default function PortalDashboard() {
         </div>
       </div>
 
+      {/* Quick Actions Grid */}
+      {data.quickActions && data.quickActions.length > 0 && (
+        <div className="portal-quick-actions" id="portal-quick-actions">
+          <h3 className="portal-section-title">Quick Actions</h3>
+          <div className="portal-quick-actions-grid">
+            {data.quickActions.map((qa) => (
+              <button
+                key={qa.id}
+                className="portal-quick-action-btn"
+                onClick={() => {
+                  if (qa.actionType === 'page' && qa.actionUrl) {
+                    navigate(qa.actionUrl);
+                  } else if (qa.actionType === 'link' && qa.actionUrl) {
+                    window.open(qa.actionUrl, '_blank', 'noopener');
+                  }
+                }}
+              >
+                <span className="portal-qa-icon">{qa.icon || '⚡'}</span>
+                <span className="portal-qa-label">{qa.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main Content Grid */}
       <div className="portal-dashboard-grid">
         {/* Lease Card */}

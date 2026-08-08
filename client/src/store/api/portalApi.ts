@@ -61,6 +61,19 @@ export interface PortalDashboardData {
   invoiceSummary: InvoiceSummary;
   openTickets: PortalTicket[];
   recentAnnouncements: any[];
+  quickActions: QuickAction[];
+}
+
+export interface QuickAction {
+  id: string;
+  label: string;
+  icon?: string;
+  actionType: string;
+  actionUrl?: string;
+  sortOrder: number;
+  isActive?: boolean;
+  propertyId?: string;
+  property?: { id: string; name: string };
 }
 
 export interface PortalInvoice {
@@ -149,7 +162,7 @@ export interface PortalProfile {
 export const portalApi = createApi({
   reducerPath: 'portalApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['PortalDashboard', 'PortalInvoices', 'PortalMaintenance', 'PortalResidents', 'PortalLease', 'PortalProfile'],
+  tagTypes: ['PortalDashboard', 'PortalInvoices', 'PortalMaintenance', 'PortalResidents', 'PortalLease', 'PortalProfile', 'PortalKyc', 'QuickActions', 'AccessCards', 'Branding'],
   endpoints: (builder) => ({
     // Dashboard
     getPortalDashboard: builder.query<PortalDashboardData, void>({
@@ -169,6 +182,20 @@ export const portalApi = createApi({
     getPortalPaymentHistory: builder.query<PortalReceipt[], void>({
       query: () => '/portal/payments/history',
       transformResponse: (r: any) => r.data,
+    }),
+
+    // Pay Invoice (Stripe Checkout)
+    payPortalInvoice: builder.mutation<
+      { checkoutUrl: string; sessionId: string; amount: number; currency: string },
+      { invoiceId: string; returnUrl: string }
+    >({
+      query: ({ invoiceId, returnUrl }) => ({
+        url: `/portal/invoices/${invoiceId}/pay`,
+        method: 'POST',
+        body: { returnUrl },
+      }),
+      transformResponse: (r: any) => r.data,
+      invalidatesTags: ['PortalInvoices', 'PortalDashboard'],
     }),
 
     // Lease
@@ -236,6 +263,20 @@ export const portalApi = createApi({
       invalidatesTags: ['PortalResidents'],
     }),
 
+    // Invite Resident to Portal
+    inviteResidentToPortal: builder.mutation<
+      { inviteUrl: string; email: string; expiresAt: string; residentName: string },
+      { residentId: string; email: string }
+    >({
+      query: ({ residentId, email }) => ({
+        url: `/portal/residents/${residentId}/invite-portal`,
+        method: 'POST',
+        body: { email },
+      }),
+      transformResponse: (r: any) => r.data,
+      invalidatesTags: ['PortalResidents'],
+    }),
+
     // Profile
     getPortalProfile: builder.query<PortalProfile, void>({
       query: () => '/portal/profile',
@@ -247,13 +288,140 @@ export const portalApi = createApi({
       query: (body) => ({ url: '/portal/profile', method: 'PUT', body }),
       invalidatesTags: ['PortalProfile'],
     }),
+
+    // ── KYC Self-Upload ─────────────────────────
+    getPortalKyc: builder.query<{
+      status: string;
+      verifiedAt?: string;
+      expiryDate?: string;
+      documents: {
+        id: string;
+        requirementId: string;
+        documentId?: string;
+        docType: string;
+        name: string;
+        isRequired: boolean;
+        status: string;
+        submittedAt: string;
+        reviewedAt?: string;
+        rejectionReason?: string;
+        expiryDate?: string;
+        requirement: { name: string; description?: string; docType: string };
+      }[];
+    }, void>({
+      query: () => '/portal/kyc',
+      transformResponse: (r: any) => r.data,
+      providesTags: ['PortalKyc'],
+    }),
+
+    submitPortalKycDocument: builder.mutation<any, { requirementId: string; documentId: string }>({
+      query: (body) => ({ url: '/portal/kyc/documents', method: 'POST', body }),
+      invalidatesTags: ['PortalKyc'],
+    }),
+
+    // ── Admin Quick Actions CRUD ────────────────
+    getQuickActions: builder.query<QuickAction[], { propertyId?: string } | void>({
+      query: (params) => ({ url: '/admin/portal/quick-actions', params: params || {} }),
+      transformResponse: (r: any) => r.data,
+      providesTags: ['QuickActions'],
+    }),
+    createQuickAction: builder.mutation<QuickAction, {
+      propertyId: string; label: string; icon?: string;
+      actionType: string; actionUrl?: string; sortOrder?: number;
+    }>({
+      query: (body) => ({ url: '/admin/portal/quick-actions', method: 'POST', body }),
+      invalidatesTags: ['QuickActions', 'PortalDashboard'],
+    }),
+    updateQuickAction: builder.mutation<QuickAction, {
+      id: string; label?: string; icon?: string; actionType?: string;
+      actionUrl?: string; isActive?: boolean; sortOrder?: number;
+    }>({
+      query: ({ id, ...body }) => ({ url: `/admin/portal/quick-actions/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['QuickActions', 'PortalDashboard'],
+    }),
+    deleteQuickAction: builder.mutation<void, string>({
+      query: (id) => ({ url: `/admin/portal/quick-actions/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['QuickActions', 'PortalDashboard'],
+    }),
+
+    // ── Portal Session Tracking ─────────────────
+    startPortalSession: builder.mutation<{ sessionId: string }, void>({
+      query: () => ({ url: '/portal/session/start', method: 'POST' }),
+      transformResponse: (r: any) => r.data,
+    }),
+    heartbeatSession: builder.mutation<void, string>({
+      query: (id) => ({ url: `/portal/session/${id}/heartbeat`, method: 'POST' }),
+    }),
+    endPortalSession: builder.mutation<void, string>({
+      query: (id) => ({ url: `/portal/session/${id}/end`, method: 'POST' }),
+    }),
+
+    // ── Admin Portal Analytics ──────────────────
+    getPortalAnalytics: builder.query<PortalAnalyticsData, { startDate?: string; endDate?: string } | void>({
+      query: (params) => ({ url: '/admin/portal/analytics', params: params || {} }),
+      transformResponse: (r: any) => r.data,
+    }),
+
+    // ── Admin Access Cards ───────────────────────
+    getAccessCards: builder.query<
+      { data: AccessCard[]; meta: { total: number; page: number; limit: number } },
+      { propertyId?: string; status?: string; cardType?: string; search?: string; page?: number } | void
+    >({
+      query: (params) => ({ url: '/admin/access-cards', params: params || {} }),
+      providesTags: ['AccessCards'],
+    }),
+    getAccessCardStats: builder.query<AccessCardStats, void>({
+      query: () => '/admin/access-cards/stats',
+      transformResponse: (r: any) => r.data,
+      providesTags: ['AccessCards'],
+    }),
+    issueAccessCard: builder.mutation<AccessCard, {
+      residentId: string; propertyId: string; cardNumber: string;
+      cardType?: string; issuedAt?: string; expiresAt?: string; notes?: string;
+    }>({
+      query: (body) => ({ url: '/admin/access-cards', method: 'POST', body }),
+      invalidatesTags: ['AccessCards'],
+    }),
+    updateAccessCard: builder.mutation<AccessCard, {
+      id: string; status?: string; notes?: string; expiresAt?: string;
+    }>({
+      query: ({ id, ...body }) => ({ url: `/admin/access-cards/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['AccessCards'],
+    }),
+
+    // ── Portal Branding ──────────────────────────
+    getPortalBranding: builder.query<PortalBranding, string>({
+      query: (propertyId) => ({ url: '/admin/portal/branding', params: { propertyId } }),
+      transformResponse: (r: any) => r.data,
+      providesTags: ['Branding'],
+    }),
+    updatePortalBranding: builder.mutation<PortalBranding, { propertyId: string; data: Partial<PortalBranding> }>({
+      query: ({ propertyId, data }) => ({ url: '/admin/portal/branding', method: 'PUT', params: { propertyId }, body: data }),
+      transformResponse: (r: any) => r.data,
+      invalidatesTags: ['Branding', 'PortalDashboard'],
+    }),
   }),
 });
+
+export interface PortalAnalyticsData {
+  period: { start: string; end: string };
+  summary: {
+    totalSessions: number;
+    uniqueUsers: number;
+    avgDurationMinutes: number;
+    avgPages: number;
+  };
+  activeNow: number;
+  dailyCounts: { date: string; count: number }[];
+  topUsers: { userId: string; email: string; name: string; sessionCount: number; totalPages: number }[];
+  peakHours: { hour: number; count: number }[];
+}
 
 export const {
   useGetPortalDashboardQuery,
   useGetPortalInvoicesQuery,
   useGetPortalPaymentHistoryQuery,
+  usePayPortalInvoiceMutation,
   useGetPortalLeaseQuery,
   useGetPortalLeaseDocumentsQuery,
   useGetPortalMaintenanceTicketsQuery,
@@ -264,6 +432,60 @@ export const {
   useAddPortalResidentMutation,
   useUpdatePortalResidentMutation,
   useRemovePortalResidentMutation,
+  useInviteResidentToPortalMutation,
   useGetPortalProfileQuery,
   useUpdatePortalProfileMutation,
+  useGetPortalKycQuery,
+  useSubmitPortalKycDocumentMutation,
+  useGetQuickActionsQuery,
+  useCreateQuickActionMutation,
+  useUpdateQuickActionMutation,
+  useDeleteQuickActionMutation,
+  useStartPortalSessionMutation,
+  useHeartbeatSessionMutation,
+  useEndPortalSessionMutation,
+  useGetPortalAnalyticsQuery,
+  useGetAccessCardsQuery,
+  useGetAccessCardStatsQuery,
+  useIssueAccessCardMutation,
+  useUpdateAccessCardMutation,
+  useGetPortalBrandingQuery,
+  useUpdatePortalBrandingMutation,
 } = portalApi;
+
+export interface PortalBranding {
+  propertyId: string;
+  propertyName: string;
+  logoUrl: string | null;
+  primaryColor: string;
+  accentColor: string;
+  welcomeMessage: string;
+  supportEmail: string | null;
+  supportPhone: string | null;
+  showOnlinePayment: boolean;
+  showMaintenance: boolean;
+  showCommunity: boolean;
+  showBookings: boolean;
+  customCss: string | null;
+}
+
+export interface AccessCard {
+  id: string;
+  cardNumber: string;
+  cardType: string;
+  issuedAt: string;
+  expiresAt?: string;
+  status: string;
+  notes?: string;
+  createdAt: string;
+  resident?: { id: string; firstName: string; lastName: string; residentType: string };
+  property?: { id: string; name: string };
+  issuedBy?: { email: string; profile?: { firstName: string; lastName: string } };
+}
+
+export interface AccessCardStats {
+  byStatus: { status: string; count: number }[];
+  byType: { type: string; count: number }[];
+  expiringSoon: number;
+  total: number;
+}

@@ -14,7 +14,7 @@ import {
   BookOpen, Calculator, Scale, PieChart, Landmark, Wallet, Box,
   Wrench, Calendar, Package, Layers, Sparkles, ClipboardCheck,
   Store, TrendingUp, DollarSign, Coins,
-  Zap, Gavel,
+  Zap, Gavel, CreditCard, Palette,
   Plug, Webhook, Server, DoorOpen, QrCode,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -369,6 +369,10 @@ export default function DashboardLayout() {
                 <Receipt size={18} />
                 <span>CAM Costs</span>
               </NavLink>
+              <NavLink to="/admin/facility/schedule" className="nav-item">
+                <CalendarDays size={18} />
+                <span>Booking Schedule</span>
+              </NavLink>
             </NavSection>
           </FeatureGate>
 
@@ -455,6 +459,10 @@ export default function DashboardLayout() {
                 <DoorOpen size={18} />
                 <span>Access Events</span>
               </NavLink>
+              <NavLink to="/admin/security/blacklist" className="nav-item">
+                <Shield size={18} />
+                <span>Visitor Blacklist</span>
+              </NavLink>
             </NavSection>
           </FeatureGate>
 
@@ -511,6 +519,29 @@ export default function DashboardLayout() {
               </NavLink>
             </NavSection>
           </FeatureGate>
+          {/* Community Section */}
+          <NavSection label="Community" storageKey="community">
+            <NavLink to="/admin/community" className="nav-item">
+              <Megaphone size={18} />
+              <span>Community Admin</span>
+            </NavLink>
+            <NavLink to="/admin/portal/quick-actions" className="nav-item">
+              <Zap size={18} />
+              <span>Portal Quick Actions</span>
+            </NavLink>
+            <NavLink to="/admin/portal/analytics" className="nav-item">
+              <Activity size={18} />
+              <span>Portal Analytics</span>
+            </NavLink>
+            <NavLink to="/admin/access-cards" className="nav-item">
+              <CreditCard size={18} />
+              <span>Access Cards</span>
+            </NavLink>
+            <NavLink to="/admin/portal/branding" className="nav-item">
+              <Palette size={18} />
+              <span>Portal Branding</span>
+            </NavLink>
+          </NavSection>
 
           {/* Condo Section */}
           <FeatureGate flag="condoModuleEnabled">

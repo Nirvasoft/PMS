@@ -35,6 +35,25 @@ interface FacilityBooking {
   facility?: { name: string | null };
 }
 
+interface AdminBooking {
+  id: string;
+  facilityId: string;
+  bookingDate: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  paxCount: number;
+  purpose?: string;
+  status: string;
+  isPaidBooking: boolean;
+  chargeAmount?: number;
+  currency?: string;
+  requiresApproval: boolean;
+  createdAt: string;
+  facility?: { id: string; name: string | null };
+  resident?: { id: string; firstName: string; lastName: string };
+  unit?: { id: string; unitNumber: string };
+}
 export const bookingsApi = createApi({
   reducerPath: 'bookingsApi',
   baseQuery: fetchBaseQuery({
@@ -47,7 +66,7 @@ export const bookingsApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Bookings', 'Availability', 'Facilities'],
+  tagTypes: ['Bookings', 'Availability', 'Facilities', 'AdminBookings'],
   endpoints: (builder) => ({
     getBookableFacilities: builder.query<Facility[], void>({
       query: () => '/portal/bookings/facilities',
@@ -87,6 +106,23 @@ export const bookingsApi = createApi({
       query: ({ id, reason }) => ({ url: `/portal/bookings/${id}/cancel`, method: 'POST', body: { reason } }),
       invalidatesTags: ['Bookings', 'Availability'],
     }),
+
+    // ── Admin Facility Bookings ────────────────
+    getAdminBookings: builder.query<
+      { data: AdminBooking[]; meta: { total: number; page: number; limit: number } },
+      { propertyId?: string; facilityId?: string; status?: string; startDate?: string; endDate?: string; page?: number } | void
+    >({
+      query: (params) => ({ url: '/admin/facility-bookings', params: params || {} }),
+      providesTags: ['AdminBookings'],
+    }),
+    approveBooking: builder.mutation<any, string>({
+      query: (id) => ({ url: `/admin/facility-bookings/${id}/approve`, method: 'POST' }),
+      invalidatesTags: ['AdminBookings'],
+    }),
+    rejectBooking: builder.mutation<any, { id: string; reason: string }>({
+      query: ({ id, reason }) => ({ url: `/admin/facility-bookings/${id}/reject`, method: 'POST', body: { reason } }),
+      invalidatesTags: ['AdminBookings'],
+    }),
   }),
 });
 
@@ -96,4 +132,7 @@ export const {
   useCreateBookingMutation,
   useGetMyBookingsQuery,
   useCancelBookingMutation,
+  useGetAdminBookingsQuery,
+  useApproveBookingMutation,
+  useRejectBookingMutation,
 } = bookingsApi;

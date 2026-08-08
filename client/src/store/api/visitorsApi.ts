@@ -19,6 +19,17 @@ interface Visitor {
   createdAt: string;
 }
 
+interface BlacklistEntry {
+  id: string;
+  visitorName?: string;
+  visitorIc?: string;
+  visitorMobile?: string;
+  reason: string;
+  isActive: boolean;
+  addedAt: string;
+  addedByUser?: { email: string; profile?: { firstName: string; lastName: string } };
+}
+
 export const visitorsApi = createApi({
   reducerPath: 'visitorsApi',
   baseQuery: fetchBaseQuery({
@@ -31,7 +42,7 @@ export const visitorsApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Visitors'],
+  tagTypes: ['Visitors', 'Blacklist'],
   endpoints: (builder) => ({
     getPortalVisitors: builder.query<
       { data: Visitor[]; meta: { total: number; page: number; limit: number } },
@@ -70,6 +81,40 @@ export const visitorsApi = createApi({
       query: (body) => ({ url: '/visitors/walkin/respond', method: 'POST', body }),
       invalidatesTags: ['Visitors'],
     }),
+
+    // ── Blacklist CRUD ──────────────────────────
+    getBlacklist: builder.query<
+      { data: BlacklistEntry[]; meta: { total: number; page: number; limit: number } },
+      { search?: string; isActive?: string; page?: number } | void
+    >({
+      query: (params) => ({ url: '/visitors/blacklist', params: params || {} }),
+      providesTags: ['Blacklist'],
+    }),
+    createBlacklistEntry: builder.mutation<BlacklistEntry, {
+      propertyId?: string;
+      visitorName?: string;
+      visitorIc?: string;
+      visitorMobile?: string;
+      reason: string;
+    }>({
+      query: (body) => ({ url: '/visitors/blacklist', method: 'POST', body }),
+      invalidatesTags: ['Blacklist'],
+    }),
+    updateBlacklistEntry: builder.mutation<BlacklistEntry, {
+      id: string;
+      visitorName?: string;
+      visitorIc?: string;
+      visitorMobile?: string;
+      reason?: string;
+      isActive?: boolean;
+    }>({
+      query: ({ id, ...body }) => ({ url: `/visitors/blacklist/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['Blacklist'],
+    }),
+    deleteBlacklistEntry: builder.mutation<void, string>({
+      query: (id) => ({ url: `/visitors/blacklist/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Blacklist'],
+    }),
   }),
 });
 
@@ -78,4 +123,8 @@ export const {
   usePreRegisterVisitorMutation,
   useCancelVisitorMutation,
   useRespondWalkInMutation,
+  useGetBlacklistQuery,
+  useCreateBlacklistEntryMutation,
+  useUpdateBlacklistEntryMutation,
+  useDeleteBlacklistEntryMutation,
 } = visitorsApi;

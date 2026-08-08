@@ -1,5 +1,6 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
+import crypto from 'crypto';
 
 class ResidentsService {
   /**
@@ -162,6 +163,101 @@ class ResidentsService {
       where: { id: residentId },
       data: { isActive: false, moveOutDate: new Date() },
     });
+  }
+
+  /**
+   * Invite a resident to the portal.
+   * Creates a UserInvitation with 72h expiry and assigns the 'Resident' role.
+   * Only primary tenant can invite. Under-18 residents cannot be invited.
+   */
+  async inviteToPortal(companyId: string, userId: string, residentId: string, email: string) {
+    const primaryResident = await this.getActiveResident(companyId, userId);
+
+    // Only primary tenants can invite
+    if (primaryResident.residentType !== 'primary_tenant') {
+      throw AppError.forbidden('Only the primary tenant can invite residents to the portal');
+    }
+
+    // Verify the target resident belongs to the same unit
+    const target = await prisma.resident.findFirst({
+      where: { id: residentId, companyId, unitId: primaryResident.unitId, isActive: true },
+    });
+    if (!target) throw AppError.notFound('Resident');
+
+    // Already has portal access
+    if (target.hasPortalAccess && target.userId) {
+      throw AppError.validation('This resident already has portal access');
+    }
+
+    // Check if email is already used by another user
+    const existingUser = await prisma.user.findFirst({ where: { email, companyId } });
+    if (existingUser) {
+      throw AppError.conflict('A user with this email already exists');
+    }
+
+    // Under-18 check
+    if (target.dateOfBirth) {
+      const age = Math.floor(
+        (Date.now() - new Date(target.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000),
+      );
+      if (age < 18) {
+        throw AppError.validation('Residents under 18 cannot be invited to the portal');
+      }
+    }
+
+    // Find or create the 'Resident' role for this company
+    let role = await prisma.role.findFirst({
+      where: { companyId, name: 'Resident' },
+    });
+    if (!role) {
+      role = await prisma.role.create({
+        data: {
+          companyId,
+          name: 'Resident',
+          description: 'Portal access for residents',
+          isSystem: true,
+          createdBy: userId,
+        },
+      });
+    }
+
+    // Remove any existing pending invite for this email
+    await prisma.userInvitation.deleteMany({ where: { companyId, email } });
+
+    // Create invitation with 72h expiry
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+
+    await prisma.userInvitation.create({
+      data: {
+        companyId,
+        email,
+        roleId: role.id,
+        invitedBy: userId,
+        tokenHash,
+        message: `You've been invited to the resident portal for unit ${primaryResident.unitId}. Set up your account to access invoices, maintenance requests, and community features.`,
+        expiresAt,
+      },
+    });
+
+    // Update resident email if different
+    if (target.email !== email) {
+      await prisma.resident.update({
+        where: { id: residentId },
+        data: { email },
+      });
+    }
+
+    const frontendUrl = process.env['FRONTEND_URL'] || 'http://localhost:5173';
+    const inviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
+
+    return {
+      inviteUrl,
+      email,
+      expiresAt: expiresAt.toISOString(),
+      residentName: `${target.firstName} ${target.lastName}`,
+    };
   }
 
   // ── Helper ─────────────────────────────────

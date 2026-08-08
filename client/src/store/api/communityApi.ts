@@ -148,6 +148,89 @@ export const communityApi = createApi({
       query: (body) => ({ url: '/portal/community/move-requests', method: 'POST', body }),
       invalidatesTags: ['MoveRequests'],
     }),
+
+    // ══════════════════════════════════════════════
+    //  ADMIN ENDPOINTS
+    // ══════════════════════════════════════════════
+
+    // ── Admin Announcements ──────────────────────
+    getAdminAnnouncements: builder.query<
+      { data: any[]; meta: { total: number; page: number; limit: number } },
+      { propertyId?: string; status?: string; page?: number } | void
+    >({
+      query: (params) => ({ url: '/admin/community/announcements', params: params || {} }),
+      providesTags: ['Announcements'],
+    }),
+    createAnnouncement: builder.mutation<any, {
+      propertyId: string;
+      title: string;
+      content: string;
+      category?: string;
+      priority?: string;
+      targetAudience?: string;
+      isPinned?: boolean;
+      publishedAt?: string;
+      expiresAt?: string;
+      sendPush?: boolean;
+      sendEmail?: boolean;
+    }>({
+      query: (body) => ({ url: '/admin/community/announcements', method: 'POST', body }),
+      invalidatesTags: ['Announcements'],
+    }),
+
+    // ── Admin Polls ──────────────────────────────
+    getAdminPolls: builder.query<
+      { data: any[]; meta: { total: number; page: number; limit: number } },
+      { propertyId?: string; page?: number } | void
+    >({
+      query: (params) => ({ url: '/admin/community/polls', params: params || {} }),
+      providesTags: ['Polls'],
+    }),
+    createPoll: builder.mutation<any, {
+      propertyId: string;
+      title: string;
+      description?: string;
+      options: { id: string; text: string }[];
+      pollType?: string;
+      startAt: string;
+      endAt: string;
+      isAnonymous?: boolean;
+    }>({
+      query: (body) => ({ url: '/admin/community/polls', method: 'POST', body }),
+      invalidatesTags: ['Polls'],
+    }),
+
+    // ── Admin Complaints ────────────────────────
+    getAdminComplaints: builder.query<
+      { data: any[]; meta: { total: number; page: number; limit: number } },
+      { propertyId?: string; status?: string; page?: number } | void
+    >({
+      query: (params) => ({ url: '/admin/community/complaints', params: params || {} }),
+      providesTags: ['Complaints'],
+    }),
+    respondToComplaint: builder.mutation<any, { id: string; response: string }>({
+      query: ({ id, response }) => ({
+        url: `/admin/community/complaints/${id}/respond`,
+        method: 'POST',
+        body: { response },
+      }),
+      invalidatesTags: ['Complaints'],
+    }),
+
+    // ── Admin Move Requests ─────────────────────
+    getAdminMoveRequests: builder.query<any[], { propertyId?: string; status?: string; type?: string } | void>({
+      query: (params) => ({ url: '/admin/community/move-requests', params: params || {} }),
+      transformResponse: (res: any) => res.data,
+      providesTags: ['MoveRequests'],
+    }),
+    approveMoveRequest: builder.mutation<any, { id: string; inspectionAt?: string; notes?: string }>({
+      query: ({ id, ...body }) => ({
+        url: `/admin/community/move-requests/${id}/approve`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['MoveRequests'],
+    }),
   }),
 });
 
@@ -163,4 +246,14 @@ export const {
   useRateComplaintMutation,
   useGetMoveRequestsQuery,
   useSubmitMoveRequestMutation,
+  // Admin hooks
+  useGetAdminAnnouncementsQuery,
+  useCreateAnnouncementMutation,
+  useGetAdminPollsQuery,
+  useCreatePollMutation,
+  useGetAdminComplaintsQuery,
+  useRespondToComplaintMutation,
+  useGetAdminMoveRequestsQuery,
+  useApproveMoveRequestMutation,
 } = communityApi;
+

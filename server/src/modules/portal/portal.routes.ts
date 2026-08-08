@@ -6,7 +6,7 @@ import { residentsService } from './residents.service';
 import {
   submitMaintenanceSchema, rateTicketSchema,
   createResidentSchema, updateResidentSchema,
-  updateProfileSchema,
+  updateProfileSchema, payInvoiceSchema, inviteResidentSchema,
 } from './portal.schema';
 import multer from 'multer';
 import path from 'path';
@@ -52,6 +52,14 @@ portalRouter.get('/invoices/:id/download', asyncHandler(async (req, res) => {
     success: true,
     data: { downloadUrl: `/api/v1/invoices/${p(req, 'id')}/pdf` },
   });
+}));
+
+/** POST /portal/invoices/:id/pay — Initiate Stripe Checkout */
+portalRouter.post('/invoices/:id/pay', validateRequest(payInvoiceSchema), asyncHandler(async (req, res) => {
+  const data = await portalService.payInvoice(
+    req.user!.companyId, req.user!.sub, p(req, 'id'), req.body.returnUrl,
+  );
+  res.json({ success: true, data });
 }));
 
 // ────────────────────────────────────────────────
@@ -196,6 +204,14 @@ portalRouter.delete('/residents/:id', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Resident removed' } });
 }));
 
+/** POST /portal/residents/:id/invite-portal — Send portal invitation */
+portalRouter.post('/residents/:id/invite-portal', validateRequest(inviteResidentSchema), asyncHandler(async (req, res) => {
+  const data = await residentsService.inviteToPortal(
+    req.user!.companyId, req.user!.sub, p(req, 'id'), req.body.email,
+  );
+  res.json({ success: true, data });
+}));
+
 // ────────────────────────────────────────────────
 // PROFILE
 // ────────────────────────────────────────────────
@@ -209,5 +225,153 @@ portalRouter.get('/profile', asyncHandler(async (req, res) => {
 /** PUT /portal/profile */
 portalRouter.put('/profile', validateRequest(updateProfileSchema), asyncHandler(async (req, res) => {
   const data = await portalService.updateProfile(req.user!.companyId, req.user!.sub, req.body);
+  res.json({ success: true, data });
+}));
+
+// ────────────────────────────────────────────────
+// KYC SELF-UPLOAD
+// ────────────────────────────────────────────────
+
+/** GET /portal/kyc — Get KYC status and document checklist */
+portalRouter.get('/kyc', asyncHandler(async (req, res) => {
+  const data = await portalService.getKycStatus(req.user!.companyId, req.user!.sub);
+  res.json({ success: true, data });
+}));
+
+/** POST /portal/kyc/documents — Submit/upload a KYC document */
+portalRouter.post('/kyc/documents', asyncHandler(async (req, res) => {
+  const data = await portalService.submitKycDocument(req.user!.companyId, req.user!.sub, req.body);
+  res.json({ success: true, data });
+}));
+
+// ════════════════════════════════════════════════
+// ADMIN PORTAL BRANDING — /api/v1/admin/portal/branding
+// ════════════════════════════════════════════════
+export const adminPortalBrandingRouter = Router();
+
+/** GET /admin/portal/branding?propertyId=xxx */
+adminPortalBrandingRouter.get('/', asyncHandler(async (req, res) => {
+  const propertyId = req.query.propertyId as string;
+  if (!propertyId) throw new Error('propertyId is required');
+  const data = await portalService.getPortalBranding(req.user!.companyId, propertyId);
+  res.json({ success: true, data });
+}));
+
+/** PUT /admin/portal/branding?propertyId=xxx */
+adminPortalBrandingRouter.put('/', asyncHandler(async (req, res) => {
+  const propertyId = req.query.propertyId as string;
+  if (!propertyId) throw new Error('propertyId is required');
+  const data = await portalService.updatePortalBranding(req.user!.companyId, propertyId, req.body);
+  res.json({ success: true, data });
+}));
+
+// ════════════════════════════════════════════════
+// ADMIN ACCESS CARDS — /api/v1/admin/access-cards
+// ════════════════════════════════════════════════
+export const adminAccessCardsRouter = Router();
+
+/** GET /admin/access-cards — List with filters */
+adminAccessCardsRouter.get('/', asyncHandler(async (req, res) => {
+  const data = await portalService.getAccessCards(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+    residentId: req.query.residentId as string,
+    status: req.query.status as string,
+    cardType: req.query.cardType as string,
+    search: req.query.search as string,
+    page: parseInt(req.query.page as string) || 1,
+    limit: Math.min(parseInt(req.query.limit as string) || 25, 50),
+  });
+  res.json({ success: true, ...data });
+}));
+
+/** GET /admin/access-cards/stats — Summary stats */
+adminAccessCardsRouter.get('/stats', asyncHandler(async (req, res) => {
+  const data = await portalService.getAccessCardStats(req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
+/** POST /admin/access-cards — Issue new card */
+adminAccessCardsRouter.post('/', asyncHandler(async (req, res) => {
+  const data = await portalService.issueAccessCard(req.user!.companyId, req.user!.sub, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+/** PUT /admin/access-cards/:id — Update card (status/notes/expiry) */
+adminAccessCardsRouter.put('/:id', asyncHandler(async (req, res) => {
+  const data = await portalService.updateAccessCard(req.user!.companyId, req.params.id as string, req.body);
+  res.json({ success: true, data });
+}));
+
+// ════════════════════════════════════════════════
+// ADMIN QUICK ACTIONS — /api/v1/admin/portal/quick-actions
+// ════════════════════════════════════════════════
+export const adminQuickActionsRouter = Router();
+
+/** GET /admin/portal/quick-actions */
+adminQuickActionsRouter.get('/', asyncHandler(async (req, res) => {
+  const data = await portalService.getQuickActions(
+    req.user!.companyId,
+    req.query.propertyId as string | undefined,
+  );
+  res.json({ success: true, data });
+}));
+
+/** POST /admin/portal/quick-actions */
+adminQuickActionsRouter.post('/', asyncHandler(async (req, res) => {
+  const data = await portalService.createQuickAction(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+/** PUT /admin/portal/quick-actions/:id */
+adminQuickActionsRouter.put('/:id', asyncHandler(async (req, res) => {
+  const data = await portalService.updateQuickAction(req.user!.companyId, req.params.id as string, req.body);
+  res.json({ success: true, data });
+}));
+
+/** DELETE /admin/portal/quick-actions/:id */
+adminQuickActionsRouter.delete('/:id', asyncHandler(async (req, res) => {
+  await portalService.deleteQuickAction(req.user!.companyId, req.params.id as string);
+  res.json({ success: true });
+}));
+
+// ════════════════════════════════════════════════
+// PORTAL SESSION TRACKING — on portalRouter
+// ════════════════════════════════════════════════
+
+/** POST /portal/session/start — Track portal session start */
+portalRouter.post('/session/start', asyncHandler(async (req, res) => {
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '';
+  const ua = req.headers['user-agent'] || '';
+  const data = await portalService.startSession(req.user!.companyId, req.user!.sub, {
+    ipAddress: ip,
+    userAgent: ua,
+  });
+  res.status(201).json({ success: true, data: { sessionId: data.id } });
+}));
+
+/** POST /portal/session/:id/heartbeat — Increment page count */
+portalRouter.post('/session/:id/heartbeat', asyncHandler(async (req, res) => {
+  await portalService.heartbeatSession(req.params.id as string);
+  res.json({ success: true });
+}));
+
+/** POST /portal/session/:id/end — End session */
+portalRouter.post('/session/:id/end', asyncHandler(async (req, res) => {
+  await portalService.endSession(req.params.id as string);
+  res.json({ success: true });
+}));
+
+// ════════════════════════════════════════════════
+// ADMIN SESSION ANALYTICS — /api/v1/admin/portal/analytics
+// ════════════════════════════════════════════════
+export const adminPortalAnalyticsRouter = Router();
+
+/** GET /admin/portal/analytics */
+adminPortalAnalyticsRouter.get('/', asyncHandler(async (req, res) => {
+  const data = await portalService.getSessionAnalytics(req.user!.companyId, {
+    startDate: req.query.startDate as string,
+    endDate: req.query.endDate as string,
+    propertyId: req.query.propertyId as string,
+  });
   res.json({ success: true, data });
 }));

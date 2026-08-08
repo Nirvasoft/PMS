@@ -371,6 +371,94 @@ class VisitorsService {
     });
   }
 
+  // ══════════════════════════════════════════════
+  //  BLACKLIST ADMIN CRUD
+  // ══════════════════════════════════════════════
+
+  async getBlacklist(companyId: string, filters: {
+    propertyId?: string; search?: string; isActive?: string; page?: number; limit?: number;
+  }) {
+    const { page = 1, limit = 20 } = filters;
+    const where: any = { companyId };
+    if (filters.propertyId) where.propertyId = filters.propertyId;
+    if (filters.isActive === 'true') where.isActive = true;
+    else if (filters.isActive === 'false') where.isActive = false;
+    if (filters.search) {
+      where.OR = [
+        { visitorName: { contains: filters.search, mode: 'insensitive' } },
+        { visitorIc: { contains: filters.search, mode: 'insensitive' } },
+        { visitorMobile: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.visitorBlacklist.findMany({
+        where,
+        include: {
+          addedByUser: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+        },
+        orderBy: { addedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.visitorBlacklist.count({ where }),
+    ]);
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  async createBlacklistEntry(companyId: string, userId: string, data: {
+    propertyId?: string; visitorName?: string; visitorIc?: string;
+    visitorMobile?: string; reason: string;
+  }) {
+    if (!data.visitorName && !data.visitorIc && !data.visitorMobile) {
+      throw AppError.validation('At least one identifier (name, IC, or mobile) is required');
+    }
+    return prisma.visitorBlacklist.create({
+      data: {
+        companyId,
+        propertyId: data.propertyId || null,
+        visitorName: data.visitorName || null,
+        visitorIc: data.visitorIc || null,
+        visitorMobile: data.visitorMobile || null,
+        reason: data.reason,
+        addedBy: userId,
+      },
+      include: {
+        addedByUser: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      },
+    });
+  }
+
+  async updateBlacklistEntry(companyId: string, entryId: string, data: {
+    visitorName?: string; visitorIc?: string; visitorMobile?: string;
+    reason?: string; isActive?: boolean;
+  }) {
+    const entry = await prisma.visitorBlacklist.findFirst({ where: { id: entryId, companyId } });
+    if (!entry) throw AppError.notFound('Blacklist entry');
+
+    return prisma.visitorBlacklist.update({
+      where: { id: entryId },
+      data: {
+        ...(data.visitorName !== undefined ? { visitorName: data.visitorName } : {}),
+        ...(data.visitorIc !== undefined ? { visitorIc: data.visitorIc } : {}),
+        ...(data.visitorMobile !== undefined ? { visitorMobile: data.visitorMobile } : {}),
+        ...(data.reason !== undefined ? { reason: data.reason } : {}),
+        ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+      },
+      include: {
+        addedByUser: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      },
+    });
+  }
+
+  async deleteBlacklistEntry(companyId: string, entryId: string) {
+    const entry = await prisma.visitorBlacklist.findFirst({ where: { id: entryId, companyId } });
+    if (!entry) throw AppError.notFound('Blacklist entry');
+    await prisma.visitorBlacklist.delete({ where: { id: entryId } });
+    return { success: true };
+  }
+
   private async getActiveResident(companyId: string, userId: string) {
     const resident = await prisma.resident.findFirst({
       where: { companyId, userId, isActive: true },

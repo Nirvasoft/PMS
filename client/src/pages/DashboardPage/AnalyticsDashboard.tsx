@@ -1,7 +1,9 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { ResponsiveGridLayout } from 'react-grid-layout';
+import { Responsive, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+
+const ResponsiveGridLayout = WidthProvider(Responsive);
 import {
   useGetDashboardLayoutQuery,
   useGetWidgetDataQuery,

@@ -4,12 +4,13 @@ import {
   useAddPortalResidentMutation,
   useUpdatePortalResidentMutation,
   useRemovePortalResidentMutation,
+  useInviteResidentToPortalMutation,
   useGetPortalDashboardQuery,
 } from '../../store/api/portalApi';
 import type { PortalResidentFull } from '../../store/api/portalApi';
 import toast from 'react-hot-toast';
 import {
-  Users, Plus, X, User, Edit2, Trash2, ShieldCheck, Car, Phone, Mail, Calendar,
+  Users, Plus, X, User, Edit2, Trash2, ShieldCheck, Car, Phone, Mail, Calendar, Send,
 } from 'lucide-react';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -33,6 +34,7 @@ export default function PortalResidents() {
   const [addResident, { isLoading: adding }] = useAddPortalResidentMutation();
   const [updateResident] = useUpdatePortalResidentMutation();
   const [removeResident] = useRemovePortalResidentMutation();
+  const [inviteResident, { isLoading: inviting }] = useInviteResidentToPortalMutation();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -103,6 +105,24 @@ export default function PortalResidents() {
       toast.success('Resident removed');
     } catch (err: any) {
       toast.error(err?.data?.errors?.[0]?.message || 'Failed to remove resident');
+    }
+  };
+
+  const handleInvite = async (residentId: string, residentName: string, existingEmail?: string | null) => {
+    const email = window.prompt(
+      `Enter email address to invite ${residentName} to the portal:`,
+      existingEmail || '',
+    );
+    if (!email) return;
+
+    try {
+      const result = await inviteResident({ residentId, email }).unwrap();
+      toast.success(
+        `Invitation sent to ${result.email}! The link expires in 72 hours.`,
+        { duration: 6000 },
+      );
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to send invitation');
     }
   };
 
@@ -228,6 +248,17 @@ export default function PortalResidents() {
               </div>
               {isPrimaryTenant && r.residentType !== 'primary_tenant' && (
                 <div className="portal-resident-actions">
+                  {!r.hasPortalAccess && (
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => handleInvite(r.id, `${r.firstName} ${r.lastName}`, r.email)}
+                      disabled={inviting}
+                      title="Invite to portal"
+                      id={`invite-resident-${r.id}`}
+                    >
+                      <Send size={12} /> Invite
+                    </button>
+                  )}
                   <button className="btn-icon" onClick={() => handleEdit(r)} title="Edit"><Edit2 size={14} /></button>
                   <button className="btn-icon btn-danger" onClick={() => handleRemove(r.id, `${r.firstName} ${r.lastName}`)} title="Remove"><Trash2 size={14} /></button>
                 </div>

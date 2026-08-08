@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useGetPortalInvoicesQuery, useGetPortalPaymentHistoryQuery } from '../../store/api/portalApi';
+import { useGetPortalInvoicesQuery, useGetPortalPaymentHistoryQuery, usePayPortalInvoiceMutation } from '../../store/api/portalApi';
 import {
   Receipt, Download, DollarSign, Clock, CheckCircle2,
-  AlertTriangle, Filter,
+  AlertTriangle, Filter, CreditCard, Loader2,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const STATUS_TABS = [
   { key: '', label: 'All' },
@@ -34,6 +35,22 @@ export default function PortalInvoices() {
   const { data: payments, isLoading: loadingPayments } = useGetPortalPaymentHistoryQuery(undefined, {
     skip: tab !== 'payments',
   });
+
+  const [payInvoice] = usePayPortalInvoiceMutation();
+  const [payingId, setPayingId] = useState<string | null>(null);
+
+  const handlePay = async (invoiceId: string) => {
+    setPayingId(invoiceId);
+    try {
+      const returnUrl = `${window.location.origin}/portal/payments/success`;
+      const result = await payInvoice({ invoiceId, returnUrl }).unwrap();
+      // Redirect to Stripe Checkout (or mock URL in dev)
+      window.location.href = result.checkoutUrl;
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed to initiate payment');
+      setPayingId(null);
+    }
+  };
 
   return (
     <div className="page-content portal-page">
@@ -117,6 +134,20 @@ export default function PortalInvoices() {
                       )}
                     </div>
                     <div className="portal-invoice-actions">
+                      {Number(inv.outstandingAmount) > 0 && !['paid', 'void', 'cancelled'].includes(inv.status) && (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => handlePay(inv.id)}
+                          disabled={payingId === inv.id}
+                          id={`pay-invoice-${inv.id}`}
+                        >
+                          {payingId === inv.id ? (
+                            <><Loader2 size={14} className="spin" /> Processing...</>
+                          ) : (
+                            <><CreditCard size={14} /> Pay Now</>
+                          )}
+                        </button>
+                      )}
                       <button className="btn btn-sm" title="Download Invoice">
                         <Download size={14} /> PDF
                       </button>

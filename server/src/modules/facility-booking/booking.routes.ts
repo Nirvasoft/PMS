@@ -83,3 +83,43 @@ portalBookingsRouter.post('/:id/cancel', validateRequest(cancelBookingSchema), a
   );
   res.json({ success: true, data });
 }));
+
+// ═══════════════════════════════════════════════
+// ADMIN FACILITY SCHEDULE — /api/v1/admin/facility-bookings
+// ═══════════════════════════════════════════════
+export const adminFacilityBookingsRouter = Router();
+
+/** GET /admin/facility-bookings — All bookings overview */
+adminFacilityBookingsRouter.get('/', asyncHandler(async (req, res) => {
+  const data = await bookingService.getAdminBookingsOverview(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+    facilityId: req.query.facilityId as string,
+    status: req.query.status as string,
+    startDate: req.query.startDate as string,
+    endDate: req.query.endDate as string,
+    page: parseInt(req.query.page as string) || 1,
+    limit: Math.min(parseInt(req.query.limit as string) || 25, 50),
+  });
+  res.json({ success: true, ...data });
+}));
+
+/** GET /admin/facility-bookings/schedule/:facilityId — Facility schedule */
+adminFacilityBookingsRouter.get('/schedule/:facilityId', asyncHandler(async (req, res) => {
+  const data = await bookingService.getFacilitySchedule(req.user!.companyId, p(req, 'facilityId'), {
+    startDate: req.query.startDate as string,
+    endDate: req.query.endDate as string,
+  });
+  res.json({ success: true, data });
+}));
+
+/** POST /admin/facility-bookings/:id/approve */
+adminFacilityBookingsRouter.post('/:id/approve', asyncHandler(async (req, res) => {
+  const data = await bookingService.approveBooking(req.user!.companyId, req.user!.sub, p(req, 'id'));
+  res.json({ success: true, data });
+}));
+
+/** POST /admin/facility-bookings/:id/reject */
+adminFacilityBookingsRouter.post('/:id/reject', asyncHandler(async (req, res) => {
+  const data = await bookingService.rejectBooking(req.user!.companyId, req.user!.sub, p(req, 'id'), req.body.reason);
+  res.json({ success: true, data });
+}));

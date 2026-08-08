@@ -72,3 +72,38 @@ portalVisitorsRouter.get('/', asyncHandler(async (req, res) => {
   });
   res.json({ success: true, ...data });
 }));
+
+// ═══════════════════════════════════════════════
+// BLACKLIST ADMIN — /api/v1/visitors/blacklist
+// ═══════════════════════════════════════════════
+export const blacklistRouter = Router();
+
+/** GET /visitors/blacklist */
+blacklistRouter.get('/', asyncHandler(async (req, res) => {
+  const data = await visitorsService.getBlacklist(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+    search: req.query.search as string,
+    isActive: req.query.isActive as string,
+    page: parseInt(req.query.page as string) || 1,
+    limit: Math.min(parseInt(req.query.limit as string) || 20, 50),
+  });
+  res.json({ success: true, ...data });
+}));
+
+/** POST /visitors/blacklist */
+blacklistRouter.post('/', asyncHandler(async (req, res) => {
+  const data = await visitorsService.createBlacklistEntry(req.user!.companyId, req.user!.sub, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+/** PUT /visitors/blacklist/:id */
+blacklistRouter.put('/:id', asyncHandler(async (req, res) => {
+  const data = await visitorsService.updateBlacklistEntry(req.user!.companyId, p(req, 'id'), req.body);
+  res.json({ success: true, data });
+}));
+
+/** DELETE /visitors/blacklist/:id */
+blacklistRouter.delete('/:id', asyncHandler(async (req, res) => {
+  const data = await visitorsService.deleteBlacklistEntry(req.user!.companyId, p(req, 'id'));
+  res.json({ success: true });
+}));

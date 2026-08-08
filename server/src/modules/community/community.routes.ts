@@ -100,10 +100,42 @@ portalCommunityRouter.post('/move-requests', validateRequest(submitMoveRequestSc
 // ═══════════════════════════════════════════════
 export const adminCommunityRouter = Router();
 
+/** GET /admin/community/announcements */
+adminCommunityRouter.get('/announcements', asyncHandler(async (req, res) => {
+  const data = await communityService.getAdminAnnouncements(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+    status: req.query.status as string,
+    page: parseInt(req.query.page as string) || 1,
+    limit: Math.min(parseInt(req.query.limit as string) || 20, 50),
+  });
+  res.json({ success: true, ...data });
+}));
+
 /** POST /admin/community/announcements */
 adminCommunityRouter.post('/announcements', validateRequest(createAnnouncementSchema), asyncHandler(async (req, res) => {
   const data = await communityService.createAnnouncement(req.user!.companyId, req.user!.sub, req.body);
   res.status(201).json({ success: true, data });
+}));
+
+/** GET /admin/community/polls */
+adminCommunityRouter.get('/polls', asyncHandler(async (req, res) => {
+  const data = await communityService.getAdminPolls(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+    page: parseInt(req.query.page as string) || 1,
+    limit: Math.min(parseInt(req.query.limit as string) || 20, 50),
+  });
+  res.json({ success: true, ...data });
+}));
+
+/** GET /admin/community/complaints */
+adminCommunityRouter.get('/complaints', asyncHandler(async (req, res) => {
+  const data = await communityService.getAdminComplaints(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+    status: req.query.status as string,
+    page: parseInt(req.query.page as string) || 1,
+    limit: Math.min(parseInt(req.query.limit as string) || 20, 50),
+  });
+  res.json({ success: true, ...data });
 }));
 
 /** POST /admin/community/polls */

@@ -391,6 +391,86 @@ class CommunityService {
     });
   }
 
+  // ══════════════════════════════════════════════
+  //  ADMIN LIST ENDPOINTS
+  // ══════════════════════════════════════════════
+
+  async getAdminAnnouncements(companyId: string, filters: {
+    propertyId?: string; status?: string; page?: number; limit?: number;
+  }) {
+    const { page = 1, limit = 20 } = filters;
+    const where: any = { companyId };
+    if (filters.propertyId) where.propertyId = filters.propertyId;
+    if (filters.status) where.status = filters.status;
+
+    const [data, total] = await Promise.all([
+      prisma.announcement.findMany({
+        where,
+        include: {
+          property: { select: { name: true } },
+          creator: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+          _count: { select: { reads: true } },
+        },
+        orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.announcement.count({ where }),
+    ]);
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  async getAdminPolls(companyId: string, filters: {
+    propertyId?: string; page?: number; limit?: number;
+  }) {
+    const { page = 1, limit = 20 } = filters;
+    const where: any = { companyId };
+    if (filters.propertyId) where.propertyId = filters.propertyId;
+
+    const [data, total] = await Promise.all([
+      prisma.poll.findMany({
+        where,
+        include: {
+          property: { select: { name: true } },
+          _count: { select: { votes: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.poll.count({ where }),
+    ]);
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  async getAdminComplaints(companyId: string, filters: {
+    propertyId?: string; status?: string; page?: number; limit?: number;
+  }) {
+    const { page = 1, limit = 20 } = filters;
+    const where: any = { companyId };
+    if (filters.propertyId) where.propertyId = filters.propertyId;
+    if (filters.status) where.status = filters.status;
+
+    const [data, total] = await Promise.all([
+      prisma.communityComplaint.findMany({
+        where,
+        include: {
+          property: { select: { name: true } },
+          unit: { select: { unitNumber: true } },
+          resident: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.communityComplaint.count({ where }),
+    ]);
+
+    return { data, meta: { total, page, limit } };
+  }
+
   // ── Helper ─────────────────────────────────
 
   private async getActiveResident(companyId: string, userId: string) {

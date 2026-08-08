@@ -65,3 +65,17 @@ export const updateProfileSchema = z.object({
     locale: z.string().max(10).optional(),
   }),
 });
+
+// ── Invoice Payment ─────────────────────────
+export const payInvoiceSchema = z.object({
+  body: z.object({
+    returnUrl: z.string().url(),
+  }),
+});
+
+// ── Resident Portal Invite ──────────────────
+export const inviteResidentSchema = z.object({
+  body: z.object({
+    email: z.string().email(),
+  }),
+});
