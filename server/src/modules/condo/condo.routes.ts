@@ -53,6 +53,13 @@ router.post('/meters/:meterId/sync', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.post('/meters/check-offline', async (req, res, next) => {
+  try {
+    const data = await condoService.checkOfflineMeters(getCompanyId(req));
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
 router.post('/meters/:unitId/generate-invoice', async (req, res, next) => {
   try {
     const data = await condoService.generateUtilityInvoice(
@@ -96,6 +103,21 @@ router.post('/funds/:id/transactions', validateRequest(addFundTransactionSchema)
   try {
     const data = await condoService.addFundTransaction(getCompanyId(req), req.params.id, getUserId(req), req.body);
     res.status(201).json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
+router.patch('/funds/transactions/:txnId/approve', async (req, res, next) => {
+  try {
+    const data = await condoService.approveFundTransaction(getCompanyId(req), req.params.txnId as string, getUserId(req));
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
+router.patch('/funds/transactions/:txnId/reject', async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    const data = await condoService.rejectFundTransaction(getCompanyId(req), req.params.txnId as string, getUserId(req), reason || '');
+    res.json({ success: true, data });
   } catch (e) { next(e); }
 });
 

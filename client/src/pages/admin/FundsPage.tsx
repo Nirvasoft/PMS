@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useGetFundsQuery, useCreateFundMutation, useGetFundTransactionsQuery, useAddFundTransactionMutation } from '../../store/api/condoApi';
+import {
+  useGetFundsQuery, useCreateFundMutation, useGetFundTransactionsQuery,
+  useAddFundTransactionMutation, useApproveFundTransactionMutation, useRejectFundTransactionMutation,
+} from '../../store/api/condoApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
-import { Wallet, Plus, X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Wallet, Plus, X, ArrowUpRight, ArrowDownRight, CheckCircle, XCircle, Clock, ShieldCheck } from 'lucide-react';
 
 const FUND_TYPES = ['sinking_fund', 'management_fund', 'reserve_fund'];
 const TXN_TYPES = ['contribution', 'expenditure', 'interest', 'transfer'];
@@ -28,9 +31,13 @@ export default function FundsPage() {
 
   const [createFund] = useCreateFundMutation();
   const [addTxn] = useAddFundTransactionMutation();
+  const [approveTxn, { isLoading: isApproving }] = useApproveFundTransactionMutation();
+  const [rejectTxn, { isLoading: isRejecting }] = useRejectFundTransactionMutation();
 
   const [fundForm, setFundForm] = useState({ fundType: 'sinking_fund', name: '', openingBalance: '0', currency: 'USD', fiscalYear: String(currentYear) });
   const [txnForm, setTxnForm] = useState({ transactionType: 'contribution', amount: '', description: '', transactionDate: new Date().toISOString().slice(0, 10), notes: '' });
+  const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const handleCreateFund = async () => {
     if (!fundForm.name) return;
@@ -45,6 +52,27 @@ export default function FundsPage() {
     setShowAddTxn(false);
     setTxnForm({ transactionType: 'contribution', amount: '', description: '', transactionDate: new Date().toISOString().slice(0, 10), notes: '' });
   };
+
+  const handleApprove = async (txnId: string) => {
+    try {
+      await approveTxn({ txnId }).unwrap();
+    } catch (e: any) {
+      alert(e?.data?.message || 'Approval failed');
+    }
+  };
+
+  const handleReject = async () => {
+    if (!showRejectModal) return;
+    try {
+      await rejectTxn({ txnId: showRejectModal, reason: rejectReason }).unwrap();
+      setShowRejectModal(null);
+      setRejectReason('');
+    } catch (e: any) {
+      alert(e?.data?.message || 'Rejection failed');
+    }
+  };
+
+  const pendingCount = transactions.filter((t: any) => t.status === 'pending_approval').length;
 
   const fmt = (n: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
@@ -113,7 +141,15 @@ export default function FundsPage() {
       {selectedFund && (
         <div className="condo-card" style={{ marginTop: 20 }}>
           <div className="condo-card-header">
-            <h3><Wallet size={16} style={{ marginRight: 8, verticalAlign: 'middle' }} />Transactions</h3>
+            <h3>
+              <Wallet size={16} style={{ marginRight: 8, verticalAlign: 'middle' }} />Transactions
+              {pendingCount > 0 && (
+                <span className="condo-pending-badge" style={{
+                  marginLeft: 8, fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px',
+                  borderRadius: 12, background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b',
+                }}>{pendingCount} pending approval</span>
+              )}
+            </h3>
             <button className="btn btn-primary btn-sm" onClick={() => setShowAddTxn(true)}>
               <Plus size={14} style={{ marginRight: 4 }} />Add Transaction
             </button>
@@ -127,22 +163,61 @@ export default function FundsPage() {
                   <th>Description</th>
                   <th>Unit</th>
                   <th className="text-right">Amount</th>
+                  <th>Status</th>
                   <th>Created By</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.length === 0 ? (
-                  <tr><td colSpan={6} className="condo-table-empty">No transactions yet</td></tr>
+                  <tr><td colSpan={8} className="condo-table-empty">No transactions yet</td></tr>
                 ) : transactions.map((t: any) => (
                   <tr key={t.id}>
                     <td>{new Date(t.transactionDate).toLocaleDateString()}</td>
                     <td><span className={`condo-txn-type condo-txn-${t.transactionType}`}>{t.transactionType}</span></td>
-                    <td>{t.description}</td>
+                    <td>
+                      {t.description}
+                      {t.rejectionReason && (
+                        <div style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: 2 }}>
+                          Reason: {t.rejectionReason}
+                        </div>
+                      )}
+                    </td>
                     <td>{t.unit?.unitNumber || '—'}</td>
                     <td className={`text-right ${t.transactionType === 'expenditure' || t.transactionType === 'transfer' ? 'text-danger' : 'text-success'}`}>
                       {t.transactionType === 'expenditure' || t.transactionType === 'transfer' ? '-' : '+'}{fmt(Number(t.amount))}
                     </td>
+                    <td>
+                      <span className={`condo-approval-badge condo-approval-${t.status}`}>
+                        {t.status === 'pending_approval' && <><Clock size={11} /> Pending</>}
+                        {t.status === 'approved' && <><CheckCircle size={11} /> Approved</>}
+                        {t.status === 'auto_approved' && <><ShieldCheck size={11} /> Auto</>}
+                        {t.status === 'rejected' && <><XCircle size={11} /> Rejected</>}
+                      </span>
+                    </td>
                     <td>{t.creator?.profile?.firstName || t.creator?.email || '—'}</td>
+                    <td>
+                      {t.status === 'pending_approval' && (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            className="btn btn-sm"
+                            style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}
+                            onClick={() => handleApprove(t.id)}
+                            disabled={isApproving}
+                          >
+                            <CheckCircle size={12} /> Approve
+                          </button>
+                          <button
+                            className="btn btn-sm"
+                            style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                            onClick={() => { setShowRejectModal(t.id); setRejectReason(''); }}
+                            disabled={isRejecting}
+                          >
+                            <XCircle size={12} /> Reject
+                          </button>
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -220,6 +295,46 @@ export default function FundsPage() {
             <div className="condo-modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowAddTxn(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleAddTxn}>Add Transaction</button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* Rejection Reason Modal */}
+      {showRejectModal && createPortal(
+        <div className="condo-modal-overlay" onClick={() => setShowRejectModal(null)}>
+          <div className="condo-modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div className="condo-modal-header">
+              <h3>Reject Transaction</h3>
+              <button className="condo-modal-close" onClick={() => setShowRejectModal(null)}>×</button>
+            </div>
+            <div className="condo-modal-body">
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>Rejection Reason</span>
+                <textarea
+                  rows={3}
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  placeholder="Provide a reason for rejecting this transaction..."
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 8,
+                    border: '1px solid var(--border-color)', background: 'var(--bg-body)',
+                    color: 'var(--text-primary)', fontSize: '0.85rem', resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </label>
+            </div>
+            <div className="condo-modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowRejectModal(null)}>Cancel</button>
+              <button
+                className="btn"
+                style={{ background: '#ef4444', color: 'white' }}
+                onClick={handleReject}
+                disabled={isRejecting}
+              >
+                {isRejecting ? 'Rejecting...' : 'Reject Transaction'}
+              </button>
             </div>
           </div>
         </div>

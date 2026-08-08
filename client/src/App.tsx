@@ -143,6 +143,7 @@ import GtoManagementPage from './pages/admin/GtoManagementPage';
 import CamManagementPage from './pages/admin/CamManagementPage';
 import MallEventsPage from './pages/admin/MallEventsPage';
 import FootfallAnalyticsPage from './pages/admin/FootfallAnalyticsPage';
+import PosIntegrationPage from './pages/admin/PosIntegrationPage';
 import SmartMeterPage from './pages/admin/SmartMeterPage';
 import FundsPage from './pages/admin/FundsPage';
 import MeetingsPage from './pages/admin/MeetingsPage';
@@ -374,6 +375,7 @@ function AppRoutes() {
           <Route path="/admin/mall/cam" element={<CamManagementPage />} />
           <Route path="/admin/mall/events" element={<MallEventsPage />} />
           <Route path="/admin/mall/footfall" element={<FootfallAnalyticsPage />} />
+          <Route path="/admin/mall/pos" element={<PosIntegrationPage />} />
 
           {/* Community Admin */}
           <Route path="/admin/community" element={<CommunityAdminPage />} />

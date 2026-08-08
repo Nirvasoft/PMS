@@ -1,13 +1,17 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useGetFootfallDailyQuery, useGetFootfallTrendQuery,
   useGetFootfallHeatmapQuery, useGetFootfallSensorsQuery,
+  useCreateFootfallSensorMutation, useUpdateFootfallSensorMutation,
+  useDeleteFootfallSensorMutation, useToggleFootfallSensorMutation,
+  useSyncFootfallSensorMutation, useSyncAllFootfallSensorsMutation,
 } from '../../store/api/mallApi';
 import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
 import {
   Users, TrendingUp, TrendingDown, Clock, BarChart3, MapPin, Activity,
   ArrowUpRight, ArrowDownRight, Wifi, WifiOff, Radio, Calendar,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Plus, Edit3, Trash2, Power, RefreshCw,
 } from 'lucide-react';
 
 const TABS = [
@@ -57,6 +61,92 @@ export default function FootfallAnalyticsPage() {
   const trend = trendData?.data;
   const heatmap = heatmapData?.data;
   const sensors = sensorsData?.data || [];
+
+  // Sensor CRUD
+  const [createSensor] = useCreateFootfallSensorMutation();
+  const [updateSensor] = useUpdateFootfallSensorMutation();
+  const [deleteSensor] = useDeleteFootfallSensorMutation();
+  const [toggleSensor] = useToggleFootfallSensorMutation();
+  const [sensorModal, setSensorModal] = useState<'create' | 'edit' | null>(null);
+  const [editingSensor, setEditingSensor] = useState<any>(null);
+  const [sensorForm, setSensorForm] = useState({
+    sensorId: '', name: '', location: '', zone: '', floor: '',
+    sensorType: 'stereo', vendor: '', apiEndpoint: '', apiKey: '',
+  });
+
+  const openCreateSensor = () => {
+    setSensorForm({ sensorId: '', name: '', location: '', zone: '', floor: '', sensorType: 'stereo', vendor: '', apiEndpoint: '', apiKey: '' });
+    setEditingSensor(null);
+    setSensorModal('create');
+  };
+
+  const openEditSensor = (s: any) => {
+    setSensorForm({
+      sensorId: s.sensorId || '', name: s.name || '', location: s.location || '',
+      zone: s.zone || '', floor: s.floor || '', sensorType: s.sensorType || 'stereo',
+      vendor: s.vendor || '', apiEndpoint: s.apiEndpoint || '', apiKey: '',
+    });
+    setEditingSensor(s);
+    setSensorModal('edit');
+  };
+
+  const handleSaveSensor = async () => {
+    try {
+      if (sensorModal === 'create') {
+        await createSensor({ ...sensorForm, propertyId: selectedPropId }).unwrap();
+      } else if (sensorModal === 'edit' && editingSensor) {
+        const { sensorId: _omit, apiKey, ...rest } = sensorForm;
+        const payload: any = { ...rest };
+        if (apiKey) payload.apiKeyEnc = apiKey;
+        await updateSensor({ id: editingSensor.id, data: payload }).unwrap();
+      }
+      setSensorModal(null);
+    } catch (e: any) {
+      alert(e?.data?.message || 'Failed to save sensor');
+    }
+  };
+
+  const handleDeleteSensor = async (s: any) => {
+    const confirmed = window.confirm(`Delete sensor "${s.name}"? If it has recorded data, it will be deactivated instead.`);
+    if (!confirmed) return;
+    try {
+      const res = await deleteSensor(s.id).unwrap();
+      if (res.data?.deactivated) alert(res.data.reason);
+    } catch (e: any) {
+      alert(e?.data?.message || 'Failed to delete sensor');
+    }
+  };
+
+  const handleToggleSensor = async (id: string) => {
+    try { await toggleSensor(id).unwrap(); } catch (e) { console.error(e); }
+  };
+
+  // Sync
+  const [syncSensor, { isLoading: isSyncingSingle }] = useSyncFootfallSensorMutation();
+  const [syncAll, { isLoading: isSyncingAll }] = useSyncAllFootfallSensorsMutation();
+  const [syncResult, setSyncResult] = useState<any>(null);
+  const [syncingSensorId, setSyncingSensorId] = useState<string | null>(null);
+
+  const handleSyncSensor = async (sensorId: string) => {
+    setSyncingSensorId(sensorId);
+    try {
+      const res = await syncSensor(sensorId).unwrap();
+      setSyncResult(res.data);
+    } catch (e: any) {
+      alert(e?.data?.message || 'Sync failed');
+    } finally {
+      setSyncingSensorId(null);
+    }
+  };
+
+  const handleSyncAll = async () => {
+    try {
+      const res = await syncAll({ propertyId: selectedPropId }).unwrap();
+      setSyncResult(res.data);
+    } catch (e: any) {
+      alert(e?.data?.message || 'Sync all failed');
+    }
+  };
 
   const maxHourlyEntries = daily?.byHour ? Math.max(...daily.byHour.map((h: any) => h.entries), 1) : 1;
   const maxTrendEntries = trend?.daily ? Math.max(...trend.daily.map((d: any) => d.entries), 1) : 1;
@@ -457,35 +547,185 @@ export default function FootfallAnalyticsPage() {
       {/* ── Sensors ── */}
       {tab === 3 && (
         <div>
+          {/* Sensors header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              {sensors.length} sensor{sensors.length !== 1 ? 's' : ''}
+              {sensors.filter((s: any) => s.isActive).length < sensors.length && (
+                <span> · {sensors.filter((s: any) => !s.isActive).length} inactive</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleSyncAll}
+                disabled={isSyncingAll || sensors.filter((s: any) => s.isActive).length === 0}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: 'rgba(16, 185, 129, 0.12)', color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.3)', cursor: 'pointer',
+                }}
+              >
+                <RefreshCw size={14} className={isSyncingAll ? 'spin-animation' : ''} />
+                {isSyncingAll ? 'Syncing...' : 'Sync All'}
+              </button>
+              <button
+                onClick={openCreateSensor}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: 'hsl(200, 75%, 55%)', color: '#fff', border: 'none', cursor: 'pointer',
+                }}
+              >
+                <Plus size={14} /> Add Sensor
+              </button>
+            </div>
+          </div>
+
+          {/* Sync Results Banner */}
+          {syncResult && (
+            <div style={{
+              marginBottom: 14, padding: '12px 16px', borderRadius: 10,
+              background: 'var(--card-bg)', border: '1px solid rgba(16, 185, 129, 0.3)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+            }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <RefreshCw size={14} style={{ color: '#10b981' }} />
+                  Sync Results
+                </div>
+                {/* Single sensor result */}
+                {syncResult.synced !== undefined && !syncResult.results && (
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    {syncResult.synced ? (
+                      <span>
+                        <strong style={{ color: '#10b981' }}>✓ Synced</strong> — {syncResult.sensorName}: <strong>{syncResult.entries}</strong> entries, <strong>{syncResult.exits}</strong> exits ({new Date(syncResult.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                      </span>
+                    ) : (
+                      <span style={{ color: '#f59e0b' }}>{syncResult.message}</span>
+                    )}
+                  </div>
+                )}
+                {/* Sync all results */}
+                {syncResult.results && (
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    <strong style={{ color: '#10b981' }}>{syncResult.synced}</strong> synced, <strong style={{ color: '#f59e0b' }}>{syncResult.skipped}</strong> skipped out of {syncResult.totalSensors} sensors
+                    <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {syncResult.results.map((r: any) => (
+                        <span key={r.sensorId} style={{
+                          fontSize: 11, padding: '2px 8px', borderRadius: 6,
+                          background: r.synced ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                          color: r.synced ? '#10b981' : '#f59e0b', fontWeight: 600,
+                        }}>
+                          {r.synced ? '✓' : '—'} {r.name}
+                          {r.synced && <span> ({r.entries}↑ {r.exits}↓)</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setSyncResult(null)} style={{
+                background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 14,
+              }}>✕</button>
+            </div>
+          )}
+
           {sensors.length === 0 ? (
             <EmptyState icon={<Radio size={48} />} title="No Sensors" subtitle="No footfall sensors configured for this property." />
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 14 }}>
               {sensors.map((s: any) => (
-                <div key={s.id} className="card" style={{ padding: 18, display: 'flex', gap: 14, alignItems: 'center' }}>
+                <div key={s.id} className="card" style={{
+                  padding: 18, display: 'flex', gap: 14, alignItems: 'flex-start',
+                  opacity: s.isActive ? 1 : 0.6, transition: 'opacity 0.2s',
+                }}>
                   <div style={{
-                    width: 44, height: 44, borderRadius: 12,
+                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
                     background: s.isActive ? 'hsla(150, 65%, 45%, 0.12)' : 'hsla(0, 0%, 50%, 0.1)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: s.isActive ? 'hsl(150, 65%, 45%)' : 'var(--text-secondary)',
                   }}>
                     {s.isActive ? <Wifi size={20} /> : <WifiOff size={20} />}
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                       {s.zone ? <span style={{ textTransform: 'capitalize' }}>{s.zone.replace(/_/g, ' ')}</span> : '—'}
                       {s.floor && <span> · Floor {s.floor}</span>}
                       {s.sensorType && <span> · {s.sensorType}</span>}
+                      {s.vendor && <span> · {s.vendor}</span>}
                     </div>
+                    {s.location && (
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                        <MapPin size={10} style={{ verticalAlign: 'middle', marginRight: 3 }} />{s.location}
+                      </div>
+                    )}
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'monospace', marginTop: 2 }}>
                       ID: {s.sensorId}
+                    </div>
+                    {/* Action row */}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => handleSyncSensor(s.id)}
+                        disabled={!s.isActive || (isSyncingSingle && syncingSensorId === s.id)}
+                        title={s.isActive ? 'Sync sensor data' : 'Activate sensor first'}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 3,
+                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                          background: 'rgba(16, 185, 129, 0.1)', color: '#10b981',
+                          border: '1px solid rgba(16, 185, 129, 0.2)', cursor: s.isActive ? 'pointer' : 'not-allowed',
+                          opacity: s.isActive ? 1 : 0.5,
+                        }}
+                      >
+                        <RefreshCw size={11} className={(isSyncingSingle && syncingSensorId === s.id) ? 'spin-animation' : ''} />
+                        {(isSyncingSingle && syncingSensorId === s.id) ? 'Syncing...' : 'Sync'}
+                      </button>
+                      <button
+                        onClick={() => openEditSensor(s)}
+                        title="Edit sensor"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 3,
+                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                          background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1',
+                          border: '1px solid rgba(99, 102, 241, 0.2)', cursor: 'pointer',
+                        }}
+                      >
+                        <Edit3 size={11} /> Edit
+                      </button>
+                      <button
+                        onClick={() => handleToggleSensor(s.id)}
+                        title={s.isActive ? 'Deactivate sensor' : 'Activate sensor'}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 3,
+                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                          background: s.isActive ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                          color: s.isActive ? '#f59e0b' : '#10b981',
+                          border: `1px solid ${s.isActive ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Power size={11} /> {s.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSensor(s)}
+                        title="Delete sensor"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 3,
+                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                          background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.2)', cursor: 'pointer',
+                        }}
+                      >
+                        <Trash2 size={11} /> Delete
+                      </button>
                     </div>
                   </div>
                   <span style={{
                     fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8,
                     color: s.isActive ? 'hsl(150, 65%, 45%)' : 'hsl(0, 0%, 55%)',
                     background: s.isActive ? 'hsla(150, 65%, 45%, 0.1)' : 'hsla(0, 0%, 50%, 0.08)',
+                    whiteSpace: 'nowrap',
                   }}>
                     {s.isActive ? '● Online' : '○ Offline'}
                   </span>
@@ -495,6 +735,100 @@ export default function FootfallAnalyticsPage() {
           )}
         </div>
       )}
+
+      {/* Sensor Create/Edit Modal */}
+      {sensorModal && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setSensorModal(null)}>
+          <div style={{
+            background: 'var(--card-bg)', borderRadius: 14, width: 520, maxWidth: '90vw',
+            maxHeight: '85vh', overflow: 'auto', border: '1px solid var(--border-color)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '14px 18px', borderBottom: '1px solid var(--border-color)',
+            }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                {sensorModal === 'create' ? 'Add Sensor' : `Edit: ${editingSensor?.name}`}
+              </h3>
+              <button onClick={() => setSensorModal(null)} style={{
+                background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
+                fontSize: 18,
+              }}>✕</button>
+            </div>
+            <div style={{ padding: '16px 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {sensorModal === 'create' && (
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
+                  Sensor ID *
+                  <input value={sensorForm.sensorId} onChange={e => setSensorForm({ ...sensorForm, sensorId: e.target.value })}
+                    placeholder="Unique sensor ID" style={inputStyle} />
+                </label>
+              )}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
+                Name *
+                <input value={sensorForm.name} onChange={e => setSensorForm({ ...sensorForm, name: e.target.value })}
+                  placeholder="Sensor name" style={inputStyle} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
+                Location
+                <input value={sensorForm.location} onChange={e => setSensorForm({ ...sensorForm, location: e.target.value })}
+                  placeholder="e.g. Main Entrance" style={inputStyle} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
+                Zone
+                <input value={sensorForm.zone} onChange={e => setSensorForm({ ...sensorForm, zone: e.target.value })}
+                  placeholder="e.g. entrance, food_court" style={inputStyle} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
+                Floor
+                <input value={sensorForm.floor} onChange={e => setSensorForm({ ...sensorForm, floor: e.target.value })}
+                  placeholder="e.g. G, 1, 2" style={inputStyle} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
+                Type
+                <select value={sensorForm.sensorType} onChange={e => setSensorForm({ ...sensorForm, sensorType: e.target.value })} style={inputStyle}>
+                  <option value="stereo">Stereo</option>
+                  <option value="thermal">Thermal</option>
+                  <option value="lidar">LiDAR</option>
+                  <option value="wifi">WiFi</option>
+                </select>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
+                Vendor
+                <input value={sensorForm.vendor} onChange={e => setSensorForm({ ...sensorForm, vendor: e.target.value })}
+                  placeholder="e.g. Brickstream, Xovis" style={inputStyle} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500, gridColumn: '1 / -1' }}>
+                API Endpoint
+                <input value={sensorForm.apiEndpoint} onChange={e => setSensorForm({ ...sensorForm, apiEndpoint: e.target.value })}
+                  placeholder="https://..." style={inputStyle} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500, gridColumn: '1 / -1' }}>
+                API Key {sensorModal === 'edit' && <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>(leave blank to keep existing)</span>}
+                <input type="password" value={sensorForm.apiKey} onChange={e => setSensorForm({ ...sensorForm, apiKey: e.target.value })}
+                  placeholder="••••••••" style={inputStyle} />
+              </label>
+            </div>
+            <div style={{
+              display: 'flex', justifyContent: 'flex-end', gap: 8,
+              padding: '12px 18px', borderTop: '1px solid var(--border-color)',
+            }}>
+              <button onClick={() => setSensorModal(null)} style={{
+                padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-color)',
+                background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13,
+              }}>Cancel</button>
+              <button onClick={handleSaveSensor} disabled={!sensorForm.name || (sensorModal === 'create' && !sensorForm.sensorId)} style={{
+                padding: '8px 16px', borderRadius: 8, border: 'none',
+                background: 'hsl(200, 75%, 55%)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+              }}>
+                {sensorModal === 'create' ? 'Add Sensor' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
     </div>
   );
 }
@@ -544,3 +878,7 @@ const navBtnStyle: React.CSSProperties = {
 };
 const thStyle: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' };
 const tdStyle: React.CSSProperties = { padding: '10px 12px' };
+const inputStyle: React.CSSProperties = {
+  padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-color)',
+  background: 'var(--card-bg)', color: 'var(--text-primary)', fontSize: 13,
+};

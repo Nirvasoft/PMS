@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetMallEventsQuery, useCreateMallEventMutation, useUpdateMallEventMutation,
-  useGetMallEventDetailQuery, useCreateBoothMutation,
+  useGetMallEventDetailQuery, useCreateBoothMutation, useUpdateBoothMutation, useInvoiceBoothMutation,
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
-import { Calendar, Plus, MapPin, Tag } from 'lucide-react';
+import { Calendar, Plus, MapPin, Tag, Edit3, X, Receipt, CheckCircle, DollarSign } from 'lucide-react';
 
 const EVENT_TYPES = ['campaign', 'event', 'roadshow', 'sale', 'exhibition'];
 const STATUSES = ['planned', 'active', 'completed', 'cancelled'];
@@ -35,6 +35,10 @@ export default function MallEventsPage() {
   const { data: detailData } = useGetMallEventDetailQuery(selectedEvent!, { skip: !selectedEvent });
   const [createEvent] = useCreateMallEventMutation();
   const [createBooth] = useCreateBoothMutation();
+  const [updateBooth, { isLoading: isUpdating }] = useUpdateBoothMutation();
+  const [invoiceBooth, { isLoading: isInvoicing }] = useInvoiceBoothMutation();
+  const [editBooth, setEditBooth] = useState<any>(null);
+  const [editBoothData, setEditBoothData] = useState<any>({});
 
   const events = eventsData?.data || [];
   const detail = detailData?.data;
@@ -64,6 +68,46 @@ export default function MallEventsPage() {
       }).unwrap();
       setShowBooth(false);
     } catch (e) { console.error(e); }
+  };
+
+  const openEditBooth = (b: any) => {
+    setEditBoothData({
+      boothNumber: b.boothNumber || '',
+      boothLocation: b.boothLocation || '',
+      brandName: b.brandName || '',
+      sizeSqft: b.sizeSqft ?? '',
+      startDate: b.startDate?.split('T')[0] || '',
+      endDate: b.endDate?.split('T')[0] || '',
+      dailyRate: b.dailyRate ?? '',
+      deposit: b.deposit ?? 0,
+      status: b.status || 'reserved',
+      notes: b.notes || '',
+    });
+    setEditBooth(b);
+  };
+
+  const handleUpdateBooth = async () => {
+    if (!editBooth) return;
+    try {
+      await updateBooth({
+        boothId: editBooth.id,
+        data: {
+          ...editBoothData,
+          sizeSqft: editBoothData.sizeSqft ? Number(editBoothData.sizeSqft) : undefined,
+          dailyRate: editBoothData.dailyRate ? Number(editBoothData.dailyRate) : undefined,
+          deposit: editBoothData.deposit ? Number(editBoothData.deposit) : undefined,
+        },
+      }).unwrap();
+      setEditBooth(null);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleInvoiceBooth = async (boothId: string) => {
+    try {
+      await invoiceBooth({ boothId }).unwrap();
+    } catch (e: any) {
+      alert(e?.data?.message || 'Failed to generate invoice');
+    }
   };
 
   return (
@@ -162,6 +206,8 @@ export default function MallEventsPage() {
                       <th>Daily Rate</th>
                       <th>Total</th>
                       <th>Status</th>
+                      <th>Invoice</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -175,6 +221,32 @@ export default function MallEventsPage() {
                         <td><strong>${Number(b.totalAmount || 0).toLocaleString()}</strong></td>
                         <td>
                           <span className={`mall-status-badge mall-status-${b.status}`}>{b.status}</span>
+                        </td>
+                        <td>
+                          {b.invoiceId ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>
+                              <CheckCircle size={12} /> Invoiced
+                            </span>
+                          ) : (
+                            <button
+                              className="btn btn-sm"
+                              style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)' }}
+                              onClick={() => handleInvoiceBooth(b.id)}
+                              disabled={isInvoicing || !b.tenantId}
+                              title={!b.tenantId ? 'Assign a tenant first' : 'Generate invoice'}
+                            >
+                              <Receipt size={12} /> Invoice
+                            </button>
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            className="mall-btn-sm"
+                            onClick={() => openEditBooth(b)}
+                            style={{ fontSize: '0.72rem' }}
+                          >
+                            <Edit3 size={12} /> Edit
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -271,6 +343,63 @@ export default function MallEventsPage() {
             <div className="mall-modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowBooth(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleCreateBooth}>Add Booth</button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* Edit Booth Modal */}
+      {editBooth && createPortal(
+        <div className="mall-modal-overlay" onClick={() => setEditBooth(null)}>
+          <div className="mall-modal" onClick={e => e.stopPropagation()}>
+            <div className="mall-modal-header">
+              <h3>Edit Booth {editBooth.boothNumber}</h3>
+              <button className="mall-modal-close" onClick={() => setEditBooth(null)}>✕</button>
+            </div>
+            <div className="mall-modal-body">
+              <div className="mall-form-grid">
+                <label>Booth Number
+                  <input value={editBoothData.boothNumber} onChange={e => setEditBoothData({ ...editBoothData, boothNumber: e.target.value })} />
+                </label>
+                <label>Location
+                  <input value={editBoothData.boothLocation} onChange={e => setEditBoothData({ ...editBoothData, boothLocation: e.target.value })} />
+                </label>
+                <label>Brand Name
+                  <input value={editBoothData.brandName} onChange={e => setEditBoothData({ ...editBoothData, brandName: e.target.value })} />
+                </label>
+                <label>Size (sqft)
+                  <input type="number" value={editBoothData.sizeSqft} onChange={e => setEditBoothData({ ...editBoothData, sizeSqft: e.target.value })} />
+                </label>
+                <label>Start Date
+                  <input type="date" value={editBoothData.startDate} onChange={e => setEditBoothData({ ...editBoothData, startDate: e.target.value })} />
+                </label>
+                <label>End Date
+                  <input type="date" value={editBoothData.endDate} onChange={e => setEditBoothData({ ...editBoothData, endDate: e.target.value })} />
+                </label>
+                <label>Daily Rate
+                  <input type="number" value={editBoothData.dailyRate} onChange={e => setEditBoothData({ ...editBoothData, dailyRate: e.target.value })} />
+                </label>
+                <label>Deposit
+                  <input type="number" value={editBoothData.deposit} onChange={e => setEditBoothData({ ...editBoothData, deposit: e.target.value })} />
+                </label>
+                <label>Status
+                  <select value={editBoothData.status} onChange={e => setEditBoothData({ ...editBoothData, status: e.target.value })}>
+                    <option value="reserved">Reserved</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="invoiced">Invoiced</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </label>
+                <label style={{ gridColumn: '1 / -1' }}>Notes
+                  <input value={editBoothData.notes} onChange={e => setEditBoothData({ ...editBoothData, notes: e.target.value })} placeholder="Optional notes" />
+                </label>
+              </div>
+            </div>
+            <div className="mall-modal-footer">
+              <button className="btn btn-ghost" onClick={() => setEditBooth(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleUpdateBooth} disabled={isUpdating}>
+                {isUpdating ? 'Saving...' : 'Save Changes'}
+              </button>
             </div>
           </div>
         </div>

@@ -2,13 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetShopsQuery, useGetTenantMixQuery, useUpsertShopProfileMutation,
-  useGetAvailableUnitsQuery,
+  useGetAvailableUnitsQuery, useGetCommercialLeaseQuery, useUpsertCommercialLeaseMutation,
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import {
   Store, Search, X, MapPin, Maximize2, Calendar, DollarSign,
   Star, Tag, Building2, ChevronRight, Grid3x3, List, Edit3,
   TrendingUp, Percent, ExternalLink, Package, Layers, Plus,
+  FileText, Shield, Wrench, Receipt,
 } from 'lucide-react';
 
 const CATEGORIES = ['F&B', 'Fashion', 'Electronics', 'Beauty', 'Services', 'Entertainment', 'Anchor', 'Other'];
@@ -49,6 +50,8 @@ export default function ShopDirectoryPage() {
   const [showCreateShop, setShowCreateShop] = useState(false);
   const [createForm, setCreateForm] = useState<any>({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion', shopZone: 'atrium' });
   const [unitSearch, setUnitSearch] = useState('');
+  const [showLeaseEdit, setShowLeaseEdit] = useState(false);
+  const [leaseFormData, setLeaseFormData] = useState<any>({});
 
   const { data: shopsData, isLoading } = useGetShopsQuery(
     { propertyId, ...filters },
@@ -58,6 +61,14 @@ export default function ShopDirectoryPage() {
   const [upsertProfile, { isLoading: isSaving }] = useUpsertShopProfileMutation();
   const { data: availRes } = useGetAvailableUnitsQuery({ propertyId }, { skip: !propertyId || !showCreateShop });
   const availableUnits = availRes?.data || [];
+
+  // Commercial lease hooks
+  const activeLeaseId = detailShop?.unit?.leases?.[0]?.id;
+  const { data: clData, refetch: refetchCl } = useGetCommercialLeaseQuery(
+    activeLeaseId || '', { skip: !activeLeaseId }
+  );
+  const [upsertLease, { isLoading: isSavingLease }] = useUpsertCommercialLeaseMutation();
+  const commercialLease = clData?.data;
 
   const allShops = shopsData?.data || [];
   const mix = mixData?.data;
@@ -76,7 +87,7 @@ export default function ShopDirectoryPage() {
   }, [allShops, search]);
 
   const openDetail = (shop: any) => setDetailShop(shop);
-  const closeDetail = () => setDetailShop(null);
+  const closeDetail = () => { setDetailShop(null); setShowLeaseEdit(false); };
 
   const openEdit = (shop: any) => {
     setFormData({
@@ -99,6 +110,59 @@ export default function ShopDirectoryPage() {
     try {
       await upsertProfile({ unitId: detailShop.unitId, data: formData }).unwrap();
       setShowForm(false);
+    } catch (e) { console.error(e); }
+  };
+
+  const openLeaseEdit = () => {
+    const cl = commercialLease || {};
+    setLeaseFormData({
+      fitOutStartDate: cl.fitOutStartDate ? cl.fitOutStartDate.split('T')[0] : '',
+      fitOutEndDate: cl.fitOutEndDate ? cl.fitOutEndDate.split('T')[0] : '',
+      fitOutRentFree: cl.fitOutRentFree ?? true,
+      fitOutAllowance: cl.fitOutAllowance ?? 0,
+      fitOutAllowancePaid: cl.fitOutAllowancePaid ?? false,
+      hasPercentageRent: cl.hasPercentageRent ?? false,
+      percentageRentRate: cl.percentageRentRate ? (Number(cl.percentageRentRate) * 100).toFixed(2) : '',
+      percentageRentType: cl.percentageRentType || 'natural',
+      baseRentPctThreshold: cl.baseRentPctThreshold ?? '',
+      artificialBreakpoint: cl.artificialBreakpoint ?? '',
+      gtoReportingDay: cl.gtoReportingDay ?? 15,
+      camIncluded: cl.camIncluded ?? true,
+      camRatePerSqft: cl.camRatePerSqft ?? '',
+      camCapPct: cl.camCapPct ? (Number(cl.camCapPct) * 100).toFixed(2) : '',
+      camBaseYear: cl.camBaseYear ?? '',
+      marketingLevyPct: cl.marketingLevyPct ? (Number(cl.marketingLevyPct) * 100).toFixed(2) : '',
+      marketingLevyAmount: cl.marketingLevyAmount ?? '',
+      turnoverReportingRequired: cl.turnoverReportingRequired ?? true,
+      exclusivityCategory: cl.exclusivityCategory ?? '',
+      exclusivityRadiusKm: cl.exclusivityRadiusKm ?? '',
+    });
+    setShowLeaseEdit(true);
+  };
+
+  const handleSaveLease = async () => {
+    if (!activeLeaseId) return;
+    try {
+      const payload = {
+        ...leaseFormData,
+        fitOutStartDate: leaseFormData.fitOutStartDate || null,
+        fitOutEndDate: leaseFormData.fitOutEndDate || null,
+        fitOutAllowance: Number(leaseFormData.fitOutAllowance) || 0,
+        percentageRentRate: leaseFormData.hasPercentageRent && leaseFormData.percentageRentRate
+          ? Number(leaseFormData.percentageRentRate) / 100 : null,
+        baseRentPctThreshold: leaseFormData.baseRentPctThreshold ? Number(leaseFormData.baseRentPctThreshold) : null,
+        artificialBreakpoint: leaseFormData.artificialBreakpoint ? Number(leaseFormData.artificialBreakpoint) : null,
+        gtoReportingDay: Number(leaseFormData.gtoReportingDay) || 15,
+        camRatePerSqft: leaseFormData.camRatePerSqft ? Number(leaseFormData.camRatePerSqft) : null,
+        camCapPct: leaseFormData.camCapPct ? Number(leaseFormData.camCapPct) / 100 : null,
+        camBaseYear: leaseFormData.camBaseYear ? Number(leaseFormData.camBaseYear) : null,
+        marketingLevyPct: leaseFormData.marketingLevyPct ? Number(leaseFormData.marketingLevyPct) / 100 : 0.01,
+        marketingLevyAmount: leaseFormData.marketingLevyAmount ? Number(leaseFormData.marketingLevyAmount) : null,
+        exclusivityRadiusKm: leaseFormData.exclusivityRadiusKm ? Number(leaseFormData.exclusivityRadiusKm) : null,
+      };
+      await upsertLease({ leaseId: activeLeaseId, data: payload }).unwrap();
+      setShowLeaseEdit(false);
+      refetchCl();
     } catch (e) { console.error(e); }
   };
 
@@ -565,6 +629,109 @@ export default function ShopDirectoryPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Commercial Lease Terms */}
+                  {cl && (
+                    <div className="shop-detail-lease-terms">
+                      <div className="shop-detail-lease-terms-header">
+                        <h5 style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <FileText size={13} /> Commercial Lease Terms
+                        </h5>
+                        <button className="btn btn-sm btn-outline" onClick={openLeaseEdit} style={{ fontSize: '0.72rem', padding: '3px 10px' }}>
+                          <Edit3 size={12} /> Edit Terms
+                        </button>
+                      </div>
+
+                      <div className="shop-detail-cl-grid">
+                        {/* Fit-Out */}
+                        {(cl.fitOutStartDate || cl.fitOutEndDate) && (
+                          <div className="shop-detail-cl-item">
+                            <span className="shop-detail-cl-icon"><Wrench size={12} /></span>
+                            <div>
+                              <span className="shop-detail-cl-label">Fit-Out Period</span>
+                              <span className="shop-detail-cl-value">
+                                {cl.fitOutStartDate ? new Date(cl.fitOutStartDate).toLocaleDateString() : '—'} → {cl.fitOutEndDate ? new Date(cl.fitOutEndDate).toLocaleDateString() : '—'}
+                                {cl.fitOutRentFree && <span className="shop-detail-cl-badge green">Rent Free</span>}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        {Number(cl.fitOutAllowance) > 0 && (
+                          <div className="shop-detail-cl-item">
+                            <span className="shop-detail-cl-icon"><DollarSign size={12} /></span>
+                            <div>
+                              <span className="shop-detail-cl-label">Fit-Out Allowance</span>
+                              <span className="shop-detail-cl-value">
+                                ${Number(cl.fitOutAllowance).toLocaleString()}
+                                <span className={`shop-detail-cl-badge ${cl.fitOutAllowancePaid ? 'green' : 'amber'}`}>
+                                  {cl.fitOutAllowancePaid ? 'Paid' : 'Unpaid'}
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* CAM */}
+                        <div className="shop-detail-cl-item">
+                          <span className="shop-detail-cl-icon"><Receipt size={12} /></span>
+                          <div>
+                            <span className="shop-detail-cl-label">CAM</span>
+                            <span className="shop-detail-cl-value">
+                              {cl.camIncluded ? (
+                                <>
+                                  Included
+                                  {cl.camRatePerSqft && <span> · ${Number(cl.camRatePerSqft).toFixed(2)}/sqft</span>}
+                                  {cl.camCapPct && <span> · Cap {(Number(cl.camCapPct) * 100).toFixed(0)}%</span>}
+                                </>
+                              ) : (
+                                <span className="shop-detail-cl-badge">Excluded</span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Marketing Levy */}
+                        <div className="shop-detail-cl-item">
+                          <span className="shop-detail-cl-icon"><TrendingUp size={12} /></span>
+                          <div>
+                            <span className="shop-detail-cl-label">Marketing Levy</span>
+                            <span className="shop-detail-cl-value">
+                              {(Number(cl.marketingLevyPct) * 100).toFixed(1)}%
+                              {cl.marketingLevyAmount && <span> (min ${Number(cl.marketingLevyAmount).toLocaleString()})</span>}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Exclusivity */}
+                        {cl.exclusivityCategory && (
+                          <div className="shop-detail-cl-item">
+                            <span className="shop-detail-cl-icon"><Shield size={12} /></span>
+                            <div>
+                              <span className="shop-detail-cl-label">Exclusivity</span>
+                              <span className="shop-detail-cl-value">
+                                {cl.exclusivityCategory}
+                                {cl.exclusivityRadiusKm && <span> · {Number(cl.exclusivityRadiusKm).toFixed(1)} km radius</span>}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* GTO Reporting */}
+                        <div className="shop-detail-cl-item">
+                          <span className="shop-detail-cl-icon"><Calendar size={12} /></span>
+                          <div>
+                            <span className="shop-detail-cl-label">GTO Reporting</span>
+                            <span className="shop-detail-cl-value">
+                              Due by {cl.gtoReportingDay || 15}th
+                              {cl.turnoverReportingRequired
+                                ? <span className="shop-detail-cl-badge green">Required</span>
+                                : <span className="shop-detail-cl-badge">Optional</span>}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -676,6 +843,156 @@ export default function ShopDirectoryPage() {
               <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
                 {isSaving ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ── Commercial Lease Edit Modal ── */}
+      {showLeaseEdit && activeLeaseId && createPortal(
+        <div className="mall-modal-overlay" onClick={() => setShowLeaseEdit(false)}>
+          <div className="shop-edit-modal shop-lease-modal" onClick={e => e.stopPropagation()}>
+            <div className="mall-modal-header">
+              <div>
+                <h3>Edit Commercial Lease Terms</h3>
+                <span className="shop-edit-unit-label">
+                  {detailShop?.brandName || detailShop?.shopNumber || detailShop?.unit?.unitNumber} · Lease {detailShop?.unit?.leases?.[0]?.leaseNumber}
+                </span>
+              </div>
+              <button className="mall-modal-close" onClick={() => setShowLeaseEdit(false)}><X size={18} /></button>
+            </div>
+
+            <div className="shop-edit-body">
+              {/* Fit-Out Period */}
+              <div className="shop-edit-section">
+                <h4 className="shop-edit-section-title"><Wrench size={14} /> Fit-Out Period</h4>
+                <div className="shop-edit-grid">
+                  <label className="shop-edit-field">
+                    <span>Start Date</span>
+                    <input type="date" value={leaseFormData.fitOutStartDate} onChange={e => setLeaseFormData({ ...leaseFormData, fitOutStartDate: e.target.value })} />
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>End Date</span>
+                    <input type="date" value={leaseFormData.fitOutEndDate} onChange={e => setLeaseFormData({ ...leaseFormData, fitOutEndDate: e.target.value })} />
+                  </label>
+                  <label className="shop-edit-field shop-edit-checkbox">
+                    <input type="checkbox" checked={leaseFormData.fitOutRentFree} onChange={e => setLeaseFormData({ ...leaseFormData, fitOutRentFree: e.target.checked })} />
+                    Rent-Free During Fit-Out
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>Fit-Out Allowance ($)</span>
+                    <input type="number" min="0" step="0.01" value={leaseFormData.fitOutAllowance} onChange={e => setLeaseFormData({ ...leaseFormData, fitOutAllowance: e.target.value })} placeholder="0.00" />
+                  </label>
+                  <label className="shop-edit-field shop-edit-checkbox">
+                    <input type="checkbox" checked={leaseFormData.fitOutAllowancePaid} onChange={e => setLeaseFormData({ ...leaseFormData, fitOutAllowancePaid: e.target.checked })} />
+                    Allowance Paid
+                  </label>
+                </div>
+              </div>
+
+              {/* Percentage Rent */}
+              <div className="shop-edit-section">
+                <h4 className="shop-edit-section-title"><Percent size={14} /> Percentage Rent</h4>
+                <div className="shop-edit-grid">
+                  <label className="shop-edit-field shop-edit-checkbox" style={{ gridColumn: '1 / -1' }}>
+                    <input type="checkbox" checked={leaseFormData.hasPercentageRent} onChange={e => setLeaseFormData({ ...leaseFormData, hasPercentageRent: e.target.checked })} />
+                    Enable Percentage Rent
+                  </label>
+                  {leaseFormData.hasPercentageRent && (
+                    <>
+                      <label className="shop-edit-field">
+                        <span>Percentage Rate (%)</span>
+                        <input type="number" min="0" max="100" step="0.01" value={leaseFormData.percentageRentRate} onChange={e => setLeaseFormData({ ...leaseFormData, percentageRentRate: e.target.value })} placeholder="e.g. 5.00" />
+                      </label>
+                      <label className="shop-edit-field">
+                        <span>Breakpoint Type</span>
+                        <select value={leaseFormData.percentageRentType} onChange={e => setLeaseFormData({ ...leaseFormData, percentageRentType: e.target.value })}>
+                          <option value="natural">Natural (Base Rent ÷ Rate)</option>
+                          <option value="artificial">Artificial (Fixed Amount)</option>
+                        </select>
+                      </label>
+                      {leaseFormData.percentageRentType === 'artificial' && (
+                        <label className="shop-edit-field">
+                          <span>Artificial Breakpoint ($)</span>
+                          <input type="number" min="0" step="0.01" value={leaseFormData.artificialBreakpoint} onChange={e => setLeaseFormData({ ...leaseFormData, artificialBreakpoint: e.target.value })} placeholder="Fixed GTO threshold" />
+                        </label>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* CAM */}
+              <div className="shop-edit-section">
+                <h4 className="shop-edit-section-title"><Receipt size={14} /> CAM (Common Area Maintenance)</h4>
+                <div className="shop-edit-grid">
+                  <label className="shop-edit-field shop-edit-checkbox" style={{ gridColumn: '1 / -1' }}>
+                    <input type="checkbox" checked={leaseFormData.camIncluded} onChange={e => setLeaseFormData({ ...leaseFormData, camIncluded: e.target.checked })} />
+                    CAM Included in Lease
+                  </label>
+                  {leaseFormData.camIncluded && (
+                    <>
+                      <label className="shop-edit-field">
+                        <span>CAM Rate ($/sqft)</span>
+                        <input type="number" min="0" step="0.01" value={leaseFormData.camRatePerSqft} onChange={e => setLeaseFormData({ ...leaseFormData, camRatePerSqft: e.target.value })} placeholder="Rate per sqft" />
+                      </label>
+                      <label className="shop-edit-field">
+                        <span>CAM Cap (%)</span>
+                        <input type="number" min="0" max="100" step="0.01" value={leaseFormData.camCapPct} onChange={e => setLeaseFormData({ ...leaseFormData, camCapPct: e.target.value })} placeholder="Annual increase cap" />
+                      </label>
+                      <label className="shop-edit-field">
+                        <span>CAM Base Year</span>
+                        <input type="number" min="2000" max="2099" value={leaseFormData.camBaseYear} onChange={e => setLeaseFormData({ ...leaseFormData, camBaseYear: e.target.value })} placeholder="e.g. 2025" />
+                      </label>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Marketing & Exclusivity */}
+              <div className="shop-edit-section">
+                <h4 className="shop-edit-section-title"><Shield size={14} /> Marketing & Exclusivity</h4>
+                <div className="shop-edit-grid">
+                  <label className="shop-edit-field">
+                    <span>Marketing Levy (%)</span>
+                    <input type="number" min="0" max="100" step="0.01" value={leaseFormData.marketingLevyPct} onChange={e => setLeaseFormData({ ...leaseFormData, marketingLevyPct: e.target.value })} placeholder="e.g. 1.00" />
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>Min Marketing Amount ($)</span>
+                    <input type="number" min="0" step="0.01" value={leaseFormData.marketingLevyAmount} onChange={e => setLeaseFormData({ ...leaseFormData, marketingLevyAmount: e.target.value })} placeholder="Monthly minimum" />
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>Exclusivity Category</span>
+                    <input value={leaseFormData.exclusivityCategory} onChange={e => setLeaseFormData({ ...leaseFormData, exclusivityCategory: e.target.value })} placeholder="e.g. Coffee, Fast Food" />
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>Exclusivity Radius (km)</span>
+                    <input type="number" min="0" step="0.1" value={leaseFormData.exclusivityRadiusKm} onChange={e => setLeaseFormData({ ...leaseFormData, exclusivityRadiusKm: e.target.value })} placeholder="e.g. 2.0" />
+                  </label>
+                </div>
+              </div>
+
+              {/* GTO Reporting */}
+              <div className="shop-edit-section">
+                <h4 className="shop-edit-section-title"><Calendar size={14} /> GTO Reporting</h4>
+                <div className="shop-edit-grid">
+                  <label className="shop-edit-field">
+                    <span>Reporting Due Day</span>
+                    <input type="number" min="1" max="28" value={leaseFormData.gtoReportingDay} onChange={e => setLeaseFormData({ ...leaseFormData, gtoReportingDay: e.target.value })} />
+                  </label>
+                  <label className="shop-edit-field shop-edit-checkbox">
+                    <input type="checkbox" checked={leaseFormData.turnoverReportingRequired} onChange={e => setLeaseFormData({ ...leaseFormData, turnoverReportingRequired: e.target.checked })} />
+                    Turnover Reporting Required
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="mall-modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowLeaseEdit(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSaveLease} disabled={isSavingLease}>
+                {isSavingLease ? 'Saving...' : 'Save Lease Terms'}
               </button>
             </div>
           </div>

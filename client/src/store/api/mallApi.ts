@@ -84,6 +84,10 @@ export const mallApi = createApi({
       query: (params) => ({ url: '/gto/summary', params }),
       providesTags: ['GtoSubmissions'],
     }),
+    getGtoPendingAlerts: builder.query<any, { propertyId: string; month: number; year: number }>({
+      query: (params) => ({ url: '/gto/pending-alerts', params }),
+      providesTags: ['GtoSubmissions'],
+    }),
 
     // ── CAM ──
     getCamPools: builder.query<any, { propertyId: string; year: number }>({
@@ -144,6 +148,14 @@ export const mallApi = createApi({
       }),
       invalidatesTags: ['Events'],
     }),
+    updateBooth: builder.mutation<any, { boothId: string; data: any }>({
+      query: ({ boothId, data }) => ({ url: `/booths/${boothId}`, method: 'PUT', body: data }),
+      invalidatesTags: ['Events'],
+    }),
+    invoiceBooth: builder.mutation<any, { boothId: string }>({
+      query: ({ boothId }) => ({ url: `/booths/${boothId}/invoice`, method: 'POST' }),
+      invalidatesTags: ['Events'],
+    }),
 
     // ── Footfall ──
     getFootfallSensors: builder.query<any, { propertyId: string }>({
@@ -152,6 +164,26 @@ export const mallApi = createApi({
     }),
     createFootfallSensor: builder.mutation<any, any>({
       query: (body) => ({ url: '/footfall/sensors', method: 'POST', body }),
+      invalidatesTags: ['Footfall'],
+    }),
+    updateFootfallSensor: builder.mutation<any, { id: string; data: any }>({
+      query: ({ id, data }) => ({ url: `/footfall/sensors/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['Footfall'],
+    }),
+    deleteFootfallSensor: builder.mutation<any, string>({
+      query: (id) => ({ url: `/footfall/sensors/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Footfall'],
+    }),
+    toggleFootfallSensor: builder.mutation<any, string>({
+      query: (id) => ({ url: `/footfall/sensors/${id}/toggle`, method: 'PATCH' }),
+      invalidatesTags: ['Footfall'],
+    }),
+    syncFootfallSensor: builder.mutation<any, string>({
+      query: (id) => ({ url: `/footfall/sensors/${id}/sync`, method: 'POST' }),
+      invalidatesTags: ['Footfall'],
+    }),
+    syncAllFootfallSensors: builder.mutation<any, { propertyId: string }>({
+      query: ({ propertyId }) => ({ url: '/footfall/sync-all', method: 'POST', params: { propertyId } }),
       invalidatesTags: ['Footfall'],
     }),
     getFootfallDaily: builder.query<any, { propertyId: string; date: string }>({
@@ -172,6 +204,20 @@ export const mallApi = createApi({
       query: ({ propertyId }) => ({ url: '/dashboard', params: { propertyId } }),
       providesTags: ['MallDashboard'],
     }),
+
+    // ── POS Integration ──
+    getPosConfig: builder.query<any, { propertyId: string }>({
+      query: ({ propertyId }) => ({ url: '/pos/config', params: { propertyId } }),
+      providesTags: ['GtoSubmissions'],
+    }),
+    ingestPosSales: builder.mutation<any, any>({
+      query: (body) => ({ url: '/pos/sales', method: 'POST', body }),
+      invalidatesTags: ['GtoSubmissions'],
+    }),
+    getPosSalesHistory: builder.query<any, { propertyId: string; month: number; year: number }>({
+      query: (params) => ({ url: '/pos/sales-history', params }),
+      providesTags: ['GtoSubmissions'],
+    }),
   }),
 });
 
@@ -189,6 +235,7 @@ export const {
   useSubmitGtoMutation,
   useVerifyGtoMutation,
   useGetGtoSummaryQuery,
+  useGetGtoPendingAlertsQuery,
   useGetCamPoolsQuery,
   useCreateCamPoolMutation,
   useUpdateCamPoolMutation,
@@ -201,10 +248,20 @@ export const {
   useCreateMallEventMutation,
   useUpdateMallEventMutation,
   useCreateBoothMutation,
+  useUpdateBoothMutation,
+  useInvoiceBoothMutation,
   useGetFootfallSensorsQuery,
   useCreateFootfallSensorMutation,
+  useUpdateFootfallSensorMutation,
+  useDeleteFootfallSensorMutation,
+  useToggleFootfallSensorMutation,
+  useSyncFootfallSensorMutation,
+  useSyncAllFootfallSensorsMutation,
   useGetFootfallDailyQuery,
   useGetFootfallTrendQuery,
   useGetFootfallHeatmapQuery,
   useGetMallDashboardQuery,
+  useGetPosConfigQuery,
+  useIngestPosSalesMutation,
+  useGetPosSalesHistoryQuery,
 } = mallApi;

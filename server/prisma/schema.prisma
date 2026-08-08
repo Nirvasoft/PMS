@@ -4977,6 +4977,10 @@ model FundTransaction {
   referenceId      String?   @map("reference_id") @db.Uuid
   unitId           String?   @map("unit_id") @db.Uuid
   approvedBy       String?   @map("approved_by") @db.Uuid
+  approvedAt       DateTime? @map("approved_at") @db.Timestamptz
+  status           String    @default("pending_approval") @map("status") @db.VarChar(20)
+                   // 'pending_approval'|'approved'|'rejected'|'auto_approved'
+  rejectionReason  String?   @map("rejection_reason") @db.Text
   glJournalId      String?   @map("gl_journal_id") @db.Uuid
   notes            String?   @db.Text
   createdBy        String    @map("created_by") @db.Uuid

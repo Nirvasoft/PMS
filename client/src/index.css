@@ -1391,6 +1391,7 @@ input.input-full:focus {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+.spin-animation { animation: spin 1s linear infinite; }
 
 .loading-screen {
   display: flex;
@@ -9124,6 +9125,69 @@ textarea.form-input {
   align-self: flex-start;
 }
 
+/* ── GTO Pending Alerts ── */
+.gto-alerts-panel {
+  margin-bottom: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: var(--card-bg);
+  overflow: hidden;
+}
+.gto-alerts-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px;
+  background: rgba(245, 158, 11, 0.06);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.15);
+}
+.gto-alert-count-badge {
+  font-size: 0.68rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 10px;
+}
+.gto-alert-count-badge.critical { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.gto-alert-count-badge.warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.gto-alerts-body { padding: 6px 8px; }
+.gto-alert-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border-radius: 8px; margin-bottom: 4px;
+  transition: background 0.15s;
+}
+.gto-alert-item:hover { background: rgba(255,255,255,0.04); }
+.gto-alert-critical { border-left: 3px solid #ef4444; }
+.gto-alert-warning { border-left: 3px solid #f59e0b; }
+.gto-alert-info { border-left: 3px solid #3b82f6; }
+.gto-alert-icon {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 2px;
+}
+.gto-alert-critical .gto-alert-icon { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
+.gto-alert-warning .gto-alert-icon { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+.gto-alert-info .gto-alert-icon { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.gto-alert-content { flex: 1; min-width: 0; }
+.gto-alert-title {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 0.85rem; color: var(--text-primary);
+}
+.gto-alert-unit, .gto-alert-lease {
+  font-size: 0.72rem; padding: 1px 6px; border-radius: 6px;
+  background: rgba(99, 102, 241, 0.1); color: #6366f1; font-weight: 500;
+}
+.gto-alert-lease { background: rgba(107, 114, 128, 0.1); color: var(--text-secondary); }
+.gto-alert-meta {
+  display: flex; gap: 12px; margin-top: 3px; font-size: 0.75rem;
+}
+.gto-alert-overdue { color: #ef4444; font-weight: 700; }
+.gto-alert-today { color: #f59e0b; font-weight: 700; }
+.gto-alert-upcoming { color: #3b82f6; font-weight: 600; }
+.gto-alert-due-date { color: var(--text-secondary); }
+.gto-all-caught-up {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; margin-bottom: 20px; border-radius: 10px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  font-size: 0.85rem; font-weight: 600; color: #10b981;
+}
+
 /* ── Tables ── */
 .mall-table-wrap {
   overflow-x: auto;
@@ -9912,6 +9976,64 @@ textarea.form-input {
   display: flex; align-items: center; gap: 4px;
   color: #10b981; font-weight: 600; font-size: 0.78rem;
 }
+/* ── Commercial Lease Terms (Detail Drawer) ── */
+.shop-detail-lease-terms {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px dashed var(--border-color);
+}
+.shop-detail-lease-terms-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+}
+.shop-detail-cl-grid {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.shop-detail-cl-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 7px 10px; border-radius: 8px;
+  background: var(--bg-body, var(--surface));
+  border: 1px solid var(--border-color);
+  font-size: 0.78rem;
+}
+.shop-detail-cl-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 6px;
+  background: rgba(99, 102, 241, 0.1); color: #6366f1; flex-shrink: 0;
+  margin-top: 1px;
+}
+.shop-detail-cl-label {
+  display: block; font-size: 0.72rem; font-weight: 500;
+  color: var(--text-muted); margin-bottom: 1px; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.shop-detail-cl-value {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-weight: 600; color: var(--text-primary); font-size: 0.8rem;
+}
+.shop-detail-cl-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 0.68rem; font-weight: 600; padding: 1px 7px;
+  border-radius: 20px; background: rgba(107, 114, 128, 0.12); color: #6b7280;
+}
+.shop-detail-cl-badge.green { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+.shop-detail-cl-badge.amber { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+
+/* ── Commercial Lease Edit Modal ── */
+.shop-lease-modal {
+  max-width: 640px !important;
+  max-height: 85vh;
+}
+.shop-lease-modal .shop-edit-body {
+  max-height: calc(85vh - 140px);
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+.shop-lease-modal .shop-edit-section {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 14px; margin-bottom: 14px;
+}
+.shop-lease-modal .shop-edit-section:last-child {
+  border-bottom: none; margin-bottom: 0;
+}
 
 /* ── Unit Picker (Searchable) ── */
 .shop-unit-picker {
@@ -10108,6 +10230,14 @@ textarea.form-input {
 .condo-txn-expenditure { background: rgba(239,68,68,0.12); color: #ef4444; }
 .condo-txn-interest { background: rgba(59,130,246,0.12); color: #3b82f6; }
 .condo-txn-transfer { background: rgba(245,158,11,0.12); color: #f59e0b; }
+.condo-approval-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+}
+.condo-approval-pending_approval { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+.condo-approval-approved { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+.condo-approval-auto_approved { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
+.condo-approval-rejected { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
 .condo-category-tag { padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
 .condo-cat-noise { background: rgba(239,68,68,0.1); color: #ef4444; }
 .condo-cat-pets { background: rgba(245,158,11,0.1); color: #f59e0b; }

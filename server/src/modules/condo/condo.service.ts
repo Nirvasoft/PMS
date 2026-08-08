@@ -3,6 +3,7 @@ import { AppError } from '../../common/errors';
 import { invoicesService } from '../billing/invoices.service';
 import { glService } from '../gl/gl.service';
 import { logger } from '../../common/logger';
+import { checkAndCreateTickets } from './cron/meterOfflineCheck.job';
 
 class CondoService {
   // ═══════════════════════════════════════
@@ -104,6 +105,37 @@ class CondoService {
     });
 
     return { synced: true, protocol: device.protocol, meterId, lastPolledAt: new Date() };
+  }
+
+  async checkOfflineMeters(companyId: string) {
+    const ticketsCreated = await checkAndCreateTickets(companyId);
+
+    // Return summary of offline devices
+    const devices = await prisma.smartMeterDevice.findMany({
+      where: { companyId, connectionStatus: 'offline' },
+      include: {
+        meter: {
+          select: {
+            meterSerialNo: true, meterType: true,
+            unit: { select: { unitNumber: true } },
+          },
+        },
+      },
+    });
+
+    return {
+      offlineCount: devices.length,
+      ticketsCreated,
+      offlineDevices: devices.map(d => ({
+        deviceId: d.id,
+        serial: d.meter.meterSerialNo,
+        type: d.meter.meterType,
+        unit: d.meter.unit?.unitNumber || '—',
+        protocol: d.protocol,
+        lastPolled: d.lastPolledAt,
+        error: d.errorMessage,
+      })),
+    };
   }
 
   // Gap #2: Generate utility invoice from meter readings
@@ -269,6 +301,10 @@ class CondoService {
     const fund = await prisma.fundAccount.findFirst({ where: { id: fundId, companyId } });
     if (!fund) throw AppError.notFound('Fund account');
 
+    // Contributions and interest auto-approve; expenditures and transfers need approval
+    const needsApproval = data.transactionType === 'expenditure' || data.transactionType === 'transfer';
+    const status = needsApproval ? 'pending_approval' : 'auto_approved';
+
     const txn = await prisma.fundTransaction.create({
       data: {
         companyId,
@@ -276,20 +312,88 @@ class CondoService {
         ...data,
         transactionDate: new Date(data.transactionDate),
         createdBy,
+        status,
+        approvedBy: needsApproval ? null : createdBy,
+        approvedAt: needsApproval ? null : new Date(),
       },
     });
 
+    // Auto-approved transactions (contributions/interest) update balance immediately
+    if (!needsApproval) {
+      const delta = data.transactionType === 'interest'
+        ? Number(data.amount)
+        : Number(data.amount); // contribution is always positive
+
+      await prisma.fundAccount.update({
+        where: { id: fundId },
+        data: { currentBalance: { increment: delta } },
+      });
+
+      // Post to GL
+      await this.postFundGL(companyId, fund, txn, data);
+    }
+
+    return txn;
+  }
+
+  async approveFundTransaction(companyId: string, txnId: string, approvedBy: string) {
+    const txn = await prisma.fundTransaction.findFirst({
+      where: { id: txnId, companyId },
+      include: { fundAccount: true },
+    });
+    if (!txn) throw AppError.notFound('Fund transaction');
+    if (txn.status !== 'pending_approval') {
+      throw AppError.badRequest(`Transaction is already ${txn.status}`);
+    }
+    if (txn.createdBy === approvedBy) {
+      throw AppError.badRequest('Cannot approve your own transaction — requires a different approver');
+    }
+
+    // Update transaction status
+    const updated = await prisma.fundTransaction.update({
+      where: { id: txnId },
+      data: { status: 'approved', approvedBy, approvedAt: new Date() },
+    });
+
     // Update fund balance
-    const delta = data.transactionType === 'contribution' || data.transactionType === 'interest'
-      ? Number(data.amount)
-      : -Number(data.amount);
+    const delta = txn.transactionType === 'contribution' || txn.transactionType === 'interest'
+      ? Number(txn.amount)
+      : -Number(txn.amount);
 
     await prisma.fundAccount.update({
-      where: { id: fundId },
+      where: { id: txn.fundAccountId },
       data: { currentBalance: { increment: delta } },
     });
 
-    // Gap #6: Post to GL (Dr Fund Expense / Cr Fund Liability or vice versa)
+    // Post to GL
+    await this.postFundGL(companyId, txn.fundAccount, updated, {
+      transactionType: txn.transactionType,
+      amount: txn.amount,
+      description: txn.description,
+      transactionDate: txn.transactionDate,
+    });
+
+    logger.info(`Fund txn ${txnId} approved by ${approvedBy}`);
+    return updated;
+  }
+
+  async rejectFundTransaction(companyId: string, txnId: string, rejectedBy: string, reason: string) {
+    const txn = await prisma.fundTransaction.findFirst({ where: { id: txnId, companyId } });
+    if (!txn) throw AppError.notFound('Fund transaction');
+    if (txn.status !== 'pending_approval') {
+      throw AppError.badRequest(`Transaction is already ${txn.status}`);
+    }
+
+    const updated = await prisma.fundTransaction.update({
+      where: { id: txnId },
+      data: { status: 'rejected', rejectionReason: reason || 'No reason provided' },
+    });
+
+    logger.info(`Fund txn ${txnId} rejected by ${rejectedBy}: ${reason}`);
+    return updated;
+  }
+
+  private async postFundGL(companyId: string, fund: any, txn: any, data: any) {
     try {
       const glLines = data.transactionType === 'contribution' || data.transactionType === 'interest'
         ? [
@@ -320,8 +424,6 @@ class CondoService {
     } catch (err: any) {
       logger.error(`Fund GL posting failed for txn ${txn.id}: ${err.message}`);
     }
-
-    return txn;
   }
 
   // ═══════════════════════════════════════

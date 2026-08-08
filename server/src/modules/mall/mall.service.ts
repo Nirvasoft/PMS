@@ -432,6 +432,62 @@ class MallService {
     };
   }
 
+  async getPendingGtoAlerts(propertyId: string, companyId: string, month: number, year: number) {
+    // Get all leases requiring GTO reporting
+    const requiredLeases = await prisma.commercialLease.findMany({
+      where: {
+        companyId,
+        turnoverReportingRequired: true,
+        lease: { status: 'active', propertyId },
+      },
+      include: {
+        lease: {
+          select: {
+            id: true, leaseNumber: true, tenantId: true,
+            tenant: { select: { id: true, companyName: true, firstName: true, lastName: true } },
+            unit: { select: { id: true, unitNumber: true } },
+          },
+        },
+      },
+    });
+
+    // Get already submitted
+    const submitted = await prisma.gtoSubmission.findMany({
+      where: { propertyId, companyId, submissionMonth: month, submissionYear: year },
+      select: { leaseId: true },
+    });
+    const submittedLeaseIds = new Set(submitted.map(s => s.leaseId));
+
+    const now = new Date();
+    const alerts = requiredLeases
+      .filter(cl => !submittedLeaseIds.has(cl.leaseId))
+      .map(cl => {
+        const dueDay = cl.gtoReportingDay || 15;
+        const dueDate = new Date(year, month - 1, dueDay);
+        const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / 86400000);
+        const isOverdue = daysUntilDue < 0;
+        const tenantName = cl.lease.tenant?.companyName ||
+          `${cl.lease.tenant?.firstName || ''} ${cl.lease.tenant?.lastName || ''}`.trim() || 'Unknown';
+
+        return {
+          leaseId: cl.leaseId,
+          leaseNumber: cl.lease.leaseNumber,
+          unitNumber: cl.lease.unit?.unitNumber,
+          unitId: cl.lease.unit?.id,
+          tenantId: cl.lease.tenantId,
+          tenantName,
+          gtoReportingDay: dueDay,
+          dueDate: dueDate.toISOString(),
+          daysUntilDue,
+          isOverdue,
+          severity: isOverdue ? 'critical' : daysUntilDue <= 3 ? 'warning' : 'info',
+        };
+      })
+      .sort((a, b) => a.daysUntilDue - b.daysUntilDue); // most urgent first
+
+    return { month, year, alerts, totalPending: alerts.length };
+  }
+
   // ═══════════════════════════════════════
   //  CAM COST POOLS
   // ═══════════════════════════════════════
@@ -492,6 +548,7 @@ class MallService {
   /**
    * Generate monthly CAM billings for all active pools in a property.
    * For each pool × each active unit: allocate monthly cost proportionate to GLA.
+   * Auto-creates invoices via billing engine for each allocation.
    */
   async generateCamBillings(companyId: string, propertyId: string, month: number, year: number) {
     const mall = await prisma.mallProperty.findFirst({ where: { propertyId, companyId } });
@@ -528,7 +585,16 @@ class MallService {
     const totalGla = units.reduce((sum, u) => sum + (Number(u.areaSqft) || 0), 0);
     if (totalGla === 0) throw AppError.badRequest('Total GLA is zero — cannot allocate');
 
+    // Get or create CAM_CHARGE charge type for invoicing
+    const camChargeType = await this.getOrCreateChargeType('CAM_CHARGE', 'CAM Charge', 'cam');
+
     const results: any[] = [];
+    let invoiceCount = 0;
+
+    const monthName = new Date(year, month - 1).toLocaleString('default', { month: 'long' });
+    const today = new Date();
+    const dueDate = new Date(today);
+    dueDate.setDate(dueDate.getDate() + 30);
 
     for (const pool of pools) {
       const monthlyPoolAmount = Number(pool.budgetedAmount) / 12;
@@ -539,10 +605,9 @@ class MallService {
         const lease = unit.leases[0];
         if (!lease) continue;
 
-        // Gap #11: Skip units in fit-out period (rent-free)
+        // Skip units in fit-out period (rent-free)
         const cl = lease.commercialLease;
         if (cl?.fitOutRentFree && cl.fitOutStartDate && cl.fitOutEndDate) {
-          const now = new Date();
           const billingDate = new Date(year, month - 1, 1);
           if (billingDate >= cl.fitOutStartDate && billingDate <= cl.fitOutEndDate) {
             logger.info(`Skipping CAM billing for unit ${unit.id} — in fit-out period (${cl.fitOutStartDate.toISOString().split('T')[0]} to ${cl.fitOutEndDate.toISOString().split('T')[0]})`);
@@ -552,8 +617,8 @@ class MallService {
 
         const unitGla = Number(unit.areaSqft) || 0;
         const allocationPct = unitGla / totalGla;
-        const allocatedAmount = totalPoolCost * allocationPct;
-        const adminFee = adminFeeTotal * allocationPct;
+        const allocatedAmount = Math.round(totalPoolCost * allocationPct * 100) / 100;
+        const adminFee = Math.round(adminFeeTotal * allocationPct * 100) / 100;
 
         const billing = await prisma.camBilling.upsert({
           where: {
@@ -572,16 +637,56 @@ class MallService {
             status: 'pending',
           },
         });
+
+        // Generate invoice for this CAM billing if not already invoiced
+        if (!billing.invoiceId && allocatedAmount > 0) {
+          try {
+            const invoice = await invoicesService.createManual(
+              companyId,
+              {
+                propertyId,
+                unitId: unit.id,
+                tenantId: lease.tenantId,
+                leaseId: lease.id,
+                invoiceDate: today.toISOString().split('T')[0],
+                dueDate: dueDate.toISOString().split('T')[0],
+                currency: 'USD',
+                notes: `CAM Charge — ${pool.name} (${monthName} ${year})`,
+                lines: [{
+                  chargeTypeId: camChargeType.id,
+                  description: `CAM Charge — ${pool.name} (${monthName} ${year}), GLA: ${unitGla} sqft, Allocation: ${(allocationPct * 100).toFixed(2)}%`,
+                  quantity: 1,
+                  unitPrice: allocatedAmount,
+                  taxRate: 0,
+                }],
+              },
+              '00000000-0000-0000-0000-000000000000', // system user
+            );
+
+            await prisma.camBilling.update({
+              where: { id: billing.id },
+              data: { invoiceId: invoice.id, status: 'invoiced' },
+            });
+
+            invoiceCount++;
+            logger.info(`CAM billing ${billing.id}: Invoice ${invoice.invoiceNumber} created for ${allocatedAmount.toFixed(2)}`);
+          } catch (err: any) {
+            logger.error(`CAM billing ${billing.id}: Failed to create invoice: ${err.message}`);
+          }
+        }
+
         results.push(billing);
       }
     }
 
-    return { generated: results.length, pools: pools.length, units: units.length, totalGla, month, year };
+    return { generated: results.length, invoicesCreated: invoiceCount, pools: pools.length, units: units.length, totalGla, month, year };
   }
+
 
   /**
    * Annual CAM reconciliation: compare estimated monthly billings vs actual cost per pool/unit.
    * variance = (actual_pool_cost × allocation%) − sum(monthly_billings)
+   * Auto-creates debit/credit note invoices for variance > $1.
    */
   async runCamReconciliation(companyId: string, propertyId: string, year: number) {
     const mall = await prisma.mallProperty.findFirst({ where: { propertyId, companyId } });
@@ -590,10 +695,19 @@ class MallService {
     const pools = await prisma.camCostPool.findMany({ where: { companyId, propertyId, year } });
     if (!pools.length) throw AppError.badRequest('No CAM pools found for this year');
 
+    const camReconChargeType = await this.getOrCreateChargeType('CAM_RECONCILIATION', 'CAM Reconciliation Adjustment', 'cam');
+
     const results: any[] = [];
+    let invoiceCount = 0;
+    const today = new Date();
+    const dueDate = new Date(today);
+    dueDate.setDate(dueDate.getDate() + 30);
 
     for (const pool of pools) {
-      const billings = await prisma.camBilling.findMany({ where: { poolId: pool.id, billingYear: year } });
+      const billings = await prisma.camBilling.findMany({
+        where: { poolId: pool.id, billingYear: year },
+        include: { unit: { select: { id: true } } },
+      });
 
       const byUnit = new Map<string, typeof billings>();
       for (const b of billings) {
@@ -605,7 +719,7 @@ class MallService {
         const totalEstimated = unitBillings.reduce((s, b) => s + Number(b.allocatedAmount), 0);
         const allocationPct = Number(unitBillings[0].allocationPct);
         const totalActual = Number(pool.actualAmount) * (1 + adminFeePct) * allocationPct;
-        const variance = totalActual - totalEstimated;
+        const variance = Math.round((totalActual - totalEstimated) * 100) / 100;
 
         const recon = await prisma.camReconciliation.upsert({
           where: { poolId_unitId_reconYear: { poolId: pool.id, unitId, reconYear: year } },
@@ -616,11 +730,59 @@ class MallService {
             reconYear: year, totalEstimated, totalActual, variance, status: 'draft',
           },
         });
-        results.push({ ...recon, action: variance > 0 ? 'debit_note' : variance < 0 ? 'credit_note' : 'none' });
+
+        const action = variance > 1 ? 'debit_note' : variance < -1 ? 'credit_note' : 'none';
+
+        // Create debit/credit note invoice for significant variance (> $1)
+        if (action !== 'none' && !recon.invoiceId) {
+          try {
+            const absVariance = Math.abs(variance);
+            const noteType = action === 'debit_note' ? 'Debit Note' : 'Credit Note';
+            const invoice = await invoicesService.createManual(
+              companyId,
+              {
+                propertyId,
+                unitId,
+                tenantId: unitBillings[0].tenantId,
+                leaseId: unitBillings[0].leaseId,
+                invoiceDate: today.toISOString().split('T')[0],
+                dueDate: dueDate.toISOString().split('T')[0],
+                currency: 'USD',
+                notes: `CAM Reconciliation ${noteType} — ${pool.name} (FY${year}). Estimated: $${totalEstimated.toFixed(2)}, Actual: $${totalActual.toFixed(2)}`,
+                lines: [{
+                  chargeTypeId: camReconChargeType.id,
+                  description: `CAM Reconciliation ${noteType} — ${pool.name} (FY${year}), Variance: $${variance.toFixed(2)}`,
+                  quantity: 1,
+                  unitPrice: action === 'debit_note' ? absVariance : -absVariance,
+                  taxRate: 0,
+                }],
+              },
+              '00000000-0000-0000-0000-000000000000', // system user
+            );
+
+            await prisma.camReconciliation.update({
+              where: { id: recon.id },
+              data: { invoiceId: invoice.id, status: 'finalized' },
+            });
+
+            invoiceCount++;
+            logger.info(`CAM recon ${recon.id}: ${noteType} invoice ${invoice.invoiceNumber} for $${absVariance.toFixed(2)}`);
+          } catch (err: any) {
+            logger.error(`CAM recon ${recon.id}: Failed to create ${action} invoice: ${err.message}`);
+          }
+        }
+
+        results.push({ ...recon, action });
       }
     }
 
-    return { year, reconciliations: results.length, totalVariance: results.reduce((s, r) => s + Number(r.variance), 0), data: results };
+    return {
+      year,
+      reconciliations: results.length,
+      invoicesCreated: invoiceCount,
+      totalVariance: results.reduce((s, r) => s + Number(r.variance), 0),
+      data: results,
+    };
   }
 
   // ═══════════════════════════════════════
@@ -710,7 +872,76 @@ class MallService {
   async updateBooth(id: string, companyId: string, data: any) {
     const booth = await prisma.boothRental.findFirst({ where: { id, companyId } });
     if (!booth) throw AppError.notFound('Booth');
-    return prisma.boothRental.update({ where: { id }, data });
+
+    // Recalculate total if dates or rate changed
+    const startDate = data.startDate ? new Date(data.startDate) : booth.startDate;
+    const endDate = data.endDate ? new Date(data.endDate) : booth.endDate;
+    const dailyRate = data.dailyRate !== undefined ? Number(data.dailyRate) : Number(booth.dailyRate || 0);
+
+    if (data.startDate || data.endDate || data.dailyRate !== undefined) {
+      const days = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+      data.totalAmount = dailyRate > 0 ? dailyRate * days : null;
+    }
+    if (data.startDate) data.startDate = new Date(data.startDate);
+    if (data.endDate) data.endDate = new Date(data.endDate);
+
+    return prisma.boothRental.update({
+      where: { id },
+      data,
+      include: { tenant: { select: { id: true, firstName: true, lastName: true, companyName: true } } },
+    });
+  }
+
+  async invoiceBooth(boothId: string, companyId: string, userId: string) {
+    const booth = await prisma.boothRental.findFirst({
+      where: { id: boothId, companyId },
+      include: { event: true },
+    });
+    if (!booth) throw AppError.notFound('Booth');
+    if (booth.invoiceId) throw AppError.badRequest('Booth already invoiced');
+    if (!booth.tenantId) throw AppError.badRequest('Booth must have a tenant before invoicing');
+    if (!booth.totalAmount || Number(booth.totalAmount) <= 0) {
+      throw AppError.badRequest('Booth has no billable amount');
+    }
+
+    // Find or create BOOTH_RENTAL charge type
+    let chargeType = await prisma.chargeType.findFirst({
+      where: { code: 'BOOTH_RENTAL', companyId: { in: [companyId, null as any] } },
+    });
+    if (!chargeType) {
+      chargeType = await prisma.chargeType.create({
+        data: { companyId, code: 'BOOTH_RENTAL', name: 'Booth Rental', category: 'revenue', isSystemType: true },
+      });
+    }
+
+    const days = Math.ceil(
+      (new Date(booth.endDate).getTime() - new Date(booth.startDate).getTime()) / 86400000
+    ) + 1;
+
+    const invoice = await invoicesService.createManual(companyId, {
+      propertyId: booth.propertyId,
+      tenantId: booth.tenantId,
+      invoiceDate: new Date().toISOString(),
+      dueDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+      periodFrom: booth.startDate.toISOString(),
+      periodTo: booth.endDate.toISOString(),
+      notes: `Booth ${booth.boothNumber} rental for "${booth.event.title}" (${days} days)`,
+      lines: [{
+        chargeTypeId: chargeType.id,
+        description: `Booth ${booth.boothNumber} — ${booth.event.title} (${booth.startDate.toISOString().split('T')[0]} to ${booth.endDate.toISOString().split('T')[0]})`,
+        quantity: days,
+        unitPrice: Number(booth.dailyRate || 0),
+        taxRate: 0,
+      }],
+    }, userId);
+
+    // Link invoice to booth and update status
+    await prisma.boothRental.update({
+      where: { id: boothId },
+      data: { invoiceId: invoice.id, status: 'invoiced' },
+    });
+
+    return { booth: { ...booth, invoiceId: invoice.id, status: 'invoiced' }, invoice };
   }
 
   // ═══════════════════════════════════════
@@ -745,7 +976,123 @@ class MallService {
   async updateSensor(id: string, companyId: string, data: any) {
     const sensor = await prisma.footfallSensor.findFirst({ where: { id, companyId } });
     if (!sensor) throw AppError.notFound('Sensor');
-    return prisma.footfallSensor.update({ where: { id }, data });
+    return prisma.footfallSensor.update({
+      where: { id },
+      data,
+      include: { _count: { select: { counts: true } } },
+    });
+  }
+
+  async deleteSensor(id: string, companyId: string) {
+    const sensor = await prisma.footfallSensor.findFirst({
+      where: { id, companyId },
+      include: { _count: { select: { counts: true } } },
+    });
+    if (!sensor) throw AppError.notFound('Sensor');
+
+    // If sensor has count data, soft-delete by deactivating
+    if (sensor._count.counts > 0) {
+      await prisma.footfallSensor.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { deleted: false, deactivated: true, reason: `Sensor has ${sensor._count.counts} count records — deactivated instead of deleted` };
+    }
+
+    await prisma.footfallSensor.delete({ where: { id } });
+    return { deleted: true, deactivated: false };
+  }
+
+  async toggleSensorActive(id: string, companyId: string) {
+    const sensor = await prisma.footfallSensor.findFirst({ where: { id, companyId } });
+    if (!sensor) throw AppError.notFound('Sensor');
+    return prisma.footfallSensor.update({
+      where: { id },
+      data: { isActive: !sensor.isActive },
+    });
+  }
+
+  async syncFootfallSensor(sensorId: string, companyId: string) {
+    const sensor = await prisma.footfallSensor.findFirst({
+      where: { id: sensorId, companyId },
+    });
+    if (!sensor) throw AppError.notFound('Sensor');
+    if (!sensor.isActive) throw AppError.badRequest('Sensor is inactive — activate it first');
+
+    // ── STUB: In production, call sensor.apiEndpoint with sensor.apiKeyEnc ──
+    // For now, generate a simulated count for the current hour
+    const now = new Date();
+    const hourStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
+
+    // Check if already synced this hour
+    const existing = await prisma.footfallCount.findFirst({
+      where: { sensorId, countedAt: hourStart, periodType: 'hourly' },
+    });
+
+    if (existing) {
+      return {
+        synced: false,
+        message: `Already synced for ${hourStart.toISOString()} — next sync available at next hour`,
+        lastCount: existing,
+      };
+    }
+
+    // Stub: simulate realistic-ish counts
+    const baseEntries = Math.floor(Math.random() * 200) + 50;
+    const baseExits = Math.floor(baseEntries * (0.8 + Math.random() * 0.3));
+
+    const count = await prisma.footfallCount.create({
+      data: {
+        companyId,
+        sensorId,
+        propertyId: sensor.propertyId,
+        countedAt: hourStart,
+        periodType: 'hourly',
+        entries: baseEntries,
+        exits: baseExits,
+        zone: sensor.zone,
+      },
+    });
+
+    logger.info(`Footfall sync: sensor ${sensor.name} (${sensor.sensorId}) — ${baseEntries} entries, ${baseExits} exits`);
+
+    return {
+      synced: true,
+      sensorName: sensor.name,
+      hour: hourStart.toISOString(),
+      entries: baseEntries,
+      exits: baseExits,
+      count,
+    };
+  }
+
+  async syncAllFootfallSensors(companyId: string, propertyId: string) {
+    const sensors = await prisma.footfallSensor.findMany({
+      where: { companyId, propertyId, isActive: true },
+    });
+
+    const results: any[] = [];
+    let synced = 0;
+    let skipped = 0;
+
+    for (const sensor of sensors) {
+      try {
+        const result = await this.syncFootfallSensor(sensor.id, companyId);
+        results.push({ sensorId: sensor.id, name: sensor.name, ...result });
+        if (result.synced) synced++;
+        else skipped++;
+      } catch (err: any) {
+        results.push({ sensorId: sensor.id, name: sensor.name, synced: false, error: err.message });
+        skipped++;
+      }
+    }
+
+    return {
+      totalSensors: sensors.length,
+      synced,
+      skipped,
+      results,
+    };
   }
 
   // ═══════════════════════════════════════
@@ -889,6 +1236,159 @@ class MallService {
       upcomingEvents,
       activeSensors: totalSensors,
     };
+  }
+
+  // ═══════════════════════════════════════
+  //  HELPERS
+  // ═══════════════════════════════════════
+
+  /**
+   * Find or create a system-level ChargeType by code.
+   * Used by CAM billing and reconciliation to auto-create invoices.
+   */
+  private async getOrCreateChargeType(code: string, name: string, category: string) {
+    let chargeType = await prisma.chargeType.findFirst({ where: { code } });
+    if (!chargeType) {
+      chargeType = await prisma.chargeType.create({
+        data: { code, name, category, glAccountCode: '4100', isTaxable: false, isSystem: true, companyId: null },
+      });
+      logger.info(`Created system charge type: ${code} (${name})`);
+    }
+    return chargeType;
+  }
+
+  // ═══════════════════════════════════════
+  //  POS INTEGRATION
+  // ═══════════════════════════════════════
+
+  async getPosConfig(companyId: string, propertyId: string) {
+    const shops = await prisma.shopProfile.findMany({
+      where: { companyId, propertyId, posSystem: { not: null } },
+      include: {
+        unit: {
+          select: {
+            unitNumber: true,
+            leases: {
+              where: { status: 'active' },
+              select: { id: true, leaseNumber: true, tenant: { select: { companyName: true } } },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: { unit: { unitNumber: 'asc' } },
+    });
+
+    return shops.map(s => ({
+      id: s.id, unitId: s.unitId, unitNumber: s.unit.unitNumber,
+      brandName: s.brandName, tenant: s.unit.leases[0]?.tenant?.companyName || null,
+      leaseId: s.unit.leases[0]?.id || null, leaseNumber: s.unit.leases[0]?.leaseNumber || null,
+      posSystem: s.posSystem, posStoreId: s.posStoreId, tradeCategory: s.tradeCategory,
+    }));
+  }
+
+  async ingestPosSales(companyId: string, data: {
+    propertyId: string; unitId: string; posSystem: string; salesDate: string;
+    cashSales: number; cardSales: number; onlineSales: number; otherSales: number;
+  }) {
+    const shop = await prisma.shopProfile.findFirst({
+      where: { companyId, unitId: data.unitId, posSystem: data.posSystem },
+    });
+    if (!shop) throw AppError.notFound('Shop with matching POS system');
+
+    const date = new Date(data.salesDate);
+    const totalSales = (data.cashSales || 0) + (data.cardSales || 0) + (data.onlineSales || 0) + (data.otherSales || 0);
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+
+    const lease = await prisma.lease.findFirst({
+      where: { companyId, unitId: data.unitId, status: 'active' },
+      include: { tenant: { select: { id: true } } },
+    });
+    if (!lease) throw AppError.badRequest('No active lease for this unit');
+
+    let gto = await prisma.gtoSubmission.findFirst({
+      where: { companyId, unitId: data.unitId, leaseId: lease.id, submissionMonth: month, submissionYear: year },
+    });
+
+    if (gto && gto.submissionMethod !== 'pos_sync') {
+      const posTotal = totalSales;
+      const gtoTotal = Number(gto.grossTurnover);
+      const variance = gtoTotal > 0 ? Math.abs((posTotal - gtoTotal) / gtoTotal) : 0;
+      return {
+        action: 'variance_check', posTotal, gtoTotal, variancePct: variance,
+        withinThreshold: variance <= 0.05,
+        message: `GTO already submitted manually. POS: $${posTotal.toLocaleString()}, GTO: $${gtoTotal.toLocaleString()}, variance: ${(variance * 100).toFixed(1)}%`,
+      };
+    }
+
+    if (gto && gto.submissionMethod === 'pos_sync') {
+      const updated = await prisma.gtoSubmission.update({
+        where: { id: gto.id },
+        data: {
+          cashSales: { increment: data.cashSales || 0 },
+          cardSales: { increment: data.cardSales || 0 },
+          onlineSales: { increment: data.onlineSales || 0 },
+          otherSales: { increment: data.otherSales || 0 },
+          grossTurnover: { increment: totalSales },
+          notes: `POS sync — last updated ${new Date().toISOString()} (${data.salesDate})`,
+        },
+      });
+      logger.info(`POS ingested: unit ${data.unitId} $${totalSales} on ${data.salesDate}`);
+      return { action: 'accumulated', gtoId: updated.id, dailySales: totalSales, newGrossTotal: Number(updated.grossTurnover), date: data.salesDate };
+    }
+
+    // Create new POS-synced GTO
+    const commLease = await prisma.commercialLease.findFirst({ where: { leaseId: lease.id } });
+    const baseRent = commLease ? Number(commLease.baseRent) : 0;
+    const percentageRate = commLease ? Number(commLease.percentageRentRate) : 0;
+    const naturalBreakpoint = commLease ? Number(commLease.naturalBreakpoint) : 0;
+    const gtoAboveBreakpoint = Math.max(0, totalSales - naturalBreakpoint);
+    const percentageRent = gtoAboveBreakpoint * (percentageRate / 100);
+    const totalRentDue = Math.max(baseRent, baseRent + percentageRent);
+
+    const newGto = await prisma.gtoSubmission.create({
+      data: {
+        companyId, propertyId: data.propertyId, unitId: data.unitId,
+        leaseId: lease.id, tenantId: lease.tenant.id,
+        submissionMonth: month, submissionYear: year,
+        grossTurnover: totalSales, cashSales: data.cashSales || 0,
+        cardSales: data.cardSales || 0, onlineSales: data.onlineSales || 0,
+        otherSales: data.otherSales || 0, submissionMethod: 'pos_sync',
+        submittedBy: lease.tenant.id, baseRent, naturalBreakpoint: naturalBreakpoint || null,
+        gtoAboveBreakpoint, percentageRent, totalRentDue,
+        posValidated: true,
+        notes: `Auto-submitted via POS sync (${data.posSystem}) on ${new Date().toISOString()}`,
+      },
+    });
+    logger.info(`POS auto-created GTO: unit ${data.unitId}, ${month}/${year}: $${totalSales}`);
+    return { action: 'created', gtoId: newGto.id, dailySales: totalSales, grossTurnover: totalSales, month, year };
+  }
+
+  async getPosSalesHistory(companyId: string, propertyId: string, month: number, year: number) {
+    const submissions = await prisma.gtoSubmission.findMany({
+      where: { companyId, propertyId, submissionMonth: month, submissionYear: year },
+      include: {
+        unit: { select: { unitNumber: true, shopProfile: { select: { posSystem: true, posStoreId: true, brandName: true } } } },
+        tenant: { select: { companyName: true } },
+      },
+      orderBy: { unit: { unitNumber: 'asc' } },
+    });
+
+    return submissions.map(s => ({
+      id: s.id, unitNumber: s.unit.unitNumber,
+      brandName: s.unit.shopProfile?.brandName || null,
+      tenant: s.tenant?.companyName || null,
+      posSystem: s.unit.shopProfile?.posSystem || null,
+      posStoreId: s.unit.shopProfile?.posStoreId || null,
+      submissionMethod: s.submissionMethod,
+      grossTurnover: Number(s.grossTurnover),
+      cashSales: Number(s.cashSales || 0), cardSales: Number(s.cardSales || 0),
+      onlineSales: Number(s.onlineSales || 0), otherSales: Number(s.otherSales || 0),
+      posValidated: s.posValidated,
+      variancePct: s.variancePct ? Number(s.variancePct) : null,
+      verified: s.verified,
+    }));
   }
 }
 

@@ -40,6 +40,10 @@ export const condoApi = createApi({
       query: ({ unitId, data }) => ({ url: `/meters/${unitId}/generate-invoice`, method: 'POST', body: data }),
       invalidatesTags: ['SmartReadings'],
     }),
+    checkOfflineMeters: builder.mutation<any, void>({
+      query: () => ({ url: '/meters/check-offline', method: 'POST' }),
+      invalidatesTags: ['SmartDevices'],
+    }),
 
     // ── Funds ──
     getFunds: builder.query<any, { propertyId: string; year?: number }>({
@@ -56,6 +60,14 @@ export const condoApi = createApi({
     }),
     addFundTransaction: builder.mutation<any, { fundId: string; data: any }>({
       query: ({ fundId, data }) => ({ url: `/funds/${fundId}/transactions`, method: 'POST', body: data }),
+      invalidatesTags: ['Funds', 'FundTransactions'],
+    }),
+    approveFundTransaction: builder.mutation<any, { txnId: string }>({
+      query: ({ txnId }) => ({ url: `/funds/transactions/${txnId}/approve`, method: 'PATCH' }),
+      invalidatesTags: ['Funds', 'FundTransactions'],
+    }),
+    rejectFundTransaction: builder.mutation<any, { txnId: string; reason?: string }>({
+      query: ({ txnId, reason }) => ({ url: `/funds/transactions/${txnId}/reject`, method: 'PATCH', body: { reason } }),
       invalidatesTags: ['Funds', 'FundTransactions'],
     }),
 
@@ -143,9 +155,10 @@ export const condoApi = createApi({
 export const {
   useGetMeterReadingsQuery, useAddMeterReadingMutation,
   useGetSmartDevicesQuery, useUpsertSmartDeviceMutation,
-  useSyncMeterMutation, useGenerateUtilityInvoiceMutation,
+  useSyncMeterMutation, useGenerateUtilityInvoiceMutation, useCheckOfflineMetersMutation,
   useGetFundsQuery, useCreateFundMutation,
   useGetFundTransactionsQuery, useAddFundTransactionMutation,
+  useApproveFundTransactionMutation, useRejectFundTransactionMutation,
   useGetMeetingsQuery, useCreateMeetingMutation,
   useGetMeetingDetailQuery, useUpdateMeetingStatusMutation,
   useAddResolutionMutation, useCastVoteMutation, useSubmitProxyMutation,

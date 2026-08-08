@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetSmartDevicesQuery, useGetMeterReadingsQuery, useAddMeterReadingMutation,
+  useCheckOfflineMetersMutation,
 } from '../../store/api/condoApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
-import { Zap, Wifi, WifiOff, Activity, Gauge, Plus, X } from 'lucide-react';
+import { Zap, Wifi, WifiOff, Activity, Gauge, Plus, X, AlertTriangle, Wrench } from 'lucide-react';
 
 export default function SmartMeterPage() {
   const propertyId = useSelectedPropertyId();
@@ -22,6 +23,8 @@ export default function SmartMeterPage() {
   const readings = readingsRes?.data || [];
 
   const [addReading] = useAddMeterReadingMutation();
+  const [checkOffline, { isLoading: isChecking }] = useCheckOfflineMetersMutation();
+  const [offlineResult, setOfflineResult] = useState<any>(null);
 
   const handleAddReading = async () => {
     if (!selectedMeter || !readingForm.readingValue) return;
@@ -42,6 +45,28 @@ export default function SmartMeterPage() {
           <h1>Smart Meter Management</h1>
           <p className="condo-page-subtitle">IoT meter devices, readings & consumption tracking</p>
         </div>
+        <button
+          className="btn btn-sm"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: offline > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(99, 102, 241, 0.1)',
+            color: offline > 0 ? '#ef4444' : '#6366f1',
+            border: `1px solid ${offline > 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(99, 102, 241, 0.3)'}`,
+            fontWeight: 600, fontSize: '0.82rem',
+          }}
+          onClick={async () => {
+            try {
+              const res = await checkOffline().unwrap();
+              setOfflineResult(res.data);
+            } catch (e: any) {
+              alert(e?.data?.message || 'Check failed');
+            }
+          }}
+          disabled={isChecking}
+        >
+          <AlertTriangle size={14} />
+          {isChecking ? 'Checking...' : 'Check Offline → Ticket'}
+        </button>
       </div>
 
       {isLoading ? (
@@ -89,6 +114,67 @@ export default function SmartMeterPage() {
               </div>
             </div>
           </div>
+
+          {/* Offline Check Results */}
+          {offlineResult && (
+            <div className="condo-card module-animate-in" style={{
+              marginBottom: 20, borderColor: offlineResult.offlineCount > 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+            }}>
+              <div className="condo-card-header">
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {offlineResult.offlineCount > 0 ? (
+                    <><WifiOff size={16} style={{ color: '#ef4444' }} /> {offlineResult.offlineCount} Meter{offlineResult.offlineCount !== 1 ? 's' : ''} Offline</>
+                  ) : (
+                    <><Wifi size={16} style={{ color: '#10b981' }} /> All Meters Online</>
+                  )}
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {offlineResult.ticketsCreated > 0 && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '3px 10px', borderRadius: 10, fontSize: '0.75rem', fontWeight: 700,
+                      background: 'rgba(99, 102, 241, 0.12)', color: '#6366f1',
+                    }}>
+                      <Wrench size={12} /> {offlineResult.ticketsCreated} ticket{offlineResult.ticketsCreated !== 1 ? 's' : ''} created
+                    </span>
+                  )}
+                  <button className="condo-btn-sm" onClick={() => setOfflineResult(null)} style={{ padding: '2px 8px' }}>✕</button>
+                </div>
+              </div>
+              {offlineResult.offlineDevices?.length > 0 && (
+                <div className="condo-table-wrap">
+                  <table className="condo-table">
+                    <thead>
+                      <tr>
+                        <th>Serial No</th>
+                        <th>Type</th>
+                        <th>Unit</th>
+                        <th>Protocol</th>
+                        <th>Last Polled</th>
+                        <th>Error</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {offlineResult.offlineDevices.map((d: any) => (
+                        <tr key={d.deviceId}>
+                          <td style={{ fontWeight: 600 }}>{d.serial}</td>
+                          <td><span className="condo-type-tag">{d.type}</span></td>
+                          <td>{d.unit}</td>
+                          <td><span className="condo-protocol-tag">{d.protocol}</span></td>
+                          <td style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.8rem' }}>
+                            {d.lastPolled ? new Date(d.lastPolled).toLocaleString() : 'Never'}
+                          </td>
+                          <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {d.error || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Device Table */}
           <div className="condo-card module-animate-in" style={{ marginBottom: 20, animationDelay: '0.2s' }}>

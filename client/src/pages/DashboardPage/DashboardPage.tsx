@@ -15,7 +15,7 @@ import {
   Wrench, Calendar, Package, Layers, Sparkles, ClipboardCheck,
   Store, TrendingUp, DollarSign, Coins,
   Zap, Gavel, CreditCard, Palette,
-  Plug, Webhook, Server, DoorOpen, QrCode,
+  Plug, Webhook, Server, DoorOpen, QrCode, ShoppingCart,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -517,6 +517,10 @@ export default function DashboardLayout() {
                 <Activity size={18} />
                 <span>Footfall Analytics</span>
               </NavLink>
+              <NavLink to="/admin/mall/pos" className="nav-item">
+                <ShoppingCart size={18} />
+                <span>POS Integration</span>
+              </NavLink>
             </NavSection>
           </FeatureGate>
           {/* Community Section */}
@@ -605,6 +609,10 @@ export default function DashboardLayout() {
 
           {/* Settings Section */}
           <NavSection label="Settings" storageKey="settings">
+            <NavLink to="/admin/company" className="nav-item">
+              <Building2 size={18} />
+              <span>Company & Features</span>
+            </NavLink>
             <NavLink to="/settings/security" className="nav-item">
               <Shield size={18} />
               <span>Security</span>

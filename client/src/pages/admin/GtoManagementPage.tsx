@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useGetGtoSubmissionsQuery, useGetGtoSummaryQuery, useVerifyGtoMutation } from '../../store/api/mallApi';
+import {
+  useGetGtoSubmissionsQuery, useGetGtoSummaryQuery, useVerifyGtoMutation,
+  useGetGtoPendingAlertsQuery,
+} from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
+import { AlertTriangle, Clock, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -24,6 +28,13 @@ export default function GtoManagementPage() {
     { skip: !propertyId }
   );
   const [verifyGto] = useVerifyGtoMutation();
+
+  const { data: alertsData } = useGetGtoPendingAlertsQuery(
+    { propertyId, month, year },
+    { skip: !propertyId }
+  );
+  const pendingAlerts = alertsData?.data?.alerts || [];
+  const [showAlerts, setShowAlerts] = useState(true);
 
   const submissions = gtoData?.data || [];
   const summary = summaryData?.data;
@@ -81,6 +92,81 @@ export default function GtoManagementPage() {
             <span className="mall-gto-summary-label">Total Rent</span>
             <span className="mall-gto-summary-value">${summary.totalRent.toLocaleString()}</span>
           </div>
+        </div>
+      )}
+
+      {/* Pending Alerts Panel */}
+      {pendingAlerts.length > 0 && (
+        <div className="gto-alerts-panel">
+          <div
+            className="gto-alerts-header"
+            onClick={() => setShowAlerts(!showAlerts)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
+              <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                {pendingAlerts.length} Pending GTO Submission{pendingAlerts.length !== 1 ? 's' : ''}
+              </span>
+              {pendingAlerts.filter((a: any) => a.isOverdue).length > 0 && (
+                <span className="gto-alert-count-badge critical">
+                  {pendingAlerts.filter((a: any) => a.isOverdue).length} overdue
+                </span>
+              )}
+              {pendingAlerts.filter((a: any) => !a.isOverdue && a.daysUntilDue <= 3).length > 0 && (
+                <span className="gto-alert-count-badge warning">
+                  {pendingAlerts.filter((a: any) => !a.isOverdue && a.daysUntilDue <= 3).length} due soon
+                </span>
+              )}
+            </div>
+            {showAlerts ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
+
+          {showAlerts && (
+            <div className="gto-alerts-body">
+              {pendingAlerts.map((alert: any) => (
+                <div
+                  key={alert.leaseId}
+                  className={`gto-alert-item gto-alert-${alert.severity}`}
+                >
+                  <div className="gto-alert-icon">
+                    {alert.isOverdue ? <AlertTriangle size={14} /> : <Clock size={14} />}
+                  </div>
+                  <div className="gto-alert-content">
+                    <div className="gto-alert-title">
+                      <strong>{alert.tenantName}</strong>
+                      <span className="gto-alert-unit">Unit {alert.unitNumber}</span>
+                      {alert.leaseNumber && <span className="gto-alert-lease">Lease {alert.leaseNumber}</span>}
+                    </div>
+                    <div className="gto-alert-meta">
+                      {alert.isOverdue ? (
+                        <span className="gto-alert-overdue">
+                          {Math.abs(alert.daysUntilDue)} day{Math.abs(alert.daysUntilDue) !== 1 ? 's' : ''} overdue
+                        </span>
+                      ) : alert.daysUntilDue === 0 ? (
+                        <span className="gto-alert-today">Due today</span>
+                      ) : (
+                        <span className="gto-alert-upcoming">
+                          Due in {alert.daysUntilDue} day{alert.daysUntilDue !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      <span className="gto-alert-due-date">
+                        Due by {alert.gtoReportingDay}{['st','nd','rd'][((alert.gtoReportingDay+90)%100-10)%10-1]||'th'} of {MONTH_NAMES[month-1]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* All caught up */}
+      {summary && summary.pending === 0 && (
+        <div className="gto-all-caught-up">
+          <CheckCircle size={18} style={{ color: '#10b981' }} />
+          <span>All GTO submissions received for {MONTH_NAMES[month - 1]} {year}</span>
         </div>
       )}
 

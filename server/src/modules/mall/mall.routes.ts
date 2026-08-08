@@ -116,6 +116,14 @@ router.get('/gto/summary', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
+router.get('/gto/pending-alerts', asyncHandler(async (req, res) => {
+  const data = await mallService.getPendingGtoAlerts(
+    req.query.propertyId as string, getCompanyId(req),
+    Number(req.query.month), Number(req.query.year),
+  );
+  res.json({ success: true, data });
+}));
+
 // ═══════════════════════════════════════
 //  CAM MANAGEMENT
 // ═══════════════════════════════════════
@@ -209,6 +217,11 @@ router.put('/booths/:id', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
+router.post('/booths/:id/invoice', asyncHandler(async (req, res) => {
+  const data = await mallService.invoiceBooth(req.params.id, getCompanyId(req), getUserId(req));
+  res.status(201).json({ success: true, data });
+}));
+
 // ═══════════════════════════════════════
 //  FOOTFALL SENSORS
 // ═══════════════════════════════════════
@@ -225,6 +238,28 @@ router.post('/footfall/sensors', validateRequest(createSensorSchema), asyncHandl
 
 router.put('/footfall/sensors/:id', asyncHandler(async (req, res) => {
   const data = await mallService.updateSensor(req.params.id, getCompanyId(req), req.body);
+  res.json({ success: true, data });
+}));
+
+router.delete('/footfall/sensors/:id', asyncHandler(async (req, res) => {
+  const data = await mallService.deleteSensor(req.params.id, getCompanyId(req));
+  res.json({ success: true, data });
+}));
+
+router.patch('/footfall/sensors/:id/toggle', asyncHandler(async (req, res) => {
+  const data = await mallService.toggleSensorActive(req.params.id, getCompanyId(req));
+  res.json({ success: true, data });
+}));
+
+router.post('/footfall/sensors/:id/sync', asyncHandler(async (req, res) => {
+  const data = await mallService.syncFootfallSensor(req.params.id, getCompanyId(req));
+  res.json({ success: true, data });
+}));
+
+router.post('/footfall/sync-all', asyncHandler(async (req, res) => {
+  const data = await mallService.syncAllFootfallSensors(
+    getCompanyId(req), req.query.propertyId as string,
+  );
   res.json({ success: true, data });
 }));
 
@@ -261,6 +296,28 @@ router.get('/footfall/heatmap', asyncHandler(async (req, res) => {
 
 router.get('/dashboard', asyncHandler(async (req, res) => {
   const data = await mallService.getDashboardStats(getCompanyId(req), req.query.propertyId as string);
+  res.json({ success: true, data });
+}));
+
+// ═══════════════════════════════════════
+//  POS INTEGRATION
+// ═══════════════════════════════════════
+
+router.get('/pos/config', asyncHandler(async (req, res) => {
+  const data = await mallService.getPosConfig(getCompanyId(req), req.query.propertyId as string);
+  res.json({ success: true, data });
+}));
+
+router.post('/pos/sales', asyncHandler(async (req, res) => {
+  const data = await mallService.ingestPosSales(getCompanyId(req), req.body);
+  res.json({ success: true, data });
+}));
+
+router.get('/pos/sales-history', asyncHandler(async (req, res) => {
+  const data = await mallService.getPosSalesHistory(
+    getCompanyId(req), req.query.propertyId as string,
+    Number(req.query.month), Number(req.query.year),
+  );
   res.json({ success: true, data });
 }));
 

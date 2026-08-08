@@ -1,7 +1,14 @@
-import React from 'react';
-import { useGetMallDashboardQuery, useGetTenantMixQuery } from '../../store/api/mallApi';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  useGetMallDashboardQuery, useGetTenantMixQuery,
+  useGetMallPropertyQuery, useUpsertMallPropertyMutation,
+} from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
-import { Store, TrendingUp, DollarSign, Radio, Calendar, Users, BarChart3 } from 'lucide-react';
+import {
+  Store, TrendingUp, DollarSign, Radio, Calendar, Users, BarChart3,
+  Settings, X, Building2, Percent, Hash, Maximize2,
+} from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
@@ -22,6 +29,72 @@ export default function MallDashboard() {
   const mix = mixData?.data;
   const gto = dash?.gtoSummary;
 
+  // Mall Property Config
+  const { data: configData, refetch: refetchConfig } = useGetMallPropertyQuery(
+    { propertyId }, { skip: !propertyId }
+  );
+  const [upsertConfig, { isLoading: isSavingConfig }] = useUpsertMallPropertyMutation();
+  const [showConfig, setShowConfig] = useState(false);
+  const [configForm, setConfigForm] = useState<any>({});
+
+  const MALL_TYPES = [
+    { value: 'regional', label: 'Regional Mall' },
+    { value: 'community', label: 'Community Mall' },
+    { value: 'neighborhood', label: 'Neighborhood Center' },
+    { value: 'power_center', label: 'Power Center' },
+    { value: 'lifestyle', label: 'Lifestyle Center' },
+    { value: 'outlet', label: 'Outlet Mall' },
+    { value: 'mixed_use', label: 'Mixed-Use Development' },
+  ];
+  const CAM_POOL_TYPES = [
+    { value: 'shared', label: 'Shared Pool (proportionate GLA split)' },
+    { value: 'per_category', label: 'Per Category (separate pools by cost type)' },
+    { value: 'fixed_rate', label: 'Fixed Rate (per sqft rate per lease)' },
+  ];
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  const openConfig = () => {
+    const cfg = configData?.data || {};
+    setConfigForm({
+      mallType: cfg.mallType || '',
+      totalGlaSqft: cfg.totalGlaSqft ?? '',
+      totalNlaSqft: cfg.totalNlaSqft ?? '',
+      totalFloors: cfg.totalFloors ?? '',
+      totalShops: cfg.totalShops ?? 0,
+      anchorTenantSlots: cfg.anchorTenantSlots ?? 0,
+      managementFeePct: cfg.managementFeePct ? (Number(cfg.managementFeePct) * 100).toFixed(2) : '5.00',
+      camPoolType: cfg.camPoolType || 'shared',
+      camAdminFeePct: cfg.camAdminFeePct ? (Number(cfg.camAdminFeePct) * 100).toFixed(2) : '10.00',
+      fiscalYearStart: cfg.fiscalYearStart ?? 1,
+    });
+    setShowConfig(true);
+  };
+
+  const handleSaveConfig = async () => {
+    try {
+      await upsertConfig({
+        propertyId,
+        data: {
+          mallType: configForm.mallType || null,
+          totalGlaSqft: configForm.totalGlaSqft ? Number(configForm.totalGlaSqft) : null,
+          totalNlaSqft: configForm.totalNlaSqft ? Number(configForm.totalNlaSqft) : null,
+          totalFloors: configForm.totalFloors ? Number(configForm.totalFloors) : null,
+          totalShops: Number(configForm.totalShops) || 0,
+          anchorTenantSlots: Number(configForm.anchorTenantSlots) || 0,
+          managementFeePct: Number(configForm.managementFeePct) / 100,
+          camPoolType: configForm.camPoolType,
+          camAdminFeePct: Number(configForm.camAdminFeePct) / 100,
+          fiscalYearStart: Number(configForm.fiscalYearStart),
+        },
+      }).unwrap();
+      setShowConfig(false);
+      refetchConfig();
+    } catch (e) { console.error(e); }
+  };
+
   if (!propertyId) {
     return (
       <div className="page-content">
@@ -41,6 +114,9 @@ export default function MallDashboard() {
           <h1>Mall Dashboard</h1>
           <p className="mall-page-subtitle">Overview of mall operations and performance</p>
         </div>
+        <button className="btn btn-outline" onClick={openConfig} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Settings size={16} /> Mall Settings
+        </button>
       </div>
 
       {isLoading ? (
@@ -264,6 +340,110 @@ export default function MallDashboard() {
           )}
         </>
       )}
+
+      {/* ── Mall Property Config Modal ── */}
+      {showConfig && createPortal(
+        <div className="mall-modal-overlay" onClick={() => setShowConfig(false)}>
+          <div className="shop-edit-modal shop-lease-modal" onClick={e => e.stopPropagation()}>
+            <div className="mall-modal-header">
+              <div>
+                <h3>Mall Property Settings</h3>
+                <span className="shop-edit-unit-label">Configure mall-specific parameters for this property</span>
+              </div>
+              <button className="mall-modal-close" onClick={() => setShowConfig(false)}><X size={18} /></button>
+            </div>
+
+            <div className="shop-edit-body">
+              {/* General Info */}
+              <div className="shop-edit-section">
+                <h4 className="shop-edit-section-title"><Building2 size={14} /> General Information</h4>
+                <div className="shop-edit-grid">
+                  <label className="shop-edit-field">
+                    <span>Mall Type</span>
+                    <select value={configForm.mallType} onChange={e => setConfigForm({ ...configForm, mallType: e.target.value })}>
+                      <option value="">Select mall type...</option>
+                      {MALL_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>Fiscal Year Starts</span>
+                    <select value={configForm.fiscalYearStart} onChange={e => setConfigForm({ ...configForm, fiscalYearStart: e.target.value })}>
+                      {MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              {/* Area & Capacity */}
+              <div className="shop-edit-section">
+                <h4 className="shop-edit-section-title"><Maximize2 size={14} /> Area & Capacity</h4>
+                <div className="shop-edit-grid">
+                  <label className="shop-edit-field">
+                    <span>Total GLA (sqft)</span>
+                    <input type="number" min="0" step="0.01" value={configForm.totalGlaSqft} onChange={e => setConfigForm({ ...configForm, totalGlaSqft: e.target.value })} placeholder="Gross Leasable Area" />
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>Total NLA (sqft)</span>
+                    <input type="number" min="0" step="0.01" value={configForm.totalNlaSqft} onChange={e => setConfigForm({ ...configForm, totalNlaSqft: e.target.value })} placeholder="Net Leasable Area" />
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>Total Floors</span>
+                    <input type="number" min="1" max="200" value={configForm.totalFloors} onChange={e => setConfigForm({ ...configForm, totalFloors: e.target.value })} placeholder="e.g. 5" />
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>Total Shop Slots</span>
+                    <input type="number" min="0" value={configForm.totalShops} onChange={e => setConfigForm({ ...configForm, totalShops: e.target.value })} />
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>Anchor Tenant Slots</span>
+                    <input type="number" min="0" value={configForm.anchorTenantSlots} onChange={e => setConfigForm({ ...configForm, anchorTenantSlots: e.target.value })} />
+                  </label>
+                </div>
+              </div>
+
+              {/* Fee Structure */}
+              <div className="shop-edit-section">
+                <h4 className="shop-edit-section-title"><Percent size={14} /> Fee Structure</h4>
+                <div className="shop-edit-grid">
+                  <label className="shop-edit-field">
+                    <span>Management Fee (%)</span>
+                    <input type="number" min="0" max="100" step="0.01" value={configForm.managementFeePct} onChange={e => setConfigForm({ ...configForm, managementFeePct: e.target.value })} placeholder="e.g. 5.00" />
+                  </label>
+                  <label className="shop-edit-field">
+                    <span>CAM Admin Fee (%)</span>
+                    <input type="number" min="0" max="100" step="0.01" value={configForm.camAdminFeePct} onChange={e => setConfigForm({ ...configForm, camAdminFeePct: e.target.value })} placeholder="e.g. 10.00" />
+                  </label>
+                </div>
+              </div>
+
+              {/* CAM Pool Configuration */}
+              <div className="shop-edit-section">
+                <h4 className="shop-edit-section-title"><Hash size={14} /> CAM Pool Configuration</h4>
+                <div className="shop-edit-grid">
+                  <label className="shop-edit-field" style={{ gridColumn: '1 / -1' }}>
+                    <span>Pool Allocation Type</span>
+                    <select value={configForm.camPoolType} onChange={e => setConfigForm({ ...configForm, camPoolType: e.target.value })}>
+                      {CAM_POOL_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <div className="mall-config-hint" style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: 'rgba(99, 102, 241, 0.06)', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  {configForm.camPoolType === 'shared' && '💡 Shared Pool: All CAM costs are pooled and allocated proportionally by GLA across all tenants.'}
+                  {configForm.camPoolType === 'per_category' && '💡 Per Category: Separate cost pools for cleaning, security, landscaping, etc. — each allocated independently.'}
+                  {configForm.camPoolType === 'fixed_rate' && '💡 Fixed Rate: Each lease specifies a fixed CAM rate per sqft, billed directly without pooling.'}
+                </div>
+              </div>
+            </div>
+
+            <div className="mall-modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowConfig(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSaveConfig} disabled={isSavingConfig}>
+                {isSavingConfig ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
     </div>
   );
 }
