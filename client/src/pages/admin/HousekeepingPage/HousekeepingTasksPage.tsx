@@ -127,52 +127,77 @@ export default function HousekeepingTasksPage() {
     <div className="maint-page">
       {/* ── Stats Row ── */}
       {stats?.today && (
-        <div className="maint-stats-row">
-          <div className="maint-stat-card blue">
-            <div className="msc-icon"><ClipboardList size={18} /></div>
-            <div className="msc-label">Today's Tasks</div>
-            <div className="msc-value">{stats.today.total}</div>
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
+          gap: 10, marginBottom: 20,
+        }}>
+          <div style={{ borderRadius: 14, padding: '14px 16px', background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.03))', border: '1px solid rgba(99,102,241,0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(99,102,241,0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ClipboardList size={13} /></div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Today</span>
+            </div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#6366f1' }}>{stats.today.total}</div>
           </div>
-          <div className="maint-stat-card green">
-            <div className="msc-icon"><CheckCircle2 size={18} /></div>
-            <div className="msc-label">Completed</div>
-            <div className="msc-value">{stats.today.completed}</div>
+          <div style={{ borderRadius: 14, padding: '14px 16px', background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.03))', border: '1px solid rgba(16,185,129,0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(16,185,129,0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CheckCircle2 size={13} /></div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Done</span>
+            </div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>{stats.today.completed}</div>
           </div>
-          <div className="maint-stat-card" style={{ position: 'relative' }}>
-            <div className="msc-icon" style={{ background: 'rgba(234,179,8,0.14)', color: '#eab308' }}><Timer size={18} /></div>
-            <div className="msc-label">In Progress</div>
-            <div className="msc-value" style={{ color: '#eab308' }}>{stats.today.inProgress}</div>
+          <div style={{ borderRadius: 14, padding: '14px 16px', background: 'linear-gradient(135deg, rgba(234,179,8,0.08), rgba(234,179,8,0.03))', border: '1px solid rgba(234,179,8,0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(234,179,8,0.15)', color: '#eab308', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Timer size={13} /></div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Active</span>
+            </div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#eab308' }}>{stats.today.inProgress}</div>
           </div>
-          <div className="maint-stat-card red">
-            <div className="msc-icon"><XCircle size={18} /></div>
-            <div className="msc-label">Missed</div>
-            <div className="msc-value">{stats.today.missed}</div>
+          <div style={{ borderRadius: 14, padding: '14px 16px', background: stats.today.missed > 0 ? 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.03))' : 'linear-gradient(135deg, rgba(107,114,128,0.04), transparent)', border: `1px solid ${stats.today.missed > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.1)'}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: stats.today.missed > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.1)', color: stats.today.missed > 0 ? '#ef4444' : '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><XCircle size={13} /></div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Missed</span>
+            </div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: stats.today.missed > 0 ? '#ef4444' : 'var(--text-primary)' }}>{stats.today.missed}</div>
           </div>
-          <div className="maint-stat-card purple">
-            <div className="msc-icon"><LayoutGrid size={18} /></div>
-            <div className="msc-label">Zones / Schedules</div>
-            <div className="msc-value">{stats.zones}<span style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: '0 4px' }}>/</span>{stats.schedules}</div>
-          </div>
-          <div className="maint-stat-card" style={{ position: 'relative' }}>
-            <div className="msc-icon" style={{ background: `${completionColor}22`, color: completionColor }}><TrendingUp size={18} /></div>
-            <div className="msc-label">Completion Rate</div>
-            <div className="msc-value" style={{ color: completionColor }}>{completionPct}%</div>
-            <div style={{ height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.06)', marginTop: '4px' }}>
-              <div style={{ height: '100%', width: `${completionPct}%`, borderRadius: '2px', background: completionColor, transition: 'width 0.5s' }} />
+          <div style={{ borderRadius: 14, padding: '14px 16px', background: `linear-gradient(135deg, ${completionColor}10, transparent)`, border: `1px solid ${completionColor}20` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: `${completionColor}18`, color: completionColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrendingUp size={13} /></div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Rate</span>
+            </div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: completionColor }}>{completionPct}%</div>
+            <div style={{ height: 3, borderRadius: 2, background: 'var(--surface-hover)', marginTop: 4 }}>
+              <div style={{ height: '100%', width: `${completionPct}%`, borderRadius: 2, background: completionColor, transition: 'width 0.5s' }} />
             </div>
           </div>
         </div>
       )}
 
       {/* ── Header ── */}
-      <div className="page-header">
-        <div className="page-title-row">
-          <div className="page-icon-lg"><Sparkles size={20} /></div>
-          <div><h1>Housekeeping</h1><p>Tasks, schedules & zones</p></div>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        marginBottom: 16, flexWrap: 'wrap', gap: 12,
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'linear-gradient(135deg, #10b981, #6366f1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Sparkles size={18} color="#fff" />
+            </div>
+            Housekeeping
+          </h1>
+          <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            Tasks, schedules & zones
+          </p>
         </div>
-        <div className="header-actions">
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowZoneModal(true)}><MapPin size={14} /> Add Zone</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowScheduleModal(true)}><Plus size={14} /> Add Schedule</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowZoneModal(true)} style={{ borderRadius: 10 }}><MapPin size={14} /> Add Zone</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowScheduleModal(true)} style={{ borderRadius: 10 }}><Plus size={14} /> Add Schedule</button>
         </div>
       </div>
 
