@@ -429,27 +429,68 @@ function AppRoutes() {
   );
 }
 
+// ── Global Error Boundary (catches ALL React errors) ──
+import { Component, type ReactNode as RN2 } from 'react';
+class GlobalErrorBoundary extends Component<{ children: RN2 }, { hasError: boolean; error?: Error; info?: string }> {
+  state = { hasError: false, error: undefined as Error | undefined, info: '' };
+  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  componentDidCatch(error: Error, info: any) {
+    this.setState({ info: info?.componentStack || '' });
+    console.error('Global Error Boundary caught:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 40, maxWidth: 600, margin: '80px auto', fontFamily: 'system-ui' }}>
+          <h2 style={{ color: '#ef4444' }}>⚠️ Application Error</h2>
+          <p style={{ color: '#94a3b8' }}>The app encountered an error. This info helps debug:</p>
+          <pre style={{
+            background: '#1e293b', color: '#f8fafc', padding: 16, borderRadius: 8,
+            overflow: 'auto', fontSize: '0.78rem', maxHeight: 300, whiteSpace: 'pre-wrap',
+          }}>
+            {this.state.error?.message}
+            {'\n\n'}
+            {this.state.error?.stack}
+            {this.state.info && `\n\nComponent Stack:\n${this.state.info}`}
+          </pre>
+          <button onClick={() => window.location.href = '/login'}
+            style={{ marginTop: 16, padding: '8px 20px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+            Back to Login
+          </button>
+          <button onClick={() => window.location.reload()}
+            style={{ marginTop: 16, marginLeft: 8, padding: '8px 20px', background: '#334155', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
-    <Provider store={store}>
-      <BrowserRouter>
-        <AuthBootstrap>
-          <AppRoutes />
-        </AuthBootstrap>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: 'var(--surface-elevated)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '12px',
-              fontSize: '14px',
-            },
-          }}
-        />
-      </BrowserRouter>
-    </Provider>
+    <GlobalErrorBoundary>
+      <Provider store={store}>
+        <BrowserRouter>
+          <AuthBootstrap>
+            <AppRoutes />
+          </AuthBootstrap>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: 'var(--surface-elevated)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '12px',
+                fontSize: '14px',
+              },
+            }}
+          />
+        </BrowserRouter>
+      </Provider>
+    </GlobalErrorBoundary>
   );
 }

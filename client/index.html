@@ -9,6 +9,23 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Catch fatal JS errors that happen before React mounts
+      window.onerror = function(msg, src, line, col, err) {
+        var root = document.getElementById('root');
+        if (root && !root.hasChildNodes()) {
+          root.innerHTML = '<div style="padding:40px;max-width:600px;margin:80px auto;font-family:system-ui">'
+            + '<h2 style="color:#ef4444">⚠️ Application Error</h2>'
+            + '<p style="color:#94a3b8">A fatal error occurred before the app could load:</p>'
+            + '<pre style="background:#1e293b;color:#f8fafc;padding:16px;border-radius:8px;overflow:auto;font-size:0.78rem;white-space:pre-wrap">'
+            + msg + '\n\nSource: ' + src + ':' + line + ':' + col
+            + (err && err.stack ? '\n\n' + err.stack : '')
+            + '</pre>'
+            + '<button onclick="location.reload()" style="margin-top:16px;padding:8px 20px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer">Reload</button>'
+            + '</div>';
+        }
+      };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
