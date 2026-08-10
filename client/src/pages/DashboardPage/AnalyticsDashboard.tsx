@@ -312,6 +312,7 @@ export default function AnalyticsDashboard() {
             draggableHandle=".drag-handle"
             compactType="vertical"
             margin={[12, 12]}
+            containerPadding={[0, 0]}
             onLayoutChange={(newLayout) => handleLayoutChange(newLayout)}
             useCSSTransforms
           >

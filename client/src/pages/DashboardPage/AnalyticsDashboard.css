@@ -232,16 +232,25 @@
 
 /* ─── React Grid Layout ─────────────────────── */
 .rgl-grid {
-  margin: 0; /* was -6px which caused right-edge overflow */
+  margin: 0;
+}
+
+/* The actual grid cells — MUST clip children to prevent sparkline bleed */
+.rgl-grid > .react-grid-item {
+  overflow: hidden !important;
+  border-radius: 14px;
 }
 
 .rgl-widget-wrapper {
   overflow: hidden;
+  height: 100%;
+  width: 100%;
 }
 
 .rgl-widget-wrapper > .widget-container {
   height: 100% !important;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .rgl-widget-wrapper.edit-mode > .widget-container {
