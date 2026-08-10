@@ -173,9 +173,11 @@ export default function AnalyticsDashboard() {
       x: item.x,
       y: item.y,
       w: item.w,
-      h: item.h,
+      // Enforce minimum height of 2 rows (240px+margin) — h=1 (120px) is too small
+      // for any widget content (KPI cards with sparklines, values, breakdowns, etc.)
+      h: Math.max(item.h, 2),
       minW: 2,
-      minH: 1,
+      minH: 2,
       static: !editMode,
     })),
   [layout, editMode]);
