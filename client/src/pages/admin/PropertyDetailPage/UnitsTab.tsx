@@ -586,7 +586,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
   };
 
   return (
-    <div className="cu-overlay" onClick={close}>
+    <div className="cu-overlay">
       <div className="cu-modal" onClick={(e) => e.stopPropagation()}>
         <div className="cu-header">
           <div>
