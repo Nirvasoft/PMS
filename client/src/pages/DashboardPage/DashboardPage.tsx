@@ -9,7 +9,7 @@ import { FeatureGate } from '../../components/guards/FeatureGate';
 import {
   Building2, LayoutDashboard, Shield, LogOut, Settings, ChevronRight, ChevronDown,
   User, Users, Key, GitBranch, Home, MapPin, Workflow, Inbox, Bell, Briefcase, FileText, FolderOpen,
-  Users2, ClipboardList, Target, Megaphone, Car, Link2, Ticket, Activity, Receipt, CalendarClock,
+  Users2, ClipboardList, Target, Megaphone, Car, Link2, Ticket, Activity, Receipt, CalendarClock, CalendarDays,
   Banknote, BarChart3, Clock, RotateCcw,
   BookOpen, Calculator, Scale, PieChart, Landmark, Wallet, Box,
   Wrench, Calendar, Package, Layers, Sparkles, ClipboardCheck,
