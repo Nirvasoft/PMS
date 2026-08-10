@@ -47,6 +47,14 @@ export const integrationsApi = createApi({
       query: ({ integrationId, page = 1 }) => `/integrations/${integrationId}/sync-logs?page=${page}`,
       providesTags: ['SyncLogs'],
     }),
+    getEntityMap: builder.query<any, { integrationId?: string; entityType?: string }>({
+      query: (params) => {
+        const qs = new URLSearchParams();
+        if (params?.integrationId) qs.set('integrationId', params.integrationId);
+        if (params?.entityType) qs.set('entityType', params.entityType);
+        return `/integrations/entity-map?${qs.toString()}`;
+      },
+    }),
 
     // ── Webhooks ──
     getWebhookEvents: builder.query<any, void>({
@@ -163,6 +171,7 @@ export const {
   useTestIntegrationMutation,
   useTriggerSyncMutation,
   useGetSyncLogsQuery,
+  useGetEntityMapQuery,
   useGetWebhookEventsQuery,
   useGetWebhooksQuery,
   useCreateWebhookMutation,

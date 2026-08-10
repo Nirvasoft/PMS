@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetWebhooksQuery, useGetWebhookEventsQuery,
-  useCreateWebhookMutation, useDeleteWebhookMutation,
+  useCreateWebhookMutation, useUpdateWebhookMutation, useDeleteWebhookMutation,
   useTestWebhookMutation, useGetDeliveriesQuery, useRetryDeliveryMutation,
 } from '../../store/api/integrationsApi';
 import {
   Webhook, Plus, X, Trash2, Send, Copy, Eye, ExternalLink,
-  CheckCircle2, AlertCircle, Clock, RefreshCw, XCircle,
+  CheckCircle2, AlertCircle, Clock, RefreshCw, XCircle, Edit,
 } from 'lucide-react';
 
 const DELIVERY_STATUS: Record<string, { color: string; icon: any }> = {
@@ -21,13 +21,16 @@ export default function WebhooksPage() {
   const { data: res, isLoading } = useGetWebhooksQuery();
   const { data: eventsRes } = useGetWebhookEventsQuery();
   const [createWebhook] = useCreateWebhookMutation();
+  const [updateWebhook] = useUpdateWebhookMutation();
   const [deleteWebhook] = useDeleteWebhookMutation();
   const [testWebhook] = useTestWebhookMutation();
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showEdit, setShowEdit] = useState<any | null>(null);
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [showDeliveries, setShowDeliveries] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState({ url: '', description: '', events: [] as string[] });
+  const [editForm, setEditForm] = useState({ url: '', description: '', events: [] as string[], isActive: true });
 
   const webhooks = res?.data || [];
   const allEvents = eventsRes?.data || {};
@@ -48,6 +51,29 @@ export default function WebhooksPage() {
   };
 
   const copyToClipboard = (text: string) => navigator.clipboard.writeText(text);
+
+  const toggleEditEvent = (evt: string) => {
+    setEditForm(f => ({
+      ...f,
+      events: f.events.includes(evt) ? f.events.filter(e => e !== evt) : [...f.events, evt],
+    }));
+  };
+
+  const openEdit = (wh: any) => {
+    setEditForm({
+      url: wh.url || '',
+      description: wh.description || '',
+      events: wh.events || [],
+      isActive: wh.isActive ?? true,
+    });
+    setShowEdit(wh);
+  };
+
+  const handleEdit = async () => {
+    if (!showEdit || !editForm.url.trim() || editForm.events.length === 0) return;
+    await updateWebhook({ id: showEdit.id, data: editForm });
+    setShowEdit(null);
+  };
 
   return (
     <div className="page-content">
@@ -113,6 +139,9 @@ export default function WebhooksPage() {
                     <div className="intg-row-actions">
                       <button className="intg-action-btn-sm" onClick={() => testWebhook(wh.id)} title="Send Test">
                         <Send size={13} />
+                      </button>
+                      <button className="intg-action-btn-sm" onClick={() => openEdit(wh)} title="Edit">
+                        <Edit size={13} />
                       </button>
                       <button className="intg-action-btn-sm" onClick={() => setShowDeliveries(wh.id)} title="View Deliveries">
                         <Eye size={13} />
@@ -209,6 +238,62 @@ export default function WebhooksPage() {
         <div className="shop-detail-overlay" onClick={() => setShowDeliveries(null)}>
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 560 }}>
             <DeliveriesDrawer endpointId={showDeliveries} onClose={() => setShowDeliveries(null)} />
+          </div>
+        </div>
+      , document.body)}
+
+      {/* Edit Webhook Modal */}
+      {showEdit && createPortal(
+        <div className="mall-modal-overlay" onClick={() => setShowEdit(null)}>
+          <div className="mall-modal" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
+            <div className="mall-modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Edit size={18} /> Edit Webhook
+              </h3>
+              <button className="mall-modal-close" onClick={() => setShowEdit(null)}>✕</button>
+            </div>
+            <div className="mall-modal-body">
+              <div className="mall-form-grid">
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span>Endpoint URL *</span>
+                  <input value={editForm.url} onChange={e => setEditForm(f => ({ ...f, url: e.target.value }))} />
+                </label>
+                <label>
+                  <span>Description</span>
+                  <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editForm.isActive}
+                    onChange={e => setEditForm(f => ({ ...f, isActive: e.target.checked }))}
+                    style={{ width: 16, height: 16 }} />
+                  Active
+                </label>
+              </div>
+              <div className="intg-events-section">
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 600, margin: '16px 0 10px', color: 'var(--text-primary)' }}>
+                  Subscribed Events ({editForm.events.length} selected)
+                </h4>
+                <div className="intg-events-grid">
+                  {Object.entries(allEvents).map(([key, desc]) => (
+                    <label key={key} className="intg-event-check">
+                      <input type="checkbox" checked={editForm.events.includes(key)} onChange={() => toggleEditEvent(key)} />
+                      <div>
+                        <span className="intg-event-key">{key}</span>
+                        <span className="intg-event-desc">{desc as string}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mall-modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowEdit(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleEdit}
+                disabled={!editForm.url.trim() || editForm.events.length === 0}
+                style={{ opacity: (!editForm.url.trim() || editForm.events.length === 0) ? 0.5 : 1 }}>
+                <Edit size={14} /> Save Changes
+              </button>
+            </div>
           </div>
         </div>
       , document.body)}

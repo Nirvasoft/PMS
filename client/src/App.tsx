@@ -153,6 +153,8 @@ import WebhooksPage from './pages/admin/WebhooksPage';
 import ApiKeysPage from './pages/admin/ApiKeysPage';
 import BmsPage from './pages/admin/BmsPage';
 import ExecutiveDashboardPage from './pages/admin/ExecutiveDashboardPage';
+import BiReportsPage from './pages/admin/BiReportsPage';
+import AnomalyDashboardPage from './pages/admin/AnomalyDashboardPage';
 import AdminCompaniesPage from './pages/admin/AdminCompaniesPage/AdminCompaniesPage';
 import { useEffect } from 'react';
 import { useRefreshTokensMutation } from './store/api/authApi';
@@ -392,6 +394,8 @@ function AppRoutes() {
 
           {/* Module 6.3 — BI & Analytics */}
           <Route path="/admin/bi" element={<ExecutiveDashboardPage />} />
+          <Route path="/admin/bi/reports" element={<BiReportsPage />} />
+          <Route path="/admin/bi/anomalies" element={<AnomalyDashboardPage />} />
 
           {/* Module 6.3 — Enterprise Integrations */}
           <Route path="/admin/developer/integrations" element={<IntegrationsPage />} />

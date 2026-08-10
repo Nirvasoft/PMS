@@ -600,6 +600,14 @@ export default function DashboardLayout() {
               <BarChart3 size={18} />
               <span>Executive Dashboard</span>
             </NavLink>
+            <NavLink to="/admin/bi/reports" className="nav-item">
+              <PieChart size={18} />
+              <span>BI Reports</span>
+            </NavLink>
+            <NavLink to="/admin/bi/anomalies" className="nav-item">
+              <Activity size={18} />
+              <span>Anomaly Dashboard</span>
+            </NavLink>
             <NavLink to="/reports" className="nav-item">
               <FileText size={18} />
               <span>Reports</span>
