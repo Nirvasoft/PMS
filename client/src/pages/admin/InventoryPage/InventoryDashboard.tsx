@@ -9,14 +9,15 @@ import {
   Package, Loader2, AlertTriangle, ArrowRight, BarChart3,
   TrendingDown, TrendingUp, Box, Store, Activity,
   ClipboardList, DollarSign, ArrowUpCircle, ArrowDownCircle, RefreshCw,
-  Layers,
+  Layers, ShieldCheck, Warehouse, FileText, ChevronRight, Zap,
+  CircleDot, PackageOpen, PackageCheck, Gauge,
 } from 'lucide-react';
 
-const MOVEMENT_ICONS: Record<string, { icon: typeof Activity; color: string; bg: string }> = {
-  receive: { icon: ArrowDownCircle, color: '#10b981', bg: 'rgba(16,185,129,0.10)' },
-  issue: { icon: ArrowUpCircle, color: '#f97316', bg: 'rgba(249,115,22,0.10)' },
-  transfer: { icon: RefreshCw, color: '#6366f1', bg: 'rgba(99,102,241,0.10)' },
-  adjustment: { icon: Activity, color: '#eab308', bg: 'rgba(234,179,8,0.10)' },
+const MOVEMENT_ICONS: Record<string, { icon: typeof Activity; color: string; bg: string; label: string }> = {
+  receive: { icon: ArrowDownCircle, color: '#10b981', bg: 'rgba(16,185,129,0.10)', label: 'Receipt' },
+  issue: { icon: ArrowUpCircle, color: '#f97316', bg: 'rgba(249,115,22,0.10)', label: 'Issue' },
+  transfer: { icon: RefreshCw, color: '#6366f1', bg: 'rgba(99,102,241,0.10)', label: 'Transfer' },
+  adjustment: { icon: Activity, color: '#eab308', bg: 'rgba(234,179,8,0.10)', label: 'Adjust' },
 };
 
 const PR_STATUS_STYLE: Record<string, { color: string; bg: string }> = {
@@ -26,6 +27,8 @@ const PR_STATUS_STYLE: Record<string, { color: string; bg: string }> = {
   rejected: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
   ordered: { color: '#0ea5e9', bg: 'rgba(14,165,233,0.12)' },
 };
+
+const CAT_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#ec4899', '#8b5cf6', '#14b8a6'];
 
 export default function InventoryDashboard() {
   const navigate = useNavigate();
@@ -53,6 +56,8 @@ export default function InventoryDashboard() {
     Number(sl.qtyOnHand) <= 0
   ).slice(0, 4);
 
+  const allAlerts = [...outOfStockItems, ...lowStockItems];
+
   // Category breakdown
   const catMap: Record<string, number> = {};
   items.forEach((item: any) => {
@@ -62,141 +67,345 @@ export default function InventoryDashboard() {
   const categories = Object.entries(catMap)
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 6);
-  const maxCatCount = Math.max(...categories.map(c => c.count), 1);
+    .slice(0, 8);
+  const totalItemCount = categories.reduce((s, c) => s + c.count, 0);
 
-  // Recent movements (last 5)
-  const recentMovements = movements.slice(0, 6);
+  // Recent movements (last 6)
+  const recentMovements = movements.slice(0, 8);
 
   // Pending PRs
   const pendingPrs = prs.filter((pr: any) => ['draft', 'submitted'].includes(pr.status)).slice(0, 5);
 
+  // Stock health %
+  const totalStockEntries = stockLevels.length;
+  const healthyStock = totalStockEntries - (stats?.lowStockCount ?? 0) - (stats?.outOfStockCount ?? 0);
+  const healthPct = totalStockEntries > 0 ? Math.round((healthyStock / totalStockEntries) * 100) : 100;
+
   if (isLoading) {
     return (
       <div className="maint-page">
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading dashboard...</div>
+        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading inventory...</div>
       </div>
     );
   }
 
   return (
     <div className="maint-page">
-      {/* Header */}
-      <div className="page-header">
-        <div className="page-title-row">
-          <div className="page-icon-lg"><Package size={22} /></div>
-          <div>
-            <h1>Inventory Dashboard</h1>
-            <p>Stock levels, movements & procurement overview</p>
-          </div>
+      {/* ── Header ── */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        marginBottom: 24, flexWrap: 'wrap', gap: 12,
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Package size={18} color="#fff" />
+            </div>
+            Inventory Dashboard
+          </h1>
+          <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            Stock levels, movements & procurement at a glance
+          </p>
         </div>
-        <div className="header-actions">
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/inventory/items')}>
-            <Box size={14} /> Item Catalog
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/inventory/items')}
+            style={{ borderRadius: 10 }}>
+            <Box size={14} /> Catalog
           </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/inventory/movements')}>
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/inventory/movements')}
+            style={{ borderRadius: 10 }}>
             <Activity size={14} /> Movements
           </button>
-          <button className="btn btn-primary btn-sm" onClick={() => navigate('/admin/inventory/purchase-requisitions')}>
-            <ClipboardList size={14} /> Purchase Reqs
+          <button className="btn btn-primary btn-sm" onClick={() => navigate('/admin/inventory/purchase-requisitions')}
+            style={{ borderRadius: 10 }}>
+            <ClipboardList size={14} /> New PR
           </button>
         </div>
       </div>
 
-      {/* Stats Row */}
-      <div className="maint-stats-row">
-        <div className="maint-stat-card blue">
-          <div className="msc-icon"><Box size={18} /></div>
-          <span className="msc-value">{stats?.totalItems ?? 0}</span>
-          <span className="msc-label">Active Items</span>
-        </div>
-        <div className="maint-stat-card green">
-          <div className="msc-icon"><Store size={18} /></div>
-          <span className="msc-value">{stats?.totalStores ?? 0}</span>
-          <span className="msc-label">Stores</span>
-        </div>
-        <div className="maint-stat-card" style={{ position: 'relative' }}>
-          <div className="msc-icon" style={{ background: 'rgba(16,185,129,0.14)', color: '#10b981' }}>
-            <DollarSign size={18} />
+      {/* ── Hero Stat Cards ── */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: 14, marginBottom: 20,
+      }}>
+        {/* Total Items */}
+        <div style={{
+          borderRadius: 14, padding: '18px 20px', position: 'relative', overflow: 'hidden',
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.04) 100%)',
+          border: '1px solid rgba(99,102,241,0.15)',
+        }}>
+          <div style={{ position: 'absolute', top: -8, right: -8, opacity: 0.06 }}>
+            <Box size={80} strokeWidth={1} />
           </div>
-          <span className="msc-value" style={{ fontSize: '18px' }}>
-            ${(stats?.totalValue ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-          </span>
-          <span className="msc-label">Total Value</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: 'rgba(99,102,241,0.15)', color: '#6366f1',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}><Box size={16} /></div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Total Items
+            </span>
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#6366f1' }}>
+            {stats?.totalItems ?? 0}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+            across {stats?.totalStores ?? 0} store{(stats?.totalStores ?? 0) !== 1 ? 's' : ''}
+          </div>
         </div>
-        <div className="maint-stat-card" style={{ position: 'relative' }}>
-          <div className="msc-icon" style={{
-            background: (stats?.lowStockCount ?? 0) > 0 ? 'rgba(245,158,11,0.14)' : 'rgba(107,114,128,0.14)',
-            color: (stats?.lowStockCount ?? 0) > 0 ? '#f59e0b' : '#6b7280',
+
+        {/* Inventory Value */}
+        <div style={{
+          borderRadius: 14, padding: '18px 20px', position: 'relative', overflow: 'hidden',
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(5,150,105,0.04) 100%)',
+          border: '1px solid rgba(16,185,129,0.15)',
+        }}>
+          <div style={{ position: 'absolute', top: -8, right: -8, opacity: 0.06 }}>
+            <DollarSign size={80} strokeWidth={1} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: 'rgba(16,185,129,0.15)', color: '#10b981',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}><DollarSign size={16} /></div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Total Value
+            </span>
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#10b981' }}>
+            ${(stats?.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+            inventory at cost
+          </div>
+        </div>
+
+        {/* Stock Health */}
+        <div style={{
+          borderRadius: 14, padding: '18px 20px', position: 'relative', overflow: 'hidden',
+          background: healthPct >= 80
+            ? 'linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(5,150,105,0.02) 100%)'
+            : healthPct >= 50
+              ? 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(234,179,8,0.03) 100%)'
+              : 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(220,38,38,0.03) 100%)',
+          border: `1px solid ${healthPct >= 80 ? 'rgba(16,185,129,0.15)' : healthPct >= 50 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)'}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: healthPct >= 80 ? 'rgba(16,185,129,0.15)' : healthPct >= 50 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
+              color: healthPct >= 80 ? '#10b981' : healthPct >= 50 ? '#f59e0b' : '#ef4444',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}><ShieldCheck size={16} /></div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Stock Health
+            </span>
+          </div>
+          <div style={{
+            fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.03em',
+            color: healthPct >= 80 ? '#10b981' : healthPct >= 50 ? '#f59e0b' : '#ef4444',
           }}>
-            <TrendingDown size={18} />
+            {healthPct}%
           </div>
-          <span className="msc-value" style={{ color: (stats?.lowStockCount ?? 0) > 0 ? '#f59e0b' : undefined }}>
+          {/* Mini progress bar */}
+          <div style={{
+            height: 4, borderRadius: 2, marginTop: 8,
+            background: 'var(--surface-hover)',
+          }}>
+            <div style={{
+              height: '100%', borderRadius: 2, transition: 'width 0.6s ease',
+              width: `${healthPct}%`,
+              background: healthPct >= 80 ? '#10b981' : healthPct >= 50 ? '#f59e0b' : '#ef4444',
+            }} />
+          </div>
+        </div>
+
+        {/* Low Stock */}
+        <div style={{
+          borderRadius: 14, padding: '18px 20px', position: 'relative', overflow: 'hidden',
+          background: 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(234,179,8,0.03) 100%)',
+          border: '1px solid rgba(245,158,11,0.15)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: 'rgba(245,158,11,0.15)', color: '#f59e0b',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}><TrendingDown size={16} /></div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Low Stock
+            </span>
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#f59e0b' }}>
             {stats?.lowStockCount ?? 0}
-          </span>
-          <span className="msc-label">Low Stock</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+            items below reorder point
+          </div>
         </div>
-        <div className="maint-stat-card red">
-          <div className="msc-icon"><AlertTriangle size={18} /></div>
-          <span className="msc-value">{stats?.outOfStockCount ?? 0}</span>
-          <span className="msc-label">Out of Stock</span>
+
+        {/* Out of Stock */}
+        <div style={{
+          borderRadius: 14, padding: '18px 20px', position: 'relative', overflow: 'hidden',
+          background: (stats?.outOfStockCount ?? 0) > 0
+            ? 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(220,38,38,0.03) 100%)'
+            : 'linear-gradient(135deg, rgba(107,114,128,0.06) 0%, rgba(107,114,128,0.02) 100%)',
+          border: `1px solid ${(stats?.outOfStockCount ?? 0) > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.12)'}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: (stats?.outOfStockCount ?? 0) > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.12)',
+              color: (stats?.outOfStockCount ?? 0) > 0 ? '#ef4444' : '#6b7280',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}><AlertTriangle size={16} /></div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Out of Stock
+            </span>
+          </div>
+          <div style={{
+            fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.03em',
+            color: (stats?.outOfStockCount ?? 0) > 0 ? '#ef4444' : 'var(--text-primary)',
+          }}>
+            {stats?.outOfStockCount ?? 0}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+            {(stats?.outOfStockCount ?? 0) === 0 ? 'all items in stock ✓' : 'need immediate reorder'}
+          </div>
         </div>
-        <div className="maint-stat-card purple">
-          <div className="msc-icon"><Activity size={18} /></div>
-          <span className="msc-value">{stats?.recentMovements ?? 0}</span>
-          <span className="msc-label">Movements (7d)</span>
+
+        {/* Movements 7d */}
+        <div style={{
+          borderRadius: 14, padding: '18px 20px', position: 'relative', overflow: 'hidden',
+          background: 'linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(124,58,237,0.04) 100%)',
+          border: '1px solid rgba(139,92,246,0.15)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: 'rgba(139,92,246,0.15)', color: '#8b5cf6',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}><Activity size={16} /></div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Movements (7d)
+            </span>
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#8b5cf6' }}>
+            {stats?.recentMovements ?? 0}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+            transactions this week
+          </div>
         </div>
       </div>
 
-      {/* Dashboard Grid */}
-      <div className="sec-dash-grid">
-        {/* Left Column */}
-        <div className="hk-dash-col">
-          {/* Low Stock Alerts */}
+      {/* ── Main Grid ── */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr',
+        gap: 16, 
+      }}>
+        {/* ─ Left Column ─ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+
+          {/* Low Stock & Out of Stock Alerts */}
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">
-              <h3 style={{ color: '#f59e0b' }}><TrendingDown size={15} /> Low Stock Alerts</h3>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: allAlerts.length > 0 ? '#f59e0b' : '#10b981',
+                  display: 'inline-block',
+                  boxShadow: allAlerts.length > 0 ? '0 0 8px rgba(245,158,11,0.5)' : '0 0 8px rgba(16,185,129,0.5)',
+                  animation: allAlerts.length > 0 ? 'pulse 2s infinite' : 'none',
+                }} />
+                Stock Alerts
+                {allAlerts.length > 0 && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10,
+                    background: 'rgba(245,158,11,0.12)', color: '#f59e0b', marginLeft: 4,
+                  }}>{allAlerts.length}</span>
+                )}
+              </h3>
               <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/inventory/stock')}>
                 View All <ArrowRight size={12} />
               </button>
             </div>
-            {lowStockItems.length === 0 && outOfStockItems.length === 0 ? (
-              <div className="hk-dash-empty">
-                <TrendingUp size={24} color="#10b981" />
-                <span>All items above reorder point</span>
+            {allAlerts.length === 0 ? (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                padding: '32px 16px', gap: 8,
+              }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 12,
+                  background: 'rgba(16,185,129,0.1)', color: '#10b981',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}><PackageCheck size={22} /></div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>All stock levels healthy</span>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No items below reorder threshold</span>
               </div>
             ) : (
-              <div className="inv-alert-list">
-                {outOfStockItems.map((sl: any) => (
-                  <div key={sl.id} className="inv-alert-row out-of-stock">
-                    <div className="inv-alert-icon" style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>
-                      <AlertTriangle size={13} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {allAlerts.map((sl: any) => {
+                  const isOOS = Number(sl.qtyOnHand) <= 0;
+                  const qty = Number(sl.qtyOnHand);
+                  const reorder = Number(sl.item?.reorderPoint || 0);
+                  const pct = reorder > 0 ? Math.min((qty / reorder) * 100, 100) : 0;
+                  return (
+                    <div key={sl.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 4px', borderBottom: '1px solid var(--border-subtle)',
+                    }}>
+                      <div style={{
+                        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                        background: isOOS ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                        color: isOOS ? '#ef4444' : '#f59e0b',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {isOOS ? <AlertTriangle size={14} /> : <TrendingDown size={14} />}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {sl.item?.name || '—'}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{sl.store?.name || '—'}</div>
+                      </div>
+                      {/* Mini gauge */}
+                      <div style={{ width: 50, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 800, fontVariantNumeric: 'tabular-nums',
+                          color: isOOS ? '#ef4444' : '#f59e0b',
+                        }}>{qty}</span>
+                        <div style={{
+                          width: '100%', height: 3, borderRadius: 2,
+                          background: 'var(--surface-hover)',
+                        }}>
+                          <div style={{
+                            height: '100%', borderRadius: 2,
+                            width: `${pct}%`,
+                            background: isOOS ? '#ef4444' : '#f59e0b',
+                          }} />
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 6,
+                        background: isOOS ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                        color: isOOS ? '#ef4444' : '#f59e0b',
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                      }}>
+                        {isOOS ? 'OUT' : `RO:${reorder}`}
+                      </span>
                     </div>
-                    <div className="inv-alert-info">
-                      <span className="inv-alert-name">{sl.item?.name || '—'}</span>
-                      <span className="inv-alert-store">{sl.store?.name || '—'}</span>
-                    </div>
-                    <span className="inv-alert-qty" style={{ color: '#ef4444' }}>0</span>
-                    <span className="inv-alert-badge" style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>
-                      Out of Stock
-                    </span>
-                  </div>
-                ))}
-                {lowStockItems.map((sl: any) => (
-                  <div key={sl.id} className="inv-alert-row low-stock">
-                    <div className="inv-alert-icon" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
-                      <TrendingDown size={13} />
-                    </div>
-                    <div className="inv-alert-info">
-                      <span className="inv-alert-name">{sl.item?.name || '—'}</span>
-                      <span className="inv-alert-store">{sl.store?.name || '—'}</span>
-                    </div>
-                    <span className="inv-alert-qty" style={{ color: '#f59e0b' }}>{Number(sl.qtyOnHand)}</span>
-                    <span className="inv-alert-badge" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
-                      Reorder @ {Number(sl.item?.reorderPoint)}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -205,7 +414,7 @@ export default function InventoryDashboard() {
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">
               <h3><BarChart3 size={15} /> Items by Category</h3>
-              <span className="cell-secondary" style={{ fontSize: '11px' }}>{items.length} total</span>
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>{items.length} total</span>
             </div>
             {categories.length === 0 ? (
               <div className="hk-dash-empty">
@@ -213,17 +422,30 @@ export default function InventoryDashboard() {
                 <span>No items yet</span>
               </div>
             ) : (
-              <div className="sec-type-chart">
-                {categories.map(cat => {
-                  const pct = Math.round((cat.count / maxCatCount) * 100);
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+                {categories.map((cat, i) => {
+                  const pct = totalItemCount > 0 ? Math.round((cat.count / totalItemCount) * 100) : 0;
+                  const color = CAT_COLORS[i % CAT_COLORS.length];
                   return (
-                    <div key={cat.name} className="sec-type-row">
-                      <span className="sec-type-icon">📦</span>
-                      <span className="sec-type-label">{cat.name}</span>
-                      <div className="sec-type-bar-track">
-                        <div className="sec-type-bar-fill" style={{ width: `${pct}%` }} />
+                    <div key={cat.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 8, height: 8, borderRadius: 3, background: color, flexShrink: 0,
+                      }} />
+                      <span style={{ fontSize: 12, fontWeight: 500, width: 90, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {cat.name}
+                      </span>
+                      <div style={{
+                        flex: 1, height: 6, borderRadius: 3,
+                        background: 'var(--surface-hover)', overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          height: '100%', borderRadius: 3, transition: 'width 0.8s ease',
+                          width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}dd)`,
+                        }} />
                       </div>
-                      <span className="sec-type-count">{cat.count}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, minWidth: 28, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {cat.count}
+                      </span>
                     </div>
                   );
                 })}
@@ -231,10 +453,13 @@ export default function InventoryDashboard() {
             )}
           </div>
 
-          {/* Stores Overview */}
+          {/* Stores */}
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">
-              <h3><Store size={15} /> Stores ({stores.length})</h3>
+              <h3><Warehouse size={15} /> Stores ({stores.length})</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/inventory/stores')}>
+                Manage <ArrowRight size={12} />
+              </button>
             </div>
             {stores.length === 0 ? (
               <div className="hk-dash-empty">
@@ -242,26 +467,41 @@ export default function InventoryDashboard() {
                 <span>No stores configured</span>
               </div>
             ) : (
-              <div className="hk-zone-list">
-                {stores.slice(0, 8).map((store: any) => (
-                  <div key={store.id} className="hk-zone-chip">
-                    <Store size={12} />
-                    <span>{store.name}</span>
-                    {store.storeType && (
-                      <span className="hk-zone-type">{store.storeType}</span>
-                    )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8, paddingTop: 4 }}>
+                {stores.slice(0, 6).map((store: any, i: number) => (
+                  <div key={store.id} style={{
+                    padding: '10px 12px', borderRadius: 10,
+                    border: '1px solid var(--border-subtle)',
+                    background: `${CAT_COLORS[i % CAT_COLORS.length]}06`,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    transition: 'border-color 0.2s',
+                  }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+                      background: `${CAT_COLORS[i % CAT_COLORS.length]}15`,
+                      color: CAT_COLORS[i % CAT_COLORS.length],
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}><Store size={13} /></div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {store.name}
+                      </div>
+                      {store.storeType && (
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'capitalize' }}>
+                          {store.storeType}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
-                {stores.length > 8 && (
-                  <span className="hk-zone-more">+{stores.length - 8} more</span>
-                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* Right Column */}
-        <div className="hk-dash-col">
+        {/* ─ Right Column ─ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+
           {/* Recent Movements */}
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">
@@ -276,24 +516,35 @@ export default function InventoryDashboard() {
                 <span>No movements yet</span>
               </div>
             ) : (
-              <div className="sec-feed">
-                {recentMovements.map((mov: any) => {
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {recentMovements.map((mov: any, idx: number) => {
                   const m = MOVEMENT_ICONS[mov.movementType] || MOVEMENT_ICONS.adjustment;
                   const MIcon = m.icon;
                   return (
-                    <div key={mov.id} className="inv-mov-row">
-                      <div className="inv-mov-icon" style={{ background: m.bg, color: m.color }}>
-                        <MIcon size={14} />
+                    <div key={mov.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 4px', borderBottom: idx < recentMovements.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                    }}>
+                      <div style={{
+                        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                        background: m.bg, color: m.color,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}><MIcon size={14} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {mov.item?.name || '—'}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <span style={{
+                            padding: '0 5px', borderRadius: 4,
+                            background: m.bg, color: m.color,
+                            fontWeight: 700, fontSize: 9, textTransform: 'uppercase',
+                          }}>{m.label}</span>
+                          <span>qty: {mov.qty}</span>
+                          {mov.store?.name && <span>· {mov.store.name}</span>}
+                        </div>
                       </div>
-                      <div className="sec-feed-info">
-                        <span className="sec-feed-title">{mov.item?.name || '—'}</span>
-                        <span className="sec-feed-meta">
-                          <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{mov.movementType}</span>
-                          {' · '}qty: {mov.qty}
-                          {mov.store?.name && <> · {mov.store.name}</>}
-                        </span>
-                      </div>
-                      <span className="ace-time">
+                      <span style={{ fontSize: 10, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {new Date(mov.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                       </span>
                     </div>
@@ -303,41 +554,67 @@ export default function InventoryDashboard() {
             )}
           </div>
 
-          {/* Pending Purchase Requisitions */}
+          {/* Purchase Requisitions */}
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">
-              <h3><ClipboardList size={15} /> Pending Requisitions</h3>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ClipboardList size={15} /> Purchase Requisitions
+                {pendingPrs.length > 0 && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10,
+                    background: 'rgba(99,102,241,0.12)', color: '#6366f1',
+                  }}>{pendingPrs.length}</span>
+                )}
+              </h3>
               <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/inventory/purchase-requisitions')}>
                 View All <ArrowRight size={12} />
               </button>
             </div>
             {pendingPrs.length === 0 ? (
-              <div className="hk-dash-empty">
-                <ClipboardList size={20} color="var(--text-tertiary)" />
-                <span>No pending requisitions</span>
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                padding: '28px 16px', gap: 8,
+              }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 11,
+                  background: 'rgba(107,114,128,0.08)', color: 'var(--text-tertiary)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}><FileText size={20} /></div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>No pending requisitions</span>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>All PRs processed</span>
               </div>
             ) : (
-              <div className="sec-feed">
-                {pendingPrs.map((pr: any) => {
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {pendingPrs.map((pr: any, idx: number) => {
                   const ps = PR_STATUS_STYLE[pr.status] || PR_STATUS_STYLE.draft;
                   const itemCount = Array.isArray(pr.items) ? pr.items.length : 0;
                   return (
-                    <div key={pr.id} className="inv-pr-row">
-                      <div className="sec-feed-info">
-                        <span className="sec-feed-title">
-                          <span style={{ fontFamily: 'monospace', fontSize: '10px', color: 'var(--text-tertiary)', marginRight: '6px' }}>
+                    <div key={pr.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 4px',
+                      borderBottom: idx < pendingPrs.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                    }}>
+                      <div style={{
+                        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                        background: ps.bg, color: ps.color,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}><FileText size={14} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <code style={{ fontSize: 10, color: 'var(--text-tertiary)', background: 'var(--surface-hover)', padding: '1px 5px', borderRadius: 4 }}>
                             {pr.prNumber}
-                          </span>
+                          </code>
                           {itemCount} item{itemCount !== 1 ? 's' : ''}
-                        </span>
-                        <span className="sec-feed-meta">
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
                           ${Number(pr.totalAmount || 0).toLocaleString()}
                           {pr.property?.name && <> · {pr.property.name}</>}
-                        </span>
+                        </div>
                       </div>
-                      <span className="hk-task-status" style={{ background: ps.bg, color: ps.color }}>
-                        {pr.status}
-                      </span>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                        background: ps.bg, color: ps.color, textTransform: 'capitalize', flexShrink: 0,
+                      }}>{pr.status}</span>
                     </div>
                   );
                 })}
@@ -345,34 +622,34 @@ export default function InventoryDashboard() {
             )}
           </div>
 
-          {/* Quick Stats */}
-          <div className="hk-dash-card">
-            <div className="hk-dash-card-header">
-              <h3><BarChart3 size={15} /> Quick Stats</h3>
+          {/* Inventory Summary Mini Cards */}
+          <div className="hk-dash-card" style={{ padding: '16px 18px' }}>
+            <div className="hk-dash-card-header" style={{ marginBottom: 10 }}>
+              <h3><Gauge size={15} /> Inventory Summary</h3>
             </div>
-            <div className="hk-quick-stats">
-              <div className="hk-qs-item">
-                <span className="hk-qs-label">Active Items</span>
-                <span className="hk-qs-value">{stats?.totalItems ?? 0}</span>
-              </div>
-              <div className="hk-qs-item">
-                <span className="hk-qs-label">Active Stores</span>
-                <span className="hk-qs-value">{stats?.totalStores ?? 0}</span>
-              </div>
-              <div className="hk-qs-item">
-                <span className="hk-qs-label">Total Inventory Value</span>
-                <span className="hk-qs-value" style={{ color: '#10b981' }}>
-                  ${(stats?.totalValue ?? 0).toLocaleString()}
-                </span>
-              </div>
-              <div className="hk-qs-item">
-                <span className="hk-qs-label">Movements (7 days)</span>
-                <span className="hk-qs-value">{stats?.recentMovements ?? 0}</span>
-              </div>
-              <div className="hk-qs-item">
-                <span className="hk-qs-label">Pending PRs</span>
-                <span className="hk-qs-value">{pendingPrs.length}</span>
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[
+                { label: 'Active Items', value: stats?.totalItems ?? 0, icon: Box, color: '#6366f1' },
+                { label: 'Active Stores', value: stats?.totalStores ?? 0, icon: Store, color: '#10b981' },
+                { label: 'Pending PRs', value: pendingPrs.length, icon: ClipboardList, color: '#6366f1' },
+                { label: 'Categories', value: categories.length, icon: Layers, color: '#8b5cf6' },
+              ].map((item, i) => (
+                <div key={i} style={{
+                  padding: '10px 12px', borderRadius: 10,
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 7,
+                    background: `${item.color}12`, color: item.color,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}><item.icon size={13} /></div>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em' }}>{item.value}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{item.label}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
