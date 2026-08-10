@@ -317,7 +317,8 @@ export default function AnalyticsDashboard() {
             useCSSTransforms
           >
             {layout.map((item) => (
-              <div key={item.id} className={`rgl-widget-wrapper ${editMode ? 'edit-mode' : ''}`}>
+              <div key={item.id} className={`rgl-widget-wrapper ${editMode ? 'edit-mode' : ''}`}
+                style={{ overflow: 'hidden', borderRadius: 14, height: '100%' }}>
                 <WidgetContainer
                   item={item}
                   dateRange={filters.dateRange}
@@ -369,7 +370,7 @@ function WidgetContainer({ item, dateRange, propertyId, editMode, onRemove, onDr
   const widgetData = data?.data;
 
   return (
-    <div className="widget-container">
+    <div className="widget-container" style={{ overflow: 'hidden' }}>
       {editMode && (
         <div className="widget-edit-bar">
           <GripVertical size={14} className="drag-handle" />
@@ -420,7 +421,7 @@ function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: 
   };
 
   return (
-    <div className="kpi-card" onClick={() => onDrillDown()} style={{ cursor: 'pointer' }}>
+    <div className="kpi-card" onClick={() => onDrillDown()} style={{ cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
       {/* Sparkline background */}
       {data.sparkline && data.sparkline.length > 1 && (
         <svg className="kpi-sparkline" viewBox="0 0 100 40" preserveAspectRatio="none">
