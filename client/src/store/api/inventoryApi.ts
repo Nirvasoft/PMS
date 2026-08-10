@@ -15,6 +15,10 @@ export const inventoryApi = createApi({
       query: (body) => ({ url: '/inventory/stores', method: 'POST', body }),
       invalidatesTags: ['InventoryStores'],
     }),
+    updateStore: builder.mutation<any, any>({
+      query: ({ id, ...body }) => ({ url: `/inventory/stores/${id}`, method: 'PUT', body }),
+      invalidatesTags: ['InventoryStores'],
+    }),
 
     // Items
     getInventoryItems: builder.query<any, any>({
@@ -88,7 +92,7 @@ export const inventoryApi = createApi({
 });
 
 export const {
-  useGetStoresQuery, useCreateStoreMutation,
+  useGetStoresQuery, useCreateStoreMutation, useUpdateStoreMutation,
   useGetInventoryItemsQuery, useGetInventoryItemByIdQuery,
   useCreateInventoryItemMutation, useUpdateInventoryItemMutation,
   useGetStockLevelsQuery,
