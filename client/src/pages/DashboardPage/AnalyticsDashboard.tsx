@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
-import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { ResponsiveGridLayout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
@@ -90,7 +90,22 @@ export default function AnalyticsDashboard() {
   const [saveLayout] = useSaveDashboardLayoutMutation();
   const [resetLayout] = useResetDashboardLayoutMutation();
   const { data: propertiesData } = useGetPropertiesQuery({});
-  const { ref: gridContainerRef, width: containerWidth } = useContainerWidth();
+
+  // Measure container width (replaces library's useContainerWidth for reliability)
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(1200);
+  useEffect(() => {
+    const el = gridContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width || 1200);
+      }
+    });
+    ro.observe(el);
+    setContainerWidth(el.clientWidth || 1200);
+    return () => ro.disconnect();
+  }, []);
 
   // Drill-down state
   const [drillDownData, setDrillDownData] = useState<{ widgetCode: string; drillKey?: string } | null>(null);

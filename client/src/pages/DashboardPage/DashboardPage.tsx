@@ -21,9 +21,28 @@ import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
-import AnalyticsDashboard from './AnalyticsDashboard';
 import ExpiringDocumentsWidget from '../../components/widgets/ExpiringDocumentsWidget';
-import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, type ReactNode, Component, lazy, Suspense } from 'react';
+
+const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
+
+// Error Boundary to prevent dashboard crashes from breaking the whole page
+class DashboardErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
+  state = { hasError: false, error: undefined as Error | undefined };
+  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 40, textAlign: 'center', opacity: 0.6 }}>
+          <h3>⚠️ Dashboard failed to load</h3>
+          <p style={{ fontSize: '0.85rem' }}>{this.state.error?.message || 'Unknown error'}</p>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ─── Collapsible Nav Section ──────────────────
 
@@ -662,7 +681,11 @@ export function DashboardHome() {
   const navigate = useNavigate();
   return (
     <>
-      <AnalyticsDashboard />
+      <DashboardErrorBoundary>
+        <Suspense fallback={<div className="loading-inline"><div className="loading-spinner" /> Loading dashboard...</div>}>
+          <AnalyticsDashboard />
+        </Suspense>
+      </DashboardErrorBoundary>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px', marginTop: '20px', padding: '0 0 24px' }}>
         <ExpiringDocumentsWidget
           days={30}
