@@ -174,15 +174,27 @@ export class DashboardService {
     });
 
     if (layout) {
-      // Sanitize: enforce minimum height of 2 for all items.
-      // Old layouts stored h=1 for KPI cards (120px) which is too small
-      // for content with sparklines, breakdowns, etc. h=2 = ~252px.
-      const sanitized = Array.isArray(layout.layout)
-        ? (layout.layout as any[]).map((item: any) => ({
-            ...item,
-            h: Math.max(item.h || 2, 2),
-          }))
-        : layout.layout;
+      const items = Array.isArray(layout.layout) ? (layout.layout as any[]) : [];
+
+      // 1. Deduplicate by widgetCode (keep first occurrence)
+      const seen = new Set<string>();
+      const deduped = items.filter((item: any) => {
+        if (!item.widgetCode || seen.has(item.widgetCode)) return false;
+        seen.add(item.widgetCode);
+        return true;
+      });
+
+      // 2. Check if any items had h < 2 (legacy layout needing y-recalculation)
+      const needsReflow = deduped.some((item: any) => (item.h || 1) < 2);
+
+      let sanitized: any[];
+      if (needsReflow) {
+        // Recalculate grid positions: place items in rows based on 12-col grid.
+        // Items keep their original x, w, but get new y values that don't overlap.
+        sanitized = this.reflowLayout(deduped);
+      } else {
+        sanitized = deduped.map((item: any) => ({ ...item, h: Math.max(item.h || 2, 2) }));
+      }
 
       return {
         dashboardKey: layout.dashboardKey,
@@ -198,6 +210,53 @@ export class DashboardService {
       layout: getDefaultLayoutForRole(roleName),
       updatedAt: new Date(),
     };
+  }
+
+  /**
+   * Reflow a layout: place items top-to-bottom respecting the 12-column grid.
+   * Items keep their width but get new x/y positions in row order.
+   */
+  private reflowLayout(items: any[]): any[] {
+    const COLS = 12;
+    // Enforce minimum h=2 and sort by original y then x
+    const sorted = items
+      .map((item: any) => ({ ...item, h: Math.max(item.h || 2, 2), w: Math.min(item.w || 3, COLS) }))
+      .sort((a: any, b: any) => (a.y - b.y) || (a.x - b.x));
+
+    // Place items using a simple row-packing algorithm
+    const result: any[] = [];
+    // Track the bottom edge of each column
+    const colBottoms = new Array(COLS).fill(0);
+
+    for (const item of sorted) {
+      const w = item.w;
+      const h = item.h;
+
+      // Find the first row where 'w' consecutive columns are free
+      let bestY = Infinity;
+      let bestX = 0;
+      for (let x = 0; x <= COLS - w; x++) {
+        // The earliest y we can place at column x..x+w-1
+        let maxBottom = 0;
+        for (let c = x; c < x + w; c++) {
+          maxBottom = Math.max(maxBottom, colBottoms[c]);
+        }
+        if (maxBottom < bestY) {
+          bestY = maxBottom;
+          bestX = x;
+        }
+      }
+
+      // Place the item
+      result.push({ ...item, x: bestX, y: bestY });
+
+      // Update column bottoms
+      for (let c = bestX; c < bestX + w; c++) {
+        colBottoms[c] = bestY + h;
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -234,10 +293,16 @@ export class DashboardService {
       }
     }
 
+    // Enforce minimum h=2 for all items before saving
+    const sanitized = (layout as any[]).map((item: any) => ({
+      ...item,
+      h: Math.max(item.h || 2, 2),
+    }));
+
     await prisma.dashboardLayout.upsert({
       where: { uq_user_dashboard: { userId, dashboardKey } },
-      create: { userId, dashboardKey, layout: layout as any },
-      update: { layout: layout as any },
+      create: { userId, dashboardKey, layout: sanitized as any },
+      update: { layout: sanitized as any },
     });
   }
 
