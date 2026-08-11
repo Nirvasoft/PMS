@@ -174,9 +174,19 @@ export class DashboardService {
     });
 
     if (layout) {
+      // Sanitize: enforce minimum height of 2 for all items.
+      // Old layouts stored h=1 for KPI cards (120px) which is too small
+      // for content with sparklines, breakdowns, etc. h=2 = ~252px.
+      const sanitized = Array.isArray(layout.layout)
+        ? (layout.layout as any[]).map((item: any) => ({
+            ...item,
+            h: Math.max(item.h || 2, 2),
+          }))
+        : layout.layout;
+
       return {
         dashboardKey: layout.dashboardKey,
-        layout: layout.layout,
+        layout: sanitized,
         updatedAt: layout.updatedAt,
       };
     }
