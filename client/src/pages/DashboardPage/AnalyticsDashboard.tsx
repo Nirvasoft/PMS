@@ -178,7 +178,9 @@ export default function AnalyticsDashboard() {
       h: Math.max(item.h, 2),
       minW: 2,
       minH: 2,
-      static: !editMode,
+      // NOTE: Do NOT set `static: !editMode` here. Grid-level isDraggable/isResizable
+      // already controls interaction. Setting static prevents compactType="vertical"
+      // from pushing items apart when heights change, causing overlaps.
     })),
   [layout, editMode]);
 

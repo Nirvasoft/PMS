@@ -409,11 +409,14 @@
 .kpi-card {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   position: relative;
   overflow: hidden;
   min-width: 0;
   height: 100%;
   box-sizing: border-box;
+  padding: 4px 0;
+  z-index: 1;
 }
 
 .kpi-sparkline {
