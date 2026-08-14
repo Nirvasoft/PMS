@@ -2,17 +2,13 @@
 
 import { useState, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Upload, Download, FileText } from 'lucide-react';
-import { useAppSelector } from '../../../store';
+import { Upload, Download, FileText, Users } from 'lucide-react';
+import { useImportUsersMutation, type BulkImportResult } from '../../../store/api/usersApi';
 
-export function BulkImportTab() {
-  const { accessToken } = useAppSelector(s => s.auth);
+export function BulkImportTab({ onViewUsers }: { onViewUsers?: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
-  const [results, setResults] = useState<{
-    created: number; skipped: number; errors: number;
-    results: { email: string; status: string; error?: string }[];
-  } | null>(null);
+  const [importUsers, { isLoading: importing }] = useImportUsersMutation();
+  const [results, setResults] = useState<BulkImportResult | null>(null);
 
   const downloadTemplate = () => {
     const csv = 'email,firstname,lastname\njohn.doe@example.com,John,Doe\njane.smith@example.com,Jane,Smith';
@@ -26,24 +22,14 @@ export function BulkImportTab() {
   const handleImport = async () => {
     const file = fileRef.current?.files?.[0];
     if (!file) { toast.error('Please select a CSV file'); return; }
-    setImporting(true);
     try {
-      const fd = new FormData();
-      fd.append('csv', file);
-      const res = await fetch('/api/v1/users/import', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'X-Requested-With': 'XMLHttpRequest' },
-        body: fd,
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResults(data.data);
-        toast.success(`Import done: ${data.data.created} created, ${data.data.skipped} skipped`);
-      } else {
-        toast.error(data.errors?.[0]?.message || 'Import failed');
-      }
-    } catch { toast.error('Network error'); }
-    finally { setImporting(false); }
+      const res = await importUsers(file).unwrap();
+      setResults(res.data);
+      toast.success(`Import done: ${res.data.created} created, ${res.data.skipped} skipped`);
+    } catch (err: unknown) {
+      const apiErr = err as { data?: { errors?: { message: string }[] }; error?: string };
+      toast.error(apiErr.data?.errors?.[0]?.message || apiErr.error || 'Import failed');
+    }
   };
 
   return (
@@ -70,6 +56,16 @@ export function BulkImportTab() {
 
       {results && (
         <div>
+          {results.created > 0 && onViewUsers && (
+            <div className="info-card" style={{ padding: 14, marginBottom: 12, borderLeft: '4px solid var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <span>
+                <strong>{results.created}</strong> user{results.created !== 1 ? 's' : ''} added. The list is already up to date.
+              </span>
+              <button className="btn btn-sm btn-primary" onClick={onViewUsers}>
+                <Users size={14} /> View Users List
+              </button>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
             <div className="info-card" style={{ flex: 1, padding: 16, textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--success)' }}>{results.created}</div>

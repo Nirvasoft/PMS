@@ -32,6 +32,16 @@ function imageFilter(_req: Express.Request, file: Express.Multer.File, cb: multe
   }
 }
 
+function csvFilter(_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
+  const okMime = /^(text\/csv|text\/plain|application\/csv|application\/vnd\.ms-excel|application\/octet-stream)$/i;
+  const okExt = /\.csv$/i.test(file.originalname);
+  if (okMime.test(file.mimetype) || okExt) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only .csv files are allowed'));
+  }
+}
+
 // In production with Spaces, use memory storage so we can upload the buffer to S3.
 // In local dev, use disk storage as before.
 export const avatarUpload = multer({
@@ -62,6 +72,12 @@ export const memoryUpload = multer({
   storage: multer.memoryStorage(),
   fileFilter: imageFilter,
   limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+export const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: csvFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
 /** General file upload (no image filter) for attachments etc. */

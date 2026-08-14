@@ -12,6 +12,13 @@ interface ApiResponse<T> {
   data: T;
 }
 
+export interface BulkImportResult {
+  created: number;
+  skipped: number;
+  errors: number;
+  results: { email: string; status: string; error?: string }[];
+}
+
 export interface UserListItem {
   id: string;
   email: string;
@@ -130,6 +137,16 @@ export const usersApi = createApi({
 
     adminResetPassword: builder.mutation<ApiResponse<{ temporaryPassword: string }>, string>({
       query: (id) => ({ url: `/users/${id}/reset-password`, method: 'POST' }),
+    }),
+
+    importUsers: builder.mutation<ApiResponse<BulkImportResult>, File>({
+      query: (file) => {
+        const formData = new FormData();
+        formData.append('csv', file);
+        return { url: '/users/import', method: 'POST', body: formData };
+      },
+      // Refresh the user list so imported users appear without a page reload.
+      invalidatesTags: ['Users'],
     }),
 
     uploadAvatar: builder.mutation<ApiResponse<{ avatarUrl: string }>, { userId: string; file: File }>({
@@ -294,4 +311,5 @@ export const {
   useCreateRoleFromTemplateMutation,
   useMoveDepartmentMutation,
   useUploadAvatarMutation,
+  useImportUsersMutation,
 } = usersApi;

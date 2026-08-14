@@ -5,7 +5,7 @@ import { rolesService } from './services/roles.service';
 import { permissionsService } from './services/permissions.service';
 import { departmentsService } from './services/departments.service';
 import { positionsService } from './services/positions.service';
-import { avatarUpload, getFileUrl, saveUploadedFileToSpaces } from '../../common/upload';
+import { avatarUpload, csvUpload, getFileUrl, saveUploadedFileToSpaces } from '../../common/upload';
 import { prisma } from '../../common/database';
 
 /** Helper to extract route param as string */
@@ -69,14 +69,12 @@ usersRouter.post('/:id/avatar', avatarUpload.single('avatar'), asyncHandler(asyn
 }));
 
 // CSV Bulk Import
-usersRouter.post('/import', avatarUpload.single('csv'), asyncHandler(async (req: Request, res: Response) => {
-  // We reuse multer but with text/csv accepted; parse manually
-  const fs = await import('fs');
-  const csvPath = req.file?.path;
-  if (!csvPath) { res.status(400).json({ success: false, errors: [{ message: 'No CSV file uploaded' }] }); return; }
-
-  const content = fs.readFileSync(csvPath, 'utf-8');
-  const lines = content.trim().split('\n').filter(Boolean);
+usersRouter.post('/import', csvUpload.single('csv'), asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file?.buffer) { res.status(400).json({ success: false, errors: [{ message: 'No CSV file uploaded' }] }); return; }
+  
+  const content = req.file.buffer.toString('utf-8').replace(/^﻿/, '');
+  const lines = content.trim().split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) { res.status(400).json({ success: false, errors: [{ message: 'CSV file is empty' }] }); return; }
   const headers = lines[0]!.split(',').map(h => h.trim().toLowerCase());
 
   const results: { email: string; status: string; error?: string }[] = [];
@@ -120,7 +118,6 @@ usersRouter.post('/import', avatarUpload.single('csv'), asyncHandler(async (req:
     }
   }
 
-  fs.unlinkSync(csvPath); // cleanup
   res.json({ success: true, data: { created, skipped, errors, results } });
 }));
 

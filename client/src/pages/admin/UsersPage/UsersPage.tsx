@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useGetUsersQuery, useCreateUserMutation, useDeactivateUserMutation, useGetInvitationsQuery, useSendInvitationMutation, useRevokeInvitationMutation } from '../../../store/api/usersApi';
+import { useGetUsersQuery, useCreateUserMutation, useGetInvitationsQuery, useSendInvitationMutation, useRevokeInvitationMutation } from '../../../store/api/usersApi';
 import { useGetRolesQuery } from '../../../store/api/usersApi';
-import { useGetDepartmentTreeQuery } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -53,7 +52,7 @@ export default function UsersPage() {
       </div>
 
       {tab === 'invitations' && <InvitationsTab />}
-      {tab === 'import' && <BulkImportTab />}
+      {tab === 'import' && <BulkImportTab onViewUsers={() => { setSearch(''); setStatusFilter('all'); setPage(1); setTab('users'); }} />}
       {tab === 'users' && (
         <>
         {/* Toolbar Row */}

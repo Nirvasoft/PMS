@@ -2109,6 +2109,21 @@ input.input-full:focus {
   color: var(--accent);
 }
 
+/* ─── Status badge ──────────────────────── */
+#users-table .status-badge {
+  position: static;
+  display: inline-flex;
+  backdrop-filter: none;
+}
+
+[data-theme="light"] #users-table .status-badge.active {
+  background: rgba(4, 120, 87, 0.12);
+  color: #047857;
+}
+[data-theme="light"] #users-table .status-badge.inactive {
+  background: rgba(75, 85, 99, 0.12);
+  color: #4b5563;
+}
 /* ═══════════════════════════════════════════════════
    MODULE 1.2 — USER & ROLE MANAGEMENT
    ═══════════════════════════════════════════════════ */

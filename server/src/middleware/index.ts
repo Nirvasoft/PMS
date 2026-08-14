@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { MulterError } from 'multer';
 import { tokenService } from '../modules/auth/services/token.service';
 import { AppError } from '../common/errors';
 import type { JwtPayload } from '../modules/auth/interfaces/auth.interfaces';
@@ -105,12 +106,37 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     return;
   }
 
+  // Upload errors (multer) are the caller's fault, not ours — surface the
+  // real reason as a 400 instead of burying it in a generic 500.
+  if (err instanceof MulterError) {
+    res.status(400).json({
+      success: false,
+      errors: [{ code: `UPLOAD_${err.code}`, message: err.message }],
+    });
+    return;
+  }
+  if (isFileFilterRejection(err)) {
+    res.status(400).json({
+      success: false,
+      errors: [{ code: 'UPLOAD_REJECTED', message: err.message }],
+    });
+    return;
+  }
+
   // Unexpected errors
   console.error('Unhandled error:', err);
   res.status(500).json({
     success: false,
     errors: [{ code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }],
   });
+}
+
+/**
+ * Our multer fileFilter callbacks reject with a plain Error, which multer
+ * forwards untouched — so it is matched on the message the filters produce.
+ */
+function isFileFilterRejection(err: Error): boolean {
+  return /^Only .+ (are|is) allowed$/i.test(err.message);
 }
 
 /**
