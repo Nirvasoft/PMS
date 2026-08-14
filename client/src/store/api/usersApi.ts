@@ -155,7 +155,7 @@ export const usersApi = createApi({
         formData.append('avatar', file);
         return { url: `/users/${userId}/avatar`, method: 'POST', body: formData };
       },
-      invalidatesTags: (_r, _e, { userId }) => [{ type: 'Users', id: userId }],
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'Users', id: userId }, 'Users'],
     }),
 
     // ─── Roles ──────────────────────────────

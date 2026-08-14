@@ -2,6 +2,16 @@ import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { permissionResolver } from '../helpers/permission-resolver';
 
+const USER_SORT_FIELDS: Record<string, (order: 'asc' | 'desc') => Record<string, unknown>> = {
+  fullName: (order) => ({ profile: { firstName: order } }),
+  email: (order) => ({ email: order }),
+  jobTitle: (order) => ({ profile: { jobTitle: order } }),
+  department: (order) => ({ profile: { department: { name: order } } }),
+  isActive: (order) => ({ isActive: order }),
+  lastLoginAt: (order) => ({ lastLoginAt: order }),
+  createdAt: (order) => ({ createdAt: order }),
+};
+
 export class UsersService {
   /** List users with filters and pagination */
   async findAll(companyId: string, query: {
@@ -39,7 +49,7 @@ export class UsersService {
           profile: { include: { department: { select: { id: true, name: true } } } },
           userRoles: { include: { role: { select: { id: true, name: true } } } },
         },
-        orderBy: sort === 'fullName' ? { profile: { firstName: order } } : { [sort]: order },
+        orderBy: (USER_SORT_FIELDS[sort] ?? USER_SORT_FIELDS['createdAt']!)(order),
         skip: (page - 1) * limit,
         take: limit,
       }),

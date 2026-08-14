@@ -4,7 +4,7 @@ import { useGetRolesQuery } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Mail, Trash2, Clock, CheckCircle, UserPlus, Users, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { Mail, Trash2, Clock, CheckCircle, UserPlus, Users, Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye } from 'lucide-react';
 import { BulkImportTab } from './BulkImportTab';
 
 export default function UsersPage() {
@@ -13,9 +13,22 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [sort, setSort] = useState<SortKey>('createdAt');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+
+  /** Same column toggles direction; a new column starts ascending. */
+  const applySort = (key: SortKey) => {
+    if (key === sort) {
+      setOrder(order === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSort(key);
+      setOrder('asc');
+    }
+    setPage(1);
+  };
 
   const queryParams: Record<string, string> = {
-    search, page: String(page), limit: '15',
+    search, page: String(page), limit: '15', sort, order,
   };
   if (statusFilter !== 'all') queryParams.isActive = statusFilter === 'active' ? 'true' : 'false';
 
@@ -89,12 +102,13 @@ export default function UsersPage() {
             <table className="audit-table" id="users-table">
               <thead>
                 <tr>
-                  <th>User</th>
-                  <th>Job Title</th>
-                  <th>Department</th>
+                  <SortableTh label="User" sortKey="fullName" active={sort} order={order} onSort={applySort} />
+                  <SortableTh label="Job Title" sortKey="jobTitle" active={sort} order={order} onSort={applySort} />
+                  <SortableTh label="Department" sortKey="department" active={sort} order={order} onSort={applySort} />
+                  {/* Roles is many-to-many — no meaningful column to sort on. */}
                   <th>Roles</th>
-                  <th>Status</th>
-                  <th>Last Login</th>
+                  <SortableTh label="Status" sortKey="isActive" active={sort} order={order} onSort={applySort} />
+                  <SortableTh label="Last Login" sortKey="lastLoginAt" active={sort} order={order} onSort={applySort} />
                   <th></th>
                 </tr>
               </thead>
@@ -103,7 +117,7 @@ export default function UsersPage() {
                   <tr key={user.id}>
                     <td>
                       <div className="user-cell">
-                        <div className="user-avatar-sm">{user.fullName.charAt(0)}</div>
+                        <UserAvatar url={user.avatarUrl} name={user.fullName} />
                         <div>
                           <div className="user-cell-name">{user.fullName}</div>
                           <div className="text-muted text-small">{user.email}</div>
@@ -159,6 +173,53 @@ export default function UsersPage() {
   );
 }
 
+/** Columns the API can order by — see USER_SORT_FIELDS on the server. */
+type SortKey = 'fullName' | 'jobTitle' | 'department' | 'isActive' | 'lastLoginAt' | 'createdAt';
+
+function SortableTh({ label, sortKey, active, order, onSort }: {
+  label: string;
+  sortKey: SortKey;
+  active: SortKey;
+  order: 'asc' | 'desc';
+  onSort: (key: SortKey) => void;
+}) {
+  const isActive = active === sortKey;
+
+  return (
+    <th
+      onClick={() => onSort(sortKey)}
+      style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+      title={`Sort by ${label}`}
+    >
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        {label}
+        {/* Reserve the arrow's space always, so headers don't jump on click. */}
+        <span style={{ display: 'inline-flex', width: 12, opacity: isActive ? 1 : 0.25 }}>
+          {isActive && order === 'desc' ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+        </span>
+      </span>
+    </th>
+  );
+}
+
+function UserAvatar({ url, name }: { url: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="user-avatar-sm" style={{ overflow: 'hidden' }}>
+      {url && !failed
+        ? (
+          <img
+            src={url}
+            alt=""
+            onError={() => setFailed(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' }}
+          />
+        )
+        : name.charAt(0)}
+    </div>
+  );
+}
 function CreateUserModal({ onClose }: { onClose: () => void }) {
   const [createUser, { isLoading }] = useCreateUserMutation();
   const { data: rolesData } = useGetRolesQuery();
