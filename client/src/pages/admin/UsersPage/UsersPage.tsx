@@ -4,7 +4,7 @@ import { useGetRolesQuery } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Mail, Trash2, Clock, CheckCircle, UserPlus, Users, Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye } from 'lucide-react';
+import { Mail, Undo2, Clock, CheckCircle, UserPlus, Users, Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye } from 'lucide-react';
 import { BulkImportTab } from './BulkImportTab';
 
 export default function UsersPage() {
@@ -389,11 +389,11 @@ function InvitationsTab() {
                   <td className="text-small text-muted">{inv.inviter.email}</td>
                   <td>
                     {!inv.acceptedAt && (
-                      <button className="btn-icon btn-danger" title="Revoke" onClick={async () => {
+                      <button className=" btn-danger" title="Revoke" onClick={async () => {
                         if (!confirm(`Revoke invitation for ${inv.email}?`)) return;
                         try { await revokeInvite(inv.id).unwrap(); toast.success('Invitation revoked'); }
                         catch { toast.error('Failed to revoke'); }
-                      }}><Trash2 size={14} /></button>
+                      }}><Undo2 size={18} strokeWidth={2.5} /></button>
                     )}
                   </td>
                 </tr>
