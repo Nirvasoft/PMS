@@ -41,7 +41,7 @@ export function BulkImportTab({ onViewUsers }: { onViewUsers?: () => void }) {
   };
 
   const downloadTemplate = () => {
-    const csv = 'email,firstname,lastname\njohn.doe@example.com,John,Doe\njane.smith@example.com,Jane,Smith';
+    const csv = 'email,firstname,lastname,role\njohn.doe@example.com,John,Doe,Manager\njane.smith@example.com,Jane,Smith,Staff';
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -54,7 +54,9 @@ export function BulkImportTab({ onViewUsers }: { onViewUsers?: () => void }) {
     try {
       const res = await importUsers(file).unwrap();
       setResults(res.data);
-      toast.success(`Import done: ${res.data.created} created, ${res.data.skipped} skipped`);
+      const summary = `Import done: ${res.data.created} created, ${res.data.skipped} skipped, ${res.data.errors} error${res.data.errors !== 1 ? 's' : ''}`;
+      if (res.data.errors > 0) toast.error(summary);
+      else toast.success(summary);
       clearFile();
     } catch (err: unknown) {
       const apiErr = err as { data?: { errors?: { message: string }[] }; error?: string };
@@ -67,7 +69,7 @@ export function BulkImportTab({ onViewUsers }: { onViewUsers?: () => void }) {
       <div className="info-card" style={{ padding: 20, marginBottom: 16 }}>
         <h3 style={{ marginTop: 0 }}><Upload size={18} /> Bulk Import Users</h3>
         <p className="text-muted">Upload a CSV file to create multiple users at once. Each user will be created with a temporary password and <code>mustChangePassword</code> set.</p>
-        <p className="text-small text-muted">Required columns: <code>email</code>. Optional: <code>firstname</code>, <code>lastname</code></p>
+        <p className="text-small text-muted">Required columns: <code>email</code>. Optional: <code>firstname</code>, <code>lastname</code>, <code>role</code>. If provided, <code>role</code> must exactly match an existing role name from Roles &amp; Permissions, or that row will be rejected.</p>
 
         <div style={{ marginBottom: 16 }}>
           <button className="btn btn-sm" onClick={downloadTemplate}>
@@ -151,6 +153,20 @@ export function BulkImportTab({ onViewUsers }: { onViewUsers?: () => void }) {
               <button className="btn btn-sm btn-primary" onClick={onViewUsers}>
                 <Users size={14} /> View Users List
               </button>
+            </div>
+          )}
+          {results.errors > 0 && (
+            <div className="info-card" style={{ padding: 14, marginBottom: 12, borderLeft: '4px solid var(--danger)' }}>
+              <div style={{ marginBottom: 6 }}>
+                <strong>{results.errors}</strong> row{results.errors !== 1 ? 's' : ''} could not be imported:
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {results.results.filter(r => r.status === 'error').map((r, i) => (
+                  <li key={i} className="text-small">
+                    {r.email || 'row'}: {r.error}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>

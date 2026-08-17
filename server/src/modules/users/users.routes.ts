@@ -80,12 +80,26 @@ usersRouter.post('/import', csvUpload.single('csv'), asyncHandler(async (req: Re
   const results: { email: string; status: string; error?: string }[] = [];
   let created = 0, skipped = 0, errors = 0;
 
+  const companyRoles = await rolesService.findAll(req.user!.companyId, false);
+  const roleByName = new Map(companyRoles.map(r => [r.name.trim().toLowerCase(), r]));
+
   for (const line of lines.slice(1)) {
     const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
     const row: Record<string, string> = {};
     headers.forEach((h, i) => { row[h] = cols[i] || ''; });
 
     if (!row['email']) { errors++; results.push({ email: '', status: 'error', error: 'Missing email' }); continue; }
+
+    const roleName = row['role']?.trim();
+    let matchedRole: (typeof companyRoles)[number] | undefined;
+    if (roleName) {
+      matchedRole = roleByName.get(roleName.toLowerCase());
+      if (!matchedRole) {
+        errors++;
+        results.push({ email: row['email'], status: 'error', error: `Unknown role "${roleName}" — does not match any role in Roles & Permissions` });
+        continue;
+      }
+    }
 
     try {
       const existing = await prisma.user.findFirst({ where: { email: row['email'], companyId: req.user!.companyId } });
@@ -95,7 +109,7 @@ usersRouter.post('/import', csvUpload.single('csv'), asyncHandler(async (req: Re
       const tempPassword = Math.random().toString(36).slice(-10);
       const passwordHash = await bcrypt.default.hash(tempPassword, 10);
 
-      await prisma.user.create({
+      const user = await prisma.user.create({
         data: {
           email: row['email'],
           passwordHash,
@@ -110,6 +124,13 @@ usersRouter.post('/import', csvUpload.single('csv'), asyncHandler(async (req: Re
           },
         },
       });
+
+      if (matchedRole) {
+        await prisma.userRole.create({
+          data: { userId: user.id, roleId: matchedRole.id, grantedBy: req.user!.sub },
+        });
+      }
+
       created++;
       results.push({ email: row['email'], status: 'created' });
     } catch (err: unknown) {
