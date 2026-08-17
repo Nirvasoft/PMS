@@ -9,7 +9,7 @@ import { taxService } from './tax.service';
 import { invoicePdfService } from './pdf.service';
 import { notificationService } from '../notifications/services/notification.service';
 import {
-  createChargeTypeSchema, createBillingScheduleSchema, updateBillingScheduleSchema,
+  createChargeTypeSchema, updateChargeTypeSchema, createBillingScheduleSchema, updateBillingScheduleSchema,
   createInvoiceSchema, voidInvoiceSchema, createCreditNoteSchema,
   createPenaltyConfigSchema, createTaxConfigSchema,
 } from './billing.schema';
@@ -29,6 +29,11 @@ chargeTypesRouter.get('/', asyncHandler(async (req, res) => {
 chargeTypesRouter.post('/', validateRequest(createChargeTypeSchema), asyncHandler(async (req, res) => {
   const data = await chargeTypesService.create(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
+}));
+
+chargeTypesRouter.put('/:id', validateRequest(updateChargeTypeSchema), asyncHandler(async (req, res) => {
+  const data = await chargeTypesService.update(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
 }));
 
 // ════════════════════════════════════════════════

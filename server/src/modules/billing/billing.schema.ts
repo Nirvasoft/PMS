@@ -15,6 +15,18 @@ export const createChargeTypeSchema = z.object({
   }),
 });
 
+export const updateChargeTypeSchema = z.object({
+  body: z.object({
+    code: z.string().min(1).max(50).optional(),
+    name: z.string().min(1).max(150).optional(),
+    category: z.enum(['rent', 'utility', 'service', 'parking', 'penalty', 'deposit', 'misc']).optional(),
+    glAccountCode: z.string().max(20).optional(),
+    isTaxable: z.boolean().optional(),
+    taxRate: z.number().min(0).max(1).optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
 // ── Billing Schedules ─────────────────────────
 
 export const createBillingScheduleSchema = z.object({

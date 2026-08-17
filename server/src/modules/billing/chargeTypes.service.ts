@@ -1,5 +1,6 @@
 import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
+import { AppError } from '../../common/errors';
 
 const SYSTEM_CHARGE_TYPES = [
   { code: 'RENT',                  name: 'Rent',                    category: 'rent',    glAccountCode: '4100', isTaxable: true },
@@ -63,6 +64,24 @@ export class ChargeTypesService {
         isSystem: false,
       },
     });
+  }
+
+  async update(id: string, companyId: string, dto: Record<string, unknown>) {
+    // Scoped to companyId, so a system charge type (companyId: null, shared
+    // across every company) never matches here and can't be edited this way.
+    const chargeType = await prisma.chargeType.findFirst({ where: { id, companyId } });
+    if (!chargeType) throw AppError.notFound('Charge type');
+
+    const updateData: Record<string, unknown> = {};
+    if (dto.code !== undefined) updateData.code = dto.code;
+    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.category !== undefined) updateData.category = dto.category;
+    if (dto.glAccountCode !== undefined) updateData.glAccountCode = dto.glAccountCode || null;
+    if (dto.isTaxable !== undefined) updateData.isTaxable = dto.isTaxable;
+    if (dto.taxRate !== undefined) updateData.taxRate = dto.isTaxable === false ? 0 : dto.taxRate;
+    if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+
+    return prisma.chargeType.update({ where: { id }, data: updateData });
   }
 }
 

@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { useGetChargeTypesQuery, useCreateChargeTypeMutation } from '../../../store/api/billingApi';
-import { DollarSign, Plus, X, Tag, Check } from 'lucide-react';
+import {
+  useGetChargeTypesQuery, useCreateChargeTypeMutation, useUpdateChargeTypeMutation,
+  type ChargeType,
+} from '../../../store/api/billingApi';
+import { DollarSign, Plus, X, Tag, Check, Pencil, Lock } from 'lucide-react';
 import './BillingPage.css';
 
 const CATEGORIES = ['rent', 'utility', 'service', 'parking', 'penalty', 'deposit', 'misc'] as const;
@@ -17,30 +20,45 @@ const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
 export default function ChargeTypesPage() {
   const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery();
   const [createChargeType, { isLoading: creating }] = useCreateChargeTypeMutation();
+  const [updateChargeType, { isLoading: updating }] = useUpdateChargeTypeMutation();
 
   const chargeTypes = chargeTypesData?.data || [];
 
+  const emptyForm = { code: '', name: '', category: 'misc' as string, glAccountCode: '', isTaxable: false, taxRate: 0 };
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    code: '', name: '', category: 'misc' as string,
-    glAccountCode: '', isTaxable: false, taxRate: 0,
-  });
+  const [editing, setEditing] = useState<ChargeType | null>(null);
+  const [form, setForm] = useState(emptyForm);
+
+  const openCreate = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
+  const openEdit = (ct: ChargeType) => {
+    setEditing(ct);
+    setForm({
+      code: ct.code, name: ct.name, category: ct.category,
+      glAccountCode: ct.glAccountCode || '', isTaxable: ct.isTaxable, taxRate: Number(ct.taxRate),
+    });
+    setShowForm(true);
+  };
+  const closeForm = () => { setShowForm(false); setEditing(null); setForm(emptyForm); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = {
+      code: form.code.toUpperCase(),
+      name: form.name,
+      category: form.category,
+      glAccountCode: form.glAccountCode || undefined,
+      isTaxable: form.isTaxable,
+      taxRate: form.isTaxable ? form.taxRate : 0,
+    };
     try {
-      await createChargeType({
-        code: form.code.toUpperCase(),
-        name: form.name,
-        category: form.category,
-        glAccountCode: form.glAccountCode || undefined,
-        isTaxable: form.isTaxable,
-        taxRate: form.isTaxable ? form.taxRate : 0,
-      }).unwrap();
-      setShowForm(false);
-      setForm({ code: '', name: '', category: 'misc', glAccountCode: '', isTaxable: false, taxRate: 0 });
+      if (editing) {
+        await updateChargeType({ id: editing.id, data: payload }).unwrap();
+      } else {
+        await createChargeType(payload).unwrap();
+      }
+      closeForm();
     } catch (err: any) {
-      alert(err?.data?.message || 'Failed to create charge type');
+      alert(err?.data?.message || `Failed to ${editing ? 'update' : 'create'} charge type`);
     }
   };
 
@@ -64,7 +82,7 @@ export default function ChargeTypesPage() {
             <h1>Charge Types</h1>
             <p>Manage charge categories used across billing and invoicing</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Plus size={14} /> New Charge Type
           </button>
         </div>
@@ -96,13 +114,14 @@ export default function ChargeTypesPage() {
               <th className="text-center">Taxable</th>
               <th className="text-right">Default Tax</th>
               <th>Status</th>
+              <th className="text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             {isFetching && chargeTypes.length === 0 ? (
-              <tr><td colSpan={7} className="billing-empty">Loading…</td></tr>
+              <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
             ) : chargeTypes.length === 0 ? (
-              <tr><td colSpan={7} className="billing-empty">No charge types found</td></tr>
+              <tr><td colSpan={8} className="billing-empty">No charge types found</td></tr>
             ) : chargeTypes.map(ct => {
               const c = CATEGORY_COLORS[ct.category] || CATEGORY_COLORS.misc;
               return (
@@ -136,6 +155,17 @@ export default function ChargeTypesPage() {
                       ? <span className="sched-status sched-status--active">Active</span>
                       : <span className="sched-status sched-status--cancelled">Inactive</span>}
                   </td>
+                  <td className="text-center">
+                    {ct.isSystem ? (
+                      <span title="System charge types can't be edited" style={{ display: 'inline-flex', color: 'var(--text-tertiary)' }}>
+                        <Lock size={14} />
+                      </span>
+                    ) : (
+                      <button className="btn-icon" title="Edit" onClick={() => openEdit(ct)}>
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -143,13 +173,13 @@ export default function ChargeTypesPage() {
         </table>
       </div>
 
-      {/* Create Form Modal */}
+      {/* Create / Edit Form Modal */}
       {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+        <div className="modal-overlay" onClick={closeForm}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2><Tag size={18} /> New Charge Type</h2>
-              <button className="modal-close" onClick={() => setShowForm(false)}><X size={18} /></button>
+              <h2><Tag size={18} /> {editing ? 'Edit Charge Type' : 'New Charge Type'}</h2>
+              <button className="modal-close" onClick={closeForm}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
@@ -195,9 +225,9 @@ export default function ChargeTypesPage() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={creating}>
-                  {creating ? 'Saving…' : 'Create Charge Type'}
+                <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={creating || updating}>
+                  {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Charge Type'}
                 </button>
               </div>
             </form>

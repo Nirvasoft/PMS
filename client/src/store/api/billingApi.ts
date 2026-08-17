@@ -123,6 +123,11 @@ export const billingApi = createApi({
       invalidatesTags: ['ChargeTypes'],
     }),
 
+    updateChargeType: builder.mutation<ApiResponse<ChargeType>, { id: string; data: Record<string, unknown> }>({
+      query: ({ id, data }) => ({ url: `/billing/charge-types/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['ChargeTypes'],
+    }),
+
     // ── Billing Schedules ─────────────────
     getBillingSchedules: builder.query<PaginatedResponse<BillingSchedule>, {
       leaseId?: string; tenantId?: string; propertyId?: string; status?: string; page?: number; limit?: number;
@@ -227,6 +232,7 @@ export const billingApi = createApi({
 export const {
   useGetChargeTypesQuery,
   useCreateChargeTypeMutation,
+  useUpdateChargeTypeMutation,
   useGetBillingSchedulesQuery,
   useCreateBillingScheduleMutation,
   usePauseScheduleMutation,
