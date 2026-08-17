@@ -1,21 +1,110 @@
+import { useEffect, useState } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query';
+import { useGetPropertiesQuery } from '../../../../../../store/api/propertiesApi';
+import { useGetUnitsQuery } from '../../../../../../store/api/unitsApi';
+import { useGetTenantsQuery } from '../../../../../../store/api/tenantsApi';
+import ComboBox from '../../../../../../components/ComboBox';
 import type { FormState } from '../../types';
 
+/** Units the lease API will accept — see leases.service.ts. */
+const LEASABLE = ['available', 'reserved'];
+
 export function UnitTenantStep({ form, set, templates }: { form: FormState; set: Function; templates: any[] }) {
+  const [propertySearch, setPropertySearch] = useState('');
+  const [unitSearch, setUnitSearch] = useState('');
+  const [tenantSearch, setTenantSearch] = useState('');
+  const debounced = useDebounced(propertySearch);
+  const unitDebounced = useDebounced(unitSearch);
+  const tenantDebounced = useDebounced(tenantSearch);
+
+  const { data: propertiesData, isFetching: propertiesLoading } = useGetPropertiesQuery({
+    search: debounced || undefined,
+    limit: 20,
+  });
+
+  // Units live under a property, so there is nothing to ask for until one is picked.
+  const { data: unitsData, isFetching: unitsLoading } = useGetUnitsQuery(
+    form.propertyId
+      ? { propertyId: form.propertyId, search: unitDebounced || undefined, limit: 50 }
+      : skipToken,
+  );
+
+  const unitOptions = (unitsData?.data || [])
+    .filter((u) => LEASABLE.includes(u.status))
+    .map((u) => ({
+      id: u.id,
+      label: u.unitNumber,
+      sublabel: [u.tower?.name, u.floorLabel, u.status].filter(Boolean).join(' · ') || undefined,
+    }));
+
+  // Blacklisted tenants are rejected outright by the lease API; the verified
+  // filter matches the rule stated on the field label.
+  const { data: tenantsData, isFetching: tenantsLoading } = useGetTenantsQuery({
+    search: tenantDebounced || undefined,
+    kycStatus: 'verified',
+    isBlacklisted: false,
+    limit: 20,
+  });
+
+  const tenantOptions = (tenantsData?.data || []).map((t) => ({
+    id: t.id,
+    label: t.displayName,
+    sublabel: [t.email, t.mobile].filter(Boolean).join(' · ') || undefined,
+  }));
+
+  // Code is what staff know a property by, so it leads; the name disambiguates.
+  const propertyOptions = (propertiesData?.data || []).map((p) => ({
+    id: p.id,
+    label: p.code || p.name,
+    sublabel: [p.code ? p.name : null, p.city].filter(Boolean).join(' · ') || undefined,
+  }));
+
   return (
     <div className="step-content">
-      <h3>Select Unit & Tenant</h3>
+      <h3>Select Unit &amp; Tenant</h3>
       <div className="form-grid-2">
         <div className="form-field">
-          <label>Property ID *</label>
-          <input placeholder="Property UUID" value={form.propertyId} onChange={(e) => set('propertyId', e.target.value)} />
+          <label htmlFor="lease-property">Property ID *</label>
+          <ComboBox
+            id="lease-property"
+            value={form.propertyId}
+            onChange={(v) => {
+              set('propertyId', v);
+              if (form.unitId) set('unitId', '');
+            }}
+            options={propertyOptions}
+            onSearch={setPropertySearch}
+            loading={propertiesLoading}
+            placeholder="Search by code or name…"
+            emptyText="No properties found"
+          />
         </div>
         <div className="form-field">
-          <label>Unit ID * <span className="hint">(must be available)</span></label>
-          <input placeholder="Unit UUID" value={form.unitId} onChange={(e) => set('unitId', e.target.value)} />
+          <label htmlFor="lease-unit">Unit ID * <span className="hint">(must be available)</span></label>
+          <ComboBox
+            id="lease-unit"
+            value={form.unitId}
+            onChange={(v) => set('unitId', v)}
+            options={unitOptions}
+            onSearch={setUnitSearch}
+            loading={unitsLoading}
+            disabled={!form.propertyId}
+            placeholder={form.propertyId ? 'Search unit number…' : 'Select a property first'}
+            emptyText="No available units"
+          />
         </div>
         <div className="form-field">
-          <label>Tenant ID * <span className="hint">(must be KYC verified)</span></label>
-          <input placeholder="Tenant UUID" value={form.tenantId} onChange={(e) => set('tenantId', e.target.value)} />
+          <label htmlFor="lease-tenant">Tenant ID * <span className="hint">(must be KYC verified)</span></label>
+          <ComboBox
+            id="lease-tenant"
+            value={form.tenantId}
+            onChange={(v) => set('tenantId', v)}
+            options={tenantOptions}
+            onSearch={setTenantSearch}
+            loading={tenantsLoading}
+            placeholder="Search name, email or phone…"
+            emptyText="No KYC-verified tenants found"
+          />
         </div>
         {templates.length > 0 && (
           <div className="form-field">
@@ -28,8 +117,17 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
         )}
       </div>
       <div className="step-info">
-        <p>💡 In a future update, these fields will have searchable autocomplete pickers for units and tenants.</p>
+        <p>💡 Only available units and KYC-verified, non-blacklisted tenants are listed.</p>
       </div>
     </div>
   );
+}
+
+function useDebounced(value: string, delay = 250) {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return settled;
 }

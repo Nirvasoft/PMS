@@ -537,6 +537,87 @@ input.input-full:focus {
 }
 .btn-icon:hover { background: var(--surface-hover); color: var(--text-primary); }
 
+/* ─── ComboBox (searchable select) ───────────── */
+.combobox { position: relative; }
+.combobox-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: text;
+  transition: border-color 0.15s;
+}
+.combobox-control:focus-within { border-color: var(--accent); }
+.combobox.is-disabled .combobox-control { opacity: 0.5; cursor: not-allowed; }
+
+.combobox-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  font-family: inherit;
+}
+.combobox-input::placeholder { color: var(--text-muted); }
+
+.combobox-caret { color: var(--text-muted); flex-shrink: 0; }
+.combobox-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.combobox-clear:hover { color: var(--text-primary); }
+
+.combobox-list {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.combobox-option {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.combobox-option.active { background: var(--surface-hover); }
+.combobox-option.selected { color: var(--accent); }
+.combobox-option-sub { font-size: 0.72rem; color: var(--text-muted); }
+.combobox-empty { padding: 10px; font-size: 0.8rem; color: var(--text-muted); text-align: center; }
+
+[data-theme="light"] .combobox-control {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .combobox-list { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+
 /* Danger/destructive buttons: shade shift only on hover, no lift or glow
    (also overrides the generic .btn / .btn-icon hover styles above). */
 .btn-danger:hover { color: #fff; background: var(--btn-danger-bg-hover); }
