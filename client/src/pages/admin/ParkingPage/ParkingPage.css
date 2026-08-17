@@ -920,7 +920,7 @@
   margin-top: 2px;
 }
 .btn-danger-text { color: var(--text-tertiary); }
-.btn-danger-text:hover { color: #ef4444 !important; }
+.btn-danger-text:hover { color: var(--danger) !important; }
 
 .vc-inactive-badge {
   font-size: 11px;
@@ -1019,15 +1019,16 @@
   font-size: 13px;
   font-weight: 600;
   color: #fff;
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background: var(--btn-danger-bg);
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s;
 }
 .parking-page .btn-danger:hover {
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-  transform: translateY(-1px);
+  background: var(--btn-danger-bg-hover);
+  box-shadow: none;
+  transform: none;
 }
 .parking-page .btn-danger:disabled {
   opacity: 0.6;

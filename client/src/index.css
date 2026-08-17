@@ -35,7 +35,12 @@
   --warning-bg: rgba(251, 191, 36, 0.1);
   --error: #f87171;
   --error-bg: rgba(248, 113, 113, 0.1);
+  --danger: var(--error);
   --info: #60a5fa;
+
+  /* Solid danger buttons: deeper than --error so white text stays readable */
+  --btn-danger-bg: #b91c1c;
+  --btn-danger-bg-hover: #991b1b;
 
   /* Gradients */
   --gradient-primary: linear-gradient(135deg, #10b981, #34d399);
@@ -105,7 +110,11 @@
   --warning-bg: rgba(217, 119, 6, 0.08);
   --error: #dc2626;
   --error-bg: rgba(220, 38, 38, 0.06);
+  --danger: var(--error);
   --info: #2563eb;
+
+  --btn-danger-bg: #dc2626;
+  --btn-danger-bg-hover: #b91c1c;
 
   /* Gradients */
   --gradient-primary: linear-gradient(135deg, #059669, #10b981);
@@ -528,7 +537,9 @@ input.input-full:focus {
 }
 .btn-icon:hover { background: var(--surface-hover); color: var(--text-primary); }
 
-.btn-danger:hover { color: var(--error); background: var(--error-bg); }
+/* Danger/destructive buttons: shade shift only on hover, no lift or glow
+   (also overrides the generic .btn / .btn-icon hover styles above). */
+.btn-danger:hover { color: #fff; background: var(--btn-danger-bg-hover); }
 
 /* ─── Alerts ────────────────────────────────── */
 .alert {
@@ -4217,14 +4228,14 @@ select.input-full:focus {
 }
 
 .btn-danger {
-  background: var(--error);
-  color: white;
+  background: var(--btn-danger-bg);
+  color: #fff;
   border: none;
 }
 
 .btn-danger:hover {
-  background: var(--error);
-  opacity: 0.85;
+  background: var(--btn-danger-bg-hover);
+  color: #fff;
 }
 
 .temp-password {
@@ -8499,8 +8510,8 @@ textarea.form-input {
 }
 
 .btn-danger-outline:hover {
-  background: var(--danger);
-  color: #fff;
+  background: var(--error-bg);
+  color: var(--danger);
 }
 
 .portal-booking-detail {

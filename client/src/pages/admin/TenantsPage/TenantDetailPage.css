@@ -346,7 +346,7 @@
   color: var(--text-secondary); cursor: pointer; border: none; text-decoration: none;
 }
 .doc-actions a:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
-.doc-actions .btn-danger-ghost:hover { background: rgba(231,76,60,0.15); color: #e74c3c; }
+.doc-actions .btn-danger-ghost:hover { background: rgba(231,76,60,0.18); color: #e74c3c; }
 
 [data-theme="light"] .doc-card-sm { background: #fff; border-color: rgba(0,0,0,0.08); }
 [data-theme="light"] .doc-card-sm:hover { border-color: rgba(0,0,0,0.15); }

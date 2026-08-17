@@ -785,8 +785,8 @@
   align-items: center;
   gap: 6px;
   padding: 8px 18px;
-  background: #ef4444;
-  color: white;
+  background: var(--btn-danger-bg);
+  color: #fff;
   border: none;
   border-radius: 10px;
   font-size: 13px;
@@ -794,7 +794,7 @@
   cursor: pointer;
   transition: background 0.15s;
 }
-.btn-danger:hover { background: #dc2626; }
+.btn-danger:hover { background: var(--btn-danger-bg-hover); }
 .btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Campaign Form Modal */
@@ -1029,7 +1029,7 @@
   transition: color 0.15s !important;
 }
 .btn-danger-ghost:hover {
-  color: #ef4444 !important;
+  color: var(--danger) !important;
 }
 .btn-danger {
   display: inline-flex;
@@ -1039,15 +1039,16 @@
   font-size: 13px;
   font-weight: 600;
   color: #fff;
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background: var(--btn-danger-bg);
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s;
 }
 .btn-danger:hover {
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-  transform: translateY(-1px);
+  background: var(--btn-danger-bg-hover);
+  box-shadow: none;
+  transform: none;
 }
 .btn-danger:disabled {
   opacity: 0.6;
