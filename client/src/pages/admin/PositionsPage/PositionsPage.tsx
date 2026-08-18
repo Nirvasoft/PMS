@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGetPositionsQuery, useCreatePositionMutation, useDeletePositionMutation, useGetDepartmentTreeQuery } from '../../../store/api/usersApi';
-import { Briefcase, Trash2, Plus, Loader2 } from 'lucide-react';
+import { Briefcase, Trash2, Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+
+const PAGE_SIZE = 10;
 
 export default function PositionsPage() {
   const confirmDialog = useConfirm();
@@ -15,6 +17,13 @@ export default function PositionsPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', level: 1, departmentId: '', canApprove: false, approvalLimit: '' });
+
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(positions.length / PAGE_SIZE));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+  const pagedPositions = positions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,51 +70,61 @@ export default function PositionsPage() {
 
       <div className="toolbar">
         <span className="text-secondary">{positions.length} position(s)</span>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
           <Plus size={16} /> New Position
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="info-card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', padding: 16, marginBottom: 16 }}>
-          <div className="form-group" style={{ flex: 1, minWidth: 180 }}>
-            <label>Position Name *</label>
-            <input className="input-full" required value={form.name} placeholder="e.g. Senior Manager"
-              onChange={e => setForm({ ...form, name: e.target.value })} />
-          </div>
-          <div className="form-group" style={{ width: 100 }}>
-            <label>Level</label>
-            <input type="number" className="input-full" min={1} max={20} value={form.level}
-              onChange={e => setForm({ ...form, level: +e.target.value })} />
-          </div>
-          <div className="form-group" style={{ flex: 1, minWidth: 180 }}>
-            <label>Department (optional)</label>
-            <select className="input-full" value={form.departmentId}
-              onChange={e => setForm({ ...form, departmentId: e.target.value })}>
-              <option value="">— All Departments —</option>
-              {flatDepts.map(d => (
-                <option key={d.id} value={d.id}>{'  '.repeat(d.depth) + d.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 24 }}>
-            <input type="checkbox" id="canApprove" checked={form.canApprove}
-              onChange={e => setForm({ ...form, canApprove: e.target.checked })} />
-            <label htmlFor="canApprove" style={{ margin: 0 }}>Can Approve</label>
-          </div>
-          {form.canApprove && (
-            <div className="form-group" style={{ width: 140 }}>
-              <label>Approval Limit</label>
-              <input type="number" className="input-full" min={0} step="0.01" placeholder="No limit"
-                value={form.approvalLimit}
-                onChange={e => setForm({ ...form, approvalLimit: e.target.value })} />
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <h2>New Position</h2>
+              <button className="btn-icon" onClick={() => setShowForm(false)}>✕</button>
             </div>
-          )}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="submit" className="btn btn-primary">Create</button>
-            <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
+            <form onSubmit={handleCreate} className="modal-body">
+              <div className="form-group">
+                <label>Position Name *</label>
+                <input className="input-full" required value={form.name} placeholder="e.g. Senior Manager"
+                  onChange={e => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Level</label>
+                <input type="number" className="input-full no-spinner" min={1} max={20} value={form.level}
+                  onChange={e => setForm({ ...form, level: +e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Department (optional)</label>
+                <select className="input-full" value={form.departmentId}
+                  onChange={e => setForm({ ...form, departmentId: e.target.value })}>
+                  <option value="">— All Departments —</option>
+                  {flatDepts.map(d => (
+                    <option key={d.id} value={d.id}>{'  '.repeat(d.depth) + d.name}</option>
+                  ))}
+                </select>
+              </div>
+              {form.canApprove && (
+                <div className="form-group">
+                  <label>Approval Limit</label>
+                  <input type="number" className="input-full no-spinner" min={0} step="0.01" placeholder="No limit"
+                    value={form.approvalLimit}
+                    onChange={e => setForm({ ...form, approvalLimit: e.target.value })} />
+                </div>
+              )}
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <button type="button" className={`toggle-switch ${form.canApprove ? 'on' : ''}`}
+                  onClick={() => setForm({ ...form, canApprove: !form.canApprove })}>
+                  <span className="toggle-knob" />
+                </button>
+                <label style={{ margin: 0 }}>Can Approve</label>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Create</button>
+              </div>
+            </form>
           </div>
-        </form>
+        </div>
       )}
 
       {positions.length === 0 ? (
@@ -126,7 +145,7 @@ export default function PositionsPage() {
               </tr>
             </thead>
             <tbody>
-              {positions.map(p => (
+              {pagedPositions.map(p => (
                 <tr key={p.id}>
                   <td><strong>{p.name}</strong></td>
                   <td><span className="role-chip">Level {p.level}</span></td>
@@ -143,7 +162,7 @@ export default function PositionsPage() {
                     )}
                   </td>
                   <td>
-                    <button className="btn-icon btn-danger" onClick={() => handleDelete(p.id, p.name)}>
+                    <button className="btn-danger" onClick={() => handleDelete(p.id, p.name)} title="Delete">
                       <Trash2 size={14} />
                     </button>
                   </td>
@@ -151,6 +170,23 @@ export default function PositionsPage() {
               ))}
             </tbody>
           </table>
+
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderTop: '1px solid var(--border-subtle)' }}>
+              <span className="text-muted text-small">
+                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, positions.length)} of {positions.length}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button className="btn btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+                  <ChevronLeft size={14} /> Previous
+                </button>
+                <span className="text-muted text-small">Page {page} of {totalPages}</span>
+                <button className="btn btn-sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
+                  Next <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
