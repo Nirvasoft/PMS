@@ -45,7 +45,7 @@ export default function UserDetailPage() {
     <div className="page-content">
       {/* Header */}
       <div className="user-detail-header">
-        <button className="btn btn-sm" onClick={() => navigate('/admin/users')}>← Back</button>
+        <button className="btn btn-sm" style={{ alignSelf: 'flex-end' }} onClick={() => navigate('/admin/users')}>← Back</button>
         <div className="user-detail-identity">
           <AvatarUpload user={user} onRefresh={refetch} />
           <div>

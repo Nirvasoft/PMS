@@ -29,7 +29,7 @@ export default function UsersPage() {
   };
 
   const queryParams: Record<string, string> = {
-    search, page: String(page), limit: '15', sort, order,
+    search, page: String(page), limit: '10', sort, order,
   };
   if (statusFilter !== 'all') queryParams.isActive = statusFilter === 'active' ? 'true' : 'false';
 
@@ -45,11 +45,6 @@ export default function UsersPage() {
             <h1><Users size={24} /> User Management</h1>
             <p className="text-secondary">Manage users, roles, and access for your organization</p>
           </div>
-          <PermissionGuard permission="users.create">
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)} id="create-user-btn">
-              <UserPlus size={16} /> New User
-            </button>
-          </PermissionGuard>
         </div>
       </div>
 
@@ -63,6 +58,11 @@ export default function UsersPage() {
         <button className={`tab ${tab === 'import' ? 'active' : ''}`} onClick={() => setTab('import')}>
           📂 Bulk Import
         </button>
+        <PermissionGuard permission="users.create">
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} id="create-user-btn" style={{ marginLeft: 'auto',marginBottom:'6px', alignSelf: 'flex-end' }}>
+            <UserPlus size={16} /> New User
+          </button>
+        </PermissionGuard>
       </div>
 
       {tab === 'invitations' && <InvitationsTab />}
