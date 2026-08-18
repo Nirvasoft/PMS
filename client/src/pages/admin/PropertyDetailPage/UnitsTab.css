@@ -589,6 +589,54 @@
   display: flex;
   flex-direction: column;
 }
+
+/* ─── Pagination ──────────────────────────────── */
+.ut-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.ut-page-info {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.ut-page-btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ut-page-btns button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.ut-page-btns button:hover:not(:disabled) {
+  background: rgba(255,255,255,0.07);
+}
+.ut-page-btns button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ut-page-num {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+[data-theme="light"] .ut-pagination { border-top-color: rgba(0,0,0,0.06); }
+[data-theme="light"] .ut-page-btns button { border-color: rgba(0,0,0,0.1); background: rgba(0,0,0,0.02); }
+[data-theme="light"] .ut-page-btns button:hover:not(:disabled) { background: rgba(0,0,0,0.05); }
 .ul-header {
   display: grid;
   grid-template-columns: 2fr 1fr 0.7fr 0.9fr 0.9fr 1fr 1fr 36px;

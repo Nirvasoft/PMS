@@ -14,7 +14,7 @@ import {
 import type { UnitListItem, Tower } from '../../../store/api/unitsApi';
 import {
   LayoutGrid, List, Layers, Plus, Search, Building2,
-  Zap, Droplets, Wind, X, Grid3x3, ChevronRight,
+  Zap, Droplets, Wind, X, Grid3x3, ChevronRight, ChevronLeft,
   ChevronsUp, ChevronsDown, Filter, Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -84,15 +84,26 @@ export default function UnitsTab() {
 
   /* list / grid data — send comma-separated statuses for multi-select */
   const statusParam = statusFilter.length > 0 ? statusFilter.join(',') : undefined;
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = viewMode === 'grid' ? 16 : 10;
+
+  /* Reset to page 1 whenever the query filters or view (page size) change */
+  useEffect(() => {
+    setPage(1);
+  }, [propertyId, selectedTowerId, statusParam, searchQuery, viewMode]);
+
   const { data: listData, isLoading: listLoading } = useGetUnitsQuery(
     {
       propertyId: propertyId!,
       towerId: selectedTowerId || undefined,
       status: statusParam,
       search: searchQuery || undefined,
+      page,
+      limit: viewMode === 'calendar' ? 1000 : PAGE_SIZE,
     },
     { skip: viewMode === 'floor_plan' }
   );
+  const meta = listData?.meta;
 
   const [deleteUnit] = useDeleteUnitMutation();
 
@@ -423,6 +434,24 @@ export default function UnitsTab() {
                       <UnitGridCard key={unit.id} unit={unit} onClick={() => dispatch(selectUnit(unit.id))} />
                     ))
               }
+            </div>
+          )}
+
+          {/* ── Pagination (list / grid) ── */}
+          {(viewMode === 'list' || viewMode === 'grid') && meta && meta.totalPages > 1 && (
+            <div className="ut-pagination">
+              <span className="ut-page-info">
+                Showing {(meta.page - 1) * meta.limit + 1}–{Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
+              </span>
+              <div className="ut-page-btns">
+                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+                  <ChevronLeft size={15} /> Previous
+                </button>
+                <span className="ut-page-num">Page {meta.page} of {meta.totalPages}</span>
+                <button disabled={page === meta.totalPages} onClick={() => setPage((p) => p + 1)}>
+                  Next <ChevronRight size={15} />
+                </button>
+              </div>
             </div>
           )}
 
