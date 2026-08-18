@@ -6,6 +6,7 @@ import {
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { Calendar, Plus, MapPin, Tag, Edit3, X, Receipt, CheckCircle, DollarSign } from 'lucide-react';
+import { useAlertDialog } from '../../components/DialogProvider';
 
 const EVENT_TYPES = ['campaign', 'event', 'roadshow', 'sale', 'exhibition'];
 const STATUSES = ['planned', 'active', 'completed', 'cancelled'];
@@ -14,6 +15,7 @@ const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 export default function MallEventsPage() {
   
   const propertyId = useSelectedPropertyId();
+  const alertDialog = useAlertDialog();
 
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -106,7 +108,7 @@ export default function MallEventsPage() {
     try {
       await invoiceBooth({ boothId }).unwrap();
     } catch (e: any) {
-      alert(e?.data?.message || 'Failed to generate invoice');
+      alertDialog(e?.data?.message || 'Failed to generate invoice');
     }
   };
 

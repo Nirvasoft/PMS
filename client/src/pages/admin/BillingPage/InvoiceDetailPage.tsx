@@ -6,6 +6,7 @@ import {
 } from '../../../store/api/billingApi';
 import { ArrowLeft, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, AlertTriangle, Clock, Banknote, History, ShieldAlert, Timer, Eye, ExternalLink } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
+import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -22,6 +23,8 @@ export default function InvoiceDetailPage() {
   const [sendInvoice, { isLoading: sending }] = useSendInvoiceMutation();
   const [createCreditNote, { isLoading: creatingCN }] = useCreateCreditNoteMutation();
   const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const confirmDialog = useConfirm();
+  const alertDialog = useAlertDialog();
 
   const chargeTypes = chargeTypesData?.data || [];
   const inv = data?.data;
@@ -86,12 +89,12 @@ export default function InvoiceDetailPage() {
   }, [showPdfViewer, closePdfViewer]);
 
   const handleSend = async () => {
-    if (!confirm('Send this invoice to the tenant via email?')) return;
+    if (!(await confirmDialog('Send this invoice to the tenant via email?'))) return;
     try {
       const result = await sendInvoice(id!).unwrap();
-      alert(`Invoice sent to ${result.data.sentTo}`);
+      alertDialog(`Invoice sent to ${result.data.sentTo}`);
     } catch (err: any) {
-      alert(err?.data?.message || 'Failed to send invoice');
+      alertDialog(err?.data?.message || 'Failed to send invoice');
     }
   };
 
@@ -128,7 +131,7 @@ export default function InvoiceDetailPage() {
       setCreditReason('');
       setCreditLines([{ chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 }]);
     } catch (err: any) {
-      alert(err?.data?.message || 'Failed to create credit note');
+      alertDialog(err?.data?.message || 'Failed to create credit note');
     }
   };
 

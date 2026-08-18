@@ -8,12 +8,14 @@ import {
   ArrowLeft, BookOpen, Plus, Trash2, Star,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import './LeaseClausesPage.css';
 
 const CATEGORIES = ['general', 'payment', 'termination', 'use', 'maintenance', 'insurance', 'other'];
 
 export default function LeaseClausesPage() {
   const navigate = useNavigate();
+  const confirmDialog = useConfirm();
   const { data, isLoading } = useGetLeaseClausesQuery();
   const [create, { isLoading: creating }] = useCreateLeaseClauseMutation();
   const [del] = useDeleteLeaseClauseMutation();
@@ -39,7 +41,7 @@ export default function LeaseClausesPage() {
   };
 
   const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`Delete clause "${title}"?`)) return;
+    if (!(await confirmDialog(`Delete clause "${title}"?`, { danger: true, confirmText: 'Delete' }))) return;
     try { await del(id).unwrap(); toast.success('Clause deleted'); }
     catch { toast.error('Failed'); }
   };

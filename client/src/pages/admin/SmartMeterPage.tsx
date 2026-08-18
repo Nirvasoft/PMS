@@ -6,12 +6,14 @@ import {
   useGenerateUtilityInvoiceMutation, useUpsertSmartDeviceMutation,
 } from '../../store/api/condoApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
+import { useAlertDialog } from '../../components/DialogProvider';
 import {
   Zap, Wifi, WifiOff, Activity, Gauge, Plus, X, AlertTriangle, Wrench,
   RefreshCw, Loader2, Settings, FileText, Receipt,
 } from 'lucide-react';
 
 export default function SmartMeterPage() {
+  const alertDialog = useAlertDialog();
   const propertyId = useSelectedPropertyId();
 
   const { data: devicesRes, isLoading } = useGetSmartDevicesQuery({ propertyId }, { skip: !propertyId });
@@ -60,13 +62,13 @@ export default function SmartMeterPage() {
     // Find the unitId from the selected meter's device
     const device = devices.find((d: any) => d.meterId === selectedMeter);
     const unitId = device?.meter?.unitId;
-    if (!unitId) { alert('No unit associated with this meter'); return; }
+    if (!unitId) { alertDialog('No unit associated with this meter'); return; }
     setInvoiceGenerating(true);
     try {
       const res = await generateInvoice({ unitId, data: { from: invoiceForm.from, to: invoiceForm.to } }).unwrap();
       setInvoiceResult(res.data);
     } catch (e: any) {
-      alert(e?.data?.message || 'Failed to generate invoice');
+      alertDialog(e?.data?.message || 'Failed to generate invoice');
     } finally {
       setInvoiceGenerating(false);
     }
@@ -130,7 +132,7 @@ export default function SmartMeterPage() {
               const res = await checkOffline().unwrap();
               setOfflineResult(res.data);
             } catch (e: any) {
-              alert(e?.data?.message || 'Check failed');
+              alertDialog(e?.data?.message || 'Check failed');
             }
           }}
           disabled={isChecking}
@@ -303,7 +305,7 @@ export default function SmartMeterPage() {
                             try {
                               await syncMeter(d.meterId).unwrap();
                             } catch (e: any) {
-                              alert(e?.data?.message || 'Sync failed');
+                              alertDialog(e?.data?.message || 'Sync failed');
                             } finally {
                               setSyncingMeterId(null);
                             }

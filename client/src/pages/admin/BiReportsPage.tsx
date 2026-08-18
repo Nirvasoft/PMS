@@ -5,6 +5,7 @@ import {
   useLazyRunBiReportQuery, useDeleteBiReportMutation,
 } from '../../store/api/biApi';
 import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import { useConfirm } from '../../components/DialogProvider';
 import {
   FileBarChart, Plus, X, Trash2, Play, Clock, Building2, DollarSign,
   Wrench, BarChart3, PieChart, Users, CheckCircle, AlertCircle,
@@ -54,6 +55,7 @@ export default function BiReportsPage() {
   const { data: reportsRes, isLoading } = useGetBiReportsQuery({ reportType: typeFilter || undefined });
   const [deleteReport] = useDeleteBiReportMutation();
   const [triggerRun, { isFetching: isRunning }] = useLazyRunBiReportQuery();
+  const confirmDialog = useConfirm();
 
   const reports = reportsRes?.data || [];
   const total = reportsRes?.total || 0;
@@ -70,7 +72,7 @@ export default function BiReportsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this saved report?')) return;
+    if (!(await confirmDialog('Delete this saved report?', { danger: true, confirmText: 'Delete' }))) return;
     await deleteReport(id);
     if (runningReportId === id) {
       setRunningReportId(null);

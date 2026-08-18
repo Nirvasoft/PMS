@@ -6,6 +6,7 @@ import {
 } from '../../store/api/visitorsApi';
 import { useGetPortalDashboardQuery } from '../../store/api/portalApi';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../components/DialogProvider';
 import {
   UserPlus, QrCode, Clock, CheckCircle2, XCircle, AlertTriangle,
   Copy, X, Filter, ChevronLeft, ChevronRight, Car,
@@ -37,6 +38,7 @@ export default function PortalVisitors() {
   });
   const [preRegister, { isLoading: isRegistering }] = usePreRegisterVisitorMutation();
   const [cancelVisitor] = useCancelVisitorMutation();
+  const confirmDialog = useConfirm();
 
   // Form state
   const [form, setForm] = useState({
@@ -66,7 +68,7 @@ export default function PortalVisitors() {
   };
 
   const handleCancel = async (id: string) => {
-    if (!confirm('Cancel this visitor pass?')) return;
+    if (!(await confirmDialog('Cancel this visitor pass?', { danger: true, confirmText: 'Cancel' }))) return;
     try {
       await cancelVisitor(id).unwrap();
       toast.success('Visitor pass cancelled');

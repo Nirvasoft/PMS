@@ -10,6 +10,7 @@ import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
+import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -52,6 +53,8 @@ export default function BillingSchedulesPage() {
   const [cancelSchedule] = useCancelScheduleMutation();
   const [createSchedule, { isLoading: creating }] = useCreateBillingScheduleMutation();
   const [updateSchedule, { isLoading: updating }] = useUpdateScheduleMutation();
+  const confirmDialog = useConfirm();
+  const alertDialog = useAlertDialog();
 
   const schedules = data?.data || [];
   const meta = data?.meta;
@@ -60,13 +63,13 @@ export default function BillingSchedulesPage() {
   const tenants = tenantsData?.data || [];
 
   const handleAction = async (id: string, action: 'pause' | 'resume' | 'cancel') => {
-    if (action === 'cancel' && !confirm('Cancel this billing schedule? No future invoices will be generated.')) return;
+    if (action === 'cancel' && !(await confirmDialog('Cancel this billing schedule? No future invoices will be generated.', { danger: true, confirmText: 'Cancel Schedule' }))) return;
     try {
       if (action === 'pause') await pauseSchedule(id).unwrap();
       if (action === 'resume') await resumeSchedule(id).unwrap();
       if (action === 'cancel') await cancelSchedule(id).unwrap();
     } catch (err: any) {
-      alert(err?.data?.message || `Failed to ${action} schedule`);
+      alertDialog(err?.data?.message || `Failed to ${action} schedule`);
     }
   };
 
@@ -120,7 +123,7 @@ export default function BillingSchedulesPage() {
       }
       setShowForm(false);
     } catch (err: any) {
-      alert(err?.data?.message || `Failed to ${editId ? 'update' : 'create'} schedule`);
+      alertDialog(err?.data?.message || `Failed to ${editId ? 'update' : 'create'} schedule`);
     }
   };
 

@@ -22,6 +22,7 @@ import {
   Wifi, Shield, ArrowUp, ShoppingBag, UtensilsCrossed, MonitorSmartphone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import './PropertyDetailPage.css';
 
 type Tab = 'overview' | 'units' | 'leases' | 'documents' | 'facilities' | 'contacts' | 'photos' | 'history' | 'finance' | 'settings';
@@ -280,6 +281,7 @@ const FACILITY_CAT_COLORS: Record<string, string> = {
 
 // ─── Facilities Tab ───────────────────────────
 function FacilitiesTab({ propertyId }: { propertyId: string }) {
+  const confirmDialog = useConfirm();
   const { data } = useGetFacilitiesQuery(propertyId);
   const { data: typesData } = useGetFacilityTypesQuery();
   const [addFacility] = useAddFacilityMutation();
@@ -320,7 +322,7 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
   };
 
   const handleRemove = async (facilityId: string) => {
-    if (!confirm('Remove this facility?')) return;
+    if (!(await confirmDialog('Remove this facility?', { danger: true, confirmText: 'Remove' }))) return;
     try { await removeFacility({ propertyId, facilityId }).unwrap(); toast.success('Removed'); }
     catch { toast.error('Failed to remove'); }
   };
@@ -439,6 +441,7 @@ const BLANK_CONTACT = { role: 'building_manager', name: '', phone: '', mobile: '
 
 // ─── Contacts Tab ─────────────────────────────
 function ContactsTab({ propertyId }: { propertyId: string }) {
+  const confirmDialog = useConfirm();
   const { data } = useGetContactsQuery(propertyId);
   const [addContact] = useAddContactMutation();
   const [updateContact] = useUpdateContactMutation();
@@ -476,7 +479,7 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
   };
 
   const handleRemove = async (contactId: string) => {
-    if (!confirm('Remove this contact?')) return;
+    if (!(await confirmDialog('Remove this contact?', { danger: true, confirmText: 'Remove' }))) return;
     setIsRemoving(contactId);
     try { await removeContact({ propertyId, contactId }).unwrap(); toast.success('Removed'); }
     catch { toast.error('Failed'); }
@@ -556,6 +559,7 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
 
 // ─── Photos Tab ───────────────────────────────
 function PhotosTab({ propertyId }: { propertyId: string }) {
+  const confirmDialog = useConfirm();
   const { data } = useGetPhotosQuery(propertyId);
   const [uploadPhotos] = useUploadPhotosMutation();
   const [setCover] = useSetCoverPhotoMutation();
@@ -672,7 +676,7 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
                     }}><Star size={14} /></button>
                   )}
                   <button className="danger" title="Delete" onClick={async () => {
-                    if (!confirm('Delete this photo?')) return;
+                    if (!(await confirmDialog('Delete this photo?', { danger: true, confirmText: 'Delete' }))) return;
                     try { await deletePhoto({ propertyId, photoId: photo.id }).unwrap(); toast.success('Deleted'); }
                     catch { toast.error('Failed'); }
                   }}><Trash2 size={14} /></button>

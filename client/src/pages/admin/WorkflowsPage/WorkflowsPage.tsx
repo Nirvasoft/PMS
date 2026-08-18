@@ -9,6 +9,7 @@ import {
 } from '../../../store/api/workflowApi';
 import WorkflowEditor from './WorkflowEditor';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import {
   Settings, Layers, RefreshCw, Plus, Palette, Eye, Pencil,
   Rocket, Play, ArchiveX, Trash2,
@@ -58,6 +59,7 @@ function DefinitionsTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [startDef, setStartDef] = useState<WorkflowDefinition | null>(null);
   const [editDef, setEditDef] = useState<WorkflowDefinition | null>(null);
+  const confirmDialog = useConfirm();
   const defs = data?.data ?? [];
 
   if (isLoading) return <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>;
@@ -121,7 +123,7 @@ function DefinitionsTab() {
                           }}><Rocket size={15} /></button>
                         <button className="btn-icon btn-danger" title="Delete"
                           onClick={async () => {
-                            if (!confirm(`Delete "${d.name}"?`)) return;
+                            if (!(await confirmDialog(`Delete "${d.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
                             try { await deleteDef(d.id).unwrap(); toast.success('Deleted'); }
                             catch { toast.error('Cannot delete'); }
                           }}><Trash2 size={15} /></button>

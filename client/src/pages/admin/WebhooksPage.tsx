@@ -9,6 +9,7 @@ import {
   Webhook, Plus, X, Trash2, Send, Copy, Eye, ExternalLink,
   CheckCircle2, AlertCircle, Clock, RefreshCw, XCircle, Edit,
 } from 'lucide-react';
+import { useConfirm } from '../../components/DialogProvider';
 
 const DELIVERY_STATUS: Record<string, { color: string; icon: any }> = {
   delivered: { color: 'var(--success)', icon: CheckCircle2 },
@@ -24,6 +25,7 @@ export default function WebhooksPage() {
   const [updateWebhook] = useUpdateWebhookMutation();
   const [deleteWebhook] = useDeleteWebhookMutation();
   const [testWebhook] = useTestWebhookMutation();
+  const confirmDialog = useConfirm();
 
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState<any | null>(null);
@@ -146,7 +148,7 @@ export default function WebhooksPage() {
                       <button className="intg-action-btn-sm" onClick={() => setShowDeliveries(wh.id)} title="View Deliveries">
                         <Eye size={13} />
                       </button>
-                      <button className="intg-action-btn-sm danger" onClick={() => { if(confirm('Delete webhook?')) deleteWebhook(wh.id); }} title="Delete">
+                      <button className="intg-action-btn-sm danger" onClick={async () => { if (await confirmDialog('Delete webhook?', { danger: true })) deleteWebhook(wh.id); }} title="Delete">
                         <Trash2 size={13} />
                       </button>
                     </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useGetUsersQuery, useCreateUserMutation, useGetInvitationsQuery, useSendInvitationMutation, useRevokeInvitationMutation } from '../../../store/api/usersApi';
 import { useGetRolesQuery } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useConfirm } from '../../../components/DialogProvider';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Mail, Undo2, Clock, CheckCircle, UserPlus, Users, Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye } from 'lucide-react';
@@ -165,10 +166,11 @@ export default function UsersPage() {
           </div>
         )}
 
-        {/* Create User Modal */}
-        {showCreate && <CreateUserModal onClose={() => setShowCreate(false)} />}
         </>
       )}
+
+      {/* Create User Modal */}
+      {showCreate && <CreateUserModal onClose={() => setShowCreate(false)} />}
     </div>
   );
 }
@@ -240,8 +242,8 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal-card">
         <div className="modal-header">
           <h2>Create User</h2>
           <button className="btn-icon" onClick={onClose}>✕</button>
@@ -295,6 +297,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
 /* ─── Invitations Tab ──────────────────────── */
 
 function InvitationsTab() {
+  const confirmDialog = useConfirm();
   const { data, isLoading } = useGetInvitationsQuery();
   const { data: rolesData } = useGetRolesQuery({});
   const [sendInvite, { isLoading: sending }] = useSendInvitationMutation();
@@ -390,7 +393,7 @@ function InvitationsTab() {
                   <td>
                     {!inv.acceptedAt && (
                       <button className=" btn-danger" title="Revoke" onClick={async () => {
-                        if (!confirm(`Revoke invitation for ${inv.email}?`)) return;
+                        if (!(await confirmDialog(`Revoke invitation for ${inv.email}?`, { danger: true, confirmText: 'Revoke' }))) return;
                         try { await revokeInvite(inv.id).unwrap(); toast.success('Invitation revoked'); }
                         catch { toast.error('Failed to revoke'); }
                       }}><Undo2 size={18} strokeWidth={2.5} /></button>

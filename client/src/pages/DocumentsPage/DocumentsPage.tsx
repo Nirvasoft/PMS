@@ -23,6 +23,7 @@ import {
   ZoomIn, ZoomOut, Maximize2, RotateCw, Save, Lock, Link, Shield, Activity,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../components/DialogProvider';
 import './DocumentsPage.css';
 
 // ─── File type icon mapping ────────────────────
@@ -54,6 +55,7 @@ export default function DocumentsPage() {
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const [renameFolder, setRenameFolder] = useState<FolderItem | null>(null);
   const [deleteFolder] = useDeleteFolderMutation();
+  const confirmDialog = useConfirm();
 
   const handleDeleteFolder = async (folder: FolderItem) => {
     const docCount = folder._count?.documents || 0;
@@ -61,7 +63,7 @@ export default function DocumentsPage() {
     const warning = docCount > 0 || childCount > 0
       ? `This folder contains ${docCount} document(s) and ${childCount} subfolder(s). They will be moved to the parent folder.`
       : 'This folder is empty.';
-    if (!confirm(`Delete folder "${folder.name}"?\n\n${warning}`)) return;
+    if (!(await confirmDialog(`Delete folder "${folder.name}"?\n\n${warning}`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteFolder(folder.id).unwrap();
       toast.success('Folder deleted');
@@ -86,7 +88,7 @@ export default function DocumentsPage() {
   const folders = (foldersData?.data || []) as FolderItem[];
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return;
+    if (!(await confirmDialog('Are you sure you want to delete this document?', { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteDocument(id).unwrap();
       toast.success('Document deleted');

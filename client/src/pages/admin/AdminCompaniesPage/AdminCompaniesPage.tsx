@@ -5,6 +5,7 @@ import {
 } from '../../../store/api/organizationApi';
 import toast from 'react-hot-toast';
 import { usePermission } from '../../../components/guards/PermissionGuard';
+import { useConfirm } from '../../../components/DialogProvider';
 
 export default function AdminCompaniesPage() {
   const canProvision = usePermission('companies.provision');
@@ -14,6 +15,7 @@ export default function AdminCompaniesPage() {
   const [activateCompany] = useActivateCompanyMutation();
   const [showProvision, setShowProvision] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const confirmDialog = useConfirm();
 
   const companies = (data?.data ?? []) as Array<Record<string, unknown>>;
 
@@ -199,7 +201,7 @@ export default function AdminCompaniesPage() {
                   <td>
                     {c.isActive ? (
                       <button className="btn btn-sm btn-danger" onClick={async () => {
-                        if (!confirm(`Deactivate "${c.name}"? Users will be unable to login.`)) return;
+                        if (!(await confirmDialog(`Deactivate "${c.name}"? Users will be unable to login.`, { danger: true, confirmText: 'Deactivate' }))) return;
                         try { await deactivateCompany(c.id as string).unwrap(); toast.success('Company deactivated'); }
                         catch { toast.error('Failed'); }
                       }}>Deactivate</button>

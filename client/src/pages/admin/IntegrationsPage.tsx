@@ -11,6 +11,7 @@ import {
   CheckCircle2, AlertCircle, Clock, Settings2, ChevronRight,
   Cloud, CreditCard, FileSignature, Building2, Edit, Map, Database,
 } from 'lucide-react';
+import { useConfirm } from '../../components/DialogProvider';
 
 const TYPE_META: Record<string, { name: string; icon: string; cat: string; color: string }> = {
   sap:         { name: 'SAP S/4HANA',           icon: '🏢', cat: 'ERP',        color: '#0070f3' },
@@ -43,6 +44,7 @@ export default function IntegrationsPage() {
   const [deleteIntegration] = useDeleteIntegrationMutation();
   const [testIntegration] = useTestIntegrationMutation();
   const [triggerSync] = useTriggerSyncMutation();
+  const confirmDialog = useConfirm();
 
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState<any | null>(null);
@@ -168,7 +170,7 @@ export default function IntegrationsPage() {
                   <button className="intg-action-btn" onClick={() => setShowEntityMap(intg.id)} title="Entity Map">
                     <Map size={14} />
                   </button>
-                  <button className="intg-action-btn danger" onClick={() => { if(confirm('Delete this integration?')) deleteIntegration(intg.id); }} title="Delete">
+                  <button className="intg-action-btn danger" onClick={async () => { if (await confirmDialog('Delete this integration?', { danger: true })) deleteIntegration(intg.id); }} title="Delete">
                     <Trash2 size={14} />
                   </button>
                 </div>

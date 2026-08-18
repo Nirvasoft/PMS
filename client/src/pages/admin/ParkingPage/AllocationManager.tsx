@@ -6,11 +6,13 @@ import {
 } from '../../../store/api/parkingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import { useConfirm } from '../../../components/DialogProvider';
 import { Link2, Plus, Trash2, Car, Edit3, Save, X, Calendar, DollarSign, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './ParkingPage.css';
 
 export default function AllocationManager() {
+  const confirmDialog = useConfirm();
   const [propertyFilter, setPropertyFilter] = useState('');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
@@ -25,7 +27,7 @@ export default function AllocationManager() {
   const meta = data?.meta;
 
   const handleCancel = async (id: string, slotNumber: string) => {
-    if (!confirm(`Cancel allocation for slot ${slotNumber}?`)) return;
+    if (!(await confirmDialog(`Cancel allocation for slot ${slotNumber}?`, { danger: true, confirmText: 'Cancel' }))) return;
     try {
       await cancelAllocation(id).unwrap();
       toast.success('Allocation cancelled');

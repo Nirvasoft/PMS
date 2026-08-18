@@ -5,6 +5,7 @@ import {
   useAddFundTransactionMutation, useApproveFundTransactionMutation, useRejectFundTransactionMutation,
 } from '../../store/api/condoApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
+import { useAlertDialog } from '../../components/DialogProvider';
 import { Wallet, Plus, X, ArrowUpRight, ArrowDownRight, CheckCircle, XCircle, Clock, ShieldCheck } from 'lucide-react';
 
 const FUND_TYPES = ['sinking_fund', 'management_fund', 'reserve_fund'];
@@ -14,7 +15,7 @@ const FUND_LABELS: Record<string, string> = {
 };
 
 export default function FundsPage() {
-  
+  const alertDialog = useAlertDialog();
   const propertyId = useSelectedPropertyId();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
@@ -57,7 +58,7 @@ export default function FundsPage() {
     try {
       await approveTxn({ txnId }).unwrap();
     } catch (e: any) {
-      alert(e?.data?.message || 'Approval failed');
+      alertDialog(e?.data?.message || 'Approval failed');
     }
   };
 
@@ -68,7 +69,7 @@ export default function FundsPage() {
       setShowRejectModal(null);
       setRejectReason('');
     } catch (e: any) {
-      alert(e?.data?.message || 'Rejection failed');
+      alertDialog(e?.data?.message || 'Rejection failed');
     }
   };
 

@@ -5,6 +5,7 @@ import {
   useUpdateBmsDeviceMutation, useGetBmsReadingsQuery, useGetBmsFaultsQuery,
 } from '../../store/api/integrationsApi';
 import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import { useConfirm } from '../../components/DialogProvider';
 import {
   Server, Plus, RefreshCw, Trash2, Wifi, WifiOff, AlertTriangle,
   Thermometer, Zap, Droplets, Shield, ArrowUpDown, Activity, X,
@@ -73,6 +74,7 @@ export default function BmsPage() {
   const { data: meta } = useGetBmsMetaQuery();
   const [pollDevice, { isLoading: polling }] = usePollBmsDeviceMutation();
   const [deleteDevice] = useDeleteBmsDeviceMutation();
+  const confirmDialog = useConfirm();
 
   const devices = devicesRaw?.data || devicesRaw || [];
   const stats = summary?.data || summary || { totalDevices: 0, activeDevices: 0, faultDevices: 0, totalReadings: 0, byType: [] };
@@ -86,7 +88,7 @@ export default function BmsPage() {
   }, [devices, search, statusFilter]);
 
   const handlePoll = async (id: string) => { try { await pollDevice(id).unwrap(); } catch {} };
-  const handleDelete = async (id: string) => { if (!confirm('Delete this device and all its readings?')) return; try { await deleteDevice(id).unwrap(); } catch {} };
+  const handleDelete = async (id: string) => { if (!(await confirmDialog('Delete this device and all its readings?', { danger: true, confirmText: 'Delete' }))) return; try { await deleteDevice(id).unwrap(); } catch {} };
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1440 }}>

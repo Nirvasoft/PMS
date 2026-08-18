@@ -8,6 +8,7 @@ import {
   ArrowLeft, Shield, Plus, Trash2, X, FileCheck, Users2, Building2, ChevronDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import './KycRequirementsPage.css';
 
 const DOC_TYPES = [
@@ -22,6 +23,7 @@ export default function KycRequirementsPage() {
   const { data, isLoading } = useGetKycRequirementsQuery(typeFilter ? { tenantType: typeFilter } : undefined);
   const [create, { isLoading: creating }] = useCreateKycRequirementMutation();
   const [deleteReq] = useDeleteKycRequirementMutation();
+  const confirmDialog = useConfirm();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -53,7 +55,7 @@ export default function KycRequirementsPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete requirement "${name}"? Existing tenant checklists won't be affected.`)) return;
+    if (!(await confirmDialog(`Delete requirement "${name}"? Existing tenant checklists won't be affected.`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteReq(id).unwrap();
       toast.success('Requirement deleted');

@@ -8,6 +8,7 @@ import {
   useSyncFootfallSensorMutation, useSyncAllFootfallSensorsMutation,
 } from '../../store/api/mallApi';
 import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import { useConfirm, useAlertDialog } from '../../components/DialogProvider';
 import {
   Users, TrendingUp, TrendingDown, Clock, BarChart3, MapPin, Activity,
   ArrowUpRight, ArrowDownRight, Wifi, WifiOff, Radio, Calendar,
@@ -29,6 +30,8 @@ export default function FootfallAnalyticsPage() {
   const properties = propsRes?.data || [];
   const [propertyId, setPropertyId] = useState('');
   const selectedPropId = propertyId || properties[0]?.id || '';
+  const confirmDialog = useConfirm();
+  const alertDialog = useAlertDialog();
 
   const [tab, setTab] = useState(0);
   const [date, setDate] = useState(formatDate(new Date()));
@@ -102,18 +105,18 @@ export default function FootfallAnalyticsPage() {
       }
       setSensorModal(null);
     } catch (e: any) {
-      alert(e?.data?.message || 'Failed to save sensor');
+      alertDialog(e?.data?.message || 'Failed to save sensor');
     }
   };
 
   const handleDeleteSensor = async (s: any) => {
-    const confirmed = window.confirm(`Delete sensor "${s.name}"? If it has recorded data, it will be deactivated instead.`);
+    const confirmed = await confirmDialog(`Delete sensor "${s.name}"? If it has recorded data, it will be deactivated instead.`, { danger: true, confirmText: 'Delete' });
     if (!confirmed) return;
     try {
       const res = await deleteSensor(s.id).unwrap();
-      if (res.data?.deactivated) alert(res.data.reason);
+      if (res.data?.deactivated) alertDialog(res.data.reason);
     } catch (e: any) {
-      alert(e?.data?.message || 'Failed to delete sensor');
+      alertDialog(e?.data?.message || 'Failed to delete sensor');
     }
   };
 
@@ -133,7 +136,7 @@ export default function FootfallAnalyticsPage() {
       const res = await syncSensor(sensorId).unwrap();
       setSyncResult(res.data);
     } catch (e: any) {
-      alert(e?.data?.message || 'Sync failed');
+      alertDialog(e?.data?.message || 'Sync failed');
     } finally {
       setSyncingSensorId(null);
     }
@@ -144,7 +147,7 @@ export default function FootfallAnalyticsPage() {
       const res = await syncAll({ propertyId: selectedPropId }).unwrap();
       setSyncResult(res.data);
     } catch (e: any) {
-      alert(e?.data?.message || 'Sync all failed');
+      alertDialog(e?.data?.message || 'Sync all failed');
     }
   };
 

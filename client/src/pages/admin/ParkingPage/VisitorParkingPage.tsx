@@ -5,6 +5,7 @@ import {
 } from '../../../store/api/parkingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { QRCode, useQRDownload } from '../../../components/QRCode';
+import { useConfirm } from '../../../components/DialogProvider';
 import { Ticket, Plus, X, Clock, CheckCircle, AlertCircle, QrCode, Download, Printer, Maximize2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './ParkingPage.css';
@@ -23,6 +24,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function VisitorParkingPage() {
+  const confirmDialog = useConfirm();
   const [propertyFilter, setPropertyFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showIssue, setShowIssue] = useState(false);
@@ -40,7 +42,7 @@ export default function VisitorParkingPage() {
   const passes = data?.data || [];
 
   const handleCancel = async (id: string) => {
-    if (!confirm('Cancel this visitor pass?')) return;
+    if (!(await confirmDialog('Cancel this visitor pass?', { danger: true, confirmText: 'Cancel Pass' }))) return;
     try {
       await cancelPass(id).unwrap();
       toast.success('Pass cancelled');

@@ -17,6 +17,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../components/DialogProvider';
 import './ReportsPage.css';
 
 // ═══════════════════════════════════════════════════
@@ -576,12 +577,13 @@ function SavedReportsList({ onRun }: { onRun: (r: SavedReport) => void }) {
   const [page, setPage] = useState(1);
   const { data, isLoading } = useListReportsQuery({ page, limit: 15 });
   const [deleteReport] = useDeleteReportMutation();
+  const confirmDialog = useConfirm();
 
   const reports = data?.data || [];
   const meta = data?.meta;
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this saved report?')) return;
+    if (!(await confirmDialog('Delete this saved report?', { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteReport(id).unwrap();
       toast.success('Report deleted');

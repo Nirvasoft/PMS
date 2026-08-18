@@ -3,6 +3,7 @@ import { Provider } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
 import { store } from './store';
 import { ProtectedRoute, PublicRoute, RequirePermission } from './components/RouteGuards';
+import { DialogProvider } from './components/DialogProvider';
 import LoginPage from './pages/LoginPage/LoginPage';
 import MfaVerifyPage from './pages/MfaVerifyPage/MfaVerifyPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage/ForgotPasswordPage';
@@ -476,24 +477,26 @@ export default function App() {
   return (
     <GlobalErrorBoundary>
       <Provider store={store}>
-        <BrowserRouter>
-          <AuthBootstrap>
-            <AppRoutes />
-          </AuthBootstrap>
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: 'var(--surface-elevated)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '12px',
-                fontSize: '14px',
-              },
-            }}
-          />
-        </BrowserRouter>
+        <DialogProvider>
+          <BrowserRouter>
+            <AuthBootstrap>
+              <AppRoutes />
+            </AuthBootstrap>
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: 'var(--surface-elevated)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                },
+              }}
+            />
+          </BrowserRouter>
+        </DialogProvider>
       </Provider>
     </GlobalErrorBoundary>
   );

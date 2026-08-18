@@ -4,6 +4,7 @@ import { useGetChargeTypesQuery, useCreateInvoiceMutation } from '../../../store
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send } from 'lucide-react';
+import { useAlertDialog } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
 interface LineItem {
@@ -23,6 +24,7 @@ export default function CreateInvoicePage() {
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 200 });
   const [createInvoice, { isLoading }] = useCreateInvoiceMutation();
+  const alertDialog = useAlertDialog();
 
   const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
@@ -72,7 +74,7 @@ export default function CreateInvoicePage() {
       }).unwrap();
       navigate(`/admin/billing/invoices/${result.data.id}`);
     } catch (err: any) {
-      alert(err?.data?.message || 'Failed to create invoice');
+      alertDialog(err?.data?.message || 'Failed to create invoice');
     }
   };
 

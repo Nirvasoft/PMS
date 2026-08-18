@@ -4,6 +4,7 @@ import {
   useGetAssetQuery, useTransferAssetMutation, useDisposeAssetMutation,
   useGetDepreciationScheduleQuery,
 } from '../../../store/api/assetsApi';
+import { useAlertDialog } from '../../../components/DialogProvider';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -160,13 +161,14 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function TransferModal({ assetId, onClose }: { assetId: string; onClose: () => void }) {
   const [transferAsset, { isLoading }] = useTransferAssetMutation();
   const [form, setForm] = useState({ transferDate: new Date().toISOString().split('T')[0], reason: '' });
+  const alertDialog = useAlertDialog();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await transferAsset({ id: assetId, data: form }).unwrap();
       onClose();
-    } catch (err: any) { alert(err.data?.message || 'Error'); }
+    } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
   };
 
   return (
@@ -195,13 +197,14 @@ function TransferModal({ assetId, onClose }: { assetId: string; onClose: () => v
 function DisposeModal({ assetId, onClose }: { assetId: string; onClose: () => void }) {
   const [disposeAsset, { isLoading }] = useDisposeAssetMutation();
   const [form, setForm] = useState({ disposalDate: new Date().toISOString().split('T')[0], disposalAmount: 0 });
+  const alertDialog = useAlertDialog();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await disposeAsset({ id: assetId, data: form }).unwrap();
       onClose();
-    } catch (err: any) { alert(err.data?.message || 'Error'); }
+    } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
   };
 
   return (

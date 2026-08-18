@@ -26,6 +26,7 @@ import {
   Building2, ChevronDown, Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../components/DialogProvider';
 import DrillDownModal from './DrillDownModal';
 import './AnalyticsDashboard.css';
 
@@ -90,6 +91,7 @@ export default function AnalyticsDashboard() {
   const [saveLayout] = useSaveDashboardLayoutMutation();
   const [resetLayout] = useResetDashboardLayoutMutation();
   const { data: propertiesData } = useGetPropertiesQuery({});
+  const confirmDialog = useConfirm();
 
   // Measure container width (replaces library's useContainerWidth for reliability)
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -156,7 +158,7 @@ export default function AnalyticsDashboard() {
   }, [layout, saveLayout, dispatch]);
 
   const handleReset = async () => {
-    if (!confirm('Reset to default dashboard layout? (Based on your role)')) return;
+    if (!(await confirmDialog('Reset to default dashboard layout? (Based on your role)', { danger: true, confirmText: 'Reset' }))) return;
     try {
       await resetLayout().unwrap();
       toast.success('Dashboard reset to role default');

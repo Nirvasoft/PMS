@@ -5,6 +5,7 @@ import {
   useImportStatementMutation, useMatchLineMutation,
   useExcludeLineMutation, useUnmatchLineMutation, useGetBalanceQuery,
 } from '../../../store/api/bankingApi';
+import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -29,17 +30,19 @@ export default function ReconciliationPage() {
   });
   const [excludeLine] = useExcludeLineMutation();
   const [unmatchLine] = useUnmatchLineMutation();
+  const confirmDialog = useConfirm();
+  const alertDialog = useAlertDialog();
 
   const lines = result?.data || [];
   const meta = result?.meta || { total: 0, page: 1, totalPages: 1 };
 
   const handleExclude = async (id: string) => {
-    if (!confirm('Exclude this line from reconciliation?')) return;
-    try { await excludeLine(id).unwrap(); } catch (err: any) { alert(err.data?.message || 'Error'); }
+    if (!(await confirmDialog('Exclude this line from reconciliation?', { danger: true, confirmText: 'Exclude' }))) return;
+    try { await excludeLine(id).unwrap(); } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
   };
   const handleUnmatch = async (id: string) => {
-    if (!confirm('Unmatch this line?')) return;
-    try { await unmatchLine(id).unwrap(); } catch (err: any) { alert(err.data?.message || 'Error'); }
+    if (!(await confirmDialog('Unmatch this line?'))) return;
+    try { await unmatchLine(id).unwrap(); } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
   };
 
   return (
@@ -157,6 +160,7 @@ function ImportStatementModal({ bankAccountId, onClose }: { bankAccountId: strin
     fromDate: '', toDate: '', filename: 'manual-import',
   });
   const [csvText, setCsvText] = useState('');
+  const alertDialog = useAlertDialog();
 
   const parseCSV = (text: string) => {
     const rows = text.trim().split('\n').slice(1); // skip header
@@ -176,14 +180,14 @@ function ImportStatementModal({ bankAccountId, onClose }: { bankAccountId: strin
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const lines = parseCSV(csvText);
-    if (lines.length === 0) { alert('No valid lines found'); return; }
+    if (lines.length === 0) { alertDialog('No valid lines found'); return; }
     try {
       await importStatement({
         bankAccountId,
         data: { format: 'csv', fromDate: form.fromDate, toDate: form.toDate, filename: form.filename, lines },
       }).unwrap();
       onClose();
-    } catch (err: any) { alert(err.data?.message || 'Error importing'); }
+    } catch (err: any) { alertDialog(err.data?.message || 'Error importing'); }
   };
 
   return (

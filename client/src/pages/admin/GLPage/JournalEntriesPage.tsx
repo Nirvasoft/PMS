@@ -4,6 +4,7 @@ import {
   usePostJournalEntryMutation, useReverseJournalEntryMutation,
   useGetGlAccountsQuery,
 } from '../../../store/api/glApi';
+import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import './GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -16,17 +17,19 @@ export default function JournalEntriesPage() {
   const { data, isLoading } = useGetJournalEntriesQuery({ page, limit: 20, status: statusFilter || undefined });
   const [postJE] = usePostJournalEntryMutation();
   const [reverseJE] = useReverseJournalEntryMutation();
+  const confirmDialog = useConfirm();
+  const alertDialog = useAlertDialog();
 
   const entries = data?.data || [];
   const meta = data?.meta || { total: 0, page: 1, totalPages: 1 };
 
   const handlePost = async (id: string) => {
-    if (!confirm('Post this journal entry? This cannot be undone.')) return;
-    try { await postJE(id).unwrap(); } catch (err: any) { alert(err.data?.errors?.[0]?.message || 'Error posting'); }
+    if (!(await confirmDialog('Post this journal entry? This cannot be undone.'))) return;
+    try { await postJE(id).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error posting'); }
   };
   const handleReverse = async (id: string) => {
-    if (!confirm('Reverse this posted journal entry?')) return;
-    try { await reverseJE(id).unwrap(); } catch (err: any) { alert(err.data?.errors?.[0]?.message || 'Error reversing'); }
+    if (!(await confirmDialog('Reverse this posted journal entry?', { danger: true, confirmText: 'Reverse' }))) return;
+    try { await reverseJE(id).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error reversing'); }
   };
 
   return (
@@ -92,6 +95,7 @@ export default function JournalEntriesPage() {
 function CreateJournalModal({ onClose }: { onClose: () => void }) {
   const { data: accounts = [] } = useGetGlAccountsQuery({});
   const [createJE, { isLoading }] = useCreateJournalEntryMutation();
+  const alertDialog = useAlertDialog();
   const [form, setForm] = useState({ entryDate: new Date().toISOString().split('T')[0], description: '' });
   const [lines, setLines] = useState([
     { accountCode: '', description: '', debit: 0, credit: 0 },
@@ -113,12 +117,12 @@ function CreateJournalModal({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isBalanced) { alert('Journal entry must be balanced (Total Debit = Total Credit)'); return; }
+    if (!isBalanced) { alertDialog('Journal entry must be balanced (Total Debit = Total Credit)'); return; }
     try {
       await createJE({ ...form, lines: lines.filter(l => l.accountCode) }).unwrap();
       onClose();
     } catch (err: any) {
-      alert(err.data?.errors?.[0]?.message || err.data?.message || 'Error creating journal entry');
+      alertDialog(err.data?.errors?.[0]?.message || err.data?.message || 'Error creating journal entry');
     }
   };
 

@@ -6,6 +6,7 @@ import {
   Clock, CheckCircle, XCircle, AlertCircle, PenLine, Archive,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import './LeaseListPage.css';
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -21,6 +22,7 @@ const STATUS_META: Record<string, { label: string; color: string; icon: React.Re
 
 export default function LeaseListPage() {
   const navigate = useNavigate();
+  const confirmDialog = useConfirm();
   const [search, setSearch]     = useState('');
   const [status, setStatus]     = useState('');
   const [expiring, setExpiring] = useState<number | undefined>(undefined);
@@ -113,7 +115,7 @@ export default function LeaseListPage() {
         ) : (
           leases.map((lease) => <LeaseRow key={lease.id} lease={lease} onOpen={() => navigate(`/admin/leases/${lease.id}`)} onDelete={async (e) => {
             e.stopPropagation();
-            if (!confirm(`Delete lease ${lease.leaseNumber}?`)) return;
+            if (!(await confirmDialog(`Delete lease ${lease.leaseNumber}?`, { danger: true, confirmText: 'Delete' }))) return;
             try { await deleteLease(lease.id).unwrap(); toast.success('Deleted'); }
             catch { toast.error('Cannot delete active lease'); }
           }} />)

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGetBankAccountsQuery, useCreateBankAccountMutation } from '../../../store/api/bankingApi';
 import type { BankAccount } from '../../../store/api/bankingApi';
+import { useAlertDialog } from '../../../components/DialogProvider';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -91,13 +92,14 @@ function CreateBankAccountModal({ onClose }: { onClose: () => void }) {
     bankName: '', accountName: '', accountNumber: '', accountType: 'current',
     currency: 'USD', openingBalance: 0, branchName: '', swiftCode: '',
   });
+  const alertDialog = useAlertDialog();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await createAccount(form).unwrap();
       onClose();
-    } catch (err: any) { alert(err.data?.message || 'Error'); }
+    } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
   };
 
   return (

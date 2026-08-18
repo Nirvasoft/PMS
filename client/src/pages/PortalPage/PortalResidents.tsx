@@ -9,6 +9,7 @@ import {
 } from '../../store/api/portalApi';
 import type { PortalResidentFull } from '../../store/api/portalApi';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../components/DialogProvider';
 import {
   Users, Plus, X, User, Edit2, Trash2, ShieldCheck, Car, Phone, Mail, Calendar, Send,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ export default function PortalResidents() {
   const [updateResident] = useUpdatePortalResidentMutation();
   const [removeResident] = useRemovePortalResidentMutation();
   const [inviteResident, { isLoading: inviting }] = useInviteResidentToPortalMutation();
+  const confirmDialog = useConfirm();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export default function PortalResidents() {
   };
 
   const handleRemove = async (id: string, name: string) => {
-    if (!window.confirm(`Remove ${name} from your unit?`)) return;
+    if (!(await confirmDialog(`Remove ${name} from your unit?`, { danger: true, confirmText: 'Remove' }))) return;
     try {
       await removeResident(id).unwrap();
       toast.success('Resident removed');

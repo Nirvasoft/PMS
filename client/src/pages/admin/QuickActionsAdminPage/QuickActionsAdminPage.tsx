@@ -9,6 +9,7 @@ import {
   Loader2, ExternalLink, ArrowUpDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 
 const ACTION_TYPES = [
   { value: 'page', label: 'Internal Page', desc: 'Navigate to a portal page (e.g. /portal/invoices)' },
@@ -22,6 +23,7 @@ const ICON_OPTIONS = [
 ];
 
 export default function QuickActionsAdminPage() {
+  const confirmDialog = useConfirm();
   const [propertyFilter, setPropertyFilter] = useState('');
   const { data: actions = [], isLoading } = useGetQuickActionsQuery(
     propertyFilter ? { propertyId: propertyFilter } : undefined,
@@ -69,7 +71,7 @@ export default function QuickActionsAdminPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this quick action?')) return;
+    if (!(await confirmDialog('Delete this quick action?', { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteAction(id).unwrap();
       toast.success('Deleted');

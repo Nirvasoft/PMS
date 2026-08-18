@@ -4,6 +4,7 @@ import {
   useGetAssetsQuery, useCreateAssetMutation, useRunDepreciationMutation,
 } from '../../../store/api/assetsApi';
 import type { FixedAsset } from '../../../store/api/assetsApi';
+import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -19,6 +20,8 @@ export default function AssetsListPage() {
   const [showCreate, setShowCreate] = useState(false);
   const { data: result, isLoading } = useGetAssetsQuery({ page, limit: 20, category: category || undefined, status: status || undefined });
   const [runDep, { isLoading: depRunning }] = useRunDepreciationMutation();
+  const confirmDialog = useConfirm();
+  const alertDialog = useAlertDialog();
 
   const assets = result?.data || [];
   const meta = result?.meta || { total: 0, page: 1, totalPages: 1 };
@@ -27,12 +30,12 @@ export default function AssetsListPage() {
   const totalNBV = assets.reduce((s, a) => s + a.netBookValue, 0);
 
   const handleRunDepreciation = async () => {
-    if (!confirm('Run monthly depreciation for all active assets?')) return;
+    if (!(await confirmDialog('Run monthly depreciation for all active assets?'))) return;
     try {
       const result = await runDep().unwrap();
-      alert(`Depreciation complete: ${result.data.assetsProcessed} assets, total ${fmtAmt(result.data.totalDepreciation)} for ${result.data.periodName}`);
+      alertDialog(`Depreciation complete: ${result.data.assetsProcessed} assets, total ${fmtAmt(result.data.totalDepreciation)} for ${result.data.periodName}`);
     } catch (err: any) {
-      alert(err.data?.errors?.[0]?.message || err.data?.message || 'Error running depreciation');
+      alertDialog(err.data?.errors?.[0]?.message || err.data?.message || 'Error running depreciation');
     }
   };
 
@@ -119,6 +122,7 @@ export default function AssetsListPage() {
 
 function CreateAssetModal({ onClose }: { onClose: () => void }) {
   const [createAsset, { isLoading }] = useCreateAssetMutation();
+  const alertDialog = useAlertDialog();
   const [form, setForm] = useState({
     name: '', category: 'machinery', acquisitionDate: new Date().toISOString().split('T')[0],
     acquisitionCost: 0, usefulLifeYears: 10, residualValue: 0,
@@ -132,7 +136,7 @@ function CreateAssetModal({ onClose }: { onClose: () => void }) {
       await createAsset(form).unwrap();
       onClose();
     } catch (err: any) {
-      alert(err.data?.errors?.[0]?.message || err.data?.message || 'Error');
+      alertDialog(err.data?.errors?.[0]?.message || err.data?.message || 'Error');
     }
   };
 

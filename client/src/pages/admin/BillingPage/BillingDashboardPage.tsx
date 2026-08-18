@@ -6,6 +6,7 @@ import {
   Play, ArrowRight, TrendingUp, Receipt, CalendarClock, CheckCircle,
 } from 'lucide-react';
 import { format, startOfMonth, isAfter, isBefore, addDays } from 'date-fns';
+import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
 const formatCurrency = (amount: number, currency = 'USD') =>
@@ -23,6 +24,8 @@ export default function BillingDashboardPage() {
   const { data: overdueData } = useGetInvoicesQuery({ status: 'overdue', page: 1, limit: 50 });
   const { data: paidData } = useGetInvoicesQuery({ status: 'paid', page: 1, limit: 50, from: monthStart });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
+  const confirmDialog = useConfirm();
+  const alertDialog = useAlertDialog();
 
   const invoices = allData?.data || [];
   const overdueInvoices = overdueData?.data || [];
@@ -56,12 +59,12 @@ export default function BillingDashboardPage() {
   );
 
   const handleRunBilling = async () => {
-    if (!confirm('This will generate invoices for all due billing schedules. Continue?')) return;
+    if (!(await confirmDialog('This will generate invoices for all due billing schedules. Continue?'))) return;
     try {
       const result = await runBilling().unwrap();
-      alert(`Generated ${result.data.generated} invoices from ${result.data.processed} schedules.${result.data.errors.length > 0 ? '\n\nErrors:\n' + result.data.errors.join('\n') : ''}`);
+      alertDialog(`Generated ${result.data.generated} invoices from ${result.data.processed} schedules.${result.data.errors.length > 0 ? '\n\nErrors:\n' + result.data.errors.join('\n') : ''}`);
     } catch (err: any) {
-      alert(err?.data?.message || 'Failed to run billing');
+      alertDialog(err?.data?.message || 'Failed to run billing');
     }
   };
 

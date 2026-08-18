@@ -10,6 +10,7 @@ import { useAppSelector } from '../../store';
 import { Shield, Smartphone, Monitor, Clock, Trash2, Lock, AlertTriangle, Loader2, CheckCircle, Key, Globe, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PasswordStrengthMeter from '../../components/PasswordStrengthMeter';
+import { useConfirm } from '../../components/DialogProvider';
 
 type TabId = 'password' | 'mfa' | 'devices' | 'audit' | 'ip-policy' | 'pw-policy';
 
@@ -120,9 +121,10 @@ function DevicesSection() {
   const { data, isLoading } = useGetDevicesQuery();
   const [revokeDevice] = useRevokeDeviceMutation();
   const devices = data?.data || [];
+  const confirmDialog = useConfirm();
 
   const handleRevoke = async (id: string) => {
-    if (confirm('Revoke this device? It will be signed out.')) {
+    if (await confirmDialog('Revoke this device? It will be signed out.', { danger: true, confirmText: 'Revoke' })) {
       await revokeDevice(id);
       toast.success('Device revoked');
     }

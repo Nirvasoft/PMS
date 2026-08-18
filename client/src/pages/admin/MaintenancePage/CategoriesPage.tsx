@@ -11,6 +11,7 @@ import {
   Sparkles, Shield, Microwave, Wifi, Armchair, Wrench,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 
 // Map icon string names to Lucide components
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -35,6 +36,7 @@ const ICON_OPTIONS = [
 ];
 
 export default function CategoriesPage() {
+  const confirmDialog = useConfirm();
   const { data: categoriesData, isLoading } = useGetCategoriesQuery();
   const [deleteCategory] = useDeleteCategoryMutation();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -48,7 +50,7 @@ export default function CategoriesPage() {
     const msg = ticketCount > 0
       ? `"${cat.name}" has ${ticketCount} ticket(s). It will be deactivated instead of deleted. Continue?`
       : `Delete category "${cat.name}"?`;
-    if (!confirm(msg)) return;
+    if (!(await confirmDialog(msg, { danger: true, confirmText: 'Delete' }))) return;
 
     setDeletingId(cat.id);
     try {

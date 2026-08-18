@@ -6,9 +6,11 @@ import {
 } from '../../../store/api/usersApi';
 import type { DepartmentNode } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useConfirm } from '../../../components/DialogProvider';
 import toast from 'react-hot-toast';
 
 export default function DepartmentsPage() {
+  const confirmDialog = useConfirm();
   const { data, isLoading } = useGetDepartmentTreeQuery();
   const [createDepartment] = useCreateDepartmentMutation();
   const [deleteDepartment] = useDeleteDepartmentMutation();
@@ -30,7 +32,7 @@ export default function DepartmentsPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete department "${name}"?`)) return;
+    if (!(await confirmDialog(`Delete department "${name}"?`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteDepartment(id).unwrap();
       toast.success('Department deleted');

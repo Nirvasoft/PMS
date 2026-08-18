@@ -8,6 +8,7 @@ import {
   Search, Loader2, User, Phone, CreditCard,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 
 export default function VisitorBlacklistPage() {
   const [page, setPage] = useState(1);
@@ -23,6 +24,7 @@ export default function VisitorBlacklistPage() {
   const [createEntry, { isLoading: creating }] = useCreateBlacklistEntryMutation();
   const [updateEntry] = useUpdateBlacklistEntryMutation();
   const [deleteEntry] = useDeleteBlacklistEntryMutation();
+  const confirmDialog = useConfirm();
 
   const [form, setForm] = useState({
     visitorName: '', visitorIc: '', visitorMobile: '', reason: '', propertyId: '',
@@ -61,7 +63,7 @@ export default function VisitorBlacklistPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Permanently delete this blacklist entry?')) return;
+    if (!(await confirmDialog('Permanently delete this blacklist entry?', { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteEntry(id).unwrap();
       toast.success('Entry deleted');

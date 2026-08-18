@@ -9,6 +9,7 @@ import {
   Send, RefreshCw, Scissors, ChevronRight, Edit2, Save, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import './LeaseDetailPage.css';
 
 // Tabs
@@ -35,6 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function LeaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const confirmDialog = useConfirm();
   const [tab, setTab] = useState<Tab>('overview');
   const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [showRenewalModal,   setShowRenewalModal]   = useState(false);
@@ -67,7 +69,7 @@ export default function LeaseDetailPage() {
     catch (e: any) { toast.error(e?.data?.message || 'Activation failed'); }
   };
   const handleCancel = async () => {
-    if (!confirm('Cancel this lease?')) return;
+    if (!(await confirmDialog('Cancel this lease?', { danger: true, confirmText: 'Cancel Lease' }))) return;
     try { await cancel({ id: id! }).unwrap(); toast.success('Lease cancelled'); }
     catch (e: any) { toast.error(e?.data?.message || 'Cancel failed'); }
   };

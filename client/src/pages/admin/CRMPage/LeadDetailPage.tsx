@@ -14,6 +14,7 @@ import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
+import { useConfirm } from '../../../components/DialogProvider';
 import {
   ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
@@ -38,6 +39,7 @@ const STAGE_META: Record<string, { label: string; color: string }> = {
 const SOURCES = ['website', 'walk_in', 'referral', 'agent', 'portal'];
 
 export default function LeadDetailPage() {
+  const confirmDialog = useConfirm();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('info');
@@ -75,7 +77,7 @@ export default function LeadDetailPage() {
   };
 
   const handleUnblacklist = async () => {
-    if (!confirm('Remove this lead from the blacklist?')) return;
+    if (!(await confirmDialog('Remove this lead from the blacklist?'))) return;
     try {
       await unblacklistLead(id!).unwrap();
       toast.success('Lead removed from blacklist');
@@ -837,6 +839,7 @@ function ConvertLeadModal({ leadId, leadName, onClose }: { leadId: string; leadN
 // ── Viewings Tab ───────────────────────────────
 
 function ViewingsTab({ leadId }: { leadId: string }) {
+  const confirmDialog = useConfirm();
   const { data } = useGetViewingsQuery(leadId);
   const [scheduleViewing] = useScheduleViewingMutation();
   const [completeViewing] = useCompleteViewingMutation();
@@ -877,7 +880,7 @@ function ViewingsTab({ leadId }: { leadId: string }) {
   };
 
   const handleCancel = async (viewing: LeadViewing) => {
-    if (!confirm(`Cancel viewing on ${new Date(viewing.scheduledAt).toLocaleString()}?`)) return;
+    if (!(await confirmDialog(`Cancel viewing on ${new Date(viewing.scheduledAt).toLocaleString()}?`, { danger: true, confirmText: 'Cancel Viewing' }))) return;
     try {
       await rescheduleViewing({ leadId, viewingId: viewing.id, data: { status: 'cancelled' } }).unwrap();
       toast.success('Viewing cancelled');

@@ -9,6 +9,7 @@ import {
   Trash2, ChevronRight, Filter, GitMerge, Tag,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import './TenantListPage.css';
 
 const KYC_COLORS: Record<string, string> = {
@@ -29,6 +30,7 @@ const KYC_LABELS: Record<string, string> = {
 
 export default function TenantListPage() {
   const navigate = useNavigate();
+  const confirmDialog = useConfirm();
   const [search, setSearch]           = useState('');
   const [tenantType, setTenantType]   = useState('');
   const [kycStatus, setKycStatus]     = useState('');
@@ -54,7 +56,7 @@ export default function TenantListPage() {
 
   const handleDelete = async (t: TenantListItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete tenant "${t.displayName}"? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Delete tenant "${t.displayName}"? This cannot be undone.`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteTenant(t.id).unwrap();
       toast.success('Tenant deleted');

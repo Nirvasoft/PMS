@@ -4,6 +4,7 @@ import {
   useGetPosConfigQuery, useIngestPosSalesMutation, useGetPosSalesHistoryQuery,
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
+import { useAlertDialog } from '../../components/DialogProvider';
 import {
   ShoppingCart, Terminal, RefreshCw, Upload, ChevronDown, ChevronUp,
   CheckCircle, AlertTriangle, XCircle, DollarSign, CreditCard, Globe, Banknote,
@@ -28,6 +29,7 @@ export default function PosIntegrationPage() {
   const history = historyRes?.data || [];
 
   const [ingestSales, { isLoading: isIngesting }] = useIngestPosSalesMutation();
+  const alertDialog = useAlertDialog();
 
   const [showIngestModal, setShowIngestModal] = useState(false);
   const [ingestForm, setIngestForm] = useState({
@@ -52,7 +54,7 @@ export default function PosIntegrationPage() {
       setIngestResult(res.data);
       setShowIngestModal(false);
     } catch (e: any) {
-      alert(e?.data?.message || 'Ingest failed');
+      alertDialog(e?.data?.message || 'Ingest failed');
     }
   };
 

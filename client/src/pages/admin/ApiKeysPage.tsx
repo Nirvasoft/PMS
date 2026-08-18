@@ -8,6 +8,7 @@ import {
   Key, Plus, X, Trash2, Copy, ShieldOff, ShieldCheck,
   Clock, CheckCircle2,
 } from 'lucide-react';
+import { useConfirm } from '../../components/DialogProvider';
 
 export default function ApiKeysPage() {
   const { data: res, isLoading } = useGetApiKeysQuery();
@@ -15,6 +16,7 @@ export default function ApiKeysPage() {
   const [createApiKey] = useCreateApiKeyMutation();
   const [deleteApiKey] = useDeleteApiKeyMutation();
   const [revokeApiKey] = useRevokeApiKeyMutation();
+  const confirmDialog = useConfirm();
 
   const [showCreate, setShowCreate] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
@@ -108,11 +110,11 @@ export default function ApiKeysPage() {
                   <td>
                     <div className="intg-row-actions">
                       {ak.isActive && (
-                        <button className="intg-action-btn-sm" onClick={() => { if(confirm('Revoke this key?')) revokeApiKey(ak.id); }} title="Revoke">
+                        <button className="intg-action-btn-sm" onClick={async () => { if (await confirmDialog('Revoke this key?', { danger: true, confirmText: 'Revoke' })) revokeApiKey(ak.id); }} title="Revoke">
                           <ShieldOff size={13} />
                         </button>
                       )}
-                      <button className="intg-action-btn-sm danger" onClick={() => { if(confirm('Delete this key permanently?')) deleteApiKey(ak.id); }} title="Delete">
+                      <button className="intg-action-btn-sm danger" onClick={async () => { if (await confirmDialog('Delete this key permanently?', { danger: true, confirmText: 'Delete' })) deleteApiKey(ak.id); }} title="Delete">
                         <Trash2 size={13} />
                       </button>
                     </div>

@@ -10,6 +10,7 @@ import {
   Loader2, AlertTriangle, Globe, Key, X, CheckCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../components/DialogProvider';
 
 const PROVIDERS = [
   { value: 'azure_ad', label: 'Azure AD', icon: '🔷' },
@@ -40,6 +41,7 @@ export default function SsoConfigPage() {
   const [updateConfig, { isLoading: updating }] = useUpdateSsoConfigMutation();
   const [deleteConfig] = useDeleteSsoConfigMutation();
   const [toggleConfig] = useToggleSsoConfigMutation();
+  const confirmDialog = useConfirm();
 
   const configs: SsoConfigSummary[] = data?.data || [];
   const [showModal, setShowModal] = useState(false);
@@ -58,7 +60,7 @@ export default function SsoConfigPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete SSO provider "${name}"? This will disconnect all users linked via this provider.`)) return;
+    if (!(await confirmDialog(`Delete SSO provider "${name}"? This will disconnect all users linked via this provider.`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteConfig(id).unwrap();
       toast.success('SSO provider deleted');

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useGetPenaltyConfigsQuery, useCreatePenaltyConfigMutation, useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { Shield, Plus, AlertTriangle, Percent, DollarSign, Clock, X } from 'lucide-react';
+import { useAlertDialog } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
 const PENALTY_TYPES: Record<string, string> = {
@@ -16,6 +17,7 @@ export default function PenaltyConfigPage() {
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const [createConfig, { isLoading: creating }] = useCreatePenaltyConfigMutation();
+  const alertDialog = useAlertDialog();
 
   const configs = configsData?.data || [];
   const properties = propertiesData?.data || [];
@@ -67,7 +69,7 @@ export default function PenaltyConfigPage() {
       setShowForm(false);
       setForm({ propertyId: '', chargeTypeId: '', gracePeriodDays: 7, penaltyType: 'percentage', penaltyValue: 5, maxPenaltyPct: 25, compound: false });
     } catch (err: any) {
-      alert(err?.data?.message || 'Failed to create penalty config');
+      alertDialog(err?.data?.message || 'Failed to create penalty config');
     }
   };
 

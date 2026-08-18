@@ -3,6 +3,7 @@ import {
   useGetFiscalPeriodsQuery, useGenerateFiscalYearMutation,
   useCloseFiscalPeriodMutation, useReopenFiscalPeriodMutation,
 } from '../../../store/api/glApi';
+import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import './GLPage.css';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -13,21 +14,23 @@ export default function FiscalPeriodsPage() {
   const [closePeriod] = useCloseFiscalPeriodMutation();
   const [reopenPeriod] = useReopenFiscalPeriodMutation();
   const [year, setYear] = useState(new Date().getFullYear());
+  const confirmDialog = useConfirm();
+  const alertDialog = useAlertDialog();
 
   const years = [...new Set(periods.map(p => p.fiscalYear))].sort((a, b) => b - a);
   const [filterYear, setFilterYear] = useState<number | ''>('');
   const filtered = filterYear ? periods.filter(p => p.fiscalYear === filterYear) : periods;
 
   const handleGenerate = async () => {
-    try { await generateFY(year).unwrap(); } catch (err: any) { alert(err.data?.errors?.[0]?.message || 'Error'); }
+    try { await generateFY(year).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error'); }
   };
   const handleClose = async (id: string) => {
-    if (!confirm('Close this fiscal period? Draft JEs must be posted first.')) return;
-    try { await closePeriod(id).unwrap(); } catch (err: any) { alert(err.data?.errors?.[0]?.message || err.data?.message || 'Error'); }
+    if (!(await confirmDialog('Close this fiscal period? Draft JEs must be posted first.'))) return;
+    try { await closePeriod(id).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || err.data?.message || 'Error'); }
   };
   const handleReopen = async (id: string) => {
-    if (!confirm('Reopen this closed period?')) return;
-    try { await reopenPeriod(id).unwrap(); } catch (err: any) { alert(err.data?.errors?.[0]?.message || 'Error'); }
+    if (!(await confirmDialog('Reopen this closed period?'))) return;
+    try { await reopenPeriod(id).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error'); }
   };
 
   return (

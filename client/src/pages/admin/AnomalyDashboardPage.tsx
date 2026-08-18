@@ -4,6 +4,7 @@ import {
   useAcknowledgeAnomalyMutation, useMarkFalsePositiveMutation,
 } from '../../store/api/biApi';
 import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import { useConfirm } from '../../components/DialogProvider';
 import {
   AlertTriangle, Activity, Building2, DollarSign, TrendingDown, Clock,
   CheckCircle, XCircle, Eye, EyeOff, RefreshCw, Search, Filter, X,
@@ -73,6 +74,7 @@ export default function AnomalyDashboardPage() {
   const [detectAnomalies, { isLoading: detecting }] = useDetectAnomaliesMutation();
   const [acknowledgeAnomaly] = useAcknowledgeAnomalyMutation();
   const [markFalsePositive] = useMarkFalsePositiveMutation();
+  const confirmDialog = useConfirm();
 
   const properties = propsRes?.data || [];
   const allAnomalies = anomaliesRes?.data || [];
@@ -125,7 +127,7 @@ export default function AnomalyDashboardPage() {
   };
 
   const handleFalsePositive = async (id: string) => {
-    if (!confirm('Mark this anomaly as a false positive? It will be excluded from active alerts.')) return;
+    if (!(await confirmDialog('Mark this anomaly as a false positive? It will be excluded from active alerts.', { danger: true }))) return;
     await markFalsePositive(id);
   };
 

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
 const STATUS_OPTIONS = ['', 'draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
@@ -30,6 +31,7 @@ export default function InvoiceListPage() {
   const [voidInvoice] = useVoidInvoiceMutation();
   const [sendInvoice] = useSendInvoiceMutation();
   const [triggerPdf] = useLazyGetInvoicePdfQuery();
+  const confirmDialog = useConfirm();
 
   const invoices = data?.data || [];
   const meta = data?.meta;
@@ -81,7 +83,7 @@ export default function InvoiceListPage() {
   const handleBulkSend = async () => {
     const sendable = selectedInvoices.filter(inv => ['draft', 'issued'].includes(inv.status));
     if (sendable.length === 0) return toast.error('No sendable invoices selected (must be draft or issued)');
-    if (!confirm(`Send ${sendable.length} invoice(s) to tenants via email?`)) return;
+    if (!(await confirmDialog(`Send ${sendable.length} invoice(s) to tenants via email?`))) return;
 
     setBulkProcessing(true);
     let success = 0, failed = 0;
@@ -128,7 +130,7 @@ export default function InvoiceListPage() {
   };
 
   const handleRunBilling = async () => {
-    if (!confirm('This will generate invoices for all due billing schedules. Continue?')) return;
+    if (!(await confirmDialog('This will generate invoices for all due billing schedules. Continue?'))) return;
     const result = await runBilling().unwrap();
     toast.success(`Generated ${result.data.generated} invoices from ${result.data.processed} schedules.`);
     if (result.data.errors.length > 0) {

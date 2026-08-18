@@ -10,6 +10,7 @@ import {
   Shield, Plus, Loader2, XCircle, Clock, Pencil, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 
 const PRIORITIES = ['P1', 'P2', 'P3', 'P4'];
 const PRIORITY_COLORS: Record<string, string> = {
@@ -17,6 +18,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export default function SlaConfigPage() {
+  const confirmDialog = useConfirm();
   const { data: configsData, isLoading } = useGetSlaConfigsQuery();
   const { data: categoriesData } = useGetCategoriesQuery();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -35,7 +37,7 @@ export default function SlaConfigPage() {
   }));
 
   const handleDelete = async (config: SlaConfigItem) => {
-    if (!confirm(`Delete SLA config for ${config.priority}${config.category ? ` / ${config.category.name}` : ''}?`)) return;
+    if (!(await confirmDialog(`Delete SLA config for ${config.priority}${config.category ? ` / ${config.category.name}` : ''}?`, { danger: true, confirmText: 'Delete' }))) return;
     setDeletingId(config.id);
     try {
       await deleteConfig(config.id).unwrap();

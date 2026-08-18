@@ -10,6 +10,7 @@ import {
   type UserDetail,
 } from '../../../store/api/usersApi';
 import { useGetAuditLogsQuery } from '../../../store/api/authApi';
+import { useConfirm } from '../../../components/DialogProvider';
 import toast from 'react-hot-toast';
 
 type Tab = 'profile' | 'roles' | 'security' | 'activity';
@@ -226,6 +227,7 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
 /* ─── Roles Tab ────────────────────────────── */
 
 function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void }) {
+  const confirmDialog = useConfirm();
   const { data: rolesData } = useGetRolesQuery();
   const { data: permsData } = useGetPermissionsQuery();
   const [assignRole] = useAssignUserRoleMutation();
@@ -250,7 +252,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
   };
 
   const handleRemove = async (roleId: string, roleName: string) => {
-    if (!confirm(`Remove "${roleName}" role from this user?`)) return;
+    if (!(await confirmDialog(`Remove "${roleName}" role from this user?`, { danger: true, confirmText: 'Remove' }))) return;
     try {
       await removeRole({ userId: user.id, roleId }).unwrap();
       toast.success('Role removed');
@@ -259,7 +261,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
   };
 
   const handleRemoveOverride = async (overrideId: string, permName: string) => {
-    if (!confirm(`Remove override for "${permName}"?`)) return;
+    if (!(await confirmDialog(`Remove override for "${permName}"?`, { danger: true, confirmText: 'Remove' }))) return;
     try {
       await removeOverride({ userId: user.id, overrideId }).unwrap();
       toast.success('Override removed');
@@ -646,6 +648,7 @@ function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
 /* ─── Security Tab ─────────────────────────── */
 
 function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void }) {
+  const confirmDialog = useConfirm();
   const [deactivateUser] = useDeactivateUserMutation();
   const [reactivateUser] = useReactivateUserMutation();
   const [adminResetPwd] = useAdminResetPasswordMutation();
@@ -654,7 +657,7 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
   const [showDeactivate, setShowDeactivate] = useState(false);
 
   const handleResetPassword = async () => {
-    if (!confirm(`Reset password for ${user.email}? They will be forced to change it on next login.`)) return;
+    if (!(await confirmDialog(`Reset password for ${user.email}? They will be forced to change it on next login.`))) return;
     try {
       const result = await adminResetPwd(user.id).unwrap();
       setTempPassword(result.data.temporaryPassword);
@@ -675,7 +678,7 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
   };
 
   const handleReactivate = async () => {
-    if (!confirm(`Reactivate ${user.email}?`)) return;
+    if (!(await confirmDialog(`Reactivate ${user.email}?`))) return;
     try {
       await reactivateUser(user.id).unwrap();
       toast.success('User reactivated');

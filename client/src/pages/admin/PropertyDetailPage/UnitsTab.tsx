@@ -22,6 +22,7 @@ import { UnitDetailDrawer } from './UnitDetailDrawer';
 import { BulkCreateModal } from './BulkCreateModal';
 import { TowerSidebar } from './TowerSidebar';
 import { TowerFormModal } from './TowerFormModal';
+import { useConfirm } from '../../../components/DialogProvider';
 import './UnitsTab.css';
 
 /* ── Status config (single source of truth) ── */
@@ -49,6 +50,7 @@ const ZOOM_CELL: Record<string, { w: number; h: number }> = {
 export default function UnitsTab() {
   const { id: propertyId } = useParams<{ id: string }>();
   const dispatch = useAppDispatch();
+  const confirmDialog = useConfirm();
   const {
     viewMode, selectedTowerId, statusFilter, floorFilter, unitTypeFilter,
     searchQuery, zoomLevel, drawerOpen, selectedUnitId, bulkCreateOpen,
@@ -394,7 +396,7 @@ export default function UnitsTab() {
                             unit={unit}
                             onClick={() => dispatch(selectUnit(unit.id))}
                             onDelete={async () => {
-                              if (!confirm(`Delete unit ${unit.unitNumber}?`)) return;
+                              if (!(await confirmDialog(`Delete unit ${unit.unitNumber}?`, { danger: true, confirmText: 'Delete' }))) return;
                               try {
                                 await deleteUnit({ propertyId: propertyId!, unitId: unit.id }).unwrap();
                                 toast.success('Deleted');

@@ -11,6 +11,7 @@ import {
   Building2, Wrench, MoreVertical, Trash2, Eye, BarChart2, Home,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import './PropertiesPage.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -71,11 +72,12 @@ export default function PropertiesPage() {
   });
 
   const [deleteProperty] = useDeletePropertyMutation();
+  const confirmDialog = useConfirm();
   const properties = data?.data || [];
   const meta = data?.meta;
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Delete "${name}"? This cannot be undone.`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteProperty(id).unwrap();
       toast.success(`"${name}" deleted`);

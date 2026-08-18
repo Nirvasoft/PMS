@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useGetPositionsQuery, useCreatePositionMutation, useDeletePositionMutation, useGetDepartmentTreeQuery } from '../../../store/api/usersApi';
 import { Briefcase, Trash2, Plus, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 
 export default function PositionsPage() {
+  const confirmDialog = useConfirm();
   const { data, isLoading } = useGetPositionsQuery();
   const { data: deptData } = useGetDepartmentTreeQuery();
   const [createPosition] = useCreatePositionMutation();
@@ -31,7 +33,7 @@ export default function PositionsPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete position "${name}"?`)) return;
+    if (!(await confirmDialog(`Delete position "${name}"?`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deletePosition(id).unwrap();
       toast.success('Position deleted');

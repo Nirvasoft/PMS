@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useGetTaxConfigsQuery, useCreateTaxConfigMutation, useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { Calculator, Plus, X, Percent, Calendar, Tag } from 'lucide-react';
 import { format } from 'date-fns';
+import { useAlertDialog } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
 export default function TaxConfigPage() {
   const { data: taxData, isFetching } = useGetTaxConfigsQuery();
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const [createTax, { isLoading: creating }] = useCreateTaxConfigMutation();
+  const alertDialog = useAlertDialog();
 
   const taxes = taxData?.data || [];
   const chargeTypes = chargeTypesData?.data || [];
@@ -41,7 +43,7 @@ export default function TaxConfigPage() {
       setShowForm(false);
       setForm({ taxName: '', taxRate: 0.09, appliesTo: [], effectiveFrom: new Date().toISOString().split('T')[0], effectiveTo: '' });
     } catch (err: any) {
-      alert(err?.data?.message || 'Failed to create tax config');
+      alertDialog(err?.data?.message || 'Failed to create tax config');
     }
   };
 

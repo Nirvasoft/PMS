@@ -10,6 +10,7 @@ import {
   Tooltip, ResponsiveContainer, Legend, Cell,
 } from 'recharts';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../../components/DialogProvider';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -56,6 +57,7 @@ function SpreadsheetTab({ year }: { year: number }) {
   const [updateBudget] = useUpdateBudgetMutation();
   const [approveBudget] = useApproveBudgetMutation();
   const [deleteBudget] = useDeleteBudgetMutation();
+  const confirmDialog = useConfirm();
 
   // Track which cell is being edited: `row-col`
   const [editCell, setEditCell] = useState<string | null>(null);
@@ -209,11 +211,11 @@ function SpreadsheetTab({ year }: { year: number }) {
   }, [budgets, getMonthly, updateBudget]);
 
   const handleApprove = async (id: string) => {
-    if (!confirm('Approve this budget?')) return;
+    if (!(await confirmDialog('Approve this budget?'))) return;
     try { await approveBudget(id).unwrap(); toast.success('Approved'); } catch (err: any) { toast.error(err.data?.message || 'Error'); }
   };
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this budget line?')) return;
+    if (!(await confirmDialog('Delete this budget line?', { danger: true, confirmText: 'Delete' }))) return;
     try { await deleteBudget(id).unwrap(); toast.success('Deleted'); } catch (err: any) { toast.error(err.data?.message || 'Error'); }
   };
 

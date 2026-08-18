@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGetGlAccountsQuery, useCreateGlAccountMutation, useUpdateGlAccountMutation, useSeedCOAMutation } from '../../../store/api/glApi';
 import type { GlAccount } from '../../../store/api/glApi';
+import { useAlertDialog } from '../../../components/DialogProvider';
 import './GLPage.css';
 
 function AccountNode({ account, accounts, onEdit }: { account: GlAccount; accounts: GlAccount[]; onEdit: (a: GlAccount) => void }) {
@@ -83,6 +84,7 @@ export default function ChartOfAccountsPage() {
 
 function AccountModal({ account, accounts, onClose, onCreate, onUpdate }: any) {
   const isEdit = !!account;
+  const alertDialog = useAlertDialog();
   const [form, setForm] = useState({
     code: account?.code || '',
     name: account?.name || '',
@@ -105,7 +107,7 @@ function AccountModal({ account, accounts, onClose, onCreate, onUpdate }: any) {
       }
       onClose();
     } catch (err: any) {
-      alert(err.data?.errors?.[0]?.message || 'Error saving account');
+      alertDialog(err.data?.errors?.[0]?.message || 'Error saving account');
     }
   };
 

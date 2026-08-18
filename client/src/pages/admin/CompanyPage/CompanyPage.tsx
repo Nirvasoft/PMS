@@ -11,6 +11,7 @@ import {
 import { useGetUsersQuery } from '../../../store/api/usersApi';
 import toast from 'react-hot-toast';
 import { FEATURE_FLAGS } from '../../../hooks/useFeatureFlags';
+import { useConfirm } from '../../../components/DialogProvider';
 
 type Tab = 'general' | 'branches' | 'regions' | 'business-units' | 'features';
 
@@ -237,6 +238,7 @@ function BranchesTab() {
   const [updateBranch] = useUpdateBranchMutation();
   const [deleteBranch] = useDeleteBranchMutation();
   const [showModal, setShowModal] = useState<'create' | string | null>(null);
+  const confirmDialog = useConfirm();
   const branches = data?.data ?? [];
 
   const editingBranch = typeof showModal === 'string' && showModal !== 'create'
@@ -259,7 +261,7 @@ function BranchesTab() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete branch "${name}"?`)) return;
+    if (!(await confirmDialog(`Delete branch "${name}"?`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteBranch(id).unwrap();
       toast.success('Branch deleted');
@@ -346,6 +348,7 @@ function RegionsTab() {
   const [deleteRegion] = useDeleteRegionMutation();
   const [showModal, setShowModal] = useState<'create' | string | null>(null);
   const [pickerRegionId, setPickerRegionId] = useState<string | null>(null);
+  const confirmDialog = useConfirm();
   const regions = data?.data ?? [];
 
   const editingRegion = typeof showModal === 'string' && showModal !== 'create'
@@ -394,7 +397,7 @@ function RegionsTab() {
               <button className="btn btn-sm" onClick={() => setPickerRegionId(r.id)}>🏠 Properties</button>
               <button className="btn btn-sm" onClick={() => setShowModal(r.id)}>Edit</button>
               <button className="btn btn-sm btn-danger" onClick={async () => {
-                if (!confirm(`Delete region "${r.name}"?`)) return;
+                if (!(await confirmDialog(`Delete region "${r.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
                 try { await deleteRegion(r.id).unwrap(); toast.success('Deleted'); }
                 catch { toast.error('Cannot delete'); }
               }}>Delete</button>
@@ -517,6 +520,7 @@ function BusinessUnitsTab() {
   const [updateBU] = useUpdateBusinessUnitMutation();
   const [deleteBU] = useDeleteBusinessUnitMutation();
   const [showModal, setShowModal] = useState<'create' | string | null>(null);
+  const confirmDialog = useConfirm();
   const units = data?.data ?? [];
 
   const editingBU = typeof showModal === 'string' && showModal !== 'create'
@@ -564,7 +568,7 @@ function BusinessUnitsTab() {
             <div className="org-card-actions">
               <button className="btn btn-sm" onClick={() => setShowModal(bu.id)}>Edit</button>
               <button className="btn btn-sm btn-danger" onClick={async () => {
-                if (!confirm(`Delete "${bu.name}"?`)) return;
+                if (!(await confirmDialog(`Delete "${bu.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
                 try { await deleteBU(bu.id).unwrap(); toast.success('Deleted'); }
                 catch (err: unknown) {
                   const e = err as { data?: { errors?: { message: string }[] } };

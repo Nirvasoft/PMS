@@ -5,9 +5,11 @@ import {
   useGetRoleTemplatesQuery, useCreateRoleFromTemplateMutation,
 } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useConfirm } from '../../../components/DialogProvider';
 import toast from 'react-hot-toast';
 
 export default function RolesPage() {
+  const confirmDialog = useConfirm();
   const { data, isLoading } = useGetRolesQuery({ includePermissions: false });
   const [deleteRole] = useDeleteRoleMutation();
   const [showCreate, setShowCreate] = useState(false);
@@ -17,7 +19,7 @@ export default function RolesPage() {
   const roles = data?.data ?? [];
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete role "${name}"?`)) return;
+    if (!(await confirmDialog(`Delete role "${name}"?`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteRole(id).unwrap();
       toast.success('Role deleted');

@@ -4,6 +4,7 @@ import {
   type ChargeType,
 } from '../../../store/api/billingApi';
 import { DollarSign, Plus, X, Tag, Check, Pencil, Lock } from 'lucide-react';
+import { useAlertDialog } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
 const CATEGORIES = ['rent', 'utility', 'service', 'parking', 'penalty', 'deposit', 'misc'] as const;
@@ -21,6 +22,7 @@ export default function ChargeTypesPage() {
   const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery();
   const [createChargeType, { isLoading: creating }] = useCreateChargeTypeMutation();
   const [updateChargeType, { isLoading: updating }] = useUpdateChargeTypeMutation();
+  const alertDialog = useAlertDialog();
 
   const chargeTypes = chargeTypesData?.data || [];
 
@@ -58,7 +60,7 @@ export default function ChargeTypesPage() {
       }
       closeForm();
     } catch (err: any) {
-      alert(err?.data?.message || `Failed to ${editing ? 'update' : 'create'} charge type`);
+      alertDialog(err?.data?.message || `Failed to ${editing ? 'update' : 'create'} charge type`);
     }
   };
 

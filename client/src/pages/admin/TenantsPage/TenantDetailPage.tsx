@@ -18,6 +18,7 @@ import {
   FolderOpen, Upload, Download, Camera, Pencil, CalendarClock,
 } from 'lucide-react';
 import { useGetDocumentsQuery, useUploadDocumentMutation, useDeleteDocumentMutation, type DocumentItem } from '../../../store/api/documentsApi';
+import { useConfirm } from '../../../components/DialogProvider';
 import toast from 'react-hot-toast';
 import './TenantDetailPage.css';
 
@@ -870,6 +871,7 @@ function LeasesTab({ tenantId }: { tenantId: string }) {
 
 // ── Documents Tab ─────────────────────────────
 function DocumentsTab({ tenantId }: { tenantId: string }) {
+  const confirmDialog = useConfirm();
   const { data, isLoading } = useGetDocumentsQuery({ entityType: 'tenant', entityId: tenantId });
   const [uploadDoc, { isLoading: uploading }] = useUploadDocumentMutation();
   const [deleteDoc] = useDeleteDocumentMutation();
@@ -895,7 +897,7 @@ function DocumentsTab({ tenantId }: { tenantId: string }) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return;
+    if (!(await confirmDialog('Are you sure you want to delete this document?', { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteDoc(id).unwrap();
       toast.success('Document deleted');
