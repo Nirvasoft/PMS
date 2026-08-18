@@ -510,7 +510,7 @@ export default function ShopDirectoryPage() {
 
       {/* ── Detail Drawer ── */}
       {detailShop && !showForm && createPortal(
-        <div className="shop-detail-overlay" onClick={closeDetail}>
+        <div className="shop-detail-overlay">
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()}>
             <div className="shop-detail-header">
               <div>
@@ -764,7 +764,7 @@ export default function ShopDirectoryPage() {
 
       {/* ── Edit Modal ── */}
       {showForm && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowForm(false)}>
+        <div className="mall-modal-overlay">
           <div className="shop-edit-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <div>
@@ -851,7 +851,7 @@ export default function ShopDirectoryPage() {
 
       {/* ── Commercial Lease Edit Modal ── */}
       {showLeaseEdit && activeLeaseId && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowLeaseEdit(false)}>
+        <div className="mall-modal-overlay">
           <div className="shop-edit-modal shop-lease-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <div>
@@ -1001,7 +1001,7 @@ export default function ShopDirectoryPage() {
 
       {/* ── Create Shop Modal ── */}
       {showCreateShop && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowCreateShop(false)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <div>

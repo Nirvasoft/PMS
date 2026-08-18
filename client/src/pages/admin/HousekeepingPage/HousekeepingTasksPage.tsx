@@ -367,7 +367,7 @@ export default function HousekeepingTasksPage() {
 
       {/* ── Zone Modal ── */}
       {showZoneModal && (
-        <div className="modal-overlay" onClick={() => setShowZoneModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <h2><MapPin size={18} /> New Zone</h2>
             <form onSubmit={handleCreateZone}>
@@ -393,7 +393,7 @@ export default function HousekeepingTasksPage() {
 
       {/* ── Schedule Modal ── */}
       {showScheduleModal && (
-        <div className="modal-overlay" onClick={() => setShowScheduleModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <h2><Calendar size={18} /> New Schedule</h2>
             <form onSubmit={handleCreateSchedule}>
@@ -427,7 +427,7 @@ export default function HousekeepingTasksPage() {
 
       {/* ── Complete Task with Checklist Modal ── */}
       {completeTaskId && (
-        <div className="maint-modal-backdrop" onClick={() => setCompleteTaskId(null)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2><span className="modal-icon"><CheckCircle2 size={18} /></span> Complete Task</h2>

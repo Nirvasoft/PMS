@@ -590,7 +590,7 @@ function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: st
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2><Upload size={20} /> Upload Document</h2>
@@ -695,7 +695,7 @@ function NewFolderModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2><FolderPlus size={20} /> New Folder</h2>
@@ -742,7 +742,7 @@ function VersionsModal({ docId, onClose }: { docId: string; onClose: () => void 
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal versions-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2><History size={20} /> Version History</h2>
@@ -834,7 +834,7 @@ function EditDocumentModal({ doc, onClose, onUpdated }: {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal edit-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2><Edit3 size={20} /> Edit Document</h2>
@@ -954,7 +954,7 @@ function PreviewModal({ doc, onClose }: { doc: DocumentItem; onClose: () => void
   }, [onClose]);
 
   return (
-    <div className="preview-overlay" onClick={onClose}>
+    <div className="preview-overlay">
       <div className="preview-container" onClick={(e) => e.stopPropagation()}>
         {/* Preview toolbar */}
         <div className="preview-toolbar">
@@ -1098,7 +1098,7 @@ function RenameFolderModal({ folder, onClose }: {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2><Edit3 size={20} /> Rename Folder</h2>

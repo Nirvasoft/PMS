@@ -343,7 +343,7 @@ export default function MallDashboard() {
 
       {/* ── Mall Property Config Modal ── */}
       {showConfig && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowConfig(false)}>
+        <div className="mall-modal-overlay">
           <div className="shop-edit-modal shop-lease-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <div>

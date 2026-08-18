@@ -186,7 +186,7 @@ export default function LeadDetailPage() {
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (
-        <div className="crm-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+        <div className="crm-modal-overlay">
           <div className="crm-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
             <div className="delete-confirm-icon"><AlertTriangle size={28} /></div>
             <h2 style={{ textAlign: 'center' }}>Delete Lead?</h2>
@@ -205,7 +205,7 @@ export default function LeadDetailPage() {
 
       {/* Blacklist Confirmation */}
       {showBlacklistConfirm && (
-        <div className="crm-modal-overlay" onClick={() => setShowBlacklistConfirm(false)}>
+        <div className="crm-modal-overlay">
           <div className="crm-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
             <div className="delete-confirm-icon" style={{ background: 'rgba(239,68,68,0.1)' }}>
               <ShieldOff size={28} color="#ef4444" />
@@ -275,7 +275,7 @@ function StageSelector({ leadId, currentStage }: { leadId: string; currentStage:
         ))}
       </select>
       {showLost && (
-        <div className="crm-modal-overlay" onClick={() => setShowLost(false)}>
+        <div className="crm-modal-overlay">
           <div className="crm-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Mark as Lost</h2>
             <div className="form-group">
@@ -666,7 +666,7 @@ function ConvertLeadModal({ leadId, leadName, onClose }: { leadId: string; leadN
   };
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal convert-modal" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="convert-modal-header">
@@ -993,7 +993,7 @@ function ScheduleViewingModal({ onClose, onSubmit }: { onClose: () => void; onSu
   const [durationMinutes, setDurationMinutes] = useState('30');
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={(e) => e.stopPropagation()}>
         <div className="viewing-modal-header">
           <div className="viewing-modal-icon"><Calendar size={20} /></div>
@@ -1045,7 +1045,7 @@ function RescheduleViewingModal({ viewing, onClose, onSubmit }: {
   const hasChanges = scheduledAt !== formattedDate || Number(durationMinutes) !== viewing.durationMinutes;
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal reschedule-modal" onClick={e => e.stopPropagation()}>
         <div className="viewing-modal-header">
           <div className="viewing-modal-icon reschedule-icon"><RefreshCw size={20} /></div>

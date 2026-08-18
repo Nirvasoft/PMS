@@ -127,7 +127,7 @@ function CreateJournalModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="gl-modal-overlay" onClick={onClose}>
+    <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:850}}>
         <h3>New Journal Entry</h3>
         <form onSubmit={handleSubmit}>

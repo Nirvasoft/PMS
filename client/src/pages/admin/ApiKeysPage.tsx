@@ -128,7 +128,7 @@ export default function ApiKeysPage() {
 
       {/* Create Modal */}
       {showCreate && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Create API Key</h3>
@@ -175,7 +175,7 @@ export default function ApiKeysPage() {
 
       {/* Key Reveal Modal */}
       {newKey && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setNewKey(null)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal mall-modal-sm" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Your API Key</h3>

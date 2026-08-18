@@ -347,7 +347,7 @@ function CompletePmWoModal({ woId, checklistTemplate, onClose }: {
   };
 
   return (
-    <div className="maint-modal-backdrop" onClick={onClose}>
+    <div className="maint-modal-backdrop">
       <div className="maint-modal" style={{ maxWidth: '620px' }} onClick={(e) => e.stopPropagation()}>
         <div className="maint-modal-header">
           <h2>
@@ -463,7 +463,7 @@ function SkipPmWoModal({ woId, onClose }: { woId: string; onClose: () => void })
   };
 
   return (
-    <div className="maint-modal-backdrop" onClick={onClose}>
+    <div className="maint-modal-backdrop">
       <div className="maint-modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
         <div className="maint-modal-header">
           <h2>
@@ -576,7 +576,7 @@ function EditScheduleModal({ schedule, categories, properties, onClose }: {
   };
 
   return (
-    <div className="maint-modal-backdrop" onClick={onClose}>
+    <div className="maint-modal-backdrop">
       <div className="maint-modal lg" onClick={(e) => e.stopPropagation()}>
         <div className="maint-modal-header">
           <h2>

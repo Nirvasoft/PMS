@@ -257,7 +257,7 @@ export default function PurchaseRequisitionsPage() {
 
       {/* PR Detail Modal */}
       {detailPr && (
-        <div className="maint-modal-backdrop" onClick={() => setDetailPr(null)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2>

@@ -236,7 +236,7 @@ export default function PortalVisitors() {
 
       {/* QR Modal */}
       {qrModal && (
-        <div className="modal-backdrop" onClick={() => setQrModal(null)}>
+        <div className="modal-backdrop">
           <div className="modal-content portal-qr-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Visitor QR Pass</h3>

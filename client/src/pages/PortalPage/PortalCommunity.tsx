@@ -323,7 +323,7 @@ export default function PortalCommunity() {
 
       {/* Rating Modal */}
       {ratingId && (
-        <div className="modal-backdrop" onClick={() => setRatingId(null)}>
+        <div className="modal-backdrop">
           <div className="modal-content portal-rating-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Rate Response</h3>

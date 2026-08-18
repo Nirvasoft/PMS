@@ -85,7 +85,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
   };
 
   return (
-    <div className="ar-modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="ar-modal-backdrop">
       <div className="ar-modal">
         <h2>
           <span className="modal-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>

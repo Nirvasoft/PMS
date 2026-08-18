@@ -197,7 +197,7 @@ export default function MyTasksPage() {
 
       {/* Approve / Reject Modal */}
       {actionTask && (
-        <div className="modal-overlay" onClick={() => setActionTask(null)}>
+        <div className="modal-overlay">
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{actionTask.action === 'approve' ? '✓ Approve' : '✕ Reject'} Task</h2>
@@ -292,7 +292,7 @@ function DelegateModal({ task, onClose, onDelegated }: {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card delegate-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2><ArrowRightLeft size={20} /> Delegate Task</h2>

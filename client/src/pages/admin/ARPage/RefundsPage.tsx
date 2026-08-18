@@ -248,7 +248,7 @@ function RefundActionModal({
   };
 
   return (
-    <div className="ar-modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="ar-modal-backdrop">
       <div className="ar-modal" style={{ maxWidth: 480 }}>
         <h2>
           <span className="modal-icon" style={{ background: config.iconBg, color: config.iconColor }}>
@@ -359,7 +359,7 @@ function CreateRefundModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="ar-modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="ar-modal-backdrop">
       <div className="ar-modal">
         <h2>
           <span className="modal-icon" style={{ background: 'rgba(139,92,246,0.12)', color: '#a78bfa' }}>

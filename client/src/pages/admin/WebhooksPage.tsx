@@ -162,7 +162,7 @@ export default function WebhooksPage() {
 
       {/* Create Modal */}
       {showCreate && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Add Webhook Endpoint</h3>
@@ -208,7 +208,7 @@ export default function WebhooksPage() {
 
       {/* Secret Reveal Modal */}
       {newSecret && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setNewSecret(null)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal mall-modal-sm" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Webhook Secret</h3>
@@ -237,7 +237,7 @@ export default function WebhooksPage() {
 
       {/* Deliveries Drawer */}
       {showDeliveries && createPortal(
-        <div className="shop-detail-overlay" onClick={() => setShowDeliveries(null)}>
+        <div className="shop-detail-overlay">
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 560 }}>
             <DeliveriesDrawer endpointId={showDeliveries} onClose={() => setShowDeliveries(null)} />
           </div>
@@ -246,7 +246,7 @@ export default function WebhooksPage() {
 
       {/* Edit Webhook Modal */}
       {showEdit && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowEdit(null)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

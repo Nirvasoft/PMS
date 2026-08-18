@@ -232,7 +232,7 @@ export default function BylawsPage() {
 
       {/* Create By-Law Modal */}
       {showCreateBylaw && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowCreateBylaw(false)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Create By-Law</h3>
@@ -269,7 +269,7 @@ export default function BylawsPage() {
 
       {/* Report Violation Modal */}
       {showCreateViolation && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowCreateViolation(false)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Report Violation</h3>
@@ -306,7 +306,7 @@ export default function BylawsPage() {
 
       {/* Fine Modal */}
       {showFine && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowFine(null)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal condo-modal-sm" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Issue Fine</h3>
@@ -332,7 +332,7 @@ export default function BylawsPage() {
 
       {/* ═══ Appeal Violation Modal ═══ */}
       {showAppeal && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowAppeal(null)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal condo-modal-sm" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -373,7 +373,7 @@ export default function BylawsPage() {
 
       {/* ═══ Edit By-Law Modal ═══ */}
       {showEditBylaw && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowEditBylaw(null)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -232,7 +232,7 @@ function CreateLeadModal({ properties, onClose, onCreated }: {
   };
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={(e) => e.stopPropagation()}>
         <h2>New Lead</h2>
         <div className="crm-modal .form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

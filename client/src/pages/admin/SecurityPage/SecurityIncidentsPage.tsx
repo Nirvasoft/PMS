@@ -256,7 +256,7 @@ export default function SecurityIncidentsPage() {
 
       {/* ── Create Modal ── */}
       {showCreate && (
-        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <h2><Shield size={18} /> Report Security Incident</h2>
             <form onSubmit={handleCreate}>
@@ -297,7 +297,7 @@ export default function SecurityIncidentsPage() {
 
       {/* ── Resolve Modal ── */}
       {resolveId && (
-        <div className="modal-overlay" onClick={() => setResolveId(null)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <h2><CheckCircle2 size={18} /> Resolve Incident</h2>
             <form onSubmit={handleResolve}>

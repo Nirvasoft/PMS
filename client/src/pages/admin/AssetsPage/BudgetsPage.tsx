@@ -764,7 +764,7 @@ function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => voi
   };
 
   return (
-    <div className="gl-modal-overlay" onClick={onClose}>
+    <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:800}}>
         <h3>New Budget — FY {year}</h3>
         <form onSubmit={handleSubmit}>

@@ -329,7 +329,7 @@ function VehicleFormModal({
   };
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal vr-modal" onClick={e => e.stopPropagation()}>
         <div className="vr-modal-header">
           <div className="vr-modal-icon">
@@ -419,7 +419,7 @@ function DeleteVehicleConfirm({
   };
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <div className="vr-delete-icon"><AlertTriangle size={28} /></div>
         <h2 style={{ textAlign: 'center' }}>Deactivate Vehicle?</h2>

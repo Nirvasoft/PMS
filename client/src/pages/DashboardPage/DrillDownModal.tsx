@@ -20,7 +20,7 @@ export default function DrillDownModal({ widgetCode, drillKey, onClose }: DrillD
   const drillData = response?.data;
 
   return (
-    <div className="drilldown-overlay" onClick={onClose}>
+    <div className="drilldown-overlay">
       <div className="drilldown-modal" onClick={(e) => e.stopPropagation()}>
         <div className="drilldown-header">
           <div>

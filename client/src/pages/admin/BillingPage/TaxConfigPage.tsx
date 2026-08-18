@@ -130,7 +130,7 @@ export default function TaxConfigPage() {
 
       {/* Create Form Modal */}
       {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+        <div className="modal-overlay">
           <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2><Calculator size={18} /> New Tax Configuration</h2>

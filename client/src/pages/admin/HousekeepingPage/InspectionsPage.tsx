@@ -354,7 +354,7 @@ export default function InspectionsPage() {
 
       {/* ── Detail Modal ── */}
       {detailInsp && (
-        <div className="maint-modal-backdrop" onClick={() => setDetailInsp(null)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '560px', borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -424,7 +424,7 @@ export default function InspectionsPage() {
 
       {/* ── Create Modal ── */}
       {showCreate && (
-        <div className="maint-modal-backdrop" onClick={() => { setShowCreate(false); resetForm(); }}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '600px', borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

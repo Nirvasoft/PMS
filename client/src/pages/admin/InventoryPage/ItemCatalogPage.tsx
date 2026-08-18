@@ -232,7 +232,7 @@ export default function ItemCatalogPage() {
 
       {/* Create/Edit Item Modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditItem(null); }}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h2><Package size={18} /> {editItem ? 'Edit Item' : 'New Inventory Item'}</h2>
@@ -280,7 +280,7 @@ export default function ItemCatalogPage() {
 
       {/* Create Store Modal */}
       {showStoreModal && (
-        <div className="modal-overlay" onClick={() => setShowStoreModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <h2><Warehouse size={18} /> New Store</h2>
             <form onSubmit={handleCreateStore}>

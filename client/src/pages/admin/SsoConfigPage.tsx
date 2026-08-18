@@ -236,7 +236,7 @@ function SsoConfigModal({
 
   if (editId && loadingExisting) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-backdrop">
         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
           <div className="loading-inline"><Loader2 size={20} className="spin" /> Loading...</div>
         </div>
@@ -245,7 +245,7 @@ function SsoConfigModal({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 680 }}>
         <div className="modal-header">
           <h2><Key size={20} /> {editId ? 'Edit' : 'Add'} SSO Provider</h2>

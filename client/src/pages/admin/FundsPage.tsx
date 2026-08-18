@@ -229,7 +229,7 @@ export default function FundsPage() {
 
       {/* Create Fund Modal */}
       {showCreateFund && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowCreateFund(false)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Create Fund Account</h3>
@@ -266,7 +266,7 @@ export default function FundsPage() {
 
       {/* Add Transaction Modal */}
       {showAddTxn && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowAddTxn(false)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Add Transaction</h3>
@@ -303,7 +303,7 @@ export default function FundsPage() {
 
       {/* Rejection Reason Modal */}
       {showRejectModal && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowRejectModal(null)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Reject Transaction</h3>

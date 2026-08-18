@@ -172,7 +172,7 @@ function TransferModal({ assetId, onClose }: { assetId: string; onClose: () => v
   };
 
   return (
-    <div className="gl-modal-overlay" onClick={onClose}>
+    <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:500}}>
         <h3>Transfer Asset</h3>
         <form onSubmit={handleSubmit}>
@@ -208,7 +208,7 @@ function DisposeModal({ assetId, onClose }: { assetId: string; onClose: () => vo
   };
 
   return (
-    <div className="gl-modal-overlay" onClick={onClose}>
+    <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:500}}>
         <h3>Dispose Asset</h3>
         <form onSubmit={handleSubmit}>

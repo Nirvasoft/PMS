@@ -772,7 +772,7 @@ function AssignModal({ ticketId, propertyId, onClose }: { ticketId: string; prop
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header"><h2>Assign Ticket</h2><button className="btn-icon" onClick={onClose}><XCircle size={20} /></button></div>
         <form onSubmit={handleSubmit}>
@@ -821,7 +821,7 @@ function EscalateModal({ ticketId, onClose }: { ticketId: string; onClose: () =>
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header"><h2>Escalate Ticket</h2><button className="btn-icon" onClick={onClose}><XCircle size={20} /></button></div>
         <form onSubmit={handleSubmit}>
@@ -857,7 +857,7 @@ function CancelModal({ ticketId, onClose }: { ticketId: string; onClose: () => v
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header"><h2>Cancel Ticket</h2><button className="btn-icon" onClick={onClose}><XCircle size={20} /></button></div>
         <form onSubmit={handleSubmit}>
@@ -895,7 +895,7 @@ function RateModal({ ticketId, onClose }: { ticketId: string; onClose: () => voi
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header"><h2>Rate Service</h2><button className="btn-icon" onClick={onClose}><XCircle size={20} /></button></div>
         <form onSubmit={handleSubmit}>

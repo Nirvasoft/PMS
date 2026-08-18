@@ -138,7 +138,7 @@ function RoleEditorModal({ roleId, onClose }: { roleId?: string; onClose: () => 
   const isSystem = existingRole?.data?.isSystem;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card modal-lg" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{roleId ? `Edit: ${name}` : 'Create Role'}</h2>
@@ -227,7 +227,7 @@ function TemplatePickerModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card modal-lg" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Create Role from Template</h2>

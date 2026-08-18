@@ -302,7 +302,7 @@ export default function IncidentDetailPage() {
 
       {/* Resolve Modal */}
       {showResolve && (
-        <div className="maint-modal-backdrop" onClick={() => setShowResolve(false)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2><span className="modal-icon"><CheckCircle2 size={18} /></span> Resolve Incident</h2>
@@ -336,7 +336,7 @@ export default function IncidentDetailPage() {
 
       {/* Status Change Modal */}
       {showStatusChange && (
-        <div className="maint-modal-backdrop" onClick={() => setShowStatusChange(false)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '360px' }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2><span className="modal-icon"><Shield size={18} /></span> Change Status</h2>

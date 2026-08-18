@@ -149,7 +149,7 @@ export default function PropertyDetailPage() {
 
       {/* Status change modal */}
       {statusModal && (
-        <div className="modal-overlay" onClick={() => setStatusModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Change Status</h3>

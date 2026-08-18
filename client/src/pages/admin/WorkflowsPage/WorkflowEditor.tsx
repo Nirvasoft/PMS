@@ -141,7 +141,7 @@ export default function WorkflowEditor({ definition, onClose }: Props) {
   const flowChain = buildChain();
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" onClick={e => e.stopPropagation()}
         style={{ maxWidth: 960, width: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
 

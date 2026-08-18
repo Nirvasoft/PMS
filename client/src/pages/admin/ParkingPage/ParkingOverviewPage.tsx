@@ -255,7 +255,7 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
   if ((parseInt(form.rangeEnd) || 1) > end) previewSlots.push('…');
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()}>
         <h2>Bulk Create Parking Slots</h2>
         <div className="form-group">
@@ -380,7 +380,7 @@ function CreateZoneModal({ onClose, onSubmit }: { onClose: () => void; onSubmit:
   const [zoneType, setZoneType] = useState('covered');
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()}>
         <h2>New Parking Zone</h2>
         <div className="form-group"><label>Zone Name *</label><input className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="Level B1" /></div>

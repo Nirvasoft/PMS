@@ -191,7 +191,7 @@ function ImportStatementModal({ bankAccountId, onClose }: { bankAccountId: strin
   };
 
   return (
-    <div className="gl-modal-overlay" onClick={onClose}>
+    <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:750}}>
         <h3>📥 Import Bank Statement</h3>
         <form onSubmit={handleSubmit}>

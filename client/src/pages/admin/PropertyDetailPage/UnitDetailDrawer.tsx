@@ -252,7 +252,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       : 'Failed to load unit details';
     return (
       <>
-        <div className="drawer-overlay" onClick={() => dispatch(closeDrawer())} />
+        <div className="drawer-overlay" />
         <div className="unit-drawer">
           <div className="drawer-header">
             <div><div className="drawer-unit-no">Error</div></div>
@@ -276,7 +276,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
   return (
     <>
-      <div className="drawer-overlay" onClick={() => dispatch(closeDrawer())} />
+      <div className="drawer-overlay" />
       <div className="unit-drawer">
         {/* Header */}
         <div className="drawer-header">
@@ -734,7 +734,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
         const reasonRequired = ['maintenance', 'not_for_rent'].includes(newStatus);
         const canConfirm = !reasonRequired || statusReason.trim().length > 0;
         return (
-          <div className="modal-overlay" onClick={() => setStatusModal(false)}>
+          <div className="modal-overlay">
             <div className="modal-box" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>Change Status</h3>

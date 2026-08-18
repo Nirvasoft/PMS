@@ -397,7 +397,7 @@ export default function SmartMeterPage() {
 
           {/* Add Reading Modal */}
           {showAddReading && createPortal(
-            <div className="condo-modal-overlay" onClick={() => setShowAddReading(false)}>
+            <div className="condo-modal-overlay">
               <div className="condo-modal condo-modal-sm" onClick={e => e.stopPropagation()}>
                 <div className="condo-modal-header">
                   <h3>Add Manual Reading</h3>
@@ -426,7 +426,7 @@ export default function SmartMeterPage() {
 
           {/* Generate Invoice Modal */}
           {showInvoiceModal && createPortal(
-            <div className="condo-modal-overlay" onClick={() => setShowInvoiceModal(false)}>
+            <div className="condo-modal-overlay">
               <div className="condo-modal condo-modal-sm" onClick={e => e.stopPropagation()}>
                 <div className="condo-modal-header">
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -491,7 +491,7 @@ export default function SmartMeterPage() {
 
           {/* Smart Device Config Modal */}
           {showDeviceConfigModal && createPortal(
-            <div className="condo-modal-overlay" onClick={() => setShowDeviceConfigModal(null)}>
+            <div className="condo-modal-overlay">
               <div className="condo-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
                 <div className="condo-modal-header">
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -480,7 +480,7 @@ export default function InvoiceDetailPage() {
 
       {/* ═══ Credit Note Modal ═══ */}
       {showCreditModal && (
-        <div className="modal-overlay" onClick={() => setShowCreditModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2><CreditCard size={18} /> Create Credit Note</h2>
@@ -576,7 +576,7 @@ export default function InvoiceDetailPage() {
 
       {/* ═══ Embedded PDF Viewer ═══ */}
       {showPdfViewer && (
-        <div className="pdf-viewer-overlay" onClick={closePdfViewer}>
+        <div className="pdf-viewer-overlay">
           <div className="pdf-viewer-modal" onClick={e => e.stopPropagation()}>
             <div className="pdf-viewer-header">
               <h3>

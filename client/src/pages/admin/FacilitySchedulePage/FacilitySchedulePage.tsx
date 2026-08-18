@@ -144,7 +144,7 @@ export default function FacilitySchedulePage() {
 
       {/* Reject Modal */}
       {rejectId && (
-        <div className="modal-overlay" onClick={() => setRejectId(null)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
             <h3>Reject Booking</h3>
             <div className="form-group">

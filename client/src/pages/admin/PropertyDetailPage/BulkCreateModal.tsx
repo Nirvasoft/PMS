@@ -118,7 +118,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
   };
 
   return (
-    <div className="modal-overlay" onClick={() => dispatch(setBulkCreateOpen(false))}>
+    <div className="modal-overlay">
       <div className="bulk-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title"><Layers size={18} /> Bulk Create Units</div>

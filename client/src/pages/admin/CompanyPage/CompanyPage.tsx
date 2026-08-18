@@ -451,7 +451,7 @@ function RegionPropertyPicker({ regionId, onClose }: { regionId: string; onClose
   const unassigned = allProperties.filter(p => !assignedIds.has(p.id));
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" style={{ maxWidth: 700 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Manage Region Properties</h2>
@@ -695,7 +695,7 @@ function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitL
   const users = usersData?.data ?? [];
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{title}</h2>

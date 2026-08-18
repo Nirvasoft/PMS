@@ -262,7 +262,7 @@ export default function MallEventsPage() {
 
       {/* Create Event Modal */}
       {showCreate && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Create Event</h3>
@@ -308,7 +308,7 @@ export default function MallEventsPage() {
 
       {/* Create Booth Modal */}
       {showBooth && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowBooth(false)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Add Booth</h3>
@@ -352,7 +352,7 @@ export default function MallEventsPage() {
 
       {/* Edit Booth Modal */}
       {editBooth && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setEditBooth(null)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Edit Booth {editBooth.boothNumber}</h3>

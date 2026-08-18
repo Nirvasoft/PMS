@@ -681,7 +681,7 @@ function SaveReportModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2><Save size={20} /> Save Report</h2>

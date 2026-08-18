@@ -281,7 +281,7 @@ export default function CamManagementPage() {
 
       {/* Create Pool Modal */}
       {showCreate && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Create CAM Pool</h3>

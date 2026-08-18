@@ -250,7 +250,7 @@ export default function AssetDetailPage() {
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (
-        <div className="maint-modal-backdrop" onClick={() => setShowDeleteConfirm(false)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2><span className="modal-icon"><Trash2 size={18} /></span> Delete Asset</h2>

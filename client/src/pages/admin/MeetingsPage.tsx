@@ -478,7 +478,7 @@ export default function MeetingsPage() {
 
       {/* ═══ Create Meeting Modal ═══ */}
       {showCreate && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Schedule Meeting</h3>
@@ -521,7 +521,7 @@ export default function MeetingsPage() {
 
       {/* ═══ Add Resolution Modal ═══ */}
       {showAddRes && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowAddRes(false)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Add Resolution</h3>
@@ -555,7 +555,7 @@ export default function MeetingsPage() {
 
       {/* ═══ Cast Vote Modal ═══ */}
       {showVoteModal && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowVoteModal(null)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
             <div className="condo-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -639,7 +639,7 @@ export default function MeetingsPage() {
 
       {/* ═══ Publish Minutes Modal ═══ */}
       {showMinutesModal && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowMinutesModal(false)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
             <div className="condo-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -677,7 +677,7 @@ export default function MeetingsPage() {
 
       {/* ═══ Submit Proxy Modal ═══ */}
       {showProxyModal && createPortal(
-        <div className="condo-modal-overlay" onClick={() => setShowProxyModal(false)}>
+        <div className="condo-modal-overlay">
           <div className="condo-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div className="condo-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

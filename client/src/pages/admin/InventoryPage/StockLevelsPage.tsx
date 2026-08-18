@@ -159,7 +159,7 @@ export default function StockLevelsPage() {
 
       {/* Action Modals */}
       {modal && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <h2>
               {modal === 'receive' && <><ArrowDownToLine size={18} /> Receive Stock</>}

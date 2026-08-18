@@ -284,7 +284,7 @@ export default function BillingSchedulesPage() {
 
       {/* ═══ Create / Edit Schedule Modal ═══ */}
       {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+        <div className="modal-overlay">
           <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2><CalendarClock size={18} /> {editId ? 'Edit Schedule' : 'New Billing Schedule'}</h2>

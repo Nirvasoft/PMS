@@ -185,7 +185,7 @@ export default function ApInvoiceDetailPage() {
 
       {/* Reject modal */}
       {showReject && (
-        <div className="ap-modal-overlay" onClick={() => setShowReject(false)}>
+        <div className="ap-modal-overlay">
           <div className="ap-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
             <div className="ap-modal-header"><h2><AlertTriangle size={18} /> Reject AP Invoice</h2><button className="ap-btn icon-only ghost" onClick={() => setShowReject(false)}><X size={18} /></button></div>
             <div className="ap-modal-body">

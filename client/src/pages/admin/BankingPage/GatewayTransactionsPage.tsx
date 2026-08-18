@@ -269,7 +269,7 @@ export default function GatewayTransactionsPage() {
 
       {/* ═══ Transaction Detail Drawer ═══ */}
       {detailTxn && (
-        <div className="modal-overlay" onClick={() => setDetailTxn(null)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
             <div className="modal-header">
               <h2><ExternalLink size={18} /> Transaction Details</h2>
@@ -344,7 +344,7 @@ export default function GatewayTransactionsPage() {
 
       {/* ═══ Refund Modal ═══ */}
       {refundModal && (
-        <div className="modal-overlay" onClick={() => setRefundModal(null)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
             <div className="modal-header">
               <h2><RotateCcw size={18} /> Refund Payment</h2>

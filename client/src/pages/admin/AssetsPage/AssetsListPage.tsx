@@ -141,7 +141,7 @@ function CreateAssetModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="gl-modal-overlay" onClick={onClose}>
+    <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()}>
         <h3>Register New Asset</h3>
         <form onSubmit={handleSubmit}>

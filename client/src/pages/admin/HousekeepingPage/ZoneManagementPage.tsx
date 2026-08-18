@@ -278,7 +278,7 @@ export default function ZoneManagementPage() {
 
       {/* ── Create Modal ── */}
       {showCreate && (
-        <div className="maint-modal-backdrop" onClick={() => setShowCreate(false)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '480px', borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

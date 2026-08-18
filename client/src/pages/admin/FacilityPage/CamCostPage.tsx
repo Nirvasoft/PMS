@@ -262,7 +262,7 @@ export default function CamCostPage() {
 
       {/* Delete Confirm */}
       {deleteConfirm && (
-        <div className="maint-modal-backdrop" onClick={() => setDeleteConfirm(null)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2><span className="modal-icon"><Trash2 size={18} /></span> Delete CAM Entry</h2>
@@ -340,7 +340,7 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
   };
 
   return (
-    <div className="maint-modal-backdrop" onClick={onClose}>
+    <div className="maint-modal-backdrop">
       <div className="maint-modal" onClick={(e) => e.stopPropagation()}>
         <div className="maint-modal-header">
           <h2>

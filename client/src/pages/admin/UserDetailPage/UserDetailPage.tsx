@@ -398,7 +398,7 @@ function AddOverrideModal({
     .filter(m => m.perms.length > 0);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
         <div className="modal-header">
           <h2>Add Permission Override</h2>

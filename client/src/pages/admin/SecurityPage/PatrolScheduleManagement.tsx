@@ -216,7 +216,7 @@ export default function PatrolScheduleManagement() {
 
       {/* Create Schedule Modal */}
       {showCreateSchedule && (
-        <div className="maint-modal-backdrop" onClick={() => setShowCreateSchedule(false)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2><span className="modal-icon"><Shield size={18} /></span> New Patrol Schedule</h2>
@@ -272,7 +272,7 @@ export default function PatrolScheduleManagement() {
 
       {/* Create Checkpoint Modal */}
       {showCreateCheckpoint && (
-        <div className="maint-modal-backdrop" onClick={() => setShowCreateCheckpoint(false)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2><span className="modal-icon"><QrCode size={18} /></span> New Checkpoint</h2>

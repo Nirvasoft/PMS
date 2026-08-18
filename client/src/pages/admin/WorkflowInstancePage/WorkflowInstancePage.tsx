@@ -248,7 +248,7 @@ export default function WorkflowInstancePage() {
 
       {/* Cancel Modal */}
       {cancelModal && (
-        <div className="modal-overlay" onClick={() => setCancelModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div className="modal-header">
               <h2>Cancel Workflow</h2>

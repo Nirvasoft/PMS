@@ -139,7 +139,7 @@ function CampaignRow({ campaign, onEdit }: { campaign: CampaignItem; onEdit: () 
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
-        <div className="crm-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+        <div className="crm-modal-overlay">
           <div className="crm-modal delete-confirm-modal" onClick={e => e.stopPropagation()}>
             <div className="delete-confirm-header">
               <div className="delete-confirm-icon"><AlertTriangle size={28} /></div>
@@ -236,7 +236,7 @@ function CampaignFormModal({ campaign, properties, onClose }: {
   };
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal camp-form-modal" onClick={e => e.stopPropagation()}>
         <div className="camp-modal-header">
           <div className="camp-modal-icon">

@@ -352,7 +352,7 @@ function CreateAssetModal({ properties, onClose }: {
   };
 
   return (
-    <div className="maint-modal-backdrop" onClick={onClose}>
+    <div className="maint-modal-backdrop">
       <div className="maint-modal lg" onClick={(e) => e.stopPropagation()}>
         <div className="maint-modal-header">
           <h2>

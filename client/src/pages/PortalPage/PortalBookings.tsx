@@ -267,7 +267,7 @@ export default function PortalBookings() {
 
       {/* Cancel Modal */}
       {cancelModal && (
-        <div className="modal-backdrop" onClick={() => setCancelModal(null)}>
+        <div className="modal-backdrop">
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Cancel Booking</h3>

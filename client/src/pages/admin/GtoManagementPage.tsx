@@ -242,7 +242,7 @@ export default function GtoManagementPage() {
 
       {/* Verify Modal */}
       {verifyModal && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setVerifyModal(null)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal mall-modal-sm" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Verify GTO Submission</h3>

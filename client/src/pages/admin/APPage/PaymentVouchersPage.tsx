@@ -150,7 +150,7 @@ export default function PaymentVouchersPage() {
 
       {/* Mark Paid modal */}
       {payId && (
-        <div className="ap-modal-overlay" onClick={() => setPayId(null)}>
+        <div className="ap-modal-overlay">
           <div className="ap-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
             <div className="ap-modal-header"><h2><Banknote size={18} /> Mark as Paid</h2><button className="ap-btn icon-only ghost" onClick={() => setPayId(null)}><X size={18} /></button></div>
             <div className="ap-modal-body">
@@ -171,7 +171,7 @@ export default function PaymentVouchersPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="ap-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="ap-modal-overlay">
           <div className="ap-modal wide" onClick={e => e.stopPropagation()}>
             <div className="ap-modal-header">
               <h2><Plus size={18} /> New Payment Voucher</h2>

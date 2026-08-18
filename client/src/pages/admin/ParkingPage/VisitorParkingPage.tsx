@@ -235,7 +235,7 @@ function QRCodeModal({ pass, onClose }: { pass: VisitorPass; onClose: () => void
   const isActive = ['pending', 'active'].includes(pass.status);
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal qr-modal" onClick={e => e.stopPropagation()}>
         <div className="qr-modal-header">
           <div className="qr-modal-icon"><QrCode size={22} /></div>
@@ -315,7 +315,7 @@ function IssuePassModal({ properties, onClose }: { properties: any[]; onClose: (
   };
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()}>
         <h2>Issue Visitor Pass</h2>
         <div className="form-group">

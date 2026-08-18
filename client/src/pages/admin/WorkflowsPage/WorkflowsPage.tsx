@@ -253,7 +253,7 @@ function InstancesTab() {
 
       {/* Cancel Instance Modal */}
       {cancelModal && (
-        <div className="modal-overlay" onClick={() => setCancelModal(null)}>
+        <div className="modal-overlay">
           <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div className="modal-header">
               <h2>Cancel Workflow</h2>
@@ -449,7 +449,7 @@ function CreateWorkflowModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>New Workflow</h2>
@@ -530,7 +530,7 @@ function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefin
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540 }}>
         <div className="modal-header">
           <h2>▶ Start Workflow</h2>

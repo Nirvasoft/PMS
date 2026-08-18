@@ -103,7 +103,7 @@ function CreateBankAccountModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="gl-modal-overlay" onClick={onClose}>
+    <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()}>
         <h3>Add Bank Account</h3>
         <form onSubmit={handleSubmit}>

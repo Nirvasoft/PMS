@@ -170,7 +170,7 @@ function CreateDeptModal({
   const [code, setCode] = useState('');
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{parentId ? 'Add Sub-Department' : 'Create Department'}</h2>
@@ -234,7 +234,7 @@ function MoveDeptModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
         <div className="modal-header">
           <h2>Move Department</h2>

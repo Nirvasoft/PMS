@@ -162,7 +162,7 @@ export default function UtilitySystemsPage() {
 
       {/* Delete Confirm */}
       {deleteConfirm && (
-        <div className="maint-modal-backdrop" onClick={() => setDeleteConfirm(null)}>
+        <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
             <div className="maint-modal-header">
               <h2><span className="modal-icon"><Trash2 size={18} /></span> Delete Utility System</h2>
@@ -245,7 +245,7 @@ function UtilitySystemModal({ system, properties, onClose }: {
   const selectedType = SYSTEM_TYPES[form.systemType];
 
   return (
-    <div className="maint-modal-backdrop" onClick={onClose}>
+    <div className="maint-modal-backdrop">
       <div className="maint-modal" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
         <div className="maint-modal-header">
           <h2>

@@ -270,7 +270,7 @@ function IssueCardModal({ properties, onClose, onSubmit }: {
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
         <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <CreditCard size={20} /> Issue New Access Card
@@ -362,7 +362,7 @@ function EditCardModal({ card, onClose, onSave }: {
   const [expiresAt, setExpiresAt] = useState(card.expiresAt ? card.expiresAt.split('T')[0] : '');
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <h3>Edit Card — {card.cardNumber}</h3>
         <p className="text-muted" style={{ fontSize: '0.82rem' }}>

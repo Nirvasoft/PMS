@@ -278,7 +278,7 @@ export default function PatrolLogsPage() {
 
       {/* ── Create Modal ── */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <h2><QrCode size={18} /> New Checkpoint</h2>
             <form onSubmit={handleCreate}>

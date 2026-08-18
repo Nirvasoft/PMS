@@ -181,7 +181,7 @@ function BlacklistButton({ tenantId }: { tenantId: string }) {
     <>
       <button className="btn-danger-ghost" onClick={() => setOpen(true)}><ShieldOff size={14} /> Blacklist</button>
       {open && (
-        <div className="modal-overlay" onClick={() => setOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header"><h3>Blacklist Tenant</h3><button onClick={() => setOpen(false)}><X size={18} /></button></div>
             <div className="modal-body">
@@ -228,7 +228,7 @@ function WhitelistButton({ tenantId }: { tenantId: string }) {
     <>
       <button className="btn-success-ghost" onClick={() => setOpen(true)}><Shield size={14} /> Whitelist</button>
       {open && (
-        <div className="modal-overlay" onClick={() => setOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header"><h3>Remove from Blacklist</h3><button onClick={() => setOpen(false)}><X size={18} /></button></div>
             <div className="modal-body">
@@ -712,7 +712,7 @@ function KycTab({ tenantId }: { tenantId: string }) {
       </div>
 
       {reviewModal && (
-        <div className="modal-overlay" onClick={() => setReviewModal(null)}>
+        <div className="modal-overlay">
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header"><h3>Review Document</h3><button onClick={() => setReviewModal(null)}><X size={18} /></button></div>
             <div className="modal-body">
@@ -766,7 +766,7 @@ function SubmitDocumentModal({ tenantId, requirementId, requirementName, onClose
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Submit: {requirementName}</h3>

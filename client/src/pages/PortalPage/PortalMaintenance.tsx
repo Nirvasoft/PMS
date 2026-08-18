@@ -203,7 +203,7 @@ export default function PortalMaintenance() {
 
       {/* Rating Modal */}
       {ratingTicket && (
-        <div className="modal-overlay" onClick={() => setRatingTicket(null)}>
+        <div className="modal-overlay">
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
             <div className="modal-header">
               <h2>Rate Maintenance Service</h2>

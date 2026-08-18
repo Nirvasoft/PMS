@@ -215,7 +215,7 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-lg" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header"><h3>Edit Draft Lease</h3><button onClick={onClose}><X size={18} /></button></div>
         <div className="modal-body edit-draft-form">

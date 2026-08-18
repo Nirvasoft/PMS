@@ -166,7 +166,7 @@ export default function ExpensesPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="ap-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="ap-modal-overlay">
           <div className="ap-modal" onClick={e => e.stopPropagation()}>
             <div className="ap-modal-header">
               <h2><Plus size={18} /> Submit Expense</h2>

@@ -194,7 +194,7 @@ export default function ApInvoiceListPage() {
 
       {/* Reject reason inline */}
       {rejectId && (
-        <div className="ap-modal-overlay" onClick={() => setRejectId(null)}>
+        <div className="ap-modal-overlay">
           <div className="ap-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
             <div className="ap-modal-header"><h2><AlertTriangle size={18} /> Reject AP Invoice</h2><button className="ap-btn icon-only ghost" onClick={() => setRejectId(null)}><X size={18} /></button></div>
             <div className="ap-modal-body">
@@ -213,7 +213,7 @@ export default function ApInvoiceListPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="ap-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="ap-modal-overlay">
           <div className="ap-modal wide" onClick={e => e.stopPropagation()}>
             <div className="ap-modal-header">
               <h2><Plus size={18} /> New AP Invoice</h2>

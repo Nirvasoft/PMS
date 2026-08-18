@@ -264,7 +264,7 @@ export default function TenantCreditsPage() {
 
       {/* ═══ Create Credit Modal ═══ */}
       {showCreate && (
-        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2><Plus size={18} /> Issue Credit</h2>
@@ -338,7 +338,7 @@ export default function TenantCreditsPage() {
 
       {/* ═══ Apply Credit Modal ═══ */}
       {applyModal && (
-        <div className="modal-overlay" onClick={() => setApplyModal(null)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2><ArrowRightCircle size={18} /> Apply Credit to Invoice</h2>

@@ -182,7 +182,7 @@ export default function IntegrationsPage() {
 
       {/* Create Modal */}
       {showCreate && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Add Integration</h3>
@@ -228,7 +228,7 @@ export default function IntegrationsPage() {
 
       {/* Sync Logs Drawer */}
       {showLogs && createPortal(
-        <div className="shop-detail-overlay" onClick={() => setShowLogs(null)}>
+        <div className="shop-detail-overlay">
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 560 }}>
             <SyncLogsDrawer integrationId={showLogs} onClose={() => setShowLogs(null)} />
           </div>
@@ -237,7 +237,7 @@ export default function IntegrationsPage() {
 
       {/* Edit Integration Modal */}
       {showEdit && createPortal(
-        <div className="mall-modal-overlay" onClick={() => setShowEdit(null)}>
+        <div className="mall-modal-overlay">
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -296,7 +296,7 @@ export default function IntegrationsPage() {
 
       {/* Entity Map Drawer */}
       {showEntityMap && createPortal(
-        <div className="shop-detail-overlay" onClick={() => setShowEntityMap(null)}>
+        <div className="shop-detail-overlay">
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 620 }}>
             <EntityMapDrawer integrationId={showEntityMap} onClose={() => setShowEntityMap(null)} />
           </div>

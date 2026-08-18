@@ -192,7 +192,7 @@ function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAlloc
     : `${allocation.tenant.firstName} ${allocation.tenant.lastName}`;
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal alloc-edit-modal" onClick={e => e.stopPropagation()}>
         <div className="alloc-edit-header">
           <div className="alloc-edit-icon"><Edit3 size={20} /></div>
@@ -329,7 +329,7 @@ function CreateAllocationModal({ properties, onClose }: { properties: any[]; onC
   };
 
   return (
-    <div className="crm-modal-overlay" onClick={onClose}>
+    <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()}>
         <h2>New Parking Allocation</h2>
         <div className="form-group">

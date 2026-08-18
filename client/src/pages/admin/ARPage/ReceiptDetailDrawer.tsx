@@ -34,7 +34,7 @@ export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
 
   return (
     <>
-      <div className="ar-drawer-backdrop" onClick={onClose} />
+      <div className="ar-drawer-backdrop" />
       <div className="ar-drawer">
         {isLoading || !receipt ? (
           <div className="ar-empty">Loading receipt…</div>

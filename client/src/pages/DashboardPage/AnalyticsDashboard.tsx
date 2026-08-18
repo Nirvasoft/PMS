@@ -236,7 +236,7 @@ export default function AnalyticsDashboard() {
             </button>
             {propDropdownOpen && (
               <>
-                <div className="picker-backdrop" onClick={() => setPropDropdownOpen(false)} />
+                <div className="picker-backdrop" />
                 <div className="property-dropdown">
                   <button
                     className={`prop-option ${!selectedPropertyId ? 'active' : ''}`}
@@ -671,7 +671,7 @@ function AddWidgetPanel({ onAdd, onClose }: {
   };
 
   return (
-    <div className="add-widget-overlay" onClick={onClose}>
+    <div className="add-widget-overlay">
       <aside className="add-widget-panel" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
           <h3><Plus size={18} /> Add Widget</h3>

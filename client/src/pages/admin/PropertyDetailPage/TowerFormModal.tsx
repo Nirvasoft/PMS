@@ -175,7 +175,7 @@ export function TowerFormModal({ propertyId, tower, onClose }: Props) {
   };
 
   return (
-    <div className="tw-overlay" onClick={onClose}>
+    <div className="tw-overlay">
       <div className="tw-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="tw-header">
