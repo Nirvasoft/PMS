@@ -18,6 +18,8 @@ import {
   ChevronsUp, ChevronsDown, Filter, Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const SQM_TO_SQFT = 10.7639;
 import { UnitDetailDrawer } from './UnitDetailDrawer';
 import { BulkCreateModal } from './BulkCreateModal';
 import { TowerSidebar } from './TowerSidebar';
@@ -191,7 +193,7 @@ export default function UnitsTab() {
                 <option value="">All Types</option>
                 {['residential', 'commercial', 'storage', 'parking'].map((cat) => (
                   <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
-                    {unitTypes.filter((t) => t.category === cat).map((t) => (
+                    {unitTypes.filter((t) => t.category === cat).sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
                       <option key={t.id} value={t.code}>{t.name}</option>
                     ))}
                   </optgroup>
@@ -545,10 +547,17 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
     floorNumber: '', floorLabel: '', areaSqft: '', areaSqm: '',
     bedroomCount: '0', bathroomCount: '0',
     direction: '', furnishing: 'unfurnished', ownershipType: 'company',
+    rentalPeriod: '', rentalPeriodUnit: 'month', calculationOn: 'fixed', rate: '',
     description: '',
   });
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const setAreaSqft = (v: string) => setForm((f) => ({
+    ...f, areaSqft: v, areaSqm: v ? (Number(v) / SQM_TO_SQFT).toFixed(2) : '',
+  }));
+  const setAreaSqm = (v: string) => setForm((f) => ({
+    ...f, areaSqm: v, areaSqft: v ? (Number(v) * SQM_TO_SQFT).toFixed(2) : '',
+  }));
   const { data: typesData } = useGetUnitTypesQuery();
   const [createUnit, { isLoading }] = useCreateUnitMutation();
   const unitTypes = typesData?.data || [];
@@ -577,6 +586,10 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           direction:     form.direction   || undefined,
           furnishing:    form.furnishing,
           ownershipType: form.ownershipType,
+          rentalPeriod:     form.rentalPeriod ? Number(form.rentalPeriod) : undefined,
+          rentalPeriodUnit: form.rentalPeriodUnit,
+          calculationOn:    form.calculationOn,
+          rate:          form.rate ? Number(form.rate) : undefined,
           description:   form.description || undefined,
         } as any,
       }).unwrap();
@@ -611,7 +624,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
               <select value={form.unitType} onChange={(e) => set('unitType', e.target.value)}>
                 <option value="">Select type…</option>
                 {unitTypes.length > 0
-                  ? unitTypes.map((t) => <option key={t.id} value={t.code}>{t.name}</option>)
+                  ? [...unitTypes].sort((a, b) => a.name.localeCompare(b.name)).map((t) => <option key={t.id} value={t.code}>{t.name}</option>)
                   : ['studio','one_bedroom','two_bedroom','three_bedroom','penthouse','shop','office','warehouse'].map((t) =>
                       <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
@@ -661,12 +674,39 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           <div className="cu-grid">
             <div className="cu-field">
               <label>Area (sqft)</label>
-              <input type="number" min={0} placeholder="e.g. 850" value={form.areaSqft} onChange={(e) => set('areaSqft', e.target.value)} />
+              <input type="number" min={0} placeholder="e.g. 850" value={form.areaSqft} onChange={(e) => setAreaSqft(e.target.value)} />
             </div>
             <div className="cu-field">
               <label>Area (sqm)</label>
-              <input type="number" min={0} placeholder="e.g. 79" value={form.areaSqm} onChange={(e) => set('areaSqm', e.target.value)} />
+              <input type="number" min={0} placeholder="e.g. 79" value={form.areaSqm} onChange={(e) => setAreaSqm(e.target.value)} />
             </div>
+          </div>
+
+          {/* Rental Period / Calculation / Rate */}
+          <div className="cu-section-title">Rental</div>
+          <div className="cu-grid">
+            <div className="cu-field">
+              <label>Rental Period</label>
+              <div className="cu-field-combo">
+                <input type="number" min={0} placeholder="e.g. 12" value={form.rentalPeriod} onChange={(e) => set('rentalPeriod', e.target.value)} />
+                <select value={form.rentalPeriodUnit} onChange={(e) => set('rentalPeriodUnit', e.target.value)}>
+                  <option value="day">Day</option>
+                  <option value="month">Month</option>
+                  <option value="year">Year</option>
+                </select>
+              </div>
+            </div>
+            <div className="cu-field">
+              <label>Calculation on:</label>
+              <select value={form.calculationOn} onChange={(e) => set('calculationOn', e.target.value)}>
+                <option value="fixed">Fixed</option>
+                <option value="per_sqft">PerSqFt</option>
+              </select>
+            </div>
+          </div>
+          <div className="cu-field">
+            <label>Rate</label>
+            <input type="number" min={0} placeholder="e.g. 3500" value={form.rate} onChange={(e) => set('rate', e.target.value)} />
           </div>
 
           {/* Bed/Bath/Furnishing/Ownership */}

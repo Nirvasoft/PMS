@@ -1234,6 +1234,10 @@ model Unit {
   purchasePrice      Decimal?       @map("purchase_price") @db.Decimal(15, 2)
   currentMarketValue Decimal?       @map("current_market_value") @db.Decimal(15, 2)
   furnishing         String         @default("unfurnished") @db.VarChar(20)
+  rentalPeriod       Int            @default(1) @map("rental_period")
+  rentalPeriodUnit   String         @default("month") @map("rental_period_unit") @db.VarChar(10)
+  calculationOn      String         @default("fixed") @map("calculation_on") @db.VarChar(20)
+  rate               Decimal?       @db.Decimal(15, 2)
   description        String?        @db.Text
   notes              String?        @db.Text
   isActive           Boolean        @default(true) @map("is_active")

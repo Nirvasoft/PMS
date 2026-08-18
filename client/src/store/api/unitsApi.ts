@@ -120,6 +120,10 @@ export interface UnitDetail extends UnitListItem {
   purchasePrice: number | null;
   currentMarketValue: number | null;
   floorPlanUrl: string | null;
+  rentalPeriod: number;
+  rentalPeriodUnit: string;
+  calculationOn: string;
+  rate: number | null;
   description: string | null;
   notes: string | null;
   unitTypeRef: UnitType | null;
@@ -188,6 +192,10 @@ export interface CreateUnitDto {
   furnishing?: string;
   ownershipType?: string;
   ownerName?: string;
+  rentalPeriod?: number;
+  rentalPeriodUnit?: string;
+  calculationOn?: string;
+  rate?: number;
   description?: string;
   notes?: string;
   amenities?: string[];

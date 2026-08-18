@@ -865,10 +865,10 @@
   margin-top: 4px;
 }
 .cu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.cu-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.cu-grid-4 { grid-template-columns: 1fr 1fr; }
 @media (max-width: 560px) {
   .cu-grid { grid-template-columns: 1fr; }
-  .cu-grid-4 { grid-template-columns: 1fr 1fr; }
+  .cu-grid-4 { grid-template-columns: 1fr; }
 }
 .cu-field { display: flex; flex-direction: column; gap: 5px; }
 .cu-field label {
@@ -877,6 +877,9 @@
   color: var(--text-muted);
 }
 .cu-opt { font-weight: 400; text-transform: none; font-size: 0.65rem; opacity: 0.55; }
+.cu-field-combo { display: flex; gap: 8px; }
+.cu-field-combo input { flex: 1; min-width: 0; }
+.cu-field-combo select { width: 92px; flex: none; }
 .cu-field input,
 .cu-field select,
 .cu-field textarea {

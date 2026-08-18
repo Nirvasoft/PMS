@@ -354,7 +354,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       <label>Unit Type</label>
                       <select value={editForm.unitType} onChange={(e) => ef('unitType', e.target.value)}>
                         {unitTypes.length > 0
-                          ? unitTypes.map((t) => <option key={t.id} value={t.code}>{t.name}</option>)
+                          ? [...unitTypes].sort((a, b) => a.name.localeCompare(b.name)).map((t) => <option key={t.id} value={t.code}>{t.name}</option>)
                           : <option value={editForm.unitType}>{editForm.unitType}</option>}
                       </select>
                     </div>
