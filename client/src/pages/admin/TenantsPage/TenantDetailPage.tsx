@@ -814,6 +814,7 @@ const LEASE_STATUS_COLORS: Record<string, string> = {
 };
 
 function LeasesTab({ tenantId }: { tenantId: string }) {
+  const navigate = useNavigate();
   const { data, isLoading } = useGetLeaseHistoryQuery(tenantId);
   const leases = data?.data || [];
 
@@ -846,7 +847,16 @@ function LeasesTab({ tenantId }: { tenantId: string }) {
           const sc = LEASE_STATUS_COLORS[l.status] || '#95a5a6';
           return (
             <div key={l.id} className="lease-row">
-              <span className="lease-num">{l.leaseNumber}</span>
+              <span
+                className="lease-num"
+                role="button"
+                tabIndex={0}
+                style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                onClick={() => navigate(`/admin/leases/${l.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/admin/leases/${l.id}`); }}
+              >
+                {l.leaseNumber}
+              </span>
               <span className="lease-prop">{l.propertyName}</span>
               <span className="lease-unit">{l.unitNumber}</span>
               <span className="lease-period">
