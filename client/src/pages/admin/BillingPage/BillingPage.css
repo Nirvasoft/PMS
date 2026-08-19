@@ -202,6 +202,7 @@
 }
 .billing-table td.text-right { text-align: right; }
 .billing-table td.text-center { text-align: center; }
+.billing-table td button + button { margin-left: 6px; }
 
 .billing-table tbody tr {
   transition: background 0.12s;

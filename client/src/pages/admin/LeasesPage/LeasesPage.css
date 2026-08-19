@@ -4,11 +4,11 @@
 /* ─── List Page ─────────────────────────────── */
 .lease-list-page { padding: 24px 28px; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 
-.page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-.page-title-row { display: flex; align-items: center; gap: 14px; }
-.page-icon-lg { width: 46px; height: 46px; border-radius: 12px; background: rgba(108,92,231,.15); display: flex; align-items: center; justify-content: center; color: var(--purple); }
-.page-title-row h1 { font-size: 1.5rem; font-weight: 800; margin: 0; }
-.page-title-row p  { font-size: .82rem; color: var(--text-muted); margin: 2px 0 0; }
+.lease-list-page .page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.lease-list-page .page-title-row { display: flex; align-items: center; gap: 14px; }
+.lease-list-page .page-icon-lg { width: 46px; height: 46px; border-radius: 12px; background: rgba(108,92,231,.15); display: flex; align-items: center; justify-content: center; color: var(--purple); }
+.lease-list-page .page-title-row h1 { font-size: 1.5rem; font-weight: 800; margin: 0; }
+.lease-list-page .page-title-row p  { font-size: .82rem; color: var(--text-muted); margin: 2px 0 0; }
 
 .btn-primary { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--purple); color: #fff; border: none; border-radius: 9px; font-size: .82rem; font-weight: 600; cursor: pointer; transition: background .15s; }
 .btn-primary:hover:not(:disabled) { background: #5a4bd5; }

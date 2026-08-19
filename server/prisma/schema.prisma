@@ -58,6 +58,7 @@ model Company {
   regions         Region[]
   businessUnits   BusinessUnit[]
   properties      Property[]
+  floorSetups     FloorSetup[]
 
   // Relations — Workflow (Module 1.4)
   workflowDefinitions WorkflowDefinition[]
@@ -938,6 +939,7 @@ model Property {
   towers           Tower[]
   units            Unit[]
   utilityMeters    UtilityMeter[]
+  floorSetups      FloorSetup[]
 
   // Relations — Tenants (Module 2.3)
   blacklistScoped  TenantBlacklistLog[]
@@ -2697,6 +2699,25 @@ model MeterSetup {
   @@index([propertyId])
   @@index([companyId])
   @@map("meter_setups")
+}
+
+model FloorSetup {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  propertyId  String    @map("property_id") @db.Uuid
+  floorNumber Int       @map("floor_number")
+  floorLabel  String    @map("floor_label") @db.VarChar(50)
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, floorNumber], name: "uq_floor_property_number")
+  @@index([propertyId])
+  @@index([companyId])
+  @@map("floor_setups")
 }
 
 model BillingSchedule {

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { asyncHandler, propertyAccessGuard, getUserPropertyScope } from '../../middleware';
 import { propertiesService } from './properties.service';
+import { floorSetupService } from './floorSetup.service';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 20 } });
 
@@ -193,4 +194,32 @@ propertiesRouter.put('/:id/contacts/:contactId', propertyAccessGuard, asyncHandl
 propertiesRouter.delete('/:id/contacts/:contactId', propertyAccessGuard, asyncHandler(async (req: Request, res: Response) => {
   await propertiesService.removeContact(p(req, 'id'), p(req, 'contactId'));
   res.status(204).send();
+}));
+
+// ═══════════════════════════════════════════════════
+// FLOOR SETUP — /api/v1/floor-setup
+// ═══════════════════════════════════════════════════
+export const floorSetupRouter = Router();
+
+floorSetupRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
+  const data = await floorSetupService.findAll(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+    floorNumber: req.query.floorNumber ? parseInt(req.query.floorNumber as string) : undefined,
+  });
+  res.json({ success: true, data });
+}));
+
+floorSetupRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
+  const data = await floorSetupService.create(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+floorSetupRouter.put('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const data = await floorSetupService.update(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+floorSetupRouter.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+  await floorSetupService.delete(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true });
 }));

@@ -157,9 +157,13 @@ export default function DashboardLayout() {
               <span>Company</span>
             </NavLink>
             <PermissionGuard permission="properties.read">
-              <NavLink to="/admin/properties" className="nav-item">
+              <NavLink to="/admin/properties" end className="nav-item">
                 <Home size={18} />
                 <span>Properties</span>
+              </NavLink>
+              <NavLink to="/admin/properties/floor-setup" className="nav-item">
+                <Layers size={18} />
+                <span>Floor Setup</span>
               </NavLink>
             </PermissionGuard>
             <PermissionGuard permission="tenants.read">

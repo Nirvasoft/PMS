@@ -87,6 +87,7 @@ export interface PropertyListItem {
   geoLng: number | null;
   coverImageUrl: string | null;
   totalUnits: number;
+  totalFloors: number | null;
   manager: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
   regions: Array<{ id: string; name: string }>;
   createdAt: string;
@@ -99,7 +100,6 @@ export interface PropertyDetail extends PropertyListItem {
   state: string | null;
   postalCode: string | null;
   yearBuilt: number | null;
-  totalFloors: number | null;
   totalAreaSqm: number | null;
   totalAreaSqft: number | null;
   billingCycle: string;
@@ -122,6 +122,15 @@ export interface PropertyQueryParams {
   regionId?: string;
   page?: number;
   limit?: number;
+}
+
+export interface FloorSetup {
+  id: string;
+  propertyId: string;
+  floorNumber: number;
+  floorLabel: string;
+  isActive: boolean;
+  property: { id: string; name: string; code: string | null };
 }
 
 export interface CreatePropertyDto {
@@ -168,7 +177,7 @@ interface ApiResponse<T> {
 export const propertiesApi = createApi({
   reducerPath: 'propertiesApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Properties', 'PropertyPhotos', 'PropertyFacilities', 'PropertyContacts', 'PropertyStatus', 'FacilityTypes'],
+  tagTypes: ['Properties', 'PropertyPhotos', 'PropertyFacilities', 'PropertyContacts', 'PropertyStatus', 'FacilityTypes', 'FloorSetups'],
   endpoints: (builder) => ({
     // Catalog
     getPropertyTypes: builder.query<ApiResponse<PropertyType[]>, void>({
@@ -288,6 +297,24 @@ export const propertiesApi = createApi({
       query: (params) => ({ url: '/properties/nearby', params }),
       providesTags: ['Properties'],
     }),
+
+    // ── Floor Setup ──
+    getFloorSetups: builder.query<ApiResponse<FloorSetup[]>, { propertyId?: string; floorNumber?: number } | void>({
+      query: (params) => ({ url: '/floor-setup', params: params || {} }),
+      providesTags: ['FloorSetups'],
+    }),
+    createFloorSetup: builder.mutation<ApiResponse<FloorSetup>, Record<string, unknown>>({
+      query: (body) => ({ url: '/floor-setup', method: 'POST', body }),
+      invalidatesTags: ['FloorSetups'],
+    }),
+    updateFloorSetup: builder.mutation<ApiResponse<FloorSetup>, { id: string; data: Record<string, unknown> }>({
+      query: ({ id, data }) => ({ url: `/floor-setup/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['FloorSetups'],
+    }),
+    deleteFloorSetup: builder.mutation<void, string>({
+      query: (id) => ({ url: `/floor-setup/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['FloorSetups'],
+    }),
   }),
 });
 
@@ -317,4 +344,8 @@ export const {
   useUpdateContactMutation,
   useRemoveContactMutation,
   useGetNearbyPropertiesQuery,
+  useGetFloorSetupsQuery,
+  useCreateFloorSetupMutation,
+  useUpdateFloorSetupMutation,
+  useDeleteFloorSetupMutation,
 } = propertiesApi;

@@ -18,7 +18,7 @@ import { adminRouter } from './modules/admin/admin.routes';
 import { usersRouter, rolesRouter, roleTemplatesRouter, permissionsRouter, departmentsRouter, positionsRouter } from './modules/users/users.routes';
 import { invitationsRouter } from './modules/users/invitations.routes';
 import { companyRouter, branchesRouter, regionsRouter, businessUnitsRouter } from './modules/organization/organization.routes';
-import { propertiesRouter, facilityTypesRouter } from './modules/properties/properties.routes';
+import { propertiesRouter, facilityTypesRouter, floorSetupRouter } from './modules/properties/properties.routes';
 import { propertiesService, seedPropertyTypes } from './modules/properties/properties.service';
 import { towersRouter, unitsRouter, unitTypesRouter } from './modules/units/units.routes';
 import { seedUnitTypes } from './modules/units/units.service';
@@ -150,6 +150,7 @@ async function bootstrap() {
   // Module 2.1 — Property Management (Phase 2)
   app.use('/api/v1/properties', propertiesRouter);
   app.use('/api/v1/facility-types', facilityTypesRouter);
+  app.use('/api/v1/floor-setup', floorSetupRouter);
 
   // Module 2.2 — Tower, Block & Unit Management (Phase 2)
   app.use('/api/v1/properties/:propertyId/towers', towersRouter);
