@@ -479,6 +479,10 @@
 
 .ef-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 
+.ef-field-combo { display: flex; gap: 6px; }
+.ef-field-combo input { flex: 1; min-width: 0; }
+.ef-field-combo select { width: 76px; flex: none; }
+
 .ef-field { display: flex; flex-direction: column; gap: 3px; }
 .ef-field.full-width { grid-column: 1 / -1; }
 .ef-field label {
@@ -496,6 +500,12 @@
   color: var(--text-primary); font-size: 0.8rem;
   outline: none; transition: border-color 0.15s;
   font-family: inherit;
+  max-width: 160px;
+}
+.ef-field.full-width input,
+.ef-field.full-width select,
+.ef-field textarea {
+  max-width: none;
 }
 .ef-field input:focus,
 .ef-field select:focus,

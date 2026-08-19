@@ -247,6 +247,16 @@ body {
   min-height: 100vh;
 }
 
+/* Remove native up/down spinner arrows from all number inputs, app-wide */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 a {
   color: var(--accent);
   text-decoration: none;
@@ -2785,6 +2795,8 @@ select.input-full:focus {
   border-radius: 8px;
 }
 
+.region-prop-row .dept-code { margin-left: 6px; }
+
 .org-detail-card {
   padding: 24px;
   background: var(--surface);
@@ -2951,6 +2963,7 @@ select.input-full:focus {
 .org-card-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--border-subtle);
   opacity: 0;

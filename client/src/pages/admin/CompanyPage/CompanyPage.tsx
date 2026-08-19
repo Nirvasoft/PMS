@@ -287,8 +287,8 @@ function BranchesTab() {
               <div className="org-card-icon">📍</div>
               <div className="org-card-title">
                 <h3>{b.name}</h3>
-                {b.code && <span className="dept-code">{b.code}</span>}
               </div>
+              {b.code && <span className="dept-code">{b.code}</span>}
             </div>
             <div className="org-card-details">
               <span>📞 {b.phone || '—'}</span>
@@ -383,8 +383,8 @@ function RegionsTab() {
               <div className="org-card-icon">🌍</div>
               <div className="org-card-title">
                 <h3>{r.name}</h3>
-                {r.code && <span className="dept-code">{r.code}</span>}
               </div>
+              {r.code && <span className="dept-code">{r.code}</span>}
             </div>
             <div className="org-card-details">
               {r.description && <span>{r.description}</span>}
@@ -471,7 +471,7 @@ function RegionPropertyPicker({ regionId, onClose }: { regionId: string; onClose
                     <div key={p.id} className="region-prop-row">
                       <div>
                         <strong>{p.name}</strong>
-                        {p.code && <span className="dept-code" style={{ marginLeft: 6 }}>{p.code}</span>}
+                        {p.code && <span className="dept-code">{p.code}</span>}
                         <span className="text-muted text-small" style={{ marginLeft: 8 }}>{p.city || ''}</span>
                       </div>
                       <button className="btn btn-sm btn-danger" onClick={async () => {
@@ -492,7 +492,7 @@ function RegionPropertyPicker({ regionId, onClose }: { regionId: string; onClose
                     <div key={p.id} className="region-prop-row">
                       <div>
                         <span>{p.name}</span>
-                        {p.code && <span className="dept-code" style={{ marginLeft: 6 }}>{p.code}</span>}
+                        {p.code && <span className="dept-code">{p.code}</span>}
                         <span className="text-muted text-small" style={{ marginLeft: 8 }}>{p.city || ''}</span>
                       </div>
                       <button className="btn btn-sm btn-primary" onClick={async () => {
@@ -555,8 +555,8 @@ function BusinessUnitsTab() {
               <div className="org-card-icon">💼</div>
               <div className="org-card-title">
                 <h3>{bu.name}</h3>
-                {bu.code && <span className="dept-code">{bu.code}</span>}
               </div>
+              {bu.code && <span className="dept-code">{bu.code}</span>}
             </div>
             <div className="org-card-details">
               <span>📍 Branch: {bu.branch?.name || '—'}</span>

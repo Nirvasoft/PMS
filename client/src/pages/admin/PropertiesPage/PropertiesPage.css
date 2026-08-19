@@ -103,6 +103,16 @@
   cursor: pointer;
 }
 
+.filter-bar select option {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .filter-bar select {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.09);
+}
+
 /* ─── View Toggle ────────────────────────────── */
 .view-toggle {
   display: flex;

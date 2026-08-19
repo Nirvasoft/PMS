@@ -39,6 +39,7 @@ const AMENITY_OPTIONS = [
   'study_room', 'maid_room', 'utility_room', 'jacuzzi', 'private_pool',
 ];
 
+const SQM_TO_SQFT = 10.7639;
 const DIRECTION_OPTIONS = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'corner'];
 const FURNISHING_OPTIONS = ['unfurnished', 'partially_furnished', 'fully_furnished'];
 const OWNERSHIP_OPTIONS = ['leasehold', 'freehold', 'strata', 'company', 'individual'];
@@ -99,6 +100,10 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       purchaseDate: unit.purchaseDate ? unit.purchaseDate.split('T')[0] : '',
       purchasePrice: unit.purchasePrice ?? '',
       currentMarketValue: unit.currentMarketValue ?? '',
+      rentalPeriod: unit.rentalPeriod ?? '',
+      rentalPeriodUnit: unit.rentalPeriodUnit ?? 'month',
+      calculationOn: unit.calculationOn ?? 'fixed',
+      rate: unit.rate ?? '',
       description: unit.description ?? '',
       notes: unit.notes ?? '',
     });
@@ -128,6 +133,10 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       if (editForm.purchaseDate !== origPurchaseDate) payload.purchaseDate = editForm.purchaseDate || null;
       if (editForm.purchasePrice !== '' && Number(editForm.purchasePrice) !== unit!.purchasePrice) payload.purchasePrice = Number(editForm.purchasePrice) || null;
       if (editForm.currentMarketValue !== '' && Number(editForm.currentMarketValue) !== unit!.currentMarketValue) payload.currentMarketValue = Number(editForm.currentMarketValue) || null;
+      if (editForm.rentalPeriod !== '' && Number(editForm.rentalPeriod) !== unit!.rentalPeriod) payload.rentalPeriod = Number(editForm.rentalPeriod);
+      if (editForm.rentalPeriodUnit !== (unit!.rentalPeriodUnit ?? 'month')) payload.rentalPeriodUnit = editForm.rentalPeriodUnit;
+      if (editForm.calculationOn !== (unit!.calculationOn ?? 'fixed')) payload.calculationOn = editForm.calculationOn;
+      if (editForm.rate !== '' && Number(editForm.rate) !== unit!.rate) payload.rate = Number(editForm.rate) || null;
       if (editForm.description !== (unit!.description ?? '')) payload.description = editForm.description || null;
       if (editForm.notes !== (unit!.notes ?? '')) payload.notes = editForm.notes || null;
 
@@ -145,6 +154,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   };
 
   const ef = (k: string, v: any) => setEditForm((f) => ({ ...f, [k]: v }));
+  const efAreaSqft = (v: string) => setEditForm((f) => ({
+    ...f, areaSqft: v, areaSqm: v ? (Number(v) / SQM_TO_SQFT).toFixed(2) : '',
+  }));
+  const efAreaSqm = (v: string) => setEditForm((f) => ({
+    ...f, areaSqm: v, areaSqft: v ? (Number(v) * SQM_TO_SQFT).toFixed(2) : '',
+  }));
 
   // ── Handlers ────────────────────────────────
   const handleStatusChange = async () => {
@@ -368,8 +383,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
                   <div className="ef-section-title">Dimensions</div>
                   <div className="ef-grid">
-                    <EditField label="Area (sqft)" type="number" value={editForm.areaSqft} onChange={(v) => ef('areaSqft', v)} />
-                    <EditField label="Area (sqm)" type="number" value={editForm.areaSqm} onChange={(v) => ef('areaSqm', v)} />
+                    <EditField label="Area (sqft)" type="number" value={editForm.areaSqft} onChange={efAreaSqft} />
+                    <EditField label="Area (sqm)" type="number" value={editForm.areaSqm} onChange={efAreaSqm} />
                     <EditField label="Bedrooms" type="number" value={editForm.bedroomCount} onChange={(v) => ef('bedroomCount', v)} />
                     <EditField label="Bathrooms" type="number" value={editForm.bathroomCount} onChange={(v) => ef('bathroomCount', v)} />
                   </div>
@@ -406,6 +421,29 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     <EditField label="Market Value" type="number" value={editForm.currentMarketValue} onChange={(v) => ef('currentMarketValue', v)} />
                   </div>
 
+                  <div className="ef-section-title">Rental</div>
+                  <div className="ef-grid">
+                    <div className="ef-field">
+                      <label>Rental Period</label>
+                      <div className="ef-field-combo">
+                        <input type="number" min={0} value={editForm.rentalPeriod} onChange={(e) => ef('rentalPeriod', e.target.value)} />
+                        <select value={editForm.rentalPeriodUnit} onChange={(e) => ef('rentalPeriodUnit', e.target.value)}>
+                          <option value="day">Day</option>
+                          <option value="month">Month</option>
+                          <option value="year">Year</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="ef-field">
+                      <label>Calculation on</label>
+                      <select value={editForm.calculationOn} onChange={(e) => ef('calculationOn', e.target.value)}>
+                        <option value="fixed">Fixed</option>
+                        <option value="per_sqft">PerSqFt</option>
+                      </select>
+                    </div>
+                    <EditField label="Rate" type="number" value={editForm.rate} onChange={(v) => ef('rate', v)} />
+                  </div>
+
                   <div className="ef-section-title">Notes</div>
                   <div className="ef-field full-width">
                     <label>Description</label>
@@ -440,6 +478,15 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       <InfoItem label="Purchase Date" value={unit.purchaseDate ? new Date(unit.purchaseDate).toLocaleDateString() : '—'} />
                       <InfoItem label="Purchase Price" value={unit.purchasePrice ? `${Number(unit.purchasePrice).toLocaleString()}` : '—'} />
                       <InfoItem label="Market Value" value={unit.currentMarketValue ? `${Number(unit.currentMarketValue).toLocaleString()}` : '—'} />
+                    </div>
+                  </div>
+
+                  <div className="info-section">
+                    <h5>Rental</h5>
+                    <div className="info-grid">
+                      <InfoItem label="Rental Period" value={unit.rentalPeriod ? `${unit.rentalPeriod} ${unit.rentalPeriodUnit || 'month'}${unit.rentalPeriod === 1 ? '' : 's'}` : '—'} />
+                      <InfoItem label="Calculation on" value={unit.calculationOn === 'per_sqft' ? 'PerSqFt' : 'Fixed'} />
+                      <InfoItem label="Rate" value={unit.rate ? `${Number(unit.rate).toLocaleString()}` : '—'} />
                     </div>
                   </div>
 
