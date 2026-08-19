@@ -1,5 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
+import { organizationApi } from './organizationApi';
 
 interface PaginatedResponse<T> {
   success: boolean;
@@ -108,6 +109,13 @@ export const usersApi = createApi({
     createUser: builder.mutation<ApiResponse<{ id: string; email: string }>, Record<string, unknown>>({
       query: (body) => ({ url: '/users', method: 'POST', body }),
       invalidatesTags: ['Users'],
+      // Keep the Organization Summary user count live without a page reload.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(organizationApi.util.invalidateTags(['Company']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
 
     updateUser: builder.mutation<ApiResponse<UserDetail>, { id: string; data: Record<string, unknown> }>({
@@ -118,6 +126,12 @@ export const usersApi = createApi({
     deactivateUser: builder.mutation<void, { id: string; reason: string }>({
       query: ({ id, reason }) => ({ url: `/users/${id}/deactivate`, method: 'POST', body: { reason } }),
       invalidatesTags: (_r, _e, { id }) => [{ type: 'Users', id }, 'Users'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(organizationApi.util.invalidateTags(['Company']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
 
     assignUserRole: builder.mutation<void, { userId: string; roleId: string; expiresAt?: string }>({
@@ -133,6 +147,12 @@ export const usersApi = createApi({
     reactivateUser: builder.mutation<void, string>({
       query: (id) => ({ url: `/users/${id}/reactivate`, method: 'POST' }),
       invalidatesTags: (_r, _e, id) => [{ type: 'Users', id }, 'Users'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(organizationApi.util.invalidateTags(['Company']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
 
     adminResetPassword: builder.mutation<ApiResponse<{ temporaryPassword: string }>, string>({
@@ -147,6 +167,12 @@ export const usersApi = createApi({
       },
       // Refresh the user list so imported users appear without a page reload.
       invalidatesTags: ['Users'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(organizationApi.util.invalidateTags(['Company']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
 
     uploadAvatar: builder.mutation<ApiResponse<{ avatarUrl: string }>, { userId: string; file: File }>({

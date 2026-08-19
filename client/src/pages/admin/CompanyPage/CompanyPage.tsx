@@ -703,7 +703,15 @@ function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitL
         </div>
         <form
           className="modal-body"
-          onSubmit={(e) => { e.preventDefault(); onSubmit(form); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            // Blank optional fields (e.g. "— No Manager —") arrive as '' — send null
+            // instead, since Postgres rejects '' for UUID/FK columns like managerId.
+            const sanitized = Object.fromEntries(
+              Object.entries(form).map(([k, v]) => [k, v === '' ? null : v])
+            );
+            onSubmit(sanitized as unknown as Record<string, string>);
+          }}
         >
           {fields.map((f) => (
             <div className="form-group" key={f.key}>

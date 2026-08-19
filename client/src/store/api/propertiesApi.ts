@@ -1,5 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
+import { organizationApi } from './organizationApi';
 
 // ─── Types ────────────────────────────────────
 
@@ -208,6 +209,13 @@ export const propertiesApi = createApi({
     createProperty: builder.mutation<ApiResponse<PropertyDetail>, CreatePropertyDto>({
       query: (body) => ({ url: '/properties', method: 'POST', body }),
       invalidatesTags: ['Properties'],
+      // Keep the Organization Summary property count live without a page reload.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(organizationApi.util.invalidateTags(['Company']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
     updateProperty: builder.mutation<ApiResponse<PropertyDetail>, { id: string; data: Partial<CreatePropertyDto> }>({
       query: ({ id, data }) => ({ url: `/properties/${id}`, method: 'PUT', body: data }),
@@ -216,6 +224,12 @@ export const propertiesApi = createApi({
     deleteProperty: builder.mutation<void, string>({
       query: (id) => ({ url: `/properties/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Properties'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(organizationApi.util.invalidateTags(['Company']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
 
     // Status

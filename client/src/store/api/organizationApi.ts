@@ -129,7 +129,7 @@ export const organizationApi = createApi({
     }),
     createRegion: builder.mutation<void, Record<string, unknown>>({
       query: (body) => ({ url: '/regions', method: 'POST', body }),
-      invalidatesTags: ['Regions'],
+      invalidatesTags: ['Regions', 'Company'],
     }),
     updateRegion: builder.mutation<void, { id: string; data: Record<string, unknown> }>({
       query: ({ id, data }) => ({ url: `/regions/${id}`, method: 'PUT', body: data }),
@@ -137,7 +137,7 @@ export const organizationApi = createApi({
     }),
     deleteRegion: builder.mutation<void, string>({
       query: (id) => ({ url: `/regions/${id}`, method: 'DELETE' }),
-      invalidatesTags: ['Regions'],
+      invalidatesTags: ['Regions', 'Company'],
     }),
 
     // ─── Business Units ─────────────────────
@@ -147,7 +147,7 @@ export const organizationApi = createApi({
     }),
     createBusinessUnit: builder.mutation<void, Record<string, unknown>>({
       query: (body) => ({ url: '/business-units', method: 'POST', body }),
-      invalidatesTags: ['BusinessUnits'],
+      invalidatesTags: ['BusinessUnits', 'Company'],
     }),
     updateBusinessUnit: builder.mutation<void, { id: string; data: Record<string, unknown> }>({
       query: ({ id, data }) => ({ url: `/business-units/${id}`, method: 'PUT', body: data }),
@@ -155,7 +155,7 @@ export const organizationApi = createApi({
     }),
     deleteBusinessUnit: builder.mutation<void, string>({
       query: (id) => ({ url: `/business-units/${id}`, method: 'DELETE' }),
-      invalidatesTags: ['BusinessUnits'],
+      invalidatesTags: ['BusinessUnits', 'Company'],
     }),
 
     // ─── Region Properties ───────────────────
