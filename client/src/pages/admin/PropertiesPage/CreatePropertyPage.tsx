@@ -4,6 +4,7 @@ import {
   useCreatePropertyMutation, useGetPropertyTypesQuery,
   useGetFacilityTypesQuery, useAddFacilityMutation, useUploadPhotosMutation,
 } from '../../../store/api/propertiesApi';
+import { useGetBranchesQuery } from '../../../store/api/organizationApi';
 import {
   ArrowLeft, Building2, MapPin, DollarSign, Info, Check,
   Waves, Dumbbell, Flame, TreePine, Leaf, CircleDot, Activity,
@@ -31,7 +32,7 @@ interface FormState {
   name: string; code: string; propertyType: string; legalName: string; registrationNo: string; description: string;
   // Address
   addressLine1: string; addressLine2: string; city: string; state: string; postalCode: string; country: string;
-  geoLat: string; geoLng: string;
+  geoLat: string; geoLng: string; branchId: string;
   // Details
   yearBuilt: string; totalFloors: string; totalAreaSqm: string; totalAreaSqft: string;
   // Financial
@@ -41,7 +42,7 @@ interface FormState {
 const INITIAL: FormState = {
   name: '', code: '', propertyType: '', legalName: '', registrationNo: '', description: '',
   addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '',
-  geoLat: '', geoLng: '',
+  geoLat: '', geoLng: '', branchId: '',
   yearBuilt: '', totalFloors: '', totalAreaSqm: '', totalAreaSqft: '',
   billingCycle: 'monthly', billingDay: '1', currency: 'USD', timezone: 'UTC',
 };
@@ -68,7 +69,9 @@ export default function CreatePropertyPage() {
   const [uploadPhotos] = useUploadPhotosMutation();
   const { data: typesData } = useGetPropertyTypesQuery();
   const { data: ftData } = useGetFacilityTypesQuery();
+  const { data: branchesData } = useGetBranchesQuery();
   const types = typesData?.data || [];
+  const branches = branchesData?.data || [];
   const facilityTypes = ftData?.data || [];
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
@@ -113,6 +116,7 @@ export default function CreatePropertyPage() {
       state:          form.state         || undefined,
       postalCode:     form.postalCode    || undefined,
       country:        form.country       || undefined,
+      branchId:       form.branchId      || undefined,
       geoLat:         form.geoLat  ? Number(form.geoLat)  : undefined,
       geoLng:         form.geoLng  ? Number(form.geoLng)  : undefined,
       yearBuilt:      form.yearBuilt     ? Number(form.yearBuilt)     : undefined,
@@ -239,6 +243,13 @@ export default function CreatePropertyPage() {
                 <select value={form.country} onChange={e => set('country', e.target.value)}>
                   <option value="">Select country…</option>
                   {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="cp-field">
+                <label>Branch <span className="opt">(optional)</span></label>
+                <select value={form.branchId} onChange={e => set('branchId', e.target.value)}>
+                  <option value="">— No Branch —</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
             </div>
@@ -409,6 +420,7 @@ export default function CreatePropertyPage() {
                 <ReviewRow label="Type" value={form.propertyType} />
                 <ReviewRow label="Code" value={form.code || 'Auto-generated'} />
                 <ReviewRow label="Location" value={[form.city, form.country].filter(Boolean).join(', ') || '—'} />
+                <ReviewRow label="Branch" value={branches.find(b => b.id === form.branchId)?.name || '—'} />
                 <ReviewRow label="Facilities" value={`${selectedFacilities.length} selected`} />
                 <ReviewRow label="Photos" value={`${photoFiles.length} uploaded`} />
                 <ReviewRow label="Currency" value={form.currency} />
