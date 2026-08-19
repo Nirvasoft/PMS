@@ -16,6 +16,8 @@ import './CreatePropertyPage.css';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
+const SQM_TO_SQFT = 10.7639;
+
 const ICON_MAP: Record<string, React.ReactNode> = {
   waves: <Waves size={18}/>, dumbbell: <Dumbbell size={18}/>, flame: <Flame size={18}/>,
   playground: <TreePine size={18}/>, leaf: <Leaf size={18}/>, circle: <CircleDot size={18}/>,
@@ -96,6 +98,12 @@ export default function CreatePropertyPage() {
   const removePhoto = (idx: number) => setPhotoFiles(prev => prev.filter((_, i) => i !== idx));
 
   const set = (k: keyof FormState, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const setTotalAreaSqm = (v: string) => setForm(f => ({
+    ...f, totalAreaSqm: v, totalAreaSqft: v ? (Number(v) * SQM_TO_SQFT).toFixed(2) : '',
+  }));
+  const setTotalAreaSqft = (v: string) => setForm(f => ({
+    ...f, totalAreaSqft: v, totalAreaSqm: v ? (Number(v) / SQM_TO_SQFT).toFixed(2) : '',
+  }));
 
   const canNext = (): boolean => {
     if (step === 1) return !!(form.name.trim() && form.propertyType);
@@ -316,11 +324,11 @@ export default function CreatePropertyPage() {
               </div>
               <div className="cp-field">
                 <label>Total Area (sqm)</label>
-                <input type="number" min={0} placeholder="e.g. 12500" value={form.totalAreaSqm} onChange={e => set('totalAreaSqm', e.target.value)} />
+                <input type="number" min={0} placeholder="e.g. 12500" value={form.totalAreaSqm} onChange={e => setTotalAreaSqm(e.target.value)} />
               </div>
               <div className="cp-field">
                 <label>Total Area (sqft)</label>
-                <input type="number" min={0} placeholder="e.g. 134549" value={form.totalAreaSqft} onChange={e => set('totalAreaSqft', e.target.value)} />
+                <input type="number" min={0} placeholder="e.g. 134549" value={form.totalAreaSqft} onChange={e => setTotalAreaSqft(e.target.value)} />
               </div>
             </div>
           </div>

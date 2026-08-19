@@ -161,7 +161,7 @@ export default function FloorSetupPage() {
                   <button className="btn-icon" title="Edit" onClick={() => openEdit(f)}>
                     <Pencil size={14} />
                   </button>
-                  <button className="btn-icon btn-danger" title="Delete" onClick={() => handleDelete(f)}>
+                  <button className=" btn-danger" title="Delete" onClick={() => handleDelete(f)}>
                     <Trash2 size={14} />
                   </button>
                 </td>
