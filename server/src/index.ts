@@ -41,7 +41,7 @@ import {
 import { requireFeature } from './common/featureFlags';
 import {
   chargeTypesRouter, billingSchedulesRouter, invoicesRouter,
-  billingRunRouter, penaltyConfigsRouter, taxConfigsRouter,
+  billingRunRouter, penaltyConfigsRouter, taxConfigsRouter, meterSetupRouter,
 } from './modules/billing/billing.routes';
 import { chargeTypesService } from './modules/billing/chargeTypes.service';
 import { startDailyBillingJob } from './modules/billing/cron/dailyBilling.job';
@@ -197,6 +197,7 @@ async function bootstrap() {
 
   // Module 3.1 — Billing Engine
   app.use('/api/v1/billing/charge-types', chargeTypesRouter);
+  app.use('/api/v1/billing/meter-setup', meterSetupRouter);
   app.use('/api/v1/billing/schedules', billingSchedulesRouter);
   app.use('/api/v1/invoices', invoicesRouter);
   app.use('/api/v1/billing/run', billingRunRouter);

@@ -12,7 +12,13 @@ export class CompaniesService {
           orderBy: { name: 'asc' },
         },
         _count: {
-          select: { branches: true, properties: true, users: true, regions: true, businessUnits: true },
+          select: {
+            branches: true,
+            regions: true,
+            businessUnits: true,
+            properties: { where: { deletedAt: null } },
+            users: { where: { deletedAt: null } },
+          },
         },
       },
     });

@@ -15,6 +15,37 @@ export const createChargeTypeSchema = z.object({
   }),
 });
 
+// ── Meter Setup ───────────────────────────────
+
+export const createMeterSetupSchema = z.object({
+  body: z.object({
+    propertyId: z.string().uuid(),
+    meterType: z.enum(['mepe', 'sub_meter']),
+    meterNo: z.string().min(1).max(50),
+    horsePower: z.number().optional(),
+    unitLostPct: z.number().min(0).max(100).optional(),
+    category: z.enum(['lighting', 'water', 'aircon', 'aircon_lighting', 'lighting_telenor']),
+    factor: z.number().optional(),
+    maintenanceFee: z.number().optional(),
+    usageType: z.enum(['tenant_used', 'common_used', 'office_used']).optional(),
+  }),
+});
+
+export const updateMeterSetupSchema = z.object({
+  body: z.object({
+    propertyId: z.string().uuid().optional(),
+    meterType: z.enum(['mepe', 'sub_meter']).optional(),
+    meterNo: z.string().min(1).max(50).optional(),
+    horsePower: z.number().optional(),
+    unitLostPct: z.number().min(0).max(100).optional(),
+    category: z.enum(['lighting', 'water', 'aircon', 'aircon_lighting', 'lighting_telenor']).optional(),
+    factor: z.number().optional(),
+    maintenanceFee: z.number().optional(),
+    usageType: z.enum(['tenant_used', 'common_used', 'office_used']).optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
 export const updateChargeTypeSchema = z.object({
   body: z.object({
     code: z.string().min(1).max(50).optional(),

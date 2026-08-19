@@ -108,6 +108,7 @@ model Company {
 
   // Relations — Billing (Module 3.1)
   chargeTypes           ChargeType[]
+  meterSetups           MeterSetup[]
   billingSchedules      BillingSchedule[]
   invoices              Invoice[]
   penaltyConfigurations PenaltyConfiguration[]
@@ -957,6 +958,7 @@ model Property {
   rfidAccessEvents   RfidAccessEvent[]
 
   // Relations — Billing (Module 3.1)
+  meterSetups      MeterSetup[]
   billingSchedules BillingSchedule[] @relation("ScheduleProperty")
   invoices         Invoice[]         @relation("InvoiceProperty")
   penaltyConfigs   PenaltyConfiguration[] @relation("PenaltyProperty")
@@ -2671,6 +2673,30 @@ model ChargeType {
   @@unique([code, companyId], name: "uq_charge_type_code_company")
   @@index([category])
   @@map("charge_types")
+}
+
+model MeterSetup {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  meterType       String    @map("meter_type") @db.VarChar(20)     // 'mepe' | 'sub_meter'
+  meterNo         String    @map("meter_no") @db.VarChar(50)
+  horsePower      Decimal?  @map("horse_power") @db.Decimal(10, 2)
+  unitLostPct     Decimal?  @map("unit_lost_pct") @db.Decimal(5, 2)
+  category        String    @db.VarChar(30)                        // 'lighting' | 'water' | 'aircon' | 'aircon_lighting' | 'lighting_telenor'
+  factor          Decimal?  @db.Decimal(10, 4)
+  maintenanceFee  Decimal?  @map("maintenance_fee") @db.Decimal(10, 2)
+  usageType       String?   @map("usage_type") @db.VarChar(20)     // 'tenant_used' | 'common_used' | 'office_used'
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([companyId])
+  @@map("meter_setups")
 }
 
 model BillingSchedule {

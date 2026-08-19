@@ -2,6 +2,7 @@ import { Router, Request } from 'express';
 import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { chargeTypesService } from './chargeTypes.service';
+import { meterSetupService } from './meterSetup.service';
 import { billingSchedulesService } from './billingSchedules.service';
 import { invoicesService } from './invoices.service';
 import { penaltyService } from './penalty.service';
@@ -12,6 +13,7 @@ import {
   createChargeTypeSchema, updateChargeTypeSchema, createBillingScheduleSchema, updateBillingScheduleSchema,
   createInvoiceSchema, voidInvoiceSchema, createCreditNoteSchema,
   createPenaltyConfigSchema, createTaxConfigSchema,
+  createMeterSetupSchema, updateMeterSetupSchema,
 } from './billing.schema';
 
 const p = (req: Request, key: string) => req.params[key] as string;
@@ -34,6 +36,33 @@ chargeTypesRouter.post('/', validateRequest(createChargeTypeSchema), asyncHandle
 chargeTypesRouter.put('/:id', validateRequest(updateChargeTypeSchema), asyncHandler(async (req, res) => {
   const data = await chargeTypesService.update(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
+}));
+
+// ════════════════════════════════════════════════
+// METER SETUP — /api/v1/billing/meter-setup
+// ════════════════════════════════════════════════
+export const meterSetupRouter = Router();
+
+meterSetupRouter.get('/', asyncHandler(async (req, res) => {
+  const data = await meterSetupService.findAll(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+  });
+  res.json({ success: true, data });
+}));
+
+meterSetupRouter.post('/', validateRequest(createMeterSetupSchema), asyncHandler(async (req, res) => {
+  const data = await meterSetupService.create(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+meterSetupRouter.put('/:id', validateRequest(updateMeterSetupSchema), asyncHandler(async (req, res) => {
+  const data = await meterSetupService.update(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+meterSetupRouter.delete('/:id', asyncHandler(async (req, res) => {
+  await meterSetupService.delete(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true });
 }));
 
 // ════════════════════════════════════════════════

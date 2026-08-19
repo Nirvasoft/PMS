@@ -15,6 +15,21 @@ export interface ChargeType {
   isActive: boolean;
 }
 
+export interface MeterSetup {
+  id: string;
+  propertyId: string;
+  meterType: string;
+  meterNo: string;
+  horsePower: string | null;
+  unitLostPct: string | null;
+  category: string;
+  factor: string | null;
+  maintenanceFee: string | null;
+  usageType: string | null;
+  isActive: boolean;
+  property: { id: string; name: string; code: string | null };
+}
+
 export interface BillingSchedule {
   id: string;
   description: string | null;
@@ -109,7 +124,7 @@ interface PaginatedResponse<T> {
 export const billingApi = createApi({
   reducerPath: 'billingApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Invoices', 'BillingSchedules', 'ChargeTypes', 'PenaltyConfigs', 'TaxConfigs'],
+  tagTypes: ['Invoices', 'BillingSchedules', 'ChargeTypes', 'PenaltyConfigs', 'TaxConfigs', 'MeterSetups'],
   endpoints: (builder) => ({
 
     // ── Charge Types ──────────────────────
@@ -126,6 +141,27 @@ export const billingApi = createApi({
     updateChargeType: builder.mutation<ApiResponse<ChargeType>, { id: string; data: Record<string, unknown> }>({
       query: ({ id, data }) => ({ url: `/billing/charge-types/${id}`, method: 'PUT', body: data }),
       invalidatesTags: ['ChargeTypes'],
+    }),
+
+    // ── Meter Setup ───────────────────────
+    getMeterSetups: builder.query<ApiResponse<MeterSetup[]>, { propertyId?: string } | void>({
+      query: (params) => ({ url: '/billing/meter-setup', params: params || {} }),
+      providesTags: ['MeterSetups'],
+    }),
+
+    createMeterSetup: builder.mutation<ApiResponse<MeterSetup>, Record<string, unknown>>({
+      query: (body) => ({ url: '/billing/meter-setup', method: 'POST', body }),
+      invalidatesTags: ['MeterSetups'],
+    }),
+
+    updateMeterSetup: builder.mutation<ApiResponse<MeterSetup>, { id: string; data: Record<string, unknown> }>({
+      query: ({ id, data }) => ({ url: `/billing/meter-setup/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['MeterSetups'],
+    }),
+
+    deleteMeterSetup: builder.mutation<void, string>({
+      query: (id) => ({ url: `/billing/meter-setup/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['MeterSetups'],
     }),
 
     // ── Billing Schedules ─────────────────
@@ -251,4 +287,8 @@ export const {
   useCreatePenaltyConfigMutation,
   useGetTaxConfigsQuery,
   useCreateTaxConfigMutation,
+  useGetMeterSetupsQuery,
+  useCreateMeterSetupMutation,
+  useUpdateMeterSetupMutation,
+  useDeleteMeterSetupMutation,
 } = billingApi;

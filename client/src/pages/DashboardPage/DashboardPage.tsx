@@ -15,7 +15,7 @@ import {
   Wrench, Calendar, Package, Layers, Sparkles, ClipboardCheck,
   Store, TrendingUp, DollarSign, Coins,
   Zap, Gavel, CreditCard, Palette,
-  Plug, Webhook, Server, DoorOpen, QrCode, ShoppingCart,
+  Plug, Webhook, Server, DoorOpen, QrCode, ShoppingCart, Gauge,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -235,6 +235,10 @@ export default function DashboardLayout() {
             <NavLink to="/admin/billing/charge-types" className="nav-item">
               <DollarSign size={18} />
               <span>Charge Types</span>
+            </NavLink>
+            <NavLink to="/admin/billing/meter-setup" className="nav-item">
+              <Gauge size={18} />
+              <span>Meter Setup</span>
             </NavLink>
             <NavLink to="/admin/billing/settings" className="nav-item">
               <Settings size={18} />
