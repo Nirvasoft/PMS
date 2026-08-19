@@ -2681,8 +2681,10 @@ model MeterSetup {
   id              String    @id @default(uuid()) @db.Uuid
   companyId       String    @map("company_id") @db.Uuid
   propertyId      String    @map("property_id") @db.Uuid
-  meterType       String    @map("meter_type") @db.VarChar(20)     // 'mepe' | 'sub_meter'
+  floorId         String?   @map("floor_id") @db.Uuid
+  meterType       String    @map("meter_type") @db.VarChar(20)     // 'mepe' | 'sub_meter' | 'ct_meter' | 'water_meter'
   meterNo         String    @map("meter_no") @db.VarChar(50)
+  mainMeterId     String?   @map("main_meter_id") @db.Uuid          // required when meterType = 'sub_meter'
   horsePower      Decimal?  @map("horse_power") @db.Decimal(10, 2)
   unitLostPct     Decimal?  @map("unit_lost_pct") @db.Decimal(5, 2)
   category        String    @db.VarChar(30)                        // 'lighting' | 'water' | 'aircon' | 'aircon_lighting' | 'lighting_telenor'
@@ -2693,11 +2695,16 @@ model MeterSetup {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  company         Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property        Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  floor           FloorSetup? @relation(fields: [floorId], references: [id], onDelete: SetNull)
+  mainMeter       MeterSetup? @relation("MainMeter", fields: [mainMeterId], references: [id], onDelete: SetNull)
+  subMeters       MeterSetup[] @relation("MainMeter")
 
   @@index([propertyId])
   @@index([companyId])
+  @@index([floorId])
+  @@index([mainMeterId])
   @@map("meter_setups")
 }
 
@@ -2713,8 +2720,9 @@ model FloorSetup {
 
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  meterSetups MeterSetup[]
 
-  @@unique([propertyId, floorNumber], name: "uq_floor_property_number")
+  @@unique([propertyId, floorNumber, floorLabel], name: "uq_floor_property_number_label")
   @@index([propertyId])
   @@index([companyId])
   @@map("floor_setups")

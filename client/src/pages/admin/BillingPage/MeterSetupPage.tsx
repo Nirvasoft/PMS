@@ -3,7 +3,7 @@ import {
   useGetMeterSetupsQuery, useCreateMeterSetupMutation, useUpdateMeterSetupMutation, useDeleteMeterSetupMutation,
   type MeterSetup,
 } from '../../../store/api/billingApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { Gauge, Plus, X, Pencil, Trash2 } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import './BillingPage.css';
@@ -11,6 +11,8 @@ import './BillingPage.css';
 const METER_TYPES = [
   { value: 'mepe', label: 'MEPE Meter' },
   { value: 'sub_meter', label: 'Sub Meter' },
+  { value: 'ct_meter', label: 'CT Meter' },
+  { value: 'water_meter', label: 'Water Meter' },
 ] as const;
 
 const CATEGORIES = [
@@ -43,20 +45,31 @@ export default function MeterSetupPage() {
   const properties = propertiesData?.data || [];
 
   const emptyForm = {
-    propertyId: '', meterType: '', meterNo: '', horsePower: '', unitLostPct: '',
-    category: '', factor: '', maintenanceFee: '', usageType: '',
+    propertyId: '', floorId: '', meterType: '', meterNo: '', mainMeterId: '', horsePower: '', unitLostPct: '',
+    category: '', factor: '1', maintenanceFee: '', usageType: '',
   };
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MeterSetup | null>(null);
   const [form, setForm] = useState(emptyForm);
+
+  const { data: floorsData } = useGetFloorSetupsQuery(
+    form.propertyId ? { propertyId: form.propertyId } : undefined,
+    { skip: !form.propertyId }
+  );
+  const floors = floorsData?.data || [];
+  const mainMeterOptions = meters.filter(
+    (m) => m.propertyId === form.propertyId && m.meterType !== 'sub_meter' && m.id !== editing?.id
+  );
 
   const openCreate = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
   const openEdit = (m: MeterSetup) => {
     setEditing(m);
     setForm({
       propertyId: m.propertyId,
+      floorId: m.floorId ?? '',
       meterType: m.meterType,
       meterNo: m.meterNo,
+      mainMeterId: m.mainMeterId ?? '',
       horsePower: m.horsePower ?? '',
       unitLostPct: m.unitLostPct ?? '',
       category: m.category,
@@ -68,12 +81,22 @@ export default function MeterSetupPage() {
   };
   const closeForm = () => { setShowForm(false); setEditing(null); setForm(emptyForm); };
 
+  const handlePropertyChange = (propertyId: string) => {
+    setForm({ ...form, propertyId, floorId: '', mainMeterId: '' });
+  };
+
+  const handleMeterTypeChange = (meterType: string) => {
+    setForm({ ...form, meterType, mainMeterId: meterType === 'sub_meter' ? form.mainMeterId : '' });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
       propertyId: form.propertyId,
+      floorId: form.floorId || undefined,
       meterType: form.meterType,
       meterNo: form.meterNo,
+      mainMeterId: form.meterType === 'sub_meter' ? form.mainMeterId : undefined,
       horsePower: form.horsePower ? Number(form.horsePower) : undefined,
       unitLostPct: form.unitLostPct ? Number(form.unitLostPct) : undefined,
       category: form.category,
@@ -157,7 +180,7 @@ export default function MeterSetupPage() {
                   <button className="btn-icon" title="Edit" onClick={() => openEdit(m)}>
                     <Pencil size={14} />
                   </button>
-                  <button className="btn-icon btn-danger" title="Delete" onClick={() => handleDelete(m)}>
+                  <button className="btn-danger" title="Delete" onClick={() => handleDelete(m)}>
                     <Trash2 size={14} />
                   </button>
                 </td>
@@ -180,18 +203,38 @@ export default function MeterSetupPage() {
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="inv-field">
                     <label>Property <span className="req">*</span></label>
-                    <select required value={form.propertyId} onChange={(e) => setForm({ ...form, propertyId: e.target.value })}>
+                    <select required value={form.propertyId} onChange={(e) => handlePropertyChange(e.target.value)}>
                       <option value="">Select property…</option>
                       {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div className="inv-field">
+                    <label>Floor</label>
+                    <select value={form.floorId} disabled={!form.propertyId}
+                      onChange={(e) => setForm({ ...form, floorId: e.target.value })}>
+                      <option value="">{form.propertyId ? 'Select floor…' : 'Select property first'}</option>
+                      {floors.map((f) => <option key={f.id} value={f.id}>{f.floorLabel}</option>)}
+                    </select>
+                  </div>
+                  <div className="inv-field">
                     <label>Meter Type <span className="req">*</span></label>
-                    <select required value={form.meterType} onChange={(e) => setForm({ ...form, meterType: e.target.value })}>
+                    <select required value={form.meterType} onChange={(e) => handleMeterTypeChange(e.target.value)}>
                       <option value="">Select type…</option>
                       {METER_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                   </div>
+                  {form.meterType === 'sub_meter' && (
+                    <div className="inv-field">
+                      <label>Main Meter <span className="req">*</span></label>
+                      <select required value={form.mainMeterId} disabled={!form.propertyId}
+                        onChange={(e) => setForm({ ...form, mainMeterId: e.target.value })}>
+                        <option value="">{form.propertyId ? 'Select main meter…' : 'Select property first'}</option>
+                        {mainMeterOptions.map((m) => (
+                          <option key={m.id} value={m.id}>{m.meterNo}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="inv-field">
                     <label>Meter No <span className="req">*</span></label>
                     <input required placeholder="e.g. MT-00123" value={form.meterNo}

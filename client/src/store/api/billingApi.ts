@@ -18,8 +18,10 @@ export interface ChargeType {
 export interface MeterSetup {
   id: string;
   propertyId: string;
+  floorId: string | null;
   meterType: string;
   meterNo: string;
+  mainMeterId: string | null;
   horsePower: string | null;
   unitLostPct: string | null;
   category: string;
@@ -28,6 +30,8 @@ export interface MeterSetup {
   usageType: string | null;
   isActive: boolean;
   property: { id: string; name: string; code: string | null };
+  floor: { id: string; floorNumber: number; floorLabel: string } | null;
+  mainMeter: { id: string; meterNo: string; meterType: string } | null;
 }
 
 export interface BillingSchedule {

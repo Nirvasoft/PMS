@@ -82,7 +82,7 @@ export default function FloorSetupPage() {
       }
       closeForm();
     } catch (err: any) {
-      alertDialog(err?.data?.message || `Failed to ${editing ? 'update' : 'create'} floor`);
+      alertDialog(err?.data?.errors?.[0]?.message || err?.data?.message || `Failed to ${editing ? 'update' : 'create'} floor`);
     }
   };
 

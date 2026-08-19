@@ -33,9 +33,9 @@ export class FloorSetupService {
     }
 
     const existing = await prisma.floorSetup.findFirst({
-      where: { propertyId, floorNumber, isActive: true },
+      where: { propertyId, floorNumber, floorLabel, isActive: true },
     });
-    if (existing) throw new AppError(409, 'FLOOR_NUMBER_TAKEN', `Floor number ${floorNumber} already exists for this property`);
+    if (existing) throw new AppError(409, 'FLOOR_LABEL_TAKEN', `Floor label "${floorLabel}" already exists for floor ${floorNumber} in this property`);
 
     return prisma.floorSetup.create({
       data: { companyId, propertyId, floorNumber, floorLabel },
@@ -47,10 +47,21 @@ export class FloorSetupService {
     const floor = await prisma.floorSetup.findFirst({ where: { id, companyId } });
     if (!floor) throw AppError.notFound('Floor setup');
 
+    const propertyId = dto.propertyId !== undefined ? dto.propertyId as string : floor.propertyId;
+    const floorNumber = dto.floorNumber !== undefined ? Number(dto.floorNumber) : floor.floorNumber;
+    const floorLabel = dto.floorLabel !== undefined ? (dto.floorLabel as string).trim() : floor.floorLabel;
+
+    if (dto.propertyId !== undefined || dto.floorNumber !== undefined || dto.floorLabel !== undefined) {
+      const existing = await prisma.floorSetup.findFirst({
+        where: { propertyId, floorNumber, floorLabel, isActive: true, id: { not: id } },
+      });
+      if (existing) throw new AppError(409, 'FLOOR_LABEL_TAKEN', `Floor label "${floorLabel}" already exists for floor ${floorNumber} in this property`);
+    }
+
     const updateData: Record<string, unknown> = {};
     if (dto.propertyId !== undefined) updateData.propertyId = dto.propertyId;
-    if (dto.floorNumber !== undefined) updateData.floorNumber = Number(dto.floorNumber);
-    if (dto.floorLabel !== undefined) updateData.floorLabel = (dto.floorLabel as string).trim();
+    if (dto.floorNumber !== undefined) updateData.floorNumber = floorNumber;
+    if (dto.floorLabel !== undefined) updateData.floorLabel = floorLabel;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
 
     return prisma.floorSetup.update({
@@ -63,7 +74,10 @@ export class FloorSetupService {
   async delete(id: string, companyId: string) {
     const floor = await prisma.floorSetup.findFirst({ where: { id, companyId } });
     if (!floor) throw AppError.notFound('Floor setup');
-    await prisma.floorSetup.update({ where: { id }, data: { isActive: false } });
+    // Hard delete — the (propertyId, floorNumber, floorLabel) unique
+    // constraint is not scoped to isActive, so a soft-deleted row would keep
+    // blocking that exact floor number/label combo from ever being recreated.
+    await prisma.floorSetup.delete({ where: { id } });
   }
 }
 

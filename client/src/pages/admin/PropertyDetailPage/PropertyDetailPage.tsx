@@ -27,6 +27,8 @@ import './PropertyDetailPage.css';
 
 type Tab = 'overview' | 'units' | 'leases' | 'documents' | 'facilities' | 'contacts' | 'photos' | 'history' | 'finance' | 'settings';
 
+const TAB_LABELS: Partial<Record<Tab, string>> = { units: 'P-Units' };
+
 const STATUS_TRANSITIONS: Record<string, Array<{ value: string; label: string }>> = {
   active:           [{ value: 'under_renovation', label: 'Put Under Renovation' }, { value: 'decommissioned', label: 'Decommission' }],
   under_renovation: [{ value: 'active', label: 'Mark Active' }, { value: 'decommissioned', label: 'Decommission' }],
@@ -128,7 +130,7 @@ export default function PropertyDetailPage() {
       <div className="detail-tabs">
         {(['overview', 'units', 'leases', 'documents', 'facilities', 'contacts', 'photos', 'history', 'finance', 'settings'] as Tab[]).map((tab) => (
           <button key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {TAB_LABELS[tab] ?? tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
       </div>

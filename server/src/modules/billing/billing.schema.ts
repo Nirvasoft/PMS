@@ -20,22 +20,29 @@ export const createChargeTypeSchema = z.object({
 export const createMeterSetupSchema = z.object({
   body: z.object({
     propertyId: z.string().uuid(),
-    meterType: z.enum(['mepe', 'sub_meter']),
+    floorId: z.string().uuid().optional(),
+    meterType: z.enum(['mepe', 'sub_meter', 'ct_meter', 'water_meter']),
     meterNo: z.string().min(1).max(50),
+    mainMeterId: z.string().uuid().optional(),
     horsePower: z.number().optional(),
     unitLostPct: z.number().min(0).max(100).optional(),
     category: z.enum(['lighting', 'water', 'aircon', 'aircon_lighting', 'lighting_telenor']),
     factor: z.number().optional(),
     maintenanceFee: z.number().optional(),
     usageType: z.enum(['tenant_used', 'common_used', 'office_used']).optional(),
+  }).refine((data) => data.meterType !== 'sub_meter' || !!data.mainMeterId, {
+    message: 'Main meter is required for sub meters',
+    path: ['mainMeterId'],
   }),
 });
 
 export const updateMeterSetupSchema = z.object({
   body: z.object({
     propertyId: z.string().uuid().optional(),
-    meterType: z.enum(['mepe', 'sub_meter']).optional(),
+    floorId: z.string().uuid().nullable().optional(),
+    meterType: z.enum(['mepe', 'sub_meter', 'ct_meter', 'water_meter']).optional(),
     meterNo: z.string().min(1).max(50).optional(),
+    mainMeterId: z.string().uuid().nullable().optional(),
     horsePower: z.number().optional(),
     unitLostPct: z.number().min(0).max(100).optional(),
     category: z.enum(['lighting', 'water', 'aircon', 'aircon_lighting', 'lighting_telenor']).optional(),
@@ -43,6 +50,9 @@ export const updateMeterSetupSchema = z.object({
     maintenanceFee: z.number().optional(),
     usageType: z.enum(['tenant_used', 'common_used', 'office_used']).optional(),
     isActive: z.boolean().optional(),
+  }).refine((data) => data.meterType !== 'sub_meter' || !!data.mainMeterId, {
+    message: 'Main meter is required for sub meters',
+    path: ['mainMeterId'],
   }),
 });
 

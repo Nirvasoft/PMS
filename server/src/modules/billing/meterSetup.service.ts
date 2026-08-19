@@ -11,6 +11,8 @@ export class MeterSetupService {
       },
       include: {
         property: { select: { id: true, name: true, code: true } },
+        floor: { select: { id: true, floorNumber: true, floorLabel: true } },
+        mainMeter: { select: { id: true, meterNo: true, meterType: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -21,8 +23,10 @@ export class MeterSetupService {
       data: {
         companyId,
         propertyId: dto.propertyId as string,
+        floorId: (dto.floorId as string) ?? null,
         meterType: dto.meterType as string,
         meterNo: dto.meterNo as string,
+        mainMeterId: dto.meterType === 'sub_meter' ? (dto.mainMeterId as string) : null,
         horsePower: (dto.horsePower as number) ?? null,
         unitLostPct: (dto.unitLostPct as number) ?? null,
         category: dto.category as string,
@@ -32,6 +36,8 @@ export class MeterSetupService {
       },
       include: {
         property: { select: { id: true, name: true, code: true } },
+        floor: { select: { id: true, floorNumber: true, floorLabel: true } },
+        mainMeter: { select: { id: true, meterNo: true, meterType: true } },
       },
     });
   }
@@ -42,8 +48,13 @@ export class MeterSetupService {
 
     const updateData: Record<string, unknown> = {};
     if (dto.propertyId !== undefined) updateData.propertyId = dto.propertyId;
+    if (dto.floorId !== undefined) updateData.floorId = dto.floorId || null;
     if (dto.meterType !== undefined) updateData.meterType = dto.meterType;
     if (dto.meterNo !== undefined) updateData.meterNo = dto.meterNo;
+    if (dto.mainMeterId !== undefined || dto.meterType !== undefined) {
+      const nextType = (dto.meterType as string) ?? meter.meterType;
+      updateData.mainMeterId = nextType === 'sub_meter' ? ((dto.mainMeterId as string) ?? meter.mainMeterId) : null;
+    }
     if (dto.horsePower !== undefined) updateData.horsePower = dto.horsePower;
     if (dto.unitLostPct !== undefined) updateData.unitLostPct = dto.unitLostPct;
     if (dto.category !== undefined) updateData.category = dto.category;
@@ -57,6 +68,8 @@ export class MeterSetupService {
       data: updateData,
       include: {
         property: { select: { id: true, name: true, code: true } },
+        floor: { select: { id: true, floorNumber: true, floorLabel: true } },
+        mainMeter: { select: { id: true, meterNo: true, meterType: true } },
       },
     });
   }

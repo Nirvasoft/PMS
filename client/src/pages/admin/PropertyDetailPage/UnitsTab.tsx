@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../../../store';
 import {
@@ -11,11 +12,11 @@ import {
   useGetTowersQuery, useGetFloorPlanQuery, useGetUnitsQuery,
   useGetUnitStatsQuery, useDeleteUnitMutation, useCreateUnitMutation, useGetUnitTypesQuery,
 } from '../../../store/api/unitsApi';
-import type { UnitListItem, Tower } from '../../../store/api/unitsApi';
+import type { UnitListItem, Tower, FloorPlanMatrix } from '../../../store/api/unitsApi';
 import {
   LayoutGrid, List, Layers, Plus, Search, Building2,
   Zap, Droplets, Wind, X, Grid3x3, ChevronRight, ChevronLeft,
-  ChevronsUp, ChevronsDown, Filter, Calendar,
+  ChevronsUp, ChevronsDown, Filter, Calendar, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -45,6 +46,8 @@ const ZOOM_CELL: Record<string, { w: number; h: number }> = {
   normal:  { w: 54, h: 46 },
   large:   { w: 78, h: 66 },
 };
+
+type FloorPlanUnit = FloorPlanMatrix['floors'][number]['units'][number];
 
 /* ════════════════════════════════════════════
    Main Tab
@@ -116,10 +119,14 @@ export default function UnitsTab() {
   /* Floor plan scroll ref for jump buttons */
   const floorScrollRef = useRef<HTMLDivElement>(null);
 
+  /* Floor plan unit tooltip — tracked in state so it can be portaled out of the
+     scrollable/transformed cell and positioned to actually fit the viewport. */
+  const [hoveredUnit, setHoveredUnit] = useState<{ unit: FloorPlanUnit; rect: DOMRect } | null>(null);
+
   /* Distinct floors from floor plan data */
   const distinctFloors = [...new Set(floors.map((f) => f.floorNumber))].sort((a, b) => b - a);
 
-  /* Unit types for filter dropdown */
+  /* P-Unit types for filter dropdown */
   const { data: unitTypesData } = useGetUnitTypesQuery();
   const unitTypes = unitTypesData?.data || [];
 
@@ -273,7 +280,7 @@ export default function UnitsTab() {
               <Layers size={13} /> Bulk Create
             </button>
             <button className="ut-btn-add" onClick={() => dispatch(selectUnit('new'))}>
-              <Plus size={14} /> Add Unit
+              <Plus size={14} /> Add P-Unit
             </button>
           </div>
         </div>
@@ -299,9 +306,13 @@ export default function UnitsTab() {
             fpLoading
               ? <div className="units-loading"><Building2 size={24} /><span>Loading floor plan…</span></div>
               : <div className="floor-plan-view">
-                  <div className="floor-plan-scroll" ref={floorScrollRef}>
+                  <div
+                    className="floor-plan-scroll"
+                    ref={floorScrollRef}
+                    onScroll={() => setHoveredUnit(null)}
+                  >
                     {filteredFloors.length === 0
-                      ? <EmptyState message={hasFilters ? 'No units match the current filters' : 'No units yet — click Add Unit to get started'} />
+                      ? <EmptyState message={hasFilters ? 'No units match the current filters' : 'No units yet — click Add P-Unit to get started'} />
                       : filteredFloors.map((floor) => (
                           <div key={floor.floorNumber} className="floor-row">
                             <div className="floor-label">{floor.floorLabel ?? `Floor ${floor.floorNumber}`}</div>
@@ -319,6 +330,8 @@ export default function UnitsTab() {
                                       : STATUS_COLOR[unit.status] + '55',
                                   }}
                                   onClick={() => dispatch(selectUnit(unit.id))}
+                                  onMouseEnter={(e) => setHoveredUnit({ unit, rect: e.currentTarget.getBoundingClientRect() })}
+                                  onMouseLeave={() => setHoveredUnit((cur) => (cur?.unit.id === unit.id ? null : cur))}
                                 >
                                   <div className="cell-dot" style={{ background: STATUS_COLOR[unit.status] }} />
                                   <span
@@ -330,21 +343,6 @@ export default function UnitsTab() {
                                   {zoomLevel === 'large' && (
                                     <span className="cell-type">{unit.unitType}</span>
                                   )}
-                                  {/* Rich tooltip */}
-                                  <div className="unit-tooltip">
-                                    <div className="ut-tip-header">
-                                      <span className="ut-tip-num">{unit.unitNumber}</span>
-                                      <span className="ut-tip-status" style={{ background: STATUS_COLOR[unit.status] + '33', color: STATUS_COLOR[unit.status] }}>
-                                        {unit.status.replace(/_/g, ' ')}
-                                      </span>
-                                    </div>
-                                    <div className="ut-tip-rows">
-                                      <span>Type</span><span>{unit.unitType.replace(/_/g, ' ')}</span>
-                                      {unit.areaSqft && <><span>Area</span><span>{unit.areaSqft} sqft</span></>}
-                                      <span>Furnishing</span><span>{unit.furnishing.replace(/_/g, ' ')}</span>
-                                      {unit.tower && <><span>Tower</span><span>{unit.tower.name}</span></>}
-                                    </div>
-                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -392,14 +390,14 @@ export default function UnitsTab() {
                 ? <div className="units-loading"><Building2 size={24} /><span>Loading…</span></div>
                 : <>
                     <div className="ul-header">
-                      <span>Unit No.</span>
+                      <span>P-Unit No.</span>
                       <span>Type</span>
                       <span>Floor</span>
                       <span>Area</span>
                       <span>Bed / Bath</span>
                       <span>Status</span>
                       <span>Furnishing</span>
-                      <span />
+                      <span>Action</span>
                     </div>
                     {(listData?.data || []).length === 0
                       ? <EmptyState message={hasFilters ? 'No units match the current filters' : 'No units yet'} />
@@ -468,6 +466,13 @@ export default function UnitsTab() {
         </div>
       </div>
 
+      {/* Floor plan hover tooltip — portaled so it's never clipped by the
+          scrollable floor grid or the cell's own hover transform. */}
+      {hoveredUnit && createPortal(
+        <UnitTooltipPortal unit={hoveredUnit.unit} anchorRect={hoveredUnit.rect} />,
+        document.body
+      )}
+
       {/* Drawers / Modals */}
       {drawerOpen && selectedUnitId && selectedUnitId !== 'new' && (
         <UnitDetailDrawer propertyId={propertyId!} unitId={selectedUnitId} />
@@ -489,6 +494,61 @@ export default function UnitsTab() {
   );
 }
 
+/* ── Floor plan unit tooltip (portal) ──────────
+   Rendered into document.body and positioned against the real viewport, so it
+   flips above/below and clamps horizontally to wherever it actually fits —
+   instead of a fixed CSS direction that breaks near any edge. */
+function UnitTooltipPortal({ unit, anchorRect }: { unit: FloorPlanUnit; anchorRect: DOMRect }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; arrowLeft: number; placement: 'top' | 'bottom' } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const margin = 10;
+    const gap = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const tw = el.offsetWidth;
+    const th = el.offsetHeight;
+
+    const spaceAbove = anchorRect.top - margin;
+    const spaceBelow = vh - anchorRect.bottom - margin;
+    const placement: 'top' | 'bottom' = spaceAbove >= th + gap || spaceAbove >= spaceBelow ? 'top' : 'bottom';
+    const top = placement === 'top'
+      ? Math.max(margin, anchorRect.top - th - gap)
+      : Math.min(vh - th - margin, anchorRect.bottom + gap);
+
+    const center = anchorRect.left + anchorRect.width / 2;
+    const left = Math.min(Math.max(center - tw / 2, margin), vw - tw - margin);
+    const arrowLeft = Math.min(Math.max(center - left, 12), tw - 12);
+
+    setPos({ top, left, arrowLeft, placement });
+  }, [anchorRect]);
+
+  return (
+    <div
+      ref={ref}
+      className="unit-tooltip-portal"
+      style={pos ? { top: pos.top, left: pos.left, opacity: 1 } : { top: anchorRect.top, left: anchorRect.left, opacity: 0 }}
+    >
+      <div className="ut-tip-header">
+        <span className="ut-tip-num">{unit.unitNumber}</span>
+        <span className="ut-tip-status" style={{ background: STATUS_COLOR[unit.status] + '33', color: STATUS_COLOR[unit.status] }}>
+          {unit.status.replace(/_/g, ' ')}
+        </span>
+      </div>
+      <div className="ut-tip-rows">
+        <span>Type</span><span>{unit.unitType.replace(/_/g, ' ')}</span>
+        {unit.areaSqft && <><span>Area</span><span>{unit.areaSqft} sqft</span></>}
+        <span>Furnishing</span><span>{unit.furnishing.replace(/_/g, ' ')}</span>
+        {unit.tower && <><span>Tower</span><span>{unit.tower.name}</span></>}
+      </div>
+      {pos && <div className={`ut-tip-arrow ut-tip-arrow-${pos.placement}`} style={{ left: pos.arrowLeft }} />}
+    </div>
+  );
+}
+
 /* ── Empty State ──────────────────────────── */
 function EmptyState({ message }: { message: string }) {
   return (
@@ -499,7 +559,7 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-/* ── Unit List Row ─────────────────────────── */
+/* ── P-Unit List Row ─────────────────────────── */
 function UnitListRow({ unit, onClick, onDelete }: {
   unit: UnitListItem; onClick: () => void; onDelete: () => void;
 }) {
@@ -520,13 +580,13 @@ function UnitListRow({ unit, onClick, onDelete }: {
       </span>
       <span className="capitalize ul-furn">{unit.furnishing.replace(/_/g, ' ')}</span>
       <button className="ul-del" onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete unit">
-        <X size={13} />
+        <Trash2 size={13} />
       </button>
     </div>
   );
 }
 
-/* ── Unit Grid Card ───────────────────────── */
+/* ── P-Unit Grid Card ───────────────────────── */
 function UnitGridCard({ unit, onClick }: { unit: UnitListItem; onClick: () => void }) {
   const color = STATUS_COLOR[unit.status];
   return (
@@ -566,7 +626,7 @@ function UnitGridCard({ unit, onClick }: { unit: UnitListItem; onClick: () => vo
   );
 }
 
-/* ── Create Unit Modal ────────────────────── */
+/* ── Create P-Unit Modal ────────────────────── */
 function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: Tower[] }) {
   const dispatch = useAppDispatch();
   const close = () => dispatch(selectUnit(null as any));
@@ -595,7 +655,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
 
   const handleSubmit = async () => {
     if (!form.unitNumber.trim() || !form.unitType) {
-      toast.error('Unit number and type are required');
+      toast.error('P-Unit number and type are required');
       return;
     }
     try {
@@ -622,7 +682,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           description:   form.description || undefined,
         } as any,
       }).unwrap();
-      toast.success(`Unit ${form.unitNumber} created`);
+      toast.success(`P-Unit ${form.unitNumber} created`);
       close();
     } catch (e: any) {
       toast.error(e?.data?.message || 'Failed to create unit');
@@ -634,22 +694,22 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
       <div className="cu-modal" onClick={(e) => e.stopPropagation()}>
         <div className="cu-header">
           <div>
-            <h3>Add New Unit</h3>
+            <h3>Add New Property Unit</h3>
             <p className="cu-subtitle">Fill in the details for the new unit</p>
           </div>
           <button className="cu-close" onClick={close}><X size={18} /></button>
         </div>
 
         <div className="cu-body">
-          {/* Unit Number + Type */}
-          <div className="cu-section-title">Unit Identity</div>
+          {/* P-Unit Number + Type */}
+          <div className="cu-section-title">P-Unit Identity</div>
           <div className="cu-grid">
             <div className="cu-field">
-              <label>Unit Number *</label>
+              <label>P-Unit Number *</label>
               <input placeholder="e.g. A-101" value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)} />
             </div>
             <div className="cu-field">
-              <label>Unit Type *</label>
+              <label>P-Unit Type *</label>
               <select value={form.unitType} onChange={(e) => set('unitType', e.target.value)}>
                 <option value="">Select type…</option>
                 {unitTypes.length > 0
@@ -781,7 +841,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
             onClick={handleSubmit}
             disabled={isLoading || !form.unitNumber.trim() || !form.unitType}
           >
-            {isLoading ? 'Creating…' : '+ Add Unit'}
+            {isLoading ? 'Creating…' : '+ Add P-Unit'}
           </button>
         </div>
       </div>
@@ -894,9 +954,9 @@ function CalendarView({
         ))}
       </div>
 
-      {/* Unit list below calendar */}
+      {/* P-Unit list below calendar */}
       <div className="cal-unit-list">
-        <div className="cal-list-header">Units ({units.length})</div>
+        <div className="cal-list-header">Property Units ({units.length})</div>
         <div className="cal-list-scroll">
           {units.slice(0, 50).map((u) => (
             <button key={u.id} className="cal-unit-row" onClick={() => onSelectUnit(u.id)}>
