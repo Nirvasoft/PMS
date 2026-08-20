@@ -260,9 +260,11 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
     const f: Record<string, string> = {};
     if (tenant.tenantType === 'individual') {
       f.firstName = tenant.firstName || ''; f.lastName = tenant.lastName || '';
+      f.fatherName = tenant.fatherName || '';
       f.dateOfBirth = (tenant.dateOfBirth || '').split('T')[0]; f.gender = tenant.gender || '';
       f.nationality = tenant.nationality || ''; f.idType = tenant.idType || '';
       f.idNumber = tenant.idNumber || ''; f.idExpiryDate = (tenant.idExpiryDate || '').split('T')[0];
+      f.fatherNrc = tenant.fatherNrc || '';
     } else {
       f.companyName = tenant.companyName || ''; f.companyRegNo = tenant.companyRegNo || '';
       f.companyType = tenant.companyType || ''; f.gstRegNo = tenant.gstRegNo || '';
@@ -310,12 +312,14 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
               <>
                 <EditField label="First Name" value={form.firstName} onChange={(v) => set('firstName', v)} />
                 <EditField label="Last Name" value={form.lastName} onChange={(v) => set('lastName', v)} />
+                <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
+                <EditField label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
                 <EditField label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
                 <EditSelect label="Gender" value={form.gender} onChange={(v) => set('gender', v)}
                   options={[['','—'],['male','Male'],['female','Female'],['other','Other'],['prefer_not_to_say','Prefer not to say']]} />
                 <EditField label="Nationality" value={form.nationality} onChange={(v) => set('nationality', v)} />
                 <EditSelect label="ID Type" value={form.idType} onChange={(v) => set('idType', v)}
-                  options={[['','—'],['nric','NRIC'],['passport','Passport'],['fin','FIN'],['driving_license','Driving License']]} />
+                  options={[['','—'],['nric','NRC'],['passport','Passport'],['fin','FIN'],['driving_license','Driving License']]} />
                 <EditField label="ID Number" value={form.idNumber} onChange={(v) => set('idNumber', v)} />
                 <EditField label="ID Expiry" value={form.idExpiryDate} onChange={(v) => set('idExpiryDate', v)} type="date" />
               </>
@@ -405,6 +409,8 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
         <div className="info-rows">
           {tenant.tenantType === 'individual' ? (
             <>
+              {tenant.fatherName   && <InfoRow label="Father Name" value={tenant.fatherName} />}
+              {tenant.fatherNrc    && <InfoRow label="Father's NRC" value={tenant.fatherNrc} />}
               {tenant.dateOfBirth  && <InfoRow label="Date of Birth" value={tenant.dateOfBirth.split('T')[0]} />}
               {tenant.gender       && <InfoRow label="Gender" value={tenant.gender} />}
               {tenant.nationality  && <InfoRow label="Nationality" value={tenant.nationality} />}

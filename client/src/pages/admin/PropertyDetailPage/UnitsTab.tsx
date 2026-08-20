@@ -79,10 +79,10 @@ export default function UnitsTab() {
   const towers = towersData?.data || [];
   const stats  = statsData?.data;
 
-  /* floor-plan data */
+  /* floor-plan data — also kept warm in List view so its floor numbers can feed the Floor filter there */
   const { data: floorPlanData, isLoading: fpLoading } = useGetFloorPlanQuery(
     { propertyId: propertyId!, towerId: selectedTowerId || undefined },
-    { skip: viewMode !== 'floor_plan' }
+    { skip: viewMode !== 'floor_plan' && viewMode !== 'list' }
   );
 
   /* list / grid data — send comma-separated statuses for multi-select */
@@ -93,13 +93,14 @@ export default function UnitsTab() {
   /* Reset to page 1 whenever the query filters or view (page size) change */
   useEffect(() => {
     setPage(1);
-  }, [propertyId, selectedTowerId, statusParam, searchQuery, viewMode]);
+  }, [propertyId, selectedTowerId, statusParam, floorFilter, searchQuery, viewMode]);
 
   const { data: listData, isLoading: listLoading } = useGetUnitsQuery(
     {
       propertyId: propertyId!,
       towerId: selectedTowerId || undefined,
       status: statusParam,
+      floor: floorFilter ?? undefined,
       search: searchQuery || undefined,
       page,
       limit: viewMode === 'calendar' ? 1000 : PAGE_SIZE,
@@ -150,25 +151,9 @@ export default function UnitsTab() {
 
       {/* ── Toolbar ─────────────────────────────── */}
       <div className="ut-toolbar">
-        {/* Row 1: search + actions */}
-        <div className="ut-row ut-row-top">
-          {/* Search */}
-          <div className="ut-search">
-            <Search size={13} className="ut-search-icon" />
-            <input
-              placeholder="Search units…"
-              value={searchQuery}
-              onChange={(e) => dispatch(setSearchQuery(e.target.value))}
-            />
-            {searchQuery && (
-              <button className="ut-clear-x" onClick={() => dispatch(setSearchQuery(''))}>
-                <X size={11} />
-              </button>
-            )}
-          </div>
-
-          {/* Stats pills — replace the old separate stats bar */}
-          {stats && (
+        {/* Stats pills — its own row, above search */}
+        {stats && (
+          <div className="ut-row ut-row-stats">
             <div className="ut-stat-pills">
               {STATUSES.map((s) => {
                 const count = (stats as any)[s.key] ?? 0;
@@ -198,7 +183,25 @@ export default function UnitsTab() {
                 </button>
               )}
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Row 1: search + actions */}
+        <div className="ut-row ut-row-top">
+          {/* Search */}
+          <div className="ut-search">
+            <Search size={13} className="ut-search-icon" />
+            <input
+              placeholder="Search units…"
+              value={searchQuery}
+              onChange={(e) => dispatch(setSearchQuery(e.target.value))}
+            />
+            {searchQuery && (
+              <button className="ut-clear-x" onClick={() => dispatch(setSearchQuery(''))}>
+                <X size={11} />
+              </button>
+            )}
+          </div>
 
           {/* Filter dropdowns */}
           <div className="ut-filter-dropdowns">
@@ -218,7 +221,7 @@ export default function UnitsTab() {
                 ))}
               </select>
             </div>
-            {viewMode === 'floor_plan' && distinctFloors.length > 1 && (
+            {(viewMode === 'floor_plan' || viewMode === 'list') && distinctFloors.length > 1 && (
               <div className="ut-filter-select">
                 <Layers size={11} />
                 <select

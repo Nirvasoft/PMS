@@ -6,6 +6,8 @@ import {
   useAddMeterMutation, useDeleteMeterMutation, useUpdateMeterMutation,
   useSetAmenitiesMutation, useUploadFloorPlanMutation, useGetUnitTypesQuery,
 } from '../../../store/api/unitsApi';
+import { useGetMeterSetupsQuery } from '../../../store/api/billingApi';
+import { CATEGORIES as METER_CATEGORIES } from '../BillingPage/MeterSetupPage';
 import {
   X, Zap, Droplets, Wind, Star, ChevronRight, Settings2,
   Activity, Clock, Thermometer, Plus, Trash2, Pencil, Check,
@@ -56,7 +58,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [estimatedCompletion, setEstimatedCompletion] = useState('');
   const [addingMeter, setAddingMeter] = useState(false);
   const [meterForm, setMeterForm] = useState({
-    meterType: 'electricity', meterSerialNo: '', meterProvider: '',
+    meterType: '', meterSerialNo: '', meterProvider: '',
     isSmartMeter: false, location: '', installedAt: '', smartMeterId: '',
   });
   const [editingMeterId, setEditingMeterId] = useState<string | null>(null);
@@ -77,6 +79,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [uploadFloorPlan, { isLoading: uploading }] = useUploadFloorPlanMutation();
   const { data: typesData } = useGetUnitTypesQuery();
   const unitTypes = typesData?.data || [];
+
+  const { data: meterSetupsData } = useGetMeterSetupsQuery({ propertyId });
+  const floorMeterOptions = (meterSetupsData?.data || []).filter(
+    (m) => m.category === meterForm.meterType && m.floor?.floorNumber === unit?.floorNumber
+  );
 
   // ── Edit form state ─────────────────────────
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -149,7 +156,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       toast.success('Unit updated');
       setEditing(false);
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed to update');
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to update');
     }
   };
 
@@ -174,7 +181,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       setStatusModal(false);
       setStatusReason('');
       setEstimatedCompletion('');
-    } catch (e: any) { toast.error(e?.data?.message || 'Failed to update status'); }
+    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed to update status'); }
   };
 
   const handleAddMeter = async () => {
@@ -188,8 +195,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       }}).unwrap();
       toast.success('Meter added');
       setAddingMeter(false);
-      setMeterForm({ meterType: 'electricity', meterSerialNo: '', meterProvider: '', isSmartMeter: false, location: '', installedAt: '', smartMeterId: '' });
-    } catch (e: any) { toast.error(e?.data?.message || 'Failed'); }
+      setMeterForm({ meterType: '', meterSerialNo: '', meterProvider: '', isSmartMeter: false, location: '', installedAt: '', smartMeterId: '' });
+    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed'); }
   };
 
   const handleMeterEdit = (m: any) => {
@@ -213,7 +220,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       }}).unwrap();
       toast.success('Meter updated');
       setEditingMeterId(null);
-    } catch (e: any) { toast.error(e?.data?.message || 'Failed to update meter'); }
+    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed to update meter'); }
   };
 
   const handleRecordReading = async () => {
@@ -226,7 +233,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       toast.success('Reading recorded');
       setReadingMeterId(null);
       setReadingValue('');
-    } catch (e: any) { toast.error(e?.data?.message || 'Failed'); }
+    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed'); }
   };
 
   const handleToggleAmenity = async (amenity: string) => {
@@ -526,14 +533,20 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
               {addingMeter && (
                 <div className="meter-form">
-                  <select value={meterForm.meterType} onChange={(e) => setMeterForm({ ...meterForm, meterType: e.target.value })}>
-                    <option value="electricity">Electricity</option>
-                    <option value="water">Water</option>
-                    <option value="gas">Gas</option>
-                    <option value="chilled_water">Chilled Water</option>
+                  <select value={meterForm.meterType}
+                    onChange={(e) => setMeterForm({ ...meterForm, meterType: e.target.value, meterSerialNo: '' })}>
+                    <option value="">Select category…</option>
+                    {METER_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
-                  <input placeholder="Serial No. *" value={meterForm.meterSerialNo}
-                    onChange={(e) => setMeterForm({ ...meterForm, meterSerialNo: e.target.value })} />
+                  <select value={meterForm.meterSerialNo} disabled={!meterForm.meterType}
+                    onChange={(e) => setMeterForm({ ...meterForm, meterSerialNo: e.target.value })}>
+                    <option value="">
+                      {!meterForm.meterType ? 'Select category first' : floorMeterOptions.length === 0 ? 'No meters set up for this floor' : 'Select meter no…'}
+                    </option>
+                    {floorMeterOptions.map((m) => (
+                      <option key={m.id} value={m.meterNo}>{m.meterNo}</option>
+                    ))}
+                  </select>
                   <input placeholder="Provider" value={meterForm.meterProvider}
                     onChange={(e) => setMeterForm({ ...meterForm, meterProvider: e.target.value })} />
                   <input placeholder="Location (e.g. DB Box at main door)" value={meterForm.location}
@@ -622,7 +635,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                         <>
                           <div className="meter-icon">{METER_ICONS[m.meterType] || <Activity size={14} />}</div>
                           <div className="meter-info">
-                            <div className="meter-type">{m.meterType.replace(/_/g, ' ')}</div>
+                            <div className="meter-type">
+                              {METER_CATEGORIES.find((c) => c.value === m.meterType)?.label || m.meterType.replace(/_/g, ' ')}
+                            </div>
                             <div className="meter-serial">{m.meterSerialNo}</div>
                             {m.meterProvider && <div className="meter-provider">{m.meterProvider}</div>}
                             {m.location && <div className="meter-provider">{m.location}</div>}

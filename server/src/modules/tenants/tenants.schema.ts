@@ -5,12 +5,14 @@ export const createTenantSchema = z.object({
   // Individual fields
   firstName: z.string().max(100).optional().nullable(),
   lastName: z.string().max(100).optional().nullable(),
+  fatherName: z.string().max(100).optional().nullable(),
   dateOfBirth: z.string().optional().nullable().transform(val => val ? new Date(val) : null),
   gender: z.string().max(10).optional().nullable(),
   nationality: z.string().max(100).optional().nullable(),
   idType: z.string().max(30).optional().nullable(),
   idNumber: z.string().max(100).optional().nullable(),
   idExpiryDate: z.string().optional().nullable().transform(val => val ? new Date(val) : null),
+  fatherNrc: z.string().max(50).optional().nullable(),
   // Company fields
   companyName: z.string().max(255).optional().nullable(),
   companyRegNo: z.string().max(100).optional().nullable(),

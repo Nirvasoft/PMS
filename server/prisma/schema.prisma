@@ -1383,12 +1383,14 @@ model Tenant {
   // Individual fields
   firstName            String?   @map("first_name") @db.VarChar(100)
   lastName             String?   @map("last_name") @db.VarChar(100)
+  fatherName           String?   @map("father_name") @db.VarChar(100)
   dateOfBirth          DateTime? @map("date_of_birth") @db.Date
   gender               String?   @db.VarChar(10)
   nationality          String?   @db.VarChar(100)
   idType               String?   @map("id_type") @db.VarChar(30)  // 'passport'|'nric'|'fin'|'driving_license'
   idNumber             String?   @map("id_number") @db.VarChar(100)
   idExpiryDate         DateTime? @map("id_expiry_date") @db.Date
+  fatherNrc            String?   @map("father_nrc") @db.VarChar(50)
 
   // Company fields
   companyName          String?   @map("company_name") @db.VarChar(255)

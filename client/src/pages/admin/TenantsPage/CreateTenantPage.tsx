@@ -15,8 +15,8 @@ export default function CreateTenantPage() {
 
   const [form, setForm] = useState({
     // individual
-    firstName: '', lastName: '', dateOfBirth: '', gender: '',
-    nationality: '', idType: '', idNumber: '', idExpiryDate: '',
+    firstName: '', lastName: '', fatherName: '', dateOfBirth: '', gender: '',
+    nationality: '', idType: '', idNumber: '', idExpiryDate: '', fatherNrc: '',
     // company
     companyName: '', companyRegNo: '', companyType: '', gstRegNo: '',
     contactPersonName: '', contactPersonPhone: '', contactPersonEmail: '', contactPersonRole: '',
@@ -39,10 +39,11 @@ export default function CreateTenantPage() {
     const payload: Record<string, unknown> = { tenantType };
     if (tenantType === 'individual') {
       Object.assign(payload, {
-        firstName: form.firstName, lastName: form.lastName,
+        firstName: form.firstName, lastName: form.lastName, fatherName: form.fatherName || null,
         dateOfBirth: form.dateOfBirth || null, gender: form.gender || null,
         nationality: form.nationality || null, idType: form.idType || null,
         idNumber: form.idNumber || null, idExpiryDate: form.idExpiryDate || null,
+        fatherNrc: form.fatherNrc || null,
       });
     } else {
       Object.assign(payload, {
@@ -118,12 +119,14 @@ export default function CreateTenantPage() {
             <div className="form-grid">
               <Field label="First Name *" value={form.firstName} onChange={(v) => set('firstName', v)} />
               <Field label="Last Name"    value={form.lastName}  onChange={(v) => set('lastName', v)} />
+              <Field label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
+              <Field label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
               <Field label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
               <SelectField label="Gender" value={form.gender} onChange={(v) => set('gender', v)}
                 options={[['', 'Select…'],['male','Male'],['female','Female'],['other','Other'],['prefer_not_to_say','Prefer not to say']]} />
               <Field label="Nationality" value={form.nationality} onChange={(v) => set('nationality', v)} />
               <SelectField label="ID Type" value={form.idType} onChange={(v) => set('idType', v)}
-                options={[['','Select…'],['nric','NRIC'],['passport','Passport'],['fin','FIN'],['driving_license','Driving License']]} />
+                options={[['','Select…'],['nric','NRC'],['passport','Passport'],['fin','FIN'],['driving_license','Driving License']]} />
               <Field label="ID Number" value={form.idNumber} onChange={(v) => set('idNumber', v)} />
               <Field label="ID Expiry Date" value={form.idExpiryDate} onChange={(v) => set('idExpiryDate', v)} type="date" />
             </div>

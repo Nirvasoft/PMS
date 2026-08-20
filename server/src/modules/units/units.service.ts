@@ -508,6 +508,13 @@ export class MetersService {
     const existing = await prisma.utilityMeter.findFirst({ where: { unitId, meterType: dto.meterType as string, isActive: true } });
     if (existing) throw new AppError(409, 'METER_TYPE_EXISTS', `A ${dto.meterType} meter already exists for this unit`);
 
+    // Meter numbers are unique per property — check up front so the DB's unique constraint
+    // doesn't surface as a raw 500 when the same meter no. is picked for a second unit
+    const duplicateSerial = await prisma.utilityMeter.findFirst({ where: { propertyId, meterSerialNo: dto.meterSerialNo as string } });
+    if (duplicateSerial) {
+      throw new AppError(409, 'METER_SERIAL_EXISTS', `Meter No. "${dto.meterSerialNo}" is already assigned to another unit in this property`);
+    }
+
     return prisma.utilityMeter.create({ data: { unitId, propertyId, companyId, ...dto as any } });
   }
 

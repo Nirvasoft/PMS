@@ -32,10 +32,15 @@ export class FloorSetupService {
       throw new AppError(400, 'FLOOR_NUMBER_OUT_OF_RANGE', `Floor number cannot exceed the property's total floors (${property.totalFloors})`);
     }
 
-    const existing = await prisma.floorSetup.findFirst({
-      where: { propertyId, floorNumber, floorLabel, isActive: true },
+    const duplicateNumber = await prisma.floorSetup.findFirst({
+      where: { propertyId, floorNumber, isActive: true },
     });
-    if (existing) throw new AppError(409, 'FLOOR_LABEL_TAKEN', `Floor label "${floorLabel}" already exists for floor ${floorNumber} in this property`);
+    if (duplicateNumber) throw new AppError(409, 'FLOOR_NUMBER_TAKEN', `Floor number ${floorNumber} is already set up for this property`);
+
+    const duplicateLabel = await prisma.floorSetup.findFirst({
+      where: { propertyId, floorLabel: { equals: floorLabel, mode: 'insensitive' }, isActive: true },
+    });
+    if (duplicateLabel) throw new AppError(409, 'FLOOR_LABEL_TAKEN', `Floor label "${floorLabel}" is already used for this property`);
 
     return prisma.floorSetup.create({
       data: { companyId, propertyId, floorNumber, floorLabel },
@@ -51,11 +56,18 @@ export class FloorSetupService {
     const floorNumber = dto.floorNumber !== undefined ? Number(dto.floorNumber) : floor.floorNumber;
     const floorLabel = dto.floorLabel !== undefined ? (dto.floorLabel as string).trim() : floor.floorLabel;
 
-    if (dto.propertyId !== undefined || dto.floorNumber !== undefined || dto.floorLabel !== undefined) {
-      const existing = await prisma.floorSetup.findFirst({
-        where: { propertyId, floorNumber, floorLabel, isActive: true, id: { not: id } },
+    if (dto.propertyId !== undefined || dto.floorNumber !== undefined) {
+      const duplicateNumber = await prisma.floorSetup.findFirst({
+        where: { propertyId, floorNumber, isActive: true, id: { not: id } },
       });
-      if (existing) throw new AppError(409, 'FLOOR_LABEL_TAKEN', `Floor label "${floorLabel}" already exists for floor ${floorNumber} in this property`);
+      if (duplicateNumber) throw new AppError(409, 'FLOOR_NUMBER_TAKEN', `Floor number ${floorNumber} is already set up for this property`);
+    }
+
+    if (dto.propertyId !== undefined || dto.floorLabel !== undefined) {
+      const duplicateLabel = await prisma.floorSetup.findFirst({
+        where: { propertyId, floorLabel: { equals: floorLabel, mode: 'insensitive' }, isActive: true, id: { not: id } },
+      });
+      if (duplicateLabel) throw new AppError(409, 'FLOOR_LABEL_TAKEN', `Floor label "${floorLabel}" is already used for this property`);
     }
 
     const updateData: Record<string, unknown> = {};

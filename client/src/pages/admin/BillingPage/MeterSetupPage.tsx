@@ -15,7 +15,7 @@ const METER_TYPES = [
   { value: 'water_meter', label: 'Water Meter' },
 ] as const;
 
-const CATEGORIES = [
+export const CATEGORIES = [
   { value: 'lighting', label: 'Lighting' },
   { value: 'water', label: 'Water' },
   { value: 'aircon', label: 'AirCon' },
@@ -152,9 +152,6 @@ export default function MeterSetupPage() {
               <th>Meter Type</th>
               <th>Meter No</th>
               <th>Category</th>
-              <th className="text-right">HP</th>
-              <th className="text-right">Unit Lost</th>
-              <th className="text-right">Factor</th>
               <th className="text-right">Maintenance Fee</th>
               <th>Usage Type</th>
               <th className="text-center">Actions</th>
@@ -162,18 +159,15 @@ export default function MeterSetupPage() {
           </thead>
           <tbody>
             {isFetching && meters.length === 0 ? (
-              <tr><td colSpan={10} className="billing-empty">Loading…</td></tr>
+              <tr><td colSpan={7} className="billing-empty">Loading…</td></tr>
             ) : meters.length === 0 ? (
-              <tr><td colSpan={10} className="billing-empty">No meters set up yet</td></tr>
+              <tr><td colSpan={7} className="billing-empty">No meters set up yet</td></tr>
             ) : meters.map((m) => (
               <tr key={m.id}>
                 <td><span className="cell-primary">{m.property.name}</span></td>
                 <td>{labelFor(METER_TYPES, m.meterType)}</td>
                 <td><span className="cell-mono">{m.meterNo}</span></td>
                 <td>{labelFor(CATEGORIES, m.category)}</td>
-                <td className="text-right">{m.horsePower ?? '—'}</td>
-                <td className="text-right">{m.unitLostPct ? `${m.unitLostPct}%` : '—'}</td>
-                <td className="text-right">{m.factor ?? '—'}</td>
                 <td className="text-right">{m.maintenanceFee ? Number(m.maintenanceFee).toFixed(2) : '—'}</td>
                 <td>{m.usageType ? labelFor(USAGE_TYPES, m.usageType) : '—'}</td>
                 <td className="text-center">

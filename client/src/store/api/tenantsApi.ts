@@ -63,12 +63,14 @@ export interface TenantDetail {
   displayName: string;
   firstName: string | null;
   lastName: string | null;
+  fatherName: string | null;
   dateOfBirth: string | null;
   gender: string | null;
   nationality: string | null;
   idType: string | null;
   idNumber: string | null;
   idExpiryDate: string | null;
+  fatherNrc: string | null;
   companyName: string | null;
   companyRegNo: string | null;
   companyType: string | null;
