@@ -123,7 +123,7 @@ export default function PropertyDetailPage() {
         <div className="stat-item"><span className="stat-val">{property.currency}</span><span className="stat-lbl">Currency</span></div>
         <div className="stat-item"><span className="stat-val">{property.billingCycle}</span><span className="stat-lbl">Billing Cycle</span></div>
         {property.yearBuilt && <div className="stat-item"><span className="stat-val">{property.yearBuilt}</span><span className="stat-lbl">Year Built</span></div>}
-        {property.totalFloors && <div className="stat-item"><span className="stat-val">{property.totalFloors}</span><span className="stat-lbl">Floors</span></div>}
+        <div className="stat-item"><span className="stat-val">{property.totalFloors ?? '—'}</span><span className="stat-lbl">Floors</span></div>
       </div>
 
       {/* Tab navigation */}
@@ -210,7 +210,7 @@ function OverviewTab({ property }: { property: any }) {
           {property.legalName && <div className="info-row"><span className="label">Legal Name</span><span>{property.legalName}</span></div>}
           {property.registrationNo && <div className="info-row"><span className="label">Registration No.</span><span>{property.registrationNo}</span></div>}
           {property.yearBuilt && <div className="info-row"><span className="label">Year Built</span><span>{property.yearBuilt}</span></div>}
-          {property.totalFloors && <div className="info-row"><span className="label">Total Floors</span><span>{property.totalFloors}</span></div>}
+          <div className="info-row"><span className="label">Total Floors</span><span>{property.totalFloors ?? '—'}</span></div>
           {property.totalAreaSqm && <div className="info-row"><span className="label">Area (sqm)</span><span>{Number(property.totalAreaSqm).toLocaleString()}</span></div>}
           {property.totalAreaSqft && <div className="info-row"><span className="label">Area (sqft)</span><span>{Number(property.totalAreaSqft).toLocaleString()}</span></div>}
         </div>

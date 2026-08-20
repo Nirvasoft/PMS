@@ -107,6 +107,7 @@ export default function CreatePropertyPage() {
 
   const canNext = (): boolean => {
     if (step === 1) return !!(form.name.trim() && form.propertyType);
+    if (step === 3) return !!(form.totalFloors && Number(form.totalFloors) >= 1);
     return true;
   };
 
@@ -156,7 +157,8 @@ export default function CreatePropertyPage() {
       toast.success(`Property "${res.data.name}" created`);
       navigate(`/admin/properties/${pid}`);
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed to create property');
+      console.error('Create property error:', e);
+      toast.error(e?.data?.errors?.[0]?.message || e?.data?.message || 'Failed to create property');
     }
   };
 
@@ -319,7 +321,7 @@ export default function CreatePropertyPage() {
                 <input type="number" min={1800} max={new Date().getFullYear()} placeholder="e.g. 2018" value={form.yearBuilt} onChange={e => set('yearBuilt', e.target.value)} />
               </div>
               <div className="cp-field">
-                <label>Total Floors</label>
+                <label>Total Floors *</label>
                 <input type="number" min={1} placeholder="e.g. 32" value={form.totalFloors} onChange={e => set('totalFloors', e.target.value)} />
               </div>
               <div className="cp-field">
@@ -427,6 +429,7 @@ export default function CreatePropertyPage() {
                 <ReviewRow label="Name" value={form.name} />
                 <ReviewRow label="Type" value={form.propertyType} />
                 <ReviewRow label="Code" value={form.code || 'Auto-generated'} />
+                <ReviewRow label="Total Floors" value={form.totalFloors} />
                 <ReviewRow label="Location" value={[form.city, form.country].filter(Boolean).join(', ') || '—'} />
                 <ReviewRow label="Branch" value={branches.find(b => b.id === form.branchId)?.name || '—'} />
                 <ReviewRow label="Facilities" value={`${selectedFacilities.length} selected`} />

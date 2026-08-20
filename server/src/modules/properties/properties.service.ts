@@ -139,8 +139,13 @@ export class PropertiesService {
       }
     }
 
+    // Strip undefined values so Prisma v6 strict mode doesn't reject them
+    const cleanDto = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== undefined),
+    );
+
     const property = await prisma.property.create({
-      data: { companyId, ...(dto as any) },
+      data: { companyId, ...cleanDto } as any,
     });
 
     // Record initial status
