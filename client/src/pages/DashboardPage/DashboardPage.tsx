@@ -16,13 +16,16 @@ import {
   Store, TrendingUp, DollarSign, Coins,
   Zap, Gavel, CreditCard, Palette,
   Plug, Webhook, Server, DoorOpen, QrCode, ShoppingCart, Gauge,
+  PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
 import ExpiringDocumentsWidget from '../../components/widgets/ExpiringDocumentsWidget';
-import { useState, useCallback, useEffect, type ReactNode, Component, lazy, Suspense } from 'react';
+import { useState, useCallback, type ReactNode, Component, lazy, Suspense } from 'react';
+
+const SIDEBAR_COLLAPSED_WIDTH = 64;
 
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
@@ -46,8 +49,8 @@ class DashboardErrorBoundary extends Component<{ children: ReactNode }, { hasErr
 
 // ─── Collapsible Nav Section ──────────────────
 
-function NavSection({ label, children, defaultOpen = false, storageKey }: {
-  label: string; children: ReactNode; defaultOpen?: boolean; storageKey: string;
+function NavSection({ label, children, defaultOpen = false, storageKey, isCollapsed }: {
+  label: string; children: ReactNode; defaultOpen?: boolean; storageKey: string; isCollapsed?: boolean;
 }) {
   const [open, setOpen] = useState(() => {
     const saved = localStorage.getItem(`nav-section-${storageKey}`);
@@ -61,6 +64,11 @@ function NavSection({ label, children, defaultOpen = false, storageKey }: {
       return next;
     });
   }, [storageKey]);
+
+  // In collapsed mode, show all nav items without section headers
+  if (isCollapsed) {
+    return <div className="nav-section nav-section--collapsed">{children}</div>;
+  }
 
   return (
     <div className="nav-section">
@@ -85,6 +93,21 @@ export default function DashboardLayout() {
   const [logout] = useLogoutMutation();
   useRealtimeNotifications(); // Real-time WS notifications
 
+  // ── Sidebar Collapse State ──
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    const saved = localStorage.getItem('sidebar-collapsed');
+    return saved === '1';
+  });
+
+
+  const toggleCollapse = useCallback(() => {
+    setIsCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('sidebar-collapsed', next ? '1' : '0');
+      return next;
+    });
+  }, []);
+
   const handleLogout = async () => {
     await logout({ allDevices: false });
     toast.success('Signed out successfully');
@@ -93,88 +116,116 @@ export default function DashboardLayout() {
 
   return (
     <div className="app-layout">
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <Building2 size={28} />
-          <span className="sidebar-brand">PMS</span>
+      <aside
+        className={`sidebar${isCollapsed ? ' sidebar--collapsed' : ''}`}
+        style={isCollapsed ? { width: SIDEBAR_COLLAPSED_WIDTH } : undefined}
+      >
+        {/* Header */}
+        <div
+          className={`sidebar-header${isCollapsed ? ' sidebar-header--collapsed' : ''}`}
+          onClick={isCollapsed ? toggleCollapse : undefined}
+        >
+          {/* Logo icon — swaps to expand arrow on hover when collapsed */}
+          <span className="sidebar-logo-wrap">
+            <Building2 size={26} className="sidebar-logo-icon logo-default" />
+            {isCollapsed && <PanelLeftOpen size={26} className="logo-hover" />}
+          </span>
+          {!isCollapsed && <span className="sidebar-brand">PMS</span>}
+          {/* Toggle button — only visible when expanded */}
+          {!isCollapsed && (
+            <button
+              className="sidebar-collapse-btn"
+              onClick={toggleCollapse}
+              title="Collapse sidebar"
+            >
+              <PanelLeftClose size={26} />
+            </button>
+          )}
         </div>
 
         {/* Property Selector */}
         {properties.length > 0 && (
-          <div className="sidebar-property-selector">
-            <label htmlFor="sidebar-prop-select">Active Property</label>
-            <select
-              id="sidebar-prop-select"
-              value={selectedPropertyId || properties[0]?.id || ''}
-              onChange={(e) => dispatch(setSelectedProperty(e.target.value))}
-              className="sidebar-property-dropdown"
-            >
-              {properties.map((p: any) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.code})
-                </option>
-              ))}
-            </select>
+          <div className={`sidebar-property-selector${isCollapsed ? ' sidebar-property-selector--collapsed' : ''}`}>
+            {!isCollapsed && <label htmlFor="sidebar-prop-select">Active Property</label>}
+            {isCollapsed ? (
+              <div className="sidebar-property-icon" title={properties.find((p: any) => p.id === (selectedPropertyId || properties[0]?.id))?.name || 'Property'}>
+                <Home size={16} />
+              </div>
+            ) : (
+              <select
+                id="sidebar-prop-select"
+                value={selectedPropertyId || properties[0]?.id || ''}
+                onChange={(e) => dispatch(setSelectedProperty(e.target.value))}
+                className="sidebar-property-dropdown"
+              >
+                {properties.map((p: any) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.code})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         )}
 
-        <nav className="sidebar-nav">
-          <NavLink to="/dashboard" end className="nav-item">
+        <nav className={`sidebar-nav${isCollapsed ? ' sidebar-nav--collapsed' : ''}`}>
+          <NavLink to="/dashboard" end className="nav-item" title="Dashboard">
             <LayoutDashboard size={18} />
-            <span>Dashboard</span>
+            {!isCollapsed && <span>Dashboard</span>}
           </NavLink>
 
+
           {/* Admin Section */}
-          <NavSection label="Administration" storageKey="admin" defaultOpen>
+          <NavSection label="Administration" storageKey="admin" defaultOpen isCollapsed={isCollapsed}>
             <PermissionGuard permission="users.read">
-              <NavLink to="/admin/users" className="nav-item">
+              <NavLink to="/admin/users" className="nav-item" title="Users">
                 <Users size={18} />
                 <span>Users</span>
               </NavLink>
             </PermissionGuard>
             <PermissionGuard permission="roles.read">
-              <NavLink to="/admin/roles" className="nav-item">
+              <NavLink to="/admin/roles" className="nav-item" title="Roles & Permissions">
                 <Key size={18} />
                 <span>Roles & Permissions</span>
               </NavLink>
             </PermissionGuard>
             <PermissionGuard permission="departments.read">
-              <NavLink to="/admin/departments" className="nav-item">
+              <NavLink to="/admin/departments" className="nav-item" title="Departments">
                 <GitBranch size={18} />
                 <span>Departments</span>
               </NavLink>
             </PermissionGuard>
-            <NavLink to="/admin/positions" className="nav-item">
+            <NavLink to="/admin/positions" className="nav-item" title="Positions">
               <Briefcase size={18} />
               <span>Positions</span>
             </NavLink>
           </NavSection>
 
           {/* Organization Section */}
-          <NavSection label="Organization" storageKey="org" defaultOpen>
-            <NavLink to="/admin/company" className="nav-item">
+          <NavSection label="Organization" storageKey="org" defaultOpen isCollapsed={isCollapsed}>
+            <NavLink to="/admin/company" className="nav-item" title="Company">
               <Building2 size={18} />
               <span>Company</span>
             </NavLink>
             <PermissionGuard permission="properties.read">
-              <NavLink to="/admin/properties" end className="nav-item">
+              <NavLink to="/admin/properties" end className="nav-item" title="Properties">
                 <Home size={18} />
                 <span>Properties</span>
               </NavLink>
-              <NavLink to="/admin/properties/floor-setup" className="nav-item">
+              <NavLink to="/admin/properties/floor-setup" className="nav-item" title="Floor Setup">
                 <Layers size={18} />
                 <span>Floor Setup</span>
               </NavLink>
             </PermissionGuard>
             <PermissionGuard permission="tenants.read">
-              <NavLink to="/admin/tenants" className="nav-item">
+              <NavLink to="/admin/tenants" className="nav-item" title="Tenants">
                 <Users2 size={18} />
                 <span>Tenants</span>
               </NavLink>
             </PermissionGuard>
             <FeatureGate flag="leasingEnabled">
               <PermissionGuard permission="leases.read">
-                <NavLink to="/admin/leases" className="nav-item">
+                <NavLink to="/admin/leases" className="nav-item" title="Leases">
                   <ClipboardList size={18} />
                   <span>Leases</span>
                 </NavLink>
@@ -184,12 +235,12 @@ export default function DashboardLayout() {
 
           {/* CRM Section */}
           <FeatureGate flag="crmEnabled">
-            <NavSection label="CRM" storageKey="crm" defaultOpen>
-              <NavLink to="/admin/crm/leads" className="nav-item">
+            <NavSection label="CRM" storageKey="crm" defaultOpen isCollapsed={isCollapsed}>
+              <NavLink to="/admin/crm/leads" className="nav-item" title="Lead Pipeline">
                 <Target size={18} />
                 <span>Lead Pipeline</span>
               </NavLink>
-              <NavLink to="/admin/crm/campaigns" className="nav-item">
+              <NavLink to="/admin/crm/campaigns" className="nav-item" title="Campaigns">
                 <Megaphone size={18} />
                 <span>Campaigns</span>
               </NavLink>
@@ -198,157 +249,157 @@ export default function DashboardLayout() {
 
           {/* Parking Section */}
           <FeatureGate flag="parkingEnabled">
-            <NavSection label="Parking" storageKey="parking">
-              <NavLink to="/admin/parking" className="nav-item">
+            <NavSection label="Parking" storageKey="parking" isCollapsed={isCollapsed}>
+              <NavLink to="/admin/parking" className="nav-item" title="Parking Overview">
                 <Car size={18} />
                 <span>Parking Overview</span>
               </NavLink>
-              <NavLink to="/admin/parking/allocations" className="nav-item">
+              <NavLink to="/admin/parking/allocations" className="nav-item" title="Allocations">
                 <Link2 size={18} />
                 <span>Allocations</span>
               </NavLink>
-              <NavLink to="/admin/parking/visitors" className="nav-item">
-                <span className="nav-icon"><Ticket size={16} /></span>
-                <span className="nav-label">Visitor Parking</span>
+              <NavLink to="/admin/parking/visitors" className="nav-item" title="Visitor Parking">
+                <Ticket size={18} />
+                <span>Visitor Parking</span>
               </NavLink>
-              <NavLink to="/admin/parking/gate-logs" className="nav-item">
-                <span className="nav-icon"><Activity size={16} /></span>
-                <span className="nav-label">Gate Logs</span>
+              <NavLink to="/admin/parking/gate-logs" className="nav-item" title="Gate Logs">
+                <Activity size={18} />
+                <span>Gate Logs</span>
               </NavLink>
-              <NavLink to="/admin/parking/vehicles" className="nav-item">
-                <span className="nav-icon"><Car size={16} /></span>
-                <span className="nav-label">Vehicle Registry</span>
+              <NavLink to="/admin/parking/vehicles" className="nav-item" title="Vehicle Registry">
+                <Car size={18} />
+                <span>Vehicle Registry</span>
               </NavLink>
             </NavSection>
           </FeatureGate>
 
           {/* Billing Section */}
-          <NavSection label="Billing" storageKey="billing" defaultOpen>
-            <NavLink to="/admin/billing/dashboard" className="nav-item">
+          <NavSection label="Billing" storageKey="billing" defaultOpen isCollapsed={isCollapsed}>
+            <NavLink to="/admin/billing/dashboard" className="nav-item" title="Dashboard">
               <LayoutDashboard size={18} />
               <span>Dashboard</span>
             </NavLink>
-            <NavLink to="/admin/billing/invoices" className="nav-item">
+            <NavLink to="/admin/billing/invoices" className="nav-item" title="Invoices">
               <Receipt size={18} />
               <span>Invoices</span>
             </NavLink>
-            <NavLink to="/admin/billing/schedules" className="nav-item">
+            <NavLink to="/admin/billing/schedules" className="nav-item" title="Schedules">
               <CalendarClock size={18} />
               <span>Schedules</span>
             </NavLink>
-            <NavLink to="/admin/billing/charge-types" className="nav-item">
+            <NavLink to="/admin/billing/charge-types" className="nav-item" title="Charge Types">
               <DollarSign size={18} />
               <span>Charge Types</span>
             </NavLink>
-            <NavLink to="/admin/billing/meter-setup" className="nav-item">
+            <NavLink to="/admin/billing/meter-setup" className="nav-item" title="Meter Setup">
               <Gauge size={18} />
               <span>Meter Setup</span>
             </NavLink>
-            <NavLink to="/admin/billing/settings" className="nav-item">
+            <NavLink to="/admin/billing/settings" className="nav-item" title="Settings">
               <Settings size={18} />
               <span>Settings</span>
             </NavLink>
           </NavSection>
 
           {/* Accounts Receivable Section */}
-          <NavSection label="Accounts Receivable" storageKey="ar" defaultOpen>
-            <NavLink to="/admin/ar/receipts" className="nav-item">
+          <NavSection label="Accounts Receivable" storageKey="ar" defaultOpen isCollapsed={isCollapsed}>
+            <NavLink to="/admin/ar/receipts" className="nav-item" title="Receipts">
               <Banknote size={18} />
               <span>Receipts</span>
             </NavLink>
-            <NavLink to="/admin/ar/aging" className="nav-item">
+            <NavLink to="/admin/ar/aging" className="nav-item" title="Aging Report">
               <Clock size={18} />
               <span>Aging Report</span>
             </NavLink>
-            <NavLink to="/admin/ar/collections" className="nav-item">
+            <NavLink to="/admin/ar/collections" className="nav-item" title="Collections">
               <BarChart3 size={18} />
               <span>Collections</span>
             </NavLink>
-            <NavLink to="/admin/ar/refunds" className="nav-item">
+            <NavLink to="/admin/ar/refunds" className="nav-item" title="Refunds">
               <RotateCcw size={18} />
               <span>Refunds</span>
             </NavLink>
-            <NavLink to="/admin/ar/statements" className="nav-item">
+            <NavLink to="/admin/ar/statements" className="nav-item" title="Statements">
               <FileText size={18} />
               <span>Statements</span>
             </NavLink>
-            <NavLink to="/admin/ar/credits" className="nav-item">
+            <NavLink to="/admin/ar/credits" className="nav-item" title="Tenant Credits">
               <Coins size={18} />
               <span>Tenant Credits</span>
             </NavLink>
           </NavSection>
 
           {/* Accounts Payable Section */}
-          <NavSection label="Accounts Payable" storageKey="ap" defaultOpen>
-            <NavLink to="/admin/ap/invoices" className="nav-item">
+          <NavSection label="Accounts Payable" storageKey="ap" defaultOpen isCollapsed={isCollapsed}>
+            <NavLink to="/admin/ap/invoices" className="nav-item" title="AP Invoices">
               <FileText size={18} />
               <span>AP Invoices</span>
             </NavLink>
-            <NavLink to="/admin/ap/vouchers" className="nav-item">
+            <NavLink to="/admin/ap/vouchers" className="nav-item" title="Payment Vouchers">
               <Wallet size={18} />
               <span>Payment Vouchers</span>
             </NavLink>
-            <NavLink to="/admin/ap/expenses" className="nav-item">
+            <NavLink to="/admin/ap/expenses" className="nav-item" title="Expenses">
               <Receipt size={18} />
               <span>Expenses</span>
             </NavLink>
           </NavSection>
 
           {/* Finance / GL Section */}
-          <NavSection label="Finance" storageKey="finance" defaultOpen>
-            <NavLink to="/admin/gl/accounts" className="nav-item">
+          <NavSection label="Finance" storageKey="finance" defaultOpen isCollapsed={isCollapsed}>
+            <NavLink to="/admin/gl/accounts" className="nav-item" title="Chart of Accounts">
               <BookOpen size={18} />
               <span>Chart of Accounts</span>
             </NavLink>
-            <NavLink to="/admin/gl/journal-entries" className="nav-item">
+            <NavLink to="/admin/gl/journal-entries" className="nav-item" title="Journal Entries">
               <ClipboardList size={18} />
               <span>Journal Entries</span>
             </NavLink>
-            <NavLink to="/admin/gl/fiscal-periods" className="nav-item">
+            <NavLink to="/admin/gl/fiscal-periods" className="nav-item" title="Fiscal Periods">
               <CalendarClock size={18} />
               <span>Fiscal Periods</span>
             </NavLink>
-            <NavLink to="/admin/gl/trial-balance" className="nav-item">
+            <NavLink to="/admin/gl/trial-balance" className="nav-item" title="Trial Balance">
               <Scale size={18} />
               <span>Trial Balance</span>
             </NavLink>
-            <NavLink to="/admin/gl/pnl" className="nav-item">
+            <NavLink to="/admin/gl/pnl" className="nav-item" title="Profit & Loss">
               <PieChart size={18} />
               <span>Profit & Loss</span>
             </NavLink>
-            <NavLink to="/admin/gl/balance-sheet" className="nav-item">
+            <NavLink to="/admin/gl/balance-sheet" className="nav-item" title="Balance Sheet">
               <Landmark size={18} />
               <span>Balance Sheet</span>
             </NavLink>
-            <NavLink to="/admin/gl/cash-flow" className="nav-item">
+            <NavLink to="/admin/gl/cash-flow" className="nav-item" title="Cash Flow">
               <Banknote size={18} />
               <span>Cash Flow</span>
             </NavLink>
-            <NavLink to="/admin/budgets" className="nav-item">
+            <NavLink to="/admin/budgets" className="nav-item" title="Budgets">
               <Wallet size={18} />
               <span>Budgets</span>
             </NavLink>
-            <NavLink to="/admin/assets" className="nav-item">
+            <NavLink to="/admin/assets" className="nav-item" title="Fixed Assets">
               <Box size={18} />
               <span>Fixed Assets</span>
             </NavLink>
-            <NavLink to="/admin/banking" className="nav-item">
+            <NavLink to="/admin/banking" className="nav-item" title="Banking">
               <Building2 size={18} />
               <span>Banking</span>
             </NavLink>
-            <NavLink to="/admin/banking/gateway-transactions" className="nav-item">
+            <NavLink to="/admin/banking/gateway-transactions" className="nav-item" title="Gateway Payments">
               <Zap size={18} />
               <span>Gateway Payments</span>
             </NavLink>
           </NavSection>
 
           <FeatureGate flag="workflowEnabled">
-            <NavSection label="Workflows" storageKey="wf">
-              <NavLink to="/tasks" className="nav-item">
+            <NavSection label="Workflows" storageKey="wf" isCollapsed={isCollapsed}>
+              <NavLink to="/tasks" className="nav-item" title="My Tasks">
                 <Inbox size={18} />
                 <span>My Tasks</span>
               </NavLink>
-              <NavLink to="/admin/workflows" className="nav-item">
+              <NavLink to="/admin/workflows" className="nav-item" title="Workflow Engine">
                 <Workflow size={18} />
                 <span>Workflow Engine</span>
               </NavLink>
@@ -357,28 +408,28 @@ export default function DashboardLayout() {
 
           {/* Maintenance Section */}
           <FeatureGate flag="maintenanceEnabled">
-            <NavSection label="Maintenance" storageKey="maintenance">
+            <NavSection label="Maintenance" storageKey="maintenance" isCollapsed={isCollapsed}>
               <NavLink to="/admin/maintenance" className="nav-item" end>
                 <BarChart3 size={18} />
                 <span>Dashboard</span>
               </NavLink>
-              <NavLink to="/admin/maintenance/tickets" className="nav-item">
+              <NavLink to="/admin/maintenance/tickets" className="nav-item" title="Tickets">
                 <Wrench size={18} />
                 <span>Tickets</span>
               </NavLink>
-              <NavLink to="/admin/maintenance/technicians" className="nav-item">
+              <NavLink to="/admin/maintenance/technicians" className="nav-item" title="Technician Schedule">
                 <Calendar size={18} />
                 <span>Technician Schedule</span>
               </NavLink>
-              <NavLink to="/admin/maintenance/sla-config" className="nav-item">
+              <NavLink to="/admin/maintenance/sla-config" className="nav-item" title="SLA Configuration">
                 <Shield size={18} />
                 <span>SLA Configuration</span>
               </NavLink>
-              <NavLink to="/admin/maintenance/pm" className="nav-item">
+              <NavLink to="/admin/maintenance/pm" className="nav-item" title="PM Schedules">
                 <CalendarClock size={18} />
                 <span>PM Schedules</span>
               </NavLink>
-              <NavLink to="/admin/maintenance/pm/calendar" className="nav-item">
+              <NavLink to="/admin/maintenance/pm/calendar" className="nav-item" title="PM Calendar">
                 <Calendar size={18} />
                 <span>PM Calendar</span>
               </NavLink>
@@ -387,16 +438,16 @@ export default function DashboardLayout() {
 
           {/* Facility Management Section */}
           <FeatureGate flag="maintenanceEnabled">
-            <NavSection label="Facility" storageKey="facility">
-              <NavLink to="/admin/facility/assets" className="nav-item">
+            <NavSection label="Facility" storageKey="facility" isCollapsed={isCollapsed}>
+              <NavLink to="/admin/facility/assets" className="nav-item" title="Asset Registry">
                 <Box size={18} />
                 <span>Asset Registry</span>
               </NavLink>
-              <NavLink to="/admin/facility/cam-costs" className="nav-item">
+              <NavLink to="/admin/facility/cam-costs" className="nav-item" title="CAM Costs">
                 <Receipt size={18} />
                 <span>CAM Costs</span>
               </NavLink>
-              <NavLink to="/admin/facility/schedule" className="nav-item">
+              <NavLink to="/admin/facility/schedule" className="nav-item" title="Booking Schedule">
                 <CalendarDays size={18} />
                 <span>Booking Schedule</span>
               </NavLink>
@@ -405,28 +456,28 @@ export default function DashboardLayout() {
 
           {/* Inventory Section */}
           <FeatureGate flag="maintenanceEnabled">
-            <NavSection label="Inventory" storageKey="inventory">
-              <NavLink to="/admin/inventory/dashboard" className="nav-item">
+            <NavSection label="Inventory" storageKey="inventory" isCollapsed={isCollapsed}>
+              <NavLink to="/admin/inventory/dashboard" className="nav-item" title="Dashboard">
                 <LayoutDashboard size={18} />
                 <span>Dashboard</span>
               </NavLink>
-              <NavLink to="/admin/inventory/items" className="nav-item">
+              <NavLink to="/admin/inventory/items" className="nav-item" title="Item Catalog">
                 <Package size={18} />
                 <span>Item Catalog</span>
               </NavLink>
-              <NavLink to="/admin/inventory/stock" className="nav-item">
+              <NavLink to="/admin/inventory/stock" className="nav-item" title="Stock Levels">
                 <Layers size={18} />
                 <span>Stock Levels</span>
               </NavLink>
-              <NavLink to="/admin/inventory/stores" className="nav-item">
+              <NavLink to="/admin/inventory/stores" className="nav-item" title="Stores">
                 <Store size={18} />
                 <span>Stores</span>
               </NavLink>
-              <NavLink to="/admin/inventory/movements" className="nav-item">
+              <NavLink to="/admin/inventory/movements" className="nav-item" title="Movements">
                 <Activity size={18} />
                 <span>Movements</span>
               </NavLink>
-              <NavLink to="/admin/inventory/purchase-requisitions" className="nav-item">
+              <NavLink to="/admin/inventory/purchase-requisitions" className="nav-item" title="Purchase Requisitions">
                 <ClipboardList size={18} />
                 <span>Purchase Requisitions</span>
               </NavLink>
@@ -435,24 +486,24 @@ export default function DashboardLayout() {
 
           {/* Housekeeping Section */}
           <FeatureGate flag="maintenanceEnabled">
-            <NavSection label="Housekeeping" storageKey="housekeeping">
-              <NavLink to="/admin/housekeeping/dashboard" className="nav-item">
+            <NavSection label="Housekeeping" storageKey="housekeeping" isCollapsed={isCollapsed}>
+              <NavLink to="/admin/housekeeping/dashboard" className="nav-item" title="Dashboard">
                 <LayoutDashboard size={18} />
                 <span>Dashboard</span>
               </NavLink>
-              <NavLink to="/admin/housekeeping" className="nav-item">
+              <NavLink to="/admin/housekeeping" className="nav-item" title="Tasks">
                 <Sparkles size={18} />
                 <span>Tasks</span>
               </NavLink>
-              <NavLink to="/admin/housekeeping/schedules" className="nav-item">
+              <NavLink to="/admin/housekeeping/schedules" className="nav-item" title="Schedules">
                 <Calendar size={18} />
                 <span>Schedules</span>
               </NavLink>
-              <NavLink to="/admin/housekeeping/zones" className="nav-item">
+              <NavLink to="/admin/housekeeping/zones" className="nav-item" title="Zones">
                 <MapPin size={18} />
                 <span>Zones</span>
               </NavLink>
-              <NavLink to="/admin/housekeeping/inspections" className="nav-item">
+              <NavLink to="/admin/housekeeping/inspections" className="nav-item" title="Inspections">
                 <ClipboardCheck size={18} />
                 <span>Inspections</span>
               </NavLink>
@@ -461,32 +512,32 @@ export default function DashboardLayout() {
 
           {/* Security Section */}
           <FeatureGate flag="maintenanceEnabled">
-            <NavSection label="Security" storageKey="security">
-              <NavLink to="/admin/security/dashboard" className="nav-item">
+            <NavSection label="Security" storageKey="security" isCollapsed={isCollapsed}>
+              <NavLink to="/admin/security/dashboard" className="nav-item" title="Dashboard">
                 <LayoutDashboard size={18} />
                 <span>Dashboard</span>
               </NavLink>
-              <NavLink to="/admin/security/incidents" className="nav-item">
+              <NavLink to="/admin/security/incidents" className="nav-item" title="Incidents">
                 <Shield size={18} />
                 <span>Incidents</span>
               </NavLink>
-              <NavLink to="/admin/security/patrol" className="nav-item">
+              <NavLink to="/admin/security/patrol" className="nav-item" title="Patrol Logs">
                 <MapPin size={18} />
                 <span>Patrol Logs</span>
               </NavLink>
-              <NavLink to="/admin/security/patrol/schedules" className="nav-item">
+              <NavLink to="/admin/security/patrol/schedules" className="nav-item" title="Patrol Schedules">
                 <Clock size={18} />
                 <span>Patrol Schedules</span>
               </NavLink>
-              <NavLink to="/admin/security/patrol/scan" className="nav-item">
+              <NavLink to="/admin/security/patrol/scan" className="nav-item" title="Patrol Scan">
                 <QrCode size={18} />
                 <span>Patrol Scan</span>
               </NavLink>
-              <NavLink to="/admin/security/access-events" className="nav-item">
+              <NavLink to="/admin/security/access-events" className="nav-item" title="Access Events">
                 <DoorOpen size={18} />
                 <span>Access Events</span>
               </NavLink>
-              <NavLink to="/admin/security/blacklist" className="nav-item">
+              <NavLink to="/admin/security/blacklist" className="nav-item" title="Visitor Blacklist">
                 <Shield size={18} />
                 <span>Visitor Blacklist</span>
               </NavLink>
@@ -495,8 +546,8 @@ export default function DashboardLayout() {
 
           {/* Documents Section */}
           <FeatureGate flag="documentVaultEnabled">
-            <NavSection label="Documents" storageKey="docs">
-              <NavLink to="/documents" className="nav-item">
+            <NavSection label="Documents" storageKey="docs" isCollapsed={isCollapsed}>
+              <NavLink to="/documents" className="nav-item" title="Document Vault">
                 <FolderOpen size={18} />
                 <span>Document Vault</span>
               </NavLink>
@@ -504,13 +555,13 @@ export default function DashboardLayout() {
           </FeatureGate>
 
           {/* Notifications Section */}
-          <NavSection label="Notifications" storageKey="notif">
-            <NavLink to="/notifications" className="nav-item">
+          <NavSection label="Notifications" storageKey="notif" isCollapsed={isCollapsed}>
+            <NavLink to="/notifications" className="nav-item" title="All Notifications">
               <Bell size={18} />
               <span>All Notifications</span>
             </NavLink>
             <FeatureGate flag="notificationsAdminEnabled">
-              <NavLink to="/admin/notifications" className="nav-item">
+              <NavLink to="/admin/notifications" className="nav-item" title="Logs & Templates">
                 <FileText size={18} />
                 <span>Logs & Templates</span>
               </NavLink>
@@ -519,56 +570,56 @@ export default function DashboardLayout() {
 
           {/* Mall Section */}
           <FeatureGate flag="mallModuleEnabled">
-            <NavSection label="Shopping Mall" storageKey="mall">
+            <NavSection label="Shopping Mall" storageKey="mall" isCollapsed={isCollapsed}>
               <NavLink to="/admin/mall" className="nav-item" end>
                 <Store size={18} />
                 <span>Mall Dashboard</span>
               </NavLink>
-              <NavLink to="/admin/mall/shops" className="nav-item">
+              <NavLink to="/admin/mall/shops" className="nav-item" title="Shop Directory">
                 <Building2 size={18} />
                 <span>Shop Directory</span>
               </NavLink>
-              <NavLink to="/admin/mall/gto" className="nav-item">
+              <NavLink to="/admin/mall/gto" className="nav-item" title="GTO Management">
                 <TrendingUp size={18} />
                 <span>GTO Management</span>
               </NavLink>
-              <NavLink to="/admin/mall/cam" className="nav-item">
+              <NavLink to="/admin/mall/cam" className="nav-item" title="CAM Management">
                 <DollarSign size={18} />
                 <span>CAM Management</span>
               </NavLink>
-              <NavLink to="/admin/mall/events" className="nav-item">
+              <NavLink to="/admin/mall/events" className="nav-item" title="Events">
                 <Calendar size={18} />
                 <span>Events</span>
               </NavLink>
-              <NavLink to="/admin/mall/footfall" className="nav-item">
+              <NavLink to="/admin/mall/footfall" className="nav-item" title="Footfall Analytics">
                 <Activity size={18} />
                 <span>Footfall Analytics</span>
               </NavLink>
-              <NavLink to="/admin/mall/pos" className="nav-item">
+              <NavLink to="/admin/mall/pos" className="nav-item" title="POS Integration">
                 <ShoppingCart size={18} />
                 <span>POS Integration</span>
               </NavLink>
             </NavSection>
           </FeatureGate>
           {/* Community Section */}
-          <NavSection label="Community" storageKey="community">
-            <NavLink to="/admin/community" className="nav-item">
+          <NavSection label="Community" storageKey="community" isCollapsed={isCollapsed}>
+            <NavLink to="/admin/community" className="nav-item" title="Community Admin">
               <Megaphone size={18} />
               <span>Community Admin</span>
             </NavLink>
-            <NavLink to="/admin/portal/quick-actions" className="nav-item">
+            <NavLink to="/admin/portal/quick-actions" className="nav-item" title="Portal Quick Actions">
               <Zap size={18} />
               <span>Portal Quick Actions</span>
             </NavLink>
-            <NavLink to="/admin/portal/analytics" className="nav-item">
+            <NavLink to="/admin/portal/analytics" className="nav-item" title="Portal Analytics">
               <Activity size={18} />
               <span>Portal Analytics</span>
             </NavLink>
-            <NavLink to="/admin/access-cards" className="nav-item">
+            <NavLink to="/admin/access-cards" className="nav-item" title="Access Cards">
               <CreditCard size={18} />
               <span>Access Cards</span>
             </NavLink>
-            <NavLink to="/admin/portal/branding" className="nav-item">
+            <NavLink to="/admin/portal/branding" className="nav-item" title="Portal Branding">
               <Palette size={18} />
               <span>Portal Branding</span>
             </NavLink>
@@ -576,102 +627,104 @@ export default function DashboardLayout() {
 
           {/* Condo Section */}
           <FeatureGate flag="condoModuleEnabled">
-            <NavSection label="Condo" storageKey="condo">
-              <NavLink to="/admin/condo/smart-meters" className="nav-item">
+            <NavSection label="Condo" storageKey="condo" isCollapsed={isCollapsed}>
+              <NavLink to="/admin/condo/smart-meters" className="nav-item" title="Smart Meters">
                 <Zap size={18} />
                 <span>Smart Meters</span>
               </NavLink>
-              <NavLink to="/admin/condo/funds" className="nav-item">
+              <NavLink to="/admin/condo/funds" className="nav-item" title="Funds">
                 <Wallet size={18} />
                 <span>Funds</span>
               </NavLink>
-              <NavLink to="/admin/condo/meetings" className="nav-item">
+              <NavLink to="/admin/condo/meetings" className="nav-item" title="Meetings (AGM)">
                 <Users2 size={18} />
                 <span>Meetings (AGM)</span>
               </NavLink>
-              <NavLink to="/admin/condo/bylaws" className="nav-item">
+              <NavLink to="/admin/condo/bylaws" className="nav-item" title="By-Laws">
                 <Gavel size={18} />
                 <span>By-Laws</span>
               </NavLink>
             </NavSection>
           </FeatureGate>
-          <NavSection label="Tenant Portal" storageKey="portal">
-            <NavLink to="/portal" className="nav-item">
+          <NavSection label="Tenant Portal" storageKey="portal" isCollapsed={isCollapsed}>
+            <NavLink to="/portal" className="nav-item" title="Portal Dashboard">
               <Home size={18} />
               <span>Portal Dashboard</span>
             </NavLink>
           </NavSection>
 
           {/* BI & Analytics */}
-          <NavSection label="Analytics" storageKey="bi">
-            <NavLink to="/admin/bi" className="nav-item">
+          <NavSection label="Analytics" storageKey="bi" isCollapsed={isCollapsed}>
+            <NavLink to="/admin/bi" className="nav-item" title="Executive Dashboard">
               <BarChart3 size={18} />
               <span>Executive Dashboard</span>
             </NavLink>
-            <NavLink to="/admin/bi/reports" className="nav-item">
+            <NavLink to="/admin/bi/reports" className="nav-item" title="BI Reports">
               <PieChart size={18} />
               <span>BI Reports</span>
             </NavLink>
-            <NavLink to="/admin/bi/anomalies" className="nav-item">
+            <NavLink to="/admin/bi/anomalies" className="nav-item" title="Anomaly Dashboard">
               <Activity size={18} />
               <span>Anomaly Dashboard</span>
             </NavLink>
-            <NavLink to="/reports" className="nav-item">
+            <NavLink to="/reports" className="nav-item" title="Reports">
               <FileText size={18} />
               <span>Reports</span>
             </NavLink>
           </NavSection>
 
           {/* Developer / Integrations Section */}
-          <NavSection label="Developer" storageKey="developer">
-            <NavLink to="/admin/developer/integrations" className="nav-item">
+          <NavSection label="Developer" storageKey="developer" isCollapsed={isCollapsed}>
+            <NavLink to="/admin/developer/integrations" className="nav-item" title="Integrations">
               <Plug size={18} />
               <span>Integrations</span>
             </NavLink>
-            <NavLink to="/admin/developer/webhooks" className="nav-item">
+            <NavLink to="/admin/developer/webhooks" className="nav-item" title="Webhooks">
               <Webhook size={18} />
               <span>Webhooks</span>
             </NavLink>
-            <NavLink to="/admin/developer/api-keys" className="nav-item">
+            <NavLink to="/admin/developer/api-keys" className="nav-item" title="API Keys">
               <Key size={18} />
               <span>API Keys</span>
             </NavLink>
-            <NavLink to="/admin/developer/bms" className="nav-item">
+            <NavLink to="/admin/developer/bms" className="nav-item" title="BMS Devices">
               <Server size={18} />
               <span>BMS Devices</span>
             </NavLink>
           </NavSection>
 
           {/* Settings Section */}
-          <NavSection label="Settings" storageKey="settings">
-            <NavLink to="/admin/company" className="nav-item">
+          <NavSection label="Settings" storageKey="settings" isCollapsed={isCollapsed}>
+            <NavLink to="/admin/company" className="nav-item" title="Company & Features">
               <Building2 size={18} />
               <span>Company & Features</span>
             </NavLink>
-            <NavLink to="/settings/security" className="nav-item">
+            <NavLink to="/settings/security" className="nav-item" title="Security">
               <Shield size={18} />
               <span>Security</span>
             </NavLink>
-            <NavLink to="/settings/notifications" className="nav-item">
+            <NavLink to="/settings/notifications" className="nav-item" title="Notification Prefs">
               <Bell size={18} />
               <span>Notification Prefs</span>
             </NavLink>
-            <NavLink to="/settings/profile" className="nav-item">
+            <NavLink to="/settings/profile" className="nav-item" title="My Profile">
               <User size={18} />
               <span>My Profile</span>
             </NavLink>
           </NavSection>
         </nav>
 
-        <div className="sidebar-footer">
-          <div className="user-info">
+        <div className={`sidebar-footer${isCollapsed ? ' sidebar-footer--collapsed' : ''}`}>
+          <div className="user-info" title={isCollapsed ? (user?.email?.split('@')[0] || '') : undefined}>
             <div className="user-avatar">
               <User size={16} />
             </div>
-            <div className="user-details">
-              <span className="user-name">{user?.email?.split('@')[0]}</span>
-              <span className="user-role">{user?.roles?.[0] || 'User'}</span>
-            </div>
+            {!isCollapsed && (
+              <div className="user-details">
+                <span className="user-name">{user?.email?.split('@')[0]}</span>
+                <span className="user-role">{user?.roles?.[0] || 'User'}</span>
+              </div>
+            )}
           </div>
           <button className="btn-icon logout-btn" onClick={handleLogout} title="Sign out">
             <LogOut size={18} />
