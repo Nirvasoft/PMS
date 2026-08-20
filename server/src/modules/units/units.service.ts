@@ -4,7 +4,6 @@ import { logger } from '../../common/logger';
 import { redis } from '../../common/redis';
 import {
   UNIT_TYPES, UNIT_STATUS_TRANSITIONS, SQM_TO_SQFT,
-  UNIT_NUMBER_REGEX, UNIT_NUMBER_MAX_LENGTH,
 } from './seeds/seedData';
 
 // ══════════════════════════════════════════════
@@ -29,12 +28,6 @@ function autoConvertArea(data: Record<string, unknown>) {
   if (sqm  && !sqft) data.areaSqft = Math.round(sqm * SQM_TO_SQFT * 100) / 100;
 }
 
-function validateUnitNumber(unitNumber: string) {
-  if (!UNIT_NUMBER_REGEX.test(unitNumber))
-    throw new AppError(400, 'INVALID_UNIT_NUMBER', 'Unit number may only contain alphanumeric characters, hyphens, and slashes');
-  if (unitNumber.length > UNIT_NUMBER_MAX_LENGTH)
-    throw new AppError(400, 'UNIT_NUMBER_TOO_LONG', `Unit number max length is ${UNIT_NUMBER_MAX_LENGTH}`);
-}
 
 // ══════════════════════════════════════════════
 // TOWERS SERVICE
@@ -228,7 +221,6 @@ export class UnitsService {
   async create(propertyId: string, companyId: string, dto: Record<string, unknown>, userId: string) {
     const { amenities, ...unitData } = dto;
 
-    validateUnitNumber(unitData.unitNumber as string);
     autoConvertArea(unitData);
 
     // Check unique (case-insensitive)
@@ -277,7 +269,6 @@ export class UnitsService {
         for (let u = 1; u <= unitsPerFloor; u++) {
           const unitNum = u.toString().padStart(2, '0');
           const unitNumber = `${floor}${prefix ?? ''}${unitNum}`;
-          validateUnitNumber(unitNumber);
           units.push({
             propertyId, companyId,
             towerId: dto.towerId ?? null,
@@ -339,7 +330,6 @@ export class UnitsService {
     autoConvertArea(unitData);
 
     if (unitData.unitNumber && unitData.unitNumber !== unit.unitNumber) {
-      validateUnitNumber(unitData.unitNumber as string);
       const conflict = await prisma.unit.findFirst({ where: { unitNumber: { equals: unitData.unitNumber as string, mode: 'insensitive' }, propertyId, id: { not: unitId }, deletedAt: null } });
       if (conflict) throw new AppError(409, 'UNIT_NUMBER_TAKEN', `Unit number "${unitData.unitNumber}" already exists`);
     }
