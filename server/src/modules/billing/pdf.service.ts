@@ -3,150 +3,313 @@ import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import puppeteer from 'puppeteer';
 import Handlebars from 'handlebars';
-import path from 'path';
-import fs from 'fs/promises';
 
-const STORAGE_DIR = path.join(process.cwd(), 'storage', 'invoices');
-
-// Register Handlebars helpers
-Handlebars.registerHelper('currency', (amount: any, currency: string) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD' }).format(Number(amount)),
-);
-Handlebars.registerHelper('date', (dateStr: any) => {
-  if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+// ─── Handlebars Helpers ────────────────────────────────────────────────────────
+Handlebars.registerHelper('mmk', (v: any) => {
+  const n = Number(v);
+  return isNaN(n) ? '0.00' : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 });
-Handlebars.registerHelper('pct', (rate: any) => `${(Number(rate) * 100).toFixed(1)}%`);
+Handlebars.registerHelper('n2', (v: any) => {
+  const n = Number(v);
+  if (!n || isNaN(n)) return '';
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+});
+Handlebars.registerHelper('dmy', (d: any) => {
+  if (!d) return '';
+  const dt = new Date(d);
+  return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+});
+Handlebars.registerHelper('monthYr', (d: any) => {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+});
 
-const INVOICE_HTML_TEMPLATE = `
+// ─── Myanmar-Style Invoice Template ───────────────────────────────────────────
+const INVOICE_TEMPLATE = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 12px; color: #1a1a2e; padding: 40px; }
-    .header { display: flex; justify-content: space-between; margin-bottom: 30px; border-bottom: 3px solid #6366f1; padding-bottom: 20px; }
-    .company-name { font-size: 22px; font-weight: 700; color: #1a1a2e; }
-    .invoice-title { font-size: 28px; font-weight: 700; color: #6366f1; text-align: right; }
-    .invoice-number { font-size: 14px; color: #64748b; text-align: right; margin-top: 4px; }
-    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 30px; }
-    .meta-box { background: #f8fafc; border-radius: 8px; padding: 16px; }
-    .meta-label { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .meta-value { font-size: 13px; font-weight: 500; }
-    .status-badge { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-    .status-issued { background: #dbeafe; color: #2563eb; }
-    .status-paid { background: #dcfce7; color: #16a34a; }
-    .status-overdue { background: #fee2e2; color: #dc2626; }
-    .status-void { background: #f1f5f9; color: #64748b; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-    thead th { background: #6366f1; color: white; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-    thead th:first-child { border-radius: 6px 0 0 0; }
-    thead th:last-child { border-radius: 0 6px 0 0; }
-    tbody td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
-    .text-right { text-align: right; }
-    .totals { margin-left: auto; width: 300px; }
-    .total-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
-    .total-row.main { border-top: 2px solid #1a1a2e; font-size: 16px; font-weight: 700; padding: 12px 0; margin-top: 4px; }
-    .total-row .label { color: #64748b; }
-    .total-row .amount { font-weight: 600; }
-    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 10px; }
-    .notes { background: #fffbeb; border-left: 3px solid #f59e0b; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 6px 6px 0; }
+    body {
+      font-family: 'Pyidaungsu', 'Noto Sans Myanmar', 'Myanmar Text', 'Padauk', Arial, sans-serif;
+      font-size: 12px;
+      color: #000;
+      padding: 28px 40px;
+      background: #fff;
+    }
+
+    /* ── Page Header ─────────────────────────────── */
+    .page-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+    }
+    .logo-wrap {
+      width: 95px;
+      height: 95px;
+      flex-shrink: 0;
+      margin-right: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .title-block {
+      flex: 1;
+      text-align: center;
+    }
+    .title-floor {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .title-main {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    /* ── Info Section ────────────────────────────── */
+    .info-section {
+      margin-bottom: 18px;
+    }
+    .info-row {
+      display: flex;
+      align-items: baseline;
+      margin-bottom: 5px;
+    }
+    .info-label {
+      width: 230px;
+      flex-shrink: 0;
+      font-size: 12px;
+    }
+    .info-value {
+      flex: 1;
+      font-size: 12px;
+      border-bottom: 1px dashed #555;
+      padding-bottom: 1px;
+      min-height: 16px;
+    }
+
+    /* ── Items Table ─────────────────────────────── */
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+      margin-bottom: 0;
+    }
+    .items-table th,
+    .items-table td {
+      border: 1px solid #222;
+      padding: 5px 7px;
+      vertical-align: middle;
+    }
+    .items-table thead th {
+      font-weight: 700;
+      text-align: center;
+      background: #fff;
+      font-size: 11.5px;
+      line-height: 1.4;
+    }
+
+    /* Column widths */
+    .col-no   { width: 36px;  text-align: center; }
+    .col-img  { width: 36px;  text-align: center; }
+    .col-desc { text-align: left; }
+    .col-sqft { width: 88px;  text-align: center; }
+    .col-rate { width: 82px;  text-align: right;  }
+    .col-qty  { width: 72px;  text-align: right;  }
+    .col-amt  { width: 105px; text-align: right;  }
+
+    /* Row styles */
+    .row-group td { font-weight: 700; }
+    .row-sub   td { font-weight: 400; }
+    .row-grand td { font-weight: 700; font-size: 12px; background: #fff; }
+
+    /* Utility */
+    .ta-right  { text-align: right  !important; }
+    .ta-center { text-align: center !important; }
+    .pl-14     { padding-left: 14px !important; }
+
+    /* ── Footer ──────────────────────────────────── */
+    .footer-wrap {
+      margin-top: 18px;
+      font-size: 11.5px;
+    }
+    .footer-note { margin-bottom: 6px; line-height: 1.6; }
+    .footer-hours { margin-top: 10px; display: flex; align-items: baseline; gap: 12px; }
+    .footer-hours .label { white-space: nowrap; }
+    .footer-hours .time  { font-weight: 600; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div>
-      <div class="company-name">{{company.name}}</div>
-      <div style="color:#64748b; margin-top:4px">{{property.name}}</div>
+
+  <!-- ════ PAGE HEADER ════ -->
+  <div class="page-header">
+    <div class="logo-wrap">
+      {{#if propertyLogoUrl}}
+        <img src="{{propertyLogoUrl}}" alt="Property Logo"
+             style="width:90px;height:90px;object-fit:contain;" />
+      {{else}}
+        <svg viewBox="0 0 110 120" xmlns="http://www.w3.org/2000/svg" width="90" height="98">
+          <g transform="translate(55,65)">
+            <ellipse rx="8"  ry="32" fill="#c87d0a" transform="rotate(-50)"/>
+            <ellipse rx="8"  ry="32" fill="#d98b10" transform="rotate(-35)"/>
+            <ellipse rx="9"  ry="34" fill="#e8a015" transform="rotate(-18)"/>
+            <ellipse rx="9"  ry="34" fill="#f0ab18" transform="rotate(0)"/>
+            <ellipse rx="9"  ry="34" fill="#e8a015" transform="rotate(18)"/>
+            <ellipse rx="8"  ry="32" fill="#d98b10" transform="rotate(35)"/>
+            <ellipse rx="8"  ry="32" fill="#c87d0a" transform="rotate(50)"/>
+            <ellipse rx="5.5" ry="22" fill="#f8cc50" transform="rotate(-18) translate(0,-4)"/>
+            <ellipse rx="6"   ry="24" fill="#fdd455" transform="rotate(0)   translate(0,-5)"/>
+            <ellipse rx="5.5" ry="22" fill="#f8cc50" transform="rotate(18)  translate(0,-4)"/>
+            <circle  r="7" fill="#fde070"/>
+          </g>
+          <rect x="51" y="97" width="8" height="16" rx="4" fill="#8B6010"/>
+          <ellipse cx="36" cy="108" rx="16" ry="6" fill="#6a8a20" transform="rotate(-20,36,108)"/>
+          <ellipse cx="74" cy="108" rx="16" ry="6" fill="#6a8a20" transform="rotate(20,74,108)"/>
+        </svg>
+      {{/if}}
     </div>
-    <div>
-      <div class="invoice-title">{{#if isCreditNote}}CREDIT NOTE{{else}}INVOICE{{/if}}</div>
-      <div class="invoice-number">{{invoiceNumber}}</div>
-      <div style="margin-top:8px"><span class="status-badge status-{{status}}">{{status}}</span></div>
+    <div class="title-block">
+      <div class="title-floor">{{property.name}}</div>
+      <div class="title-main">{{company.name}} Utilities Charges</div>
     </div>
   </div>
 
-  <div class="meta-grid">
-    <div class="meta-box">
-      <div class="meta-label">Bill To</div>
-      <div class="meta-value">{{tenantName}}</div>
-      {{#if tenant.email}}<div style="color:#64748b; margin-top:2px">{{tenant.email}}</div>{{/if}}
-      {{#if unit}}<div style="margin-top:4px; color:#64748b">Unit {{unit.unitNumber}}</div>{{/if}}
+  <!-- ════ INFO SECTION ════ -->
+  <div class="info-section">
+    <div class="info-row">
+      <span class="info-label">အမည်</span>
+      <span class="info-value">{{tenantName}}</span>
     </div>
-    <div class="meta-box">
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
-        <div><div class="meta-label">Invoice Date</div><div class="meta-value">{{date invoiceDate}}</div></div>
-        <div><div class="meta-label">Due Date</div><div class="meta-value">{{date dueDate}}</div></div>
-        {{#if periodFrom}}<div><div class="meta-label">Period From</div><div class="meta-value">{{date periodFrom}}</div></div>{{/if}}
-        {{#if periodTo}}<div><div class="meta-label">Period To</div><div class="meta-value">{{date periodTo}}</div></div>{{/if}}
-      </div>
+    <div class="info-row">
+      <span class="info-label">ဆိုင်အမှတ်</span>
+      <span class="info-value">{{#if unit}}{{unit.unitNumber}}{{/if}}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">ဘောက်ချာနံပါတ်</span>
+      <span class="info-value">{{invoiceNumber}}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">ကောက်ခံသည့်လ</span>
+      <span class="info-value">{{monthYr periodFrom}}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">ငွေတောင်းခံလွှာပေးသည့်နေ့</span>
+      <span class="info-value">{{dmy invoiceDate}}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">ငွေပေးသွင်းရန်နောက်ဆုံးနေ့</span>
+      <span class="info-value">{{dmy dueDate}}</span>
     </div>
   </div>
 
-  <table>
+  <!-- ════ LINE ITEMS TABLE ════ -->
+  <table class="items-table">
     <thead>
       <tr>
-        <th>Description</th>
-        <th>Charge Type</th>
-        <th class="text-right">Qty</th>
-        <th class="text-right">Unit Price</th>
-        <th class="text-right">Tax</th>
-        <th class="text-right">Total</th>
+        <th class="col-no">စဉ်</th>
+        <th class="col-img"></th>
+        <th class="col-desc">အမျိုးအစားများ</th>
+        <th class="col-sqft">Sq.ft/Unit/Watt</th>
+        <th class="col-rate">ထိန်းသိမ်းခ</th>
+        <th class="col-qty">နူန်း</th>
+        <th class="col-amt">ကျသင့်ငွေ</th>
       </tr>
     </thead>
     <tbody>
-      {{#each lines}}
-      <tr>
-        <td>{{this.description}}</td>
-        <td style="color:#64748b">{{this.chargeType.name}}</td>
-        <td class="text-right">{{this.quantity}}</td>
-        <td class="text-right">{{currency this.unitPrice ../currency}}</td>
-        <td class="text-right" style="color:#94a3b8">{{pct this.taxRate}}</td>
-        <td class="text-right" style="font-weight:600">{{currency this.lineTotal ../currency}}</td>
+      {{#each groups}}
+
+      {{#if this.isSingle}}
+      <!-- ── Single-item category: show data on the same row ── -->
+      <tr class="row-group">
+        <td class="col-no ta-center">{{this.no}}</td>
+        <td class="col-img"></td>
+        <td class="col-desc"><strong>{{this.items.[0].description}}</strong></td>
+        <td class="col-sqft ta-right">{{n2 this.items.[0].quantity}}</td>
+        <td class="col-rate ta-right">{{n2 this.items.[0].unitPrice}}</td>
+        <td class="col-qty  ta-right"></td>
+        <td class="col-amt  ta-right">{{mmk this.total}}</td>
+      </tr>
+
+      {{else}}
+      <!-- ── Multi-item category: header row then sub-rows ── -->
+      <tr class="row-group">
+        <td class="col-no ta-center">{{this.no}}</td>
+        <td class="col-img"></td>
+        <td class="col-desc"><strong>{{this.name}}</strong></td>
+        <td class="col-sqft"></td>
+        <td class="col-rate"></td>
+        <td class="col-qty"></td>
+        <td class="col-amt"></td>
+      </tr>
+      {{#each this.items}}
+      <tr class="row-sub">
+        <td class="col-no"></td>
+        <td class="col-img ta-center" style="font-size:11px;">{{this.subNo}}</td>
+        <td class="col-desc pl-14">{{this.description}}</td>
+        <td class="col-sqft ta-right">{{n2 this.quantity}}</td>
+        <td class="col-rate ta-right">{{n2 this.unitPrice}}</td>
+        <td class="col-qty  ta-right"></td>
+        <td class="col-amt  ta-right">{{mmk this.lineTotal}}</td>
       </tr>
       {{/each}}
+
+      {{/if}}
+      {{/each}}
     </tbody>
+    <tfoot>
+      <tr class="row-grand">
+        <td colspan="6" class="ta-right" style="padding-right:10px;">Grand Total</td>
+        <td class="col-amt ta-right">{{mmk grandTotal}}</td>
+      </tr>
+    </tfoot>
   </table>
 
-  <div class="totals">
-    <div class="total-row"><span class="label">Subtotal</span><span class="amount">{{currency subtotal currency}}</span></div>
-    {{#if taxAmount}}<div class="total-row"><span class="label">Tax</span><span class="amount">{{currency taxAmount currency}}</span></div>{{/if}}
-    {{#if penaltyAmount}}<div class="total-row"><span class="label" style="color:#dc2626">Late Penalty</span><span class="amount" style="color:#dc2626">{{currency penaltyAmount currency}}</span></div>{{/if}}
-    <div class="total-row main"><span class="label">Total</span><span class="amount">{{currency totalAmount currency}}</span></div>
-    <div class="total-row"><span class="label">Paid</span><span class="amount" style="color:#16a34a">{{currency paidAmount currency}}</span></div>
-    <div class="total-row" style="font-weight:600"><span class="label">Outstanding</span><span class="amount" style="color:{{#if outstandingPositive}}#dc2626{{else}}#16a34a{{/if}}">{{currency outstandingAmount currency}}</span></div>
+  <!-- ════ FOOTER NOTES ════ -->
+  <div class="footer-wrap">
+    <div class="footer-note">
+    <pre>
+မှတ်ချက်၊၊    ၊၊သတ်မှတ်ရက်အတွင်း လာရောက်ပေးသွင်းနိုင်ရန် ပျက်ကွက်ပါက 
+နောက်ကျကြေးအဖြစ် ကျသင့်ငွေ၏ (၁၀%) နှုန်းဖြင့် ဒါဏ်ကြေး ကောက်ခံမည်
+      </pre>
+    </div>
+    <div class="footer-hours">
+      <span class="label">ငွေလက်ခံချိန်</span>
+      <span class="time">9:00 Am to 5:00 Pm</span>
+    </div>
   </div>
 
-  {{#if notes}}
-  <div class="notes">
-    <div class="meta-label">Notes</div>
-    <div>{{notes}}</div>
-  </div>
-  {{/if}}
-
-  <div class="footer">
-    Generated on {{date generatedAt}} • {{company.name}}
-  </div>
 </body>
 </html>
 `;
 
+// ─── Service Class ─────────────────────────────────────────────────────────────
 export class InvoicePdfService {
-  private compiledTemplate = Handlebars.compile(INVOICE_HTML_TEMPLATE);
+  private compiledTemplate = Handlebars.compile(INVOICE_TEMPLATE);
 
-  async generatePdf(invoiceId: string): Promise<string> {
+  async generatePdfBuffer(invoiceId: string): Promise<Buffer> {
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
       include: {
         lines: {
-          include: { chargeType: { select: { code: true, name: true } } },
+          include: {
+            chargeType: { select: { code: true, name: true, category: true } },
+          },
           orderBy: { sortOrder: 'asc' },
         },
-        tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, email: true } },
-        unit: { select: { id: true, unitNumber: true } },
-        property: { select: { id: true, name: true } },
-        company: { select: { id: true, name: true } },
+        tenant: {
+          select: {
+            id: true, firstName: true, lastName: true,
+            companyName: true, tenantType: true, email: true,
+          },
+        },
+        unit:     { select: { id: true, unitNumber: true } },
+        property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
+        company:  { select: { id: true, name: true } },
       },
     });
     if (!invoice) throw AppError.notFound('Invoice');
@@ -155,18 +318,59 @@ export class InvoicePdfService {
       ? invoice.tenant.companyName || ''
       : `${invoice.tenant.firstName || ''} ${invoice.tenant.lastName || ''}`.trim();
 
-    const outstandingAmount = Number(invoice.totalAmount) - Number(invoice.paidAmount);
+    // ── Group lines by chargeType.category ──────────────────────────────────
+    const categoryMap = new Map<string, typeof invoice.lines>();
+    for (const line of invoice.lines) {
+      const cat = line.chargeType.category || line.chargeType.name;
+      if (!categoryMap.has(cat)) categoryMap.set(cat, []);
+      categoryMap.get(cat)!.push(line);
+    }
+
+    const groups = Array.from(categoryMap.entries()).map(([cat, items], idx) => ({
+      no: idx + 1,
+      name: cat,
+      isSingle: items.length === 1,
+      items: items.map((item, iIdx) => ({
+        ...item,
+        subNo:     `${idx + 1}.${iIdx + 1}`,
+        lineTotal: Number(item.lineTotal),
+        quantity:  Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+      })),
+      total: items.reduce((s, l) => s + Number(l.lineTotal), 0),
+    }));
+
+    const grandTotal = Number(invoice.totalAmount);
+
+    // ── Resolve property logo URL for Puppeteer ──────────────────────────────
+    // Puppeteer needs an absolute URL to load images when using setContent().
+    // If the stored URL is a relative path (e.g. /uploads/...) we prefix it
+    // with the local server base so headless Chrome can fetch it.
+    const rawLogoUrl = (invoice.property as any).coverImageUrl
+      || (invoice.property as any).imageUrl
+      || null;
+
+    let propertyLogoUrl: string | null = null;
+    if (rawLogoUrl) {
+      if (rawLogoUrl.startsWith('http://') || rawLogoUrl.startsWith('https://')) {
+        // Already absolute (CDN / Spaces URL)
+        propertyLogoUrl = rawLogoUrl;
+      } else {
+        // Relative path — prefix with local server base
+        const port = process.env.PORT || 3000;
+        propertyLogoUrl = `http://localhost:${port}${rawLogoUrl}`;
+      }
+    }
 
     const html = this.compiledTemplate({
       ...invoice,
       tenantName,
-      outstandingAmount,
-      outstandingPositive: outstandingAmount > 0,
-      isCreditNote: invoice.invoiceType === 'credit_note',
-      generatedAt: new Date().toISOString(),
+      groups,
+      grandTotal,
+      propertyLogoUrl,
     });
 
-    // Launch Puppeteer
+    // ── Generate PDF in memory — no disk write ───────────────────────────────
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -179,43 +383,14 @@ export class InvoicePdfService {
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' },
+        margin: { top: '12mm', right: '12mm', bottom: '12mm', left: '12mm' },
       });
 
-      // Store PDF locally
-      await fs.mkdir(STORAGE_DIR, { recursive: true });
-      const fileName = `${invoice.invoiceNumber.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`;
-      const filePath = path.join(STORAGE_DIR, fileName);
-      await fs.writeFile(filePath, pdfBuffer);
-
-      // Update invoice with PDF path
-      const pdfUrl = `/storage/invoices/${fileName}`;
-      await prisma.invoice.update({
-        where: { id: invoiceId },
-        data: { pdfUrl },
-      });
-
-      logger.info(`PDF generated for invoice ${invoice.invoiceNumber}: ${pdfUrl}`);
-      return pdfUrl;
+      logger.info(`PDF generated (stream) for invoice ${invoice.invoiceNumber}`);
+      return Buffer.from(pdfBuffer);
     } finally {
       await browser.close();
     }
-  }
-
-  async getPdfUrl(invoiceId: string): Promise<{ url: string }> {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: invoiceId },
-      select: { pdfUrl: true, invoiceNumber: true },
-    });
-    if (!invoice) throw AppError.notFound('Invoice');
-
-    if (!invoice.pdfUrl) {
-      // Generate on-demand if not yet generated
-      const url = await this.generatePdf(invoiceId);
-      return { url };
-    }
-
-    return { url: invoice.pdfUrl };
   }
 }
 

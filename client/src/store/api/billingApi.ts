@@ -230,8 +230,15 @@ export const billingApi = createApi({
       invalidatesTags: ['Invoices'],
     }),
 
-    getInvoicePdf: builder.query<ApiResponse<{ url: string }>, string>({
-      query: (id) => `/invoices/${id}/pdf`,
+    getInvoicePdf: builder.query<string, string>({
+      query: (id) => ({
+        url: `/invoices/${id}/pdf`,
+        responseHandler: async (response) => {
+          const blob = await response.blob();
+          return URL.createObjectURL(blob);
+        },
+        cache: 'no-cache',
+      }),
     }),
 
     sendInvoice: builder.mutation<ApiResponse<{ invoiceId: string; status: string; sentTo: string; pdfUrl: string }>, string>({

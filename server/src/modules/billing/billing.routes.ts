@@ -147,18 +147,20 @@ invoicesRouter.post('/:id/credit-note', validateRequest(createCreditNoteSchema),
 }));
 
 invoicesRouter.get('/:id/pdf', asyncHandler(async (req, res) => {
-  const result = await invoicePdfService.getPdfUrl(p(req, 'id'));
-  res.json({ success: true, data: result });
+  const pdfBuffer = await invoicePdfService.generatePdfBuffer(p(req, 'id'));
+  const invoice = await invoicesService.findById(p(req, 'id'), req.user!.companyId);
+  const fileName = `${(invoice as any).invoiceNumber.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`;
+
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `inline; filename="${fileName}"`,
+    'Content-Length': pdfBuffer.length,
+  });
+  res.send(pdfBuffer);
 }));
 
 invoicesRouter.post('/:id/send', asyncHandler(async (req, res) => {
   const invoice = await invoicesService.findById(p(req, 'id'), req.user!.companyId);
-
-  // Generate PDF if not yet generated
-  let pdfUrl = (invoice as any).pdfUrl;
-  if (!pdfUrl) {
-    pdfUrl = await invoicePdfService.generatePdf(invoice.id);
-  }
 
   // Get tenant email
   const tenantEmail = (invoice as any).tenant?.email;
@@ -191,7 +193,7 @@ invoicesRouter.post('/:id/send', asyncHandler(async (req, res) => {
     data: { status: invoice.status === 'draft' || invoice.status === 'issued' ? 'sent' : invoice.status, sentAt: new Date() },
   });
 
-  res.json({ success: true, data: { invoiceId: invoice.id, status: updated.status, sentTo: tenantEmail, pdfUrl } });
+  res.json({ success: true, data: { invoiceId: invoice.id, status: updated.status, sentTo: tenantEmail } });
 }));
 
 // ════════════════════════════════════════════════

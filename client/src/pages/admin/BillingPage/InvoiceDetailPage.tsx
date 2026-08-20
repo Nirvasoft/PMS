@@ -51,9 +51,9 @@ export default function InvoiceDetailPage() {
     setPdfLoading(true);
     setShowPdfViewer(true);
     try {
-      const result = await triggerPdf(id!).unwrap();
-      if (result.data?.url) {
-        setPdfUrl(result.data.url);
+      const blobUrl = await triggerPdf(id!).unwrap();
+      if (blobUrl) {
+        setPdfUrl(blobUrl);
       }
     } catch {
       setPdfUrl(null);
@@ -68,9 +68,9 @@ export default function InvoiceDetailPage() {
       return;
     }
     try {
-      const result = await triggerPdf(id!).unwrap();
-      if (result.data?.url) {
-        window.open(result.data.url, '_blank');
+      const blobUrl = await triggerPdf(id!).unwrap();
+      if (blobUrl) {
+        window.open(blobUrl, '_blank');
       }
     } catch { /* error handled by RTK */ }
   };
