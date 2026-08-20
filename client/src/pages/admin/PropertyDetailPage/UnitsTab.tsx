@@ -12,6 +12,7 @@ import {
   useGetTowersQuery, useGetFloorPlanQuery, useGetUnitsQuery,
   useGetUnitStatsQuery, useDeleteUnitMutation, useCreateUnitMutation, useGetUnitTypesQuery,
 } from '../../../store/api/unitsApi';
+import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import type { UnitListItem, Tower, FloorPlanMatrix } from '../../../store/api/unitsApi';
 import {
   LayoutGrid, List, Layers, Plus, Search, Building2,
@@ -651,10 +652,13 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
     ...f, areaSqm: v, areaSqft: v ? (Number(v) * SQM_TO_SQFT).toFixed(2) : '',
   }));
   const { data: typesData } = useGetUnitTypesQuery();
+  const { data: floorsData } = useGetFloorSetupsQuery({ propertyId });
   const [createUnit, { isLoading }] = useCreateUnitMutation();
   const unitTypes = typesData?.data || [];
+  const floors = floorsData?.data || [];
   const selectedTower = towers.find((t) => t.id === form.towerId);
   const sections = selectedTower?.sections || [];
+  const selectedFloor = floors.find((f) => f.floorNumber === Number(form.floorNumber));
 
   const handleSubmit = async () => {
     if (!form.unitNumber.trim() || !form.unitType) {
@@ -753,11 +757,29 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           <div className="cu-grid">
             <div className="cu-field">
               <label>Floor Number</label>
-              <input type="number" placeholder="e.g. 10" value={form.floorNumber} onChange={(e) => set('floorNumber', e.target.value)} />
+              <select value={form.floorNumber} onChange={(e) => {
+                const floorNum = e.target.value;
+                set('floorNumber', floorNum);
+                const floor = floors.find((f) => f.floorNumber === Number(floorNum));
+                if (floor) {
+                  set('floorLabel', floor.floorLabel);
+                } else {
+                  set('floorLabel', '');
+                }
+              }}>
+                <option value="">Select floor number…</option>
+                {floors.map((f) => <option key={f.id} value={f.floorNumber}>{f.floorNumber}</option>)}
+              </select>
             </div>
             <div className="cu-field">
-              <label>Floor Label <span className="cu-opt">(optional)</span></label>
-              <input placeholder="e.g. 10F, Mezzanine" value={form.floorLabel} onChange={(e) => set('floorLabel', e.target.value)} />
+              <label>Floor Label {selectedFloor ? '' : <span className="cu-opt">(optional)</span>}</label>
+              <input
+                placeholder="e.g. 10F, Mezzanine"
+                value={form.floorLabel}
+                onChange={(e) => set('floorLabel', e.target.value)}
+                disabled={!!selectedFloor}
+                title={selectedFloor ? 'Floor label is automatically set from floor setup' : ''}
+              />
             </div>
           </div>
 
