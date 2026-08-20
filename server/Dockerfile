@@ -42,6 +42,8 @@ RUN apt-get update -y && \
     ca-certificates \
     chromium \
     fonts-liberation \
+    fonts-noto \
+    fonts-noto-cjk \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \

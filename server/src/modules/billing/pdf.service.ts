@@ -33,7 +33,7 @@ const INVOICE_TEMPLATE = `
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Pyidaungsu', 'Noto Sans Myanmar', 'Myanmar Text', 'Padauk', Arial, sans-serif;
+      font-family: 'Noto Sans Myanmar', 'Pyidaungsu', 'Myanmar Text', 'Padauk', Arial, sans-serif;
       font-size: 12px;
       color: #000;
       padding: 28px 40px;
