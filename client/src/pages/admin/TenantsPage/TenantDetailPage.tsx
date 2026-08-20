@@ -312,8 +312,6 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
               <>
                 <EditField label="First Name" value={form.firstName} onChange={(v) => set('firstName', v)} />
                 <EditField label="Last Name" value={form.lastName} onChange={(v) => set('lastName', v)} />
-                <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
-                <EditField label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
                 <EditField label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
                 <EditSelect label="Gender" value={form.gender} onChange={(v) => set('gender', v)}
                   options={[['','—'],['male','Male'],['female','Female'],['other','Other'],['prefer_not_to_say','Prefer not to say']]} />
@@ -349,6 +347,12 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
             <EditField label="Mobile" value={form.mobile} onChange={(v) => set('mobile', v)} />
             <EditSelect label="Source" value={form.source} onChange={(v) => set('source', v)}
               options={[['','—'],['walk_in','Walk-in'],['referral','Referral'],['online','Online'],['agent','Agent']]} />
+            {tenant.tenantType === 'individual' && (
+              <>
+                <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
+                <EditField label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
+              </>
+            )}
           </div>
         </div>
 
@@ -409,8 +413,6 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
         <div className="info-rows">
           {tenant.tenantType === 'individual' ? (
             <>
-              {tenant.fatherName   && <InfoRow label="Father Name" value={tenant.fatherName} />}
-              {tenant.fatherNrc    && <InfoRow label="Father's NRC" value={tenant.fatherNrc} />}
               {tenant.dateOfBirth  && <InfoRow label="Date of Birth" value={tenant.dateOfBirth.split('T')[0]} />}
               {tenant.gender       && <InfoRow label="Gender" value={tenant.gender} />}
               {tenant.nationality  && <InfoRow label="Nationality" value={tenant.nationality} />}
@@ -433,7 +435,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
       </div>
 
       {/* Contact details */}
-      {(tenant.email || tenant.phone || tenant.mobile || tenant.source) && (
+      {(tenant.email || tenant.phone || tenant.mobile || tenant.source || tenant.fatherName || tenant.fatherNrc) && (
         <div className="info-card">
           <h4>Contact Details</h4>
           <div className="info-rows">
@@ -441,6 +443,8 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
             {tenant.phone  && <InfoRow label="Phone" value={tenant.phone} />}
             {tenant.mobile && <InfoRow label="Mobile" value={tenant.mobile} />}
             {tenant.source && <InfoRow label="Source" value={tenant.source.replace(/_/g, ' ')} />}
+            {tenant.tenantType === 'individual' && tenant.fatherName && <InfoRow label="Father Name" value={tenant.fatherName} />}
+            {tenant.tenantType === 'individual' && tenant.fatherNrc  && <InfoRow label="Father's NRC" value={tenant.fatherNrc} />}
           </div>
         </div>
       )}

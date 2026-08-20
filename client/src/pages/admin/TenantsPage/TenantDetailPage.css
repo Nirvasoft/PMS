@@ -119,6 +119,7 @@
   transition: border-color 0.15s;
 }
 .edit-field input:focus, .edit-field select:focus { border-color: rgba(108,92,231,0.5); }
+.edit-field select option { background: #1a1f2e; color: var(--text-primary); }
 .edit-actions { display: flex; gap: 6px; }
 
 /* Tags editing */
@@ -146,6 +147,7 @@
 /* Light mode */
 [data-theme="light"] .btn-edit-profile { background: rgba(108,92,231,0.08); border-color: rgba(108,92,231,0.2); }
 [data-theme="light"] .edit-field input, [data-theme="light"] .edit-field select { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1); }
+[data-theme="light"] .edit-field select option { background: #ffffff; color: var(--text-primary); }
 [data-theme="light"] .edit-tag { background: rgba(108,92,231,0.08); }
 [data-theme="light"] .tag-input-inline { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.12); }
 [data-theme="light"] .edit-notes { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1); }
