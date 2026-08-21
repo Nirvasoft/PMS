@@ -86,6 +86,23 @@ export class FloorSetupService {
   async delete(id: string, companyId: string) {
     const floor = await prisma.floorSetup.findFirst({ where: { id, companyId } });
     if (!floor) throw AppError.notFound('Floor setup');
+
+    // Block delete if units exist on this floor
+    const unitCount = await prisma.unit.count({
+      where: {
+        propertyId: floor.propertyId,
+        floorNumber: floor.floorNumber,
+        deletedAt: null,
+      },
+    });
+    if (unitCount > 0) {
+      throw new AppError(
+        409,
+        'FLOOR_IN_USE',
+        `Cannot delete floor "${floor.floorLabel}" — it has ${unitCount} unit${unitCount > 1 ? 's' : ''} assigned. Remove the units first.`,
+      );
+    }
+
     // Hard delete — the (propertyId, floorNumber, floorLabel) unique
     // constraint is not scoped to isActive, so a soft-deleted row would keep
     // blocking that exact floor number/label combo from ever being recreated.

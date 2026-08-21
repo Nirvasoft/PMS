@@ -90,8 +90,9 @@ export default function FloorSetupPage() {
     if (!(await confirmDialog(`Delete floor "${f.floorLabel}"?`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteFloorSetup(f.id).unwrap();
-    } catch {
-      alertDialog('Failed to delete floor');
+    } catch (e: any) {
+      const msg = e?.data?.errors?.[0]?.message || 'Failed to delete floor';
+      alertDialog(msg);
     }
   };
 
