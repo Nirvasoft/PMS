@@ -692,7 +692,12 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
       toast.success(`P-Unit ${form.unitNumber} created`);
       close();
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed to create unit');
+      const err = e?.data?.errors?.[0];
+      if (err?.code === 'UNIT_NUMBER_TAKEN') {
+        toast.error(`P-Unit number "${form.unitNumber.trim()}" already exists`);
+      } else {
+        toast.error(err?.message || 'Failed to create unit');
+      }
     }
   };
 

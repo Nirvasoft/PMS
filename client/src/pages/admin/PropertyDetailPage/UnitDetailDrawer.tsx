@@ -302,7 +302,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
   return (
     <>
-      <div className="drawer-overlay" />
+      <div className="drawer-overlay" onClick={() => dispatch(closeDrawer())} />
       <div className="unit-drawer">
         {/* Header */}
         <div className="drawer-header">
