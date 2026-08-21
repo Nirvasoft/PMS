@@ -120,8 +120,9 @@ export default function MeterSetupPage() {
     if (!(await confirmDialog(`Delete meter "${m.meterNo}"?`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteMeterSetup(m.id).unwrap();
-    } catch {
-      alertDialog('Failed to delete meter');
+    } catch (e: any) {
+      const msg = e?.data?.errors?.[0]?.message || 'Failed to delete meter';
+      alertDialog(msg);
     }
   };
 

@@ -595,6 +595,16 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       <option key={m.id} value={m.meterNo}>{m.meterNo}</option>
                     ))}
                   </select>
+                  {meterForm.meterSerialNo && (() => {
+                    const sel = floorMeterOptions.find((m) => m.meterNo === meterForm.meterSerialNo);
+                    const label = sel?.meterType?.replace(/_/g, ' ') || '';
+                    return label ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-tertiary)', fontSize: 12 }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Meter Type:</span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 500, textTransform: 'capitalize' }}>{label}</span>
+                      </div>
+                    ) : null;
+                  })()}
                   <input placeholder="Provider" value={meterForm.meterProvider}
                     onChange={(e) => setMeterForm({ ...meterForm, meterProvider: e.target.value })} />
                   <input placeholder="Location (e.g. DB Box at main door)" value={meterForm.location}
