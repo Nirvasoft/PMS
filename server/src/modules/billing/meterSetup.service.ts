@@ -77,23 +77,6 @@ export class MeterSetupService {
   async delete(id: string, companyId: string) {
     const meter = await prisma.meterSetup.findFirst({ where: { id, companyId } });
     if (!meter) throw AppError.notFound('Meter setup');
-
-    // Block delete if any unit has this meter assigned (matched by meterNo + propertyId)
-    const unitCount = await prisma.utilityMeter.count({
-      where: {
-        meterSerialNo: meter.meterNo,
-        propertyId: meter.propertyId,
-        isActive: true,
-      },
-    });
-    if (unitCount > 0) {
-      throw new AppError(
-        409,
-        'METER_IN_USE',
-        `Cannot delete meter "${meter.meterNo}" — it is assigned to ${unitCount} unit${unitCount > 1 ? 's' : ''}. Remove it from units first.`,
-      );
-    }
-
     await prisma.meterSetup.update({ where: { id }, data: { isActive: false } });
   }
 }
