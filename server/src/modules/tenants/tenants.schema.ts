@@ -13,6 +13,7 @@ export const createTenantSchema = z.object({
   idNumber: z.string().max(100).optional().nullable(),
   idExpiryDate: z.string().optional().nullable().transform(val => val ? new Date(val) : null),
   fatherNrc: z.string().max(50).optional().nullable(),
+  maritalStatus: z.enum(['single', 'married']).optional().nullable(),
   // Company fields
   companyName: z.string().max(255).optional().nullable(),
   companyRegNo: z.string().max(100).optional().nullable(),

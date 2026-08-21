@@ -260,11 +260,11 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
     const f: Record<string, string> = {};
     if (tenant.tenantType === 'individual') {
       f.firstName = tenant.firstName || ''; f.lastName = tenant.lastName || '';
-      f.fatherName = tenant.fatherName || '';
+      f.fatherName = tenant.fatherName || ''; f.fatherNrc = tenant.fatherNrc || '';
       f.dateOfBirth = (tenant.dateOfBirth || '').split('T')[0]; f.gender = tenant.gender || '';
+      f.maritalStatus = tenant.maritalStatus || '';
       f.nationality = tenant.nationality || ''; f.idType = tenant.idType || '';
       f.idNumber = tenant.idNumber || ''; f.idExpiryDate = (tenant.idExpiryDate || '').split('T')[0];
-      f.fatherNrc = tenant.fatherNrc || '';
     } else {
       f.companyName = tenant.companyName || ''; f.companyRegNo = tenant.companyRegNo || '';
       f.companyType = tenant.companyType || ''; f.gstRegNo = tenant.gstRegNo || '';
@@ -292,7 +292,14 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
       await updateTenant({ id: tenantId, data: payload }).unwrap();
       toast.success('Profile updated');
       setEditing(false);
-    } catch { toast.error('Failed to update profile'); }
+    } catch (e: any) {
+      const err = e?.data?.errors?.[0];
+      if (err?.code === 'DUPLICATE_TENANT') {
+        toast.error(err?.message || 'Duplicate code — another tenant already uses this code');
+      } else {
+        toast.error(err?.message || 'Failed to update profile');
+      }
+    }
   };
 
   // ── Editing mode ──
@@ -310,11 +317,15 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
           <div className="edit-grid">
             {tenant.tenantType === 'individual' ? (
               <>
-                <EditField label="First Name" value={form.firstName} onChange={(v) => set('firstName', v)} />
-                <EditField label="Last Name" value={form.lastName} onChange={(v) => set('lastName', v)} />
+                <EditField label="Code" value={form.firstName} onChange={(v) => set('firstName', v)} />
+                <EditField label="Name" value={form.lastName} onChange={(v) => set('lastName', v)} />
+                <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
+                <EditField label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
                 <EditField label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
                 <EditSelect label="Gender" value={form.gender} onChange={(v) => set('gender', v)}
                   options={[['','—'],['male','Male'],['female','Female'],['other','Other'],['prefer_not_to_say','Prefer not to say']]} />
+                <EditSelect label="Marital Status" value={form.maritalStatus} onChange={(v) => set('maritalStatus', v)}
+                  options={[['','—'],['single','Single'],['married','Married']]} />
                 <EditField label="Nationality" value={form.nationality} onChange={(v) => set('nationality', v)} />
                 <EditSelect label="ID Type" value={form.idType} onChange={(v) => set('idType', v)}
                   options={[['','—'],['nric','NRC'],['passport','Passport'],['fin','FIN'],['driving_license','Driving License']]} />
@@ -413,41 +424,45 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
         <div className="info-rows">
           {tenant.tenantType === 'individual' ? (
             <>
-              {tenant.dateOfBirth  && <InfoRow label="Date of Birth" value={tenant.dateOfBirth.split('T')[0]} />}
-              {tenant.gender       && <InfoRow label="Gender" value={tenant.gender} />}
-              {tenant.nationality  && <InfoRow label="Nationality" value={tenant.nationality} />}
-              {tenant.idType       && <InfoRow label="ID Type" value={tenant.idType.replace(/_/g,' ')} />}
-              {tenant.idNumber     && <InfoRow label="ID Number" value={tenant.idNumber} />}
-              {tenant.idExpiryDate && <InfoRow label="ID Expiry" value={tenant.idExpiryDate.split('T')[0]} />}
+              {tenant.firstName     && <InfoRow label="Code"          value={tenant.firstName} />}
+              {tenant.lastName      && <InfoRow label="Name"          value={tenant.lastName} />}
+              {tenant.fatherName    && <InfoRow label="Father Name"   value={tenant.fatherName} />}
+              {tenant.fatherNrc     && <InfoRow label="Father's NRC"  value={tenant.fatherNrc} />}
+              {tenant.dateOfBirth   && <InfoRow label="Date of Birth" value={tenant.dateOfBirth.split('T')[0]} />}
+              {tenant.gender        && <InfoRow label="Gender"        value={tenant.gender} />}
+              {tenant.maritalStatus && <InfoRow label="Marital Status" value={tenant.maritalStatus.charAt(0).toUpperCase() + tenant.maritalStatus.slice(1)} />}
+              {tenant.nationality   && <InfoRow label="Nationality"   value={tenant.nationality} />}
+              {tenant.idType        && <InfoRow label="ID Type"       value={tenant.idType.replace(/_/g,' ')} />}
+              {tenant.idNumber      && <InfoRow label="ID Number"     value={tenant.idNumber} />}
+              {tenant.idExpiryDate  && <InfoRow label="ID Expiry"     value={tenant.idExpiryDate.split('T')[0]} />}
             </>
           ) : (
             <>
-              {tenant.companyRegNo        && <InfoRow label="Reg. No." value={tenant.companyRegNo} />}
-              {tenant.companyType         && <InfoRow label="Company Type" value={tenant.companyType.replace(/_/g,' ')} />}
-              {tenant.gstRegNo            && <InfoRow label="GST No." value={tenant.gstRegNo} />}
+              {tenant.companyRegNo        && <InfoRow label="Reg. No."       value={tenant.companyRegNo} />}
+              {tenant.companyType         && <InfoRow label="Company Type"   value={tenant.companyType.replace(/_/g,' ')} />}
+              {tenant.gstRegNo            && <InfoRow label="GST No."        value={tenant.gstRegNo} />}
               {tenant.contactPersonName   && <InfoRow label="Contact Person" value={tenant.contactPersonName} />}
-              {tenant.contactPersonRole   && <InfoRow label="Role" value={tenant.contactPersonRole} />}
-              {tenant.contactPersonPhone  && <InfoRow label="Contact Phone" value={tenant.contactPersonPhone} />}
-              {tenant.contactPersonEmail  && <InfoRow label="Contact Email" value={tenant.contactPersonEmail} />}
+              {tenant.contactPersonRole   && <InfoRow label="Role"           value={tenant.contactPersonRole} />}
+              {tenant.contactPersonPhone  && <InfoRow label="Contact Phone"  value={tenant.contactPersonPhone} />}
+              {tenant.contactPersonEmail  && <InfoRow label="Contact Email"  value={tenant.contactPersonEmail} />}
             </>
           )}
         </div>
       </div>
 
       {/* Contact details */}
-      {(tenant.email || tenant.phone || tenant.mobile || tenant.source || tenant.fatherName || tenant.fatherNrc) && (
+      {(tenant.email || tenant.phone || tenant.mobile || tenant.source) && (
         <div className="info-card">
           <h4>Contact Details</h4>
           <div className="info-rows">
-            {tenant.email  && <InfoRow label="Email" value={tenant.email} />}
-            {tenant.phone  && <InfoRow label="Phone" value={tenant.phone} />}
+            {tenant.email  && <InfoRow label="Email"  value={tenant.email} />}
+            {tenant.phone  && <InfoRow label="Phone"  value={tenant.phone} />}
             {tenant.mobile && <InfoRow label="Mobile" value={tenant.mobile} />}
             {tenant.source && <InfoRow label="Source" value={tenant.source.replace(/_/g, ' ')} />}
-            {tenant.tenantType === 'individual' && tenant.fatherName && <InfoRow label="Father Name" value={tenant.fatherName} />}
-            {tenant.tenantType === 'individual' && tenant.fatherNrc  && <InfoRow label="Father's NRC" value={tenant.fatherNrc} />}
           </div>
         </div>
       )}
+
 
       {/* Address */}
       {(tenant.addressLine1 || tenant.city || tenant.country) && (

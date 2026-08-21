@@ -161,6 +161,16 @@ export class TenantsService {
       if (dup) throw new AppError(409, 'DUPLICATE_TENANT', 'A tenant with this email already exists', { existingId: dup.id });
     }
 
+    if (tenantType === 'individual') {
+      const firstName = typeof rest.firstName === 'string' && rest.firstName.trim() ? rest.firstName.trim() : null;
+      if (firstName) {
+        const dup = await prisma.tenant.findFirst({ where: { companyId, firstName, deletedAt: null } });
+        if (dup) throw new AppError(409, 'DUPLICATE_TENANT', `Code "${firstName}" is already used by another tenant`, { existingId: dup.id });
+      } else {
+        throw AppError.validation('Code is required for individual tenants', 'VALIDATION_ERROR');
+      }
+    }
+
     if (tenantType === 'individual' && idNumber) {
       const dup = await prisma.tenant.findFirst({ where: { companyId, idNumber, deletedAt: null } });
       if (dup) throw new AppError(409, 'DUPLICATE_TENANT', 'A tenant with this ID number already exists', { existingId: dup.id });
@@ -192,9 +202,22 @@ export class TenantsService {
   async update(id: string, companyId: string, dto: Record<string, unknown>) {
     const tenant = await prisma.tenant.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!tenant) throw AppError.notFound('Tenant');
-    
+
     const parsedData = updateTenantSchema.parse(dto);
     const { tags, ...rest } = parsedData;
+
+    // Duplicate code (firstName) check — exclude self
+    if (tenant.tenantType === 'individual' && rest.firstName) {
+      const dup = await prisma.tenant.findFirst({
+        where: {
+          companyId,
+          firstName: rest.firstName as string,
+          deletedAt: null,
+          NOT: { id },
+        },
+      });
+      if (dup) throw new AppError(409, 'DUPLICATE_TENANT', `A tenant with code "${rest.firstName}" already exists`, { existingId: dup.id });
+    }
 
     return prisma.tenant.update({
       where: { id },

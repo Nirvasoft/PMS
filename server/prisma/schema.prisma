@@ -1391,6 +1391,7 @@ model Tenant {
   idNumber             String?   @map("id_number") @db.VarChar(100)
   idExpiryDate         DateTime? @map("id_expiry_date") @db.Date
   fatherNrc            String?   @map("father_nrc") @db.VarChar(50)
+  maritalStatus        String?   @map("marital_status") @db.VarChar(20) // 'single' | 'married'
 
   // Company fields
   companyName          String?   @map("company_name") @db.VarChar(255)

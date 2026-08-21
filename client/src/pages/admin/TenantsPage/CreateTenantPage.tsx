@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCreateTenantMutation } from '../../../store/api/tenantsApi';
-import { ArrowLeft, User, Building2, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, User, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CreateTenantPage.css';
 
@@ -11,12 +11,12 @@ export default function CreateTenantPage() {
   const navigate = useNavigate();
   const [createTenant, { isLoading }] = useCreateTenantMutation();
   const [tenantType, setTenantType] = useState<TenantType>('individual');
-  const [duplicate, setDuplicate] = useState<{ id: string; message: string } | null>(null);
 
   const [form, setForm] = useState({
     // individual
     firstName: '', lastName: '', fatherName: '', dateOfBirth: '', gender: '',
     nationality: '', idType: '', idNumber: '', idExpiryDate: '', fatherNrc: '',
+    maritalStatus: '',
     // company
     companyName: '', companyRegNo: '', companyType: '', gstRegNo: '',
     contactPersonName: '', contactPersonPhone: '', contactPersonEmail: '', contactPersonRole: '',
@@ -33,8 +33,8 @@ export default function CreateTenantPage() {
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
-    if (tenantType === 'individual' && !form.firstName) { toast.error('First name is required'); return; }
-    if (tenantType === 'company' && !form.companyName) { toast.error('Company name is required'); return; }
+    if (tenantType === 'individual' && !form.firstName) { toast.error('Code is required'); return; }
+    if (tenantType === 'company'    && !form.companyName) { toast.error('Company name is required'); return; }
 
     const payload: Record<string, unknown> = { tenantType };
     if (tenantType === 'individual') {
@@ -44,6 +44,7 @@ export default function CreateTenantPage() {
         nationality: form.nationality || null, idType: form.idType || null,
         idNumber: form.idNumber || null, idExpiryDate: form.idExpiryDate || null,
         fatherNrc: form.fatherNrc || null,
+        maritalStatus: form.maritalStatus || null,
       });
     } else {
       Object.assign(payload, {
@@ -68,13 +69,14 @@ export default function CreateTenantPage() {
       toast.success('Tenant created successfully');
       navigate(`/admin/tenants/${result.data.id}`);
     } catch (e: any) {
-      const code = e?.data?.code;
+      const err = e?.data?.errors?.[0];
+      const code = err?.code;
       if (code === 'DUPLICATE_TENANT') {
-        setDuplicate({ id: e.data.details?.existingId, message: e.data.message });
+        toast.error(err?.message || 'Duplicate code — another tenant already uses this code');
       } else if (code === 'TENANT_BLACKLISTED') {
-        toast.error(`⛔ ${e.data.message}`);
+        toast.error(`⛔ ${err?.message}`);
       } else {
-        toast.error('Failed to create tenant');
+        toast.error(err?.message || 'Failed to create tenant');
       }
     }
   };
@@ -98,32 +100,21 @@ export default function CreateTenantPage() {
         </button>
       </div>
 
-      {/* Duplicate warning */}
-      {duplicate && (
-        <div className="duplicate-warning">
-          <AlertCircle size={16} />
-          <div>
-            <strong>Possible Duplicate Detected</strong>
-            <p>{duplicate.message}</p>
-            <button onClick={() => navigate(`/admin/tenants/${duplicate.id}`)}>View Existing Tenant →</button>
-          </div>
-          <button className="dismiss-btn" onClick={() => setDuplicate(null)}>×</button>
-        </div>
-      )}
-
       <div className="ct-form">
         {/* Individual fields */}
         {tenantType === 'individual' && (
           <div className="ct-section">
             <h3>Personal Information</h3>
             <div className="form-grid">
-              <Field label="First Name *" value={form.firstName} onChange={(v) => set('firstName', v)} />
-              <Field label="Last Name"    value={form.lastName}  onChange={(v) => set('lastName', v)} />
+              <Field label="Code *"      value={form.firstName} onChange={(v) => set('firstName', v)} />
+              <Field label="Name *"      value={form.lastName}  onChange={(v) => set('lastName', v)} />
               <Field label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
               <Field label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
               <Field label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
               <SelectField label="Gender" value={form.gender} onChange={(v) => set('gender', v)}
                 options={[['', 'Select…'],['male','Male'],['female','Female'],['other','Other'],['prefer_not_to_say','Prefer not to say']]} />
+              <SelectField label="Marital Status" value={form.maritalStatus} onChange={(v) => set('maritalStatus', v)}
+                options={[['', '— Select —'],['single','Single'],['married','Married']]} />
               <Field label="Nationality" value={form.nationality} onChange={(v) => set('nationality', v)} />
               <SelectField label="ID Type" value={form.idType} onChange={(v) => set('idType', v)}
                 options={[['','Select…'],['nric','NRC'],['passport','Passport'],['fin','FIN'],['driving_license','Driving License']]} />
@@ -132,6 +123,7 @@ export default function CreateTenantPage() {
             </div>
           </div>
         )}
+
 
         {/* Company fields */}
         {tenantType === 'company' && (

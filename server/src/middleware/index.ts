@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { MulterError } from 'multer';
+import { ZodError } from 'zod';
 import { tokenService } from '../modules/auth/services/token.service';
 import { AppError } from '../common/errors';
 import type { JwtPayload } from '../modules/auth/interfaces/auth.interfaces';
@@ -97,11 +98,17 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       success: false,
-      errors: [{
-        code: err.code,
-        message: err.message,
-        ...(err.meta && { meta: err.meta }),
-      }],
+      errors: [{ code: err.code, message: err.message, ...(err.meta && { meta: err.meta }) }],
+    });
+    return;
+  }
+
+  // Zod validation errors — surface field-level messages as 422
+  if (err instanceof ZodError) {
+    const message = err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ');
+    res.status(422).json({
+      success: false,
+      errors: [{ code: 'VALIDATION_ERROR', message }],
     });
     return;
   }
