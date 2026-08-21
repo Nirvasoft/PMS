@@ -149,6 +149,7 @@ export default function MeterSetupPage() {
           <thead>
             <tr>
               <th>Property</th>
+              <th>Floor Label</th>
               <th>Meter Type</th>
               <th>Meter No</th>
               <th>Category</th>
@@ -159,12 +160,13 @@ export default function MeterSetupPage() {
           </thead>
           <tbody>
             {isFetching && meters.length === 0 ? (
-              <tr><td colSpan={7} className="billing-empty">Loading…</td></tr>
+              <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
             ) : meters.length === 0 ? (
-              <tr><td colSpan={7} className="billing-empty">No meters set up yet</td></tr>
+              <tr><td colSpan={8} className="billing-empty">No meters set up yet</td></tr>
             ) : meters.map((m) => (
               <tr key={m.id}>
                 <td><span className="cell-primary">{m.property.name}</span></td>
+                <td>{m.floor?.floorLabel ?? '—'}</td>
                 <td>{labelFor(METER_TYPES, m.meterType)}</td>
                 <td><span className="cell-mono">{m.meterNo}</span></td>
                 <td>{labelFor(CATEGORIES, m.category)}</td>

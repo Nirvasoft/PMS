@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   useGetPropertiesQuery, useDeletePropertyMutation, useGetPropertyStatsQuery,
   useUpdatePropertyMutation, useGetPropertyTypesQuery,
+  useGetPhotosQuery, useUploadPhotosMutation, useDeletePhotoMutation,
 } from '../../../store/api/propertiesApi';
 import type { PropertyListItem } from '../../../store/api/propertiesApi';
 import { useGetBranchesQuery } from '../../../store/api/organizationApi';
@@ -10,7 +11,7 @@ import { useAppSelector, useAppDispatch } from '../../../store';
 import { setListView, setListFilter, resetFilters } from '../../../store/slices/propertiesSlice';
 import {
   Plus, LayoutGrid, List, Search, Filter, X, MapPin,
-  Building2, Wrench, MoreVertical, Trash2, Eye, BarChart2, Home, Edit3, Save,
+  Building2, Wrench, MoreVertical, Trash2, Eye, BarChart2, Home, Edit3, Save, Upload,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -107,6 +108,31 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
   const { data: branchesData } = useGetBranchesQuery();
   const types    = typesData?.data || [];
   const branches = branchesData?.data || [];
+
+  // Photos
+  const { data: photosData } = useGetPhotosQuery(property.id);
+  const photos = photosData?.data || [];
+  const [uploadPhotos, { isLoading: uploading }] = useUploadPhotosMutation();
+  const [deletePhoto] = useDeletePhotoMutation();
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const fd = new FormData();
+    Array.from(files).forEach(f => fd.append('photos', f));
+    try {
+      await uploadPhotos({ propertyId: property.id, formData: fd }).unwrap();
+      toast.success('Photos uploaded');
+    } catch {
+      toast.error('Failed to upload photos');
+    }
+    e.target.value = '';
+  };
+
+  const handleDeletePhoto = async (photoId: string) => {
+    try { await deletePhoto({ propertyId: property.id, photoId }).unwrap(); }
+    catch { toast.error('Failed to delete photo'); }
+  };
 
   const set = (k: keyof EditForm, v: string) => setForm(f => ({ ...f, [k]: v }));
   const setArea = (v: string) => setForm(f => ({
@@ -311,6 +337,41 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
                 </select>
               </div>
             </div>
+          </div>
+
+          {/* ── Images ── */}
+          <div className="edit-section">
+            <div className="edit-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Images</span>
+              <label className="btn-upload-photo" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--accent)', color: '#fff', fontWeight: 500 }}>
+                <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Photos'}
+                <input type="file" accept="image/*" multiple hidden onChange={handleUpload} disabled={uploading} />
+              </label>
+            </div>
+            {photos.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '8px 0' }}>No photos yet. Upload some above.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 8 }}>
+                {photos.map((photo: any) => (
+                  <div key={photo.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', aspectRatio: '4/3', background: 'var(--bg-tertiary)' }}>
+                    <img
+                      src={photo.url}
+                      alt={photo.caption || ''}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                    <div style={{ position: 'absolute', bottom: 0, insetInline: 0, padding: '4px 6px', background: 'rgba(0,0,0,0.5)' }}>
+                      <button
+                        title="Delete photo"
+                        onClick={() => handleDeletePhoto(photo.id)}
+                        style={{ width: '100%', fontSize: 11, padding: '2px 0', borderRadius: 4, border: 'none', background: 'rgba(231,76,60,0.85)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}
+                      >
+                        <Trash2 size={10} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

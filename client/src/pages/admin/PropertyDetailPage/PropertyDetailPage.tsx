@@ -192,6 +192,7 @@ function OverviewTab({ property }: { property: any }) {
           {property.state       && <div className="info-row"><span className="label">State / Province</span><span>{property.state}</span></div>}
           {property.postalCode  && <div className="info-row"><span className="label">Postal Code</span><span>{property.postalCode}</span></div>}
           {property.country     && <div className="info-row"><span className="label">Country</span><span>{property.country}</span></div>}
+          {property.branch      && <div className="info-row"><span className="label">Branch</span><span>{property.branch.name}</span></div>}
         </div>
         {property.geoLat && property.geoLng && (
           <div className="map-preview">
@@ -210,12 +211,11 @@ function OverviewTab({ property }: { property: any }) {
       <div className="info-card">
         <h4><Building2 size={16} /> Property Details</h4>
         <div className="info-rows">
-          {property.branch && <div className="info-row"><span className="label">Branch</span><span>{property.branch.name}</span></div>}
-          {property.legalName && <div className="info-row"><span className="label">Legal Name</span><span>{property.legalName}</span></div>}
+          {property.legalName      && <div className="info-row"><span className="label">Legal Name</span><span>{property.legalName}</span></div>}
           {property.registrationNo && <div className="info-row"><span className="label">Registration No.</span><span>{property.registrationNo}</span></div>}
-          {property.yearBuilt && <div className="info-row"><span className="label">Year Built</span><span>{property.yearBuilt}</span></div>}
+          {property.yearBuilt      && <div className="info-row"><span className="label">Year Built</span><span>{property.yearBuilt}</span></div>}
           <div className="info-row"><span className="label">Total Floors</span><span>{property.totalFloors ?? '—'}</span></div>
-          {property.totalAreaSqm && <div className="info-row"><span className="label">Area (sqm)</span><span>{Number(property.totalAreaSqm).toLocaleString()}</span></div>}
+          {property.totalAreaSqm  && <div className="info-row"><span className="label">Area (sqm)</span><span>{Number(property.totalAreaSqm).toLocaleString()}</span></div>}
           {property.totalAreaSqft && <div className="info-row"><span className="label">Area (sqft)</span><span>{Number(property.totalAreaSqft).toLocaleString()}</span></div>}
         </div>
       </div>
