@@ -7,6 +7,7 @@ import {
   useSetAmenitiesMutation, useUploadFloorPlanMutation, useGetUnitTypesQuery,
 } from '../../../store/api/unitsApi';
 import { useGetMeterSetupsQuery } from '../../../store/api/billingApi';
+import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { CATEGORIES as METER_CATEGORIES } from '../BillingPage/MeterSetupPage';
 import {
   X, Zap, Droplets, Wind, Star, ChevronRight, Settings2,
@@ -84,6 +85,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const floorMeterOptions = (meterSetupsData?.data || []).filter(
     (m) => m.category === meterForm.meterType && m.floor?.floorNumber === unit?.floorNumber
   );
+
+  const { data: floorSetupsData } = useGetFloorSetupsQuery({ propertyId });
+  const floorSetups = [...(floorSetupsData?.data || [])].sort((a, b) => a.floorNumber - b.floorNumber);
 
   // ── Edit form state ─────────────────────────
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -382,10 +386,38 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     </div>
                   </div>
 
-                  <div className="ef-section-title">Floor & Location</div>
+                  <div className="ef-section-title">Floor &amp; Location</div>
                   <div className="ef-grid">
-                    <EditField label="Floor Number" type="number" value={editForm.floorNumber} onChange={(v) => ef('floorNumber', v)} />
-                    <EditField label="Floor Label" value={editForm.floorLabel} onChange={(v) => ef('floorLabel', v)} placeholder="e.g. M, G, B1" />
+                    <div className="ef-field">
+                      <label>Floor Number</label>
+                      {floorSetups.length > 0 ? (
+                        <select
+                          value={editForm.floorNumber ?? ''}
+                          onChange={(e) => {
+                            const selected = floorSetups.find((f) => f.floorNumber === Number(e.target.value));
+                            ef('floorNumber', e.target.value);
+                            ef('floorLabel', selected ? selected.floorLabel : '');
+                          }}
+                        >
+                          <option value="">— Select —</option>
+                          {floorSetups.map((f) => (
+                            <option key={f.id} value={f.floorNumber}>Floor {f.floorNumber}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <EditField label="" value={editForm.floorNumber} type="number" onChange={(v) => ef('floorNumber', v)} placeholder="Floor number" />
+                      )}
+                    </div>
+                    <div className="ef-field">
+                      <label>Floor Label</label>
+                      <input
+                        value={editForm.floorLabel ?? ''}
+                        readOnly={floorSetups.length > 0}
+                        placeholder={floorSetups.length > 0 ? 'Auto-filled' : 'e.g. G, M, B1'}
+                        style={floorSetups.length > 0 ? { background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}}
+                        onChange={(e) => ef('floorLabel', e.target.value)}
+                      />
+                    </div>
                   </div>
 
                   <div className="ef-section-title">Dimensions</div>
@@ -465,6 +497,22 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                 /* ── VIEW MODE ── */
                 <>
                   <div className="info-section">
+                    <h5>Identity</h5>
+                    <div className="info-grid">
+                      <InfoItem label="Unit Number" value={unit.unitNumber} />
+                      <InfoItem label="Unit Type"   value={unit.unitType.replace(/_/g, ' ')} />
+                    </div>
+                  </div>
+
+                  <div className="info-section">
+                    <h5>Floor &amp; Location</h5>
+                    <div className="info-grid">
+                      <InfoItem label="Floor Number" value={unit.floorNumber != null ? `Floor ${unit.floorNumber}` : '—'} />
+                      <InfoItem label="Floor Label"  value={unit.floorLabel || '—'} />
+                    </div>
+                  </div>
+
+                  <div className="info-section">
                     <h5>Dimensions</h5>
                     <div className="info-grid">
                       <InfoItem label="Area (sqft)" value={unit.areaSqft ? `${unit.areaSqft}` : '—'} />
@@ -479,21 +527,29 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   <div className="info-section">
                     <h5>Ownership</h5>
                     <div className="info-grid">
-                      <InfoItem label="Type"   value={unit.ownershipType} />
-                      <InfoItem label="Owner"  value={unit.ownerName || '—'} />
-                      <InfoItem label="Contact" value={unit.ownerContact || '—'} />
-                      <InfoItem label="Purchase Date" value={unit.purchaseDate ? new Date(unit.purchaseDate).toLocaleDateString() : '—'} />
-                      <InfoItem label="Purchase Price" value={unit.purchasePrice ? `${Number(unit.purchasePrice).toLocaleString()}` : '—'} />
-                      <InfoItem label="Market Value" value={unit.currentMarketValue ? `${Number(unit.currentMarketValue).toLocaleString()}` : '—'} />
+                      <InfoItem label="Type"           value={unit.ownershipType} />
+                      <InfoItem label="Owner"          value={unit.ownerName || '—'} />
+                      <InfoItem label="Contact"        value={unit.ownerContact || '—'} />
+                      <InfoItem label="Purchase Date"  value={unit.purchaseDate ? new Date(unit.purchaseDate).toLocaleDateString() : '—'} />
+                      <InfoItem label="Purchase Price" value={unit.purchasePrice ? Number(unit.purchasePrice).toLocaleString() : '—'} />
+                      <InfoItem label="Market Value"   value={unit.currentMarketValue ? Number(unit.currentMarketValue).toLocaleString() : '—'} />
                     </div>
                   </div>
 
                   <div className="info-section">
                     <h5>Rental</h5>
                     <div className="info-grid">
-                      <InfoItem label="Rental Period" value={unit.rentalPeriod ? `${unit.rentalPeriod} ${unit.rentalPeriodUnit || 'month'}${unit.rentalPeriod === 1 ? '' : 's'}` : '—'} />
-                      <InfoItem label="Calculation on" value={unit.calculationOn === 'per_sqft' ? 'PerSqFt' : 'Fixed'} />
-                      <InfoItem label="Rate" value={unit.rate ? `${Number(unit.rate).toLocaleString()}` : '—'} />
+                      <InfoItem label="Rental Period"   value={unit.rentalPeriod ? `${unit.rentalPeriod} ${unit.rentalPeriodUnit || 'month'}${unit.rentalPeriod === 1 ? '' : 's'}` : '—'} />
+                      <InfoItem label="Calculation on"  value={unit.calculationOn === 'per_sqft' ? 'PerSqFt' : 'Fixed'} />
+                      <InfoItem label="Rate"            value={unit.rate ? Number(unit.rate).toLocaleString() : '—'} />
+                    </div>
+                  </div>
+
+                  <div className="info-section">
+                    <h5>Notes</h5>
+                    <div className="info-grid">
+                      <InfoItem label="Description"    value={unit.description || '—'} />
+                      <InfoItem label="Internal Notes" value={unit.notes || '—'} />
                     </div>
                   </div>
 
@@ -511,14 +567,6 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       ))}
                     </div>
                   </div>
-
-                  {(unit.description || unit.notes) && (
-                    <div className="info-section">
-                      <h5>Notes</h5>
-                      {unit.description && <p className="unit-desc">{unit.description}</p>}
-                      {unit.notes && <p className="unit-desc unit-notes">{unit.notes}</p>}
-                    </div>
-                  )}
                 </>
               )}
             </div>
