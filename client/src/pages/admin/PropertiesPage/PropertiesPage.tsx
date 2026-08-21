@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetPropertiesQuery, useDeletePropertyMutation, useGetPropertyStatsQuery,
+  useUpdatePropertyMutation, useGetPropertyTypesQuery,
 } from '../../../store/api/propertiesApi';
 import type { PropertyListItem } from '../../../store/api/propertiesApi';
+import { useGetBranchesQuery } from '../../../store/api/organizationApi';
 import { useAppSelector, useAppDispatch } from '../../../store';
 import { setListView, setListFilter, resetFilters } from '../../../store/slices/propertiesSlice';
 import {
   Plus, LayoutGrid, List, Search, Filter, X, MapPin,
-  Building2, Wrench, MoreVertical, Trash2, Eye, BarChart2, Home,
+  Building2, Wrench, MoreVertical, Trash2, Eye, BarChart2, Home, Edit3, Save,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -54,6 +56,277 @@ const TYPE_ICONS: Record<string, JSX.Element> = {
   warehouse: <Building2 size={14} />,
 };
 
+const CURRENCIES = ['USD','SGD','EUR','GBP','AED','THB','MMK','JPY','CNY','INR','AUD'];
+const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Paris','Asia/Singapore','Asia/Tokyo','Asia/Bangkok','Asia/Yangon','Asia/Dubai','Australia/Sydney'];
+const COUNTRIES  = ['US','SG','GB','TH','MM','JP','AE','AU','DE','FR','IN','CN'];
+const SQM_TO_SQFT = 10.7639;
+
+interface EditForm {
+  name: string; code: string; propertyType: string; legalName: string;
+  registrationNo: string; description: string;
+  addressLine1: string; addressLine2: string; city: string; state: string;
+  postalCode: string; country: string; geoLat: string; geoLng: string; branchId: string;
+  yearBuilt: string; totalFloors: string; totalAreaSqm: string; totalAreaSqft: string;
+  billingCycle: string; billingDay: string; currency: string; timezone: string;
+}
+
+function buildEditForm(p: PropertyListItem): EditForm {
+  const pd = p as any; // PropertyListItem + extra detail fields
+  return {
+    name:           p.name || '',
+    code:           p.code || '',
+    propertyType:   p.propertyType || '',
+    legalName:      pd.legalName || '',
+    registrationNo: pd.registrationNo || '',
+    description:    pd.description || '',
+    addressLine1:   pd.addressLine1 || '',
+    addressLine2:   pd.addressLine2 || '',
+    city:           p.city || '',
+    state:          pd.state || '',
+    postalCode:     pd.postalCode || '',
+    country:        p.country || '',
+    geoLat:         p.geoLat != null ? String(p.geoLat) : '',
+    geoLng:         p.geoLng != null ? String(p.geoLng) : '',
+    branchId:       pd.branchId || pd.branch?.id || '',
+    yearBuilt:      pd.yearBuilt != null ? String(pd.yearBuilt) : '',
+    totalFloors:    p.totalFloors != null ? String(p.totalFloors) : '',
+    totalAreaSqm:   pd.totalAreaSqm != null ? String(pd.totalAreaSqm) : '',
+    totalAreaSqft:  pd.totalAreaSqft != null ? String(pd.totalAreaSqft) : '',
+    billingCycle:   pd.billingCycle || 'monthly',
+    billingDay:     pd.billingDay != null ? String(pd.billingDay) : '1',
+    currency:       pd.currency || 'USD',
+    timezone:       pd.timezone || 'UTC',
+  };
+}
+
+// ─── Edit Drawer ──────────────────────────────
+function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose: () => void }) {
+  const [form, setForm] = useState<EditForm>(() => buildEditForm(property));
+  const [updateProperty, { isLoading }] = useUpdatePropertyMutation();
+  const { data: typesData } = useGetPropertyTypesQuery();
+  const { data: branchesData } = useGetBranchesQuery();
+  const types    = typesData?.data || [];
+  const branches = branchesData?.data || [];
+
+  const set = (k: keyof EditForm, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const setArea = (v: string) => setForm(f => ({
+    ...f, totalAreaSqm: v, totalAreaSqft: v ? (Number(v) * SQM_TO_SQFT).toFixed(2) : '',
+  }));
+  const setAreaSqft = (v: string) => setForm(f => ({
+    ...f, totalAreaSqft: v, totalAreaSqm: v ? (Number(v) / SQM_TO_SQFT).toFixed(2) : '',
+  }));
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { toast.error('Property name is required'); return; }
+    if (!form.propertyType) { toast.error('Property type is required'); return; }
+    const day = Number(form.billingDay);
+    if (isNaN(day) || day < 1 || day > 28) { toast.error('Billing day must be between 1 and 28'); return; }
+    try {
+      await updateProperty({
+        id: property.id,
+        data: {
+          name:           form.name.trim(),
+          code:           form.code.trim()          || undefined,
+          propertyType:   form.propertyType,
+          legalName:      form.legalName.trim()     || undefined,
+          registrationNo: form.registrationNo.trim()|| undefined,
+          description:    form.description.trim()   || undefined,
+          addressLine1:   form.addressLine1.trim()  || undefined,
+          addressLine2:   form.addressLine2.trim()  || undefined,
+          city:           form.city.trim()          || undefined,
+          state:          form.state.trim()         || undefined,
+          postalCode:     form.postalCode.trim()    || undefined,
+          country:        form.country              || undefined,
+          geoLat:         form.geoLat  ? Number(form.geoLat)  : undefined,
+          geoLng:         form.geoLng  ? Number(form.geoLng)  : undefined,
+          branchId:       form.branchId             || undefined,
+          yearBuilt:      form.yearBuilt   ? Number(form.yearBuilt)   : undefined,
+          totalFloors:    form.totalFloors ? Number(form.totalFloors) : undefined,
+          totalAreaSqm:   form.totalAreaSqm  ? Number(form.totalAreaSqm)  : undefined,
+          totalAreaSqft:  form.totalAreaSqft ? Number(form.totalAreaSqft) : undefined,
+          billingCycle:   form.billingCycle,
+          billingDay:     day,
+          currency:       form.currency,
+          timezone:       form.timezone,
+        },
+      }).unwrap();
+      toast.success(`"${form.name}" updated`);
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.data?.message || 'Failed to update property');
+    }
+  };
+
+  return (
+    <div className="edit-drawer-overlay">
+      <div className="edit-drawer">
+        {/* Header */}
+        <div className="edit-drawer-header">
+          <div className="edit-drawer-title">
+            <Edit3 size={18} />
+            <span>Edit Property</span>
+          </div>
+          <button className="edit-drawer-close" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="edit-drawer-body">
+
+          {/* ── Basic Info ── */}
+          <div className="edit-section">
+            <div className="edit-section-title">Basic Information</div>
+            <div className="edit-grid">
+              <div className="edit-field full">
+                <label>Property Name *</label>
+                <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Marina Bay Residences" />
+              </div>
+              <div className="edit-field">
+                <label>Code</label>
+                <input value={form.code} onChange={e => set('code', e.target.value)} placeholder="e.g. MBR-001" />
+              </div>
+              <div className="edit-field">
+                <label>Property Type *</label>
+                <select value={form.propertyType} onChange={e => set('propertyType', e.target.value)}>
+                  <option value="">Select type…</option>
+                  {types.length > 0
+                    ? types.map(t => <option key={t.id} value={t.code}>{t.name}</option>)
+                    : ['residential','commercial','mixed_use','industrial','retail','hospitality','warehouse'].map(t =>
+                        <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+              <div className="edit-field">
+                <label>Legal Name</label>
+                <input value={form.legalName} onChange={e => set('legalName', e.target.value)} placeholder="Official legal name" />
+              </div>
+              <div className="edit-field">
+                <label>Registration No.</label>
+                <input value={form.registrationNo} onChange={e => set('registrationNo', e.target.value)} placeholder="e.g. BCA-2024-12345" />
+              </div>
+              <div className="edit-field full">
+                <label>Description</label>
+                <textarea rows={2} value={form.description} onChange={e => set('description', e.target.value)} placeholder="Brief description…" />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Address ── */}
+          <div className="edit-section">
+            <div className="edit-section-title"><MapPin size={13} /> Address &amp; Location</div>
+            <div className="edit-grid">
+              <div className="edit-field full">
+                <label>Address Line 1</label>
+                <input value={form.addressLine1} onChange={e => set('addressLine1', e.target.value)} placeholder="Street address" />
+              </div>
+              <div className="edit-field full">
+                <label>Address Line 2</label>
+                <input value={form.addressLine2} onChange={e => set('addressLine2', e.target.value)} placeholder="Floor, unit, block" />
+              </div>
+              <div className="edit-field">
+                <label>City</label>
+                <input value={form.city} onChange={e => set('city', e.target.value)} placeholder="e.g. Singapore" />
+              </div>
+              <div className="edit-field">
+                <label>State / Province</label>
+                <input value={form.state} onChange={e => set('state', e.target.value)} placeholder="e.g. Central Region" />
+              </div>
+              <div className="edit-field">
+                <label>Postal Code</label>
+                <input value={form.postalCode} onChange={e => set('postalCode', e.target.value)} placeholder="e.g. 018956" />
+              </div>
+              <div className="edit-field">
+                <label>Country</label>
+                <select value={form.country} onChange={e => set('country', e.target.value)}>
+                  <option value="">Select country…</option>
+                  {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="edit-field">
+                <label>Branch</label>
+                <select value={form.branchId} onChange={e => set('branchId', e.target.value)}>
+                  <option value="">— No Branch —</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div className="edit-field">
+                <label>Latitude</label>
+                <input type="number" step="any" value={form.geoLat} onChange={e => set('geoLat', e.target.value)} placeholder="e.g. 1.2839" />
+              </div>
+              <div className="edit-field">
+                <label>Longitude</label>
+                <input type="number" step="any" value={form.geoLng} onChange={e => set('geoLng', e.target.value)} placeholder="e.g. 103.8607" />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Property Details ── */}
+          <div className="edit-section">
+            <div className="edit-section-title"><Building2 size={13} /> Property Details</div>
+            <div className="edit-grid">
+              <div className="edit-field">
+                <label>Year Built</label>
+                <input type="number" min={1800} max={new Date().getFullYear() + 5} value={form.yearBuilt} onChange={e => set('yearBuilt', e.target.value)} placeholder="e.g. 2018" />
+              </div>
+              <div className="edit-field">
+                <label>Total Floors</label>
+                <input type="number" min={1} value={form.totalFloors} onChange={e => set('totalFloors', e.target.value)} placeholder="e.g. 32" />
+              </div>
+              <div className="edit-field">
+                <label>Total Area (sqm)</label>
+                <input type="number" min={0} value={form.totalAreaSqm} onChange={e => setArea(e.target.value)} placeholder="e.g. 12500" />
+              </div>
+              <div className="edit-field">
+                <label>Total Area (sqft)</label>
+                <input type="number" min={0} value={form.totalAreaSqft} onChange={e => setAreaSqft(e.target.value)} placeholder="e.g. 134549" />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Billing ── */}
+          <div className="edit-section">
+            <div className="edit-section-title">Billing &amp; Financial</div>
+            <div className="edit-grid">
+              <div className="edit-field">
+                <label>Currency</label>
+                <select value={form.currency} onChange={e => set('currency', e.target.value)}>
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="edit-field">
+                <label>Billing Cycle</label>
+                <select value={form.billingCycle} onChange={e => set('billingCycle', e.target.value)}>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="semi_annual">Semi-Annual</option>
+                  <option value="annual">Annual</option>
+                </select>
+              </div>
+              <div className="edit-field">
+                <label>Billing Day (1–28)</label>
+                <input type="number" min={1} max={28} value={form.billingDay} onChange={e => set('billingDay', e.target.value)} />
+              </div>
+              <div className="edit-field">
+                <label>Timezone</label>
+                <select value={form.timezone} onChange={e => set('timezone', e.target.value)}>
+                  {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="edit-drawer-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave} disabled={isLoading}>
+            <Save size={14} /> {isLoading ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────
 export default function PropertiesPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -61,6 +334,7 @@ export default function PropertiesPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [editingProperty, setEditingProperty] = useState<PropertyListItem | null>(null);
 
   const { data, isLoading } = useGetPropertiesQuery({
     search: listFilters.search || undefined,
@@ -164,6 +438,7 @@ export default function PropertiesPage() {
               menuOpen={menuOpen === p.id}
               onMenuOpen={() => setMenuOpen(menuOpen === p.id ? null : p.id)}
               onView={() => navigate(`/admin/properties/${p.id}`)}
+              onEdit={() => { setMenuOpen(null); setEditingProperty(p); }}
               onDelete={() => handleDelete(p.id, p.name)}
             />
           ))}
@@ -176,6 +451,7 @@ export default function PropertiesPage() {
           {properties.map((p) => (
             <PropertyRow key={p.id} property={p}
               onView={() => navigate(`/admin/properties/${p.id}`)}
+              onEdit={() => setEditingProperty(p)}
               onDelete={() => handleDelete(p.id, p.name)} />
           ))}
         </div>
@@ -188,13 +464,22 @@ export default function PropertiesPage() {
           <button disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next →</button>
         </div>
       )}
+
+      {/* Edit Drawer */}
+      {editingProperty && (
+        <EditDrawer
+          property={editingProperty}
+          onClose={() => setEditingProperty(null)}
+        />
+      )}
     </div>
   );
 }
 
-function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onDelete }: {
+// ─── Property Card ────────────────────────────
+function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onEdit, onDelete }: {
   property: PropertyListItem; menuOpen: boolean;
-  onMenuOpen: () => void; onView: () => void; onDelete: () => void;
+  onMenuOpen: () => void; onView: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const { data: statsData } = useGetPropertyStatsQuery(p.id);
   const stats = statsData?.data;
@@ -216,6 +501,7 @@ function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onDelete }: {
         {menuOpen && (
           <div className="card-menu" onClick={(e) => e.stopPropagation()}>
             <button onClick={onView}><Eye size={14} /> View Details</button>
+            <button onClick={onEdit}><Edit3 size={14} /> Edit</button>
             <button onClick={onDelete} className="danger"><Trash2 size={14} /> Delete</button>
           </div>
         )}
@@ -254,8 +540,9 @@ function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onDelete }: {
   );
 }
 
-function PropertyRow({ property: p, onView, onDelete }: {
-  property: PropertyListItem; onView: () => void; onDelete: () => void;
+// ─── Property Row (List view) ─────────────────
+function PropertyRow({ property: p, onView, onEdit, onDelete }: {
+  property: PropertyListItem; onView: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   return (
     <div className="list-row" onClick={onView}>
@@ -270,8 +557,9 @@ function PropertyRow({ property: p, onView, onDelete }: {
       <span>{p.totalUnits}</span>
       <span>{p.city || '—'}</span>
       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onView}><Eye size={15} /></button>
-        <button onClick={onDelete} className="danger"><Trash2 size={15} /></button>
+        <button title="View" onClick={onView}><Eye size={15} /></button>
+        <button title="Edit" onClick={onEdit}><Edit3 size={15} /></button>
+        <button title="Delete" onClick={onDelete} className="danger"><Trash2 size={15} /></button>
       </div>
     </div>
   );

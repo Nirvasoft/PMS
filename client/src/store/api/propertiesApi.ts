@@ -113,6 +113,7 @@ export interface PropertyDetail extends PropertyListItem {
   facilities: PropertyFacility[];
   contacts: PropertyContact[];
   updatedAt: string;
+  branch: { id: string; name: string } | null;
 }
 
 export interface PropertyQueryParams {
