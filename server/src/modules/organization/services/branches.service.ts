@@ -31,7 +31,15 @@ export class BranchesService {
     addressLine1?: string; addressLine2?: string;
     city?: string; state?: string; postalCode?: string; country?: string;
   }, companyId: string) {
-    return prisma.branch.create({ data: { companyId, ...dto } });
+    const cleanDto = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== null && v !== undefined && v !== '')
+    );
+    return prisma.branch.create({
+      data: {
+        companyId,
+        ...cleanDto,
+      },
+    });
   }
 
   async update(branchId: string, dto: Record<string, unknown>) {

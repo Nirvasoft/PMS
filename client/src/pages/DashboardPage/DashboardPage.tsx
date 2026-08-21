@@ -1,4 +1,4 @@
-import { useNavigate, NavLink, Outlet, useLocation } from 'react-router-dom';
+﻿import { useNavigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useLogoutMutation } from '../../store/api/authApi';
 import { useGetPropertyStatsQuery } from '../../store/api/organizationApi';
 import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
@@ -7,7 +7,7 @@ import { setSelectedProperty } from '../../store/slices/propertiesSlice';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { FeatureGate } from '../../components/guards/FeatureGate';
 import {
-  Building2, LayoutDashboard, Shield, LogOut, Settings, ChevronRight, ChevronDown,
+  Building2, LayoutDashboard, Shield, LogOut, Settings, ChevronRight, ChevronDown, SquareKanban,
   User, Users, Key, GitBranch, Home, MapPin, Workflow, Inbox, Bell, Briefcase, FileText, FolderOpen,
   Users2, ClipboardList, Target, Megaphone, Car, Link2, Ticket, Activity, Receipt, CalendarClock, CalendarDays,
   Banknote, BarChart3, Clock, RotateCcw,
@@ -170,7 +170,7 @@ export default function DashboardLayout() {
 
         <nav className={`sidebar-nav${isCollapsed ? ' sidebar-nav--collapsed' : ''}`}>
           <NavLink to="/dashboard" end className="nav-item" title="Dashboard">
-            <LayoutDashboard size={18} />
+            <SquareKanban size={18} />
             {!isCollapsed && <span>Dashboard</span>}
           </NavLink>
 
@@ -292,7 +292,7 @@ export default function DashboardLayout() {
               <span>Charge Types</span>
             </NavLink>
             <NavLink to="/admin/billing/meter-setup" className="nav-item" title="Meter Setup">
-              <Gauge size={18} />
+              <SquareKanban size={18} />
               <span>Meter Setup</span>
             </NavLink>
             <NavLink to="/admin/billing/settings" className="nav-item" title="Settings">

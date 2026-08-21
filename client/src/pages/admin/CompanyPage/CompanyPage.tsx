@@ -705,12 +705,13 @@ function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitL
           className="modal-body"
           onSubmit={(e) => {
             e.preventDefault();
-            // Blank optional fields (e.g. "— No Manager —") arrive as '' — send null
-            // instead, since Postgres rejects '' for UUID/FK columns like managerId.
+            // Empty fields are omitted entirely so Prisma uses column defaults.
+            // Sending null breaks non-nullable columns (e.g. country String @default("US"))
+            // and UUID/FK columns (e.g. managerId) that expect a valid UUID or nothing.
             const sanitized = Object.fromEntries(
-              Object.entries(form).map(([k, v]) => [k, v === '' ? null : v])
+              Object.entries(form).filter(([, v]) => v !== '' && v !== null && v !== undefined)
             );
-            onSubmit(sanitized as unknown as Record<string, string>);
+            onSubmit(sanitized as Record<string, string>);
           }}
         >
           {fields.map((f) => (
@@ -734,7 +735,7 @@ function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitL
                   <option value="">— No Manager —</option>
                   {users.map((u: Record<string, unknown>) => (
                     <option key={u.id as string} value={u.id as string}>
-                      {String(u.firstName || '')} {String(u.lastName || '')} ({String(u.email)})
+                      {String(u.fullName || u.email || '')}
                     </option>
                   ))}
                 </select>
