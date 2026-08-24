@@ -8,7 +8,7 @@ import {
 } from '../../../store/api/unitsApi';
 import { useGetMeterSetupsQuery } from '../../../store/api/billingApi';
 import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
-import { CATEGORIES as METER_CATEGORIES } from '../BillingPage/MeterSetupPage';
+import { CATEGORIES as METER_CATEGORIES, METER_TYPES } from '../BillingPage/MeterSetupPage';
 import {
   X, Zap, Droplets, Wind, Star, ChevronRight, Settings2,
   Activity, Clock, Thermometer, Plus, Trash2, Pencil, Check,
@@ -84,6 +84,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const { data: meterSetupsData } = useGetMeterSetupsQuery({ propertyId });
   const floorMeterOptions = (meterSetupsData?.data || []).filter(
     (m) => m.category === meterForm.meterType && m.floor?.floorNumber === unit?.floorNumber
+  );
+  const floorMeterEditOptions = (meterSetupsData?.data || []).filter(
+    (m) => m.category === meterEditForm.meterCategory && m.floor?.floorNumber === unit?.floorNumber
   );
 
   const { data: floorSetupsData } = useGetFloorSetupsQuery({ propertyId });
@@ -208,6 +211,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const handleMeterEdit = (m: any) => {
     setEditingMeterId(m.id);
     setMeterEditForm({
+      meterCategory: m.meterType,
       meterSerialNo: m.meterSerialNo,
       meterProvider: m.meterProvider || '',
       location: m.location || '',
@@ -220,8 +224,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     if (!editingMeterId) return;
     try {
       await updateMeter({ propertyId, unitId, meterId: editingMeterId, data: {
-        ...meterEditForm,
+        meterType: meterEditForm.meterCategory,
+        meterSerialNo: meterEditForm.meterSerialNo,
+        meterProvider: meterEditForm.meterProvider || null,
         location: meterEditForm.location || null,
+        isSmartMeter: meterEditForm.isSmartMeter,
         smartMeterId: meterEditForm.smartMeterId || null,
       }}).unwrap();
       toast.success('Meter updated');
@@ -601,29 +608,40 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
               {addingMeter && (
                 <div className="meter-form">
-                  <select value={meterForm.meterType}
-                    onChange={(e) => setMeterForm({ ...meterForm, meterType: e.target.value, meterSerialNo: '' })}>
-                    <option value="">Select category…</option>
-                    {METER_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                  </select>
-                  <select value={meterForm.meterSerialNo} disabled={!meterForm.meterType}
-                    onChange={(e) => setMeterForm({ ...meterForm, meterSerialNo: e.target.value })}>
-                    <option value="">
-                      {!meterForm.meterType ? 'Select category first' : floorMeterOptions.length === 0 ? 'No meters set up for this floor' : 'Select meter no…'}
-                    </option>
-                    {floorMeterOptions.map((m) => (
-                      <option key={m.id} value={m.meterNo}>{m.meterNo}</option>
-                    ))}
-                  </select>
-                  {meterForm.meterSerialNo && (() => {
+                  <div className="ef-field">
+                    <label>Category</label>
+                    <select value={meterForm.meterType}
+                      onChange={(e) => setMeterForm({ ...meterForm, meterType: e.target.value, meterSerialNo: '' })}>
+                      <option value="">Select category…</option>
+                      {METER_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="ef-field">
+                    <label>Meter No</label>
+                    <select value={meterForm.meterSerialNo} disabled={!meterForm.meterType}
+                      onChange={(e) => setMeterForm({ ...meterForm, meterSerialNo: e.target.value })}>
+                      <option value="">
+                        {!meterForm.meterType ? 'Select category first' : floorMeterOptions.length === 0 ? 'No meters set up for this floor' : 'Select meter no…'}
+                      </option>
+                      {floorMeterOptions.map((m) => (
+                        <option key={m.id} value={m.meterNo}>{m.meterNo}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {(() => {
                     const sel = floorMeterOptions.find((m) => m.meterNo === meterForm.meterSerialNo);
-                    const label = sel?.meterType?.replace(/_/g, ' ') || '';
-                    return label ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-tertiary)', fontSize: 12 }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Meter Type:</span>
-                        <span style={{ color: 'var(--text-primary)', fontWeight: 500, textTransform: 'capitalize' }}>{label}</span>
+                    const label = sel ? (METER_TYPES.find((t) => t.value === sel.meterType)?.label || sel.meterType.replace(/_/g, ' ')) : '';
+                    return (
+                      <div className="ef-field">
+                        <label>Meter Type</label>
+                        <input
+                          readOnly
+                          value={label}
+                          placeholder="— auto-filled —"
+                          style={{ background: 'var(--bg-tertiary)', color: label ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'not-allowed', textTransform: 'capitalize' }}
+                        />
                       </div>
-                    ) : null;
+                    );
                   })()}
                   <input placeholder="Provider" value={meterForm.meterProvider}
                     onChange={(e) => setMeterForm({ ...meterForm, meterProvider: e.target.value })} />
@@ -659,9 +677,37 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       {editingMeterId === m.id ? (
                         /* ── Inline Meter Edit ── */
                         <div className="meter-edit-inline">
-                          <input value={meterEditForm.meterSerialNo}
-                            onChange={(e) => setMeterEditForm({ ...meterEditForm, meterSerialNo: e.target.value })}
-                            placeholder="Serial No." />
+                          <div className="ef-field">
+                            <label>Category</label>
+                            <select value={meterEditForm.meterCategory}
+                              onChange={(e) => setMeterEditForm({ ...meterEditForm, meterCategory: e.target.value, meterSerialNo: '' })}>
+                              <option value="">Select category…</option>
+                              {METER_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                            </select>
+                          </div>
+                          <div className="ef-field">
+                            <label>Meter No</label>
+                            <select value={meterEditForm.meterSerialNo} disabled={!meterEditForm.meterCategory}
+                              onChange={(e) => setMeterEditForm({ ...meterEditForm, meterSerialNo: e.target.value })}>
+                              <option value="">
+                                {!meterEditForm.meterCategory ? 'Select category first' : floorMeterEditOptions.length === 0 ? 'No meters set up for this floor' : 'Select meter no…'}
+                              </option>
+                              {floorMeterEditOptions.map((opt) => (
+                                <option key={opt.id} value={opt.meterNo}>{opt.meterNo}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {(() => {
+                            const setup = floorMeterEditOptions.find((s) => s.meterNo === meterEditForm.meterSerialNo);
+                            const typeLabel = setup ? (METER_TYPES.find((t) => t.value === setup.meterType)?.label || setup.meterType.replace(/_/g, ' ')) : '';
+                            return (
+                              <div className="ef-field">
+                                <label>Meter Type</label>
+                                <input readOnly value={typeLabel} placeholder="— auto-filled —"
+                                  style={{ background: 'var(--bg-tertiary)', color: typeLabel ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'not-allowed' }} />
+                              </div>
+                            );
+                          })()}
                           <input value={meterEditForm.meterProvider}
                             onChange={(e) => setMeterEditForm({ ...meterEditForm, meterProvider: e.target.value })}
                             placeholder="Provider" />
@@ -711,21 +757,42 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       ) : (
                         /* ── Normal Meter Card View ── */
                         <>
-                          <div className="meter-icon">{METER_ICONS[m.meterType] || <Activity size={14} />}</div>
                           <div className="meter-info">
-                            <div className="meter-type">
-                              {METER_CATEGORIES.find((c) => c.value === m.meterType)?.label || m.meterType.replace(/_/g, ' ')}
+                            <div className="meter-detail-grid">
+                              <div className="meter-detail-col">
+                                <span className="meter-detail-label">Category</span>
+                                <span className="meter-detail-value">
+                                  {METER_CATEGORIES.find((c) => c.value === m.meterType)?.label || m.meterType.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                              <div className="meter-detail-col">
+                                <span className="meter-detail-label">Meter No</span>
+                                <span className="meter-detail-value">{m.meterSerialNo}</span>
+                              </div>
+                              {(() => {
+                                const setup = (meterSetupsData?.data || []).find((s) => s.meterNo === m.meterSerialNo);
+                                const typeLabel = setup ? (METER_TYPES.find((t) => t.value === setup.meterType)?.label || setup.meterType.replace(/_/g, ' ')) : '';
+                                return typeLabel ? (
+                                  <div className="meter-detail-col">
+                                    <span className="meter-detail-label">Meter Type</span>
+                                    <span className="meter-detail-value">{typeLabel}</span>
+                                  </div>
+                                ) : null;
+                              })()}
                             </div>
-                            <div className="meter-serial">{m.meterSerialNo}</div>
-                            {m.meterProvider && <div className="meter-provider">{m.meterProvider}</div>}
-                            {m.location && <div className="meter-provider">{m.location}</div>}
+                            {(m.meterProvider || m.location || m.installedAt) && (
+                              <div className="meter-extra-row">
+                                {m.meterProvider && <span className="meter-extra-item"><span className="meter-detail-label">Provider</span> {m.meterProvider}</span>}
+                                {m.location && <span className="meter-extra-item"><span className="meter-detail-label">Location</span> {m.location}</span>}
+                                {m.installedAt && <span className="meter-extra-item"><span className="meter-detail-label">Installed</span> {new Date(m.installedAt).toLocaleDateString()}</span>}
+                              </div>
+                            )}
                             {m.lastReading !== null && (
                               <div className="meter-reading">
                                 Reading: <strong>{m.lastReading}</strong>
                                 {m.lastReadingDate && <span> · {new Date(m.lastReadingDate).toLocaleDateString()}</span>}
                               </div>
                             )}
-                            {m.installedAt && <div className="meter-provider">Installed: {new Date(m.installedAt).toLocaleDateString()}</div>}
                             {m.isSmartMeter && <span className="smart-badge">Smart{m.smartMeterId ? ` · ${m.smartMeterId}` : ''}</span>}
                           </div>
                           <div className="meter-actions">
