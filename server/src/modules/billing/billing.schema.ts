@@ -30,11 +30,14 @@ export const createMeterSetupSchema = z.object({
     factor: z.number().optional(),
     maintenanceFee: z.number().optional(),
     usageType: z.enum(['tenant_used', 'common_used', 'office_used']).optional(),
+    rate: z.number().optional(),
+    calculationType: z.enum(['per_unit', 'fixed']).optional(),
   }).refine((data) => data.meterType !== 'sub_meter' || !!data.mainMeterId, {
     message: 'Main meter is required for sub meters',
     path: ['mainMeterId'],
   }),
 });
+
 
 export const updateMeterSetupSchema = z.object({
   body: z.object({
@@ -49,6 +52,8 @@ export const updateMeterSetupSchema = z.object({
     factor: z.number().optional(),
     maintenanceFee: z.number().optional(),
     usageType: z.enum(['tenant_used', 'common_used', 'office_used']).optional(),
+    rate: z.number().nullable().optional(),
+    calculationType: z.enum(['per_unit', 'fixed']).optional(),
     isActive: z.boolean().optional(),
   }).refine((data) => data.meterType !== 'sub_meter' || !!data.mainMeterId, {
     message: 'Main meter is required for sub meters',

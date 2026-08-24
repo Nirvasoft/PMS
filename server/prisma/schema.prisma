@@ -2689,13 +2689,15 @@ model MeterSetup {
   meterType       String    @map("meter_type") @db.VarChar(20)     // 'mepe' | 'sub_meter' | 'ct_meter' | 'water_meter'
   meterNo         String    @map("meter_no") @db.VarChar(50)
   mainMeterId     String?   @map("main_meter_id") @db.Uuid          // required when meterType = 'sub_meter'
-  horsePower      Decimal?  @map("horse_power") @db.Decimal(10, 2)
-  unitLostPct     Decimal?  @map("unit_lost_pct") @db.Decimal(5, 2)
-  category        String    @db.VarChar(30)                        // 'lighting' | 'water' | 'aircon' | 'aircon_lighting' | 'lighting_telenor'
-  factor          Decimal?  @db.Decimal(10, 4)
-  maintenanceFee  Decimal?  @map("maintenance_fee") @db.Decimal(10, 2)
-  usageType       String?   @map("usage_type") @db.VarChar(20)     // 'tenant_used' | 'common_used' | 'office_used'
-  isActive        Boolean   @default(true) @map("is_active")
+  horsePower       Decimal?  @map("horse_power") @db.Decimal(10, 2)
+  unitLostPct      Decimal?  @map("unit_lost_pct") @db.Decimal(5, 2)
+  category         String    @db.VarChar(30)                        // 'lighting' | 'water' | 'aircon' | 'aircon_lighting' | 'lighting_telenor'
+  factor           Decimal?  @db.Decimal(10, 4)
+  maintenanceFee   Decimal?  @map("maintenance_fee") @db.Decimal(10, 2)
+  usageType        String?   @map("usage_type") @db.VarChar(20)     // 'tenant_used' | 'common_used' | 'office_used'
+  rate             Decimal?  @db.Decimal(10, 4)
+  calculationType  String    @default("per_unit") @map("calculation_type") @db.VarChar(20)  // 'per_unit' | 'fixed'
+  isActive         Boolean   @default(true) @map("is_active")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 

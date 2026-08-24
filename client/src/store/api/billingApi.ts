@@ -28,6 +28,8 @@ export interface MeterSetup {
   factor: string | null;
   maintenanceFee: string | null;
   usageType: string | null;
+  rate: string | null;
+  calculationType: string;
   isActive: boolean;
   property: { id: string; name: string; code: string | null };
   floor: { id: string; floorNumber: number; floorLabel: string } | null;

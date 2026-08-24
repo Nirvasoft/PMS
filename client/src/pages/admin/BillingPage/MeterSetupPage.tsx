@@ -29,6 +29,11 @@ const USAGE_TYPES = [
   { value: 'office_used', label: 'OfficeUsed' },
 ] as const;
 
+const CALCULATION_TYPES = [
+  { value: 'per_unit', label: 'Per Unit' },
+  { value: 'fixed', label: 'Fixed' },
+] as const;
+
 const labelFor = (opts: readonly { value: string; label: string }[], value: string) =>
   opts.find((o) => o.value === value)?.label || value;
 
@@ -75,7 +80,7 @@ export default function MeterSetupPage() {
 
   const emptyForm = {
     propertyId: '', floorId: '', meterType: '', meterNo: '', mainMeterId: '', horsePower: '', unitLostPct: '',
-    category: '', factor: '1', maintenanceFee: '', usageType: '',
+    category: '', factor: '1', maintenanceFee: '', usageType: '', rate: '', calculationType: 'per_unit',
   };
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MeterSetup | null>(null);
@@ -105,6 +110,8 @@ export default function MeterSetupPage() {
       factor: m.factor ?? '',
       maintenanceFee: m.maintenanceFee ?? '',
       usageType: m.usageType ?? '',
+      rate: m.rate ?? '',
+      calculationType: m.calculationType ?? 'per_unit',
     });
     setShowForm(true);
   };
@@ -132,6 +139,8 @@ export default function MeterSetupPage() {
       factor: form.factor ? Number(form.factor) : undefined,
       maintenanceFee: form.maintenanceFee ? Number(form.maintenanceFee) : undefined,
       usageType: form.usageType || undefined,
+      rate: form.rate ? Number(form.rate) : undefined,
+      calculationType: form.calculationType || 'per_unit',
     };
     try {
       if (editing) {
@@ -351,6 +360,17 @@ export default function MeterSetupPage() {
                     <label>Maintenance Fee</label>
                     <input type="number" className="no-spinner" step="0.01" placeholder="e.g. 25.00" value={form.maintenanceFee}
                       onChange={(e) => setForm({ ...form, maintenanceFee: e.target.value })} />
+                  </div>
+                  <div className="inv-field">
+                    <label>Rate <span className="req">*</span></label>
+                    <input required type="number" className="no-spinner" step="0.0001" min={0} placeholder="e.g. 150.00" value={form.rate}
+                      onChange={(e) => setForm({ ...form, rate: e.target.value })} />
+                  </div>
+                  <div className="inv-field">
+                    <label>Calculation <span className="req">*</span></label>
+                    <select required value={form.calculationType} onChange={(e) => setForm({ ...form, calculationType: e.target.value })}>
+                      {CALCULATION_TYPES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </select>
                   </div>
                   <div className="inv-field">
                     <label>Meter Usage Type</label>

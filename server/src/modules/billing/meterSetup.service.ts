@@ -33,6 +33,8 @@ export class MeterSetupService {
         factor: (dto.factor as number) ?? null,
         maintenanceFee: (dto.maintenanceFee as number) ?? null,
         usageType: (dto.usageType as string) ?? null,
+        rate: (dto.rate as number) ?? null,
+        calculationType: (dto.calculationType as string) ?? 'per_unit',
       },
       include: {
         property: { select: { id: true, name: true, code: true } },
@@ -61,6 +63,8 @@ export class MeterSetupService {
     if (dto.factor !== undefined) updateData.factor = dto.factor;
     if (dto.maintenanceFee !== undefined) updateData.maintenanceFee = dto.maintenanceFee;
     if (dto.usageType !== undefined) updateData.usageType = dto.usageType;
+    if (dto.rate !== undefined) updateData.rate = dto.rate;
+    if (dto.calculationType !== undefined) updateData.calculationType = dto.calculationType;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
 
     return prisma.meterSetup.update({
