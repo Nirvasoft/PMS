@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAppDispatch } from '../../../store';
 import { setBulkCreateOpen } from '../../../store/slices/unitsSlice';
 import { useBulkCreateUnitsMutation, useGetUnitTypesQuery, useCheckBulkConflictsMutation } from '../../../store/api/unitsApi';
+import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import type { Tower } from '../../../store/api/unitsApi';
 import { X, AlertCircle, CheckCircle, Layers, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -15,6 +16,7 @@ interface Props {
 export function BulkCreateModal({ propertyId, towers }: Props) {
   const dispatch = useAppDispatch();
   const { data: typesData } = useGetUnitTypesQuery();
+  const { data: floorSetupsData } = useGetFloorSetupsQuery({ propertyId });
   const [bulkCreate, { isLoading }] = useBulkCreateUnitsMutation();
   const [checkConflicts] = useCheckBulkConflictsMutation();
 
@@ -30,26 +32,43 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
 
   const unitTypes = typesData?.data || [];
 
+  // ── Floor labels (from Floor Setup) ─────────
+  const floorLabelMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const f of floorSetupsData?.data || []) map.set(f.floorNumber, f.floorLabel);
+    return map;
+  }, [floorSetupsData]);
+
+  const floorsMissingLabel = useMemo(() => {
+    const missing: number[] = [];
+    for (let floor = form.fromFloor; floor <= form.toFloor; floor++) {
+      if (!floorLabelMap.has(floor)) missing.push(floor);
+    }
+    return missing;
+  }, [form.fromFloor, form.toFloor, floorLabelMap]);
+
   // ── Conflict pre-check state ────────────────
   const [conflicts, setConflicts] = useState<Set<string>>(new Set());
   const [checking, setChecking] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // ── Generate ALL unit numbers (not limited) ─
-  const allUnitNumbers = useMemo(() => {
-    const nums: string[] = [];
-    if (!form.unitTypeId) return nums;
+  // ── Generate ALL units (not limited) ────────
+  const allUnits = useMemo(() => {
+    const list: Array<{ unitNumber: string; floor: number }> = [];
+    if (!form.unitTypeId) return list;
     for (let floor = form.fromFloor; floor <= form.toFloor; floor++) {
       for (let u = 1; u <= form.unitsPerFloor; u++) {
-        nums.push(`${floor}${form.prefix}${u.toString().padStart(2, '0')}`);
+        list.push({ unitNumber: `${floor}${form.prefix}${u.toString().padStart(2, '0')}`, floor });
       }
     }
-    return nums;
+    return list;
   }, [form.fromFloor, form.toFloor, form.unitsPerFloor, form.prefix, form.unitTypeId]);
 
+  const allUnitNumbers = useMemo(() => allUnits.map((u) => u.unitNumber), [allUnits]);
+
   // Preview (first 20)
-  const previewUnits = useMemo(() => allUnitNumbers.slice(0, 20), [allUnitNumbers]);
-  const totalUnits = allUnitNumbers.length;
+  const previewUnits = useMemo(() => allUnits.slice(0, 20), [allUnits]);
+  const totalUnits = allUnits.length;
 
   // ── Debounced conflict check ────────────────
   const runConflictCheck = useCallback(async (unitNumbers: string[]) => {
@@ -91,6 +110,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
     if (!form.unitTypeId) { toast.error('Select a unit type'); return; }
     if (form.fromFloor > form.toFloor) { toast.error('Invalid floor range'); return; }
     if (totalUnits > 500) { toast.error('Maximum 500 units per bulk operation'); return; }
+    if (conflictCount > 0) { toast.error(`${conflictCount} unit number(s) already exist — change the range or prefix`); return; }
 
     try {
       const result = await bulkCreate({
@@ -110,10 +130,11 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
       toast.success(`✅ Created ${result.data.created} units`);
       dispatch(setBulkCreateOpen(false));
     } catch (e: any) {
-      const serverConflicts = e?.data?.details?.conflicts;
-      toast.error(serverConflicts
+      const apiError = e?.data?.errors?.[0];
+      const serverConflicts = apiError?.meta?.conflicts as string[] | undefined;
+      toast.error(serverConflicts?.length
         ? `${serverConflicts.length} unit number(s) already exist: ${serverConflicts.slice(0, 3).join(', ')}…`
-        : 'Bulk create failed');
+        : apiError?.message || 'Bulk create failed');
     }
   };
 
@@ -199,6 +220,16 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
                 </span>
               </div>
             )}
+
+            {/* Missing floor label warning */}
+            {form.unitTypeId && floorsMissingLabel.length > 0 && (
+              <div className="conflict-warning">
+                <AlertTriangle size={14} />
+                <span>
+                  Floor{floorsMissingLabel.length !== 1 ? 's' : ''} {floorsMissingLabel.join(', ')} {floorsMissingLabel.length !== 1 ? "aren't" : "isn't"} set up in Floor Setup — they'll use the plain floor number as the label
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Preview */}
@@ -211,13 +242,15 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
               ? <div className="preview-empty">Select type and set range to preview</div>
               : (
                 <div className="preview-grid">
-                  {previewUnits.map((n) => {
+                  {previewUnits.map(({ unitNumber: n, floor }) => {
                     const isConflict = conflicts.has(n.toLowerCase());
+                    const floorLabel = floorLabelMap.get(floor) ?? String(floor);
+                    const title = isConflict ? `"${n}" already exists` : `${n} · Floor ${floorLabel}`;
                     return (
                       <div
                         key={n}
                         className={`preview-cell ${isConflict ? 'conflict' : ''}`}
-                        title={isConflict ? `"${n}" already exists` : n}
+                        title={title}
                       >
                         {n}
                       </div>
@@ -235,7 +268,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
         <div className="modal-footer">
           <button className="btn-ghost" onClick={() => dispatch(setBulkCreateOpen(false))}>Cancel</button>
           <button className="btn-primary" onClick={handleCreate}
-            disabled={isLoading || totalUnits > 500 || !form.unitTypeId}>
+            disabled={isLoading || checking || totalUnits > 500 || !form.unitTypeId || conflictCount > 0}>
             {isLoading ? 'Creating…' : `Create ${totalUnits} Units`}
           </button>
         </div>

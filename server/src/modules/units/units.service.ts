@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
@@ -265,6 +266,12 @@ export class UnitsService {
       const areaSqmCalc = areaSqm ?? (areaSqft ? Math.round((areaSqft / SQM_TO_SQFT) * 100) / 100 : undefined);
       const areaSqftCalc = areaSqft ?? (areaSqm ? Math.round(areaSqm * SQM_TO_SQFT * 100) / 100 : undefined);
 
+      const floorSetups = await prisma.floorSetup.findMany({
+        where: { propertyId, isActive: true, floorNumber: { gte: from, lte: to } },
+        select: { floorNumber: true, floorLabel: true },
+      });
+      const floorLabelMap = new Map(floorSetups.map((f) => [f.floorNumber, f.floorLabel]));
+
       for (let floor = from; floor <= to; floor++) {
         for (let u = 1; u <= unitsPerFloor; u++) {
           const unitNum = u.toString().padStart(2, '0');
@@ -276,7 +283,7 @@ export class UnitsService {
             unitType: unitType.code,
             unitTypeId,
             floorNumber: floor,
-            floorLabel: String(floor),
+            floorLabel: floorLabelMap.get(floor) ?? String(floor),
             areaSqft: areaSqftCalc,
             areaSqm: areaSqmCalc,
             status: 'available',
@@ -299,18 +306,37 @@ export class UnitsService {
     }
 
     // Create in transaction
-    const created = await prisma.$transaction(async (tx) => {
-      const createdUnits = await Promise.all(
-        units.map((u) => tx.unit.create({ data: u as any }))
-      );
-      // Bulk status history
-      await tx.unitStatusHistory.createMany({
-        data: createdUnits.map((u) => ({ unitId: u.id, toStatus: 'available', changedBy: userId })),
+    let created;
+    try {
+      created = await prisma.$transaction(async (tx) => {
+        const createdUnits = await Promise.all(
+          units.map((u) => tx.unit.create({ data: u as any }))
+        );
+        // Bulk status history
+        await tx.unitStatusHistory.createMany({
+          data: createdUnits.map((u) => ({ unitId: u.id, toStatus: 'available', changedBy: userId })),
+        });
+        // Update property totalUnits
+        await tx.property.update({ where: { id: propertyId }, data: { totalUnits: { increment: createdUnits.length } } });
+        return createdUnits;
       });
-      // Update property totalUnits
-      await tx.property.update({ where: { id: propertyId }, data: { totalUnits: { increment: createdUnits.length } } });
-      return createdUnits;
-    });
+    } catch (e) {
+      // Another request created one of these unit numbers between our pre-check and this
+      // transaction — re-check to report exactly which ones instead of a raw DB error.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        const nowExisting = await prisma.unit.findMany({
+          where: { propertyId, deletedAt: null },
+          select: { unitNumber: true },
+        }).then((rows) => rows.filter((r) => lowerNumbers.includes(r.unitNumber.toLowerCase())));
+        if (nowExisting.length > 0) {
+          throw new AppError(409, 'UNIT_NUMBER_CONFLICT', `${nowExisting.length} unit number(s) already exist`, {
+            conflicts: nowExisting.map((r) => r.unitNumber),
+          });
+        }
+        throw new AppError(409, 'UNIT_NUMBER_CONFLICT', 'A conflicting unit number was created concurrently — please retry');
+      }
+      throw e;
+    }
 
     // Invalidate cached stats after transaction
     await this.invalidateStatsCache(propertyId);
@@ -442,7 +468,14 @@ export class UnitsService {
     const unit = await prisma.unit.findFirst({ where: { id: unitId, propertyId, deletedAt: null } });
     if (!unit) throw AppError.notFound('Unit');
     // TODO: block if has active lease (Phase 2.4)
-    await prisma.unit.update({ where: { id: unitId }, data: { deletedAt: new Date(), isActive: false } });
+    // Free up the unit number for reuse — the (unitNumber, propertyId) unique
+    // constraint isn't scoped to deletedAt, so a soft-deleted unit would otherwise
+    // keep blocking that exact number from ever being recreated.
+    const archiveSuffix = `~del${unitId.slice(0, 8)}`;
+    const archivedNumber = unit.unitNumber.length + archiveSuffix.length > 50
+      ? `${unit.unitNumber.slice(0, 50 - archiveSuffix.length)}${archiveSuffix}`
+      : `${unit.unitNumber}${archiveSuffix}`;
+    await prisma.unit.update({ where: { id: unitId }, data: { deletedAt: new Date(), isActive: false, unitNumber: archivedNumber } });
     await prisma.property.update({ where: { id: propertyId }, data: { totalUnits: { decrement: 1 } } });
 
     // Invalidate cached stats
