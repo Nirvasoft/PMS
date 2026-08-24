@@ -126,6 +126,7 @@ export interface UnitDetail extends UnitListItem {
   rate: number | null;
   description: string | null;
   notes: string | null;
+  commonBillCalculate: boolean;
   unitTypeRef: UnitType | null;
   statusHistory: UnitStatusHistory[];
   meters: UtilityMeter[];

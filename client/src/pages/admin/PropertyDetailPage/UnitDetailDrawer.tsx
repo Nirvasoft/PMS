@@ -117,6 +117,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       rate: unit.rate ?? '',
       description: unit.description ?? '',
       notes: unit.notes ?? '',
+      commonBillCalculate: unit.commonBillCalculate ?? false,
     });
     setEditing(true);
   }, [unit]);
@@ -150,6 +151,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       if (editForm.rate !== '' && Number(editForm.rate) !== unit!.rate) payload.rate = Number(editForm.rate) || null;
       if (editForm.description !== (unit!.description ?? '')) payload.description = editForm.description || null;
       if (editForm.notes !== (unit!.notes ?? '')) payload.notes = editForm.notes || null;
+      if (editForm.commonBillCalculate !== (unit!.commonBillCalculate ?? false)) payload.commonBillCalculate = editForm.commonBillCalculate;
 
       if (Object.keys(payload).length === 0) {
         setEditing(false);
@@ -492,6 +494,20 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     <label>Internal Notes</label>
                     <textarea rows={2} value={editForm.notes} onChange={(e) => ef('notes', e.target.value)} />
                   </div>
+                  <div className="ef-field full-width">
+                    <label
+                      style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', userSelect: 'none' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editForm.commonBillCalculate ?? false}
+                        onChange={(e) => ef('commonBillCalculate', e.target.checked)}
+                        style={{ width: '16px', height: '16px', accentColor: '#10b981', cursor: 'pointer' }}
+                      />
+                      <span>Common Bill Calculate</span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Include in common area bill calculation</span>
+                    </label>
+                  </div>
                 </div>
               ) : (
                 /* ── VIEW MODE ── */
@@ -550,6 +566,10 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     <div className="info-grid">
                       <InfoItem label="Description"    value={unit.description || '—'} />
                       <InfoItem label="Internal Notes" value={unit.notes || '—'} />
+                      <InfoItem
+                        label="Common Bill Calculate"
+                        value={unit.commonBillCalculate ? '✅ Yes' : '—'}
+                      />
                     </div>
                   </div>
 
