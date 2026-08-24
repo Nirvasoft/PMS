@@ -4,7 +4,7 @@ import {
   type MeterSetup,
 } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
-import { Gauge, Plus, X, Pencil, Trash2 } from 'lucide-react';
+import { Gauge, Plus, X, Pencil, Trash2, Search } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
@@ -43,6 +43,20 @@ export default function MeterSetupPage() {
 
   const meters = metersData?.data || [];
   const properties = propertiesData?.data || [];
+
+  // ── Search ──────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredMeters = meters.filter((m) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      m.property.name.toLowerCase().includes(q) ||
+      (m.floor?.floorLabel ?? '').toLowerCase().includes(q) ||
+      m.meterNo.toLowerCase().includes(q) ||
+      labelFor(METER_TYPES, m.meterType).toLowerCase().includes(q)
+    );
+  });
 
   const emptyForm = {
     propertyId: '', floorId: '', meterType: '', meterNo: '', mainMeterId: '', horsePower: '', unitLostPct: '',
@@ -144,6 +158,30 @@ export default function MeterSetupPage() {
         </div>
       </div>
 
+      {/* Search Bar */}
+      <div className="meter-search-bar">
+        <div className="meter-search-wrap">
+          <Search size={15} className="meter-search-icon" />
+          <input
+            type="text"
+            className="meter-search-input"
+            placeholder="Search property, floor, meter no, meter type…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="meter-search-clear"
+              onClick={() => setSearchQuery('')}
+              title="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Meter Setup Table */}
       <div className="billing-table-wrap">
         <table className="billing-table">
@@ -164,7 +202,9 @@ export default function MeterSetupPage() {
               <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
             ) : meters.length === 0 ? (
               <tr><td colSpan={8} className="billing-empty">No meters set up yet</td></tr>
-            ) : meters.map((m) => (
+            ) : filteredMeters.length === 0 ? (
+              <tr><td colSpan={8} className="billing-empty">No meters match your search</td></tr>
+            ) : filteredMeters.map((m) => (
               <tr key={m.id}>
                 <td><span className="cell-primary">{m.property.name}</span></td>
                 <td>{m.floor?.floorLabel ?? '—'}</td>
