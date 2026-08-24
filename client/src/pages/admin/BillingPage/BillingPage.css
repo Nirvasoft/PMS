@@ -508,6 +508,10 @@
 /* ── Meter Setup Search Bar ─────────────────── */
 
 .meter-search-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-bottom: 16px;
 }
 
@@ -594,6 +598,93 @@
 [data-theme="light"] .meter-search-clear:hover {
   background: rgba(0,0,0,0.12);
   color: #111;
+}
+
+/* ── Meter Search Filter Dropdowns ──────────── */
+
+.meter-search-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meter-search-select {
+  height: 38px;
+  padding: 0 10px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+  min-width: 160px;
+}
+
+.meter-search-select option {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+.meter-search-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.meter-search-select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.meter-search-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.meter-search-reset-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .meter-search-select {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .meter-search-select option {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .meter-search-select:focus {
+  border-color: var(--accent);
+}
+
+[data-theme="light"] .meter-search-reset-btn {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .meter-search-reset-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 /* ── Responsive ────────────────────────────── */

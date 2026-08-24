@@ -8,7 +8,7 @@ import { Gauge, Plus, X, Pencil, Trash2, Search } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
-const METER_TYPES = [
+export const METER_TYPES = [
   { value: 'mepe', label: 'MEPE Meter' },
   { value: 'sub_meter', label: 'Sub Meter' },
   { value: 'ct_meter', label: 'CT Meter' },
@@ -46,9 +46,24 @@ export default function MeterSetupPage() {
 
   // ── Search ──────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchPropertyId, setSearchPropertyId] = useState('');
+  const [searchFloorId, setSearchFloorId] = useState('');
+
+  const { data: searchFloorsData } = useGetFloorSetupsQuery(
+    searchPropertyId ? { propertyId: searchPropertyId } : undefined,
+    { skip: !searchPropertyId }
+  );
+  const searchFloors = searchFloorsData?.data || [];
+
+  const handleSearchPropertyChange = (propertyId: string) => {
+    setSearchPropertyId(propertyId);
+    setSearchFloorId('');
+  };
 
   const filteredMeters = meters.filter((m) => {
     const q = searchQuery.toLowerCase().trim();
+    if (searchPropertyId && m.propertyId !== searchPropertyId) return false;
+    if (searchFloorId && m.floorId !== searchFloorId) return false;
     if (!q) return true;
     return (
       m.property.name.toLowerCase().includes(q) ||
@@ -165,7 +180,7 @@ export default function MeterSetupPage() {
           <input
             type="text"
             className="meter-search-input"
-            placeholder="Search property, floor, meter no, meter type…"
+            placeholder="Search meter no, meter type…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -177,6 +192,39 @@ export default function MeterSetupPage() {
               title="Clear search"
             >
               <X size={13} />
+            </button>
+          )}
+        </div>
+        <div className="meter-search-filter-wrap">
+          <select
+            className="meter-search-select"
+            value={searchPropertyId}
+            onChange={(e) => handleSearchPropertyChange(e.target.value)}
+          >
+            <option value="">All Properties</option>
+            {properties.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <select
+            className="meter-search-select"
+            value={searchFloorId}
+            onChange={(e) => setSearchFloorId(e.target.value)}
+            disabled={!searchPropertyId}
+          >
+            <option value="">{searchPropertyId ? 'All Floors' : 'Select property first'}</option>
+            {searchFloors.map((f) => (
+              <option key={f.id} value={f.id}>{f.floorLabel}</option>
+            ))}
+          </select>
+          {(searchPropertyId || searchFloorId) && (
+            <button
+              type="button"
+              className="meter-search-reset-btn"
+              onClick={() => { setSearchPropertyId(''); setSearchFloorId(''); }}
+              title="Clear filters"
+            >
+              <X size={13} /> Clear
             </button>
           )}
         </div>
