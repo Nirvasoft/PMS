@@ -199,6 +199,7 @@ export interface CreateUnitDto {
   description?: string;
   notes?: string;
   amenities?: string[];
+  commonBillCalculate?: boolean;
 }
 
 export interface BulkCreateDto {

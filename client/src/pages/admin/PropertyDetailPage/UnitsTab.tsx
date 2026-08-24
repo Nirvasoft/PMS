@@ -642,6 +642,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
     direction: '', furnishing: 'unfurnished', ownershipType: 'company',
     rentalPeriod: '', rentalPeriodUnit: 'month', calculationOn: 'fixed', rate: '',
     description: '',
+    commonBillCalculate: false,
   });
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -687,6 +688,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           calculationOn:    form.calculationOn,
           rate:          form.rate ? Number(form.rate) : undefined,
           description:   form.description || undefined,
+          commonBillCalculate: form.commonBillCalculate,
         } as any,
       }).unwrap();
       toast.success(`P-Unit ${form.unitNumber} created`);
@@ -861,6 +863,22 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           <div className="cu-field">
             <label>Notes <span className="cu-opt">(optional)</span></label>
             <textarea rows={2} placeholder="Any notes about this unit…" value={form.description} onChange={(e) => set('description', e.target.value)} />
+          </div>
+
+          {/* Common Bill Calculate */}
+          <div className="cu-field">
+            <label
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', userSelect: 'none' }}
+            >
+              <input
+                type="checkbox"
+                checked={form.commonBillCalculate}
+                onChange={(e) => setForm((f) => ({ ...f, commonBillCalculate: e.target.checked }))}
+                style={{ width: '16px', height: '16px', accentColor: '#10b981', cursor: 'pointer' }}
+              />
+              <span>Common Bill Calculate</span>
+              <span className="cu-opt" style={{ fontSize: '12px' }}>Include this unit in common area bill calculation</span>
+            </label>
           </div>
         </div>
 

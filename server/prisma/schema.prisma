@@ -1244,6 +1244,7 @@ model Unit {
   rate               Decimal?       @db.Decimal(15, 2)
   description        String?        @db.Text
   notes              String?        @db.Text
+  commonBillCalculate Boolean       @default(false) @map("common_bill_calculate")
   isActive           Boolean        @default(true) @map("is_active")
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz
