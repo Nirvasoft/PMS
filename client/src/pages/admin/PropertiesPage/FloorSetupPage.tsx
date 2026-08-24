@@ -33,12 +33,12 @@ export default function FloorSetupPage() {
     return Array.from({ length: totalFloors }, (_, i) => i + 1);
   };
 
-  // Search filters — only applied to the query when "Search" is clicked
+  // ── Search ──────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchPropertyId, setSearchPropertyId] = useState('');
   const [searchFloorNumber, setSearchFloorNumber] = useState('');
-  const [appliedFilters, setAppliedFilters] = useState<{ propertyId?: string; floorNumber?: number }>({});
 
-  const { data: floorsData, isFetching } = useGetFloorSetupsQuery(appliedFilters);
+  const { data: floorsData, isFetching } = useGetFloorSetupsQuery();
   const [createFloorSetup, { isLoading: creating }] = useCreateFloorSetupMutation();
   const [updateFloorSetup, { isLoading: updating }] = useUpdateFloorSetupMutation();
   const [deleteFloorSetup] = useDeleteFloorSetupMutation();
@@ -46,6 +46,24 @@ export default function FloorSetupPage() {
   const confirmDialog = useConfirm();
 
   const floors = floorsData?.data || [];
+
+  const handleSearchPropertyChange = (propertyId: string) => {
+    setSearchPropertyId(propertyId);
+    setSearchFloorNumber('');
+  };
+
+  const filteredFloors = floors.filter((f) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (searchPropertyId && f.propertyId !== searchPropertyId) return false;
+    if (searchFloorNumber && String(f.floorNumber) !== searchFloorNumber) return false;
+    if (!q) return true;
+    return (
+      f.property.name.toLowerCase().includes(q) ||
+      f.floorLabel.toLowerCase().includes(q) ||
+      String(f.floorNumber).includes(q) ||
+      ordinalFloorLabel(f.floorNumber).toLowerCase().includes(q)
+    );
+  });
 
   const emptyForm = { propertyId: '', floorNumber: '', floorLabel: '' };
   const [showForm, setShowForm] = useState(false);
@@ -59,13 +77,6 @@ export default function FloorSetupPage() {
     setShowForm(true);
   };
   const closeForm = () => { setShowForm(false); setEditing(null); setForm(emptyForm); };
-
-  const handleSearch = () => {
-    setAppliedFilters({
-      propertyId: searchPropertyId || undefined,
-      floorNumber: searchFloorNumber ? Number(searchFloorNumber) : undefined,
-    });
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,24 +128,60 @@ export default function FloorSetupPage() {
       </div>
 
       {/* Search Bar */}
-      <div className="billing-table-wrap" style={{ padding: 14, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <div className="inv-field" style={{ minWidth: 220 }}>
-          <label>Property</label>
-          <select value={searchPropertyId} onChange={(e) => { setSearchPropertyId(e.target.value); setSearchFloorNumber(''); }}>
+      <div className="meter-search-bar">
+        <div className="meter-search-wrap">
+          <Search size={15} className="meter-search-icon" />
+          <input
+            type="text"
+            className="meter-search-input"
+            placeholder="Search floor label, property…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="meter-search-clear"
+              onClick={() => setSearchQuery('')}
+              title="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <div className="meter-search-filter-wrap">
+          <select
+            className="meter-search-select"
+            value={searchPropertyId}
+            onChange={(e) => handleSearchPropertyChange(e.target.value)}
+          >
             <option value="">All Properties</option>
-            {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {properties.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
           </select>
-        </div>
-        <div className="inv-field" style={{ minWidth: 160 }}>
-          <label>Floor Number</label>
-          <select value={searchFloorNumber} onChange={(e) => setSearchFloorNumber(e.target.value)} disabled={!searchPropertyId}>
-            <option value="">All Floors</option>
-            {floorNumberOptions(searchPropertyId).map((n) => <option key={n} value={n}>{ordinalFloorLabel(n)}</option>)}
+          <select
+            className="meter-search-select"
+            value={searchFloorNumber}
+            onChange={(e) => setSearchFloorNumber(e.target.value)}
+            disabled={!searchPropertyId}
+          >
+            <option value="">{searchPropertyId ? 'All Floors' : 'Select property first'}</option>
+            {floorNumberOptions(searchPropertyId).map((n) => (
+              <option key={n} value={n}>{ordinalFloorLabel(n)}</option>
+            ))}
           </select>
+          {(searchPropertyId || searchFloorNumber) && (
+            <button
+              type="button"
+              className="meter-search-reset-btn"
+              onClick={() => { setSearchPropertyId(''); setSearchFloorNumber(''); }}
+              title="Clear filters"
+            >
+              <X size={13} /> Clear
+            </button>
+          )}
         </div>
-        <button className="btn btn-primary" onClick={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Search size={14} /> Search
-        </button>
       </div>
 
       {/* Floor Setup Table */}
@@ -153,7 +200,9 @@ export default function FloorSetupPage() {
               <tr><td colSpan={4} className="billing-empty">Loading…</td></tr>
             ) : floors.length === 0 ? (
               <tr><td colSpan={4} className="billing-empty">No floors set up yet</td></tr>
-            ) : floors.map((f) => (
+            ) : filteredFloors.length === 0 ? (
+              <tr><td colSpan={4} className="billing-empty">No floors match your search</td></tr>
+            ) : filteredFloors.map((f) => (
               <tr key={f.id}>
                 <td><span className="cell-primary">{f.property.name}</span></td>
                 <td><span className="cell-mono">{ordinalFloorLabel(f.floorNumber)}</span></td>
@@ -162,7 +211,7 @@ export default function FloorSetupPage() {
                   <button className="btn-icon" title="Edit" onClick={() => openEdit(f)}>
                     <Pencil size={14} />
                   </button>
-                  <button className=" btn-danger" title="Delete" onClick={() => handleDelete(f)}>
+                  <button className="btn-danger" title="Delete" onClick={() => handleDelete(f)}>
                     <Trash2 size={14} />
                   </button>
                 </td>

@@ -249,6 +249,7 @@ export default function MeterSetupPage() {
               <th>Meter Type</th>
               <th>Meter No</th>
               <th>Category</th>
+              <th className="text-right">Rate</th>
               <th className="text-right">Maintenance Fee</th>
               <th>Usage Type</th>
               <th className="text-center">Actions</th>
@@ -256,11 +257,11 @@ export default function MeterSetupPage() {
           </thead>
           <tbody>
             {isFetching && meters.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
+              <tr><td colSpan={9} className="billing-empty">Loading…</td></tr>
             ) : meters.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">No meters set up yet</td></tr>
+              <tr><td colSpan={9} className="billing-empty">No meters set up yet</td></tr>
             ) : filteredMeters.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">No meters match your search</td></tr>
+              <tr><td colSpan={9} className="billing-empty">No meters match your search</td></tr>
             ) : filteredMeters.map((m) => (
               <tr key={m.id}>
                 <td><span className="cell-primary">{m.property.name}</span></td>
@@ -268,7 +269,8 @@ export default function MeterSetupPage() {
                 <td>{labelFor(METER_TYPES, m.meterType)}</td>
                 <td><span className="cell-mono">{m.meterNo}</span></td>
                 <td>{labelFor(CATEGORIES, m.category)}</td>
-                <td className="text-right">{m.maintenanceFee ? Number(m.maintenanceFee).toFixed(2) : '—'}</td>
+                <td className="text-right">{m.rate != null && m.rate !== '' ? Number(m.rate).toFixed(2) : '—'}</td>
+                <td className="text-right">{m.maintenanceFee != null && m.maintenanceFee !== '' ? Number(m.maintenanceFee).toFixed(2) : '—'}</td>
                 <td>{m.usageType ? labelFor(USAGE_TYPES, m.usageType) : '—'}</td>
                 <td className="text-center">
                   <button className="btn-icon" title="Edit" onClick={() => openEdit(m)}>
