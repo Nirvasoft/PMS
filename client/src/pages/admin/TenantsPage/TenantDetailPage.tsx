@@ -80,7 +80,10 @@ export default function TenantDetailPage() {
             <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleAvatarUpload} />
           </div>
           <div className="td-info">
-            <h1 className="td-name">{tenant.displayName}</h1>
+            <h1 className="td-name">
+              {tenant.firstName}{' '}
+              {tenant.lastName && <span className="td-name-pill">{tenant.lastName}</span>}
+            </h1>
             <div className="td-meta">
               <span className={`type-badge ${tenant.tenantType}`}>
                 {tenant.tenantType === 'individual' ? <User size={11} /> : <Building2 size={11} />}

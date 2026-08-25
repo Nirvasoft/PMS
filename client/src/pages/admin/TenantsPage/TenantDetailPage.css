@@ -39,7 +39,14 @@
   color: #fff; opacity: 0; transition: opacity 0.2s;
 }
 
-.td-name { font-size: 1.5rem; font-weight: 800; margin: 0 0 6px; }
+.td-name { font-size: 1.5rem; font-weight: 800; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+.td-name-pill {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 999px;
+  background: rgba(108,92,231,0.12); border: 1px solid rgba(108,92,231,0.3);
+  color: #a29bfe; font-size: 0.78rem; font-weight: 700;
+  letter-spacing: 0.02em;
+}
 .td-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
 .td-contacts { display: flex; gap: 14px; font-size: 0.8rem; color: var(--text-muted); }
 .td-contacts span { display: flex; align-items: center; gap: 5px; }
