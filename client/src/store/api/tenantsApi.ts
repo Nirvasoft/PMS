@@ -5,7 +5,7 @@ import { baseQueryWithReauth } from './baseQuery';
 
 export interface TenantListItem {
   id: string;
-  tenantType: 'individual' | 'company';
+  tenantType: 'individual' | 'company' | 'corporate';
   displayName: string;
   firstName: string | null;
   lastName: string | null;
@@ -59,7 +59,7 @@ export interface KycSummary {
 
 export interface TenantDetail {
   id: string;
-  tenantType: 'individual' | 'company';
+  tenantType: 'individual' | 'company' | 'corporate';
   displayName: string;
   firstName: string | null;
   lastName: string | null;

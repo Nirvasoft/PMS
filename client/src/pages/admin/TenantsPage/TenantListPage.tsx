@@ -200,9 +200,9 @@ function TenantRow({ tenant, onClick, onDelete }: { tenant: TenantListItem; onCl
 
       {/* Type */}
       <div>
-        <span className={`type-badge ${tenant.tenantType}`}>
+        <span className={`type-badge ${tenant.tenantType === 'corporate' ? 'company' : tenant.tenantType}`}>
           {tenant.tenantType === 'individual' ? <User size={10} /> : <Building2 size={10} />}
-          {tenant.tenantType}
+          {tenant.tenantType === 'individual' ? 'individual' : 'company'}
         </span>
       </div>
 

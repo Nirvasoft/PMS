@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const createTenantSchema = z.object({
-  tenantType: z.enum(['individual', 'company']),
+  tenantType: z.enum(['individual', 'company', 'corporate']),
   // Individual fields
   firstName: z.string().max(100).optional().nullable(),
   lastName: z.string().max(100).optional().nullable(),
@@ -44,7 +44,7 @@ export const createTenantSchema = z.object({
 export const updateTenantSchema = createTenantSchema.partial();
 
 export const createKycRequirementSchema = z.object({
-  tenantType: z.enum(['individual', 'company']),
+  tenantType: z.enum(['individual', 'company', 'corporate']),
   docType: z.string().max(100),
   name: z.string().max(255),
   description: z.string().optional().nullable(),

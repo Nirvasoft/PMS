@@ -13,7 +13,7 @@ import { webhookTenantCreated, webhookTenantBlacklisted } from '../../common/web
 // HELPERS
 // ══════════════════════════════════════════════
 function displayName(t: { tenantType: string; firstName?: string | null; lastName?: string | null; companyName?: string | null }): string {
-  if (t.tenantType === 'company') return t.companyName || 'Unnamed Company';
+  if (t.tenantType === 'company' || t.tenantType === 'corporate') return t.companyName || 'Unnamed Company';
   return [t.firstName, t.lastName].filter(Boolean).join(' ') || 'Unnamed Tenant';
 }
 
@@ -78,7 +78,7 @@ export class TenantsService {
     const { search, tenantType, kycStatus, isBlacklisted, tags, page = 1, limit = 20 } = query;
     const where: Record<string, unknown> = { companyId, deletedAt: null };
 
-    if (tenantType)                    where.tenantType = tenantType;
+    if (tenantType) where.tenantType = tenantType === 'company' ? { in: ['company', 'corporate'] } : tenantType;
     if (kycStatus)                     where.kycStatus = kycStatus;
     if (isBlacklisted !== undefined)   where.isBlacklisted = isBlacklisted;
     if (tags?.length)                  where.tags = { hasSome: tags };
