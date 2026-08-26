@@ -7,7 +7,7 @@ import {
 import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import {
   ArrowLeft, CheckCircle, XCircle, PenLine, AlertTriangle,
-  Send, RefreshCw, Scissors, ChevronRight, Edit2, Save, X,
+  Send, RefreshCw, Scissors, ChevronRight, Edit2, Save, X, FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -26,6 +26,7 @@ import { TerminateModal } from './LeaseDetailPage/components/modals/TerminateMod
 import { RenewalModal } from './LeaseDetailPage/components/modals/RenewalModal';
 import { AmendModal } from './LeaseDetailPage/components/modals/AmendModal';
 import { EsignSendModal } from './LeaseDetailPage/components/modals/EsignSendModal';
+import { InvoicePreviewModal } from './LeaseDetailPage/components/modals/InvoicePreviewModal';
 
 type Tab = 'overview' | 'terms' | 'amendments' | 'esign' | 'documents' | 'history';
 
@@ -44,6 +45,7 @@ export default function LeaseDetailPage() {
   const [showAmendModal,     setShowAmendModal]      = useState(false);
   const [showEsignModal,     setShowEsignModal]      = useState(false);
   const [showEditDraft,      setShowEditDraft]        = useState(false);
+  const [showPreview,        setShowPreview]          = useState(false);
 
   const { data, isLoading } = useGetLeaseQuery(id!);
   const lease = data?.data;
@@ -94,6 +96,7 @@ export default function LeaseDetailPage() {
 
           {/* Action toolbar */}
           <div className="ld-actions">
+            <button className="btn-action-preview" onClick={() => setShowPreview(true)}><FileText size={14}/> Preview</button>
             {isDraft  && <button className="btn-action-edit" onClick={() => setShowEditDraft(true)}><Edit2 size={14}/> Edit</button>}
             {isDraft  && <button className="btn-action-submit" onClick={handleSubmit}  disabled={submitting}><Send size={14}/> Submit</button>}
             {(isApproved || isPending) && <button className="btn-action-activate" onClick={handleActivate} disabled={activating}><CheckCircle size={14}/> Activate</button>}
@@ -158,6 +161,7 @@ export default function LeaseDetailPage() {
       {showAmendModal     && <AmendModal     leaseId={id!} onClose={() => setShowAmendModal(false)} />}
       {showEsignModal     && <EsignSendModal leaseId={id!} tenantEmail={lease.tenant.email || ''} tenantName={lease.tenant.displayName} onClose={() => setShowEsignModal(false)} />}
       {showEditDraft       && <EditDraftModal lease={lease} onClose={() => setShowEditDraft(false)} />}
+      {showPreview         && <InvoicePreviewModal lease={lease} onClose={() => setShowPreview(false)} />}
     </div>
   );
 }

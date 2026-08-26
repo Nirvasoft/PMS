@@ -136,6 +136,43 @@
 
 /* Edit button */
 .btn-action-edit     { background: rgba(108,92,231,.1);  border-color: rgba(108,92,231,.3);   color: #6c5ce7; }
+/* Preview button */
+.btn-action-preview  { background: rgba(52,152,219,.1);  border-color: rgba(52,152,219,.3);   color: #74b9ff; }
+
+/* ═══ Invoice Preview Modal ═══════════════════ */
+.invoice-modal-box { max-width: 1400px; width: 97vw; }
+.invoice-modal-body { padding: 32px; max-height: 86vh; overflow-y: auto; background: rgba(0,0,0,.25); }
+
+/* White "paper" invoice — A4 landscape aspect */
+.invoice-paper {
+  background: #fff;
+  color: #1a1a2e;
+  padding: 48px 56px;
+  border-radius: 6px;
+  font-family: Arial, Helvetica, sans-serif;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.inv-title { color: #2f6fd0; font-size: 1.75rem; font-weight: 700; margin-bottom: 22px; }
+.inv-meta { text-align: right; font-size: 1.1rem; line-height: 2.1; margin-bottom: 32px; color: #1a1a2e; }
+.inv-meta-label { font-weight: 400; }
+
+.inv-table { width: 100%; border-collapse: collapse; font-size: 1.05rem; }
+.inv-table th, .inv-table td { border: 1px solid #333; padding: 14px 18px; }
+.inv-desc-col, .inv-month-col, .inv-num-col { text-align: center; }
+.inv-cur { font-weight: 400; }
+.inv-center { text-align: center; }
+.inv-num { text-align: right; }
+.inv-boxed { background: #f2f2f4; }
+.inv-desc-grid { display: flex; align-items: flex-start; gap: 48px; }
+.inv-desc-name { flex: 1; }
+.inv-desc-main { font-weight: 600; }
+.inv-desc-line2 { margin-top: 4px; color: #333; }
+.inv-desc-field { text-align: right; min-width: 110px; }
+.inv-desc-flabel { margin-bottom: 4px; }
+.inv-blank { border: none !important; background: transparent; }
+.inv-label-cell { text-align: right; font-weight: 600; }
+.inv-grand { font-weight: 700; }
 
 /* Larger modal */
 .modal-lg { max-width: 680px; }
