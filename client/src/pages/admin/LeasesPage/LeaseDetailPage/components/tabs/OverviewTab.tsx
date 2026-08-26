@@ -20,7 +20,7 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
         </InfoCard>
 
         <InfoCard title="Security Deposit">
-          <InfoRow label="Amount"   value={`${lease.property.currency} ${Number(lease.securityDeposit).toLocaleString()}`} />
+          <InfoRow label="Amount"   value={`${lease.currency} ${Number(lease.securityDeposit).toLocaleString()}`} />
           <InfoRow label="Status"   value={lease.depositPaid ? '✓ Paid' : '✗ Unpaid'} />
           {lease.depositPaid && lease.depositPaidAt && (
             <InfoRow label="Paid On"  value={new Date(lease.depositPaidAt).toLocaleDateString()} />

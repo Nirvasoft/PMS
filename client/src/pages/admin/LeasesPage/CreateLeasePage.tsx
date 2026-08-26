@@ -16,12 +16,13 @@ import { ClausesStep } from './CreateLeasePage/components/steps/ClausesStep';
 import { ReviewSubmitStep } from './CreateLeasePage/components/steps/ReviewSubmitStep';
 
 const INITIAL: FormState = {
-  propertyId: '', unitId: '', tenantId: '', templateId: '',
+  propertyId: '', propertyCode: '', unitId: '', unitCode: '', tenantId: '', tenantCode: '', templateId: '',
   startDate: '', endDate: '', handoverDate: '',
   billingCycle: 'monthly', billingDay: 1, paymentDueDays: 7,
   rentAmount: '', currency: 'USD', securityDeposit: '',
   escalationType: '', escalationValue: '', escalationFrequency: 'annual',
   escalationMonth: '', escalationDay: '',
+  leaseCharges: [],
   clauses: [], specialConditions: '', notes: '',
 };
 
@@ -68,6 +69,9 @@ export default function CreateLeasePage() {
       escalationMonth:  form.escalationMonth  ? Number(form.escalationMonth) : undefined,
       escalationDay:    form.escalationDay    ? Number(form.escalationDay)   : undefined,
       clauses: form.clauses, specialConditions: form.specialConditions || undefined, notes: form.notes || undefined,
+      leaseCharges: form.leaseCharges.length
+        ? form.leaseCharges.map(c => ({ chargeTypeId: c.chargeTypeId, amount: Number(c.amount) }))
+        : undefined,
     };
 
     try {

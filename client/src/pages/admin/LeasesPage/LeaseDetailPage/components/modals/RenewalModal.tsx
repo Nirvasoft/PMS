@@ -23,7 +23,7 @@ export function RenewalModal({ leaseId, lease, onClose }: { leaseId: string; lea
       <div className="modal-body">
         <div className="form-field"><label>New Start Date *</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
         <div className="form-field"><label>New End Date *</label><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
-        <div className="form-field"><label>New Rent (optional, current: {lease.property.currency} {Number(lease.rentAmount).toLocaleString()})</label><input type="number" value={rentAmount} onChange={(e) => setRent(e.target.value)} /></div>
+        <div className="form-field"><label>New Rent (optional, current: {lease.currency} {Number(lease.rentAmount).toLocaleString()})</label><input type="number" value={rentAmount} onChange={(e) => setRent(e.target.value)} /></div>
       </div>
       <div className="modal-footer">
         <button className="btn-ghost-sm" onClick={onClose}>Cancel</button>

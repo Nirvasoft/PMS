@@ -59,6 +59,11 @@ export interface LeaseDetail extends LeaseListItem {
   esignRecipients: EsignRecipient[];
   renewalLeases: { id: string; leaseNumber: string; status: string; startDate: string; endDate: string }[];
   parentLease: { id: string; leaseNumber: string; status: string } | null;
+  leaseCharges: {
+    id: string;
+    amount: string;
+    chargeType: { id: string; code: string; name: string; category: string };
+  }[];
 }
 
 export interface LeaseAmendment {

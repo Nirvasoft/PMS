@@ -69,8 +69,10 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             id="lease-property"
             value={form.propertyId}
             onChange={(v) => {
+              const opt = propertyOptions.find(p => p.id === v);
               set('propertyId', v);
-              if (form.unitId) set('unitId', '');
+              set('propertyCode', opt?.label || '');
+              if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
             }}
             options={propertyOptions}
             onSearch={setPropertySearch}
@@ -84,7 +86,11 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
           <ComboBox
             id="lease-unit"
             value={form.unitId}
-            onChange={(v) => set('unitId', v)}
+            onChange={(v) => {
+              const opt = unitOptions.find(u => u.id === v);
+              set('unitId', v);
+              set('unitCode', opt?.label || '');
+            }}
             options={unitOptions}
             onSearch={setUnitSearch}
             loading={unitsLoading}
@@ -98,7 +104,11 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
           <ComboBox
             id="lease-tenant"
             value={form.tenantId}
-            onChange={(v) => set('tenantId', v)}
+            onChange={(v) => {
+              const opt = tenantOptions.find(t => t.id === v);
+              set('tenantId', v);
+              set('tenantCode', opt?.label || '');
+            }}
             options={tenantOptions}
             onSearch={setTenantSearch}
             loading={tenantsLoading}

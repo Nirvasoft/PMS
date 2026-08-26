@@ -67,21 +67,30 @@ export class LeasesService {
         esignRecipients:    { orderBy: { createdAt: 'asc' } },
         renewalLeases:      { select: { id: true, leaseNumber: true, status: true, startDate: true, endDate: true } },
         parentLease:        { select: { id: true, leaseNumber: true, status: true } },
+        billingSchedules: {
+          select: {
+            id: true, amount: true,
+            chargeType: { select: { id: true, code: true, name: true, category: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
     if (!lease) throw AppError.notFound('Lease');
 
     const tenant = lease.tenant;
+    const { billingSchedules, ...leaseRest } = lease as any;
     return {
-      ...lease,
+      ...leaseRest,
       tenant: { ...tenant, displayName: tenant.tenantType === 'company' ? tenant.companyName : `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() },
       daysUntilExpiry: daysUntilExpiry(lease.endDate),
+      leaseCharges: billingSchedules,
     };
   }
 
   // ── Create ────────────────────────────────
   async create(companyId: string, dto: Record<string, unknown>, createdBy: string) {
-    const { propertyId, unitId, tenantId, startDate, endDate, templateId, ...rest } = dto as any;
+    const { propertyId, unitId, tenantId, startDate, endDate, templateId, leaseCharges, ...rest } = dto as any;
 
     // Validations
     const unit   = await prisma.unit.findFirst({ where: { id: unitId, propertyId } });
@@ -122,6 +131,28 @@ export class LeasesService {
       },
     });
 
+    // Create BillingSchedule records for each charge
+    if (Array.isArray(leaseCharges) && leaseCharges.length > 0) {
+      await prisma.billingSchedule.createMany({
+        data: leaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
+          companyId,
+          propertyId,
+          unitId,
+          tenantId,
+          leaseId: lease.id,
+          chargeTypeId: c.chargeTypeId,
+          amount: c.amount,
+          currency: rest.currency || 'USD',
+          billingCycle: rest.billingCycle || 'monthly',
+          billingDay: rest.billingDay || 1,
+          paymentDueDays: rest.paymentDueDays || 7,
+          startDate: start,
+          endDate: end,
+          createdBy,
+        })),
+      });
+    }
+
     webhookLeaseCreated(lease);
     return lease;
   }
@@ -132,15 +163,47 @@ export class LeasesService {
     if (!lease) throw AppError.notFound('Lease');
     if (lease.status !== 'draft') throw new AppError(400, 'NOT_DRAFT', 'Only draft leases can be updated');
 
-    const { startDate, endDate, ...rest } = dto as any;
+    const { startDate, endDate, leaseCharges, ...rest } = dto as any;
     const start = startDate ? new Date(startDate) : new Date(lease.startDate);
     const end   = endDate   ? new Date(endDate)   : new Date(lease.endDate);
     if (end <= start) throw new AppError(400, 'INVALID_DATES', 'End date must be after start date');
 
-    return prisma.lease.update({
+    const updated = await prisma.lease.update({
       where: { id },
       data: { ...rest, ...(startDate ? { startDate: start } : {}), ...(endDate ? { endDate: end } : {}), leaseTermMonths: calcLeaseTermMonths(start, end) },
     });
+
+    // Replace billing schedule charges when provided
+    if (Array.isArray(leaseCharges)) {
+      // Delete all existing billing schedules linked to this lease
+      await prisma.billingSchedule.deleteMany({ where: { leaseId: id } });
+
+      // Re-create new ones
+      if (leaseCharges.length > 0) {
+        const curr = await prisma.lease.findFirst({ where: { id }, select: { propertyId: true, unitId: true, tenantId: true, currency: true, billingCycle: true, billingDay: true, paymentDueDays: true, startDate: true, endDate: true } });
+        if (curr) {
+          await prisma.billingSchedule.createMany({
+            data: leaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
+              companyId,
+              propertyId: curr.propertyId,
+              unitId: curr.unitId,
+              tenantId: curr.tenantId,
+              leaseId: id,
+              chargeTypeId: c.chargeTypeId,
+              amount: c.amount,
+              currency: curr.currency,
+              billingCycle: curr.billingCycle,
+              billingDay: curr.billingDay,
+              paymentDueDays: curr.paymentDueDays,
+              startDate: curr.startDate,
+              endDate: curr.endDate,
+            })),
+          });
+        }
+      }
+    }
+
+    return updated;
   }
 
   // ── Soft delete ──────────────────────────

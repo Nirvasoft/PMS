@@ -86,11 +86,13 @@
 .cl-body { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: 24px; }
 .step-content h3 { font-size: .9rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 0 0 18px; border-bottom: 1px solid rgba(255,255,255,.04); padding-bottom: 12px; }
 .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field { display: flex; flex-direction: column; gap: 5px; }
 .form-field label { font-size: .72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
-.form-field input, .form-field select, .form-field textarea { padding: 9px 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; color: var(--text-primary); font-size: .84rem; outline: none; transition: border-color .15s; }
-.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: rgba(108,92,231,.5); }
-.form-field select option { background: #1a1f2e; }
+.form-field input, .form-field select, .form-field textarea { padding: 9px 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: var(--text-primary); font-size: .84rem; outline: none; transition: border-color .15s, background .15s; width: 100%; box-sizing: border-box; }
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: rgba(108,92,231,.5); background: rgba(255,255,255,.09); }
+.form-field select option { background: #1e1d2e; color: #e2e0ef; }
+.form-field select optgroup { background: #161525; color: #8b8aae; font-weight: 700; font-size: .72rem; }
+.form-field input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
 .hint { font-weight: 400; font-size: .68rem; text-transform: none; }
 .optional { font-weight: 400; color: rgba(255,255,255,.3); text-transform: none; }
 .step-info { margin-top: 14px; padding: 10px 14px; background: rgba(108,92,231,.08); border-radius: 9px; font-size: .8rem; color: var(--text-muted); }
@@ -125,6 +127,15 @@
 .rr-label { width: 140px; flex-shrink: 0; color: var(--text-muted); font-size: .78rem; }
 .rr-value { flex: 1; font-weight: 500; }
 .review-note { margin-top: 14px; padding: 12px 14px; background: rgba(52,152,219,.08); border-radius: 8px; font-size: .82rem; color: var(--text-muted); }
+
+/* Charges in review step */
+.review-charges { margin-top: 14px; }
+.review-charges-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 6px; }
+.review-charges-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.review-charges-table th { text-align: left; padding: 5px 8px; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,.06); }
+.review-charges-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.03); color: var(--text-secondary); }
+.review-charges-table tr:last-child td { border-bottom: none; }
+.review-charges-table .text-right { text-align: right; font-weight: 600; }
 
 .cl-footer { display: flex; align-items: center; justify-content: space-between; }
 .footer-right { margin-left: auto; }

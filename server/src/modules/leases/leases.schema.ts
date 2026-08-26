@@ -25,9 +25,14 @@ export const createLeaseSchema = z.object({
     escalationMonth: z.number().min(1).max(12).optional(),
     escalationDay: z.number().min(1).max(31).optional(),
     specialConditions: z.string().optional(),
+    notes: z.string().optional(),
     clauses: z.array(z.object({
       title: z.string(),
       content: z.string(),
+    })).optional(),
+    leaseCharges: z.array(z.object({
+      chargeTypeId: z.string().uuid('Invalid charge type ID'),
+      amount: z.number().positive('Charge amount must be positive'),
     })).optional(),
   }),
 });
@@ -48,10 +53,15 @@ export const updateLeaseSchema = z.object({
     escalationFrequency: z.enum(['annual', 'biennial']).optional(),
     escalationMonth: z.number().min(1).max(12).optional(),
     escalationDay: z.number().min(1).max(31).optional(),
-    specialConditions: z.string().optional(),
+    specialConditions: z.string().nullable().optional(),
+    notes: z.string().nullable().optional(),
     clauses: z.array(z.object({
       title: z.string(),
       content: z.string(),
+    })).optional(),
+    leaseCharges: z.array(z.object({
+      chargeTypeId: z.string().uuid('Invalid charge type ID'),
+      amount: z.number().positive('Charge amount must be positive'),
     })).optional(),
   }),
 });
