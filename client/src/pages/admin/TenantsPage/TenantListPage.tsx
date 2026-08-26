@@ -69,6 +69,8 @@ export default function TenantListPage() {
     setSearch(''); setTenantType(''); setKycStatus(''); setTags(''); setShowBlacklisted(undefined); setPage(1);
   };
 
+  const isCompanyTab = tenantType === 'company';
+
   return (
     <div className="tenant-list-page">
       {/* Header */}
@@ -143,7 +145,12 @@ export default function TenantListPage() {
       {/* Table */}
       <div className="tenant-table-wrap">
         <div className="tenant-table-header">
-          <span>Tenant</span><span>Type</span><span>Contact</span>
+          <span>Photo</span>
+          {isCompanyTab
+            ? <span style={{ gridColumn: 'span 2' }}>Company</span>
+            : <><span>Code</span><span>Name</span></>
+          }
+          <span>Type</span><span>Contact</span>
           <span>KYC Status</span><span>Active Leases</span><span>Tags</span><span>Added</span><span></span>
         </div>
 
@@ -156,6 +163,7 @@ export default function TenantListPage() {
             <TenantRow
               key={tenant.id}
               tenant={tenant}
+              isCompanyTab={isCompanyTab}
               onClick={() => navigate(`/admin/tenants/${tenant.id}`)}
               onDelete={(e) => handleDelete(tenant, e)}
             />
@@ -176,33 +184,56 @@ export default function TenantListPage() {
 }
 
 // ── Tenant Row ────────────────────────────────
-function TenantRow({ tenant, onClick, onDelete }: { tenant: TenantListItem; onClick: () => void; onDelete: (e: React.MouseEvent) => void }) {
-  const kycColor = KYC_COLORS[tenant.kycStatus] || '#95a5a6';
+function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
+  tenant: TenantListItem;
+  isCompanyTab: boolean;
+  onClick: () => void;
+  onDelete: (e: React.MouseEvent) => void;
+}) {
+  const kycColor  = KYC_COLORS[tenant.kycStatus] || '#95a5a6';
+  const isCompany = tenant.tenantType === 'company' || tenant.tenantType === 'corporate';
 
   return (
     <div className={`tenant-row ${tenant.isBlacklisted ? 'blacklisted' : ''}`} onClick={onClick}>
-      {/* Avatar + name */}
-      <div className="tenant-name-cell">
-        <div className="tenant-avatar" style={{ background: tenant.isBlacklisted ? 'rgba(231,76,60,0.15)' : 'rgba(108,92,231,0.15)' }}>
-          {tenant.avatarUrl
-            ? <img src={tenant.avatarUrl} alt="" />
-            : <span>{tenant.displayName.charAt(0).toUpperCase()}</span>
-          }
-        </div>
-        <div>
-          <div className="tenant-display-name">
-            {tenant.displayName}
+
+      {/* Avatar — own grid column */}
+      <div className="tenant-avatar" style={{ background: tenant.isBlacklisted ? 'rgba(231,76,60,0.15)' : 'rgba(108,92,231,0.15)' }}>
+        {tenant.avatarUrl
+          ? <img src={tenant.avatarUrl} alt="" />
+          : <span>{tenant.displayName.charAt(0).toUpperCase()}</span>
+        }
+      </div>
+
+      {/* Code — or full Company cell when company tab */}
+      {(() => {
+        const codeVal = isCompanyTab ? tenant.displayName : (isCompany ? '—' : tenant.firstName || '—');
+        const isDash  = codeVal === '—';
+        return (
+          <div
+            className={`tenant-display-name${isDash ? ' cell-dash' : ''}`}
+            style={isCompanyTab ? { gridColumn: 'span 2' } : {}}
+          >
+            {codeVal}
             {tenant.isBlacklisted && <span className="bl-badge"><ShieldOff size={10} /> Blacklisted</span>}
           </div>
-          <div className="tenant-email">{tenant.email || '—'}</div>
-        </div>
-      </div>
+        );
+      })()}
+
+      {/* Name — hidden on company tab; shows company displayName for company tenants */}
+      {!isCompanyTab && (() => {
+        const nameVal = isCompany ? tenant.displayName : (tenant.lastName || '—');
+        return (
+          <div className={`tenant-name-value${nameVal === '—' ? ' cell-dash' : ''}`}>
+            {nameVal}
+          </div>
+        );
+      })()}
 
       {/* Type */}
       <div>
         <span className={`type-badge ${tenant.tenantType === 'corporate' ? 'company' : tenant.tenantType}`}>
-          {tenant.tenantType === 'individual' ? <User size={10} /> : <Building2 size={10} />}
-          {tenant.tenantType === 'individual' ? 'individual' : 'company'}
+          {isCompany ? <Building2 size={10} /> : <User size={10} />}
+          {isCompany ? 'company' : 'individual'}
         </span>
       </div>
 
@@ -217,9 +248,7 @@ function TenantRow({ tenant, onClick, onDelete }: { tenant: TenantListItem; onCl
       </div>
 
       {/* Active Leases */}
-      <div className="tenant-active-leases">
-        {tenant.activeLeases}
-      </div>
+      <div className="tenant-active-leases">{tenant.activeLeases}</div>
 
       {/* Tags */}
       <div className="tag-cell">
