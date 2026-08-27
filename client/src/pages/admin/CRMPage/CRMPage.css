@@ -2,6 +2,15 @@
    CRM Pages — Lead Pipeline, Detail, Campaigns
    ═══════════════════════════════════════════════ */
 
+/* Accent aliases — this stylesheet uses --accent-primary/--accent-secondary,
+   but the theme only defines --accent. Map them so every usage resolves
+   (and follows light/dark automatically). Without this, gradient-clipped
+   text like the stat values renders transparent (invisible). */
+:root {
+  --accent-primary: var(--accent);
+  --accent-secondary: #8b5cf6;
+}
+
 /* ── Pipeline Page ──────────────────────────── */
 
 .crm-pipeline-page {
@@ -100,7 +109,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 2px solid var(--border-subtle);
+  border-bottom: 2px solid var(--stage-color, var(--border-subtle));
   background: var(--surface-elevated);
   position: sticky;
   top: 0;
@@ -124,11 +133,11 @@
 .kanban-col-header .col-count {
   font-size: 11px;
   font-weight: 600;
-  background: var(--surface-base);
-  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--stage-color, var(--text-muted)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--stage-color, var(--border-subtle)) 40%, transparent);
   padding: 2px 8px;
   border-radius: 20px;
-  color: var(--text-secondary);
+  color: var(--stage-color, var(--text-secondary));
 }
 
 .kanban-col-body {

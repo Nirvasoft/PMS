@@ -8,6 +8,13 @@
   font-style: italic;
 }
 
+/* Read-only Total Area field (auto-filled from the selected unit) */
+.form-field input[readonly] {
+  background: var(--surface-base, rgba(255, 255, 255, 0.03));
+  color: var(--text-secondary);
+  cursor: default;
+}
+
 /* ── Charges table ── */
 .charges-table {
   width: 100%;

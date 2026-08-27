@@ -189,6 +189,7 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
     startDate: lease.startDate.split('T')[0],
     endDate: lease.endDate.split('T')[0],
     handoverDate: lease.handoverDate?.split('T')[0] || '',
+    predefinedType: lease.predefinedType || '',
     escalationType: lease.escalationType || '',
     escalationValue: lease.escalationValue ? Number(lease.escalationValue) : '',
     escalationFrequency: lease.escalationFrequency || 'annual',
@@ -209,6 +210,7 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
           escalationValue: form.escalationValue ? Number(form.escalationValue) : null,
           escalationType: form.escalationType || null,
           handoverDate: form.handoverDate || null,
+          predefinedType: form.predefinedType || null,
           notes: form.notes || null,
           specialConditions: form.specialConditions || null,
         },
@@ -231,6 +233,13 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
               <label>Start Date<input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} /></label>
               <label>End Date<input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} /></label>
               <label>Handover<input type="date" value={form.handoverDate} onChange={(e) => set('handoverDate', e.target.value)} /></label>
+              <label>Predefined Type
+                <select value={form.predefinedType} onChange={(e) => set('predefinedType', e.target.value)}>
+                  <option value="">-</option>
+                  <option value="prerenewal">Prerenewal</option>
+                  <option value="precontractend">Precontractend</option>
+                </select>
+              </label>
             </div>
           </div>
           <div className="edf-section">

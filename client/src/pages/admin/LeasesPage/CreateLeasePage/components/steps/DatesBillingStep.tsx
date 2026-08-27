@@ -18,6 +18,14 @@ export function DatesBillingStep({ form, set }: { form: FormState; set: Function
           <input type="date" value={form.handoverDate} onChange={(e) => set('handoverDate', e.target.value)} />
         </div>
         <div className="form-field">
+          <label>Predefined Type</label>
+          <select value={form.predefinedType} onChange={(e) => set('predefinedType', e.target.value)}>
+            <option value="">-</option>
+            <option value="prerenewal">Prerenewal</option>
+            <option value="precontractend">Precontractend</option>
+          </select>
+        </div>
+        <div className="form-field">
           <label>Billing Cycle *</label>
           <select value={form.billingCycle} onChange={(e) => set('billingCycle', e.target.value)}>
             <option value="monthly">Monthly</option>

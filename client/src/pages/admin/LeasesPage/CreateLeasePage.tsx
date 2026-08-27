@@ -17,7 +17,7 @@ import { ReviewSubmitStep } from './CreateLeasePage/components/steps/ReviewSubmi
 
 const INITIAL: FormState = {
   propertyId: '', propertyCode: '', unitId: '', unitCode: '', tenantId: '', tenantCode: '', templateId: '',
-  startDate: '', endDate: '', handoverDate: '',
+  startDate: '', endDate: '', handoverDate: '', predefinedType: '',
   billingCycle: 'monthly', billingDay: 1, paymentDueDays: 7,
   rentAmount: '', currency: 'USD', securityDeposit: '',
   escalationType: '', escalationValue: '', escalationFrequency: 'annual',
@@ -60,6 +60,7 @@ export default function CreateLeasePage() {
       templateId: form.templateId || undefined,
       startDate: form.startDate, endDate: form.endDate,
       handoverDate: form.handoverDate || undefined,
+      predefinedType: form.predefinedType || undefined,
       billingCycle: form.billingCycle, billingDay: form.billingDay, paymentDueDays: form.paymentDueDays,
       rentAmount: Number(form.rentAmount), currency: form.currency,
       securityDeposit: form.securityDeposit ? Number(form.securityDeposit) : 0,

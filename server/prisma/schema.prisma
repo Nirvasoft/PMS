@@ -1626,6 +1626,8 @@ model Lease {
   startDate               DateTime  @map("start_date") @db.Date
   endDate                 DateTime  @map("end_date") @db.Date
   handoverDate            DateTime? @map("handover_date") @db.Date
+  predefinedType          String?   @map("predefined_type") @db.VarChar(20)
+  // 'prerenewal'|'precontractend'
   leaseTermMonths         Int       @map("lease_term_months") @db.SmallInt
 
   rentAmount              Decimal   @map("rent_amount") @db.Decimal(15, 2)

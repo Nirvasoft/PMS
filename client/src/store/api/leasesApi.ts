@@ -22,6 +22,7 @@ export interface LeaseListItem {
 
 export interface LeaseDetail extends LeaseListItem {
   handoverDate: string | null;
+  predefinedType: string | null;
   billingCycle: string;
   billingDay: number;
   paymentDueDays: number;

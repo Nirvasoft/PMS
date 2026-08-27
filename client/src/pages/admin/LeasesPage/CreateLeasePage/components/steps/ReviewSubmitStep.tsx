@@ -1,9 +1,16 @@
-import type { FormState } from '../../types';
+import { skipToken } from '@reduxjs/toolkit/query';
+import { useGetUnitQuery } from '../../../../../../store/api/unitsApi';
+import { PREDEFINED_TYPE_LABELS, type FormState } from '../../types';
 
 export function ReviewSubmitStep({ form }: { form: FormState }) {
   const TermMonths = form.startDate && form.endDate && form.endDate > form.startDate
     ? (new Date(form.endDate).getFullYear() - new Date(form.startDate).getFullYear()) * 12 + new Date(form.endDate).getMonth() - new Date(form.startDate).getMonth()
     : 0;
+
+  const { data: unitData } = useGetUnitQuery(
+    form.propertyId && form.unitId ? { propertyId: form.propertyId, unitId: form.unitId } : skipToken,
+  );
+  const unitArea = unitData?.data?.areaSqft ?? null;
 
   return (
     <div className="step-content">
@@ -11,9 +18,11 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
       <div className="review-grid">
         <ReviewRow label="Property ID" value={form.propertyCode || form.propertyId} />
         <ReviewRow label="Unit ID"     value={form.unitCode     || form.unitId} />
+        <ReviewRow label="Total Area"  value={unitArea != null ? `${unitArea.toLocaleString()} sqft` : '—'} />
         <ReviewRow label="Tenant ID"   value={form.tenantCode   || form.tenantId} />
         <ReviewRow label="Start Date"  value={form.startDate} />
         <ReviewRow label="End Date"    value={form.endDate} />
+        <ReviewRow label="Predefined Type" value={PREDEFINED_TYPE_LABELS[form.predefinedType] || '—'} />
         <ReviewRow label="Term"        value={`${TermMonths} months`} />
         <ReviewRow label="Rent"        value={`${form.currency} ${Number(form.rentAmount || 0).toLocaleString()}`} />
         <ReviewRow label="Deposit"     value={form.securityDeposit ? `${form.currency} ${Number(form.securityDeposit).toLocaleString()}` : '—'} />

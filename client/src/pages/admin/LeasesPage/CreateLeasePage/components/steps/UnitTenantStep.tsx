@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetPropertiesQuery } from '../../../../../../store/api/propertiesApi';
-import { useGetUnitsQuery } from '../../../../../../store/api/unitsApi';
+import { useGetUnitsQuery, useGetUnitQuery } from '../../../../../../store/api/unitsApi';
 import { useGetTenantsQuery } from '../../../../../../store/api/tenantsApi';
 import ComboBox from '../../../../../../components/ComboBox';
 import type { FormState } from '../../types';
@@ -36,6 +36,14 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
       label: u.unitNumber,
       sublabel: [u.tower?.name, u.floorLabel, u.status].filter(Boolean).join(' · ') || undefined,
     }));
+
+  // Once a unit is picked, pull its detail so we can surface its total area.
+  const { data: selectedUnitData } = useGetUnitQuery(
+    form.propertyId && form.unitId
+      ? { propertyId: form.propertyId, unitId: form.unitId }
+      : skipToken,
+  );
+  const selectedUnitArea = selectedUnitData?.data?.areaSqft ?? null;
 
   // Blacklisted tenants are rejected outright by the lease API; the verified
   // filter matches the rule stated on the field label.
@@ -99,6 +107,12 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             emptyText="No available units"
           />
         </div>
+        {form.unitId && selectedUnitArea != null && (
+          <div className="form-field">
+            <label htmlFor="lease-unit-area">Total Area (sqft)</label>
+            <input id="lease-unit-area" type="text" value={selectedUnitArea.toLocaleString()} readOnly tabIndex={-1} />
+          </div>
+        )}
         <div className="form-field">
           <label htmlFor="lease-tenant">Tenant ID * <span className="hint">(must be KYC verified)</span></label>
           <ComboBox

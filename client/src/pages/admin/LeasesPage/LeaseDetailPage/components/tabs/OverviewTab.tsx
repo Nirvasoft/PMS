@@ -4,6 +4,12 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
   return (
     <div className="tab-panel">
       <div className="info-grid">
+        <InfoCard title="Unit">
+          <InfoRow label="Unit"       value={lease.unit.unitNumber} />
+          <InfoRow label="Type"       value={lease.unit.unitType?.replace(/_/g,' ') || '—'} />
+          <InfoRow label="Total Area" value={lease.unit.areaSqft != null ? `${lease.unit.areaSqft.toLocaleString()} sqft` : '—'} />
+        </InfoCard>
+
         <InfoCard title="Dates">
           <InfoRow label="Start Date"    value={new Date(lease.startDate).toLocaleDateString()} />
           <InfoRow label="End Date"      value={new Date(lease.endDate).toLocaleDateString()} />

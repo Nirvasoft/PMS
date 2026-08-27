@@ -99,7 +99,7 @@ export function InvoicePreviewModal({ lease, onClose }: { lease: LeaseDetail; on
                       {planUnit != null && (
                         <div className="inv-desc-field">
                           <div className="inv-desc-flabel"><u>Plan Unit</u></div>
-                          <div className="inv-desc-fval">{money(planUnit)}</div>
+                          <div className="inv-desc-fval">{planUnit.toLocaleString()}</div>
                         </div>
                       )}
                     </div>
