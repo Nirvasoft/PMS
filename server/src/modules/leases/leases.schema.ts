@@ -4,6 +4,19 @@ const dateString = z.string().refine((val) => !isNaN(Date.parse(val)), {
   message: 'Invalid date format',
 });
 
+const rentalAgreementObject = z.object({
+  renterName:          z.string().max(255).optional(),
+  renterAddress:       z.string().max(1000).optional(),
+  renterSignedName:    z.string().max(255).optional(),
+  renterNirc:          z.string().max(100).optional(),
+  renterDate:          z.string().optional(),
+  companyName:         z.string().max(255).optional(),
+  customerAddress:     z.string().max(1000).optional(),
+  customerSignedName:  z.string().max(255).optional(),
+  customerNirc:        z.string().max(100).optional(),
+  customerDate:        z.string().optional(),
+});
+
 export const createLeaseSchema = z.object({
   body: z.object({
     propertyId: z.string().uuid('Invalid property ID'),
@@ -35,6 +48,7 @@ export const createLeaseSchema = z.object({
       chargeTypeId: z.string().uuid('Invalid charge type ID'),
       amount: z.number().positive('Charge amount must be positive'),
     })).optional(),
+    rentalAgreement: rentalAgreementObject.optional(),
   }),
 });
 
@@ -65,6 +79,7 @@ export const updateLeaseSchema = z.object({
       chargeTypeId: z.string().uuid('Invalid charge type ID'),
       amount: z.number().positive('Charge amount must be positive'),
     })).optional(),
+    rentalAgreement: rentalAgreementObject.optional(),
   }),
 });
 

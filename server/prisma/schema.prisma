@@ -1675,6 +1675,7 @@ model Lease {
   notes                   String?   @db.Text
   specialConditions       String?   @map("special_conditions") @db.Text
   clauses                 Json      @default("[]")
+  rentalAgreement         Json?     @map("rental_agreement")
 
   // Audit
   createdBy               String    @map("created_by") @db.Uuid

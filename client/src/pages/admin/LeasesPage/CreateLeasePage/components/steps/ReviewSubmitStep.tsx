@@ -11,6 +11,7 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
     form.propertyId && form.unitId ? { propertyId: form.propertyId, unitId: form.unitId } : skipToken,
   );
   const unitArea = unitData?.data?.areaSqft ?? null;
+  const ra = form.rentalAgreement;
 
   return (
     <div className="step-content">
@@ -29,6 +30,27 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
         <ReviewRow label="Billing"     value={`${form.billingCycle}, day ${form.billingDay}`} />
         <ReviewRow label="Escalation"  value={form.escalationType ? `${form.escalationType} · ${form.escalationValue} · ${form.escalationFrequency}` : 'None'} />
         <ReviewRow label="Clauses"     value={`${form.clauses.length} clause(s)`} />
+      </div>
+
+      <div className="review-subhead">Rental Agreement</div>
+      <div className="review-ra-cols">
+        <div className="review-ra-col">
+          <div className="review-ra-colhead">Renter</div>
+          <ReviewRow label="Name"        value={ra.renterName        || '—'} />
+          <ReviewRow label="Address"     value={ra.renterAddress     || '—'} />
+          <ReviewRow label="Signed Name" value={ra.renterSignedName  || '—'} />
+          <ReviewRow label="NRC"         value={ra.renterNirc        || '—'} />
+          <ReviewRow label="Date"        value={ra.renterDate        || '—'} />
+        </div>
+        <div className="review-ra-divider" />
+        <div className="review-ra-col">
+          <div className="review-ra-colhead">Customer</div>
+          <ReviewRow label="Company"     value={ra.companyName       || '—'} />
+          <ReviewRow label="Address"     value={ra.customerAddress   || '—'} />
+          <ReviewRow label="Signed Name" value={ra.customerSignedName|| '—'} />
+          <ReviewRow label="NRC"         value={ra.customerNirc      || '—'} />
+          <ReviewRow label="Date"        value={ra.customerDate      || '—'} />
+        </div>
       </div>
 
       <div className="review-note">

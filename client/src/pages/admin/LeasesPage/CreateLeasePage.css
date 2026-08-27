@@ -89,3 +89,61 @@
   transition: background 0.15s;
 }
 .charge-remove-btn:hover { background: rgba(231,76,60,0.2); }
+
+/* ── Rental Agreement step ─────────────────── */
+.ra-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 40px; }
+.ra-col { display: flex; flex-direction: column; gap: 14px; }
+.ra-field { display: flex; flex-direction: column; gap: 5px; }
+.ra-field label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.ra-req { color: #f87171; margin-right: 3px; }
+.ra-field input, .ra-field textarea {
+  width: 100%; padding: 9px 12px; box-sizing: border-box;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 8px; color: var(--text-primary); font-size: 0.86rem; outline: none;
+  font-family: inherit; resize: vertical;
+}
+.ra-field input:focus, .ra-field textarea:focus { border-color: var(--accent, #34d399); }
+.ra-field input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+
+@media (max-width: 720px) {
+  .ra-grid { grid-template-columns: 1fr; gap: 14px; }
+}
+
+.review-subhead {
+  margin: 20px 0 10px; font-size: 0.78rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent, #34d399);
+}
+
+/* Review — Rental Agreement 2-column */
+.review-ra-cols {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0 28px;
+  align-items: start;
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.review-ra-col { display: flex; flex-direction: column; gap: 0; }
+.review-ra-colhead {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent, #6c5ce7);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.review-ra-divider {
+  width: 1px;
+  background: rgba(255,255,255,.07);
+  align-self: stretch;
+  margin-top: 26px;
+}
+
+@media (max-width: 640px) {
+  .review-ra-cols { grid-template-columns: 1fr; gap: 14px; }
+  .review-ra-divider { display: none; }
+}

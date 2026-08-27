@@ -80,8 +80,14 @@ export class LeasesService {
 
     const tenant = lease.tenant;
     const { billingSchedules, ...leaseRest } = lease as any;
+
+    // rental_agreement is read via raw SQL so it works even if the generated
+    // Prisma client predates the column.
+    const raRows = await prisma.$queryRaw<{ rental_agreement: unknown }[]>`SELECT "rental_agreement" FROM "leases" WHERE "id" = ${id}::uuid`;
+
     return {
       ...leaseRest,
+      rentalAgreement: raRows[0]?.rental_agreement ?? null,
       tenant: { ...tenant, displayName: tenant.tenantType === 'company' ? tenant.companyName : `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() },
       daysUntilExpiry: daysUntilExpiry(lease.endDate),
       leaseCharges: billingSchedules,
@@ -90,7 +96,7 @@ export class LeasesService {
 
   // ── Create ────────────────────────────────
   async create(companyId: string, dto: Record<string, unknown>, createdBy: string) {
-    const { propertyId, unitId, tenantId, startDate, endDate, templateId, leaseCharges, ...rest } = dto as any;
+    const { propertyId, unitId, tenantId, startDate, endDate, templateId, leaseCharges, rentalAgreement, ...rest } = dto as any;
 
     // Validations
     const unit   = await prisma.unit.findFirst({ where: { id: unitId, propertyId } });
@@ -131,6 +137,12 @@ export class LeasesService {
       },
     });
 
+    // Rental agreement lives in a JSONB column written via raw SQL so it does
+    // not depend on the generated Prisma client knowing the field.
+    if (rentalAgreement) {
+      await prisma.$executeRaw`UPDATE "leases" SET "rental_agreement" = ${JSON.stringify(rentalAgreement)}::jsonb WHERE "id" = ${lease.id}::uuid`;
+    }
+
     // Create BillingSchedule records for each charge
     if (Array.isArray(leaseCharges) && leaseCharges.length > 0) {
       await prisma.billingSchedule.createMany({
@@ -163,7 +175,7 @@ export class LeasesService {
     if (!lease) throw AppError.notFound('Lease');
     if (lease.status !== 'draft') throw new AppError(400, 'NOT_DRAFT', 'Only draft leases can be updated');
 
-    const { startDate, endDate, leaseCharges, ...rest } = dto as any;
+    const { startDate, endDate, leaseCharges, rentalAgreement, ...rest } = dto as any;
     const start = startDate ? new Date(startDate) : new Date(lease.startDate);
     const end   = endDate   ? new Date(endDate)   : new Date(lease.endDate);
     if (end <= start) throw new AppError(400, 'INVALID_DATES', 'End date must be after start date');
@@ -172,6 +184,11 @@ export class LeasesService {
       where: { id },
       data: { ...rest, ...(startDate ? { startDate: start } : {}), ...(endDate ? { endDate: end } : {}), leaseTermMonths: calcLeaseTermMonths(start, end) },
     });
+
+    // Rental agreement JSONB written via raw SQL (see create()).
+    if (rentalAgreement !== undefined) {
+      await prisma.$executeRaw`UPDATE "leases" SET "rental_agreement" = ${JSON.stringify(rentalAgreement)}::jsonb WHERE "id" = ${id}::uuid`;
+    }
 
     // Replace billing schedule charges when provided
     if (Array.isArray(leaseCharges)) {

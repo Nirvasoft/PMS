@@ -65,6 +65,20 @@ export interface LeaseDetail extends LeaseListItem {
     amount: string;
     chargeType: { id: string; code: string; name: string; category: string };
   }[];
+  rentalAgreement: RentalAgreement | null;
+}
+
+export interface RentalAgreement {
+  renterName?: string;
+  renterAddress?: string;
+  renterSignedName?: string;
+  renterNirc?: string;
+  renterDate?: string;
+  companyName?: string;
+  customerAddress?: string;
+  customerSignedName?: string;
+  customerNirc?: string;
+  customerDate?: string;
 }
 
 export interface LeaseAmendment {

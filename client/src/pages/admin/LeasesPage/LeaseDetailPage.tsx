@@ -195,9 +195,22 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
     escalationFrequency: lease.escalationFrequency || 'annual',
     notes: lease.notes || '',
     specialConditions: lease.specialConditions || '',
+    rentalAgreement: {
+      renterName:         lease.rentalAgreement?.renterName         || '',
+      renterAddress:      lease.rentalAgreement?.renterAddress      || '',
+      renterSignedName:   lease.rentalAgreement?.renterSignedName   || '',
+      renterNirc:         lease.rentalAgreement?.renterNirc         || '',
+      renterDate:         lease.rentalAgreement?.renterDate         || '',
+      companyName:        lease.rentalAgreement?.companyName        || '',
+      customerAddress:    lease.rentalAgreement?.customerAddress    || '',
+      customerSignedName: lease.rentalAgreement?.customerSignedName || '',
+      customerNirc:       lease.rentalAgreement?.customerNirc       || '',
+      customerDate:       lease.rentalAgreement?.customerDate       || '',
+    },
   });
 
   const set = (key: string, val: unknown) => setForm((f) => ({ ...f, [key]: val }));
+  const setRA = (key: string, val: string) => setForm((f) => ({ ...f, rentalAgreement: { ...f.rentalAgreement, [key]: val } }));
 
   const handleSave = async () => {
     try {
@@ -223,80 +236,107 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-box modal-lg" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header"><h3>Edit Draft Lease</h3><button onClick={onClose}><X size={18} /></button></div>
-        <div className="modal-body edit-draft-form">
-          <div className="edf-section">
-            <h4>Dates</h4>
-            <div className="edf-row">
-              <label>Start Date<input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} /></label>
-              <label>End Date<input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} /></label>
-              <label>Handover<input type="date" value={form.handoverDate} onChange={(e) => set('handoverDate', e.target.value)} /></label>
-              <label>Predefined Type
-                <select value={form.predefinedType} onChange={(e) => set('predefinedType', e.target.value)}>
-                  <option value="">-</option>
-                  <option value="prerenewal">Prerenewal</option>
-                  <option value="precontractend">Precontractend</option>
-                </select>
-              </label>
-            </div>
+    <div className="ld-modal">
+      <div className="ld-modal-overlay">
+        <div className="ld-modal-box ld-modal-lg" onClick={(e) => e.stopPropagation()}>
+          <div className="ld-modal-header">
+            <h3>Edit Draft Lease</h3>
+            <button onClick={onClose}><X size={18} /></button>
           </div>
-          <div className="edf-section">
-            <h4>Financial</h4>
-            <div className="edf-row">
-              <label>Currency
-                <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
-                  {['USD','EUR','GBP','SGD','MMK','THB','MYR','AED','SAR','INR'].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </label>
-              <label>Rent Amount<input type="number" value={form.rentAmount} onChange={(e) => set('rentAmount', e.target.value)} /></label>
-              <label>Security Deposit<input type="number" value={form.securityDeposit} onChange={(e) => set('securityDeposit', e.target.value)} /></label>
-            </div>
-            <div className="edf-row">
-              <label>Billing Cycle
-                <select value={form.billingCycle} onChange={(e) => set('billingCycle', e.target.value)}>
-                  {['monthly','quarterly','semi_annual','annual'].map((c) => <option key={c} value={c}>{c.replace(/_/g,' ')}</option>)}
-                </select>
-              </label>
-              <label>Billing Day<input type="number" min={1} max={28} value={form.billingDay} onChange={(e) => set('billingDay', Number(e.target.value))} /></label>
-              <label>Payment Due Days<input type="number" min={1} max={30} value={form.paymentDueDays} onChange={(e) => set('paymentDueDays', Number(e.target.value))} /></label>
-            </div>
-          </div>
-          <div className="edf-section">
-            <h4>Escalation</h4>
-            <div className="edf-row">
-              <label>Type
-                <select value={form.escalationType} onChange={(e) => set('escalationType', e.target.value)}>
-                  <option value="">None</option>
-                  {['fixed_percent','fixed_amount','cpi','stepped'].map((t) => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
-                </select>
-              </label>
-              {form.escalationType && (
-                <label>Value<input type="number" value={form.escalationValue} onChange={(e) => set('escalationValue', e.target.value)} /></label>
-              )}
-              {form.escalationType && (
-                <label>Frequency
-                  <select value={form.escalationFrequency} onChange={(e) => set('escalationFrequency', e.target.value)}>
-                    <option value="annual">Annual</option>
-                    <option value="biennial">Biennial</option>
+          <div className="ld-modal-body">
+            <div className="edf-section">
+              <h4>Dates</h4>
+              <div className="edf-row">
+                <label>Start Date<input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} /></label>
+                <label>End Date<input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} /></label>
+                <label>Handover<input type="date" value={form.handoverDate} onChange={(e) => set('handoverDate', e.target.value)} /></label>
+                <label>Predefined Type
+                  <select value={form.predefinedType} onChange={(e) => set('predefinedType', e.target.value)}>
+                    <option value="">-</option>
+                    <option value="prerenewal">Prerenewal</option>
+                    <option value="precontractend">Precontractend</option>
                   </select>
                 </label>
-              )}
+              </div>
+            </div>
+            <div className="edf-section">
+              <h4>Financial</h4>
+              <div className="edf-row">
+                <label>Currency
+                  <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
+                    {['USD','EUR','GBP','SGD','MMK','THB','MYR','AED','SAR','INR'].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>Rent Amount<input type="number" value={form.rentAmount} onChange={(e) => set('rentAmount', e.target.value)} /></label>
+                <label>Security Deposit<input type="number" value={form.securityDeposit} onChange={(e) => set('securityDeposit', e.target.value)} /></label>
+              </div>
+              <div className="edf-row">
+                <label>Billing Cycle
+                  <select value={form.billingCycle} onChange={(e) => set('billingCycle', e.target.value)}>
+                    {['monthly','quarterly','semi_annual','annual'].map((c) => <option key={c} value={c}>{c.replace(/_/g,' ')}</option>)}
+                  </select>
+                </label>
+                <label>Billing Day<input type="number" min={1} max={28} value={form.billingDay} onChange={(e) => set('billingDay', Number(e.target.value))} /></label>
+                <label>Payment Due Days<input type="number" min={1} max={30} value={form.paymentDueDays} onChange={(e) => set('paymentDueDays', Number(e.target.value))} /></label>
+              </div>
+            </div>
+            <div className="edf-section">
+              <h4>Escalation</h4>
+              <div className="edf-row">
+                <label>Type
+                  <select value={form.escalationType} onChange={(e) => set('escalationType', e.target.value)}>
+                    <option value="">None</option>
+                    {['fixed_percent','fixed_amount','cpi','stepped'].map((t) => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+                  </select>
+                </label>
+                {form.escalationType && (
+                  <label>Value<input type="number" value={form.escalationValue} onChange={(e) => set('escalationValue', e.target.value)} /></label>
+                )}
+                {form.escalationType && (
+                  <label>Frequency
+                    <select value={form.escalationFrequency} onChange={(e) => set('escalationFrequency', e.target.value)}>
+                      <option value="annual">Annual</option>
+                      <option value="biennial">Biennial</option>
+                    </select>
+                  </label>
+                )}
+              </div>
+            </div>
+
+            <div className="edf-section">
+              <h4>Rental Agreement</h4>
+              <div className="edf-ra-grid">
+                <div className="edf-ra-col">
+                  <div className="edf-ra-colhead">Renter</div>
+                  <label>Renter Name<input value={form.rentalAgreement.renterName} onChange={(e) => setRA('renterName', e.target.value)} /></label>
+                  <label>Address<textarea rows={2} value={form.rentalAgreement.renterAddress} onChange={(e) => setRA('renterAddress', e.target.value)} /></label>
+                  <label>Signed Name<input value={form.rentalAgreement.renterSignedName} onChange={(e) => setRA('renterSignedName', e.target.value)} /></label>
+                  <label>NRC<input value={form.rentalAgreement.renterNirc} onChange={(e) => setRA('renterNirc', e.target.value)} /></label>
+                  <label>Date<input type="date" value={form.rentalAgreement.renterDate} onChange={(e) => setRA('renterDate', e.target.value)} /></label>
+                </div>
+                <div className="edf-ra-col">
+                  <div className="edf-ra-colhead">Customer</div>
+                  <label>Company Name<input value={form.rentalAgreement.companyName} onChange={(e) => setRA('companyName', e.target.value)} /></label>
+                  <label>Address<textarea rows={2} value={form.rentalAgreement.customerAddress} onChange={(e) => setRA('customerAddress', e.target.value)} /></label>
+                  <label>Signed Name<input value={form.rentalAgreement.customerSignedName} onChange={(e) => setRA('customerSignedName', e.target.value)} /></label>
+                  <label>NRC<input value={form.rentalAgreement.customerNirc} onChange={(e) => setRA('customerNirc', e.target.value)} /></label>
+                  <label>Date<input type="date" value={form.rentalAgreement.customerDate} onChange={(e) => setRA('customerDate', e.target.value)} /></label>
+                </div>
+              </div>
+            </div>
+
+            <div className="edf-section">
+              <h4>Notes</h4>
+              <textarea rows={3} value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Internal notes…" />
+              <textarea rows={3} value={form.specialConditions} onChange={(e) => set('specialConditions', e.target.value)} placeholder="Special conditions…" style={{ marginTop: 8 }} />
             </div>
           </div>
-
-          <div className="edf-section">
-            <h4>Notes</h4>
-            <textarea rows={3} value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Internal notes…" />
-            <textarea rows={3} value={form.specialConditions} onChange={(e) => set('specialConditions', e.target.value)} placeholder="Special conditions…" style={{ marginTop: 8 }} />
+          <div className="ld-modal-footer">
+            <button className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn-primary" onClick={handleSave} disabled={isLoading}><Save size={14}/> {isLoading ? 'Saving…' : 'Save Changes'}</button>
           </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave} disabled={isLoading}><Save size={14}/> {isLoading ? 'Saving…' : 'Save Changes'}</button>
         </div>
       </div>
     </div>

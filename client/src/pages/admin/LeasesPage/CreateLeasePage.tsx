@@ -4,7 +4,7 @@ import {
   useGetLeaseTemplatesQuery, useGetLeaseClausesQuery,
   useCreateLeaseMutation,
 } from '../../../store/api/leasesApi';
-import { ArrowLeft, ArrowRight, Check, Building2, FileText, DollarSign, List } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Building2, FileText, DollarSign, List, FileSignature } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CreateLeasePage.css';
 
@@ -12,8 +12,11 @@ import type { Step, FormState } from './CreateLeasePage/types';
 import { UnitTenantStep } from './CreateLeasePage/components/steps/UnitTenantStep';
 import { DatesBillingStep } from './CreateLeasePage/components/steps/DatesBillingStep';
 import { FinancialsStep } from './CreateLeasePage/components/steps/FinancialsStep';
+import { RentalAgreementStep } from './CreateLeasePage/components/steps/RentalAgreementStep';
 import { ClausesStep } from './CreateLeasePage/components/steps/ClausesStep';
 import { ReviewSubmitStep } from './CreateLeasePage/components/steps/ReviewSubmitStep';
+
+const todayISO = () => new Date().toISOString().split('T')[0];
 
 const INITIAL: FormState = {
   propertyId: '', propertyCode: '', unitId: '', unitCode: '', tenantId: '', tenantCode: '', templateId: '',
@@ -24,14 +27,19 @@ const INITIAL: FormState = {
   escalationMonth: '', escalationDay: '',
   leaseCharges: [],
   clauses: [], specialConditions: '', notes: '',
+  rentalAgreement: {
+    renterName: '', renterAddress: '', renterSignedName: '', renterNirc: '', renterDate: todayISO(),
+    companyName: '', customerAddress: '', customerSignedName: '', customerNirc: '', customerDate: todayISO(),
+  },
 };
 
 const STEPS = [
-  { n: 1, label: 'Unit & Tenant',   icon: <Building2 size={15} /> },
-  { n: 2, label: 'Lease Dates',     icon: <FileText size={15} /> },
-  { n: 3, label: 'Financial Terms', icon: <DollarSign size={15} /> },
-  { n: 4, label: 'Clauses',         icon: <List size={15} /> },
-  { n: 5, label: 'Review',          icon: <Check size={15} /> },
+  { n: 1, label: 'Unit & Tenant',    icon: <Building2 size={15} /> },
+  { n: 2, label: 'Lease Dates',      icon: <FileText size={15} /> },
+  { n: 3, label: 'Financial Terms',  icon: <DollarSign size={15} /> },
+  { n: 4, label: 'Rental Agreement', icon: <FileSignature size={15} /> },
+  { n: 5, label: 'Clauses',          icon: <List size={15} /> },
+  { n: 6, label: 'Review',           icon: <Check size={15} /> },
 ];
 
 export default function CreateLeasePage() {
@@ -51,6 +59,11 @@ export default function CreateLeasePage() {
     if (step === 1) return !!(form.propertyId && form.unitId && form.tenantId);
     if (step === 2) return !!(form.startDate && form.endDate && form.startDate < form.endDate);
     if (step === 3) return !!(form.rentAmount && Number(form.rentAmount) > 0);
+    if (step === 4) {
+      const ra = form.rentalAgreement;
+      return !!(ra.renterName && ra.renterSignedName && ra.renterNirc && ra.renterDate
+        && ra.companyName && ra.customerSignedName && ra.customerNirc && ra.customerDate);
+    }
     return true;
   };
 
@@ -73,6 +86,7 @@ export default function CreateLeasePage() {
       leaseCharges: form.leaseCharges.length
         ? form.leaseCharges.map(c => ({ chargeTypeId: c.chargeTypeId, amount: Number(c.amount) }))
         : undefined,
+      rentalAgreement: form.rentalAgreement,
     };
 
     try {
@@ -98,7 +112,7 @@ export default function CreateLeasePage() {
           <div key={s.n} className={`cl-step ${step === s.n ? 'active' : step > s.n ? 'done' : ''}`}>
             <div className="step-dot">{step > s.n ? <Check size={13} /> : s.icon}</div>
             <span className="step-label">{s.label}</span>
-            {s.n < 5 && <div className="step-line" />}
+            {s.n < 6 && <div className="step-line" />}
           </div>
         ))}
       </div>
@@ -108,15 +122,16 @@ export default function CreateLeasePage() {
         {step === 1 && <UnitTenantStep form={form} set={set} templates={templates} />}
         {step === 2 && <DatesBillingStep form={form} set={set} />}
         {step === 3 && <FinancialsStep form={form} set={set} />}
-        {step === 4 && <ClausesStep form={form} set={set} libraryClauseList={clauses} />}
-        {step === 5 && <ReviewSubmitStep form={form} />}
+        {step === 4 && <RentalAgreementStep form={form} set={set} />}
+        {step === 5 && <ClausesStep form={form} set={set} libraryClauseList={clauses} />}
+        {step === 6 && <ReviewSubmitStep form={form} />}
       </div>
 
       {/* Footer */}
       <div className="cl-footer">
         {step > 1 && <button className="btn-ghost" onClick={() => setStep((s) => (s - 1) as Step)}><ArrowLeft size={14} /> Back</button>}
         <div className="footer-right">
-          {step < 5 ? (
+          {step < 6 ? (
             <button className="btn-primary" disabled={!canProceed()} onClick={() => setStep((s) => (s + 1) as Step)}>
               Next <ArrowRight size={14} />
             </button>

@@ -1,4 +1,6 @@
-export type Step = 1 | 2 | 3 | 4 | 5;
+import type { RentalAgreement } from '../../../../store/api/leasesApi';
+
+export type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 export const PREDEFINED_TYPE_LABELS: Record<string, string> = {
   prerenewal: 'Prerenewal',
@@ -19,4 +21,5 @@ export interface FormState {
   leaseCharges: { chargeTypeId: string; amount: string }[];
   clauses: { title: string; content: string }[];
   specialConditions: string; notes: string;
+  rentalAgreement: RentalAgreement;
 }

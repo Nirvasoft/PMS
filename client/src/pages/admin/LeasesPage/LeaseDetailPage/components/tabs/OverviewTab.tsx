@@ -54,6 +54,31 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
             {lease.earlyTerminationPenalty && <InfoRow label="Penalty" value={`${Number(lease.earlyTerminationPenalty).toLocaleString()}`} />}
           </InfoCard>
         )}
+
+        {lease.rentalAgreement && (
+          <div className="info-card info-card-wide">
+            <h4>Rental Agreement</h4>
+            <div className="ra-cols">
+              <div className="ra-col">
+                <div className="ra-col-head">Renter</div>
+                <InfoRow label="Name"        value={lease.rentalAgreement.renterName        || '—'} />
+                <InfoRow label="Address"     value={lease.rentalAgreement.renterAddress     || '—'} />
+                <InfoRow label="Signed Name" value={lease.rentalAgreement.renterSignedName  || '—'} />
+                <InfoRow label="NRC"         value={lease.rentalAgreement.renterNirc        || '—'} />
+                <InfoRow label="Date"        value={lease.rentalAgreement.renterDate        || '—'} />
+              </div>
+              <div className="ra-divider" />
+              <div className="ra-col">
+                <div className="ra-col-head">Customer</div>
+                <InfoRow label="Company"     value={lease.rentalAgreement.companyName       || '—'} />
+                <InfoRow label="Address"     value={lease.rentalAgreement.customerAddress   || '—'} />
+                <InfoRow label="Signed Name" value={lease.rentalAgreement.customerSignedName|| '—'} />
+                <InfoRow label="NRC"         value={lease.rentalAgreement.customerNirc      || '—'} />
+                <InfoRow label="Date"        value={lease.rentalAgreement.customerDate      || '—'} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {lease.notes && (
