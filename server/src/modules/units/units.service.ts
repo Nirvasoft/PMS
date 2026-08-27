@@ -369,10 +369,26 @@ export class UnitsService {
     };
   }
 
+  // ── Parking-owned unit guard (Module 2.6) ──
+  /** Once a Park Unit actually has zones/slots created for it in Parking Management, it's
+   * locked here — block edits/deletes so that data doesn't get orphaned. A unit merely tagged
+   * Car Park / Bike Park / EV Bay with nothing built on it yet is unaffected. */
+  private async isUsedInParkingManagement(unitId: string): Promise<boolean> {
+    const [zoneCount, slotCount] = await Promise.all([
+      prisma.parkingZone.count({ where: { unitId } }),
+      prisma.parkingSlot.count({ where: { unitId } }),
+    ]);
+    return zoneCount > 0 || slotCount > 0;
+  }
+
   // ── Update ─────────────────────────────────
   async update(propertyId: string, unitId: string, dto: Record<string, unknown>) {
     const unit = await prisma.unit.findFirst({ where: { id: unitId, propertyId, deletedAt: null } });
     if (!unit) throw AppError.notFound('Unit');
+
+    if (await this.isUsedInParkingManagement(unitId)) {
+      throw new AppError(403, 'PARKING_UNIT_LOCKED', 'This unit has zones/slots created under Parking Management and cannot be updated here');
+    }
 
     const { amenities, ...unitData } = dto;
     autoConvertArea(unitData);
@@ -489,6 +505,11 @@ export class UnitsService {
   async delete(propertyId: string, unitId: string) {
     const unit = await prisma.unit.findFirst({ where: { id: unitId, propertyId, deletedAt: null } });
     if (!unit) throw AppError.notFound('Unit');
+
+    if (await this.isUsedInParkingManagement(unitId)) {
+      throw new AppError(403, 'PARKING_UNIT_LOCKED', 'This unit has zones/slots created under Parking Management and cannot be deleted here');
+    }
+
     // TODO: block if has active lease (Phase 2.4)
     // Free up the unit number for reuse — the (unitNumber, propertyId) unique
     // constraint isn't scoped to deletedAt, so a soft-deleted unit would otherwise

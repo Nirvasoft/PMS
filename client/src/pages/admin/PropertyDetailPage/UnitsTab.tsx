@@ -415,7 +415,9 @@ export default function UnitsTab() {
                               try {
                                 await deleteUnit({ propertyId: propertyId!, unitId: unit.id }).unwrap();
                                 toast.success('Deleted');
-                              } catch { toast.error('Cannot delete'); }
+                              } catch (e: any) {
+                                toast.error(e?.data?.errors?.[0]?.message || 'Cannot delete');
+                              }
                             }}
                           />
                         ))
