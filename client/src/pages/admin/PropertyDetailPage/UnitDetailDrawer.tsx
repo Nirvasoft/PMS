@@ -5,8 +5,9 @@ import {
   useGetUnitQuery, useUpdateUnitMutation, useUpdateUnitStatusMutation,
   useAddMeterMutation, useDeleteMeterMutation, useUpdateMeterMutation,
   useSetAmenitiesMutation, useUploadFloorPlanMutation, useGetUnitTypesQuery,
+  useGetUnitChargesQuery, useAddUnitChargeMutation, useUpdateUnitChargeMutation, useDeleteUnitChargeMutation,
 } from '../../../store/api/unitsApi';
-import { useGetMeterSetupsQuery } from '../../../store/api/billingApi';
+import { useGetMeterSetupsQuery, useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { CATEGORIES as METER_CATEGORIES, METER_TYPES } from '../BillingPage/MeterSetupPage';
 import {
@@ -47,7 +48,7 @@ const DIRECTION_OPTIONS = ['north', 'south', 'east', 'west', 'northeast', 'north
 const FURNISHING_OPTIONS = ['unfurnished', 'partially_furnished', 'fully_furnished'];
 const OWNERSHIP_OPTIONS = ['leasehold', 'freehold', 'strata', 'company', 'individual'];
 
-type DrawerTab = 'info' | 'meters' | 'floor_plan' | 'leases' | 'history';
+type DrawerTab = 'info' | 'meters' | 'charges' | 'floor_plan' | 'leases' | 'history';
 
 export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; unitId: string }) {
   const dispatch = useAppDispatch();
@@ -62,11 +63,19 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     meterType: '', meterSerialNo: '', meterProvider: '',
     isSmartMeter: false, location: '', installedAt: '', smartMeterId: '',
   });
+  const [meterFormErrors, setMeterFormErrors] = useState<Record<string, string>>({});
   const [editingMeterId, setEditingMeterId] = useState<string | null>(null);
   const [meterEditForm, setMeterEditForm] = useState<Record<string, any>>({});
+  const [meterEditFormErrors, setMeterEditFormErrors] = useState<Record<string, string>>({});
   const [readingMeterId, setReadingMeterId] = useState<string | null>(null);
   const [readingValue, setReadingValue] = useState('');
   const [readingDate, setReadingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [addingCharge, setAddingCharge] = useState(false);
+  const [chargeForm, setChargeForm] = useState({ chargeTypeId: '', amount: '' });
+  const [savingCharge, setSavingCharge] = useState(false);
+  const [editingChargeId, setEditingChargeId] = useState<string | null>(null);
+  const [chargeEditForm, setChargeEditForm] = useState({ chargeTypeId: '', amount: '' });
+  const [savingChargeEdit, setSavingChargeEdit] = useState(false);
 
   const { data, isLoading, isError, error } = useGetUnitQuery({ propertyId, unitId });
   const unit = data?.data;
@@ -91,6 +100,14 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
   const { data: floorSetupsData } = useGetFloorSetupsQuery({ propertyId });
   const floorSetups = [...(floorSetupsData?.data || [])].sort((a, b) => a.floorNumber - b.floorNumber);
+
+  const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const chargeTypes = (chargeTypesData?.data || []).filter((ct) => ct.isActive);
+
+  const { data: unitChargesData, refetch: refetchCharges } = useGetUnitChargesQuery({ propertyId, unitId });
+  const unitCharges = unitChargesData?.data || [];
+  const [addUnitCharge] = useAddUnitChargeMutation();
+  const [deleteUnitCharge] = useDeleteUnitChargeMutation();
 
   // ── Edit form state ─────────────────────────
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -194,22 +211,40 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   };
 
   const handleAddMeter = async () => {
-    if (!meterForm.meterSerialNo) return;
+    // Validate required fields (Provider and Location are optional)
+    const errs: Record<string, string> = {};
+    if (!meterForm.meterType)      errs.meterType     = 'Category is required';
+    if (!meterForm.meterSerialNo)  errs.meterSerialNo = 'Meter No is required';
+    if (!meterForm.installedAt)    errs.installedAt   = 'Install Date is required';
+    if (meterForm.isSmartMeter && !meterForm.smartMeterId) errs.smartMeterId = 'Smart Meter ID is required';
+
+    if (Object.keys(errs).length > 0) {
+      setMeterFormErrors(errs);
+      return;
+    }
+    setMeterFormErrors({});
+
     try {
       await addMeter({ propertyId, unitId, data: {
         ...meterForm,
         location: meterForm.location || undefined,
-        installedAt: meterForm.installedAt || undefined,
+        installedAt: meterForm.installedAt ? new Date(meterForm.installedAt).toISOString() : undefined,
         smartMeterId: meterForm.smartMeterId || undefined,
       }}).unwrap();
       toast.success('Meter added');
       setAddingMeter(false);
       setMeterForm({ meterType: '', meterSerialNo: '', meterProvider: '', isSmartMeter: false, location: '', installedAt: '', smartMeterId: '' });
-    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed'); }
+    } catch (e: any) {
+      const code = e?.data?.errors?.[0]?.code;
+      const msg  = e?.data?.errors?.[0]?.message || 'Failed';
+      if (code === 'METER_SERIAL_EXISTS') setMeterFormErrors((p) => ({ ...p, meterSerialNo: msg }));
+      else toast.error(msg);
+    }
   };
 
   const handleMeterEdit = (m: any) => {
     setEditingMeterId(m.id);
+    setMeterEditFormErrors({});
     setMeterEditForm({
       meterCategory: m.meterType,
       meterSerialNo: m.meterSerialNo,
@@ -222,6 +257,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
   const handleMeterEditSave = async () => {
     if (!editingMeterId) return;
+    const errs: Record<string, string> = {};
+    if (!meterEditForm.meterCategory) errs.meterCategory = 'Category is required';
+    if (!meterEditForm.meterSerialNo) errs.meterSerialNo = 'Meter No is required';
+    if (meterEditForm.isSmartMeter && !meterEditForm.smartMeterId) errs.smartMeterId = 'Smart Meter ID is required';
+    if (Object.keys(errs).length > 0) { setMeterEditFormErrors(errs); return; }
+    setMeterEditFormErrors({});
     try {
       await updateMeter({ propertyId, unitId, meterId: editingMeterId, data: {
         meterType: meterEditForm.meterCategory,
@@ -233,7 +274,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       }}).unwrap();
       toast.success('Meter updated');
       setEditingMeterId(null);
-    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed to update meter'); }
+    } catch (e: any) {
+      const code = e?.data?.errors?.[0]?.code;
+      const msg  = e?.data?.errors?.[0]?.message || 'Failed to update meter';
+      if (code === 'METER_SERIAL_EXISTS') setMeterEditFormErrors((p) => ({ ...p, meterSerialNo: msg }));
+      else toast.error(msg);
+    }
   };
 
   const handleRecordReading = async () => {
@@ -241,7 +287,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     try {
       await updateMeter({ propertyId, unitId, meterId: readingMeterId, data: {
         lastReading: Number(readingValue),
-        lastReadingDate: readingDate,
+        lastReadingDate: readingDate ? new Date(readingDate).toISOString() : undefined,
       }}).unwrap();
       toast.success('Reading recorded');
       setReadingMeterId(null);
@@ -273,6 +319,47 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     } catch { toast.error('Upload failed'); }
     // Reset input so same file can be re-uploaded
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // ── Unit Charges ─────────────────────────────
+  const [updateUnitCharge] = useUpdateUnitChargeMutation();
+
+  const handleAddCharge = async () => {
+    if (!chargeForm.chargeTypeId || !chargeForm.amount) return;
+    setSavingCharge(true);
+    try {
+      await addUnitCharge({ propertyId, unitId, data: { chargeTypeId: chargeForm.chargeTypeId, amount: Number(chargeForm.amount) } }).unwrap();
+      toast.success('Charge added');
+      setChargeForm({ chargeTypeId: '', amount: '' });
+      setAddingCharge(false);
+    } catch (e: any) {
+      toast.error(e?.data?.message || 'Failed to add charge');
+    } finally { setSavingCharge(false); }
+  };
+
+  const handleChargeEdit = (c: { id: string; amount: string; chargeType: { id: string } }) => {
+    setEditingChargeId(c.id);
+    setChargeEditForm({ chargeTypeId: c.chargeType.id, amount: c.amount });
+    setAddingCharge(false);
+  };
+
+  const handleChargeEditSave = async () => {
+    if (!editingChargeId || !chargeEditForm.chargeTypeId || !chargeEditForm.amount) return;
+    setSavingChargeEdit(true);
+    try {
+      await updateUnitCharge({ propertyId, unitId, chargeId: editingChargeId, data: { chargeTypeId: chargeEditForm.chargeTypeId, amount: Number(chargeEditForm.amount) } }).unwrap();
+      toast.success('Charge updated');
+      setEditingChargeId(null);
+    } catch (e: any) {
+      toast.error(e?.data?.message || 'Failed to update charge');
+    } finally { setSavingChargeEdit(false); }
+  };
+
+  const handleDeleteCharge = async (chargeId: string) => {
+    try {
+      await deleteUnitCharge({ propertyId, unitId, chargeId }).unwrap();
+      toast.success('Charge removed');
+    } catch { toast.error('Failed to remove charge'); }
   };
 
   if (isLoading) return (
@@ -348,6 +435,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
           {([
             { key: 'info', label: 'Info' },
             { key: 'meters', label: 'Meters' },
+            { key: 'charges', label: 'Charges' },
             { key: 'floor_plan', label: 'Floor Plan' },
             { key: 'leases', label: `Leases${unit.leases.length > 0 ? ` (${unit.leases.length})` : ''}` },
             { key: 'history', label: 'History' },
@@ -602,24 +690,27 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
           {/* ═══ METERS TAB ═══ */}
           {activeTab === 'meters' && (
             <div className="drawer-meters">
-              <button className="btn-add-meter" onClick={() => setAddingMeter(!addingMeter)}>
+              <button className="btn-add-meter" onClick={() => { setAddingMeter(!addingMeter); setMeterFormErrors({}); }}>
                 <Plus size={13} /> Add Meter
               </button>
 
               {addingMeter && (
                 <div className="meter-form">
                   <div className="ef-field">
-                    <label>Category</label>
+                    <label>Category <span className="req-star">*</span></label>
                     <select value={meterForm.meterType}
-                      onChange={(e) => setMeterForm({ ...meterForm, meterType: e.target.value, meterSerialNo: '' })}>
+                      className={meterFormErrors.meterType ? 'input-error' : ''}
+                      onChange={(e) => { setMeterForm({ ...meterForm, meterType: e.target.value, meterSerialNo: '' }); setMeterFormErrors((p) => ({ ...p, meterType: '', meterSerialNo: '' })); }}>
                       <option value="">Select category…</option>
                       {METER_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
+                    {meterFormErrors.meterType && <span className="field-warn">{meterFormErrors.meterType}</span>}
                   </div>
                   <div className="ef-field">
-                    <label>Meter No</label>
+                    <label>Meter No <span className="req-star">*</span></label>
                     <select value={meterForm.meterSerialNo} disabled={!meterForm.meterType}
-                      onChange={(e) => setMeterForm({ ...meterForm, meterSerialNo: e.target.value })}>
+                      className={meterFormErrors.meterSerialNo ? 'input-error' : ''}
+                      onChange={(e) => { setMeterForm({ ...meterForm, meterSerialNo: e.target.value }); setMeterFormErrors((p) => ({ ...p, meterSerialNo: '' })); }}>
                       <option value="">
                         {!meterForm.meterType ? 'Select category first' : floorMeterOptions.length === 0 ? 'No meters set up for this floor' : 'Select meter no…'}
                       </option>
@@ -627,6 +718,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                         <option key={m.id} value={m.meterNo}>{m.meterNo}</option>
                       ))}
                     </select>
+                    {meterFormErrors.meterSerialNo && <span className="field-warn">{meterFormErrors.meterSerialNo}</span>}
                   </div>
                   {(() => {
                     const sel = floorMeterOptions.find((m) => m.meterNo === meterForm.meterSerialNo);
@@ -643,29 +735,35 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       </div>
                     );
                   })()}
-                  <input placeholder="Provider" value={meterForm.meterProvider}
+                  <input placeholder="Provider (optional)" value={meterForm.meterProvider}
                     onChange={(e) => setMeterForm({ ...meterForm, meterProvider: e.target.value })} />
-                  <input placeholder="Location (e.g. DB Box at main door)" value={meterForm.location}
+                  <input placeholder="Location (optional)" value={meterForm.location}
                     onChange={(e) => setMeterForm({ ...meterForm, location: e.target.value })} />
                   <div className="meter-form-row">
                     <div className="ef-field">
-                      <label>Install Date</label>
+                      <label>Install Date <span className="req-star">*</span></label>
                       <input type="date" value={meterForm.installedAt}
-                        onChange={(e) => setMeterForm({ ...meterForm, installedAt: e.target.value })} />
+                        className={meterFormErrors.installedAt ? 'input-error' : ''}
+                        onChange={(e) => { setMeterForm({ ...meterForm, installedAt: e.target.value }); setMeterFormErrors((p) => ({ ...p, installedAt: '' })); }} />
+                      {meterFormErrors.installedAt && <span className="field-warn">{meterFormErrors.installedAt}</span>}
                     </div>
                     <label className="meter-checkbox">
                       <input type="checkbox" checked={meterForm.isSmartMeter}
-                        onChange={(e) => setMeterForm({ ...meterForm, isSmartMeter: e.target.checked })} />
+                        onChange={(e) => { setMeterForm({ ...meterForm, isSmartMeter: e.target.checked }); setMeterFormErrors((p) => ({ ...p, smartMeterId: '' })); }} />
                       Smart Meter
                     </label>
                   </div>
                   {meterForm.isSmartMeter && (
-                    <input placeholder="Smart Meter ID" value={meterForm.smartMeterId}
-                      onChange={(e) => setMeterForm({ ...meterForm, smartMeterId: e.target.value })} />
+                    <div className="ef-field">
+                      <input placeholder="Smart Meter ID *" value={meterForm.smartMeterId}
+                        className={meterFormErrors.smartMeterId ? 'input-error' : ''}
+                        onChange={(e) => { setMeterForm({ ...meterForm, smartMeterId: e.target.value }); setMeterFormErrors((p) => ({ ...p, smartMeterId: '' })); }} />
+                      {meterFormErrors.smartMeterId && <span className="field-warn">{meterFormErrors.smartMeterId}</span>}
+                    </div>
                   )}
                   <div className="form-row">
                     <button className="btn-primary-sm" onClick={handleAddMeter}>Save</button>
-                    <button className="btn-ghost-sm" onClick={() => setAddingMeter(false)}>Cancel</button>
+                    <button className="btn-ghost-sm" onClick={() => { setAddingMeter(false); setMeterFormErrors({}); }}>Cancel</button>
                   </div>
                 </div>
               )}
@@ -678,17 +776,20 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                         /* ── Inline Meter Edit ── */
                         <div className="meter-edit-inline">
                           <div className="ef-field">
-                            <label>Category</label>
+                            <label>Category <span className="req-star">*</span></label>
                             <select value={meterEditForm.meterCategory}
-                              onChange={(e) => setMeterEditForm({ ...meterEditForm, meterCategory: e.target.value, meterSerialNo: '' })}>
+                              className={meterEditFormErrors.meterCategory ? 'input-error' : ''}
+                              onChange={(e) => { setMeterEditForm({ ...meterEditForm, meterCategory: e.target.value, meterSerialNo: '' }); setMeterEditFormErrors((p) => ({ ...p, meterCategory: '', meterSerialNo: '' })); }}>
                               <option value="">Select category…</option>
                               {METER_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                             </select>
+                            {meterEditFormErrors.meterCategory && <span className="field-warn">{meterEditFormErrors.meterCategory}</span>}
                           </div>
                           <div className="ef-field">
-                            <label>Meter No</label>
+                            <label>Meter No <span className="req-star">*</span></label>
                             <select value={meterEditForm.meterSerialNo} disabled={!meterEditForm.meterCategory}
-                              onChange={(e) => setMeterEditForm({ ...meterEditForm, meterSerialNo: e.target.value })}>
+                              className={meterEditFormErrors.meterSerialNo ? 'input-error' : ''}
+                              onChange={(e) => { setMeterEditForm({ ...meterEditForm, meterSerialNo: e.target.value }); setMeterEditFormErrors((p) => ({ ...p, meterSerialNo: '' })); }}>
                               <option value="">
                                 {!meterEditForm.meterCategory ? 'Select category first' : floorMeterEditOptions.length === 0 ? 'No meters set up for this floor' : 'Select meter no…'}
                               </option>
@@ -696,6 +797,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                                 <option key={opt.id} value={opt.meterNo}>{opt.meterNo}</option>
                               ))}
                             </select>
+                            {meterEditFormErrors.meterSerialNo && <span className="field-warn">{meterEditFormErrors.meterSerialNo}</span>}
                           </div>
                           {(() => {
                             const setup = floorMeterEditOptions.find((s) => s.meterNo === meterEditForm.meterSerialNo);
@@ -710,23 +812,27 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                           })()}
                           <input value={meterEditForm.meterProvider}
                             onChange={(e) => setMeterEditForm({ ...meterEditForm, meterProvider: e.target.value })}
-                            placeholder="Provider" />
+                            placeholder="Provider (optional)" />
                           <input value={meterEditForm.location}
                             onChange={(e) => setMeterEditForm({ ...meterEditForm, location: e.target.value })}
-                            placeholder="Location" />
+                            placeholder="Location (optional)" />
                           <label className="meter-checkbox">
                             <input type="checkbox" checked={meterEditForm.isSmartMeter}
-                              onChange={(e) => setMeterEditForm({ ...meterEditForm, isSmartMeter: e.target.checked })} />
+                              onChange={(e) => { setMeterEditForm({ ...meterEditForm, isSmartMeter: e.target.checked }); setMeterEditFormErrors((p) => ({ ...p, smartMeterId: '' })); }} />
                             Smart
                           </label>
                           {meterEditForm.isSmartMeter && (
-                            <input value={meterEditForm.smartMeterId}
-                              onChange={(e) => setMeterEditForm({ ...meterEditForm, smartMeterId: e.target.value })}
-                              placeholder="Smart Meter ID" />
+                            <div className="ef-field">
+                              <input value={meterEditForm.smartMeterId}
+                                className={meterEditFormErrors.smartMeterId ? 'input-error' : ''}
+                                onChange={(e) => { setMeterEditForm({ ...meterEditForm, smartMeterId: e.target.value }); setMeterEditFormErrors((p) => ({ ...p, smartMeterId: '' })); }}
+                                placeholder="Smart Meter ID *" />
+                              {meterEditFormErrors.smartMeterId && <span className="field-warn">{meterEditFormErrors.smartMeterId}</span>}
+                            </div>
                           )}
                           <div className="form-row">
                             <button className="btn-primary-sm" onClick={handleMeterEditSave}><Check size={12} /> Save</button>
-                            <button className="btn-ghost-sm" onClick={() => setEditingMeterId(null)}>Cancel</button>
+                            <button className="btn-ghost-sm" onClick={() => { setEditingMeterId(null); setMeterEditFormErrors({}); }}>Cancel</button>
                           </div>
                         </div>
                       ) : readingMeterId === m.id ? (
@@ -788,9 +894,14 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                               </div>
                             )}
                             {m.lastReading !== null && (
-                              <div className="meter-reading">
-                                Reading: <strong>{m.lastReading}</strong>
-                                {m.lastReadingDate && <span> · {new Date(m.lastReadingDate).toLocaleDateString()}</span>}
+                              <div className="meter-last-reading">
+                                <span className="mlr-label">Last Reading</span>
+                                <span className="mlr-value">{Number(m.lastReading).toLocaleString()}</span>
+                                {m.lastReadingDate && (
+                                  <span className="mlr-date">
+                                    {new Date(m.lastReadingDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  </span>
+                                )}
                               </div>
                             )}
                             {m.isSmartMeter && <span className="smart-badge">Smart{m.smartMeterId ? ` · ${m.smartMeterId}` : ''}</span>}
@@ -813,6 +924,120 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     </div>
                   ))
               }
+            </div>
+          )}
+
+          {/* ═══ CHARGES TAB ═══ */}
+          {activeTab === 'charges' && (
+            <div className="drawer-charges">
+
+              {/* Add Charge button */}
+              <button className="btn-add-meter" onClick={() => { setAddingCharge(!addingCharge); setChargeForm({ chargeTypeId: '', amount: '' }); }}>
+                <Plus size={13} /> Add Charge
+              </button>
+
+              {/* Add Charge form */}
+              {addingCharge && (
+                <div className="charge-inline-form">
+                  <div className="charge-inline-fields">
+                    <select
+                      value={chargeForm.chargeTypeId}
+                      onChange={(e) => setChargeForm({ ...chargeForm, chargeTypeId: e.target.value })}
+                    >
+                      <option value="">Charge type…</option>
+                      {chargeTypes.map((ct) => (
+                        <option key={ct.id} value={ct.id}>{ct.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Amount"
+                      value={chargeForm.amount}
+                      onChange={(e) => setChargeForm({ ...chargeForm, amount: e.target.value })}
+                    />
+                  </div>
+                  <div className="charge-inline-actions">
+                    <button
+                      className="btn-primary-sm"
+                      onClick={handleAddCharge}
+                      disabled={!chargeForm.chargeTypeId || !chargeForm.amount || savingCharge}
+                    >
+                      <Check size={12} /> {savingCharge ? 'Saving…' : 'Save'}
+                    </button>
+                    <button className="btn-ghost-sm" onClick={() => setAddingCharge(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Charges list */}
+              {unitCharges.length === 0 ? (
+                <div className="empty-sm">No charges assigned to this unit</div>
+              ) : (
+                unitCharges.map((c) => (
+                  <div key={c.id} className="charge-card">
+                    {editingChargeId === c.id ? (
+                      /* ── Inline Edit Form ── */
+                      <div className="charge-inline-form">
+                        <div className="charge-inline-fields">
+                          <select
+                            value={chargeEditForm.chargeTypeId}
+                            onChange={(e) => setChargeEditForm({ ...chargeEditForm, chargeTypeId: e.target.value })}
+                          >
+                            <option value="">Charge type…</option>
+                            {chargeTypes.map((ct) => (
+                              <option key={ct.id} value={ct.id}>{ct.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Amount"
+                            value={chargeEditForm.amount}
+                            onChange={(e) => setChargeEditForm({ ...chargeEditForm, amount: e.target.value })}
+                          />
+                        </div>
+                        <div className="charge-inline-actions">
+                          <button
+                            className="btn-primary-sm"
+                            onClick={handleChargeEditSave}
+                            disabled={!chargeEditForm.chargeTypeId || !chargeEditForm.amount || savingChargeEdit}
+                          >
+                            <Check size={12} /> {savingChargeEdit ? 'Saving…' : 'Save'}
+                          </button>
+                          <button className="btn-ghost-sm" onClick={() => setEditingChargeId(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── Normal Card View ── */
+                      <>
+                        <div className="charge-card-info">
+                          <span className="charge-card-name">{c.chargeType.name}</span>
+                          <span className="charge-card-amount">{Number(c.amount).toLocaleString()}</span>
+                        </div>
+                        <div className="charge-actions">
+                          <button
+                            className="meter-action-btn"
+                            title="Edit charge"
+                            onClick={() => handleChargeEdit(c)}
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            className="meter-delete"
+                            title="Remove charge"
+                            onClick={() => handleDeleteCharge(c.id)}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           )}
 

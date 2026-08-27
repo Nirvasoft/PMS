@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { asyncHandler } from '../../middleware';
-import { towersService, unitsService, metersService } from './units.service';
+import { towersService, unitsService, metersService, unitChargesService } from './units.service';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 const p = (req: Request, key: string) => req.params[key] as string;
@@ -183,5 +183,31 @@ unitsRouter.put('/:unitId/meters/:meterId', asyncHandler(async (req, res) => {
 /** DELETE /properties/:propertyId/units/:unitId/meters/:meterId */
 unitsRouter.delete('/:unitId/meters/:meterId', asyncHandler(async (req, res) => {
   await metersService.delete(p(req, 'meterId'), p(req, 'unitId'));
+  res.status(204).send();
+}));
+
+// ── Unit Charges ─────────────────────────────────────
+
+/** GET /properties/:propertyId/units/:unitId/charges */
+unitsRouter.get('/:unitId/charges', asyncHandler(async (req, res) => {
+  const data = await unitChargesService.findAll(p(req, 'unitId'));
+  res.json({ success: true, data });
+}));
+
+/** POST /properties/:propertyId/units/:unitId/charges */
+unitsRouter.post('/:unitId/charges', asyncHandler(async (req, res) => {
+  const data = await unitChargesService.create(p(req, 'unitId'), req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+/** PUT /properties/:propertyId/units/:unitId/charges/:chargeId */
+unitsRouter.put('/:unitId/charges/:chargeId', asyncHandler(async (req, res) => {
+  const data = await unitChargesService.update(p(req, 'unitId'), p(req, 'chargeId'), req.body);
+  res.json({ success: true, data });
+}));
+
+/** DELETE /properties/:propertyId/units/:unitId/charges/:chargeId */
+unitsRouter.delete('/:unitId/charges/:chargeId', asyncHandler(async (req, res) => {
+  await unitChargesService.delete(p(req, 'unitId'), p(req, 'chargeId'));
   res.status(204).send();
 }));

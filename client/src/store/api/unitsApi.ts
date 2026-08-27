@@ -160,6 +160,14 @@ export interface UnitStats {
   occupancyRate: number;
 }
 
+export interface UnitCharge {
+  id: string;
+  unitId: string;
+  amount: string;
+  chargeType: { id: string; code: string; name: string; category: string };
+  createdAt: string;
+}
+
 export interface BulkCreateResult {
   created: number;
   units: Array<{ id: string; unitNumber: string }>;
@@ -228,7 +236,7 @@ interface PaginatedResponse<T> {
 export const unitsApi = createApi({
   reducerPath: 'unitsApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Towers', 'Units', 'FloorPlan', 'Meters', 'UnitTypes', 'UnitStats'],
+  tagTypes: ['Towers', 'Units', 'FloorPlan', 'Meters', 'UnitTypes', 'UnitStats', 'UnitCharges'],
   endpoints: (builder) => ({
 
     // Catalog
@@ -357,6 +365,26 @@ export const unitsApi = createApi({
       }),
       invalidatesTags: (_, __, { unitId }) => [{ type: 'Meters', id: unitId }, { type: 'Units', id: unitId }],
     }),
+
+    // Unit Charges
+    getUnitCharges: builder.query<ApiResponse<UnitCharge[]>, { propertyId: string; unitId: string }>({
+      query: ({ propertyId, unitId }) => `/properties/${propertyId}/units/${unitId}/charges`,
+      providesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }],
+    }),
+    addUnitCharge: builder.mutation<ApiResponse<UnitCharge>, { propertyId: string; unitId: string; data: { chargeTypeId: string; amount: number } }>({
+      query: ({ propertyId, unitId, data }) => ({ url: `/properties/${propertyId}/units/${unitId}/charges`, method: 'POST', body: data }),
+      invalidatesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }],
+    }),
+    updateUnitCharge: builder.mutation<ApiResponse<UnitCharge>, { propertyId: string; unitId: string; chargeId: string; data: { chargeTypeId?: string; amount?: number } }>({
+      query: ({ propertyId, unitId, chargeId, data }) => ({ url: `/properties/${propertyId}/units/${unitId}/charges/${chargeId}`, method: 'PUT', body: data }),
+      invalidatesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }],
+    }),
+    deleteUnitCharge: builder.mutation<void, { propertyId: string; unitId: string; chargeId: string }>({
+      query: ({ propertyId, unitId, chargeId }) => ({
+        url: `/properties/${propertyId}/units/${unitId}/charges/${chargeId}`, method: 'DELETE',
+      }),
+      invalidatesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }],
+    }),
   }),
 });
 
@@ -385,4 +413,8 @@ export const {
   useAddMeterMutation,
   useUpdateMeterMutation,
   useDeleteMeterMutation,
+  useGetUnitChargesQuery,
+  useAddUnitChargeMutation,
+  useUpdateUnitChargeMutation,
+  useDeleteUnitChargeMutation,
 } = unitsApi;

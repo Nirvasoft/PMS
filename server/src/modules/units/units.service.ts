@@ -526,22 +526,55 @@ export class MetersService {
     return prisma.utilityMeter.findMany({ where: { unitId, isActive: true }, orderBy: { createdAt: 'asc' } });
   }
 
-  async create(unitId: string, propertyId: string, companyId: string, dto: Record<string, unknown>) {
-    // One meter per type per unit
-    const existing = await prisma.utilityMeter.findFirst({ where: { unitId, meterType: dto.meterType as string, isActive: true } });
-    if (existing) throw new AppError(409, 'METER_TYPE_EXISTS', `A ${dto.meterType} meter already exists for this unit`);
+  /** Coerce a date-only `installedAt` (e.g. "2026-08-27") into a full ISO-8601 DateTime Prisma accepts. */
+  private normalizeMeterDto(dto: Record<string, unknown>): Record<string, unknown> {
+    const installedAt = dto.installedAt;
+    if (typeof installedAt === 'string' && installedAt.trim() !== '' && !installedAt.includes('T')) {
+      return { ...dto, installedAt: new Date(`${installedAt}T00:00:00.000Z`) };
+    }
+    if (installedAt === '' || installedAt === null) {
+      return { ...dto, installedAt: null };
+    }
+    return dto;
+  }
 
-    // Meter numbers are unique per property — check up front so the DB's unique constraint
-    // doesn't surface as a raw 500 when the same meter no. is picked for a second unit
-    const duplicateSerial = await prisma.utilityMeter.findFirst({ where: { propertyId, meterSerialNo: dto.meterSerialNo as string } });
+  async create(unitId: string, propertyId: string, companyId: string, dtoRaw: Record<string, unknown>) {
+    const dto = this.normalizeMeterDto(dtoRaw);
+    // Same Meter No on the SAME unit is never allowed (regardless of category)
+    const sameUnitSerial = await prisma.utilityMeter.findFirst({
+      where: { unitId, meterSerialNo: dto.meterSerialNo as string, isActive: true },
+    });
+    if (sameUnitSerial) {
+      throw new AppError(409, 'METER_SERIAL_EXISTS', `Meter No. "${dto.meterSerialNo}" is already assigned to this unit`);
+    }
+
+    // Check for an ACTIVE duplicate serial on a DIFFERENT unit in this property
+    const duplicateSerial = await prisma.utilityMeter.findFirst({
+      where: { propertyId, meterSerialNo: dto.meterSerialNo as string, isActive: true },
+      include: { unit: { select: { unitNumber: true } } },
+    });
     if (duplicateSerial) {
-      throw new AppError(409, 'METER_SERIAL_EXISTS', `Meter No. "${dto.meterSerialNo}" is already assigned to another unit in this property`);
+      const unitNo = duplicateSerial.unit?.unitNumber ?? 'another unit';
+      throw new AppError(409, 'METER_SERIAL_EXISTS', `Meter No. "${dto.meterSerialNo}" is already assigned to Unit ${unitNo}`);
+    }
+
+    // If a soft-deleted record exists with the same serial+property, reactivate it
+    // (avoids the DB unique constraint on meter_serial_no + property_id)
+    const softDeleted = await prisma.utilityMeter.findFirst({
+      where: { propertyId, meterSerialNo: dto.meterSerialNo as string, isActive: false },
+    });
+    if (softDeleted) {
+      return prisma.utilityMeter.update({
+        where: { id: softDeleted.id },
+        data: { ...dto as any, unitId, propertyId, companyId, isActive: true },
+      });
     }
 
     return prisma.utilityMeter.create({ data: { unitId, propertyId, companyId, ...dto as any } });
   }
 
-  async update(meterId: string, unitId: string, dto: Record<string, unknown>) {
+  async update(meterId: string, unitId: string, dtoRaw: Record<string, unknown>) {
+    const dto = this.normalizeMeterDto(dtoRaw);
     const meter = await prisma.utilityMeter.findFirst({ where: { id: meterId, unitId } });
     if (!meter) throw AppError.notFound('Meter');
     return prisma.utilityMeter.update({ where: { id: meterId }, data: dto as any });
@@ -557,3 +590,47 @@ export class MetersService {
 export const towersService = new TowersService();
 export const unitsService  = new UnitsService();
 export const metersService = new MetersService();
+
+// ═══════════════════════════════════════════════════
+// UNIT CHARGES SERVICE
+// ═══════════════════════════════════════════════════
+export class UnitChargesService {
+  async findAll(unitId: string) {
+    return prisma.unitCharge.findMany({
+      where: { unitId },
+      include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async create(unitId: string, dto: { chargeTypeId: string; amount: number }) {
+    const chargeType = await prisma.chargeType.findUnique({ where: { id: dto.chargeTypeId } });
+    if (!chargeType) throw new AppError(404, 'NOT_FOUND', 'Charge type not found');
+    return prisma.unitCharge.create({
+      data: { unitId, chargeTypeId: dto.chargeTypeId, amount: dto.amount },
+      include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
+    });
+  }
+
+  async update(unitId: string, chargeId: string, dto: { chargeTypeId?: string; amount?: number }) {
+    const charge = await prisma.unitCharge.findFirst({ where: { id: chargeId, unitId } });
+    if (!charge) throw new AppError(404, 'NOT_FOUND', 'Unit charge not found');
+    if (dto.chargeTypeId) {
+      const ct = await prisma.chargeType.findUnique({ where: { id: dto.chargeTypeId } });
+      if (!ct) throw new AppError(404, 'NOT_FOUND', 'Charge type not found');
+    }
+    return prisma.unitCharge.update({
+      where: { id: chargeId },
+      data: { ...(dto.chargeTypeId && { chargeTypeId: dto.chargeTypeId }), ...(dto.amount !== undefined && { amount: dto.amount }) },
+      include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
+    });
+  }
+
+  async delete(unitId: string, chargeId: string) {
+    const charge = await prisma.unitCharge.findFirst({ where: { id: chargeId, unitId } });
+    if (!charge) throw new AppError(404, 'NOT_FOUND', 'Unit charge not found');
+    await prisma.unitCharge.delete({ where: { id: chargeId } });
+  }
+}
+
+export const unitChargesService = new UnitChargesService();

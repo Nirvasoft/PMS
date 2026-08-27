@@ -11,7 +11,7 @@
   position: fixed;
   top: 0;
   right: 0;
-  width: 380px;
+  width: 460px;
   max-width: 100vw;
   height: 100%;
   background: #151a27;
@@ -87,9 +87,10 @@
 }
 
 .drawer-tabs button {
-  flex: 1; padding: 8px 4px; background: none; border: none;
+  flex: 1; padding: 8px 2px; background: none; border: none;
   border-bottom: 2px solid transparent; color: var(--text-muted);
-  font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
+  font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
+  white-space: nowrap;
 }
 
 .drawer-tabs button.active { color: #6c5ce7; border-bottom-color: #6c5ce7; }
@@ -134,6 +135,15 @@
   background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
   border-radius: 8px; color: var(--text-primary); font-size: 0.78rem; cursor: pointer;
 }
+
+/* Validation styles */
+.req-star { color: #e74c3c; margin-left: 1px; }
+.field-warn {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 0.68rem; color: #f39c12; margin-top: 2px;
+}
+.field-warn::before { content: '⚠'; font-size: 0.65rem; }
+.input-error { border-color: #e74c3c !important; }
 
 .meter-form {
   display: flex; flex-direction: column; gap: 6px;
@@ -206,7 +216,19 @@
 .meter-type { font-size: 0.8rem; font-weight: 600; text-transform: capitalize; }
 .meter-serial { font-size: 0.72rem; color: var(--text-muted); font-family: monospace; }
 .meter-provider { font-size: 0.7rem; color: var(--text-muted); }
-.meter-reading { font-size: 0.7rem; color: var(--text-muted); }
+.meter-last-reading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 4px 10px;
+  background: rgba(46,204,113,0.1);
+  border: 1px solid rgba(46,204,113,0.2);
+  border-radius: 20px;
+}
+.mlr-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #2ecc71; }
+.mlr-value { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+.mlr-date  { font-size: 0.68rem; color: var(--text-muted); }
 .smart-badge { font-size: 0.62rem; background: rgba(46,204,113,0.15); color: #2ecc71; padding: 1px 5px; border-radius: 3px; }
 
 .meter-delete {
@@ -262,7 +284,6 @@
   color: var(--text-primary);
 }
 
-.meter-reading strong { color: var(--text-primary); }
 .empty-sm { color: var(--text-muted); font-size: 0.82rem; text-align: center; padding: 20px 0; }
 
 /* ─── History ─────────────────────────────────── */
@@ -736,4 +757,76 @@ textarea.reason-error {
 [data-theme="light"] .est-completion input[type="date"] {
   background: #ffffff;
   border-color: #d1e6d9;
+}
+
+/* ─── Charges Tab ──────────────────────────── */
+.drawer-charges { display: flex; flex-direction: column; gap: 8px; }
+
+/* ── Charge card ─────────────────────────────── */
+.charge-card {
+  position: relative;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 9px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.charge-card-info { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.charge-card-name { font-size: 0.83rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.charge-card-amount { font-size: 0.78rem; color: #a29bfe; font-weight: 700; }
+
+/* Vertical icon stack — mirrors .meter-actions */
+.charge-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+/* Inline form (Add & Edit) — column: fields row then buttons row */
+.charge-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 9px;
+}
+.charge-inline-fields {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.charge-inline-fields select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.76rem;
+  outline: none;
+}
+.charge-inline-fields input[type="number"] {
+  width: 90px;
+  flex-shrink: 0;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.76rem;
+  outline: none;
+}
+.charge-inline-fields select option { background: #1a1f2e; }
+.charge-inline-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
