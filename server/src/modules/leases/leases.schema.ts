@@ -41,7 +41,7 @@ export const updateLeaseSchema = z.object({
   body: z.object({
     startDate: dateString.optional(),
     endDate: dateString.optional(),
-    handoverDate: dateString.optional(),
+    handoverDate: dateString.nullable().optional(),
     rentAmount: z.number().positive('Rent amount must be greater than 0').optional(),
     currency: z.string().length(3).optional(),
     billingCycle: z.enum(['monthly', 'quarterly', 'semi_annual', 'annual']).optional(),
@@ -49,7 +49,7 @@ export const updateLeaseSchema = z.object({
     paymentDueDays: z.number().min(0).max(90).optional(),
     securityDeposit: z.number().min(0).optional(),
     escalationType: z.enum(['fixed_percent', 'fixed_amount', 'cpi', 'stepped']).nullable().optional(),
-    escalationValue: z.number().optional(),
+    escalationValue: z.number().nullable().optional(),
     escalationFrequency: z.enum(['annual', 'biennial']).optional(),
     escalationMonth: z.number().min(1).max(12).optional(),
     escalationDay: z.number().min(1).max(31).optional(),

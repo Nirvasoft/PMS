@@ -298,7 +298,7 @@ export default function BillingSchedulesPage() {
                     <select required value={form.chargeTypeId} onChange={e => setForm({ ...form, chargeTypeId: e.target.value })}>
                       <option value="">Select charge type</option>
                       {chargeTypes.filter(ct => ct.isActive).map(ct => (
-                        <option key={ct.id} value={ct.id}>{ct.name} ({ct.code})</option>
+                        <option key={ct.id} value={ct.id}>{ct.name}</option>
                       ))}
                     </select>
                   </div>

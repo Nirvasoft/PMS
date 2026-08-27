@@ -79,7 +79,7 @@ export default function CreateLeasePage() {
       toast.success(`Lease ${result.data.leaseNumber} created`);
       navigate(`/admin/leases/${result.data.id}`);
     } catch (e: any) {
-      const msg = e?.data?.message || 'Failed to create lease';
+      const msg = e?.data?.errors?.[0]?.message || e?.data?.message || 'Failed to create lease';
       toast.error(msg);
     }
   };

@@ -4,7 +4,6 @@ import {
   useGetLeaseQuery, useSubmitLeaseMutation, useActivateLeaseMutation,
   useCancelLeaseMutation, useUpdateLeaseMutation,
 } from '../../../store/api/leasesApi';
-import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import {
   ArrowLeft, CheckCircle, XCircle, PenLine, AlertTriangle,
   Send, RefreshCw, Scissors, ChevronRight, Edit2, Save, X, FileText,
@@ -179,8 +178,6 @@ function Metric({ label, value, sub, highlight }: { label: string; value: string
 // ── Edit Draft Modal ────────────────────────
 function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/leasesApi').LeaseDetail; onClose: () => void }) {
   const [update, { isLoading }] = useUpdateLeaseMutation();
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
-  const chargeTypes = (chargeTypesData?.data || []).filter((ct: any) => ct.isActive);
 
   const [form, setForm] = useState({
     rentAmount: Number(lease.rentAmount),
@@ -199,21 +196,7 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
     specialConditions: lease.specialConditions || '',
   });
 
-  // Charges state — pre-fill from existing lease charges
-  const [charges, setCharges] = useState<{ chargeTypeId: string; amount: string }[]>(
-    (lease.leaseCharges || []).map(lc => ({ chargeTypeId: lc.chargeType.id, amount: String(lc.amount) }))
-  );
-  const [newChargeTypeId, setNewChargeTypeId] = useState('');
-  const [newAmount, setNewAmount]             = useState('');
-
   const set = (key: string, val: unknown) => setForm((f) => ({ ...f, [key]: val }));
-
-  const addCharge = () => {
-    if (!newChargeTypeId || !newAmount) return;
-    setCharges(prev => [...prev, { chargeTypeId: newChargeTypeId, amount: newAmount }]);
-    setNewChargeTypeId(''); setNewAmount('');
-  };
-  const removeCharge = (idx: number) => setCharges(prev => prev.filter((_, i) => i !== idx));
 
   const handleSave = async () => {
     try {
@@ -228,7 +211,6 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
           handoverDate: form.handoverDate || null,
           notes: form.notes || null,
           specialConditions: form.specialConditions || null,
-          leaseCharges: charges.map(c => ({ chargeTypeId: c.chargeTypeId, amount: Number(c.amount) })),
         },
       }).unwrap();
       toast.success('Draft updated');
@@ -294,67 +276,6 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
                   </select>
                 </label>
               )}
-            </div>
-          </div>
-
-          {/* Charges */}
-          <div className="edf-section">
-            <h4>Charges</h4>
-
-            {/* Existing charges */}
-            {charges.length > 0 && (
-              <table className="edf-charges-table">
-                <thead>
-                  <tr><th>Charge Type</th><th className="text-right">Amount</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {charges.map((c, idx) => {
-                    const ct = chargeTypes.find((x: any) => x.id === c.chargeTypeId);
-                    return (
-                      <tr key={idx}>
-                        <td>{ct ? `${ct.code} — ${ct.name}` : '—'}</td>
-                        <td className="text-right">{lease.currency} {Number(c.amount).toLocaleString()}</td>
-                        <td>
-                          <button type="button" className="edf-charge-remove" onClick={() => removeCharge(idx)}>×</button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  <tr className="edf-total-row">
-                    <td style={{ fontWeight: 700 }}>Total</td>
-                    <td className="text-right" style={{ fontWeight: 700 }}>
-                      {lease.currency} {charges.reduce((s, c) => s + Number(c.amount), 0).toLocaleString()}
-                    </td>
-                    <td></td>
-                  </tr>
-                </tbody>
-              </table>
-            )}
-
-            {/* Add row */}
-            <div className="edf-charge-add-row">
-              <select value={newChargeTypeId} onChange={(e) => setNewChargeTypeId(e.target.value)} className="edf-charge-select">
-                <option value="">— Select charge type —</option>
-                {['rent','utility','service','parking','penalty','deposit','misc'].map(cat => {
-                  const group = chargeTypes.filter((ct: any) => ct.category === cat);
-                  if (!group.length) return null;
-                  return (
-                    <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
-                      {group.map((ct: any) => (
-                        <option key={ct.id} value={ct.id}>{ct.code} — {ct.name}</option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
-              </select>
-              <input
-                type="number" min={0} placeholder="Amount"
-                value={newAmount} onChange={(e) => setNewAmount(e.target.value)}
-                className="edf-charge-amount"
-              />
-              <button type="button" className="edf-charge-add-btn" onClick={addCharge} disabled={!newChargeTypeId || !newAmount}>
-                + Add
-              </button>
             </div>
           </div>
 
