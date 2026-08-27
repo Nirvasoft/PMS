@@ -3,10 +3,11 @@ import { AppError } from '../../common/errors';
 
 export class SlotsService {
   async findAll(propertyId: string, companyId: string, query: {
-    zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number;
+    unitId?: string; zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number;
   }) {
-    const { zoneId, status, slotType, page = 1, limit = 50 } = query;
+    const { unitId, zoneId, status, slotType, page = 1, limit = 50 } = query;
     const where: Record<string, unknown> = { propertyId, companyId };
+    if (unitId)   where.unitId = unitId;
     if (zoneId)   where.zoneId = zoneId;
     if (status)   where.status = status;
     if (slotType) where.slotType = slotType;
@@ -36,6 +37,7 @@ export class SlotsService {
       data: {
         propertyId,
         companyId,
+        unitId: dto.unitId as string,
         slotNumber: dto.slotNumber as string,
         zoneId: (dto.zoneId as string) || null,
         slotType: (dto.slotType as string) || 'car',
@@ -51,7 +53,7 @@ export class SlotsService {
   }
 
   async bulkCreate(propertyId: string, companyId: string, dto: Record<string, unknown>) {
-    const { prefix, rangeStart, rangeEnd, zoneId, slotType, size, hasEvCharger, evChargerType, monthlyRate, hourlyRate } = dto as any;
+    const { unitId, prefix, rangeStart, rangeEnd, zoneId, slotType, size, hasEvCharger, evChargerType, monthlyRate, hourlyRate } = dto as any;
     if (rangeEnd < rangeStart) throw AppError.validation('Range end must be >= range start');
 
     const slots: any[] = [];
@@ -60,6 +62,7 @@ export class SlotsService {
       slots.push({
         propertyId,
         companyId,
+        unitId,
         slotNumber,
         zoneId: zoneId || null,
         slotType: slotType || 'car',
@@ -86,16 +89,19 @@ export class SlotsService {
     });
   }
 
-  async getOccupancy(propertyId: string, companyId: string) {
+  async getOccupancy(propertyId: string, companyId: string, query: { unitId?: string } = {}) {
+    const where: Record<string, unknown> = { propertyId, companyId, isActive: true };
+    if (query.unitId) where.unitId = query.unitId;
+
     const slots = await prisma.parkingSlot.groupBy({
       by: ['status'],
-      where: { propertyId, companyId, isActive: true },
+      where,
       _count: true,
     });
 
     const byZone = await prisma.parkingSlot.groupBy({
       by: ['zoneId', 'status'],
-      where: { propertyId, companyId, isActive: true },
+      where,
       _count: true,
     });
 

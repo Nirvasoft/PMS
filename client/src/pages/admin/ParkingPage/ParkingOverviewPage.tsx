@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetUnitsQuery, type UnitListItem } from '../../../store/api/unitsApi';
 import {
+  useGetParkingTypesQuery,
   useGetOccupancyQuery, useGetZonesQuery, useCreateZoneMutation,
-  useGetSlotsQuery, useCreateSlotMutation, useBulkCreateSlotsMutation, useUpdateSlotMutation,
-  type ParkingZone, type ParkingSlot, type OccupancyStats,
+  useGetSlotsQuery, useBulkCreateSlotsMutation,
+  type ParkingZone, type ParkingSlot, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
-import { Car, LayoutGrid, Plus, Layers, Grid3X3, Settings } from 'lucide-react';
+import { Car, LayoutGrid, Plus, Layers, Grid3X3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './ParkingPage.css';
 
@@ -14,14 +16,41 @@ const STATUS_COLORS: Record<string, string> = {
   blocked: '#ef4444', maintenance: '#6b7280',
 };
 
+function unitLabel(u: { unitNumber: string; floorLabel: string | null }) {
+  return u.floorLabel ? `${u.unitNumber} · ${u.floorLabel}` : u.unitNumber;
+}
+
 export default function ParkingOverviewPage() {
   const [propertyId, setPropertyId] = useState('');
+  const [parkingType, setParkingType] = useState('');
+  const [unitId, setUnitId] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'slots' | 'zones'>('overview');
+
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
-
   // Auto-select first property
   const selectedProperty = propertyId || properties[0]?.id || '';
+
+  const { currentData: typesData } = useGetParkingTypesQuery(selectedProperty, {
+    skip: !selectedProperty,
+    refetchOnMountOrArgChange: true,
+  });
+  const parkingTypes = typesData?.data || [];
+  // Auto-select first parking type present for this property (Car Park / Bike Park / EV Bay)
+  const selectedType = parkingType || parkingTypes[0]?.code || '';
+  const selectedTypeName = parkingTypes.find((t) => t.code === selectedType)?.name || selectedType;
+
+  const { currentData: parkUnitsData } = useGetUnitsQuery(
+    { propertyId: selectedProperty, unitType: selectedType, limit: 100 },
+    { skip: !selectedProperty || !selectedType, refetchOnMountOrArgChange: true },
+  );
+  const parkUnits = parkUnitsData?.data || [];
+  const selectedUnit = unitId || parkUnits[0]?.id || '';
+
+  const handlePropertyChange = (id: string) => { setPropertyId(id); setParkingType(''); setUnitId(''); };
+  const handleTypeChange = (type: string) => { setParkingType(type); setUnitId(''); };
+
+  const scopeReady = !!(selectedProperty && selectedType && selectedUnit);
 
   return (
     <div className="parking-page">
@@ -34,10 +63,43 @@ export default function ParkingOverviewPage() {
             <p>Manage zones, slots, and occupancy</p>
           </div>
         </div>
-        <select className="filter-select" value={propertyId} onChange={(e) => setPropertyId(e.target.value)} style={{ minWidth: 200 }}>
-          {properties.length === 0 && <option value="">Loading…</option>}
-          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div className="parking-filter-field">
+            <label>Properties</label>
+            <select className="filter-select" value={propertyId} onChange={(e) => handlePropertyChange(e.target.value)} style={{ minWidth: 200 }}>
+              {properties.length === 0 && <option value="">Loading…</option>}
+              {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+
+          <div className="parking-filter-field">
+            <label>Parking</label>
+            <select
+              className="filter-select"
+              value={selectedType}
+              onChange={(e) => handleTypeChange(e.target.value)}
+              disabled={!selectedProperty || parkingTypes.length === 0}
+              style={{ minWidth: 160 }}
+            >
+              {parkingTypes.length === 0 && <option value="">-</option>}
+              {parkingTypes.map((t: ParkingUnitType) => <option key={t.code} value={t.code}>{t.name}</option>)}
+            </select>
+          </div>
+
+          <div className="parking-filter-field">
+            <label>Park Unit</label>
+            <select
+              className="filter-select"
+              value={selectedUnit}
+              onChange={(e) => setUnitId(e.target.value)}
+              disabled={!selectedType || parkUnits.length === 0}
+              style={{ minWidth: 160 }}
+            >
+              {parkUnits.length === 0 && <option value="">-</option>}
+              {parkUnits.map((u: UnitListItem) => <option key={u.id} value={u.id}>{unitLabel(u)}</option>)}
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -53,18 +115,29 @@ export default function ParkingOverviewPage() {
         </button>
       </div>
 
-      {selectedProperty && activeTab === 'overview' && <OccupancyOverview propertyId={selectedProperty} />}
-      {selectedProperty && activeTab === 'slots' && <SlotsManager propertyId={selectedProperty} />}
-      {selectedProperty && activeTab === 'zones' && <ZonesManager propertyId={selectedProperty} />}
+      {scopeReady && activeTab === 'overview' && <OccupancyOverview propertyId={selectedProperty} unitId={selectedUnit} />}
+      {scopeReady && activeTab === 'slots' && <SlotsManager propertyId={selectedProperty} unitId={selectedUnit} />}
+      {scopeReady && activeTab === 'zones' && <ZonesManager propertyId={selectedProperty} unitId={selectedUnit} />}
+
       {!selectedProperty && <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)' }}>Select a property to manage parking</div>}
+      {selectedProperty && !selectedType && (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)' }}>
+          No parking set up for this property yet
+        </div>
+      )}
+      {selectedProperty && selectedType && !selectedUnit && (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)' }}>
+          No units with Unit Type "{selectedTypeName}" yet
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Occupancy Overview ─────────────────────────
 
-function OccupancyOverview({ propertyId }: { propertyId: string }) {
-  const { data } = useGetOccupancyQuery(propertyId);
+function OccupancyOverview({ propertyId, unitId }: { propertyId: string; unitId: string }) {
+  const { data } = useGetOccupancyQuery({ propertyId, unitId }, { refetchOnMountOrArgChange: true });
   const occ = data?.data;
   if (!occ) return <div className="table-loading"><div className="lp" /><div className="lp" /></div>;
 
@@ -158,14 +231,17 @@ function OccupancyOverview({ propertyId }: { propertyId: string }) {
 
 // ── Slots Manager ──────────────────────────────
 
-function SlotsManager({ propertyId }: { propertyId: string }) {
+function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: string }) {
   const [zoneFilter, setZoneFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [showBulk, setShowBulk] = useState(false);
 
-  const { data: zonesData } = useGetZonesQuery(propertyId);
-  const { data, isLoading } = useGetSlotsQuery({ propertyId, zoneId: zoneFilter || undefined, status: statusFilter || undefined, page, limit: 50 });
+  const { data: zonesData } = useGetZonesQuery({ propertyId, unitId }, { refetchOnMountOrArgChange: true });
+  const { data, isLoading } = useGetSlotsQuery(
+    { propertyId, unitId, zoneId: zoneFilter || undefined, status: statusFilter || undefined, page, limit: 50 },
+    { refetchOnMountOrArgChange: true },
+  );
   const [bulkCreate] = useBulkCreateSlotsMutation();
 
   const zones = zonesData?.data || [];
@@ -174,7 +250,7 @@ function SlotsManager({ propertyId }: { propertyId: string }) {
 
   const handleBulkCreate = async (form: Record<string, unknown>) => {
     try {
-      const result = await bulkCreate({ propertyId, data: form }).unwrap();
+      const result = await bulkCreate({ propertyId, data: { ...form, unitId } }).unwrap();
       toast.success(`Created ${result.data.created} of ${result.data.total} slots`);
       setShowBulk(false);
     } catch (e: any) {
@@ -243,8 +319,7 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
   zones: ParkingZone[]; onClose: () => void; onSubmit: (data: Record<string, unknown>) => void;
 }) {
   const [form, setForm] = useState({
-    zoneId: '', prefix: '', rangeStart: '1', rangeEnd: '10',
-    slotType: 'car', size: 'standard', monthlyRate: '',
+    zoneId: '', prefix: '', rangeStart: '1', rangeEnd: '10', monthlyRate: '',
   });
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -279,28 +354,9 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
             <input className="form-input" type="number" value={form.rangeEnd} onChange={e => set('rangeEnd', e.target.value)} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-          <div className="form-group">
-            <label>Type</label>
-            <select className="form-input" value={form.slotType} onChange={e => set('slotType', e.target.value)}>
-              <option value="car">Car</option>
-              <option value="motorcycle">Motorcycle</option>
-              <option value="ev">EV</option>
-              <option value="disabled">Disabled</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Size</label>
-            <select className="form-input" value={form.size} onChange={e => set('size', e.target.value)}>
-              <option value="compact">Compact</option>
-              <option value="standard">Standard</option>
-              <option value="large">Large</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Monthly Rate</label>
-            <input className="form-input" type="number" value={form.monthlyRate} onChange={e => set('monthlyRate', e.target.value)} placeholder="0" />
-          </div>
+        <div className="form-group">
+          <label>Monthly Rate</label>
+          <input className="form-input" type="number" value={form.monthlyRate} onChange={e => set('monthlyRate', e.target.value)} placeholder="0" />
         </div>
         {form.prefix && (
           <div className="bulk-preview">
@@ -314,8 +370,6 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
             prefix: form.prefix,
             rangeStart: parseInt(form.rangeStart),
             rangeEnd: parseInt(form.rangeEnd),
-            slotType: form.slotType,
-            size: form.size,
             monthlyRate: form.monthlyRate ? Number(form.monthlyRate) : undefined,
           })}>
             Create Slots
@@ -328,15 +382,15 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
 
 // ── Zones Manager ──────────────────────────────
 
-function ZonesManager({ propertyId }: { propertyId: string }) {
-  const { data } = useGetZonesQuery(propertyId);
+function ZonesManager({ propertyId, unitId }: { propertyId: string; unitId: string }) {
+  const { data } = useGetZonesQuery({ propertyId, unitId }, { refetchOnMountOrArgChange: true });
   const [createZone] = useCreateZoneMutation();
   const [showCreate, setShowCreate] = useState(false);
   const zones = data?.data || [];
 
   const handleCreate = async (form: { name: string; code: string; zoneType: string }) => {
     try {
-      await createZone({ propertyId, data: form }).unwrap();
+      await createZone({ propertyId, data: { ...form, unitId } }).unwrap();
       toast.success('Zone created');
       setShowCreate(false);
     } catch (e: any) {

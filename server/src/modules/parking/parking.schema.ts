@@ -6,6 +6,7 @@ const dateString = z.string().refine((val) => !isNaN(Date.parse(val)), { message
 
 export const createZoneSchema = z.object({
   body: z.object({
+    unitId: z.string().uuid('A Park Unit is required'),
     name: z.string().min(1, 'Zone name is required'),
     code: z.string().max(20).optional(),
     zoneType: z.enum(['covered', 'open', 'rooftop', 'basement', 'multi_level']).optional(),
@@ -25,6 +26,7 @@ export const updateZoneSchema = z.object({
 
 export const createSlotSchema = z.object({
   body: z.object({
+    unitId: z.string().uuid('A Park Unit is required'),
     zoneId: z.string().uuid().optional(),
     slotNumber: z.string().min(1, 'Slot number is required'),
     slotType: z.enum(['car', 'motorcycle', 'ev', 'disabled', 'compact']).optional(),
@@ -39,6 +41,7 @@ export const createSlotSchema = z.object({
 
 export const bulkCreateSlotsSchema = z.object({
   body: z.object({
+    unitId: z.string().uuid('A Park Unit is required'),
     zoneId: z.string().uuid().optional(),
     prefix: z.string().min(1, 'Prefix is required'),
     rangeStart: z.number().int().min(1),

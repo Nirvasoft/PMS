@@ -160,6 +160,28 @@ export class UnitsService {
     };
   }
 
+  // ── Parking (Module 2.6) ───────────────────
+  /**
+   * Parking-category unit types (Car Park / Bike Park / EV Bay from the Unit Type catalog) that
+   * are actually in use on this property's units, for the "Parking" dropdown. Empty if none.
+   * A unit becomes a "Park Unit" simply by having its Unit Type set to one of these — no separate tagging step.
+   */
+  async getParkingTypes(propertyId: string) {
+    const parkingUnitTypes = await prisma.unitType.findMany({
+      where: { category: 'parking', isActive: true },
+      select: { code: true, name: true },
+    });
+    if (parkingUnitTypes.length === 0) return [];
+
+    const rows = await prisma.unit.findMany({
+      where: { propertyId, deletedAt: null, unitType: { in: parkingUnitTypes.map((t) => t.code) } },
+      distinct: ['unitType'],
+      select: { unitType: true },
+    });
+    const present = new Set(rows.map((r) => r.unitType));
+    return parkingUnitTypes.filter((t) => present.has(t.code));
+  }
+
   async findById(propertyId: string, unitId: string) {
     const unit = await prisma.unit.findFirst({
       where: { id: unitId, propertyId, deletedAt: null },

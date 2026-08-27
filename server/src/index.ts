@@ -35,7 +35,7 @@ import { startKycExpiryJob } from './modules/tenants/kycExpiry';
 import { dashboardService } from './modules/dashboard/dashboard.service';
 import { leadsRouter, campaignsRouter, calendarRouter } from './modules/crm/crm.routes';
 import {
-  parkingZonesRouter, parkingSlotsRouter, parkingAllocationsRouter,
+  parkingTypesRouter, parkingZonesRouter, parkingSlotsRouter, parkingAllocationsRouter,
   tenantVehiclesRouter, visitorPassesRouter, parkingRfidRouter
 } from './modules/parking/parking.routes';
 import { requireFeature } from './common/featureFlags';
@@ -189,6 +189,7 @@ async function bootstrap() {
   app.use('/api/v1/crm/google-calendar', requireFeature('crmEnabled'), calendarRouter);
 
   // Module 2.6 — Parking Management
+  app.use('/api/v1/properties/:propertyId/parking/types', requireFeature('parkingEnabled'), parkingTypesRouter);
   app.use('/api/v1/properties/:propertyId/parking/zones', requireFeature('parkingEnabled'), parkingZonesRouter);
   app.use('/api/v1/properties/:propertyId/parking/slots', requireFeature('parkingEnabled'), parkingSlotsRouter);
   app.use('/api/v1/parking/allocations', requireFeature('parkingEnabled'), parkingAllocationsRouter);

@@ -6,6 +6,7 @@ import { slotsService } from './slots.service';
 import { allocationsService } from './allocations.service';
 import { vehiclesService } from './vehicles.service';
 import { visitorPassesService } from './visitor-passes.service';
+import { unitsService } from '../units/units.service';
 import {
   createZoneSchema, updateZoneSchema,
   createSlotSchema, bulkCreateSlotsSchema, updateSlotSchema,
@@ -19,12 +20,25 @@ import { rfidService } from './rfid.service';
 const p = (req: Request, key: string) => req.params[key] as string;
 
 // ════════════════════════════════════════════════
+// PARKING TYPES — /api/v1/properties/:propertyId/parking/types
+// ════════════════════════════════════════════════
+export const parkingTypesRouter = Router({ mergeParams: true });
+
+/** Parking-category Unit Types (Car Park / Bike Park / EV Bay) in use on this property, for the "Parking" dropdown. */
+parkingTypesRouter.get('/', asyncHandler(async (req, res) => {
+  const data = await unitsService.getParkingTypes(p(req, 'propertyId'));
+  res.json({ success: true, data });
+}));
+
+// ════════════════════════════════════════════════
 // ZONES — /api/v1/properties/:propertyId/parking/zones
 // ════════════════════════════════════════════════
 export const parkingZonesRouter = Router({ mergeParams: true });
 
 parkingZonesRouter.get('/', asyncHandler(async (req, res) => {
-  const data = await zonesService.findAll(p(req, 'propertyId'), req.user!.companyId);
+  const data = await zonesService.findAll(p(req, 'propertyId'), req.user!.companyId, {
+    unitId: req.query.unitId as string,
+  });
   res.json({ success: true, data });
 }));
 
@@ -45,6 +59,7 @@ export const parkingSlotsRouter = Router({ mergeParams: true });
 
 parkingSlotsRouter.get('/', asyncHandler(async (req, res) => {
   const result = await slotsService.findAll(p(req, 'propertyId'), req.user!.companyId, {
+    unitId:   req.query.unitId as string,
     zoneId:   req.query.zoneId as string,
     status:   req.query.status as string,
     slotType: req.query.slotType as string,
@@ -55,7 +70,9 @@ parkingSlotsRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 parkingSlotsRouter.get('/occupancy', asyncHandler(async (req, res) => {
-  const data = await slotsService.getOccupancy(p(req, 'propertyId'), req.user!.companyId);
+  const data = await slotsService.getOccupancy(p(req, 'propertyId'), req.user!.companyId, {
+    unitId: req.query.unitId as string,
+  });
   res.json({ success: true, data });
 }));
 

@@ -3,9 +3,15 @@ import { baseQueryWithReauth } from './baseQuery';
 
 // ─── Types ───────────────────────────────────
 
+export interface ParkingUnitType {
+  code: string;
+  name: string;
+}
+
 export interface ParkingZone {
   id: string;
   propertyId: string;
+  unitId: string | null;
   name: string;
   code: string | null;
   zoneType: string;
@@ -113,12 +119,18 @@ interface PaginatedResponse<T> {
 export const parkingApi = createApi({
   reducerPath: 'parkingApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['ParkingZones', 'ParkingSlots', 'Occupancy', 'Allocations', 'Vehicles', 'VisitorPasses'],
+  tagTypes: ['ParkingTypes', 'ParkingZones', 'ParkingSlots', 'Occupancy', 'Allocations', 'Vehicles', 'VisitorPasses'],
   endpoints: (builder) => ({
 
+    // ── Parking types — Unit Type catalog entries (category "parking": Car Park / Bike Park / EV Bay) in use on this property ─
+    getParkingTypes: builder.query<ApiResponse<ParkingUnitType[]>, string>({
+      query: (propertyId) => `/properties/${propertyId}/parking/types`,
+      providesTags: ['ParkingTypes'],
+    }),
+
     // ── Zones ──────────────────────────────
-    getZones: builder.query<ApiResponse<ParkingZone[]>, string>({
-      query: (propertyId) => `/properties/${propertyId}/parking/zones`,
+    getZones: builder.query<ApiResponse<ParkingZone[]>, { propertyId: string; unitId?: string }>({
+      query: ({ propertyId, ...params }) => ({ url: `/properties/${propertyId}/parking/zones`, params }),
       providesTags: ['ParkingZones'],
     }),
 
@@ -134,7 +146,7 @@ export const parkingApi = createApi({
 
     // ── Slots ──────────────────────────────
     getSlots: builder.query<PaginatedResponse<ParkingSlot>, {
-      propertyId: string; zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number;
+      propertyId: string; unitId?: string; zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number;
     }>({
       query: ({ propertyId, ...params }) => ({ url: `/properties/${propertyId}/parking/slots`, params }),
       providesTags: ['ParkingSlots'],
@@ -155,8 +167,8 @@ export const parkingApi = createApi({
       invalidatesTags: ['ParkingSlots', 'Occupancy'],
     }),
 
-    getOccupancy: builder.query<ApiResponse<OccupancyStats>, string>({
-      query: (propertyId) => `/properties/${propertyId}/parking/slots/occupancy`,
+    getOccupancy: builder.query<ApiResponse<OccupancyStats>, { propertyId: string; unitId?: string }>({
+      query: ({ propertyId, ...params }) => ({ url: `/properties/${propertyId}/parking/slots/occupancy`, params }),
       providesTags: ['Occupancy'],
     }),
 
@@ -236,6 +248,7 @@ export const parkingApi = createApi({
 });
 
 export const {
+  useGetParkingTypesQuery,
   useGetZonesQuery,
   useCreateZoneMutation,
   useUpdateZoneMutation,
