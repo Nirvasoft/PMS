@@ -87,6 +87,12 @@ const DATE_PRESETS = [
 export default function AnalyticsDashboard() {
   const dispatch = useAppDispatch();
   const { filters, editMode, addWidgetPanelOpen } = useAppSelector((s) => s.dashboard);
+
+  // A successful load means the chunk fetched fine — clear the reload guard
+  // so a future deploy gets its own one-time auto-recovery.
+  useEffect(() => {
+    sessionStorage.removeItem('dashboard-chunk-reload');
+  }, []);
   const { data: layoutData, isLoading: layoutLoading } = useGetDashboardLayoutQuery('main');
   const [saveLayout] = useSaveDashboardLayoutMutation();
   const [resetLayout] = useResetDashboardLayoutMutation();

@@ -16,6 +16,26 @@ export function TermsTab({ lease }: { lease: LeaseDetail }) {
         ) : <div className="empty-sm">No escalation configured</div>}
       </InfoCard>
 
+      <div className="escalation-table-wrap">
+        <div className="et-label">Lease Charges</div>
+        {lease.leaseCharges.length === 0 ? (
+          <div className="empty-sm">No charges configured for this lease</div>
+        ) : (
+          <table className="escalation-table">
+            <thead><tr><th>Charge</th><th>Category</th><th>Amount</th></tr></thead>
+            <tbody>
+              {lease.leaseCharges.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.chargeType.name}</td>
+                  <td>{c.chargeType.category}</td>
+                  <td>{lease.currency} {Number(c.amount).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
       {lease.escalationSchedule.length > 0 && (
         <div className="escalation-table-wrap">
           <div className="et-label">Escalation Schedule</div>

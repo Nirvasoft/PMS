@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetLeaseTemplatesQuery, useGetLeaseClausesQuery,
   useCreateLeaseMutation,
 } from '../../../store/api/leasesApi';
+import { useGetUnitChargesQuery, useUpdateUnitChargeMutation } from '../../../store/api/unitsApi';
 import { ArrowLeft, ArrowRight, Check, Building2, FileText, DollarSign, List, FileSignature } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CreateLeasePage.css';
@@ -50,6 +52,14 @@ export default function CreateLeasePage() {
   const { data: templatesData } = useGetLeaseTemplatesQuery();
   const { data: clausesData } = useGetLeaseClausesQuery();
 
+  // Baseline unit charges, so we can tell which amounts the user actually edited
+  // in the Financial Terms step and only push those back to the unit once the
+  // lease has been created (not while the wizard is still in progress).
+  const { data: unitChargesData } = useGetUnitChargesQuery(
+    form.propertyId && form.unitId ? { propertyId: form.propertyId, unitId: form.unitId } : skipToken,
+  );
+  const [updateUnitCharge] = useUpdateUnitChargeMutation();
+
   const set = (k: keyof FormState, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
   const templates = templatesData?.data || [];
@@ -91,6 +101,24 @@ export default function CreateLeasePage() {
 
     try {
       const result = await createLease(payload).unwrap();
+
+      // Now that the lease exists, sync back any charge amounts the user edited
+      // in Financial Terms to the unit's own charge records.
+      const baselineCharges = unitChargesData?.data || [];
+      const changedCharges = form.leaseCharges.filter((c) => {
+        const uc = baselineCharges.find((b) => b.chargeType.id === c.chargeTypeId);
+        return uc && Number(uc.amount) !== Number(c.amount);
+      });
+      if (changedCharges.length > 0) {
+        await Promise.allSettled(changedCharges.map((c) => {
+          const uc = baselineCharges.find((b) => b.chargeType.id === c.chargeTypeId)!;
+          return updateUnitCharge({
+            propertyId: form.propertyId, unitId: form.unitId, chargeId: uc.id,
+            data: { amount: Number(c.amount) },
+          }).unwrap();
+        }));
+      }
+
       toast.success(`Lease ${result.data.leaseNumber} created`);
       navigate(`/admin/leases/${result.data.id}`);
     } catch (e: any) {

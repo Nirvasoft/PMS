@@ -15,6 +15,23 @@
   cursor: default;
 }
 
+/* Unit Charges preview (Unit & Tenant step) */
+.unit-charges-panel {
+  margin-top: 14px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px; padding: 14px 16px;
+}
+.unit-charges-panel-head {
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-muted); margin-bottom: 10px;
+}
+.unit-charges-empty { margin: 0; font-size: 0.82rem; color: var(--text-muted); font-style: italic; }
+.unit-charges-preview { display: flex; flex-wrap: wrap; gap: 8px; }
+.unit-charge-chip {
+  padding: 5px 10px; background: rgba(108,92,231,0.12); border: 1px solid rgba(108,92,231,0.25);
+  border-radius: 6px; font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap;
+}
+
 /* ── Charges table ── */
 .charges-table {
   width: 100%;
@@ -58,6 +75,12 @@
 .charge-type-select option { background: #1e1d2e; color: #e2e0ef; }
 .charge-type-select optgroup { background: #161525; color: #8b8aae; font-weight: 700; }
 .charge-amount-input { width: 120px; flex-shrink: 0; }
+.charges-table .charge-amount-input {
+  width: 110px; padding: 6px 10px; background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12); border-radius: 6px; color: var(--text-primary);
+  font-size: .82rem; text-align: right; outline: none; transition: border-color .15s, background .15s;
+}
+.charges-table .charge-amount-input:focus { border-color: rgba(108,92,231,.5); background: rgba(255,255,255,.09); }
 .charge-add-btn {
   display: flex;
   align-items: center;

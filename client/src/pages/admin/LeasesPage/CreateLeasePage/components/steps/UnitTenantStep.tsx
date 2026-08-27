@@ -107,12 +107,16 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             emptyText="No available units"
           />
         </div>
-        {form.unitId && selectedUnitArea != null && (
-          <div className="form-field">
-            <label htmlFor="lease-unit-area">Total Area (sqft)</label>
-            <input id="lease-unit-area" type="text" value={selectedUnitArea.toLocaleString()} readOnly tabIndex={-1} />
-          </div>
-        )}
+        <div className="form-field">
+          <label htmlFor="lease-unit-area">Total Area (sqft)</label>
+          <input
+            id="lease-unit-area"
+            type="text"
+            value={selectedUnitArea != null ? selectedUnitArea.toLocaleString() : '-'}
+            readOnly
+            tabIndex={-1}
+          />
+        </div>
         <div className="form-field">
           <label htmlFor="lease-tenant">Tenant ID * <span className="hint">(must be KYC verified)</span></label>
           <ComboBox
@@ -140,6 +144,7 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
           </div>
         )}
       </div>
+
       <div className="step-info">
         <p>💡 Only available units and KYC-verified, non-blacklisted tenants are listed.</p>
       </div>

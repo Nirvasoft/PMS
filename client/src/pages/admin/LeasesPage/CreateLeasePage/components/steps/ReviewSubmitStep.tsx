@@ -1,5 +1,6 @@
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetUnitQuery } from '../../../../../../store/api/unitsApi';
+import { useGetChargeTypesQuery } from '../../../../../../store/api/billingApi';
 import { PREDEFINED_TYPE_LABELS, type FormState } from '../../types';
 
 export function ReviewSubmitStep({ form }: { form: FormState }) {
@@ -12,6 +13,10 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
   );
   const unitArea = unitData?.data?.areaSqft ?? null;
   const ra = form.rentalAgreement;
+
+  const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const chargeTypes = chargeTypesData?.data || [];
+  const chargeTypeName = (id: string) => chargeTypes.find((t) => t.id === id)?.name || 'Unknown charge';
 
   return (
     <div className="step-content">
@@ -31,6 +36,25 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
         <ReviewRow label="Escalation"  value={form.escalationType ? `${form.escalationType} · ${form.escalationValue} · ${form.escalationFrequency}` : 'None'} />
         <ReviewRow label="Clauses"     value={`${form.clauses.length} clause(s)`} />
       </div>
+
+      <div className="review-subhead">Lease Charges</div>
+      {form.leaseCharges.length === 0 ? (
+        <p className="unit-charges-empty">No charges added</p>
+      ) : (
+        <table className="charges-table">
+          <thead>
+            <tr><th>Charge</th><th className="text-right">Amount</th></tr>
+          </thead>
+          <tbody>
+            {form.leaseCharges.map((c) => (
+              <tr key={c.chargeTypeId}>
+                <td>{chargeTypeName(c.chargeTypeId)}</td>
+                <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
       <div className="review-subhead">Rental Agreement</div>
       <div className="review-ra-cols">

@@ -1,7 +1,31 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
-import { useGetUnitQuery } from '../../../../../../store/api/unitsApi';
+import { useGetUnitQuery, useGetUnitChargesQuery } from '../../../../../../store/api/unitsApi';
+import { useGetChargeTypesQuery } from '../../../../../../store/api/billingApi';
 import type { FormState } from '../../types';
+
+// BillingSchedule/Lease amount columns are Decimal(15,2) — 13 integer digits max.
+const MAX_MONEY_INT_DIGITS = 13;
+
+/** Strips everything but digits/one decimal point and caps length to fit the DB column. */
+function sanitizeMoneyInput(raw: string): string {
+  let cleaned = raw.replace(/[^\d.]/g, '');
+  const firstDot = cleaned.indexOf('.');
+  if (firstDot !== -1) {
+    cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+  }
+  const [intPart, decPart] = cleaned.split('.');
+  const boundedInt = intPart.slice(0, MAX_MONEY_INT_DIGITS);
+  return decPart !== undefined ? `${boundedInt}.${decPart.slice(0, 2)}` : boundedInt;
+}
+
+/** Adds thousand separators to a plain numeric string for display. */
+function formatMoneyDisplay(value: string): string {
+  if (!value) return '';
+  const [intPart, decPart] = value.split('.');
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return decPart !== undefined ? `${withCommas}.${decPart}` : withCommas;
+}
 
 export function FinancialsStep({ form, set }: { form: FormState; set: Function }) {
 
@@ -21,6 +45,44 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
 
   const unitRate = unitData?.data?.rate ?? null;
   const prefilledFromUnit = unitRate != null && form.rentAmount === String(unitRate);
+
+  // ── Lease Charges — seeded from whatever charges are already set up on the unit ──
+  const { data: unitChargesData } = useGetUnitChargesQuery(
+    form.propertyId && form.unitId
+      ? { propertyId: form.propertyId, unitId: form.unitId }
+      : skipToken,
+  );
+  const unitCharges = unitChargesData?.data || [];
+  const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const chargeTypes = chargeTypesData?.data || [];
+  const chargeTypeName = (id: string) =>
+    unitCharges.find((c) => c.chargeType.id === id)?.chargeType.name
+    || chargeTypes.find((t) => t.id === id)?.name
+    || 'Unknown charge';
+
+  // Re-seed leaseCharges from the unit's own charges once its data has actually
+  // loaded (not before — else we'd lock in an empty seed on the first render).
+  const seededForUnit = useRef<string | null>(null);
+  useEffect(() => {
+    if (!form.unitId || !unitChargesData) { return; }
+    if (seededForUnit.current === form.unitId) return;
+    seededForUnit.current = form.unitId;
+    set('leaseCharges', unitCharges.map((c) => ({ chargeTypeId: c.chargeType.id, amount: Number(c.amount).toFixed(2) })));
+  }, [form.unitId, unitChargesData]);
+  useEffect(() => {
+    if (!form.unitId) seededForUnit.current = null;
+  }, [form.unitId]);
+
+  // Edits stay local to the lease draft while the wizard is in progress — the
+  // unit's own charge records only get patched after the lease is created
+  // (see CreateLeasePage.handleSubmit), not on every blur here.
+  const editChargeAmount = (chargeTypeId: string, amount: string) => {
+    set('leaseCharges', form.leaseCharges.map((c) => c.chargeTypeId === chargeTypeId ? { ...c, amount } : c));
+  };
+  const commitChargeAmount = (chargeTypeId: string, amount: string) => {
+    const normalized = Number(amount || 0).toFixed(2);
+    set('leaseCharges', form.leaseCharges.map((c) => c.chargeTypeId === chargeTypeId ? { ...c, amount: normalized } : c));
+  };
 
   // Preview escalation
   const previewEscalations = () => {
@@ -49,11 +111,11 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
         <div className="form-field">
           <label>Base Rent *</label>
           <input
-            type="number"
-            min={0}
-            placeholder="e.g. 3500"
-            value={form.rentAmount}
-            onChange={(e) => set('rentAmount', e.target.value)}
+            type="text"
+            inputMode="decimal"
+            placeholder="e.g. 3,500"
+            value={formatMoneyDisplay(form.rentAmount)}
+            onChange={(e) => set('rentAmount', sanitizeMoneyInput(e.target.value))}
           />
           {prefilledFromUnit && (
             <span className="field-hint">Pre-filled from unit rate</span>
@@ -67,8 +129,47 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
         </div>
         <div className="form-field">
           <label>Security Deposit</label>
-          <input type="number" min={0} placeholder="e.g. 7000" value={form.securityDeposit} onChange={(e) => set('securityDeposit', e.target.value)} />
+          <input
+            type="text"
+            inputMode="decimal"
+            placeholder="e.g. 7,000"
+            value={formatMoneyDisplay(form.securityDeposit)}
+            onChange={(e) => set('securityDeposit', sanitizeMoneyInput(e.target.value))}
+          />
         </div>
+      </div>
+
+      {/* ── Lease Charges ── */}
+      <div className="unit-charges-panel">
+        <div className="unit-charges-panel-head">Lease Charges <span className="optional">(optional)</span></div>
+        {!form.unitId ? (
+          <p className="unit-charges-empty">Select a unit to see its configured charges.</p>
+        ) : form.leaseCharges.length === 0 ? (
+          <p className="unit-charges-empty">No charges assigned to this unit.</p>
+        ) : (
+          <table className="charges-table">
+            <thead>
+              <tr><th>Charge</th><th className="text-right">Amount</th></tr>
+            </thead>
+            <tbody>
+              {form.leaseCharges.map((c) => (
+                <tr key={c.chargeTypeId}>
+                  <td>{chargeTypeName(c.chargeTypeId)}</td>
+                  <td className="text-right">
+                    <input
+                      className="charge-amount-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={formatMoneyDisplay(c.amount)}
+                      onChange={(e) => editChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
+                      onBlur={(e) => commitChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* ── Rent Escalation ── */}

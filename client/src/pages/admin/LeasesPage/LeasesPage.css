@@ -68,20 +68,21 @@
 
 /* ─── Create Lease Page ──────────────────── */
 .create-lease-page { padding: 24px 28px; max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-.cl-header { display: flex; align-items: center; gap: 14px; }
-.cl-header h1 { font-size: 1.4rem; font-weight: 800; margin: 0; }
+.cl-header { position: relative; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.cl-header .back-btn { position: absolute; left: 0; }
+.cl-header h1 { font-size: 1.4rem; font-weight: 800; margin: 0; text-align: center; }
 .back-btn { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; color: var(--text-muted); font-size: .8rem; cursor: pointer; }
 
 /* Steps bar */
-.cl-steps { display: flex; align-items: center; }
-.cl-step { display: flex; align-items: center; gap: 8px; }
+.cl-steps { display: flex; align-items: center; width: 100%; }
+.cl-step { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .step-dot { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: .75rem; background: rgba(255,255,255,.04); flex-shrink: 0; transition: all .2s; }
 .cl-step.active .step-dot { border-color: var(--purple); background: rgba(108,92,231,.2); color: var(--purple-lt); }
 .cl-step.done .step-dot { border-color: #2ecc71; background: rgba(46,204,113,.15); color: #2ecc71; }
 .step-label { font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
 .cl-step.active .step-label { color: var(--purple-lt); font-weight: 600; }
 .cl-step.done .step-label { color: #2ecc71; }
-.step-line { flex: 1; height: 1px; background: rgba(255,255,255,.08); min-width: 20px; margin: 0 8px; }
+.step-line { flex: 1 1 0%; height: 1px; background: rgba(255,255,255,.08); min-width: 4px; margin: 0 4px; }
 
 .cl-body { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: 24px; }
 .step-content h3 { font-size: .9rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 0 0 18px; border-bottom: 1px solid rgba(255,255,255,.04); padding-bottom: 12px; }

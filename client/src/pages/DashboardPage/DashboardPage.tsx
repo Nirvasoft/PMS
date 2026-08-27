@@ -30,9 +30,23 @@ const SIDEBAR_COLLAPSED_WIDTH = 64;
 const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
 
 // Error Boundary to prevent dashboard crashes from breaking the whole page
+const CHUNK_RELOAD_KEY = 'dashboard-chunk-reload';
+const CHUNK_LOAD_ERROR = /fetch dynamically imported module|error loading dynamically imported module|importing a module script failed/i;
+
 class DashboardErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
   state = { hasError: false, error: undefined as Error | undefined };
   static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+
+  componentDidCatch(error: Error) {
+    // A stale chunk hash from before the latest deploy 404s on lazy-load.
+    // Reloading once picks up the new build; guard against looping if the
+    // failure is something else entirely.
+    if (CHUNK_LOAD_ERROR.test(error.message) && !sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+      sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+      window.location.reload();
+    }
+  }
+
   render() {
     if (this.state.hasError) {
       return (
