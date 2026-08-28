@@ -27,6 +27,7 @@ import { BulkCreateModal } from './BulkCreateModal';
 import { TowerSidebar } from './TowerSidebar';
 import { TowerFormModal } from './TowerFormModal';
 import { useConfirm } from '../../../components/DialogProvider';
+import { ZONE_OPTIONS } from './zoneOptions';
 import './UnitsTab.css';
 
 /* ── Status config (single source of truth) ── */
@@ -638,7 +639,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
   const close = () => dispatch(selectUnit(null as any));
 
   const [form, setForm] = useState({
-    unitNumber: '', unitType: '', towerId: '', sectionId: '',
+    unitNumber: '', unitType: '', zone: '', towerId: '', sectionId: '',
     floorNumber: '', floorLabel: '', areaSqft: '', areaSqm: '',
     bedroomCount: '0', bathroomCount: '0',
     direction: '', furnishing: 'unfurnished', ownershipType: 'company',
@@ -674,6 +675,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
         data: {
           unitNumber:    form.unitNumber.trim(),
           unitType:      form.unitType,
+          zone:          form.zone        || undefined,
           towerId:       form.towerId     || undefined,
           sectionId:     form.sectionId   || undefined,
           floorNumber:   form.floorNumber ? Number(form.floorNumber) : undefined,
@@ -732,6 +734,13 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
                   ? [...unitTypes].sort((a, b) => a.name.localeCompare(b.name)).map((t) => <option key={t.id} value={t.code}>{t.name}</option>)
                   : ['studio','one_bedroom','two_bedroom','three_bedroom','penthouse','shop','office','warehouse'].map((t) =>
                       <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div className="cu-field">
+              <label>Zone <span className="cu-opt">(optional)</span></label>
+              <select value={form.zone} onChange={(e) => set('zone', e.target.value)}>
+                <option value="">-</option>
+                {ZONE_OPTIONS.map((z) => <option key={z} value={z}>{z}</option>)}
               </select>
             </div>
           </div>

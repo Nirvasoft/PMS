@@ -1222,6 +1222,7 @@ model Unit {
   unitNumber          String    @map("unit_number") @db.VarChar(50)
   unitTypeId          String?   @map("unit_type_id") @db.Uuid
   unitType            String    @map("unit_type") @db.VarChar(50)
+  zone                String?   @db.VarChar(80)
   floorNumber         Int?      @map("floor_number") @db.SmallInt
   floorLabel          String?   @map("floor_label") @db.VarChar(20)
   areaSqft            Decimal?  @map("area_sqft") @db.Decimal(10, 2)
@@ -2570,7 +2571,7 @@ model ParkingSlot {
   visitorPasses VisitorParkingPass[]
   visitors      Visitor[]            @relation("VisitorParkingSlot")
 
-  @@unique([slotNumber, propertyId], name: "uq_slot_number_property")
+  @@unique([slotNumber, propertyId, zoneId], name: "uq_slot_number_property_zone")
   @@index([propertyId])
   @@index([status])
   @@index([unitId])

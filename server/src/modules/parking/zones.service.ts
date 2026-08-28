@@ -14,6 +14,13 @@ export class ZonesService {
   }
 
   async create(propertyId: string, companyId: string, dto: Record<string, unknown>) {
+    const unitId = (dto.unitId as string) || null;
+    const name = dto.name as string;
+    const existing = await prisma.parkingZone.findFirst({
+      where: { propertyId, unitId, name: { equals: name, mode: 'insensitive' } },
+    });
+    if (existing) throw AppError.conflict(`Zone '${name}' already exists in this parking unit`);
+
     return prisma.parkingZone.create({
       data: {
         propertyId,
@@ -31,6 +38,13 @@ export class ZonesService {
     const zone = await prisma.parkingZone.findFirst({ where: { id, companyId } });
     if (!zone) throw AppError.notFound('Parking Zone');
 
+    if (dto.name !== undefined && dto.name !== zone.name) {
+      const duplicate = await prisma.parkingZone.findFirst({
+        where: { propertyId: zone.propertyId, unitId: zone.unitId, name: { equals: dto.name as string, mode: 'insensitive' }, id: { not: id } },
+      });
+      if (duplicate) throw AppError.conflict(`Zone '${dto.name}' already exists in this parking unit`);
+    }
+
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined)     data.name = dto.name;
     if (dto.code !== undefined)     data.code = dto.code;
@@ -42,6 +56,19 @@ export class ZonesService {
       data: data as any,
       include: { _count: { select: { slots: true } } },
     });
+  }
+
+  async delete(id: string, companyId: string) {
+    const zone = await prisma.parkingZone.findFirst({
+      where: { id, companyId },
+      include: { _count: { select: { slots: true } } },
+    });
+    if (!zone) throw AppError.notFound('Parking Zone');
+    if (zone._count.slots > 0) {
+      throw AppError.conflict(`Cannot delete zone '${zone.name}' — it has ${zone._count.slots} slot(s) assigned to it`);
+    }
+
+    await prisma.parkingZone.delete({ where: { id } });
   }
 }
 

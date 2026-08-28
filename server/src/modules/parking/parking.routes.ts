@@ -52,6 +52,11 @@ parkingZonesRouter.put('/:id', validateRequest(updateZoneSchema), asyncHandler(a
   res.json({ success: true, data });
 }));
 
+parkingZonesRouter.delete('/:id', asyncHandler(async (req, res) => {
+  await zonesService.delete(p(req, 'id'), req.user!.companyId);
+  res.status(204).send();
+}));
+
 // ════════════════════════════════════════════════
 // SLOTS — /api/v1/properties/:propertyId/parking/slots
 // ════════════════════════════════════════════════
@@ -90,6 +95,11 @@ parkingSlotsRouter.post('/bulk', validateRequest(bulkCreateSlotsSchema), asyncHa
 parkingSlotsRouter.put('/:id', validateRequest(updateSlotSchema), asyncHandler(async (req, res) => {
   const data = await slotsService.update(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
+}));
+
+parkingSlotsRouter.delete('/:id', asyncHandler(async (req, res) => {
+  await slotsService.delete(p(req, 'id'), req.user!.companyId);
+  res.status(204).send();
 }));
 
 // ════════════════════════════════════════════════

@@ -10,6 +10,7 @@ import {
 import { useGetMeterSetupsQuery, useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { CATEGORIES as METER_CATEGORIES, METER_TYPES } from '../BillingPage/MeterSetupPage';
+import { ZONE_OPTIONS } from './zoneOptions';
 import {
   X, Zap, Droplets, Wind, Star, ChevronRight, Settings2,
   Activity, Clock, Thermometer, Plus, Trash2, Pencil, Check,
@@ -117,6 +118,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     setEditForm({
       unitNumber: unit.unitNumber,
       unitType: unit.unitType,
+      zone: unit.zone ?? '',
       floorNumber: unit.floorNumber ?? '',
       floorLabel: unit.floorLabel ?? '',
       areaSqft: unit.areaSqft ?? '',
@@ -150,6 +152,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       // Only send changed fields
       if (editForm.unitNumber !== unit!.unitNumber) payload.unitNumber = editForm.unitNumber;
       if (editForm.unitType !== unit!.unitType) payload.unitType = editForm.unitType;
+      if (editForm.zone !== (unit!.zone ?? '')) payload.zone = editForm.zone || null;
       if (editForm.floorNumber !== '' && Number(editForm.floorNumber) !== unit!.floorNumber) payload.floorNumber = Number(editForm.floorNumber);
       if (editForm.floorLabel !== (unit!.floorLabel ?? '')) payload.floorLabel = editForm.floorLabel || null;
       if (editForm.areaSqft !== '' && Number(editForm.areaSqft) !== unit!.areaSqft) payload.areaSqft = Number(editForm.areaSqft);
@@ -481,6 +484,13 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                           : <option value={editForm.unitType}>{editForm.unitType}</option>}
                       </select>
                     </div>
+                    <div className="ef-field">
+                      <label>Zone</label>
+                      <select value={editForm.zone ?? ''} onChange={(e) => ef('zone', e.target.value)}>
+                        <option value="">-</option>
+                        {ZONE_OPTIONS.map((z) => <option key={z} value={z}>{z}</option>)}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="ef-section-title">Floor &amp; Location</div>
@@ -612,6 +622,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     <div className="info-grid">
                       <InfoItem label="Unit Number" value={unit.unitNumber} />
                       <InfoItem label="Unit Type"   value={unit.unitType.replace(/_/g, ' ')} />
+                      <InfoItem label="Zone"        value={unit.zone || '—'} />
                     </div>
                   </div>
 

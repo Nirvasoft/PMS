@@ -97,6 +97,7 @@ export interface UnitListItem {
   id: string;
   unitNumber: string;
   unitType: string;
+  zone: string | null;
   floorNumber: number | null;
   floorLabel: string | null;
   areaSqft: number | null;
@@ -189,6 +190,7 @@ export interface CreateUnitDto {
   unitNumber: string;
   unitTypeId?: string;
   unitType: string;
+  zone?: string;
   towerId?: string;
   sectionId?: string;
   floorNumber?: number;
