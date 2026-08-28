@@ -3,11 +3,12 @@ import { AppError } from '../../common/errors';
 
 export class SlotsService {
   async findAll(propertyId: string, companyId: string, query: {
-    unitId?: string; zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number;
+    unitId?: string; unitType?: string; zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number;
   }) {
-    const { unitId, zoneId, status, slotType, page = 1, limit = 50 } = query;
+    const { unitId, unitType, zoneId, status, slotType, page = 1, limit = 50 } = query;
     const where: Record<string, unknown> = { propertyId, companyId };
     if (unitId)   where.unitId = unitId;
+    if (unitType) where.unit = { unitType };
     if (zoneId)   where.zoneId = zoneId;
     if (status)   where.status = status;
     if (slotType) where.slotType = slotType;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   useGetAllocationsQuery, useCreateAllocationMutation, useCancelAllocationMutation,
   useUpdateAllocationMutation, useGetVehiclesQuery,
-  useGetSlotsQuery, type ParkingAllocation,
+  useGetSlotsQuery, useGetParkingTypesQuery, type ParkingAllocation, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
@@ -303,11 +303,17 @@ function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAlloc
 function CreateAllocationModal({ properties, onClose }: { properties: any[]; onClose: () => void }) {
   const [createAllocation, { isLoading }] = useCreateAllocationMutation();
   const [propertyId, setPropertyId] = useState(properties[0]?.id || '');
-  const { data: slotsData } = useGetSlotsQuery({ propertyId, status: 'available', limit: 200 });
+  const [parkingType, setParkingType] = useState('');
+  const { data: typesData } = useGetParkingTypesQuery(propertyId, { skip: !propertyId });
+  const parkingTypes = typesData?.data || [];
+  const { data: slotsData } = useGetSlotsQuery({ propertyId, unitType: parkingType || undefined, status: 'available', limit: 200 });
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 100 });
 
   const [form, setForm] = useState({ slotId: '', tenantId: '', startDate: '', endDate: '', monthlyRate: '' });
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const handlePropertyChange = (id: string) => { setPropertyId(id); setParkingType(''); set('slotId', ''); };
+  const handleTypeChange = (type: string) => { setParkingType(type); set('slotId', ''); };
 
   const slots = slotsData?.data || [];
   const tenants = tenantsData?.data || [];
@@ -331,26 +337,51 @@ function CreateAllocationModal({ properties, onClose }: { properties: any[]; onC
   return (
     <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()}>
-        <h2>New Parking Allocation</h2>
-        <div className="form-group">
-          <label>Property</label>
-          <select className="form-input" value={propertyId} onChange={e => setPropertyId(e.target.value)}>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ marginBottom: 0 }}>New Parking Allocation</h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: 4, display: 'flex' }}
+          >
+            <X size={18} />
+          </button>
         </div>
-        <div className="form-group">
-          <label>Available Slot *</label>
-          <select className="form-input" value={form.slotId} onChange={e => set('slotId', e.target.value)}>
-            <option value="">— Select slot —</option>
-            {slots.map((s: any) => <option key={s.id} value={s.id}>{s.slotNumber} ({s.zone?.name || 'No zone'})</option>)}
-          </select>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Property</label>
+            <select className="form-input" value={propertyId} onChange={e => handlePropertyChange(e.target.value)}>
+              {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Parking Type</label>
+            <select
+              className="form-input"
+              value={parkingType}
+              onChange={e => handleTypeChange(e.target.value)}
+              disabled={!propertyId || parkingTypes.length === 0}
+            >
+              <option value="">All Types</option>
+              {parkingTypes.map((t: ParkingUnitType) => <option key={t.code} value={t.code}>{t.name}</option>)}
+            </select>
+          </div>
         </div>
-        <div className="form-group">
-          <label>Tenant *</label>
-          <select className="form-input" value={form.tenantId} onChange={e => set('tenantId', e.target.value)}>
-            <option value="">— Select tenant —</option>
-            {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType === 'company' ? t.companyName : `${t.firstName} ${t.lastName}`}</option>)}
-          </select>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Available Slot *</label>
+            <select className="form-input" value={form.slotId} onChange={e => set('slotId', e.target.value)}>
+              <option value="">— Select slot —</option>
+              {slots.map((s: any) => <option key={s.id} value={s.id}>{s.slotNumber} ({s.zone?.name || 'No zone'})</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Tenant *</label>
+            <select className="form-input" value={form.tenantId} onChange={e => set('tenantId', e.target.value)}>
+              <option value="">— Select tenant —</option>
+              {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType === 'company' ? t.companyName : `${t.firstName} ${t.lastName}`}</option>)}
+            </select>
+          </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
           <div className="form-group"><label>Start Date *</label><input className="form-input" type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} /></div>

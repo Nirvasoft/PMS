@@ -60,6 +60,7 @@ export const parkingSlotsRouter = Router({ mergeParams: true });
 parkingSlotsRouter.get('/', asyncHandler(async (req, res) => {
   const result = await slotsService.findAll(p(req, 'propertyId'), req.user!.companyId, {
     unitId:   req.query.unitId as string,
+    unitType: req.query.unitType as string,
     zoneId:   req.query.zoneId as string,
     status:   req.query.status as string,
     slotType: req.query.slotType as string,

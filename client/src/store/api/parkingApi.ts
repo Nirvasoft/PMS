@@ -146,7 +146,7 @@ export const parkingApi = createApi({
 
     // ── Slots ──────────────────────────────
     getSlots: builder.query<PaginatedResponse<ParkingSlot>, {
-      propertyId: string; unitId?: string; zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number;
+      propertyId: string; unitId?: string; unitType?: string; zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number;
     }>({
       query: ({ propertyId, ...params }) => ({ url: `/properties/${propertyId}/parking/slots`, params }),
       providesTags: ['ParkingSlots'],
