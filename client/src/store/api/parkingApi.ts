@@ -129,7 +129,7 @@ export const parkingApi = createApi({
     }),
 
     // ── Zones ──────────────────────────────
-    getZones: builder.query<ApiResponse<ParkingZone[]>, { propertyId: string; unitId?: string }>({
+    getZones: builder.query<ApiResponse<ParkingZone[]>, { propertyId: string; unitId?: string; unitType?: string }>({
       query: ({ propertyId, ...params }) => ({ url: `/properties/${propertyId}/parking/zones`, params }),
       providesTags: ['ParkingZones'],
     }),
@@ -141,6 +141,11 @@ export const parkingApi = createApi({
 
     updateZone: builder.mutation<ApiResponse<ParkingZone>, { propertyId: string; id: string; data: Record<string, unknown> }>({
       query: ({ propertyId, id, data }) => ({ url: `/properties/${propertyId}/parking/zones/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['ParkingZones'],
+    }),
+
+    deleteZone: builder.mutation<void, { propertyId: string; id: string }>({
+      query: ({ propertyId, id }) => ({ url: `/properties/${propertyId}/parking/zones/${id}`, method: 'DELETE' }),
       invalidatesTags: ['ParkingZones'],
     }),
 
@@ -157,7 +162,7 @@ export const parkingApi = createApi({
       invalidatesTags: ['ParkingSlots', 'Occupancy'],
     }),
 
-    bulkCreateSlots: builder.mutation<ApiResponse<{ created: number; total: number }>, { propertyId: string; data: Record<string, unknown> }>({
+    bulkCreateSlots: builder.mutation<ApiResponse<{ created: number; total: number; duplicates: string[] }>, { propertyId: string; data: Record<string, unknown> }>({
       query: ({ propertyId, data }) => ({ url: `/properties/${propertyId}/parking/slots/bulk`, method: 'POST', body: data }),
       invalidatesTags: ['ParkingSlots', 'Occupancy', 'ParkingZones'],
     }),
@@ -165,6 +170,11 @@ export const parkingApi = createApi({
     updateSlot: builder.mutation<ApiResponse<ParkingSlot>, { propertyId: string; id: string; data: Record<string, unknown> }>({
       query: ({ propertyId, id, data }) => ({ url: `/properties/${propertyId}/parking/slots/${id}`, method: 'PUT', body: data }),
       invalidatesTags: ['ParkingSlots', 'Occupancy'],
+    }),
+
+    deleteSlot: builder.mutation<void, { propertyId: string; id: string }>({
+      query: ({ propertyId, id }) => ({ url: `/properties/${propertyId}/parking/slots/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['ParkingSlots', 'Occupancy', 'ParkingZones'],
     }),
 
     getOccupancy: builder.query<ApiResponse<OccupancyStats>, { propertyId: string; unitId?: string }>({
@@ -252,10 +262,12 @@ export const {
   useGetZonesQuery,
   useCreateZoneMutation,
   useUpdateZoneMutation,
+  useDeleteZoneMutation,
   useGetSlotsQuery,
   useCreateSlotMutation,
   useBulkCreateSlotsMutation,
   useUpdateSlotMutation,
+  useDeleteSlotMutation,
   useGetOccupancyQuery,
   useGetAllocationsQuery,
   useCreateAllocationMutation,

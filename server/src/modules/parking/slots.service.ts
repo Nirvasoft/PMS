@@ -29,10 +29,11 @@ export class SlotsService {
   }
 
   async create(propertyId: string, companyId: string, dto: Record<string, unknown>) {
+    const zoneId = (dto.zoneId as string) || null;
     const exists = await prisma.parkingSlot.findFirst({
-      where: { propertyId, slotNumber: dto.slotNumber as string },
+      where: { propertyId, slotNumber: dto.slotNumber as string, zoneId },
     });
-    if (exists) throw AppError.conflict(`Slot '${dto.slotNumber}' already exists in this property`);
+    if (exists) throw AppError.conflict(`Slot '${dto.slotNumber}' already exists in this zone`);
 
     return prisma.parkingSlot.create({
       data: {
@@ -40,7 +41,7 @@ export class SlotsService {
         companyId,
         unitId: dto.unitId as string,
         slotNumber: dto.slotNumber as string,
-        zoneId: (dto.zoneId as string) || null,
+        zoneId,
         slotType: (dto.slotType as string) || 'car',
         size: (dto.size as string) || 'standard',
         hasEvCharger: (dto.hasEvCharger as boolean) || false,
@@ -57,37 +58,83 @@ export class SlotsService {
     const { unitId, prefix, rangeStart, rangeEnd, zoneId, slotType, size, hasEvCharger, evChargerType, monthlyRate, hourlyRate } = dto as any;
     if (rangeEnd < rangeStart) throw AppError.validation('Range end must be >= range start');
 
-    const slots: any[] = [];
+    const slotNumbers: string[] = [];
     for (let i = rangeStart; i <= rangeEnd; i++) {
-      const slotNumber = `${prefix}${String(i).padStart(3, '0')}`;
-      slots.push({
+      slotNumbers.push(`${prefix}${String(i).padStart(3, '0')}`);
+    }
+
+    const scopedZoneId = zoneId || null;
+    const existing = await prisma.parkingSlot.findMany({
+      where: { propertyId, slotNumber: { in: slotNumbers }, zoneId: scopedZoneId },
+      select: { slotNumber: true },
+    });
+    const existingSet = new Set(existing.map((s: { slotNumber: string }) => s.slotNumber));
+    const duplicates = slotNumbers.filter(n => existingSet.has(n));
+
+    const slots = slotNumbers
+      .filter(n => !existingSet.has(n))
+      .map(slotNumber => ({
         propertyId,
         companyId,
         unitId,
         slotNumber,
-        zoneId: zoneId || null,
+        zoneId: scopedZoneId,
         slotType: slotType || 'car',
         size: size || 'standard',
         hasEvCharger: hasEvCharger || false,
         evChargerType: evChargerType || null,
         monthlyRate: monthlyRate ? Number(monthlyRate) : null,
         hourlyRate: hourlyRate ? Number(hourlyRate) : null,
-      });
-    }
+      }));
 
-    const result = await prisma.parkingSlot.createMany({ data: slots, skipDuplicates: true });
-    return { created: result.count, total: rangeEnd - rangeStart + 1 };
+    const result = slots.length > 0
+      ? await prisma.parkingSlot.createMany({ data: slots, skipDuplicates: true })
+      : { count: 0 };
+
+    return { created: result.count, total: slotNumbers.length, duplicates };
   }
 
   async update(id: string, companyId: string, dto: Record<string, unknown>) {
     const slot = await prisma.parkingSlot.findFirst({ where: { id, companyId } });
     if (!slot) throw AppError.notFound('Parking Slot');
+    if (['allocated', 'visitor'].includes(slot.status)) {
+      throw AppError.conflict(`Slot '${slot.slotNumber}' is currently ${slot.status} and cannot be edited`);
+    }
+
+    const allocationCount = await prisma.parkingAllocation.count({ where: { slotId: id } });
+    if (allocationCount > 0) {
+      throw AppError.conflict(`Slot '${slot.slotNumber}' has allocation history and cannot be edited`);
+    }
+
+    if (dto.slotNumber !== undefined || dto.zoneId !== undefined) {
+      const slotNumber = (dto.slotNumber as string) ?? slot.slotNumber;
+      const zoneId = dto.zoneId !== undefined ? (dto.zoneId as string | null) : slot.zoneId;
+      const duplicate = await prisma.parkingSlot.findFirst({
+        where: { propertyId: slot.propertyId, slotNumber, zoneId, id: { not: id } },
+      });
+      if (duplicate) throw AppError.conflict(`Slot '${slotNumber}' already exists in this zone`);
+    }
 
     return prisma.parkingSlot.update({
       where: { id },
       data: dto as any,
       include: { zone: { select: { id: true, name: true } } },
     });
+  }
+
+  async delete(id: string, companyId: string) {
+    const slot = await prisma.parkingSlot.findFirst({ where: { id, companyId } });
+    if (!slot) throw AppError.notFound('Parking Slot');
+    if (['allocated', 'visitor'].includes(slot.status)) {
+      throw AppError.conflict(`Slot '${slot.slotNumber}' is currently ${slot.status} and cannot be deleted`);
+    }
+
+    const allocationCount = await prisma.parkingAllocation.count({ where: { slotId: id } });
+    if (allocationCount > 0) {
+      throw AppError.conflict(`Slot '${slot.slotNumber}' has allocation history and cannot be deleted`);
+    }
+
+    await prisma.parkingSlot.delete({ where: { id } });
   }
 
   async getOccupancy(propertyId: string, companyId: string, query: { unitId?: string } = {}) {

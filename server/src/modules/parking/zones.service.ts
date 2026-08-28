@@ -2,9 +2,10 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 
 export class ZonesService {
-  async findAll(propertyId: string, companyId: string, query: { unitId?: string } = {}) {
+  async findAll(propertyId: string, companyId: string, query: { unitId?: string; unitType?: string } = {}) {
     const where: Record<string, unknown> = { propertyId, companyId };
     if (query.unitId) where.unitId = query.unitId;
+    if (query.unitType) where.unit = { unitType: query.unitType };
 
     return prisma.parkingZone.findMany({
       where,

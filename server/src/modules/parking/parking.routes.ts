@@ -37,7 +37,8 @@ export const parkingZonesRouter = Router({ mergeParams: true });
 
 parkingZonesRouter.get('/', asyncHandler(async (req, res) => {
   const data = await zonesService.findAll(p(req, 'propertyId'), req.user!.companyId, {
-    unitId: req.query.unitId as string,
+    unitId:   req.query.unitId as string,
+    unitType: req.query.unitType as string,
   });
   res.json({ success: true, data });
 }));

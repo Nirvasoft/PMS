@@ -2,6 +2,16 @@
    Parking Pages — Overview, Slots, Allocations, Visitors
    ═══════════════════════════════════════════════ */
 
+/* Token aliases — this stylesheet uses --surface-base/--text-tertiary/--border-default,
+   but the theme only defines --surface/--text-muted/--border. Map them so every usage
+   resolves. Without this, panels like the allocation-edit summary render with a fully
+   transparent background and "muted" text falls back to inherited (too bright) color. */
+:root {
+  --surface-base: var(--surface);
+  --text-tertiary: var(--text-muted);
+  --border-default: var(--border);
+}
+
 .parking-page { padding: 28px 32px; }
 
 .parking-filter-field {
@@ -177,7 +187,7 @@
 .slot-table-header,
 .slot-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 0.6fr;
+  grid-template-columns: 1.2fr 1fr 0.9fr 0.9fr 0.7fr;
   align-items: center;
   padding: 12px 20px;
   gap: 10px;
@@ -270,10 +280,17 @@
 
 /* ── Edit Allocation Modal ─────────────────── */
 
-.alloc-edit-modal { max-width: 560px !important; }
+.crm-modal.alloc-edit-modal {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  overflow: hidden;
+}
 .alloc-edit-header {
   text-align: center;
   margin-bottom: 20px;
+  flex-shrink: 0;
 }
 .alloc-edit-icon {
   display: flex;
@@ -285,6 +302,18 @@
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 15%, transparent), color-mix(in srgb, #8b5cf6 10%, transparent));
   color: var(--accent-primary);
   margin: 0 auto 12px;
+}
+.alloc-edit-scroll {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+.crm-modal.alloc-edit-modal .modal-actions {
+  flex-shrink: 0;
+  margin-top: 16px;
+  padding-top: 16px;
 }
 
 .alloc-edit-summary {
@@ -320,6 +349,8 @@
 .alloc-edit-fields .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
+  justify-content: normal;
   gap: 12px;
 }
 .alloc-edit-fields .form-group {
@@ -1049,13 +1080,36 @@
   transform: none;
 }
 
+/* ── Row / Card Action Icons ────────────────── */
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-icon-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-icon-sm:hover { background: var(--surface-hover); color: var(--text-primary); }
+.btn-icon-sm:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-icon-sm.btn-icon-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+
 /* ── Responsive ─────────────────────────────── */
 
 @media (max-width: 768px) {
   .parking-page { padding: 16px; }
   .occupancy-row { grid-template-columns: 1fr; }
   .zone-cards-grid { grid-template-columns: 1fr; }
-  .slot-table-header, .slot-row { grid-template-columns: 1fr 1fr 1fr; }
+  .slot-table-header, .slot-row { grid-template-columns: 1fr 1fr 1fr 1fr; }
   .alloc-table-header, .alloc-row { grid-template-columns: 1fr 1fr 1fr; }
   .visitor-pass-grid { grid-template-columns: 1fr; }
   .vr-layout { grid-template-columns: 1fr; }

@@ -3,11 +3,11 @@ import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetUnitsQuery, type UnitListItem } from '../../../store/api/unitsApi';
 import {
   useGetParkingTypesQuery,
-  useGetOccupancyQuery, useGetZonesQuery, useCreateZoneMutation,
-  useGetSlotsQuery, useBulkCreateSlotsMutation,
+  useGetOccupancyQuery, useGetZonesQuery, useCreateZoneMutation, useUpdateZoneMutation, useDeleteZoneMutation,
+  useGetSlotsQuery, useBulkCreateSlotsMutation, useUpdateSlotMutation, useDeleteSlotMutation,
   type ParkingZone, type ParkingSlot, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
-import { Car, LayoutGrid, Plus, Layers, Grid3X3 } from 'lucide-react';
+import { Car, LayoutGrid, Plus, Layers, Grid3X3, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './ParkingPage.css';
 
@@ -236,6 +236,8 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [showBulk, setShowBulk] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<ParkingSlot | null>(null);
+  const [deletingSlot, setDeletingSlot] = useState<ParkingSlot | null>(null);
 
   const { data: zonesData } = useGetZonesQuery({ propertyId, unitId }, { refetchOnMountOrArgChange: true });
   const { data, isLoading } = useGetSlotsQuery(
@@ -243,6 +245,8 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
     { refetchOnMountOrArgChange: true },
   );
   const [bulkCreate] = useBulkCreateSlotsMutation();
+  const [updateSlot] = useUpdateSlotMutation();
+  const [deleteSlot, { isLoading: isDeleting }] = useDeleteSlotMutation();
 
   const zones = zonesData?.data || [];
   const slots = data?.data || [];
@@ -251,12 +255,40 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
   const handleBulkCreate = async (form: Record<string, unknown>) => {
     try {
       const result = await bulkCreate({ propertyId, data: { ...form, unitId } }).unwrap();
-      toast.success(`Created ${result.data.created} of ${result.data.total} slots`);
-      setShowBulk(false);
+      const { created, total, duplicates } = result.data;
+      if (duplicates?.length) {
+        toast.error(`Skipped ${duplicates.length} duplicate slot${duplicates.length > 1 ? 's' : ''}: ${duplicates.join(', ')}`);
+      }
+      if (created > 0) toast.success(`Created ${created} of ${total} slots`);
+      if (created > 0 || !duplicates?.length) setShowBulk(false);
     } catch (e: any) {
       toast.error(e?.data?.errors?.[0]?.message || 'Failed');
     }
   };
+
+  const handleUpdateSlot = async (form: Record<string, unknown>) => {
+    if (!editingSlot) return;
+    try {
+      await updateSlot({ propertyId, id: editingSlot.id, data: form }).unwrap();
+      toast.success('Slot updated');
+      setEditingSlot(null);
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed');
+    }
+  };
+
+  const handleDeleteSlot = async () => {
+    if (!deletingSlot) return;
+    try {
+      await deleteSlot({ propertyId, id: deletingSlot.id }).unwrap();
+      toast.success('Slot deleted');
+      setDeletingSlot(null);
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed');
+    }
+  };
+
+  const slotInUse = (slot: ParkingSlot) => slot.status === 'allocated' || slot.status === 'visitor';
 
   return (
     <div>
@@ -276,8 +308,8 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
 
       <div className="slot-table-wrap">
         <div className="slot-table-header">
-          <span>Slot #</span><span>Zone</span><span>Type</span><span>Size</span>
-          <span>Status</span><span>Monthly Rate</span><span>EV</span>
+          <span>Slot #</span><span>Zone</span>
+          <span>Status</span><span>Monthly Rate</span><span>Actions</span>
         </div>
         {isLoading ? (
           <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
@@ -288,15 +320,26 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
             <div key={slot.id} className="slot-row">
               <div style={{ fontWeight: 600 }}>{slot.slotNumber}</div>
               <div>{slot.zone?.name || '—'}</div>
-              <div style={{ textTransform: 'capitalize' }}>{slot.slotType}</div>
-              <div style={{ textTransform: 'capitalize' }}>{slot.size}</div>
               <div>
                 <span className="slot-status-badge" style={{ background: (STATUS_COLORS[slot.status] || '#666') + '18', color: STATUS_COLORS[slot.status] || '#666' }}>
                   {slot.status}
                 </span>
               </div>
               <div>{slot.monthlyRate ? `$${Number(slot.monthlyRate).toLocaleString()}` : '—'}</div>
-              <div>{slot.hasEvCharger ? '⚡' : '—'}</div>
+              <div className="row-actions">
+                <button
+                  className="btn-icon-sm"
+                  title={slotInUse(slot) ? `Slot is ${slot.status} — cannot edit` : 'Edit slot'}
+                  disabled={slotInUse(slot)}
+                  onClick={() => setEditingSlot(slot)}
+                ><Pencil size={14} /></button>
+                <button
+                  className="btn-icon-sm btn-icon-danger"
+                  title={slotInUse(slot) ? `Slot is ${slot.status} — cannot delete` : 'Delete slot'}
+                  disabled={slotInUse(slot)}
+                  onClick={() => setDeletingSlot(slot)}
+                ><Trash2 size={14} /></button>
+              </div>
             </div>
           ))
         )}
@@ -311,6 +354,18 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
       )}
 
       {showBulk && <BulkCreateModal zones={zones} onClose={() => setShowBulk(false)} onSubmit={handleBulkCreate} />}
+      {editingSlot && (
+        <EditSlotModal slot={editingSlot} zones={zones} onClose={() => setEditingSlot(null)} onSubmit={handleUpdateSlot} />
+      )}
+      {deletingSlot && (
+        <ConfirmDeleteModal
+          title="Delete Slot"
+          message={`Delete slot '${deletingSlot.slotNumber}'? This cannot be undone.`}
+          isLoading={isDeleting}
+          onClose={() => setDeletingSlot(null)}
+          onConfirm={handleDeleteSlot}
+        />
+      )}
     </div>
   );
 }
@@ -380,12 +435,109 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
   );
 }
 
+function EditSlotModal({ slot, zones, onClose, onSubmit }: {
+  slot: ParkingSlot; zones: ParkingZone[]; onClose: () => void; onSubmit: (data: Record<string, unknown>) => void;
+}) {
+  const [slotNumber, setSlotNumber] = useState(slot.slotNumber);
+  const [zoneId, setZoneId] = useState(slot.zone?.id || '');
+  const [slotType, setSlotType] = useState(slot.slotType);
+  const [size, setSize] = useState(slot.size);
+  const [monthlyRate, setMonthlyRate] = useState(slot.monthlyRate ? String(slot.monthlyRate) : '');
+  const [hourlyRate, setHourlyRate] = useState(slot.hourlyRate ? String(slot.hourlyRate) : '');
+  const [notes, setNotes] = useState(slot.notes || '');
+
+  return (
+    <div className="crm-modal-overlay">
+      <div className="crm-modal" onClick={e => e.stopPropagation()}>
+        <h2>Edit Slot</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="form-group">
+            <label>Slot Number *</label>
+            <input className="form-input" value={slotNumber} onChange={e => setSlotNumber(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Zone</label>
+            <select className="form-input" value={zoneId} onChange={e => setZoneId(e.target.value)}>
+              <option value="">— No zone —</option>
+              {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="form-group">
+            <label>Type</label>
+            <select className="form-input" value={slotType} onChange={e => setSlotType(e.target.value)}>
+              <option value="car">Car</option><option value="motorcycle">Motorcycle</option>
+              <option value="ev">EV</option><option value="disabled">Disabled</option><option value="compact">Compact</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Size</label>
+            <select className="form-input" value={size} onChange={e => setSize(e.target.value)}>
+              <option value="compact">Compact</option><option value="standard">Standard</option><option value="large">Large</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="form-group">
+            <label>Monthly Rate</label>
+            <input className="form-input" type="number" value={monthlyRate} onChange={e => setMonthlyRate(e.target.value)} placeholder="0" />
+          </div>
+          <div className="form-group">
+            <label>Hourly Rate</label>
+            <input className="form-input" type="number" value={hourlyRate} onChange={e => setHourlyRate(e.target.value)} placeholder="0" />
+          </div>
+        </div>
+        <div className="form-group">
+          <label>Notes</label>
+          <input className="form-input" value={notes} onChange={e => setNotes(e.target.value)} />
+        </div>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" disabled={!slotNumber} onClick={() => onSubmit({
+            slotNumber,
+            zoneId: zoneId || null,
+            slotType,
+            size,
+            monthlyRate: monthlyRate ? Number(monthlyRate) : undefined,
+            hourlyRate: hourlyRate ? Number(hourlyRate) : undefined,
+            notes: notes || null,
+          })}>
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDeleteModal({ title, message, isLoading, onClose, onConfirm }: {
+  title: string; message: string; isLoading?: boolean; onClose: () => void; onConfirm: () => void;
+}) {
+  return (
+    <div className="crm-modal-overlay">
+      <div className="crm-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+        <h2>{title}</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{message}</p>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose} disabled={isLoading}>Cancel</button>
+          <button className="btn-danger" onClick={onConfirm} disabled={isLoading}>{isLoading ? 'Deleting…' : 'Delete'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Zones Manager ──────────────────────────────
 
 function ZonesManager({ propertyId, unitId }: { propertyId: string; unitId: string }) {
   const { data } = useGetZonesQuery({ propertyId, unitId }, { refetchOnMountOrArgChange: true });
   const [createZone] = useCreateZoneMutation();
+  const [updateZone] = useUpdateZoneMutation();
+  const [deleteZone, { isLoading: isDeleting }] = useDeleteZoneMutation();
   const [showCreate, setShowCreate] = useState(false);
+  const [editingZone, setEditingZone] = useState<ParkingZone | null>(null);
+  const [deletingZone, setDeletingZone] = useState<ParkingZone | null>(null);
   const zones = data?.data || [];
 
   const handleCreate = async (form: { name: string; code: string; zoneType: string }) => {
@@ -393,6 +545,28 @@ function ZonesManager({ propertyId, unitId }: { propertyId: string; unitId: stri
       await createZone({ propertyId, data: { ...form, unitId } }).unwrap();
       toast.success('Zone created');
       setShowCreate(false);
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed');
+    }
+  };
+
+  const handleUpdate = async (form: { name: string; code: string; zoneType: string }) => {
+    if (!editingZone) return;
+    try {
+      await updateZone({ propertyId, id: editingZone.id, data: form }).unwrap();
+      toast.success('Zone updated');
+      setEditingZone(null);
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingZone) return;
+    try {
+      await deleteZone({ propertyId, id: deletingZone.id }).unwrap();
+      toast.success('Zone deleted');
+      setDeletingZone(null);
     } catch (e: any) {
       toast.error(e?.data?.errors?.[0]?.message || 'Failed');
     }
@@ -416,6 +590,15 @@ function ZonesManager({ propertyId, unitId }: { propertyId: string; unitId: stri
               <span>{z._count.slots} slots</span>
               <span>{z.isActive ? '✓ Active' : '✗ Inactive'}</span>
             </div>
+            <div className="row-actions" style={{ marginTop: 12, justifyContent: 'flex-end' }}>
+              <button className="btn-icon-sm" title="Edit zone" onClick={() => setEditingZone(z)}><Pencil size={14} /></button>
+              <button
+                className="btn-icon-sm btn-icon-danger"
+                title={z._count.slots > 0 ? `Zone has ${z._count.slots} slot(s) — cannot delete` : 'Delete zone'}
+                disabled={z._count.slots > 0}
+                onClick={() => setDeletingZone(z)}
+              ><Trash2 size={14} /></button>
+            </div>
           </div>
         ))}
         {zones.length === 0 && <div style={{ color: 'var(--text-tertiary)', padding: 40, textAlign: 'center' }}>No zones yet — add one to organize your parking</div>}
@@ -424,19 +607,31 @@ function ZonesManager({ propertyId, unitId }: { propertyId: string; unitId: stri
       {showCreate && (
         <CreateZoneModal onClose={() => setShowCreate(false)} onSubmit={handleCreate} />
       )}
+      {editingZone && (
+        <CreateZoneModal zone={editingZone} onClose={() => setEditingZone(null)} onSubmit={handleUpdate} />
+      )}
+      {deletingZone && (
+        <ConfirmDeleteModal
+          title="Delete Zone"
+          message={`Delete zone '${deletingZone.name}'? This cannot be undone.`}
+          isLoading={isDeleting}
+          onClose={() => setDeletingZone(null)}
+          onConfirm={handleDelete}
+        />
+      )}
     </div>
   );
 }
 
-function CreateZoneModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (data: any) => void }) {
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [zoneType, setZoneType] = useState('covered');
+function CreateZoneModal({ zone, onClose, onSubmit }: { zone?: ParkingZone; onClose: () => void; onSubmit: (data: any) => void }) {
+  const [name, setName] = useState(zone?.name || '');
+  const [code, setCode] = useState(zone?.code || '');
+  const [zoneType, setZoneType] = useState(zone?.zoneType || 'covered');
 
   return (
     <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()}>
-        <h2>New Parking Zone</h2>
+        <h2>{zone ? 'Edit Parking Zone' : 'New Parking Zone'}</h2>
         <div className="form-group"><label>Zone Name *</label><input className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="Level B1" /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="form-group"><label>Code</label><input className="form-input" value={code} onChange={e => setCode(e.target.value)} placeholder="B1" /></div>
@@ -451,7 +646,7 @@ function CreateZoneModal({ onClose, onSubmit }: { onClose: () => void; onSubmit:
         </div>
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={!name} onClick={() => onSubmit({ name, code: code || undefined, zoneType })}>Create</button>
+          <button className="btn-primary" disabled={!name} onClick={() => onSubmit({ name, code: code || undefined, zoneType })}>{zone ? 'Save Changes' : 'Create'}</button>
         </div>
       </div>
     </div>

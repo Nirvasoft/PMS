@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   useGetAllocationsQuery, useCreateAllocationMutation, useCancelAllocationMutation,
   useUpdateAllocationMutation, useGetVehiclesQuery,
-  useGetSlotsQuery, useGetParkingTypesQuery, type ParkingAllocation, type ParkingUnitType,
+  useGetSlotsQuery, useGetParkingTypesQuery, useGetZonesQuery, type ParkingAllocation, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
@@ -10,6 +10,14 @@ import { useConfirm } from '../../../components/DialogProvider';
 import { Link2, Plus, Trash2, Car, Edit3, Save, X, Calendar, DollarSign, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './ParkingPage.css';
+
+function ordinalSuffix(n: number): string {
+  const j = n % 10, k = n % 100;
+  if (j === 1 && k !== 11) return 'st';
+  if (j === 2 && k !== 12) return 'nd';
+  if (j === 3 && k !== 13) return 'rd';
+  return 'th';
+}
 
 export default function AllocationManager() {
   const confirmDialog = useConfirm();
@@ -27,7 +35,7 @@ export default function AllocationManager() {
   const meta = data?.meta;
 
   const handleCancel = async (id: string, slotNumber: string) => {
-    if (!(await confirmDialog(`Cancel allocation for slot ${slotNumber}?`, { danger: true, confirmText: 'Cancel' }))) return;
+    if (!(await confirmDialog(`Cancel allocation for slot ${slotNumber}?`, { danger: true, confirmText: 'Cancel Allocation', cancelText: 'Keep' }))) return;
     try {
       await cancelAllocation(id).unwrap();
       toast.success('Allocation cancelled');
@@ -199,89 +207,91 @@ function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAlloc
           <h2>Edit Allocation</h2>
         </div>
 
-        {/* Read-only summary */}
-        <div className="alloc-edit-summary">
-          <div className="aes-row">
-            <span className="aes-label">Slot</span>
-            <span className="aes-value">{allocation.slot.slotNumber} {allocation.slot.zone ? `(${allocation.slot.zone.name})` : ''}</span>
-          </div>
-          <div className="aes-row">
-            <span className="aes-label">Tenant</span>
-            <span className="aes-value">{tenantName}</span>
-          </div>
-          {allocation.unit && (
+        <div className="alloc-edit-scroll">
+          {/* Read-only summary */}
+          <div className="alloc-edit-summary">
             <div className="aes-row">
-              <span className="aes-label">Unit</span>
-              <span className="aes-value">{allocation.unit.unitNumber}</span>
+              <span className="aes-label">Slot</span>
+              <span className="aes-value">{allocation.slot.slotNumber} {allocation.slot.zone ? `(${allocation.slot.zone.name})` : ''}</span>
             </div>
-          )}
-          <div className="aes-row">
-            <span className="aes-label">Start Date</span>
-            <span className="aes-value">{new Date(allocation.startDate).toLocaleDateString()}</span>
+            <div className="aes-row">
+              <span className="aes-label">Tenant</span>
+              <span className="aes-value">{tenantName}</span>
+            </div>
+            {allocation.unit && (
+              <div className="aes-row">
+                <span className="aes-label">Unit</span>
+                <span className="aes-value">{allocation.unit.unitNumber}</span>
+              </div>
+            )}
+            <div className="aes-row">
+              <span className="aes-label">Start Date</span>
+              <span className="aes-value">{new Date(allocation.startDate).toLocaleDateString()}</span>
+            </div>
           </div>
-        </div>
 
-        {/* Editable fields */}
-        <div className="alloc-edit-fields">
-          <div className="form-row">
+          {/* Editable fields */}
+          <div className="alloc-edit-fields">
+            <div className="form-row">
+              <div className="form-group">
+                <label><Calendar size={11} /> End Date</label>
+                <input
+                  className="form-input"
+                  type="date"
+                  value={form.endDate}
+                  onChange={e => set('endDate', e.target.value)}
+                />
+                <span className="form-hint">Leave empty for ongoing allocation</span>
+              </div>
+              <div className="form-group">
+                <label><DollarSign size={11} /> Monthly Rate</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.monthlyRate}
+                  onChange={e => set('monthlyRate', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Billing Day</label>
+                <select className="form-input" value={form.billingDay} onChange={e => set('billingDay', e.target.value)}>
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={d}>{d}{ordinalSuffix(d)} of month</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label><Car size={11} /> Vehicle</label>
+                <select className="form-input" value={form.vehicleId} onChange={e => set('vehicleId', e.target.value)}>
+                  <option value="">— No vehicle linked —</option>
+                  {vehicles.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.plateNumber} {v.make ? `(${v.make} ${v.model || ''})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {vehicles.length === 0 && tenantId && (
+                  <span className="form-hint">No vehicles registered for this tenant</span>
+                )}
+              </div>
+            </div>
+
             <div className="form-group">
-              <label><Calendar size={11} /> End Date</label>
-              <input
+              <label><FileText size={11} /> Notes</label>
+              <textarea
                 className="form-input"
-                type="date"
-                value={form.endDate}
-                onChange={e => set('endDate', e.target.value)}
-              />
-              <span className="form-hint">Leave empty for ongoing allocation</span>
-            </div>
-            <div className="form-group">
-              <label><DollarSign size={11} /> Monthly Rate</label>
-              <input
-                className="form-input"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.monthlyRate}
-                onChange={e => set('monthlyRate', e.target.value)}
+                value={form.notes}
+                onChange={e => set('notes', e.target.value)}
+                placeholder="Internal notes about this allocation…"
+                rows={3}
+                style={{ resize: 'vertical' }}
               />
             </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Billing Day</label>
-              <select className="form-input" value={form.billingDay} onChange={e => set('billingDay', e.target.value)}>
-                {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
-                  <option key={d} value={d}>{d}{d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'} of month</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label><Car size={11} /> Vehicle</label>
-              <select className="form-input" value={form.vehicleId} onChange={e => set('vehicleId', e.target.value)}>
-                <option value="">— No vehicle linked —</option>
-                {vehicles.map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.plateNumber} {v.make ? `(${v.make} ${v.model || ''})` : ''}
-                  </option>
-                ))}
-              </select>
-              {vehicles.length === 0 && tenantId && (
-                <span className="form-hint">No vehicles registered for this tenant</span>
-              )}
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label><FileText size={11} /> Notes</label>
-            <textarea
-              className="form-input"
-              value={form.notes}
-              onChange={e => set('notes', e.target.value)}
-              placeholder="Internal notes about this allocation…"
-              rows={3}
-              style={{ resize: 'vertical' }}
-            />
           </div>
         </div>
 
@@ -304,16 +314,20 @@ function CreateAllocationModal({ properties, onClose }: { properties: any[]; onC
   const [createAllocation, { isLoading }] = useCreateAllocationMutation();
   const [propertyId, setPropertyId] = useState(properties[0]?.id || '');
   const [parkingType, setParkingType] = useState('');
+  const [zoneId, setZoneId] = useState('');
   const { data: typesData } = useGetParkingTypesQuery(propertyId, { skip: !propertyId });
   const parkingTypes = typesData?.data || [];
-  const { data: slotsData } = useGetSlotsQuery({ propertyId, unitType: parkingType || undefined, status: 'available', limit: 200 });
+  const { data: zonesData } = useGetZonesQuery({ propertyId, unitType: parkingType || undefined }, { skip: !propertyId });
+  const zones = zonesData?.data || [];
+  const { data: slotsData } = useGetSlotsQuery({ propertyId, unitType: parkingType || undefined, zoneId: zoneId || undefined, status: 'available', limit: 200 });
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 100 });
 
   const [form, setForm] = useState({ slotId: '', tenantId: '', startDate: '', endDate: '', monthlyRate: '' });
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const handlePropertyChange = (id: string) => { setPropertyId(id); setParkingType(''); set('slotId', ''); };
-  const handleTypeChange = (type: string) => { setParkingType(type); set('slotId', ''); };
+  const handlePropertyChange = (id: string) => { setPropertyId(id); setParkingType(''); setZoneId(''); set('slotId', ''); };
+  const handleTypeChange = (type: string) => { setParkingType(type); setZoneId(''); set('slotId', ''); };
+  const handleZoneChange = (id: string) => { setZoneId(id); set('slotId', ''); };
 
   const slots = slotsData?.data || [];
   const tenants = tenantsData?.data || [];
@@ -369,19 +383,31 @@ function CreateAllocationModal({ properties, onClose }: { properties: any[]; onC
         </div>
         <div className="form-row">
           <div className="form-group">
+            <label>Zone</label>
+            <select
+              className="form-input"
+              value={zoneId}
+              onChange={e => handleZoneChange(e.target.value)}
+              disabled={!propertyId || zones.length === 0}
+            >
+              <option value="">All Zones</option>
+              {zones.map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
             <label>Available Slot *</label>
             <select className="form-input" value={form.slotId} onChange={e => set('slotId', e.target.value)}>
               <option value="">— Select slot —</option>
               {slots.map((s: any) => <option key={s.id} value={s.id}>{s.slotNumber} ({s.zone?.name || 'No zone'})</option>)}
             </select>
           </div>
-          <div className="form-group">
-            <label>Tenant *</label>
-            <select className="form-input" value={form.tenantId} onChange={e => set('tenantId', e.target.value)}>
-              <option value="">— Select tenant —</option>
-              {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType === 'company' ? t.companyName : `${t.firstName} ${t.lastName}`}</option>)}
-            </select>
-          </div>
+        </div>
+        <div className="form-group">
+          <label>Tenant *</label>
+          <select className="form-input" value={form.tenantId} onChange={e => set('tenantId', e.target.value)}>
+            <option value="">— Select tenant —</option>
+            {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType === 'company' ? t.companyName : `${t.firstName} ${t.lastName}`}</option>)}
+          </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
           <div className="form-group"><label>Start Date *</label><input className="form-input" type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} /></div>
