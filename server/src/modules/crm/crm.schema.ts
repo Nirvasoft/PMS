@@ -28,6 +28,7 @@ export const createLeadSchema = z.object({
     assignedTo: z.string().uuid().optional(),
     notes: z.string().optional(),
     tags: z.array(z.string()).optional(),
+    loiDetails: z.record(z.any()).optional(),
   }),
 });
 
@@ -53,6 +54,7 @@ export const updateLeadSchema = z.object({
     assignedTo: z.string().uuid().nullable().optional(),
     notes: z.string().optional(),
     tags: z.array(z.string()).optional(),
+    loiDetails: z.record(z.any()).optional(),
   }),
 });
 

@@ -2413,6 +2413,8 @@ model Lead {
   budgetMin          Decimal?  @map("budget_min") @db.Decimal(15, 2)
   budgetMax          Decimal?  @map("budget_max") @db.Decimal(15, 2)
   leaseTermMonths    Int?      @map("lease_term_months") @db.SmallInt
+  // LOI details (contract/applicant/room intake data)
+  loiDetails         Json?     @map("loi_details")
   // Pipeline
   stage              String    @default("new") @db.VarChar(30)
   priority           String    @default("medium") @db.VarChar(10)

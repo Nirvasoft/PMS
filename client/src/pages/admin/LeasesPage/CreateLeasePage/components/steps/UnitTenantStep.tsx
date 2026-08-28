@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
-import { useGetPropertiesQuery } from '../../../../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../../../../store/api/propertiesApi';
 import { useGetUnitsQuery, useGetUnitQuery } from '../../../../../../store/api/unitsApi';
 import { useGetTenantsQuery } from '../../../../../../store/api/tenantsApi';
 import ComboBox from '../../../../../../components/ComboBox';
@@ -11,6 +11,7 @@ const LEASABLE = ['available', 'reserved'];
 
 export function UnitTenantStep({ form, set, templates }: { form: FormState; set: Function; templates: any[] }) {
   const [propertySearch, setPropertySearch] = useState('');
+  const [floorNumber, setFloorNumber] = useState('');
   const [unitSearch, setUnitSearch] = useState('');
   const [tenantSearch, setTenantSearch] = useState('');
   const debounced = useDebounced(propertySearch);
@@ -22,10 +23,23 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
     limit: 20,
   });
 
+  // Floors live under a property too, and narrow the unit list below.
+  const { data: floorsData } = useGetFloorSetupsQuery(
+    form.propertyId ? { propertyId: form.propertyId } : skipToken,
+  );
+  const floorOptions = (floorsData?.data || [])
+    .slice()
+    .sort((a, b) => a.floorNumber - b.floorNumber);
+
   // Units live under a property, so there is nothing to ask for until one is picked.
   const { data: unitsData, isFetching: unitsLoading } = useGetUnitsQuery(
     form.propertyId
-      ? { propertyId: form.propertyId, search: unitDebounced || undefined, limit: 50 }
+      ? {
+          propertyId: form.propertyId,
+          floor: floorNumber ? Number(floorNumber) : undefined,
+          search: unitDebounced || undefined,
+          limit: 50,
+        }
       : skipToken,
   );
 
@@ -81,6 +95,7 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
               set('propertyId', v);
               set('propertyCode', opt?.label || '');
               if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
+              setFloorNumber('');
             }}
             options={propertyOptions}
             onSearch={setPropertySearch}
@@ -88,6 +103,23 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             placeholder="Search by code or name…"
             emptyText="No properties found"
           />
+        </div>
+        <div className="form-field">
+          <label htmlFor="lease-floor">Floor *</label>
+          <select
+            id="lease-floor"
+            value={floorNumber}
+            disabled={!form.propertyId}
+            onChange={(e) => {
+              setFloorNumber(e.target.value);
+              if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
+            }}
+          >
+            <option value="">{form.propertyId ? 'Select a floor' : 'Select a property first'}</option>
+            {floorOptions.map((f) => (
+              <option key={f.id} value={f.floorNumber}>{f.floorLabel}</option>
+            ))}
+          </select>
         </div>
         <div className="form-field">
           <label htmlFor="lease-unit">Unit ID * <span className="hint">(must be available)</span></label>
@@ -102,8 +134,8 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             options={unitOptions}
             onSearch={setUnitSearch}
             loading={unitsLoading}
-            disabled={!form.propertyId}
-            placeholder={form.propertyId ? 'Search unit number…' : 'Select a property first'}
+            disabled={!form.propertyId || !floorNumber}
+            placeholder={!form.propertyId ? 'Select a property first' : !floorNumber ? 'Select a floor first' : 'Search unit number…'}
             emptyText="No available units"
           />
         </div>

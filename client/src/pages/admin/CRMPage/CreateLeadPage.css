@@ -1,0 +1,29 @@
+/* Create Lead Page */
+.create-lead-page { padding: 24px 28px; max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+.cl-header { display: flex; align-items: center; gap: 14px; }
+.cl-header h1 { font-size: 1.4rem; font-weight: 800; margin: 0; }
+.back-btn { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-muted); font-size: 0.8rem; cursor: pointer; }
+.back-btn:hover { background: rgba(255,255,255,0.08); }
+
+.cl-form { display: flex; flex-direction: column; gap: 16px; }
+
+.cl-section { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 18px 20px; }
+.cl-section h3 { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 0 0 14px; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 10px; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.form-field input, .form-field select {
+  padding: 9px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: var(--text-primary); font-size: 0.84rem; outline: none; transition: border-color 0.15s;
+}
+.form-field input:focus, .form-field select:focus { border-color: rgba(108,92,231,0.5); }
+.form-field select option { background: #1a1f2e; }
+
+.cl-radio-options { display: flex; flex-wrap: wrap; gap: 14px; padding: 9px 0; }
+.cl-radio-option { display: flex; align-items: center; gap: 6px; font-size: 0.84rem; color: var(--text-primary); cursor: pointer; font-weight: 400; text-transform: none; letter-spacing: normal; }
+.cl-radio-option input[type="radio"] { width: 15px; height: 15px; cursor: pointer; accent-color: #6c5ce7; }
+
+.cl-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }

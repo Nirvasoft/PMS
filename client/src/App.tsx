@@ -32,6 +32,7 @@ import CreateLeasePage from './pages/admin/LeasesPage/CreateLeasePage';
 import LeaseTemplatesPage from './pages/admin/LeasesPage/LeaseTemplatesPage';
 import LeaseClausesPage from './pages/admin/LeasesPage/LeaseClausesPage';
 import LeadPipelinePage from './pages/admin/CRMPage/LeadPipelinePage';
+import CreateLeadPage from './pages/admin/CRMPage/CreateLeadPage';
 import CRMLeadDetailPage from './pages/admin/CRMPage/LeadDetailPage';
 import CampaignsPage from './pages/admin/CRMPage/CampaignsPage';
 import ParkingOverviewPage from './pages/admin/ParkingPage/ParkingOverviewPage';
@@ -266,6 +267,7 @@ function AppRoutes() {
           {/* CRM — requires crm.read */}
           <Route element={<RequirePermission permission="crm.read" />}>
             <Route path="/admin/crm/leads" element={<LeadPipelinePage />} />
+            <Route path="/admin/crm/leads/new" element={<CreateLeadPage />} />
             <Route path="/admin/crm/leads/:id" element={<CRMLeadDetailPage />} />
             <Route path="/admin/crm/campaigns" element={<CampaignsPage />} />
           </Route>
