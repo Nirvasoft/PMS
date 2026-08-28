@@ -130,7 +130,7 @@
 .lead-table-header,
 .lead-row {
   display: grid;
-  grid-template-columns: 1.8fr 1fr 1.2fr 1.2fr 0.8fr 1fr 1fr;
+  grid-template-columns: 1.8fr 1fr 1.2fr 0.8fr 1.2fr 1fr;
   align-items: center;
   padding: 12px 20px;
   gap: 12px;

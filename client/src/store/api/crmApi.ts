@@ -28,6 +28,7 @@ export interface LeadListItem {
   property: { id: string; name: string } | null;
   agent: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
   campaign: { id: string; name: string } | null;
+  convertedLease: { id: string; leaseNumber: string } | null;
 }
 
 export interface LeadDetail extends LeadListItem {

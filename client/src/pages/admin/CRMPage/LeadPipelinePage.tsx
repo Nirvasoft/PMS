@@ -185,10 +185,9 @@ function LeadListView({ propertyId, search, stage, priority, source, onClickLead
         <span>Name</span>
         <span>Stage</span>
         <span>Property</span>
-        <span>Budget</span>
         <span>Priority</span>
-        <span>Source</span>
-        <span>Agent</span>
+        <span>Lease Number</span>
+        <span>Date</span>
       </div>
       {leads.map((lead) => {
         const meta = STAGE_META[lead.stage];
@@ -204,18 +203,9 @@ function LeadListView({ propertyId, search, stage, priority, source, onClickLead
               </span>
             </span>
             <span>{lead.property?.name || '–'}</span>
-            <span>
-              {(lead.budgetMin || lead.budgetMax)
-                ? `${lead.budgetMin ? Number(lead.budgetMin).toLocaleString() : '–'} – ${lead.budgetMax ? Number(lead.budgetMax).toLocaleString() : '–'}`
-                : '–'}
-            </span>
             <span><span className={`priority-chip ${lead.priority}`}>{lead.priority}</span></span>
-            <span className="lc-source">{lead.source ? lead.source.replace(/_/g, ' ') : '–'}</span>
-            <span>
-              {lead.agent
-                ? (lead.agent.profile ? `${lead.agent.profile.firstName} ${lead.agent.profile.lastName?.[0]}.` : lead.agent.email.split('@')[0])
-                : '–'}
-            </span>
+            <span>{lead.convertedLease?.leaseNumber || '–'}</span>
+            <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
           </div>
         );
       })}

@@ -49,6 +49,7 @@ export class LeadsService {
           property: { select: { id: true, name: true } },
           agent:    { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
           campaign: { select: { id: true, name: true } },
+          convertedLease: { select: { id: true, leaseNumber: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
