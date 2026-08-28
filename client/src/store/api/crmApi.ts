@@ -122,7 +122,7 @@ export const crmApi = createApi({
 
     getLeads: builder.query<PaginatedResponse<LeadListItem>, {
       propertyId?: string; stage?: string; assignedTo?: string;
-      source?: string; search?: string; page?: number; limit?: number;
+      source?: string; priority?: string; search?: string; page?: number; limit?: number;
     }>({
       query: (params) => ({ url: '/leads', params }),
       providesTags: ['Leads'],

@@ -264,7 +264,7 @@ export default function DashboardLayout() {
           {/* Parking Section */}
           <FeatureGate flag="parkingEnabled">
             <NavSection label="Parking" storageKey="parking" isCollapsed={isCollapsed}>
-              <NavLink to="/admin/parking" className="nav-item" title="Parking Overview">
+              <NavLink to="/admin/parking" end className="nav-item" title="Parking Overview">
                 <Car size={18} />
                 <span>Parking Overview</span>
               </NavLink>

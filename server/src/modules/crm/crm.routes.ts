@@ -29,6 +29,7 @@ leadsRouter.get('/', asyncHandler(async (req, res) => {
     stage:      req.query.stage as string,
     assignedTo: req.query.assignedTo as string,
     source:     req.query.source as string,
+    priority:   req.query.priority as string,
     search:     req.query.search as string,
     page:       parseInt(req.query.page as string) || 1,
     limit:      Math.min(parseInt(req.query.limit as string) || 20, 100),

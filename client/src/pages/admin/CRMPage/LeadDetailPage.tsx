@@ -555,8 +555,8 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
               <input className="form-input" type="date" value={form.moveInDate} onChange={e => set('moveInDate', e.target.value)} />
             </div>
             <div className="form-group">
-              <label>Lease Term (months)</label>
-              <input className="form-input" type="number" min="1" max="120" value={form.leaseTermMonths} onChange={e => set('leaseTermMonths', e.target.value)} placeholder="12" />
+              <label>Lease Term</label>
+              <input className="form-input" type="number" min="1" max="120" value={form.leaseTermMonths} onChange={e => set('leaseTermMonths', e.target.value)} placeholder="e.g. 12 months" />
             </div>
           </div>
         </div>

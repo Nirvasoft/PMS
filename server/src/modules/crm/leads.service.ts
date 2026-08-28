@@ -23,14 +23,15 @@ export class LeadsService {
   // ── List ────────────────────────────────
   async findAll(companyId: string, query: {
     propertyId?: string; stage?: string; assignedTo?: string;
-    source?: string; search?: string; page?: number; limit?: number;
+    source?: string; priority?: string; search?: string; page?: number; limit?: number;
   }) {
-    const { propertyId, stage, assignedTo, source, search, page = 1, limit = 20 } = query;
+    const { propertyId, stage, assignedTo, source, priority, search, page = 1, limit = 20 } = query;
     const where: Record<string, unknown> = { companyId, deletedAt: null };
     if (propertyId)  where.propertyId = propertyId;
     if (stage)       where.stage = stage;
     if (assignedTo)  where.assignedTo = assignedTo;
     if (source)      where.source = source;
+    if (priority)    where.priority = priority;
     if (search) {
       where.OR = [
         { firstName: { contains: search, mode: 'insensitive' } },

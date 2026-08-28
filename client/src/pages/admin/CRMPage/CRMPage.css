@@ -19,6 +19,15 @@
   max-width: 100%;
 }
 
+.crm-pipeline-page .page-header,
+.campaigns-page .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .crm-stats-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -67,137 +76,32 @@
 }
 .pipeline-toolbar .search-box {
   flex: 0 0 260px;
-}
-.pipeline-toolbar .btn-primary {
-  margin-left: auto;
-}
-
-/* ── Kanban Board ───────────────────────────── */
-
-.kanban-board {
-  display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 16px;
-  min-height: 60vh;
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
-}
-.kanban-board::-webkit-scrollbar { height: 8px; }
-.kanban-board::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 4px; }
-.kanban-board::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-.kanban-board::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-
-.kanban-column {
-  flex: 0 0 270px;
-  min-width: 270px;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-base);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  overflow: hidden;
-}
-.kanban-column.drag-over {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 25%, transparent);
-}
-
-.kanban-col-header {
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 2px solid var(--stage-color, var(--border-subtle));
-  background: var(--surface-elevated);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-.kanban-col-header .col-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
 }
-.kanban-col-header .col-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.kanban-col-header .col-count {
-  font-size: 11px;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--stage-color, var(--text-muted)) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--stage-color, var(--border-subtle)) 40%, transparent);
-  padding: 2px 8px;
-  border-radius: 20px;
-  color: var(--stage-color, var(--text-secondary));
-}
-
-.kanban-col-body {
+.pipeline-toolbar .search-box svg { color: var(--text-muted); flex-shrink: 0; }
+.pipeline-toolbar .search-box input {
   flex: 1;
-  padding: 10px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* ── Lead Card ──────────────────────────────── */
-
-.lead-card {
-  background: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 14px;
-  cursor: grab;
-  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
-  user-select: none;
-}
-.lead-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  border-color: var(--border-default);
-}
-.lead-card.dragging {
-  opacity: 0.5;
-  transform: scale(0.95);
-}
-.lead-card .lc-name {
-  font-size: 13px;
-  font-weight: 600;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
   color: var(--text-primary);
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 0.82rem;
 }
-.lead-card .lc-budget {
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-bottom: 6px;
-}
-.lead-card .lc-footer {
+.pipeline-toolbar .search-box button {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
 }
-.lead-card .lc-source {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-  color: var(--accent-primary);
-  font-weight: 500;
-}
-
 /* Priority chips */
 .priority-chip {
   font-size: 10px;
@@ -215,28 +119,61 @@
 [data-theme="dark"] .priority-chip.medium { background: #78350f40; color: #fcd34d; }
 [data-theme="dark"] .priority-chip.low    { background: #1e3a5f40; color: #93c5fd; }
 
-.lead-card .lc-agent {
-  font-size: 10px;
+/* ── Lead List View ─────────────────────────── */
+
+.lead-table-wrap {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.lead-table-header,
+.lead-row {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr 1.2fr 1.2fr 0.8fr 1fr 1fr;
+  align-items: center;
+  padding: 12px 20px;
+  gap: 12px;
+}
+.lead-table-header {
+  background: var(--surface-base);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 11px;
+  font-weight: 600;
   color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.lead-row {
+  font-size: 13px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.lead-row:hover { background: var(--surface-hover); }
+.lead-row:last-child { border-bottom: none; }
+.lead-row .lc-name {
+  font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.lc-agent-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-primary);
+.lead-row .lc-source {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: capitalize;
 }
-
-/* ── Stage Colors ───────────────────────────── */
-.stage-new              { --stage-color: #3b82f6; }
-.stage-contacted        { --stage-color: #8b5cf6; }
-.stage-viewing_scheduled { --stage-color: #f59e0b; }
-.stage-viewed           { --stage-color: #06b6d4; }
-.stage-offer_sent       { --stage-color: #ec4899; }
-.stage-negotiating      { --stage-color: #f97316; }
-.stage-lease_signed     { --stage-color: #10b981; }
+.stage-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  display: inline-block;
+}
 
 /* ── Lead Detail Page ───────────────────────── */
 
@@ -857,6 +794,7 @@
   animation: fadeIn 0.15s ease;
 }
 .crm-modal {
+  position: relative;
   background: var(--surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
@@ -873,6 +811,33 @@
   font-weight: 700;
   margin-bottom: 20px;
   color: var(--text-primary);
+  padding-right: 28px;
+}
+.crm-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.crm-modal-close:hover {
+  background: rgba(255,255,255,0.12);
+  color: var(--text-primary);
+}
+[data-theme="light"] .crm-modal-close {
+  background: rgba(0,0,0,0.05);
+}
+[data-theme="light"] .crm-modal-close:hover {
+  background: rgba(0,0,0,0.09);
 }
 .crm-modal .form-group {
   margin-bottom: 16px;
@@ -1111,6 +1076,10 @@
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+.edit-form-row .form-group {
+  display: flex;
+  flex-direction: column;
+}
 .lead-edit-section .form-group {
   margin-bottom: 14px;
 }
@@ -1122,6 +1091,11 @@
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-bottom: 5px;
+}
+.edit-form-row .form-group label {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
 }
 
 /* ── Convert Lead Modal ────────────────────── */
@@ -1452,8 +1426,6 @@
 /* ── Responsive ─────────────────────────────── */
 @media (max-width: 768px) {
   .crm-pipeline-page { padding: 16px; }
-  .kanban-board { gap: 10px; }
-  .kanban-column { flex: 0 0 240px; min-width: 240px; }
   .lead-detail-page { padding: 16px; }
   .lead-info-grid { grid-template-columns: 1fr; }
   .lead-edit-grid { grid-template-columns: 1fr; }

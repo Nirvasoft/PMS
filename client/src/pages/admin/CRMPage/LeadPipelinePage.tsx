@@ -1,15 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  useGetPipelineQuery, useGetLeadStatsQuery, useUpdateLeadStageMutation,
-  useCreateLeadMutation, useGetLeadsQuery,
-  type PipelineStage,
+  useGetLeadStatsQuery, useCreateLeadMutation, useGetLeadsQuery,
+  type LeadListItem,
 } from '../../../store/api/crmApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
-import {
-  Target, Plus, Search, X, TrendingUp, Users, Clock, BarChart3, ChevronRight,
-  Phone, Mail, Calendar, ShieldOff,
-} from 'lucide-react';
+import { Target, Plus, Search, X, ShieldOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CRMPage.css';
 
@@ -23,28 +19,42 @@ const STAGE_META: Record<string, { label: string; color: string }> = {
   lease_signed:       { label: 'Lease Signed',      color: '#10b981' },
 };
 
+const SOURCE_OPTIONS = [
+  { value: 'website', label: 'Website' },
+  { value: 'walk_in', label: 'Walk-in' },
+  { value: 'referral', label: 'Referral' },
+  { value: 'agent', label: 'Agent' },
+  { value: 'portal', label: 'Portal' },
+];
+
+const leadDisplayName = (lead: LeadListItem) =>
+  lead.companyName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unknown';
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 export default function LeadPipelinePage() {
   const navigate = useNavigate();
   const [propertyFilter, setPropertyFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: pipelineData, isLoading } = useGetPipelineQuery({ propertyId: propertyFilter || undefined });
+  const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
+
   const { data: statsData } = useGetLeadStatsQuery({ propertyId: propertyFilter || undefined });
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const [updateStage] = useUpdateLeadStageMutation();
 
   const stats = statsData?.data;
-  const stages = pipelineData?.data?.stages || [];
   const properties = propertiesData?.data || [];
-
-  const handleDrop = useCallback(async (leadId: string, newStage: string) => {
-    try {
-      await updateStage({ id: leadId, stage: newStage }).unwrap();
-      toast.success(`Lead moved to ${STAGE_META[newStage]?.label || newStage}`);
-    } catch (e: any) {
-      toast.error(e?.data?.errors?.[0]?.message || 'Cannot move lead to this stage');
-    }
-  }, [updateStage]);
 
   return (
     <div className="crm-pipeline-page">
@@ -86,28 +96,45 @@ export default function LeadPipelinePage() {
 
       {/* Filters */}
       <div className="pipeline-toolbar">
+        <div className="search-box">
+          <Search size={15} />
+          <input
+            type="text"
+            placeholder="Search leads by name or email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && <button onClick={() => setSearch('')} title="Clear search"><X size={14} /></button>}
+        </div>
         <select className="filter-select" value={propertyFilter} onChange={(e) => setPropertyFilter(e.target.value)}>
           <option value="">All Properties</option>
           {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        <select className="filter-select" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+          <option value="">All Statuses</option>
+          {Object.entries(STAGE_META).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}
+        </select>
+        <select className="filter-select" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
+          <option value="">All Priorities</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <select className="filter-select" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+          <option value="">All Sources</option>
+          {SOURCE_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
       </div>
 
-      {/* Kanban Board */}
-      {isLoading ? (
-        <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
-      ) : (
-        <div className="kanban-board">
-          {stages.map((stage) => (
-            <KanbanColumn
-              key={stage.stage}
-              stage={stage}
-              meta={STAGE_META[stage.stage]}
-              onDrop={handleDrop}
-              onClickLead={(id) => navigate(`/admin/crm/leads/${id}`)}
-            />
-          ))}
-        </div>
-      )}
+      <LeadListView
+        key={`${propertyFilter}|${debouncedSearch}|${stageFilter}|${priorityFilter}|${sourceFilter}`}
+        propertyId={propertyFilter}
+        search={debouncedSearch}
+        stage={stageFilter}
+        priority={priorityFilter}
+        source={sourceFilter}
+        onClickLead={(id) => navigate(`/admin/crm/leads/${id}`)}
+      />
 
       {/* Create Lead Modal */}
       {showCreate && (
@@ -121,74 +148,86 @@ export default function LeadPipelinePage() {
   );
 }
 
-// ── Kanban Column ──────────────────────────────
+// ── Lead List View ──────────────────────────────
 
-function KanbanColumn({ stage, meta, onDrop, onClickLead }: {
-  stage: PipelineStage;
-  meta: { label: string; color: string } | undefined;
-  onDrop: (leadId: string, newStage: string) => void;
+const LEADS_PER_PAGE = 10;
+
+function LeadListView({ propertyId, search, stage, priority, source, onClickLead }: {
+  propertyId: string; search: string; stage: string; priority: string; source: string;
   onClickLead: (id: string) => void;
 }) {
-  const [dragOver, setDragOver] = useState(false);
+  const [page, setPage] = useState(1);
+  const { data, isFetching } = useGetLeadsQuery({
+    propertyId: propertyId || undefined,
+    search: search || undefined,
+    stage: stage || undefined,
+    priority: priority || undefined,
+    source: source || undefined,
+    page,
+    limit: LEADS_PER_PAGE,
+  });
+
+  const leads = data?.data || [];
+  const totalPages = data?.meta?.totalPages || 1;
+
+  if (isFetching && leads.length === 0) {
+    return <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>;
+  }
+
+  if (leads.length === 0) {
+    return <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-tertiary)', fontSize: '13px' }}>No leads match your filters</div>;
+  }
 
   return (
-    <div
-      className={`kanban-column stage-${stage.stage} ${dragOver ? 'drag-over' : ''}`}
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragOver(false);
-        const leadId = e.dataTransfer.getData('leadId');
-        if (leadId) onDrop(leadId, stage.stage);
-      }}
-    >
-      <div className="kanban-col-header">
-        <span className="col-title">
-          <span className="col-dot" style={{ background: meta?.color || '#666' }} />
-          {meta?.label || stage.stage}
-        </span>
-        <span className="col-count">{stage.count}</span>
+    <>
+    <div className="lead-table-wrap">
+      <div className="lead-table-header">
+        <span>Name</span>
+        <span>Stage</span>
+        <span>Property</span>
+        <span>Budget</span>
+        <span>Priority</span>
+        <span>Source</span>
+        <span>Agent</span>
       </div>
-      <div className="kanban-col-body">
-        {stage.leads.map((lead) => (
-          <div
-            key={lead.id}
-            className="lead-card"
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData('leadId', lead.id);
-              (e.target as HTMLElement).classList.add('dragging');
-            }}
-            onDragEnd={(e) => (e.target as HTMLElement).classList.remove('dragging')}
-            onClick={() => onClickLead(lead.id)}
-          >
-            <div className="lc-name">{lead.displayName}</div>
-            {(lead.budgetMin || lead.budgetMax) && (
-              <div className="lc-budget">
-                Budget: {lead.budgetMin ? Number(lead.budgetMin).toLocaleString() : '–'} – {lead.budgetMax ? Number(lead.budgetMax).toLocaleString() : '–'}
-              </div>
-            )}
-            <div className="lc-footer">
-              <span className={`priority-chip ${lead.priority}`}>{lead.priority}</span>
+      {leads.map((lead) => {
+        const meta = STAGE_META[lead.stage];
+        return (
+          <div key={lead.id} className="lead-row" onClick={() => onClickLead(lead.id)}>
+            <span className="lc-name">
+              {leadDisplayName(lead)}
               {lead.isBlacklisted && <span className="blacklist-chip"><ShieldOff size={9} /> Blacklisted</span>}
-              {lead.source && <span className="lc-source">{lead.source.replace(/_/g, ' ')}</span>}
-              {lead.agent && (
-                <span className="lc-agent">
-                  <span className="lc-agent-dot" />
-                  {lead.agent.profile ? `${lead.agent.profile.firstName} ${lead.agent.profile.lastName?.[0]}.` : lead.agent.email.split('@')[0]}
-                </span>
-              )}
-            </div>
+            </span>
+            <span>
+              <span className="stage-chip" style={{ background: `${meta?.color || '#666'}18`, color: meta?.color || '#666' }}>
+                {meta?.label || lead.stage}
+              </span>
+            </span>
+            <span>{lead.property?.name || '–'}</span>
+            <span>
+              {(lead.budgetMin || lead.budgetMax)
+                ? `${lead.budgetMin ? Number(lead.budgetMin).toLocaleString() : '–'} – ${lead.budgetMax ? Number(lead.budgetMax).toLocaleString() : '–'}`
+                : '–'}
+            </span>
+            <span><span className={`priority-chip ${lead.priority}`}>{lead.priority}</span></span>
+            <span className="lc-source">{lead.source ? lead.source.replace(/_/g, ' ') : '–'}</span>
+            <span>
+              {lead.agent
+                ? (lead.agent.profile ? `${lead.agent.profile.firstName} ${lead.agent.profile.lastName?.[0]}.` : lead.agent.email.split('@')[0])
+                : '–'}
+            </span>
           </div>
-        ))}
-        {stage.leads.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '20px 10px', color: 'var(--text-tertiary)', fontSize: '12px' }}>
-            No leads
-          </div>
-        )}
-      </div>
+        );
+      })}
     </div>
+    {totalPages > 1 && (
+      <div className="pagination">
+        <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
+        <span>Page {page} of {totalPages}</span>
+        <button disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Next →</button>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -234,18 +273,19 @@ function CreateLeadModal({ properties, onClose, onCreated }: {
   return (
     <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="crm-modal-close" onClick={onClose} title="Close"><X size={16} /></button>
         <h2>New Lead</h2>
-        <div className="crm-modal .form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div className="form-row">
           <div className="form-group">
-            <label>First Name *</label>
+            <label>Code *</label>
             <input className="form-input" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} placeholder="John" />
           </div>
           <div className="form-group">
-            <label>Last Name</label>
+            <label>Name</label>
             <input className="form-input" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} placeholder="Doe" />
           </div>
         </div>
-        <div className="crm-modal .form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div className="form-row">
           <div className="form-group">
             <label>Email</label>
             <input className="form-input" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="john@email.com" />
@@ -262,7 +302,7 @@ function CreateLeadModal({ properties, onClose, onCreated }: {
             {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
-        <div className="crm-modal .form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div className="form-row">
           <div className="form-group">
             <label>Source</label>
             <select className="form-input" value={form.source} onChange={(e) => set('source', e.target.value)}>
@@ -282,7 +322,7 @@ function CreateLeadModal({ properties, onClose, onCreated }: {
             </select>
           </div>
         </div>
-        <div className="crm-modal .form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div className="form-row">
           <div className="form-group">
             <label>Budget Min</label>
             <input className="form-input" type="number" value={form.budgetMin} onChange={(e) => set('budgetMin', e.target.value)} placeholder="0" />
