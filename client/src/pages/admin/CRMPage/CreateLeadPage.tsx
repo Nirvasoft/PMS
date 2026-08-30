@@ -1,22 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCreateLeadMutation } from '../../../store/api/crmApi';
-import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
-import { useGetUnitsQuery } from '../../../store/api/unitsApi';
-import { ZONE_OPTIONS } from '../PropertyDetailPage/zoneOptions';
+import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetUsersQuery } from '../../../store/api/usersApi';
+import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
 import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CreateLeadPage.css';
-
-const LEVEL_OPTIONS: [string, string][] = [
-  ['', 'Select…'],
-  ['ground_floor', 'Ground Floor'],
-  ['first_floor', 'First Floor'],
-  ['second_floor', 'Second Floor'],
-  ['third_floor', 'Third Floor'],
-  ['fourth_floor', 'Fourth Floor'],
-  ['basement', 'Basement'],
-];
 
 const YES_NO_OPTIONS: [string, string][] = [
   ['yes', 'Yes'],
@@ -28,55 +18,52 @@ export default function CreateLeadPage() {
   const [createLead, { isLoading }] = useCreateLeadMutation();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
+  const { data: usersData } = useGetUsersQuery({ page: 1, limit: 200 });
+  const users = usersData?.data || [];
+  const { data: unitTypesData } = useGetUnitTypesQuery();
+  const unitTypes = unitTypesData?.data || [];
 
   const [form, setForm] = useState({
-    firstName: '', lastName: '', email: '', mobile: '',
-    propertyId: '', source: 'website', priority: 'medium',
+    lastName: '', email: '', phone: '',
+    propertyId: '', source: 'website', priority: 'medium', assignedTo: '',
     budgetMin: '', budgetMax: '', unitTypePreference: '', leaseTermMonths: '',
   });
 
   const [loi, setLoi] = useState({
-    // Contract Information
-    loiSendDate: '', customerId: '', shopName: '', contractStartDate: '', contractEndDate: '',
     // Applicant Information
-    applicantDate: '', center: '',
-    businessType: '', doorType: '', priceRange: '', productPlan: '',
-    level: '', ceiling: '', layout: '', currentShop: '',
-    // Room Details
-    floor: '', room: '', roomAreaSqft: '', airconSaleableAreaSqft: '', zone: '',
-    advanceRentalRate: '', advanceRentalRateType: 'fixed', rentalPeriodMonths: '',
+    applicantDate: '', shopName: '', address: '',
+    businessType: '', doorType: '', productPlan: '',
+    ceiling: '', currentShop: '',
   });
 
-  const { data: floorSetupsData } = useGetFloorSetupsQuery(
-    form.propertyId ? { propertyId: form.propertyId } : undefined,
-    { skip: !form.propertyId }
-  );
-  const floors = floorSetupsData?.data || [];
-
-  const { data: unitsData } = useGetUnitsQuery(
-    { propertyId: form.propertyId, floor: Number(loi.floor), limit: 100 },
-    { skip: !form.propertyId || !loi.floor }
-  );
-  const rooms = unitsData?.data || [];
+  useEffect(() => {
+    if (properties.length === 1 && !form.propertyId) {
+      setForm((f) => ({ ...f, propertyId: properties[0].id }));
+    }
+  }, [properties]);
 
   const set = (key: string, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
-    if (key === 'propertyId') setLoi((l) => ({ ...l, center: '', floor: '', room: '' }));
   };
   const setLoiField = (key: string, value: string) => {
-    setLoi((l) => ({ ...l, [key]: value, ...(key === 'floor' ? { room: '', roomAreaSqft: '' } : {}) }));
+    setLoi((l) => ({ ...l, [key]: value }));
   };
 
-  const onRoomChange = (unitNumber: string) => {
-    const unit = rooms.find((u) => u.unitNumber === unitNumber);
-    setLoi((l) => ({
-      ...l,
-      room: unitNumber,
-      roomAreaSqft: unit?.areaSqft != null ? String(unit.areaSqft) : '',
-    }));
-  };
   const handleSubmit = async () => {
-    if (!form.firstName) { toast.error('Code is required'); return; }
+    if (!form.lastName) { toast.error('Name is required'); return; }
+    if ((form.budgetMin && Number(form.budgetMin) < 0) || (form.budgetMax && Number(form.budgetMax) < 0)) {
+      toast.error('Budget cannot be negative');
+      return;
+    }
+    const MAX_BUDGET = 9999999999999.99;
+    if ((form.budgetMin && Number(form.budgetMin) > MAX_BUDGET) || (form.budgetMax && Number(form.budgetMax) > MAX_BUDGET)) {
+      toast.error('Budget exceeds maximum allowed value');
+      return;
+    }
+    if (form.budgetMin && form.budgetMax && Number(form.budgetMin) > Number(form.budgetMax)) {
+      toast.error('Budget Min cannot be greater than Budget Max');
+      return;
+    }
     try {
       const loiDetails: Record<string, unknown> = {};
       Object.entries(loi).forEach(([key, value]) => {
@@ -84,13 +71,13 @@ export default function CreateLeadPage() {
       });
 
       const body: Record<string, unknown> = {
-        firstName: form.firstName,
-        lastName: form.lastName || undefined,
-        email: form.email || undefined,
-        mobile: form.mobile || undefined,
+        lastName: form.lastName,
+        email: form.email ? form.email.trim().toLowerCase() : undefined,
+        phone: form.phone || undefined,
         propertyId: form.propertyId || undefined,
         source: form.source || undefined,
         priority: form.priority,
+        assignedTo: form.assignedTo || undefined,
         unitTypePreference: form.unitTypePreference || undefined,
         budgetMin: form.budgetMin ? Number(form.budgetMin) : undefined,
         budgetMax: form.budgetMax ? Number(form.budgetMax) : undefined,
@@ -116,90 +103,57 @@ export default function CreateLeadPage() {
 
       <div className="cl-form">
         <div className="cl-section">
-          <h3>Lead Information</h3>
+          <h3>Contact Information</h3>
           <div className="form-grid">
-            <Field label="Code *" value={form.firstName} onChange={(v) => set('firstName', v)} placeholder="John" />
-            <Field label="Name" value={form.lastName} onChange={(v) => set('lastName', v)} placeholder="Doe" />
+            <Field label="Name *" value={form.lastName} onChange={(v) => set('lastName', v)} placeholder="Doe" />
+            <Field label="Email" value={form.email} onChange={(v) => set('email', v.toLowerCase())} type="email" placeholder="john@email.com" />
+            <Field label="Phone" value={form.phone} onChange={(v) => set('phone', v.replace(/\D/g, ''))} type="tel" placeholder="15551234" />
+            <Field label="Address" value={loi.address} onChange={(v) => setLoiField('address', v)} placeholder="123 Main St" />
           </div>
         </div>
 
         <div className="cl-section">
-          <h3>Contact Details</h3>
-          <div className="form-grid">
-            <Field label="Email" value={form.email} onChange={(v) => set('email', v)} type="email" placeholder="john@email.com" />
-            <Field label="Mobile" value={form.mobile} onChange={(v) => set('mobile', v)} placeholder="+1-555-1234" />
-          </div>
-        </div>
-
-        <div className="cl-section">
-          <h3>Property & Preferences</h3>
+          <h3>Requirements</h3>
           <div className="form-grid">
             <SelectField label="Property" value={form.propertyId} onChange={(v) => set('propertyId', v)}
               options={[['', '— Select property —'], ...properties.map((p: any) => [p.id, p.name] as [string, string])]} span={2} />
-            <SelectField label="Source" value={form.source} onChange={(v) => set('source', v)}
-              options={[['website', 'Website'], ['walk_in', 'Walk-in'], ['referral', 'Referral'], ['agent', 'Agent'], ['portal', 'Portal']]} />
-            <SelectField label="Priority" value={form.priority} onChange={(v) => set('priority', v)}
-              options={[['low', 'Low'], ['medium', 'Medium'], ['high', 'High']]} />
-            <Field label="Budget Min" value={form.budgetMin} onChange={(v) => set('budgetMin', v)} type="number" placeholder="0" />
-            <Field label="Budget Max" value={form.budgetMax} onChange={(v) => set('budgetMax', v)} type="number" placeholder="5000" />
-          </div>
-        </div>
+            <SelectField label="Unit Type Preference" value={form.unitTypePreference} onChange={(v) => set('unitTypePreference', v)}
+              options={[['', 'Select…'], ...[...unitTypes].sort((a, b) => a.name.localeCompare(b.name)).map((t) => [t.code, t.name] as [string, string])]} />
+            <Field label="Lease Term (months)" value={form.leaseTermMonths} onChange={(v) => set('leaseTermMonths', v)} type="number" min={0} placeholder="12" />
+            <Field label="Budget Min" value={form.budgetMin} onChange={(v) => set('budgetMin', v)} type="number" min={0} placeholder="0" />
+            <Field label="Budget Max" value={form.budgetMax} onChange={(v) => set('budgetMax', v)} type="number" min={0} placeholder="5000" />
 
-        <div className="cl-section">
-          <h3>Contract Information</h3>
-          <div className="form-grid">
-            <Field label="LOI Send Date" value={loi.loiSendDate} onChange={(v) => setLoiField('loiSendDate', v)} type="date" />
-            <Field label="Customer ID" value={loi.customerId} onChange={(v) => setLoiField('customerId', v)} placeholder="00005" />
-            <Field label="Shop Name" value={loi.shopName} onChange={(v) => setLoiField('shopName', v)} span={2} />
-            <Field label="Contract Start Date" value={loi.contractStartDate} onChange={(v) => setLoiField('contractStartDate', v)} type="date" />
-            <Field label="Contract End Date" value={loi.contractEndDate} onChange={(v) => setLoiField('contractEndDate', v)} type="date" />
-          </div>
-        </div>
-
-        <div className="cl-section">
-          <h3>Applicant Information</h3>
-          <div className="form-grid">
             <Field label="Applicant Date" value={loi.applicantDate} onChange={(v) => setLoiField('applicantDate', v)} type="date" />
-            <SelectField label="Floor Level" value={loi.center} onChange={(v) => setLoiField('center', v)}
-              options={[['', form.propertyId ? 'Select…' : 'Select property first'], ...floors.map((f) => [String(f.floorNumber), f.floorLabel || `Floor ${f.floorNumber}`] as [string, string])]} />
-            <SelectField label="Level" value={loi.level} onChange={(v) => setLoiField('level', v)} options={LEVEL_OPTIONS} />
-            <RadioGroup label="Ceiling" name="ceiling" value={loi.ceiling} onChange={(v) => setLoiField('ceiling', v)} options={YES_NO_OPTIONS} />
-            <RadioGroup label="Layout (If have)" name="layout" value={loi.layout} onChange={(v) => setLoiField('layout', v)} options={YES_NO_OPTIONS} />
-            <RadioGroup label="Current Shop (If have)" name="currentShop" value={loi.currentShop} onChange={(v) => setLoiField('currentShop', v)} options={YES_NO_OPTIONS} />
+            <Field label="Shop Name" value={loi.shopName} onChange={(v) => setLoiField('shopName', v)} />
+
             <SelectField label="Business Type" value={loi.businessType} onChange={(v) => setLoiField('businessType', v)}
               options={[['', 'Select…'], ['private', 'Private'], ['share', 'Share'], ['company', 'Company']]} />
             <SelectField label="Door Type" value={loi.doorType} onChange={(v) => setLoiField('doorType', v)}
               options={[['', 'Select…'], ['glass_door', 'Glass Door'], ['other', 'Other'], ['roller_shutter', 'Roller Shutter']]} />
-            <SelectField label="Price Range" value={loi.priceRange} onChange={(v) => setLoiField('priceRange', v)}
-              options={[['', 'Select…'], ['under_10000', 'Under 10000'], ['10000_100000', '10000-100000'], ['above_100000', 'Above 100000']]} />
             <SelectField label="Product Plan" value={loi.productPlan} onChange={(v) => setLoiField('productPlan', v)}
               options={[['', 'Select…'], ['100_300', '100-300 Sq.ft'], ['300_500', '300-500 Sq.ft'], ['500_700', '500-700 Sq.ft'], ['700_above', '700 Sq.ft & Above']]} />
+
+            <RadioGroup label="Ceiling" name="ceiling" value={loi.ceiling} onChange={(v) => setLoiField('ceiling', v)} options={YES_NO_OPTIONS} />
+            <RadioGroup label="Current Shop (If have)" name="currentShop" value={loi.currentShop} onChange={(v) => setLoiField('currentShop', v)} options={YES_NO_OPTIONS} />
           </div>
         </div>
 
         <div className="cl-section">
-          <h3>Room Details</h3>
+          <h3>Pipeline Details</h3>
           <div className="form-grid">
-            <SelectField label="Floor" value={loi.floor} onChange={(v) => setLoiField('floor', v)}
-              options={[['', form.propertyId ? 'Select…' : 'Select property first'], ...floors.map((f) => [String(f.floorNumber), f.floorLabel || `Floor ${f.floorNumber}`] as [string, string])]} />
-            <SelectField label="Room" value={loi.room} onChange={onRoomChange}
-              options={[['', loi.floor ? 'Select…' : 'Select floor first'], ...rooms.map((u) => [u.unitNumber, u.unitNumber] as [string, string])]} />
-            <Field label="Room Area (Sq.ft)" value={loi.roomAreaSqft} onChange={(v) => setLoiField('roomAreaSqft', v)} type="number"
-              placeholder={loi.room && !loi.roomAreaSqft ? 'Not set up for this room' : undefined} />
-            <Field label="Aircon Saleable Area (Sq.ft)" value={loi.airconSaleableAreaSqft} onChange={(v) => setLoiField('airconSaleableAreaSqft', v)} type="number" />
-            <SelectField label="Zone" value={loi.zone} onChange={(v) => setLoiField('zone', v)}
-              options={[['', 'Select…'], ...ZONE_OPTIONS.map((z) => [z, z] as [string, string])]} />
-            <Field label="Advance Rental Rate" value={loi.advanceRentalRate} onChange={(v) => setLoiField('advanceRentalRate', v)} type="number" />
-            <RadioGroup label="Rate Type" name="advanceRentalRateType" value={loi.advanceRentalRateType} onChange={(v) => setLoiField('advanceRentalRateType', v)}
-              options={[['fixed', 'Fixed'], ['per_sqft', 'Per Sq.ft']]} />
-            <Field label="Rental Period (Months)" value={loi.rentalPeriodMonths} onChange={(v) => setLoiField('rentalPeriodMonths', v)} type="number" />
+            <SelectField label="Source" value={form.source} onChange={(v) => set('source', v)}
+              options={[['website', 'Website'], ['walk_in', 'Walk-in'], ['referral', 'Referral'], ['agent', 'Agent'], ['portal', 'Portal']]} />
+            <SelectField label="Priority" value={form.priority} onChange={(v) => set('priority', v)}
+              options={[['low', 'Low'], ['medium', 'Medium'], ['high', 'High']]} />
+            <SelectField label="Assign To" value={form.assignedTo} onChange={(v) => set('assignedTo', v)}
+              options={[['', '-'], ...users.map((u: any) => [u.id, u.email] as [string, string])]} />
           </div>
         </div>
       </div>
 
       <div className="cl-footer">
         <button className="btn-secondary" onClick={() => navigate('/admin/crm/leads')}>Cancel</button>
-        <button className="btn-primary" onClick={handleSubmit} disabled={isLoading || !form.firstName}>
+        <button className="btn-primary" onClick={handleSubmit} disabled={isLoading || !form.lastName}>
           {isLoading ? 'Creating…' : 'Create Lead'}
         </button>
       </div>
@@ -207,14 +161,24 @@ export default function CreateLeadPage() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', span, placeholder }: {
+function Field({ label, value, onChange, type = 'text', span, placeholder, min }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; span?: number; placeholder?: string;
+  type?: string; span?: number; placeholder?: string; min?: number;
 }) {
   return (
     <div className="form-field" style={{ gridColumn: span ? `span ${span}` : undefined }}>
       <label>{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      <input type={type} value={value} min={min}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (min !== undefined && v !== '' && Number(v) < min) return;
+          onChange(v);
+        }}
+        placeholder={placeholder}
+        autoCapitalize={type === 'email' ? 'none' : undefined}
+        autoCorrect={type === 'email' ? 'off' : undefined}
+        spellCheck={type === 'email' ? false : undefined}
+        style={type === 'email' ? { textTransform: 'lowercase' } : undefined} />
     </div>
   );
 }

@@ -22,8 +22,12 @@
 .form-field input:focus, .form-field select:focus { border-color: rgba(108,92,231,0.5); }
 .form-field select option { background: #1a1f2e; }
 
-.cl-radio-options { display: flex; flex-wrap: wrap; gap: 14px; padding: 9px 0; }
+.cl-radio-options {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 14px;
+  padding: 9px 12px; min-height: 38px; box-sizing: border-box;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+}
 .cl-radio-option { display: flex; align-items: center; gap: 6px; font-size: 0.84rem; color: var(--text-primary); cursor: pointer; font-weight: 400; text-transform: none; letter-spacing: normal; }
-.cl-radio-option input[type="radio"] { width: 15px; height: 15px; cursor: pointer; accent-color: #6c5ce7; }
+.cl-radio-option input[type="radio"] { width: 15px; height: 15px; cursor: pointer; accent-color: #6c5ce7; flex-shrink: 0; }
 
 .cl-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }

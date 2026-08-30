@@ -176,6 +176,9 @@ export class LeadsService {
   async convert(id: string, companyId: string, leaseId: string, tenantId: string, userId: string) {
     const lead = await prisma.lead.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!lead) throw AppError.notFound('Lead');
+    if (['new', 'contacted', 'lost', 'duplicate'].includes(lead.stage)) {
+      throw AppError.badRequest(`Cannot convert a lead in "${lead.stage}" stage to a lease`);
+    }
 
     await prisma.lead.update({
       where: { id },

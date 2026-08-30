@@ -18,7 +18,6 @@ const STAGE_META: Record<string, { label: string; color: string }> = {
   lease_signed:       { label: 'Lease Signed',      color: '#10b981' },
 };
 
-const leadCode = (lead: LeadListItem) => lead.firstName || '–';
 const leadDisplayName = (lead: LeadListItem) => lead.lastName || lead.companyName || 'Unknown';
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
@@ -158,7 +157,6 @@ function LeadListView({ propertyId, search, stage, priority, onClickLead }: {
       <div className="lead-table-header">
         <span>Date</span>
         <span>Lease Number</span>
-        <span>Code</span>
         <span>Name</span>
         <span>Property</span>
         <span>Stage</span>
@@ -170,7 +168,6 @@ function LeadListView({ propertyId, search, stage, priority, onClickLead }: {
           <div key={lead.id} className="lead-row" onClick={() => onClickLead(lead.id)}>
             <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
             <span>{lead.convertedLease?.leaseNumber || '–'}</span>
-            <span>{leadCode(lead)}</span>
             <span className="lc-name">
               {leadDisplayName(lead)}
               {lead.isBlacklisted && <span className="blacklist-chip"><ShieldOff size={9} /> Blacklisted</span>}

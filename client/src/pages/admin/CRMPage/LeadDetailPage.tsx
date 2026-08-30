@@ -14,6 +14,7 @@ import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
+import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
 import { useConfirm } from '../../../components/DialogProvider';
 import {
   ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Eye, Activity,
@@ -37,6 +38,13 @@ const STAGE_META: Record<string, { label: string; color: string }> = {
 };
 
 const SOURCES = ['website', 'walk_in', 'referral', 'agent', 'portal'];
+
+const PRODUCT_PLAN_LABELS: Record<string, string> = {
+  '100_300': '100-300 Sq.ft',
+  '300_500': '300-500 Sq.ft',
+  '500_700': '500-700 Sq.ft',
+  '700_above': '700 Sq.ft & Above',
+};
 
 export default function LeadDetailPage() {
   const confirmDialog = useConfirm();
@@ -91,7 +99,7 @@ export default function LeadDetailPage() {
 
   const displayName = lead.companyName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unknown Lead';
   const stageMeta = STAGE_META[lead.stage] || { label: lead.stage, color: '#666' };
-  const canConvert = !['lost', 'duplicate', 'lease_signed'].includes(lead.stage);
+  const canConvert = !['new', 'contacted', 'lost', 'duplicate', 'lease_signed'].includes(lead.stage);
 
   return (
     <div className="lead-detail-page">
@@ -300,80 +308,69 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
   const [updateLead, { isLoading: isSaving }] = useUpdateLeadMutation();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data: usersData } = useGetUsersQuery({ page: 1, limit: 200 });
+  const { data: unitTypesData } = useGetUnitTypesQuery();
   const properties = propertiesData?.data || [];
   const users = usersData?.data || [];
+  const unitTypes = unitTypesData?.data || [];
 
-  const [form, setForm] = useState({
-    firstName: lead.firstName || '',
+  const initForm = () => ({
     lastName: lead.lastName || '',
-    companyName: lead.companyName || '',
-    email: lead.email || '',
+    email: (lead.email || '').toLowerCase(),
     phone: lead.phone || '',
-    mobile: lead.mobile || '',
+    address: lead.loiDetails?.address || '',
     unitTypePreference: lead.unitTypePreference || '',
     budgetMin: lead.budgetMin ? Number(lead.budgetMin) : '',
     budgetMax: lead.budgetMax ? Number(lead.budgetMax) : '',
-    minAreaSqft: lead.minAreaSqft ? Number(lead.minAreaSqft) : '',
-    maxAreaSqft: lead.maxAreaSqft ? Number(lead.maxAreaSqft) : '',
-    moveInDate: lead.moveInDate ? lead.moveInDate.substring(0, 10) : '',
     leaseTermMonths: lead.leaseTermMonths ?? '',
+    applicantDate: lead.loiDetails?.applicantDate ? lead.loiDetails.applicantDate.substring(0, 10) : '',
+    shopName: lead.loiDetails?.shopName || '',
+    businessType: lead.loiDetails?.businessType || '',
+    doorType: lead.loiDetails?.doorType || '',
+    productPlan: lead.loiDetails?.productPlan || '',
+    ceiling: lead.loiDetails?.ceiling || '',
+    currentShop: lead.loiDetails?.currentShop || '',
     priority: lead.priority || 'medium',
     source: lead.source || '',
     propertyId: lead.property?.id || '',
     assignedTo: lead.agent?.id || '',
     notes: lead.notes || '',
-    tags: (lead.tags || []).join(', '),
   });
+
+  const [form, setForm] = useState(initForm);
 
   // Reset form when lead data changes
   useEffect(() => {
-    setForm({
-      firstName: lead.firstName || '',
-      lastName: lead.lastName || '',
-      companyName: lead.companyName || '',
-      email: lead.email || '',
-      phone: lead.phone || '',
-      mobile: lead.mobile || '',
-      unitTypePreference: lead.unitTypePreference || '',
-      budgetMin: lead.budgetMin ? Number(lead.budgetMin) : '',
-      budgetMax: lead.budgetMax ? Number(lead.budgetMax) : '',
-      minAreaSqft: lead.minAreaSqft ? Number(lead.minAreaSqft) : '',
-      maxAreaSqft: lead.maxAreaSqft ? Number(lead.maxAreaSqft) : '',
-      moveInDate: lead.moveInDate ? lead.moveInDate.substring(0, 10) : '',
-      leaseTermMonths: lead.leaseTermMonths ?? '',
-      priority: lead.priority || 'medium',
-      source: lead.source || '',
-      propertyId: lead.property?.id || '',
-      assignedTo: lead.agent?.id || '',
-      notes: lead.notes || '',
-      tags: (lead.tags || []).join(', '),
-    });
+    setForm(initForm());
   }, [lead]);
 
   const set = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const handleSave = async () => {
+    const MAX_BUDGET = 9999999999999.99;
+    if ((form.budgetMin !== '' && Number(form.budgetMin) > MAX_BUDGET) || (form.budgetMax !== '' && Number(form.budgetMax) > MAX_BUDGET)) {
+      toast.error('Budget exceeds maximum allowed value');
+      return;
+    }
     try {
       const payload: Record<string, unknown> = {};
-      if (form.firstName !== (lead.firstName || ''))   payload.firstName = form.firstName || null;
-      if (form.lastName !== (lead.lastName || ''))      payload.lastName = form.lastName || null;
-      if (form.companyName !== (lead.companyName || ''))payload.companyName = form.companyName || null;
-      if (form.email !== (lead.email || ''))            payload.email = form.email || null;
+      if (form.lastName !== (lead.lastName || ''))     payload.lastName = form.lastName || null;
+      const normalizedEmail = form.email.trim().toLowerCase();
+      if (normalizedEmail !== (lead.email || '').toLowerCase()) payload.email = normalizedEmail || null;
       if (form.phone !== (lead.phone || ''))            payload.phone = form.phone || null;
-      if (form.mobile !== (lead.mobile || ''))          payload.mobile = form.mobile || null;
       if (form.unitTypePreference !== (lead.unitTypePreference || '')) payload.unitTypePreference = form.unitTypePreference || null;
+
+      const loiDetails: Record<string, unknown> = {};
+      [['address', form.address], ['applicantDate', form.applicantDate], ['shopName', form.shopName],
+       ['businessType', form.businessType], ['doorType', form.doorType], ['productPlan', form.productPlan],
+       ['ceiling', form.ceiling], ['currentShop', form.currentShop]].forEach(([key, value]) => {
+        if (value !== '') loiDetails[key as string] = value;
+      });
+      if (JSON.stringify(loiDetails) !== JSON.stringify(lead.loiDetails || {})) payload.loiDetails = loiDetails;
 
       const bMin = form.budgetMin === '' ? null : Number(form.budgetMin);
       const bMax = form.budgetMax === '' ? null : Number(form.budgetMax);
       if (bMin !== (lead.budgetMin ? Number(lead.budgetMin) : null)) payload.budgetMin = bMin;
       if (bMax !== (lead.budgetMax ? Number(lead.budgetMax) : null)) payload.budgetMax = bMax;
-
-      const aMin = form.minAreaSqft === '' ? null : Number(form.minAreaSqft);
-      const aMax = form.maxAreaSqft === '' ? null : Number(form.maxAreaSqft);
-      if (aMin !== (lead.minAreaSqft ? Number(lead.minAreaSqft) : null)) payload.minAreaSqft = aMin;
-      if (aMax !== (lead.maxAreaSqft ? Number(lead.maxAreaSqft) : null)) payload.maxAreaSqft = aMax;
-
-      if (form.moveInDate !== (lead.moveInDate ? lead.moveInDate.substring(0, 10) : '')) payload.moveInDate = form.moveInDate || null;
 
       const lTerm = form.leaseTermMonths === '' ? null : Number(form.leaseTermMonths);
       if (lTerm !== lead.leaseTermMonths) payload.leaseTermMonths = lTerm;
@@ -383,10 +380,6 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
       if (form.propertyId !== (lead.property?.id || '')) payload.propertyId = form.propertyId || null;
       if (form.assignedTo !== (lead.agent?.id || '')) payload.assignedTo = form.assignedTo || null;
       if (form.notes !== (lead.notes || '')) payload.notes = form.notes || null;
-
-      const newTags = form.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
-      const oldTags = lead.tags || [];
-      if (JSON.stringify(newTags) !== JSON.stringify(oldTags)) payload.tags = newTags;
 
       if (Object.keys(payload).length === 0) {
         setIsEditing(false);
@@ -402,27 +395,7 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
   };
 
   const handleCancel = () => {
-    setForm({
-      firstName: lead.firstName || '',
-      lastName: lead.lastName || '',
-      companyName: lead.companyName || '',
-      email: lead.email || '',
-      phone: lead.phone || '',
-      mobile: lead.mobile || '',
-      unitTypePreference: lead.unitTypePreference || '',
-      budgetMin: lead.budgetMin ? Number(lead.budgetMin) : '',
-      budgetMax: lead.budgetMax ? Number(lead.budgetMax) : '',
-      minAreaSqft: lead.minAreaSqft ? Number(lead.minAreaSqft) : '',
-      maxAreaSqft: lead.maxAreaSqft ? Number(lead.maxAreaSqft) : '',
-      moveInDate: lead.moveInDate ? lead.moveInDate.substring(0, 10) : '',
-      leaseTermMonths: lead.leaseTermMonths ?? '',
-      priority: lead.priority || 'medium',
-      source: lead.source || '',
-      propertyId: lead.property?.id || '',
-      assignedTo: lead.agent?.id || '',
-      notes: lead.notes || '',
-      tags: (lead.tags || []).join(', '),
-    });
+    setForm(initForm());
     setIsEditing(false);
   };
 
@@ -438,20 +411,24 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
         <div className="lead-info-grid">
           <div className="lead-info-section">
             <h3>Contact Information</h3>
-            <div className="info-row"><span className="info-label">First Name</span><span className="info-value">{lead.firstName || '—'}</span></div>
-            <div className="info-row"><span className="info-label">Last Name</span><span className="info-value">{lead.lastName || '—'}</span></div>
-            <div className="info-row"><span className="info-label">Company</span><span className="info-value">{lead.companyName || '—'}</span></div>
-            <div className="info-row"><span className="info-label">Email</span><span className="info-value">{lead.email || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Name</span><span className="info-value">{lead.lastName || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Email</span><span className="info-value">{lead.email?.toLowerCase() || '—'}</span></div>
             <div className="info-row"><span className="info-label">Phone</span><span className="info-value">{lead.phone || '—'}</span></div>
-            <div className="info-row"><span className="info-label">Mobile</span><span className="info-value">{lead.mobile || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Address</span><span className="info-value">{lead.loiDetails?.address || '—'}</span></div>
           </div>
           <div className="lead-info-section">
             <h3>Requirements</h3>
-            <div className="info-row"><span className="info-label">Unit Type</span><span className="info-value">{lead.unitTypePreference || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Unit Type</span><span className="info-value">{unitTypes.find((t) => t.code === lead.unitTypePreference)?.name || lead.unitTypePreference || '—'}</span></div>
             <div className="info-row"><span className="info-label">Budget</span><span className="info-value">{lead.budgetMin || lead.budgetMax ? `${Number(lead.budgetMin || 0).toLocaleString()} – ${Number(lead.budgetMax || 0).toLocaleString()}` : '—'}</span></div>
-            <div className="info-row"><span className="info-label">Area (sqft)</span><span className="info-value">{lead.minAreaSqft || lead.maxAreaSqft ? `${lead.minAreaSqft || '—'} – ${lead.maxAreaSqft || '—'}` : '—'}</span></div>
-            <div className="info-row"><span className="info-label">Move-in Date</span><span className="info-value">{lead.moveInDate ? new Date(lead.moveInDate).toLocaleDateString() : '—'}</span></div>
+            <div className="info-row"><span className="info-label">Area (Sqft)</span><span className="info-value">{PRODUCT_PLAN_LABELS[lead.loiDetails?.productPlan] || '—'}</span></div>
             <div className="info-row"><span className="info-label">Lease Term</span><span className="info-value">{lead.leaseTermMonths ? `${lead.leaseTermMonths} months` : '—'}</span></div>
+            <div className="info-row"><span className="info-label">Applicant Date</span><span className="info-value">{lead.loiDetails?.applicantDate ? new Date(lead.loiDetails.applicantDate).toLocaleDateString() : '—'}</span></div>
+            <div className="info-row"><span className="info-label">Shop Name</span><span className="info-value">{lead.loiDetails?.shopName || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Business Type</span><span className="info-value">{lead.loiDetails?.businessType?.replace(/_/g, ' ') || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Door Type</span><span className="info-value">{lead.loiDetails?.doorType?.replace(/_/g, ' ') || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Product Plan</span><span className="info-value">{PRODUCT_PLAN_LABELS[lead.loiDetails?.productPlan] || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Ceiling</span><span className="info-value">{lead.loiDetails?.ceiling ? lead.loiDetails.ceiling.charAt(0).toUpperCase() + lead.loiDetails.ceiling.slice(1) : '—'}</span></div>
+            <div className="info-row"><span className="info-label">Current Shop</span><span className="info-value">{lead.loiDetails?.currentShop ? lead.loiDetails.currentShop.charAt(0).toUpperCase() + lead.loiDetails.currentShop.slice(1) : '—'}</span></div>
           </div>
           <div className="lead-info-section">
             <h3>Pipeline Details</h3>
@@ -459,8 +436,6 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
             <div className="info-row"><span className="info-label">Priority</span><span className="info-value"><span className={`priority-chip ${lead.priority}`}>{lead.priority}</span></span></div>
             <div className="info-row"><span className="info-label">Property</span><span className="info-value">{lead.property?.name || '—'}</span></div>
             <div className="info-row"><span className="info-label">Assigned To</span><span className="info-value">{lead.agent?.profile ? `${lead.agent.profile.firstName} ${lead.agent.profile.lastName}` : lead.agent?.email || '—'}</span></div>
-            <div className="info-row"><span className="info-label">Campaign</span><span className="info-value">{lead.campaign?.name || '—'}</span></div>
-            <div className="info-row"><span className="info-label">Tags</span><span className="info-value">{lead.tags?.length ? lead.tags.join(', ') : '—'}</span></div>
             <div className="info-row"><span className="info-label">Created</span><span className="info-value">{new Date(lead.createdAt).toLocaleString()}</span></div>
             {lead.lostReason && <div className="info-row"><span className="info-label">Lost Reason</span><span className="info-value">{lead.lostReason}</span></div>}
           </div>
@@ -492,33 +467,22 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
         {/* Contact Information */}
         <div className="lead-edit-section">
           <h3><User size={14} /> Contact Information</h3>
-          <div className="edit-form-row">
-            <div className="form-group">
-              <label>First Name</label>
-              <input className="form-input" value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="First name" />
-            </div>
-            <div className="form-group">
-              <label>Last Name</label>
-              <input className="form-input" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Last name" />
-            </div>
-          </div>
           <div className="form-group">
-            <label>Company Name</label>
-            <input className="form-input" value={form.companyName} onChange={e => set('companyName', e.target.value)} placeholder="Company name" />
+            <label>Name</label>
+            <input className="form-input" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Name" />
           </div>
           <div className="form-group">
             <label>Email</label>
-            <input className="form-input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@example.com" />
+            <input className="form-input" type="email" value={form.email} onChange={e => set('email', e.target.value.toLowerCase())} placeholder="email@example.com"
+              autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ textTransform: 'lowercase' }} />
           </div>
-          <div className="edit-form-row">
-            <div className="form-group">
-              <label>Phone</label>
-              <input className="form-input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+65-xxxx-xxxx" />
-            </div>
-            <div className="form-group">
-              <label>Mobile</label>
-              <input className="form-input" value={form.mobile} onChange={e => set('mobile', e.target.value)} placeholder="+65-xxxx-xxxx" />
-            </div>
+          <div className="form-group">
+            <label>Phone</label>
+            <input className="form-input" type="tel" value={form.phone} onChange={e => set('phone', e.target.value.replace(/\D/g, ''))} placeholder="6591234567" />
+          </div>
+          <div className="form-group">
+            <label>Address</label>
+            <input className="form-input" value={form.address} onChange={e => set('address', e.target.value)} placeholder="123 Main St" />
           </div>
         </div>
 
@@ -527,7 +491,10 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
           <h3><FileText size={14} /> Requirements</h3>
           <div className="form-group">
             <label>Unit Type Preference</label>
-            <input className="form-input" value={form.unitTypePreference} onChange={e => set('unitTypePreference', e.target.value)} placeholder="e.g. 2br, studio, office" />
+            <select className="form-input" value={form.unitTypePreference} onChange={e => set('unitTypePreference', e.target.value)}>
+              <option value="">Select…</option>
+              {[...unitTypes].sort((a, b) => a.name.localeCompare(b.name)).map((t) => <option key={t.id} value={t.code}>{t.name}</option>)}
+            </select>
           </div>
           <div className="edit-form-row">
             <div className="form-group">
@@ -539,24 +506,64 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
               <input className="form-input" type="number" value={form.budgetMax} onChange={e => set('budgetMax', e.target.value)} placeholder="0" />
             </div>
           </div>
-          <div className="edit-form-row">
-            <div className="form-group">
-              <label>Area Min (sqft)</label>
-              <input className="form-input" type="number" value={form.minAreaSqft} onChange={e => set('minAreaSqft', e.target.value)} placeholder="0" />
-            </div>
-            <div className="form-group">
-              <label>Area Max (sqft)</label>
-              <input className="form-input" type="number" value={form.maxAreaSqft} onChange={e => set('maxAreaSqft', e.target.value)} placeholder="0" />
-            </div>
+          <div className="form-group">
+            <label>Lease Term</label>
+            <input className="form-input" type="number" min="1" max="120" value={form.leaseTermMonths} onChange={e => set('leaseTermMonths', e.target.value)} placeholder="e.g. 12 months" />
           </div>
           <div className="edit-form-row">
             <div className="form-group">
-              <label>Move-in Date</label>
-              <input className="form-input" type="date" value={form.moveInDate} onChange={e => set('moveInDate', e.target.value)} />
+              <label>Applicant Date</label>
+              <input className="form-input" type="date" value={form.applicantDate} onChange={e => set('applicantDate', e.target.value)} />
             </div>
             <div className="form-group">
-              <label>Lease Term</label>
-              <input className="form-input" type="number" min="1" max="120" value={form.leaseTermMonths} onChange={e => set('leaseTermMonths', e.target.value)} placeholder="e.g. 12 months" />
+              <label>Shop Name</label>
+              <input className="form-input" value={form.shopName} onChange={e => set('shopName', e.target.value)} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Business Type</label>
+            <select className="form-input" value={form.businessType} onChange={e => set('businessType', e.target.value)}>
+              <option value="">Select…</option>
+              <option value="private">Private</option>
+              <option value="share">Share</option>
+              <option value="company">Company</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Door Type</label>
+            <select className="form-input" value={form.doorType} onChange={e => set('doorType', e.target.value)}>
+              <option value="">Select…</option>
+              <option value="glass_door">Glass Door</option>
+              <option value="other">Other</option>
+              <option value="roller_shutter">Roller Shutter</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Product Plan</label>
+            <select className="form-input" value={form.productPlan} onChange={e => set('productPlan', e.target.value)}>
+              <option value="">Select…</option>
+              <option value="100_300">100-300 Sq.ft</option>
+              <option value="300_500">300-500 Sq.ft</option>
+              <option value="500_700">500-700 Sq.ft</option>
+              <option value="700_above">700 Sq.ft & Above</option>
+            </select>
+          </div>
+          <div className="edit-form-row">
+            <div className="form-group">
+              <label>Ceiling</label>
+              <select className="form-input" value={form.ceiling} onChange={e => set('ceiling', e.target.value)}>
+                <option value="">Select…</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Current Shop</label>
+              <select className="form-input" value={form.currentShop} onChange={e => set('currentShop', e.target.value)}>
+                <option value="">Select…</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
             </div>
           </div>
         </div>
@@ -598,10 +605,6 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
                 </option>
               ))}
             </select>
-          </div>
-          <div className="form-group">
-            <label>Tags (comma separated)</label>
-            <input className="form-input" value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="tag1, tag2, tag3" />
           </div>
         </div>
 
@@ -668,6 +671,7 @@ function ConvertLeadModal({ leadId, leadName, onClose }: { leadId: string; leadN
   return (
     <div className="crm-modal-overlay">
       <div className="crm-modal convert-modal" onClick={e => e.stopPropagation()}>
+        <button className="crm-modal-close" onClick={onClose}><X size={16} /></button>
         {/* Header */}
         <div className="convert-modal-header">
           <div className="convert-icon"><Repeat size={22} /></div>
