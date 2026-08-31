@@ -96,7 +96,7 @@ export class LeasesService {
 
   // ── Create ────────────────────────────────
   async create(companyId: string, dto: Record<string, unknown>, createdBy: string) {
-    const { propertyId, unitId, tenantId, startDate, endDate, templateId, leaseCharges, rentalAgreement, ...rest } = dto as any;
+    const { propertyId, unitId, tenantId, startDate, endDate, templateId, leaseCharges, rentalAgreement, handoverDate, ...rest } = dto as any;
 
     // Validations
     const unit   = await prisma.unit.findFirst({ where: { id: unitId, propertyId } });
@@ -133,6 +133,8 @@ export class LeasesService {
         leaseTermMonths: calcLeaseTermMonths(start, end),
         createdBy,
         clauses: rest.clauses ?? templateClauses,
+        // Convert handoverDate string → Date so Prisma doesn't reject it
+        ...(handoverDate ? { handoverDate: new Date(handoverDate) } : {}),
         ...rest,
       },
     });
