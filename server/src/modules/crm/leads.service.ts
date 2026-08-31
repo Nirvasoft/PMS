@@ -9,6 +9,9 @@ const STAGE_TRANSITIONS: Record<string, string[]> = {
   viewed:             ['offer_sent', 'lost', 'duplicate'],
   offer_sent:         ['negotiating', 'lost', 'duplicate'],
   negotiating:        ['lease_signed', 'lost', 'duplicate'],
+  lease_signed:       [],
+  lost:               [],
+  duplicate:          [],
 };
 
 let leadCounter = 0;
@@ -173,7 +176,7 @@ export class LeadsService {
   }
 
   // ── Convert ──────────────────────────────
-  async convert(id: string, companyId: string, leaseId: string, tenantId: string, userId: string) {
+  async convert(id: string, companyId: string, leaseId: string | undefined, tenantId: string, userId: string) {
     const lead = await prisma.lead.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!lead) throw AppError.notFound('Lead');
     if (['new', 'contacted', 'lost', 'duplicate'].includes(lead.stage)) {
@@ -185,7 +188,7 @@ export class LeadsService {
       data: {
         stage: 'lease_signed',
         convertedAt: new Date(),
-        convertedLeaseId: leaseId,
+        convertedLeaseId: leaseId ?? null,
         convertedTenantId: tenantId,
       },
     });

@@ -1,17 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useGetLeadQuery, useUpdateLeadMutation, useUpdateLeadStageMutation,
   useGetActivitiesQuery, useCreateActivityMutation,
   useGetViewingsQuery, useScheduleViewingMutation, useCompleteViewingMutation,
   useRescheduleViewingMutation,
-  useConvertLeadMutation, useDeleteLeadMutation,
+  useDeleteLeadMutation,
   useGetCalendarStatusQuery, useDisconnectCalendarMutation,
   useBlacklistLeadMutation, useUnblacklistLeadMutation,
   type LeadViewing, type LeadActivityItem,
 } from '../../../store/api/crmApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
-import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
@@ -19,7 +18,7 @@ import { useConfirm } from '../../../components/DialogProvider';
 import {
   ArrowLeft, User, Calendar, Mail, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
-  Edit3, Save, X, Trash2, Repeat, Search, UserPlus, Link, AlertTriangle, RefreshCw,
+  Edit3, Save, X, Trash2, Repeat, Search, UserPlus, AlertTriangle, RefreshCw,
   ShieldOff, Shield,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -188,6 +187,7 @@ export default function LeadDetailPage() {
         <ConvertLeadModal
           leadId={lead.id}
           leadName={displayName}
+          propertyId={lead.property?.id}
           onClose={() => setShowConvert(false)}
         />
       )}
@@ -253,6 +253,9 @@ function StageSelector({ leadId, currentStage }: { leadId: string; currentStage:
   const [updateStage, { isLoading }] = useUpdateLeadStageMutation();
   const [reason, setReason] = useState('');
   const [showLost, setShowLost] = useState(false);
+
+  // Lease Signed is terminal — the lead is already converted, so there's no other stage to move to.
+  if (currentStage === 'lease_signed') return null;
 
   const handleChange = async (stage: string) => {
     if (stage === 'lost') { setShowLost(true); return; }
@@ -435,6 +438,7 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
             <div className="info-row"><span className="info-label">Source</span><span className="info-value">{lead.source?.replace(/_/g, ' ') || '—'}</span></div>
             <div className="info-row"><span className="info-label">Priority</span><span className="info-value"><span className={`priority-chip ${lead.priority}`}>{lead.priority}</span></span></div>
             <div className="info-row"><span className="info-label">Property</span><span className="info-value">{lead.property?.name || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Lease Number</span><span className="info-value">{lead.convertedLease?.leaseNumber || '—'}</span></div>
             <div className="info-row"><span className="info-label">Assigned To</span><span className="info-value">{lead.agent?.profile ? `${lead.agent.profile.firstName} ${lead.agent.profile.lastName}` : lead.agent?.email || '—'}</span></div>
             <div className="info-row"><span className="info-label">Created</span><span className="info-value">{new Date(lead.createdAt).toLocaleString()}</span></div>
             {lead.lostReason && <div className="info-row"><span className="info-label">Lost Reason</span><span className="info-value">{lead.lostReason}</span></div>}
@@ -620,52 +624,29 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
 
 // ── Convert Lead Modal ─────────────────────────
 
-function ConvertLeadModal({ leadId, leadName, onClose }: { leadId: string; leadName: string; onClose: () => void }) {
-  const [convertLead, { isLoading: isConverting }] = useConvertLeadMutation();
+function ConvertLeadModal({ leadId, leadName, propertyId, onClose }: { leadId: string; leadName: string; propertyId?: string; onClose: () => void }) {
+  const navigate = useNavigate();
   const [tenantSearch, setTenantSearch] = useState('');
-  const [leaseSearch, setLeaseSearch] = useState('');
   const [selectedTenantId, setSelectedTenantId] = useState('');
-  const [selectedLeaseId, setSelectedLeaseId] = useState('');
-  const [step, setStep] = useState<'tenant' | 'lease'>('tenant');
 
-  // Fetch tenants with search
+  // Only KYC-verified, non-blacklisted tenants can be put on a lease.
   const { data: tenantsData, isFetching: isFetchingTenants } = useGetTenantsQuery(
-    { search: tenantSearch || undefined, page: 1, limit: 20 },
+    { search: tenantSearch || undefined, kycStatus: 'verified', isBlacklisted: false, page: 1, limit: 20 },
     { skip: false }
   );
   const tenants = tenantsData?.data || [];
 
-  // Fetch leases for selected tenant
-  const { data: leasesData, isFetching: isFetchingLeases } = useGetLeasesQuery(
-    { tenantId: selectedTenantId, status: 'active', page: 1, limit: 20 },
-    { skip: !selectedTenantId }
-  );
-  // Also fetch draft/pending leases
-  const { data: draftLeasesData } = useGetLeasesQuery(
-    { tenantId: selectedTenantId, status: 'draft', page: 1, limit: 20 },
-    { skip: !selectedTenantId }
-  );
-  const allLeases = useMemo(() => {
-    const active = leasesData?.data || [];
-    const draft = draftLeasesData?.data || [];
-    return [...active, ...draft];
-  }, [leasesData, draftLeasesData]);
-
   const selectedTenant = tenants.find((t: any) => t.id === selectedTenantId);
-  const selectedLease = allLeases.find((l: any) => l.id === selectedLeaseId);
 
-  const handleConvert = async () => {
-    if (!selectedTenantId || !selectedLeaseId) {
-      toast.error('Please select both a tenant and a lease');
+  const handleConvert = () => {
+    if (!selectedTenantId) {
+      toast.error('Please select a tenant');
       return;
     }
-    try {
-      await convertLead({ id: leadId, leaseId: selectedLeaseId, tenantId: selectedTenantId }).unwrap();
-      toast.success('Lead converted successfully!');
-      onClose();
-    } catch (e: any) {
-      toast.error(e?.data?.errors?.[0]?.message || 'Failed to convert lead');
-    }
+    const params = new URLSearchParams({ leadId, tenantId: selectedTenantId });
+    if (propertyId) params.set('propertyId', propertyId);
+    onClose();
+    navigate(`/admin/leases/new?${params.toString()}`);
   };
 
   return (
@@ -674,167 +655,84 @@ function ConvertLeadModal({ leadId, leadName, onClose }: { leadId: string; leadN
         <button className="crm-modal-close" onClick={onClose}><X size={16} /></button>
         {/* Header */}
         <div className="convert-modal-header">
-          <div className="convert-icon"><Repeat size={22} /></div>
           <h2>Convert Lead to Lease</h2>
-          <p className="convert-subtitle">
-            Link <strong>{leadName}</strong> to an existing tenant and lease
-          </p>
         </div>
 
-        {/* Steps Indicator */}
-        <div className="convert-steps">
-          <div className={`convert-step ${step === 'tenant' ? 'active' : selectedTenantId ? 'completed' : ''}`}
-               onClick={() => setStep('tenant')}>
-            <span className="step-number">{selectedTenantId ? <CheckCircle size={14} /> : '1'}</span>
-            <span className="step-label">Select Tenant</span>
+        <div className="convert-step-content">
+          <div className="search-box-wrap">
+            <Search size={14} />
+            <input
+              value={tenantSearch}
+              onChange={e => setTenantSearch(e.target.value)}
+              placeholder="Search tenants by name, email, company…"
+              autoFocus
+            />
           </div>
-          <div className="step-divider" />
-          <div className={`convert-step ${step === 'lease' ? 'active' : selectedLeaseId ? 'completed' : ''}`}
-               onClick={() => selectedTenantId && setStep('lease')}>
-            <span className="step-number">{selectedLeaseId ? <CheckCircle size={14} /> : '2'}</span>
-            <span className="step-label">Select Lease</span>
-          </div>
-        </div>
-
-        {/* Step 1: Tenant Selection */}
-        {step === 'tenant' && (
-          <div className="convert-step-content">
-            <div className="search-box-wrap">
-              <Search size={14} />
-              <input
-                className="form-input"
-                value={tenantSearch}
-                onChange={e => setTenantSearch(e.target.value)}
-                placeholder="Search tenants by name, email, company…"
-                autoFocus
-              />
-            </div>
-            <div className="convert-list">
-              {isFetchingTenants ? (
-                <div className="convert-list-empty">Searching…</div>
-              ) : tenants.length === 0 ? (
-                <div className="convert-list-empty">
-                  <UserPlus size={24} />
-                  <span>No tenants found. Create a tenant first.</span>
-                </div>
-              ) : (
-                tenants.map((t: any) => {
-                  const name = t.displayName || t.companyName || `${t.firstName || ''} ${t.lastName || ''}`.trim();
-                  return (
-                    <div
-                      key={t.id}
-                      className={`convert-list-item ${selectedTenantId === t.id ? 'selected' : ''}`}
-                      onClick={() => { setSelectedTenantId(t.id); setSelectedLeaseId(''); }}
-                    >
-                      <div className="cli-avatar">
-                        {t.avatarUrl ? (
-                          <img src={t.avatarUrl} alt="" />
-                        ) : (
-                          <span>{(name[0] || '?').toUpperCase()}</span>
-                        )}
-                      </div>
-                      <div className="cli-info">
-                        <div className="cli-name">{name}</div>
-                        <div className="cli-meta">
-                          {t.email && <span><Mail size={10} /> {t.email}</span>}
-                          <span className={`cli-type ${t.tenantType}`}>{t.tenantType}</span>
-                          {t.activeLeases > 0 && <span>{t.activeLeases} active lease{t.activeLeases > 1 ? 's' : ''}</span>}
-                        </div>
-                      </div>
-                      {selectedTenantId === t.id && <CheckCircle size={16} className="cli-check" />}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="btn-primary" disabled={!selectedTenantId} onClick={() => setStep('lease')}>
-                Next: Select Lease <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Lease Selection */}
-        {step === 'lease' && (
-          <div className="convert-step-content">
-            {selectedTenant && (
-              <div className="selected-tenant-banner">
-                <User size={14} />
-                <span>Tenant: <strong>{(selectedTenant as any).displayName}</strong></span>
-                <button className="btn-ghost" onClick={() => setStep('tenant')} style={{ marginLeft: 'auto', fontSize: 11 }}>
-                  Change
-                </button>
+          <div className="convert-list">
+            {isFetchingTenants ? (
+              <div className="convert-list-empty">Searching…</div>
+            ) : tenants.length === 0 ? (
+              <div className="convert-list-empty">
+                <UserPlus size={24} />
+                <span>No KYC-verified tenants found.</span>
               </div>
-            )}
-            <div className="convert-list">
-              {isFetchingLeases ? (
-                <div className="convert-list-empty">Loading leases…</div>
-              ) : allLeases.length === 0 ? (
-                <div className="convert-list-empty">
-                  <Link size={24} />
-                  <span>No leases found for this tenant. Create a lease first.</span>
-                </div>
-              ) : (
-                allLeases.map((l: any) => (
+            ) : (
+              tenants.map((t: any) => {
+                const name = t.displayName || t.companyName || `${t.firstName || ''} ${t.lastName || ''}`.trim();
+                return (
                   <div
-                    key={l.id}
-                    className={`convert-list-item ${selectedLeaseId === l.id ? 'selected' : ''}`}
-                    onClick={() => setSelectedLeaseId(l.id)}
+                    key={t.id}
+                    className={`convert-list-item ${selectedTenantId === t.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedTenantId(t.id)}
                   >
-                    <div className="cli-lease-icon">
-                      <FileText size={16} />
+                    <div className="cli-avatar">
+                      {t.avatarUrl ? (
+                        <img src={t.avatarUrl} alt="" />
+                      ) : (
+                        <span>{(name[0] || '?').toUpperCase()}</span>
+                      )}
                     </div>
                     <div className="cli-info">
-                      <div className="cli-name">{l.leaseNumber}</div>
+                      <div className="cli-name">{name}</div>
                       <div className="cli-meta">
-                        <span>{l.property?.name}</span>
-                        <span>Unit {l.unit?.unitNumber}</span>
-                        <span className={`cli-lease-status status-${l.status}`}>{l.status}</span>
-                      </div>
-                      <div className="cli-meta" style={{ marginTop: 2 }}>
-                        <span>{new Date(l.startDate).toLocaleDateString()} → {new Date(l.endDate).toLocaleDateString()}</span>
-                        <span>{l.currency} {Number(l.rentAmount).toLocaleString()}/mo</span>
+                        {t.email && <span><Mail size={10} /> {t.email}</span>}
+                        <span className={`cli-type ${t.tenantType}`}>{t.tenantType}</span>
+                        <span className="cli-kyc-verified"><CheckCircle size={10} /> KYC Verified</span>
+                        {t.activeLeases > 0 && <span>{t.activeLeases} active lease{t.activeLeases > 1 ? 's' : ''}</span>}
                       </div>
                     </div>
-                    {selectedLeaseId === l.id && <CheckCircle size={16} className="cli-check" />}
+                    {selectedTenantId === t.id && <CheckCircle size={16} className="cli-check" />}
                   </div>
-                ))
-              )}
-            </div>
-
-            {/* Summary */}
-            {selectedLeaseId && selectedLease && (
-              <div className="convert-summary">
-                <div className="convert-summary-title">Conversion Summary</div>
-                <div className="convert-summary-row">
-                  <span>Lead</span><span>{leadName}</span>
-                </div>
-                <div className="convert-summary-row">
-                  <span>Tenant</span><span>{(selectedTenant as any)?.displayName}</span>
-                </div>
-                <div className="convert-summary-row">
-                  <span>Lease</span><span>{(selectedLease as any)?.leaseNumber} — {(selectedLease as any)?.unit?.unitNumber}</span>
-                </div>
-              </div>
+                );
+              })
             )}
-
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setStep('tenant')}>
-                <ArrowLeft size={14} /> Back
-              </button>
-              <button
-                className="btn-convert-confirm"
-                disabled={!selectedLeaseId || isConverting}
-                onClick={handleConvert}
-              >
-                <CheckCircle size={14} />
-                {isConverting ? 'Converting…' : 'Convert Lead'}
-              </button>
-            </div>
           </div>
-        )}
+
+          {/* Summary */}
+          {selectedTenantId && selectedTenant && (
+            <div className="convert-summary">
+              <div className="convert-summary-title">Conversion Summary</div>
+              <div className="convert-summary-row">
+                <span>Lead</span><span>{leadName}</span>
+              </div>
+              <div className="convert-summary-row">
+                <span>Tenant</span><span>{(selectedTenant as any)?.displayName}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button
+              className="btn-convert-confirm"
+              disabled={!selectedTenantId}
+              onClick={handleConvert}
+            >
+              <CheckCircle size={14} />
+              Convert Lead
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

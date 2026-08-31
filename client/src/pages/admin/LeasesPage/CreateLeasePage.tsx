@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetLeaseTemplatesQuery, useGetLeaseClausesQuery,
   useCreateLeaseMutation,
 } from '../../../store/api/leasesApi';
+import { useConvertLeadMutation } from '../../../store/api/crmApi';
 import { useGetUnitChargesQuery, useUpdateUnitChargeMutation } from '../../../store/api/unitsApi';
 import { ArrowLeft, ArrowRight, Check, Building2, FileText, DollarSign, List, FileSignature } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -46,9 +47,16 @@ const STEPS = [
 
 export default function CreateLeasePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const prefillLeadId = searchParams.get('leadId') || '';
   const [step, setStep] = useState<Step>(1);
-  const [form, setForm] = useState<FormState>(INITIAL);
+  const [form, setForm] = useState<FormState>(() => ({
+    ...INITIAL,
+    propertyId: searchParams.get('propertyId') || '',
+    tenantId: searchParams.get('tenantId') || '',
+  }));
   const [createLease, { isLoading }] = useCreateLeaseMutation();
+  const [convertLead] = useConvertLeadMutation();
   const { data: templatesData } = useGetLeaseTemplatesQuery();
   const { data: clausesData } = useGetLeaseClausesQuery();
 
@@ -120,6 +128,15 @@ export default function CreateLeasePage() {
       }
 
       toast.success(`Lease ${result.data.leaseNumber} created`);
+
+      if (prefillLeadId) {
+        try {
+          await convertLead({ id: prefillLeadId, leaseId: result.data.id, tenantId: form.tenantId }).unwrap();
+        } catch {
+          toast.error('Lease created, but the lead could not be marked as converted');
+        }
+      }
+
       navigate(`/admin/leases/${result.data.id}`);
     } catch (e: any) {
       const msg = e?.data?.errors?.[0]?.message || e?.data?.message || 'Failed to create lease';

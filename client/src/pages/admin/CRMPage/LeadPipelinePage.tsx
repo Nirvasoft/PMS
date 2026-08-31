@@ -156,6 +156,7 @@ function LeadListView({ propertyId, search, stage, priority, onClickLead }: {
     <div className="lead-table-wrap">
       <div className="lead-table-header">
         <span>Date</span>
+        <span>Lead Number</span>
         <span>Lease Number</span>
         <span>Name</span>
         <span>Property</span>
@@ -167,6 +168,7 @@ function LeadListView({ propertyId, search, stage, priority, onClickLead }: {
         return (
           <div key={lead.id} className="lead-row" onClick={() => onClickLead(lead.id)}>
             <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
+            <span>{lead.leadNumber || '–'}</span>
             <span>{lead.convertedLease?.leaseNumber || '–'}</span>
             <span className="lc-name">
               {leadDisplayName(lead)}

@@ -154,7 +154,7 @@ export const crmApi = createApi({
       invalidatesTags: (_, __, { id }) => [{ type: 'LeadDetail', id }, 'Leads', 'Pipeline', 'LeadStats'],
     }),
 
-    convertLead: builder.mutation<ApiResponse<LeadDetail>, { id: string; leaseId: string; tenantId: string }>({
+    convertLead: builder.mutation<ApiResponse<LeadDetail>, { id: string; leaseId?: string; tenantId: string }>({
       query: ({ id, ...body }) => ({ url: `/leads/${id}/convert`, method: 'POST', body }),
       invalidatesTags: ['Leads', 'Pipeline', 'LeadStats'],
     }),

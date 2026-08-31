@@ -70,7 +70,7 @@ export const updateStageSchema = z.object({
 
 export const convertLeadSchema = z.object({
   body: z.object({
-    leaseId: z.string().uuid('Invalid lease ID'),
+    leaseId: z.string().uuid('Invalid lease ID').optional(),
     tenantId: z.string().uuid('Invalid tenant ID'),
   }),
 });
