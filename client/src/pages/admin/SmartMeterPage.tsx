@@ -68,7 +68,7 @@ export default function SmartMeterPage() {
       const res = await generateInvoice({ unitId, data: { from: invoiceForm.from, to: invoiceForm.to } }).unwrap();
       setInvoiceResult(res.data);
     } catch (e: any) {
-      alertDialog(e?.data?.message || 'Failed to generate invoice');
+      alertDialog(e?.data?.errors?.[0]?.message || 'Failed to generate invoice');
     } finally {
       setInvoiceGenerating(false);
     }
@@ -132,7 +132,7 @@ export default function SmartMeterPage() {
               const res = await checkOffline().unwrap();
               setOfflineResult(res.data);
             } catch (e: any) {
-              alertDialog(e?.data?.message || 'Check failed');
+              alertDialog(e?.data?.errors?.[0]?.message || 'Check failed');
             }
           }}
           disabled={isChecking}
@@ -305,7 +305,7 @@ export default function SmartMeterPage() {
                             try {
                               await syncMeter(d.meterId).unwrap();
                             } catch (e: any) {
-                              alertDialog(e?.data?.message || 'Sync failed');
+                              alertDialog(e?.data?.errors?.[0]?.message || 'Sync failed');
                             } finally {
                               setSyncingMeterId(null);
                             }

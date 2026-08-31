@@ -60,7 +60,7 @@ export default function PatrolScanPage() {
         );
       }
     } catch (err: any) {
-      const msg = err?.data?.message || err?.message || 'Invalid QR code';
+      const msg = err?.data?.errors?.[0]?.message || err?.message || 'Invalid QR code';
       toast.error(msg);
     } finally {
       setScanning(false);

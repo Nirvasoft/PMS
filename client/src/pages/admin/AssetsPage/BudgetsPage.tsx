@@ -115,7 +115,7 @@ function SpreadsheetTab({ year }: { year: number }) {
         return next;
       });
     } catch (err: any) {
-      toast.error(err.data?.message || 'Failed to save');
+      toast.error(err.data?.errors?.[0]?.message || 'Failed to save');
     }
   }, [editValue, budgets, getMonthly, updateBudget]);
 
@@ -212,11 +212,11 @@ function SpreadsheetTab({ year }: { year: number }) {
 
   const handleApprove = async (id: string) => {
     if (!(await confirmDialog('Approve this budget?'))) return;
-    try { await approveBudget(id).unwrap(); toast.success('Approved'); } catch (err: any) { toast.error(err.data?.message || 'Error'); }
+    try { await approveBudget(id).unwrap(); toast.success('Approved'); } catch (err: any) { toast.error(err.data?.errors?.[0]?.message || 'Error'); }
   };
   const handleDelete = async (id: string) => {
     if (!(await confirmDialog('Delete this budget line?', { danger: true, confirmText: 'Delete' }))) return;
-    try { await deleteBudget(id).unwrap(); toast.success('Deleted'); } catch (err: any) { toast.error(err.data?.message || 'Error'); }
+    try { await deleteBudget(id).unwrap(); toast.success('Deleted'); } catch (err: any) { toast.error(err.data?.errors?.[0]?.message || 'Error'); }
   };
 
   // Grand totals

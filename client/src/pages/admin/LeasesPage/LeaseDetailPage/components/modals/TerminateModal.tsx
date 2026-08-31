@@ -21,7 +21,7 @@ export function TerminateModal({ leaseId, rentAmount, endDate, currency, onClose
       const result = await terminate({ id: leaseId, terminationDate, reason }).unwrap();
       toast.success(`Lease terminated${result.data.earlyTerminationPenalty ? ` · Penalty: ${currency} ${result.data.earlyTerminationPenalty}` : ''}`);
       onClose();
-    } catch (e: any) { toast.error(e?.data?.message || 'Failed'); }
+    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed'); }
   };
 
   return (

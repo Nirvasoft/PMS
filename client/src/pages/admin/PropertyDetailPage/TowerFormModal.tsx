@@ -159,7 +159,7 @@ export function TowerFormModal({ propertyId, tower, onClose }: Props) {
       }
       onClose();
     } catch (e: any) {
-      toast.error(e?.data?.message || `Failed to ${isEdit ? 'update' : 'create'} tower`);
+      toast.error(e?.data?.errors?.[0]?.message || `Failed to ${isEdit ? 'update' : 'create'} tower`);
     }
   };
 
@@ -170,7 +170,7 @@ export function TowerFormModal({ propertyId, tower, onClose }: Props) {
       toast.success(`"${tower!.name}" deleted`);
       onClose();
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Cannot delete tower');
+      toast.error(e?.data?.errors?.[0]?.message || 'Cannot delete tower');
     }
   };
 

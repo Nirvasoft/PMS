@@ -74,7 +74,7 @@ export default function CreateInvoicePage() {
       }).unwrap();
       navigate(`/admin/billing/invoices/${result.data.id}`);
     } catch (err: any) {
-      alertDialog(err?.data?.message || 'Failed to create invoice');
+      alertDialog(err?.data?.errors?.[0]?.message || 'Failed to create invoice');
     }
   };
 

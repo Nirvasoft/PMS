@@ -173,7 +173,7 @@ export default function CamManagementPage() {
                   const res = await generateCamBilling({ propertyId, month: genMonth, year }).unwrap();
                   toast.success(`Generated ${res.data.generated} billing records for ${res.data.pools} pools × ${res.data.units} units`);
                 } catch (e: any) {
-                  toast.error(e?.data?.message || 'Failed to generate');
+                  toast.error(e?.data?.errors?.[0]?.message || 'Failed to generate');
                 }
                 setGenLoading(false);
               }}
@@ -231,7 +231,7 @@ export default function CamManagementPage() {
                   const res = await runCamReconciliation({ propertyId, year }).unwrap();
                   toast.success(`Reconciliation complete: ${res.data.reconciliations} records, total variance: $${Number(res.data.totalVariance).toLocaleString()}`);
                 } catch (e: any) {
-                  toast.error(e?.data?.message || 'Failed to run reconciliation');
+                  toast.error(e?.data?.errors?.[0]?.message || 'Failed to run reconciliation');
                 }
                 setReconLoading(false);
               }}

@@ -27,7 +27,7 @@ export default function MergeTenantPage() {
       toast.success(result.data.message);
       navigate(`/admin/tenants/${primaryId}`);
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Merge failed');
+      toast.error(e?.data?.errors?.[0]?.message || 'Merge failed');
     }
   };
 

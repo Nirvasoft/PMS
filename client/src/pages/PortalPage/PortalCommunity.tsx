@@ -51,7 +51,7 @@ export default function PortalCommunity() {
       await votePoll({ pollId, optionIds: selected }).unwrap();
       toast.success('Vote submitted!');
     } catch (err: any) {
-      toast.error(err?.data?.message || 'Failed to vote');
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to vote');
     }
   };
 
@@ -63,7 +63,7 @@ export default function PortalCommunity() {
       setShowComplaintForm(false);
       setComplaintForm({ category: 'other', title: '', description: '', isAnonymous: false });
     } catch (err: any) {
-      toast.error(err?.data?.message || 'Failed to submit');
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to submit');
     }
   };
 

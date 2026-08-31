@@ -108,7 +108,7 @@ export default function MallEventsPage() {
     try {
       await invoiceBooth({ boothId }).unwrap();
     } catch (e: any) {
-      alertDialog(e?.data?.message || 'Failed to generate invoice');
+      alertDialog(e?.data?.errors?.[0]?.message || 'Failed to generate invoice');
     }
   };
 

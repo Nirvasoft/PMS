@@ -168,7 +168,7 @@ function TransferModal({ assetId, onClose }: { assetId: string; onClose: () => v
     try {
       await transferAsset({ id: assetId, data: form }).unwrap();
       onClose();
-    } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
+    } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error'); }
   };
 
   return (
@@ -204,7 +204,7 @@ function DisposeModal({ assetId, onClose }: { assetId: string; onClose: () => vo
     try {
       await disposeAsset({ id: assetId, data: form }).unwrap();
       onClose();
-    } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
+    } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error'); }
   };
 
   return (

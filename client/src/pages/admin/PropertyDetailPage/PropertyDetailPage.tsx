@@ -797,7 +797,7 @@ function SettingsTab({ property }: { property: any }) {
       toast.success('Settings saved');
       setSaved(true);
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed to save settings');
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to save settings');
     }
   };
 

@@ -179,7 +179,7 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
       toast.success(`"${form.name}" updated`);
       onClose();
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed to update property');
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to update property');
     }
   };
 

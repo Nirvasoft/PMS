@@ -336,7 +336,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       setChargeForm({ chargeTypeId: '', amount: '' });
       setAddingCharge(false);
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed to add charge');
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to add charge');
     } finally { setSavingCharge(false); }
   };
 
@@ -354,7 +354,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       toast.success('Charge updated');
       setEditingChargeId(null);
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed to update charge');
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to update charge');
     } finally { setSavingChargeEdit(false); }
   };
 

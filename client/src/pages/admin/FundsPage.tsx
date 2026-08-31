@@ -58,7 +58,7 @@ export default function FundsPage() {
     try {
       await approveTxn({ txnId }).unwrap();
     } catch (e: any) {
-      alertDialog(e?.data?.message || 'Approval failed');
+      alertDialog(e?.data?.errors?.[0]?.message || 'Approval failed');
     }
   };
 
@@ -69,7 +69,7 @@ export default function FundsPage() {
       setShowRejectModal(null);
       setRejectReason('');
     } catch (e: any) {
-      alertDialog(e?.data?.message || 'Rejection failed');
+      alertDialog(e?.data?.errors?.[0]?.message || 'Rejection failed');
     }
   };
 

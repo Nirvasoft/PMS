@@ -138,7 +138,7 @@ export default function AccessCardsPage() {
               toast.success('Access card issued successfully');
               setShowIssueForm(false);
             } catch (e: any) {
-              toast.error(e?.data?.message || 'Failed to issue card');
+              toast.error(e?.data?.errors?.[0]?.message || 'Failed to issue card');
             }
           }}
         />

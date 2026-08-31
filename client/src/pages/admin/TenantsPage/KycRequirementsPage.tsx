@@ -50,7 +50,7 @@ export default function KycRequirementsPage() {
       setShowForm(false);
       setForm({ tenantType: 'individual', docType: 'passport', name: '', description: '', isRequired: true, validityDays: '', sortOrder: 0 });
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed');
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed');
     }
   };
 

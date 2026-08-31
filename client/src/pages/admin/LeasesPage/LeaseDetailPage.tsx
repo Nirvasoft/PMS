@@ -64,16 +64,16 @@ export default function LeaseDetailPage() {
 
   const handleSubmit = async () => {
     try { await submit(id!).unwrap(); toast.success('Submitted for approval'); }
-    catch (e: any) { toast.error(e?.data?.message || 'Submit failed'); }
+    catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Submit failed'); }
   };
   const handleActivate = async () => {
     try { await activate(id!).unwrap(); toast.success('Lease activated'); }
-    catch (e: any) { toast.error(e?.data?.message || 'Activation failed'); }
+    catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Activation failed'); }
   };
   const handleCancel = async () => {
     if (!(await confirmDialog('Cancel this lease?', { danger: true, confirmText: 'Cancel Lease' }))) return;
     try { await cancel({ id: id! }).unwrap(); toast.success('Lease cancelled'); }
-    catch (e: any) { toast.error(e?.data?.message || 'Cancel failed'); }
+    catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Cancel failed'); }
   };
 
   return (
@@ -231,7 +231,7 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
       toast.success('Draft updated');
       onClose();
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Update failed');
+      toast.error(e?.data?.errors?.[0]?.message || 'Update failed');
     }
   };
 

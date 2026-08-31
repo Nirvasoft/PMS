@@ -17,7 +17,7 @@ export function EsignSendModal({ leaseId, tenantEmail, tenantName, onClose }: { 
       await send({ id: leaseId, recipients: valid }).unwrap();
       toast.success('Signing requests sent');
       onClose();
-    } catch (e: any) { toast.error(e?.data?.message || 'Failed'); }
+    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed'); }
   };
 
   return (

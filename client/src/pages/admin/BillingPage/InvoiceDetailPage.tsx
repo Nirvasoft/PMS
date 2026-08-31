@@ -94,7 +94,7 @@ export default function InvoiceDetailPage() {
       const result = await sendInvoice(id!).unwrap();
       alertDialog(`Invoice sent to ${result.data.sentTo}`);
     } catch (err: any) {
-      alertDialog(err?.data?.message || 'Failed to send invoice');
+      alertDialog(err?.data?.errors?.[0]?.message || 'Failed to send invoice');
     }
   };
 
@@ -131,7 +131,7 @@ export default function InvoiceDetailPage() {
       setCreditReason('');
       setCreditLines([{ chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 }]);
     } catch (err: any) {
-      alertDialog(err?.data?.message || 'Failed to create credit note');
+      alertDialog(err?.data?.errors?.[0]?.message || 'Failed to create credit note');
     }
   };
 

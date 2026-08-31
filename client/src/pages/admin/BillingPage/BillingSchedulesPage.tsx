@@ -69,7 +69,7 @@ export default function BillingSchedulesPage() {
       if (action === 'resume') await resumeSchedule(id).unwrap();
       if (action === 'cancel') await cancelSchedule(id).unwrap();
     } catch (err: any) {
-      alertDialog(err?.data?.message || `Failed to ${action} schedule`);
+      alertDialog(err?.data?.errors?.[0]?.message || `Failed to ${action} schedule`);
     }
   };
 
@@ -123,7 +123,7 @@ export default function BillingSchedulesPage() {
       }
       setShowForm(false);
     } catch (err: any) {
-      alertDialog(err?.data?.message || `Failed to ${editId ? 'update' : 'create'} schedule`);
+      alertDialog(err?.data?.errors?.[0]?.message || `Failed to ${editId ? 'update' : 'create'} schedule`);
     }
   };
 

@@ -85,7 +85,7 @@ export default function TenantCreditsPage() {
       toast.success('Credit created');
       setShowCreate(false);
       setForm({ tenantId: '', amount: '', currency: 'USD', sourceType: 'adjustment', description: '' });
-    } catch (err: any) { toast.error(err?.data?.message || 'Failed to create credit'); }
+    } catch (err: any) { toast.error(err?.data?.errors?.[0]?.message || 'Failed to create credit'); }
   };
 
   const handleApply = async () => {
@@ -100,7 +100,7 @@ export default function TenantCreditsPage() {
       setApplyModal(null);
       setApplyInvoiceId('');
       setApplyAmount('');
-    } catch (err: any) { toast.error(err?.data?.message || 'Failed to apply credit'); }
+    } catch (err: any) { toast.error(err?.data?.errors?.[0]?.message || 'Failed to apply credit'); }
   };
 
   return (

@@ -89,7 +89,7 @@ export default function LeadDetailPage() {
       await unblacklistLead(id!).unwrap();
       toast.success('Lead removed from blacklist');
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed to unblacklist');
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to unblacklist');
     }
   };
 

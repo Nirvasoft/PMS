@@ -69,7 +69,7 @@ export default function PenaltyConfigPage() {
       setShowForm(false);
       setForm({ propertyId: '', chargeTypeId: '', gracePeriodDays: 7, penaltyType: 'percentage', penaltyValue: 5, maxPenaltyPct: 25, compound: false });
     } catch (err: any) {
-      alertDialog(err?.data?.message || 'Failed to create penalty config');
+      alertDialog(err?.data?.errors?.[0]?.message || 'Failed to create penalty config');
     }
   };
 

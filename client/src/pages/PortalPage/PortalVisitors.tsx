@@ -63,7 +63,7 @@ export default function PortalVisitors() {
       setForm({ visitorName: '', visitorMobile: '', visitorCompany: '',
         visitPurpose: '', validFrom: '', validTo: '', passType: 'single', vehiclePlate: '' });
     } catch (err: any) {
-      toast.error(err?.data?.message || 'Failed to register visitor');
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to register visitor');
     }
   };
 

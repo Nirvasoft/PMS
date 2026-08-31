@@ -1,6 +1,7 @@
 import { Router, Request } from 'express';
 import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
+import { requirePermission } from '../auth/guards/roleGuard';
 import { chargeTypesService } from './chargeTypes.service';
 import { meterSetupService } from './meterSetup.service';
 import { billingSchedulesService } from './billingSchedules.service';
@@ -43,24 +44,24 @@ chargeTypesRouter.put('/:id', validateRequest(updateChargeTypeSchema), asyncHand
 // ════════════════════════════════════════════════
 export const meterSetupRouter = Router();
 
-meterSetupRouter.get('/', asyncHandler(async (req, res) => {
+meterSetupRouter.get('/', requirePermission('meter.read'), asyncHandler(async (req, res) => {
   const data = await meterSetupService.findAll(req.user!.companyId, {
     propertyId: req.query.propertyId as string,
   });
   res.json({ success: true, data });
 }));
 
-meterSetupRouter.post('/', validateRequest(createMeterSetupSchema), asyncHandler(async (req, res) => {
+meterSetupRouter.post('/', requirePermission('meter.create'), validateRequest(createMeterSetupSchema), asyncHandler(async (req, res) => {
   const data = await meterSetupService.create(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
 
-meterSetupRouter.put('/:id', validateRequest(updateMeterSetupSchema), asyncHandler(async (req, res) => {
+meterSetupRouter.put('/:id', requirePermission('meter.update'), validateRequest(updateMeterSetupSchema), asyncHandler(async (req, res) => {
   const data = await meterSetupService.update(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
 }));
 
-meterSetupRouter.delete('/:id', asyncHandler(async (req, res) => {
+meterSetupRouter.delete('/:id', requirePermission('meter.delete'), asyncHandler(async (req, res) => {
   await meterSetupService.delete(p(req, 'id'), req.user!.companyId);
   res.json({ success: true });
 }));

@@ -51,7 +51,7 @@ export default function LeaseTemplatesPage() {
       setShowForm(false);
       setForm({ name: '', propertyType: '', description: '', defaultTerms: { billingCycle: 'monthly', billingDay: 1, paymentDueDays: 7, escalationType: '', escalationValue: '', escalationFrequency: 'annual' } });
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed');
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed');
     }
   };
 

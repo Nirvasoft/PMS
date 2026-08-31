@@ -60,7 +60,7 @@ export default function ChargeTypesPage() {
       }
       closeForm();
     } catch (err: any) {
-      alertDialog(err?.data?.message || `Failed to ${editing ? 'update' : 'create'} charge type`);
+      alertDialog(err?.data?.errors?.[0]?.message || `Failed to ${editing ? 'update' : 'create'} charge type`);
     }
   };
 

@@ -40,6 +40,18 @@ const PERMISSIONS = [
   { code: 'properties.update', name: 'Update Properties', module: 'properties', action: 'update' },
   { code: 'properties.delete', name: 'Delete Properties', module: 'properties', action: 'delete' },
 
+  // Floor (sub-module of Properties)
+  { code: 'floor.read', name: 'View Floors', module: 'floor', action: 'read' },
+  { code: 'floor.create', name: 'Create Floors', module: 'floor', action: 'create' },
+  { code: 'floor.update', name: 'Update Floors', module: 'floor', action: 'update' },
+  { code: 'floor.delete', name: 'Delete Floors', module: 'floor', action: 'delete' },
+
+  // Unit (sub-module of Properties)
+  { code: 'unit.read', name: 'View Units', module: 'unit', action: 'read' },
+  { code: 'unit.create', name: 'Create Units', module: 'unit', action: 'create' },
+  { code: 'unit.update', name: 'Update Units', module: 'unit', action: 'update' },
+  { code: 'unit.delete', name: 'Delete Units', module: 'unit', action: 'delete' },
+
   // Tenants (Module 2.3)
   { code: 'tenants.read',      name: 'View Tenants',         module: 'tenants', action: 'read' },
   { code: 'tenants.create',    name: 'Create Tenants',       module: 'tenants', action: 'create' },
@@ -62,6 +74,12 @@ const PERMISSIONS = [
   { code: 'billing.update', name: 'Update Billing', module: 'billing', action: 'update' },
   { code: 'billing.approve', name: 'Approve Invoices', module: 'billing', action: 'approve' },
   { code: 'billing.export', name: 'Export Billing', module: 'billing', action: 'export' },
+
+  // Meter (sub-module of Billing)
+  { code: 'meter.read', name: 'View Meters', module: 'meter', action: 'read' },
+  { code: 'meter.create', name: 'Create Meters', module: 'meter', action: 'create' },
+  { code: 'meter.update', name: 'Update Meters', module: 'meter', action: 'update' },
+  { code: 'meter.delete', name: 'Delete Meters', module: 'meter', action: 'delete' },
 
   // Maintenance
   { code: 'maintenance.read', name: 'View Maintenance', module: 'maintenance', action: 'read' },

@@ -46,7 +46,7 @@ export default function TenantDetailPage() {
       await uploadAvatar({ id, file }).unwrap();
       toast.success('Avatar updated successfully');
     } catch (err: any) {
-      toast.error(err.data?.message || 'Failed to upload avatar');
+      toast.error(err.data?.errors?.[0]?.message || 'Failed to upload avatar');
     }
   };
 

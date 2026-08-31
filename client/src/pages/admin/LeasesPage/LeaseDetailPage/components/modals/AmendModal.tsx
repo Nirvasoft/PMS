@@ -13,7 +13,7 @@ export function AmendModal({ leaseId, onClose }: { leaseId: string; onClose: () 
       await create({ leaseId, ...form, newRentAmount: form.newRentAmount ? Number(form.newRentAmount) : undefined, newEndDate: form.newEndDate || undefined }).unwrap();
       toast.success('Amendment created');
       onClose();
-    } catch (e: any) { toast.error(e?.data?.message || 'Failed'); }
+    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed'); }
   };
 
   return (

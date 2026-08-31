@@ -511,6 +511,15 @@ function AddOverrideModal({
 
 /* ─── Effective Permissions Grouped ────────── */
 
+// Kept in sync with the same hierarchy used in the Role editor (RolesPage.tsx):
+// a Property has Floors, and each Floor has Units. Billing has Meters.
+const EFF_NESTED_MODULES: Record<string, string[]> = {
+  properties: ['floor'],
+  floor: ['unit'],
+  billing: ['meter'],
+};
+const EFF_CHILD_MODULES = new Set(Object.values(EFF_NESTED_MODULES).flat());
+
 function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
 
@@ -579,6 +588,7 @@ function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
   }
 
   const sortedModules = [...moduleMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const topModules = sortedModules.filter(([module]) => !EFF_CHILD_MODULES.has(module));
 
   const toggleModule = (mod: string) => {
     setExpandedModules(prev => {
@@ -598,49 +608,58 @@ function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
     }
   }
 
+  const renderModule = (module: string, perms: PermEntry[], depth = 0) => {
+    const isExpanded = expandedModules.has(module);
+    const grantedCount = perms.filter(p => !p.isRevoked).length;
+    const revokedCount = perms.filter(p => p.isRevoked).length;
+    const children = EFF_NESTED_MODULES[module] ?? [];
+
+    return (
+      <div key={module} className={depth > 0 ? 'eff-perm-submodule' : 'eff-perm-module'}>
+        <button
+          className="eff-perm-module-header"
+          onClick={() => toggleModule(module)}
+        >
+          <span className="eff-perm-expand">{isExpanded ? '▾' : '▸'}</span>
+          <span className="eff-perm-module-name">{module}</span>
+          <span className="eff-perm-module-count">
+            {grantedCount}
+            {revokedCount > 0 && <span className="revoked-count"> / {revokedCount} revoked</span>}
+          </span>
+        </button>
+        {isExpanded && (
+          <>
+            <div className="eff-perm-list">
+              {perms.map(p => (
+                <div
+                  key={p.code}
+                  className={`eff-perm-item ${p.isRevoked ? 'revoked' : ''}`}
+                >
+                  <span className={`eff-perm-action ${p.isRevoked ? 'strikethrough' : ''}`}>
+                    {p.action}
+                  </span>
+                  <span className="eff-perm-source">{p.source}</span>
+                  {p.expiresAt && (
+                    <span className="eff-perm-expiry" title={`Expires ${new Date(p.expiresAt).toLocaleDateString()}`}>
+                      ⏰ {new Date(p.expiresAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {children.map((childModule) => {
+              const childPerms = moduleMap.get(childModule);
+              return childPerms ? renderModule(childModule, childPerms, depth + 1) : null;
+            })}
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="eff-perm-grouped">
-      {sortedModules.map(([module, perms]) => {
-        const isExpanded = expandedModules.has(module);
-        const grantedCount = perms.filter(p => !p.isRevoked).length;
-        const revokedCount = perms.filter(p => p.isRevoked).length;
-
-        return (
-          <div key={module} className="eff-perm-module">
-            <button
-              className="eff-perm-module-header"
-              onClick={() => toggleModule(module)}
-            >
-              <span className="eff-perm-expand">{isExpanded ? '▾' : '▸'}</span>
-              <span className="eff-perm-module-name">{module}</span>
-              <span className="eff-perm-module-count">
-                {grantedCount}
-                {revokedCount > 0 && <span className="revoked-count"> / {revokedCount} revoked</span>}
-              </span>
-            </button>
-            {isExpanded && (
-              <div className="eff-perm-list">
-                {perms.map(p => (
-                  <div
-                    key={p.code}
-                    className={`eff-perm-item ${p.isRevoked ? 'revoked' : ''}`}
-                  >
-                    <span className={`eff-perm-action ${p.isRevoked ? 'strikethrough' : ''}`}>
-                      {p.action}
-                    </span>
-                    <span className="eff-perm-source">{p.source}</span>
-                    {p.expiresAt && (
-                      <span className="eff-perm-expiry" title={`Expires ${new Date(p.expiresAt).toLocaleDateString()}`}>
-                        ⏰ {new Date(p.expiresAt).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {topModules.map(([module, perms]) => renderModule(module, perms))}
     </div>
   );
 }

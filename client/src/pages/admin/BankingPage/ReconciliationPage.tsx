@@ -38,11 +38,11 @@ export default function ReconciliationPage() {
 
   const handleExclude = async (id: string) => {
     if (!(await confirmDialog('Exclude this line from reconciliation?', { danger: true, confirmText: 'Exclude' }))) return;
-    try { await excludeLine(id).unwrap(); } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
+    try { await excludeLine(id).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error'); }
   };
   const handleUnmatch = async (id: string) => {
     if (!(await confirmDialog('Unmatch this line?'))) return;
-    try { await unmatchLine(id).unwrap(); } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
+    try { await unmatchLine(id).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error'); }
   };
 
   return (
@@ -187,7 +187,7 @@ function ImportStatementModal({ bankAccountId, onClose }: { bankAccountId: strin
         data: { format: 'csv', fromDate: form.fromDate, toDate: form.toDate, filename: form.filename, lines },
       }).unwrap();
       onClose();
-    } catch (err: any) { alertDialog(err.data?.message || 'Error importing'); }
+    } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error importing'); }
   };
 
   return (

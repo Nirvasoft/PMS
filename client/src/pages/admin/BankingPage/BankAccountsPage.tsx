@@ -99,7 +99,7 @@ function CreateBankAccountModal({ onClose }: { onClose: () => void }) {
     try {
       await createAccount(form).unwrap();
       onClose();
-    } catch (err: any) { alertDialog(err.data?.message || 'Error'); }
+    } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error'); }
   };
 
   return (

@@ -43,7 +43,7 @@ export default function TaxConfigPage() {
       setShowForm(false);
       setForm({ taxName: '', taxRate: 0.09, appliesTo: [], effectiveFrom: new Date().toISOString().split('T')[0], effectiveTo: '' });
     } catch (err: any) {
-      alertDialog(err?.data?.message || 'Failed to create tax config');
+      alertDialog(err?.data?.errors?.[0]?.message || 'Failed to create tax config');
     }
   };
 

@@ -150,7 +150,7 @@ export default function MeterSetupPage() {
       }
       closeForm();
     } catch (err: any) {
-      alertDialog(err?.data?.message || `Failed to ${editing ? 'update' : 'create'} meter`);
+      alertDialog(err?.data?.errors?.[0]?.message || `Failed to ${editing ? 'update' : 'create'} meter`);
     }
   };
 

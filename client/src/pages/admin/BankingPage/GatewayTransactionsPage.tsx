@@ -70,7 +70,7 @@ export default function GatewayTransactionsPage() {
       setRefundModal(null);
       setRefundReason('');
     } catch (err: any) {
-      toast.error(err?.data?.message || 'Failed to refund payment');
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to refund payment');
     }
   };
 

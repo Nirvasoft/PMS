@@ -38,7 +38,7 @@ export default function PortalMoveRequests() {
       setShowForm(false);
       setForm({ requestType: 'move_in', requestedDate: '', preferredTime: '', depositAmount: '', notes: '' });
     } catch (err: any) {
-      toast.error(err?.data?.message || 'Failed to submit');
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to submit');
     }
   };
 

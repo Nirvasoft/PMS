@@ -3,10 +3,21 @@ import {
   useGetRolesQuery, useCreateRoleMutation, useDeleteRoleMutation,
   useGetPermissionsQuery, useGetRoleQuery, useUpdateRoleMutation,
   useGetRoleTemplatesQuery, useCreateRoleFromTemplateMutation,
+  type PermissionsByModule,
 } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { useConfirm } from '../../../components/DialogProvider';
 import toast from 'react-hot-toast';
+
+// Modules that are displayed nested under a parent module in the permission matrix,
+// reflecting the real hierarchy: a Property has Floors, and each Floor has Units.
+// Billing has Meters.
+const NESTED_MODULES: Record<string, string[]> = {
+  properties: ['floor'],
+  floor: ['unit'],
+  billing: ['meter'],
+};
+const CHILD_MODULES = new Set(Object.values(NESTED_MODULES).flat());
 
 export default function RolesPage() {
   const confirmDialog = useConfirm();
@@ -92,6 +103,7 @@ function RoleEditorModal({ roleId, onClose }: { roleId?: string; onClose: () => 
   const [description, setDescription] = useState('');
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
   const [initialized, setInitialized] = useState(false);
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
 
   // Initialize form from existing role
   if (existingRole && !initialized) {
@@ -115,6 +127,12 @@ function RoleEditorModal({ roleId, onClose }: { roleId?: string; onClose: () => 
     const next = new Set(selectedPerms);
     codes.forEach((c) => allSelected ? next.delete(c) : next.add(c));
     setSelectedPerms(next);
+  };
+
+  const toggleExpand = (module: string) => {
+    const next = new Set(expandedModules);
+    if (next.has(module)) next.delete(module); else next.add(module);
+    setExpandedModules(next);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -161,32 +179,22 @@ function RoleEditorModal({ roleId, onClose }: { roleId?: string; onClose: () => 
           {/* Permission Matrix */}
           <div className="perm-matrix">
             <h3>Permissions <span className="perm-count">{selectedPerms.size} selected</span></h3>
-            {Object.entries(permsByModule).map(([module, perms]) => {
-              const allChecked = perms.every((p) => selectedPerms.has(p.code));
-              const someChecked = perms.some((p) => selectedPerms.has(p.code));
-              return (
+            {Object.keys(permsByModule)
+              .filter((module) => !CHILD_MODULES.has(module))
+              .map((module) => (
                 <div key={module} className="perm-module">
-                  <div className="perm-module-header" onClick={() => toggleModule(module)}>
-                    <input type="checkbox" checked={allChecked} readOnly
-                      ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
-                      disabled={isSystem} />
-                    <span className="perm-module-name">{module}</span>
-                    <span className="text-muted text-small">
-                      {perms.filter((p) => selectedPerms.has(p.code)).length}/{perms.length}
-                    </span>
-                  </div>
-                  <div className="perm-actions">
-                    {perms.map((p) => (
-                      <label key={p.code} className={`perm-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
-                        <input type="checkbox" checked={selectedPerms.has(p.code)}
-                          onChange={() => togglePerm(p.code)} disabled={isSystem} />
-                        <span>{p.action}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <ModuleTree
+                    module={module}
+                    permsByModule={permsByModule}
+                    selectedPerms={selectedPerms}
+                    toggleModule={toggleModule}
+                    togglePerm={togglePerm}
+                    disabled={isSystem}
+                    expandedModules={expandedModules}
+                    toggleExpand={toggleExpand}
+                  />
                 </div>
-              );
-            })}
+              ))}
           </div>
 
           {!isSystem && (
@@ -200,6 +208,74 @@ function RoleEditorModal({ roleId, onClose }: { roleId?: string; onClose: () => 
         </form>
       </div>
     </div>
+  );
+}
+
+/* ─── Permission Module Tree (collapsible: click +/− to reveal actions & nested children) ── */
+function ModuleTree({ module, permsByModule, selectedPerms, toggleModule, togglePerm, disabled, expandedModules, toggleExpand }: {
+  module: string;
+  permsByModule: PermissionsByModule;
+  selectedPerms: Set<string>;
+  toggleModule: (module: string) => void;
+  togglePerm: (code: string) => void;
+  disabled?: boolean;
+  expandedModules: Set<string>;
+  toggleExpand: (module: string) => void;
+}) {
+  const perms = permsByModule[module];
+  if (!perms) return null;
+  const children = NESTED_MODULES[module] ?? [];
+  const isOpen = expandedModules.has(module);
+  const allChecked = perms.every((p) => selectedPerms.has(p.code));
+  const someChecked = perms.some((p) => selectedPerms.has(p.code));
+
+  return (
+    <>
+      <div className="perm-module-header" onClick={() => toggleModule(module)}>
+        <button
+          type="button"
+          className="perm-expand-btn"
+          onClick={(e) => { e.stopPropagation(); toggleExpand(module); }}
+          aria-label={isOpen ? 'Collapse' : 'Expand'}
+        >
+          {isOpen ? '−' : '+'}
+        </button>
+        <input type="checkbox" checked={allChecked} readOnly
+          ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+          disabled={disabled} />
+        <span className="perm-module-name">{module}</span>
+        <span className="text-muted text-small">
+          {perms.filter((p) => selectedPerms.has(p.code)).length}/{perms.length}
+        </span>
+      </div>
+      {isOpen && (
+        <>
+          <div className="perm-actions">
+            {perms.map((p) => (
+              <label key={p.code} className={`perm-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+                <input type="checkbox" checked={selectedPerms.has(p.code)}
+                  onChange={() => togglePerm(p.code)} disabled={disabled} />
+                <span>{p.action}</span>
+              </label>
+            ))}
+          </div>
+          {children.map((childModule) => (
+            <div key={childModule} className="perm-submodule">
+              <ModuleTree
+                module={childModule}
+                permsByModule={permsByModule}
+                selectedPerms={selectedPerms}
+                toggleModule={toggleModule}
+                togglePerm={togglePerm}
+                disabled={disabled}
+                expandedModules={expandedModules}
+                toggleExpand={toggleExpand}
+              />
+            </div>
+          ))}
+        </>
+      )}
+    </>
   );
 }
 

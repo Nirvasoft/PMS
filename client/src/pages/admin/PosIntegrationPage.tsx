@@ -54,7 +54,7 @@ export default function PosIntegrationPage() {
       setIngestResult(res.data);
       setShowIngestModal(false);
     } catch (e: any) {
-      alertDialog(e?.data?.message || 'Ingest failed');
+      alertDialog(e?.data?.errors?.[0]?.message || 'Ingest failed');
     }
   };
 

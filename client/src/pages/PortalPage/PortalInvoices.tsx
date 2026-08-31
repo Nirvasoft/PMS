@@ -47,7 +47,7 @@ export default function PortalInvoices() {
       // Redirect to Stripe Checkout (or mock URL in dev)
       window.location.href = result.checkoutUrl;
     } catch (err: any) {
-      toast.error(err?.data?.message || 'Failed to initiate payment');
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to initiate payment');
       setPayingId(null);
     }
   };

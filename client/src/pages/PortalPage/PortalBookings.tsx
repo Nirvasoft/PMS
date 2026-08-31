@@ -53,7 +53,7 @@ export default function PortalBookings() {
       setSelectedSlot(null);
       setBookingForm({ paxCount: 1, purpose: '' });
     } catch (err: any) {
-      toast.error(err?.data?.message || 'Booking failed');
+      toast.error(err?.data?.errors?.[0]?.message || 'Booking failed');
     }
   };
 

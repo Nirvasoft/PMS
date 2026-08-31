@@ -887,6 +887,17 @@ input.input-full:focus {
   opacity: 0.65;
 }
 
+.eff-perm-submodule {
+  margin: 4px 10px 8px 34px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.eff-perm-submodule .eff-perm-module-header {
+  font-size: 12px;
+}
+
 .eff-perm-action {
   min-width: 100px;
   font-weight: 500;
@@ -2851,6 +2862,30 @@ select.input-full:focus {
 
 .perm-module {
   margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.perm-module:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.perm-submodule {
+  margin: 4px 0 0 24px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-subtle);
+}
+
+.perm-submodule .perm-module-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.perm-submodule .perm-actions {
+  padding-left: 28px;
 }
 
 .perm-module-header {
@@ -2869,7 +2904,7 @@ select.input-full:focus {
 
 .perm-module-name {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   text-transform: capitalize;
   flex: 1;
 }
@@ -2878,6 +2913,29 @@ select.input-full:focus {
   accent-color: var(--accent);
   width: 14px;
   height: 14px;
+}
+
+.perm-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.perm-expand-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .perm-actions {

@@ -36,7 +36,7 @@ export default function LeaseClausesPage() {
       setShowForm(false);
       setForm({ title: '', content: '', category: 'general', isStandard: false });
     } catch (e: any) {
-      toast.error(e?.data?.message || 'Failed');
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed');
     }
   };
 

@@ -105,7 +105,7 @@ export default function FootfallAnalyticsPage() {
       }
       setSensorModal(null);
     } catch (e: any) {
-      alertDialog(e?.data?.message || 'Failed to save sensor');
+      alertDialog(e?.data?.errors?.[0]?.message || 'Failed to save sensor');
     }
   };
 
@@ -116,7 +116,7 @@ export default function FootfallAnalyticsPage() {
       const res = await deleteSensor(s.id).unwrap();
       if (res.data?.deactivated) alertDialog(res.data.reason);
     } catch (e: any) {
-      alertDialog(e?.data?.message || 'Failed to delete sensor');
+      alertDialog(e?.data?.errors?.[0]?.message || 'Failed to delete sensor');
     }
   };
 
@@ -136,7 +136,7 @@ export default function FootfallAnalyticsPage() {
       const res = await syncSensor(sensorId).unwrap();
       setSyncResult(res.data);
     } catch (e: any) {
-      alertDialog(e?.data?.message || 'Sync failed');
+      alertDialog(e?.data?.errors?.[0]?.message || 'Sync failed');
     } finally {
       setSyncingSensorId(null);
     }
@@ -147,7 +147,7 @@ export default function FootfallAnalyticsPage() {
       const res = await syncAll({ propertyId: selectedPropId }).unwrap();
       setSyncResult(res.data);
     } catch (e: any) {
-      alertDialog(e?.data?.message || 'Sync all failed');
+      alertDialog(e?.data?.errors?.[0]?.message || 'Sync all failed');
     }
   };
 

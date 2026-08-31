@@ -64,7 +64,7 @@ export default function BillingDashboardPage() {
       const result = await runBilling().unwrap();
       alertDialog(`Generated ${result.data.generated} invoices from ${result.data.processed} schedules.${result.data.errors.length > 0 ? '\n\nErrors:\n' + result.data.errors.join('\n') : ''}`);
     } catch (err: any) {
-      alertDialog(err?.data?.message || 'Failed to run billing');
+      alertDialog(err?.data?.errors?.[0]?.message || 'Failed to run billing');
     }
   };
 

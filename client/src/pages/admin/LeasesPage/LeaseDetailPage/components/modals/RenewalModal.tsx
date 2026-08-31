@@ -15,7 +15,7 @@ export function RenewalModal({ leaseId, lease, onClose }: { leaseId: string; lea
       const r = await createRenewal({ id: leaseId, startDate, endDate, rentAmount: rentAmount ? Number(rentAmount) : undefined }).unwrap();
       toast.success(`Renewal lease ${r.data.leaseNumber} created (draft)`);
       onClose();
-    } catch (e: any) { toast.error(e?.data?.message || 'Failed'); }
+    } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed'); }
   };
 
   return (
