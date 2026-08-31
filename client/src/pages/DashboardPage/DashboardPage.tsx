@@ -13,7 +13,7 @@ import {
   Banknote, BarChart3, Clock, RotateCcw,
   BookOpen, Calculator, Scale, PieChart, Landmark, Wallet, Box,
   Wrench, Calendar, Package, Layers, Sparkles, ClipboardCheck,
-  Store, TrendingUp, DollarSign, Coins,
+  Store, TrendingUp, DollarSign, Coins, Tag,
   Zap, Gavel, CreditCard, Palette,
   Plug, Webhook, Server, DoorOpen, QrCode, ShoppingCart, Gauge,
   PanelLeftClose, PanelLeftOpen,
@@ -300,6 +300,10 @@ export default function DashboardLayout() {
             <NavLink to="/admin/billing/schedules" className="nav-item" title="Schedules">
               <CalendarClock size={18} />
               <span>Schedules</span>
+            </NavLink>
+            <NavLink to="/admin/billing/charge-categories" className="nav-item" title="Charge Categories">
+              <Tag size={18} />
+              <span>Charge Categories</span>
             </NavLink>
             <NavLink to="/admin/billing/charge-types" className="nav-item" title="Charge Types">
               <DollarSign size={18} />

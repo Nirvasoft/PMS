@@ -3,6 +3,16 @@ import { baseQueryWithReauth } from './baseQuery';
 
 // ─── Types ───────────────────────────────────
 
+export interface ChargeCategory {
+  id: string;
+  code: string;
+  description: string | null;
+  monthly: boolean;
+  isActive: boolean;
+  isSystem: boolean;
+  chargeTypeCount: number;
+}
+
 export interface ChargeType {
   id: string;
   code: string;
@@ -130,8 +140,29 @@ interface PaginatedResponse<T> {
 export const billingApi = createApi({
   reducerPath: 'billingApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Invoices', 'BillingSchedules', 'ChargeTypes', 'PenaltyConfigs', 'TaxConfigs', 'MeterSetups'],
+  tagTypes: ['Invoices', 'BillingSchedules', 'ChargeCategories', 'ChargeTypes', 'PenaltyConfigs', 'TaxConfigs', 'MeterSetups'],
   endpoints: (builder) => ({
+
+    // ── Charge Categories ─────────────────
+    getChargeCategories: builder.query<ApiResponse<ChargeCategory[]>, void>({
+      query: () => '/billing/charge-categories',
+      providesTags: ['ChargeCategories'],
+    }),
+
+    createChargeCategory: builder.mutation<ApiResponse<ChargeCategory>, Record<string, unknown>>({
+      query: (body) => ({ url: '/billing/charge-categories', method: 'POST', body }),
+      invalidatesTags: ['ChargeCategories'],
+    }),
+
+    updateChargeCategory: builder.mutation<ApiResponse<ChargeCategory>, { id: string; data: Record<string, unknown> }>({
+      query: ({ id, data }) => ({ url: `/billing/charge-categories/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['ChargeCategories'],
+    }),
+
+    deleteChargeCategory: builder.mutation<void, string>({
+      query: (id) => ({ url: `/billing/charge-categories/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['ChargeCategories'],
+    }),
 
     // ── Charge Types ──────────────────────
     getChargeTypes: builder.query<ApiResponse<ChargeType[]>, void>({
@@ -279,6 +310,10 @@ export const billingApi = createApi({
 });
 
 export const {
+  useGetChargeCategoriesQuery,
+  useCreateChargeCategoryMutation,
+  useUpdateChargeCategoryMutation,
+  useDeleteChargeCategoryMutation,
   useGetChargeTypesQuery,
   useCreateChargeTypeMutation,
   useUpdateChargeTypeMutation,

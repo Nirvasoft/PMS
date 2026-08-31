@@ -40,10 +40,11 @@ import {
 } from './modules/parking/parking.routes';
 import { requireFeature } from './common/featureFlags';
 import {
-  chargeTypesRouter, billingSchedulesRouter, invoicesRouter,
+  chargeCategoriesRouter, chargeTypesRouter, billingSchedulesRouter, invoicesRouter,
   billingRunRouter, penaltyConfigsRouter, taxConfigsRouter, meterSetupRouter,
 } from './modules/billing/billing.routes';
 import { chargeTypesService } from './modules/billing/chargeTypes.service';
+import { chargeCategoriesService } from './modules/billing/chargeCategories.service';
 import { startDailyBillingJob } from './modules/billing/cron/dailyBilling.job';
 import { startPenaltyCheckJob } from './modules/billing/cron/penaltyCheck.job';
 import { startOverdueTransitionJob } from './modules/billing/cron/overdueTransition.job';
@@ -198,6 +199,7 @@ async function bootstrap() {
   app.use('/api/v1/properties/:propertyId/parking/rfid/events', requireFeature('parkingEnabled'), parkingRfidRouter);
 
   // Module 3.1 — Billing Engine
+  app.use('/api/v1/billing/charge-categories', chargeCategoriesRouter);
   app.use('/api/v1/billing/charge-types', chargeTypesRouter);
   app.use('/api/v1/billing/meter-setup', meterSetupRouter);
   app.use('/api/v1/billing/schedules', billingSchedulesRouter);
@@ -320,6 +322,7 @@ async function bootstrap() {
   await seedPropertyTypes();
   await seedUnitTypes();
   await chargeTypesService.seedDefaults();
+  await chargeCategoriesService.seedDefaults();
   try { await maintenanceCategoriesService.seedDefaults(); } catch (e) { logger.warn('Maintenance tables not ready — skipping seed'); }
   const { seedBillingNotificationTemplates } = await import('./modules/billing/billingNotifications.service');
   await seedBillingNotificationTemplates();

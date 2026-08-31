@@ -512,11 +512,11 @@ function AddOverrideModal({
 /* ─── Effective Permissions Grouped ────────── */
 
 // Kept in sync with the same hierarchy used in the Role editor (RolesPage.tsx):
-// a Property has Floors, and each Floor has Units. Billing has Meters.
+// a Property has Floors, and each Floor has Units. Billing has Meters and Charge Categories.
 const EFF_NESTED_MODULES: Record<string, string[]> = {
   properties: ['floor'],
   floor: ['unit'],
-  billing: ['meter'],
+  billing: ['meter', 'charge-category'],
 };
 const EFF_CHILD_MODULES = new Set(Object.values(EFF_NESTED_MODULES).flat());
 

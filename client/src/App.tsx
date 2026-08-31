@@ -45,6 +45,7 @@ import InvoiceDetailPage from './pages/admin/BillingPage/InvoiceDetailPage';
 import CreateInvoicePage from './pages/admin/BillingPage/CreateInvoicePage';
 import BillingSchedulesPage from './pages/admin/BillingPage/BillingSchedulesPage';
 import BillingDashboardPage from './pages/admin/BillingPage/BillingDashboardPage';
+import ChargeCategoriesPage from './pages/admin/BillingPage/ChargeCategoriesPage';
 import ChargeTypesPage from './pages/admin/BillingPage/ChargeTypesPage';
 import MeterSetupPage from './pages/admin/BillingPage/MeterSetupPage';
 import PenaltyConfigPage from './pages/admin/BillingPage/PenaltyConfigPage';
@@ -288,6 +289,7 @@ function AppRoutes() {
             <Route path="/admin/billing/invoices/:id" element={<InvoiceDetailPage />} />
             <Route path="/admin/billing/schedules" element={<BillingSchedulesPage />} />
             <Route path="/admin/billing/dashboard" element={<BillingDashboardPage />} />
+            <Route path="/admin/billing/charge-categories" element={<ChargeCategoriesPage />} />
             <Route path="/admin/billing/charge-types" element={<ChargeTypesPage />} />
             <Route path="/admin/billing/meter-setup" element={<MeterSetupPage />} />
             <Route path="/admin/billing/penalty-configs" element={<PenaltyConfigPage />} />

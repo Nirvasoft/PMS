@@ -2,6 +2,7 @@ import { Router, Request } from 'express';
 import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { requirePermission } from '../auth/guards/roleGuard';
+import { chargeCategoriesService } from './chargeCategories.service';
 import { chargeTypesService } from './chargeTypes.service';
 import { meterSetupService } from './meterSetup.service';
 import { billingSchedulesService } from './billingSchedules.service';
@@ -11,6 +12,7 @@ import { taxService } from './tax.service';
 import { invoicePdfService } from './pdf.service';
 import { notificationService } from '../notifications/services/notification.service';
 import {
+  createChargeCategorySchema, updateChargeCategorySchema,
   createChargeTypeSchema, updateChargeTypeSchema, createBillingScheduleSchema, updateBillingScheduleSchema,
   createInvoiceSchema, voidInvoiceSchema, createCreditNoteSchema,
   createPenaltyConfigSchema, createTaxConfigSchema,
@@ -18,6 +20,31 @@ import {
 } from './billing.schema';
 
 const p = (req: Request, key: string) => req.params[key] as string;
+
+// ════════════════════════════════════════════════
+// CHARGE CATEGORIES — /api/v1/billing/charge-categories
+// ════════════════════════════════════════════════
+export const chargeCategoriesRouter = Router();
+
+chargeCategoriesRouter.get('/', requirePermission('charge-category.read'), asyncHandler(async (req, res) => {
+  const data = await chargeCategoriesService.findAll(req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
+chargeCategoriesRouter.post('/', requirePermission('charge-category.create'), validateRequest(createChargeCategorySchema), asyncHandler(async (req, res) => {
+  const data = await chargeCategoriesService.create(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+chargeCategoriesRouter.put('/:id', requirePermission('charge-category.update'), validateRequest(updateChargeCategorySchema), asyncHandler(async (req, res) => {
+  const data = await chargeCategoriesService.update(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+chargeCategoriesRouter.delete('/:id', requirePermission('charge-category.delete'), asyncHandler(async (req, res) => {
+  await chargeCategoriesService.delete(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true });
+}));
 
 // ════════════════════════════════════════════════
 // CHARGE TYPES — /api/v1/billing/charge-types

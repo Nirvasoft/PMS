@@ -81,6 +81,12 @@ const PERMISSIONS = [
   { code: 'meter.update', name: 'Update Meters', module: 'meter', action: 'update' },
   { code: 'meter.delete', name: 'Delete Meters', module: 'meter', action: 'delete' },
 
+  // Charge Category (sub-module of Billing)
+  { code: 'charge-category.read', name: 'View Charge Categories', module: 'charge-category', action: 'read' },
+  { code: 'charge-category.create', name: 'Create Charge Categories', module: 'charge-category', action: 'create' },
+  { code: 'charge-category.update', name: 'Update Charge Categories', module: 'charge-category', action: 'update' },
+  { code: 'charge-category.delete', name: 'Delete Charge Categories', module: 'charge-category', action: 'delete' },
+
   // Maintenance
   { code: 'maintenance.read', name: 'View Maintenance', module: 'maintenance', action: 'read' },
   { code: 'maintenance.create', name: 'Create Work Orders', module: 'maintenance', action: 'create' },

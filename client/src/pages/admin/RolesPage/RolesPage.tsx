@@ -11,11 +11,11 @@ import toast from 'react-hot-toast';
 
 // Modules that are displayed nested under a parent module in the permission matrix,
 // reflecting the real hierarchy: a Property has Floors, and each Floor has Units.
-// Billing has Meters.
+// Billing has Meters and Charge Categories.
 const NESTED_MODULES: Record<string, string[]> = {
   properties: ['floor'],
   floor: ['unit'],
-  billing: ['meter'],
+  billing: ['meter', 'charge-category'],
 };
 const CHILD_MODULES = new Set(Object.values(NESTED_MODULES).flat());
 

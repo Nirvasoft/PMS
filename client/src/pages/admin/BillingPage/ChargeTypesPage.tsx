@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import {
   useGetChargeTypesQuery, useCreateChargeTypeMutation, useUpdateChargeTypeMutation,
+  useGetChargeCategoriesQuery,
   type ChargeType,
 } from '../../../store/api/billingApi';
 import { DollarSign, Plus, X, Tag, Check, Pencil, Lock } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import './BillingPage.css';
 
-const CATEGORIES = ['rent', 'utility', 'service', 'parking', 'penalty', 'deposit', 'misc'] as const;
 const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
   rent:    { bg: 'rgba(99,102,241,0.12)', color: '#a5b4fc' },
   utility: { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
@@ -20,13 +20,15 @@ const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
 
 export default function ChargeTypesPage() {
   const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery();
+  const { data: categoriesData } = useGetChargeCategoriesQuery();
   const [createChargeType, { isLoading: creating }] = useCreateChargeTypeMutation();
   const [updateChargeType, { isLoading: updating }] = useUpdateChargeTypeMutation();
   const alertDialog = useAlertDialog();
 
   const chargeTypes = chargeTypesData?.data || [];
+  const categories = categoriesData?.data || [];
 
-  const emptyForm = { code: '', name: '', category: 'misc' as string, glAccountCode: '', isTaxable: false, taxRate: 0 };
+  const emptyForm = { code: '', name: '', category: categories[0]?.code || '', glAccountCode: '', isTaxable: false, taxRate: 0 };
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ChargeType | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -91,13 +93,13 @@ export default function ChargeTypesPage() {
       </div>
 
       {/* Stats */}
-      <div className="billing-summary-cards" style={{ gridTemplateColumns: `repeat(${Object.keys(CATEGORY_COLORS).length}, 1fr)` }}>
-        {CATEGORIES.map(cat => {
-          const count = grouped[cat]?.length || 0;
-          const c = CATEGORY_COLORS[cat];
+      <div className="billing-summary-cards" style={{ gridTemplateColumns: `repeat(${categories.length || 1}, 1fr)` }}>
+        {categories.map(cat => {
+          const count = grouped[cat.code]?.length || 0;
+          const c = CATEGORY_COLORS[cat.code.toLowerCase()] || CATEGORY_COLORS.misc;
           return (
-            <div key={cat} className="billing-stat-card" style={{ padding: '14px 16px' }}>
-              <div className="bsc-label" style={{ fontSize: 10 }}>{cat}</div>
+            <div key={cat.id} className="billing-stat-card" style={{ padding: '14px 16px' }}>
+              <div className="bsc-label" style={{ fontSize: 10 }}>{cat.code}</div>
               <div className="bsc-value" style={{ fontSize: 22, color: c.color }}>{count}</div>
             </div>
           );
@@ -200,7 +202,8 @@ export default function ChargeTypesPage() {
                   <div className="inv-field">
                     <label>Category <span className="req">*</span></label>
                     <select required value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                      {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>)}
+                      {categories.length === 0 && <option value="">No charge categories — add one first</option>}
+                      {categories.map(cat => <option key={cat.id} value={cat.code}>{cat.description || cat.code}</option>)}
                     </select>
                   </div>
                   <div className="inv-field">

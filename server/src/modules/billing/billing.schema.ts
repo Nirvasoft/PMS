@@ -2,13 +2,32 @@ import { z } from 'zod';
 
 const dateString = z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Invalid date' });
 
+// ── Charge Categories ─────────────────────────
+
+export const createChargeCategorySchema = z.object({
+  body: z.object({
+    code: z.string().min(1).max(50),
+    description: z.string().max(255).optional(),
+    monthly: z.boolean().optional(),
+  }),
+});
+
+export const updateChargeCategorySchema = z.object({
+  body: z.object({
+    code: z.string().min(1).max(50).optional(),
+    description: z.string().max(255).optional(),
+    monthly: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
 // ── Charge Types ──────────────────────────────
 
 export const createChargeTypeSchema = z.object({
   body: z.object({
     code: z.string().min(1).max(50),
     name: z.string().min(1).max(150),
-    category: z.enum(['rent', 'utility', 'service', 'parking', 'penalty', 'deposit', 'misc']),
+    category: z.string().min(1).max(50), // code of a ChargeCategory — see charge-categories
     glAccountCode: z.string().max(20).optional(),
     isTaxable: z.boolean().optional(),
     taxRate: z.number().min(0).max(1).optional(),
@@ -65,7 +84,7 @@ export const updateChargeTypeSchema = z.object({
   body: z.object({
     code: z.string().min(1).max(50).optional(),
     name: z.string().min(1).max(150).optional(),
-    category: z.enum(['rent', 'utility', 'service', 'parking', 'penalty', 'deposit', 'misc']).optional(),
+    category: z.string().min(1).max(50).optional(), // code of a ChargeCategory — see charge-categories
     glAccountCode: z.string().max(20).optional(),
     isTaxable: z.boolean().optional(),
     taxRate: z.number().min(0).max(1).optional(),
