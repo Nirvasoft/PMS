@@ -1,5 +1,5 @@
 import { prisma } from '../../../common/database';
-import logger from '../../../common/logger';
+import { logger } from '../../../common/logger';
 import cron from 'node-cron';
 import { pmService } from '../pm.service';
 
@@ -82,7 +82,7 @@ export function startPmGeneratorJob() {
         for (const [companyId, wos] of byCompany) {
           try {
             const admins = await prisma.user.findMany({
-              where: { companyId, isActive: true, role: { in: ['admin', 'manager'] } },
+              where: { companyId, isActive: true, userRoles: { some: { role: { name: { in: ['Admin', 'Super Admin', 'Property Manager'] } } } } },
               select: { id: true },
             });
             if (admins.length === 0) continue;

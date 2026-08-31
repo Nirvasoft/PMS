@@ -33,7 +33,7 @@ export class BranchesService {
   }, companyId: string) {
     const cleanDto = Object.fromEntries(
       Object.entries(dto).filter(([, v]) => v !== null && v !== undefined && v !== '')
-    );
+    ) as typeof dto;
     return prisma.branch.create({
       data: {
         companyId,

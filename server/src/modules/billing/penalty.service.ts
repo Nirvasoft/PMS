@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
 import { billingNotifications } from './billingNotifications.service';
@@ -25,7 +26,7 @@ export class PenaltyService {
         penaltyValue: dto.penaltyValue as number,
         maxPenaltyPct: (dto.maxPenaltyPct as number) || null,
         compound: (dto.compound as boolean) || false,
-        tieredConfig: dto.tieredConfig || null,
+        tieredConfig: (dto.tieredConfig as Prisma.InputJsonValue) ?? Prisma.JsonNull,
       },
     });
   }

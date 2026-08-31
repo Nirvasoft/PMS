@@ -205,7 +205,7 @@ export class InvoicesService {
   async generateFromSchedule(scheduleId: string) {
     const schedule = await prisma.billingSchedule.findUnique({
       where: { id: scheduleId },
-      include: { chargeType: true, lease: true },
+      include: { chargeType: true, lease: true, tenant: true },
     });
     if (!schedule) throw AppError.notFound('Billing schedule');
 

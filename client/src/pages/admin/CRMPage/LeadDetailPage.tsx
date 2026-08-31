@@ -17,7 +17,7 @@ import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
 import { useConfirm } from '../../../components/DialogProvider';
 import {
-  ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Eye, Activity,
+  ArrowLeft, User, Calendar, Mail, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
   Edit3, Save, X, Trash2, Repeat, Search, UserPlus, Link, AlertTriangle, RefreshCw,
   ShieldOff, Shield,

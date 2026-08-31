@@ -622,7 +622,7 @@ class MallService {
 
         const billing = await prisma.camBilling.upsert({
           where: {
-            poolId_unitId_billingMonth_billingYear: {
+            uq_cam_billing: {
               poolId: pool.id, unitId: unit.id,
               billingMonth: month, billingYear: year,
             },
@@ -722,7 +722,7 @@ class MallService {
         const variance = Math.round((totalActual - totalEstimated) * 100) / 100;
 
         const recon = await prisma.camReconciliation.upsert({
-          where: { poolId_unitId_reconYear: { poolId: pool.id, unitId, reconYear: year } },
+          where: { uq_cam_recon: { poolId: pool.id, unitId, reconYear: year } },
           update: { totalEstimated, totalActual, variance, status: 'draft' },
           create: {
             companyId, propertyId, poolId: pool.id, unitId,
@@ -910,7 +910,7 @@ class MallService {
     });
     if (!chargeType) {
       chargeType = await prisma.chargeType.create({
-        data: { companyId, code: 'BOOTH_RENTAL', name: 'Booth Rental', category: 'revenue', isSystemType: true },
+        data: { companyId, code: 'BOOTH_RENTAL', name: 'Booth Rental', category: 'revenue', isSystem: true },
       });
     }
 
@@ -1280,7 +1280,7 @@ class MallService {
     });
 
     return shops.map(s => ({
-      id: s.id, unitId: s.unitId, unitNumber: s.unit.unitNumber,
+      id: s.unitId, unitId: s.unitId, unitNumber: s.unit.unitNumber,
       brandName: s.brandName, tenant: s.unit.leases[0]?.tenant?.companyName || null,
       leaseId: s.unit.leases[0]?.id || null, leaseNumber: s.unit.leases[0]?.leaseNumber || null,
       posSystem: s.posSystem, posStoreId: s.posStoreId, tradeCategory: s.tradeCategory,
@@ -1340,9 +1340,9 @@ class MallService {
 
     // Create new POS-synced GTO
     const commLease = await prisma.commercialLease.findFirst({ where: { leaseId: lease.id } });
-    const baseRent = commLease ? Number(commLease.baseRent) : 0;
+    const baseRent = Number(lease.rentAmount) || 0;
     const percentageRate = commLease ? Number(commLease.percentageRentRate) : 0;
-    const naturalBreakpoint = commLease ? Number(commLease.naturalBreakpoint) : 0;
+    const naturalBreakpoint = commLease ? Number(commLease.baseRentPctThreshold) : 0;
     const gtoAboveBreakpoint = Math.max(0, totalSales - naturalBreakpoint);
     const percentageRent = gtoAboveBreakpoint * (percentageRate / 100);
     const totalRentDue = Math.max(baseRent, baseRent + percentageRent);

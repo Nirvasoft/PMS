@@ -70,6 +70,10 @@ export class AppError extends Error {
     return new AppError(409, code, message);
   }
 
+  static badRequest(message: string, code = 'BAD_REQUEST') {
+    return new AppError(400, code, message);
+  }
+
   static validation(message: string, code = 'VALIDATION_ERROR') {
     return new AppError(422, code, message);
   }

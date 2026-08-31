@@ -122,17 +122,23 @@ export function createHousekeepingService({ prisma }: { prisma: PrismaClient }) 
         const seq = lastTicket ? parseInt(lastTicket.ticketNumber.split('-')[2]) + 1 : 1;
         const ticketNumber = `MNT-${year}-${String(seq).padStart(5, '0')}`;
 
+        const category = await prisma.maintenanceCategory.findFirst({
+          where: { companyId, name: 'General' },
+        }) || await prisma.maintenanceCategory.findFirst({ where: { companyId } });
+        if (!category) throw new Error('No maintenance category configured for this company');
+
         const ticket = await prisma.maintenanceTicket.create({
           data: {
             companyId,
             propertyId: data.propertyId,
+            categoryId: category.id,
             ticketNumber,
             title: `Housekeeping issue — ${zoneName}`,
             description: `Issues found during inspection:\n${data.issuesFound.join('\n')}`,
             source: 'inspection',
             priority: 'medium',
             status: 'open',
-            reportedById: userId,
+            reportedByUserId: userId,
           },
         });
 

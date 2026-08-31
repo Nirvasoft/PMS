@@ -1,7 +1,7 @@
 import { prisma, setTenantContext } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { Prisma } from '@prisma/client';
-import logger from '../../common/logger';
+import { logger } from '../../common/logger';
 
 // ── Helpers ─────────────────────────────
 
@@ -221,7 +221,6 @@ class PmService {
         categoryId: schedule.categoryId!,
         priority: schedule.priority,
         source: 'preventive',
-        estimatedHours: schedule.estimatedHours,
         status: 'open',
         ticketNumber: `PM-${Date.now().toString(36).toUpperCase()}`,
       },

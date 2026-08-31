@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 
@@ -76,8 +77,8 @@ export class DefinitionsService {
         name: dto.name,
         description: dto.description,
         entityType: dto.entityType,
-        graph: dto.graph as unknown as Record<string, unknown>,
-        settings: (dto.settings ?? {}) as unknown as Record<string, unknown>,
+        graph: dto.graph as unknown as Prisma.InputJsonValue,
+        settings: (dto.settings ?? {}) as unknown as Prisma.InputJsonValue,
         createdBy,
       },
     });

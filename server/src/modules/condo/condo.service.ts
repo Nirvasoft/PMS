@@ -571,7 +571,7 @@ class CondoService {
 
     // Find all admin + agent users for this company
     const adminUsers = await prisma.user.findMany({
-      where: { companyId, isActive: true, role: { in: ['Super Admin', 'Admin', 'Agent'] } },
+      where: { companyId, isActive: true, userRoles: { some: { role: { name: { in: ['Super Admin', 'Admin', 'Agent'] } } } } },
       select: { id: true },
     });
 

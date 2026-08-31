@@ -61,7 +61,7 @@ export function startGtoReminderJob() {
 
               // Create in-app notification for all admin users
               const admins = await prisma.user.findMany({
-                where: { companyId: company.id, isActive: true, role: { in: ['Super Admin', 'Admin', 'Agent'] } },
+                where: { companyId: company.id, isActive: true, userRoles: { some: { role: { name: { in: ['Super Admin', 'Admin', 'Agent'] } } } } },
                 select: { id: true },
               });
 

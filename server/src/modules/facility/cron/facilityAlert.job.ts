@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { prisma } from '../../../common/database';
-import logger from '../../../common/logger';
+import { logger } from '../../../common/logger';
 
 /**
  * Daily cron (7:00 AM): Check for warranty and service contract expiry alerts.
@@ -71,7 +71,7 @@ export function startFacilityAlertJob() {
               // Find recipients: admins + responsible persons
               const recipientIds = new Set<string>();
               const admins = await prisma.user.findMany({
-                where: { companyId, isActive: true, role: { in: ['admin', 'manager'] } },
+                where: { companyId, isActive: true, userRoles: { some: { role: { name: { in: ['Admin', 'Super Admin', 'Property Manager'] } } } } },
                 select: { id: true },
               });
               admins.forEach(a => recipientIds.add(a.id));

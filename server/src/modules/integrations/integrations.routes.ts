@@ -27,29 +27,29 @@ integrationsRouter.post('/', asyncHandler(async (req, res) => {
 }));
 
 integrationsRouter.put('/:id', asyncHandler(async (req, res) => {
-  const data = await integrationsService.update(req.params.id, getCompanyId(req), req.body);
+  const data = await integrationsService.update(String(req.params.id), getCompanyId(req), req.body);
   res.json({ success: true, data });
 }));
 
 integrationsRouter.delete('/:id', asyncHandler(async (req, res) => {
-  await integrationsService.delete(req.params.id, getCompanyId(req));
+  await integrationsService.delete(String(req.params.id), getCompanyId(req));
   res.json({ success: true, message: 'Integration deleted' });
 }));
 
 // Test & Sync
 integrationsRouter.post('/:id/test', asyncHandler(async (req, res) => {
-  const data = await integrationsService.testConnection(req.params.id, getCompanyId(req));
+  const data = await integrationsService.testConnection(String(req.params.id), getCompanyId(req));
   res.json({ success: true, data });
 }));
 
 integrationsRouter.post('/:id/sync', asyncHandler(async (req, res) => {
-  const data = await integrationsService.triggerSync(req.params.id, getCompanyId(req), getUserId(req), req.body);
+  const data = await integrationsService.triggerSync(String(req.params.id), getCompanyId(req), getUserId(req), req.body);
   res.json({ success: true, data });
 }));
 
 integrationsRouter.get('/:id/sync-logs', asyncHandler(async (req, res) => {
   const result = await integrationsService.getSyncLogs(
-    req.params.id, getCompanyId(req),
+    String(req.params.id), getCompanyId(req),
     Number(req.query.page) || 1, Number(req.query.limit) || 20
   );
   res.json({ success: true, ...result });
@@ -91,30 +91,30 @@ developerRouter.post('/webhooks', asyncHandler(async (req, res) => {
 }));
 
 developerRouter.put('/webhooks/:id', asyncHandler(async (req, res) => {
-  const data = await integrationsService.updateWebhook(req.params.id, getCompanyId(req), req.body);
+  const data = await integrationsService.updateWebhook(String(req.params.id), getCompanyId(req), req.body);
   res.json({ success: true, data });
 }));
 
 developerRouter.delete('/webhooks/:id', asyncHandler(async (req, res) => {
-  await integrationsService.deleteWebhook(req.params.id, getCompanyId(req));
+  await integrationsService.deleteWebhook(String(req.params.id), getCompanyId(req));
   res.json({ success: true, message: 'Webhook deleted' });
 }));
 
 developerRouter.post('/webhooks/:id/test', asyncHandler(async (req, res) => {
-  const data = await integrationsService.testWebhook(req.params.id, getCompanyId(req));
+  const data = await integrationsService.testWebhook(String(req.params.id), getCompanyId(req));
   res.json({ success: true, data });
 }));
 
 developerRouter.get('/webhooks/:id/deliveries', asyncHandler(async (req, res) => {
   const result = await integrationsService.getDeliveries(
-    req.params.id, getCompanyId(req),
+    String(req.params.id), getCompanyId(req),
     Number(req.query.page) || 1, Number(req.query.limit) || 20
   );
   res.json({ success: true, ...result });
 }));
 
 developerRouter.post('/webhooks/deliveries/:id/retry', asyncHandler(async (req, res) => {
-  const data = await integrationsService.retryDelivery(req.params.id, getCompanyId(req));
+  const data = await integrationsService.retryDelivery(String(req.params.id), getCompanyId(req));
   res.json({ success: true, data });
 }));
 
@@ -131,11 +131,11 @@ developerRouter.post('/api-keys', asyncHandler(async (req, res) => {
 }));
 
 developerRouter.delete('/api-keys/:id', asyncHandler(async (req, res) => {
-  await integrationsService.deleteApiKey(req.params.id, getCompanyId(req));
+  await integrationsService.deleteApiKey(String(req.params.id), getCompanyId(req));
   res.json({ success: true, message: 'API key deleted' });
 }));
 
 developerRouter.post('/api-keys/:id/revoke', asyncHandler(async (req, res) => {
-  const data = await integrationsService.revokeApiKey(req.params.id, getCompanyId(req));
+  const data = await integrationsService.revokeApiKey(String(req.params.id), getCompanyId(req));
   res.json({ success: true, data });
 }));

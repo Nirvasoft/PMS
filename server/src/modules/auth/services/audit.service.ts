@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../../common/database';
 import type { RequestContext } from '../interfaces/auth.interfaces';
 
@@ -47,7 +48,7 @@ export class AuditService {
         ipAddress: params.context?.ipAddress,
         userAgent: params.context?.userAgent,
         deviceId: params.deviceId,
-        metadata: params.metadata || undefined,
+        metadata: (params.metadata as Prisma.InputJsonValue) || undefined,
       },
     });
   }

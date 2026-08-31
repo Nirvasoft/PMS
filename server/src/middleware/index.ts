@@ -183,7 +183,7 @@ function isFileFilterRejection(err: Error): boolean {
 /**
  * Wrap async route handlers to catch promise rejections
  */
-export function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) {
+export function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<void | Response>) {
   return (req: Request, res: Response, next: NextFunction) => {
     fn(req, res, next).catch(next);
   };

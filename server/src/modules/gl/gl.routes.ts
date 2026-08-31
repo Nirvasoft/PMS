@@ -4,7 +4,7 @@ import { validateRequest } from '../../middleware/validateRequest';
 import { glService } from './gl.service';
 import {
   createAccountSchema, updateAccountSchema,
-  createFiscalPeriodSchema, generateFiscalYearSchema,
+  createFiscalPeriodSchema,
   createJournalEntrySchema,
 } from './gl.schema';
 

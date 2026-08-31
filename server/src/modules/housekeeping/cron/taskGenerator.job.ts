@@ -1,5 +1,5 @@
 import { prisma } from '../../../common/database';
-import logger from '../../../common/logger';
+import { logger } from '../../../common/logger';
 import cron from 'node-cron';
 
 /**

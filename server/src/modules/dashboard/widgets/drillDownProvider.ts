@@ -174,12 +174,12 @@ async function drillActiveWorkflows(params: DrillDownParams): Promise<DrillDownR
       id: true,
       entityType: true,
       status: true,
-      currentNodeId: true,
-      createdAt: true,
+      currentNodeIds: true,
+      startedAt: true,
       definition: { select: { name: true } },
       initiator: { select: { profile: { select: { firstName: true, lastName: true } } } },
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { startedAt: 'desc' },
     take: 50,
   });
 
@@ -195,9 +195,9 @@ async function drillActiveWorkflows(params: DrillDownParams): Promise<DrillDownR
     rows: instances.map((i) => ({
       workflow: i.definition?.name || '—',
       entity: i.entityType || '—',
-      currentNode: i.currentNodeId || '—',
+      currentNode: i.currentNodeIds?.join(', ') || '—',
       initiator: i.initiator?.profile ? `${i.initiator.profile.firstName} ${i.initiator.profile.lastName}` : '—',
-      started: new Date(i.createdAt).toISOString().split('T')[0],
+      started: new Date(i.startedAt).toISOString().split('T')[0],
     })),
     total: instances.length,
     navigateTo: '/admin/workflows',

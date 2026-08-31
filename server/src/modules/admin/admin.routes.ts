@@ -61,7 +61,7 @@ adminRouter.post(
   '/companies/:id/deactivate',
   requireProvisionPermission,
   asyncHandler(async (req: Request, res: Response) => {
-    const data = await companyProvisioningService.deactivateCompany(req.params.id);
+    const data = await companyProvisioningService.deactivateCompany(String(req.params.id));
     res.json({ success: true, data });
   }),
 );
@@ -73,7 +73,7 @@ adminRouter.post(
   '/companies/:id/activate',
   requireProvisionPermission,
   asyncHandler(async (req: Request, res: Response) => {
-    const data = await companyProvisioningService.activateCompany(req.params.id);
+    const data = await companyProvisioningService.activateCompany(String(req.params.id));
     res.json({ success: true, data });
   }),
 );

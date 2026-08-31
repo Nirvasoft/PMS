@@ -69,7 +69,7 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
     try {
       const { notificationService } = await import('../notifications/services/notification.service');
       const managers = await prisma.user.findMany({
-        where: { companyId, isActive: true, role: { in: ['admin', 'manager', 'security'] } },
+        where: { companyId, isActive: true, userRoles: { some: { role: { name: { in: ['Admin', 'Super Admin', 'Property Manager', 'Security', 'Security Officer'] } } } } },
         select: { id: true },
       });
       if (managers.length > 0) {
@@ -191,7 +191,7 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
         if (gapMinutes > 90) {
           const { notificationService } = await import('../notifications/services/notification.service');
           const managers = await prisma.user.findMany({
-            where: { companyId, isActive: true, role: { in: ['admin', 'manager', 'security'] } },
+            where: { companyId, isActive: true, userRoles: { some: { role: { name: { in: ['Admin', 'Super Admin', 'Property Manager', 'Security', 'Security Officer'] } } } } },
             select: { id: true },
           });
           if (managers.length > 0) {
@@ -276,12 +276,11 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
     if (propertyId) where.propertyId = propertyId;
     if (eventType) where.eventType = eventType;
 
-    const [data, total] = await Promise.all([
+    const [events, total] = await Promise.all([
       prisma.accessControlEvent.findMany({
         where,
         include: {
           property: { select: { id: true, name: true } },
-          user: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
         },
         orderBy: { eventAt: 'desc' },
         skip: (page - 1) * limit,
@@ -289,6 +288,17 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
       }),
       prisma.accessControlEvent.count({ where }),
     ]);
+
+    // AccessControlEvent.userId has no Prisma relation to User, so join manually.
+    const userIds = [...new Set(events.map(e => e.userId).filter((id): id is string => !!id))];
+    const users = userIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } },
+        })
+      : [];
+    const userById = new Map(users.map(u => [u.id, u]));
+    const data = events.map(e => ({ ...e, user: e.userId ? userById.get(e.userId) || null : null }));
 
     return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }

@@ -22,12 +22,12 @@ const getUserId = (req: Request) => (req as any).user.id;
 // ═══════════════════════════════════════
 
 router.get('/properties/:propertyId/config', asyncHandler(async (req, res) => {
-  const data = await mallService.getMallProperty(req.params.propertyId, getCompanyId(req));
+  const data = await mallService.getMallProperty(String(req.params.propertyId), getCompanyId(req));
   res.json({ success: true, data });
 }));
 
 router.put('/properties/:propertyId/config', validateRequest(upsertMallPropertySchema), asyncHandler(async (req, res) => {
-  const data = await mallService.upsertMallProperty(req.params.propertyId, getCompanyId(req), req.body);
+  const data = await mallService.upsertMallProperty(String(req.params.propertyId), getCompanyId(req), req.body);
   res.json({ success: true, data });
 }));
 
@@ -53,12 +53,12 @@ router.get('/shops', asyncHandler(async (req, res) => {
 }));
 
 router.get('/shops/:unitId', asyncHandler(async (req, res) => {
-  const data = await mallService.getShopProfile(req.params.unitId, getCompanyId(req));
+  const data = await mallService.getShopProfile(String(req.params.unitId), getCompanyId(req));
   res.json({ success: true, data });
 }));
 
 router.put('/shops/:unitId/profile', validateRequest(upsertShopProfileSchema), asyncHandler(async (req, res) => {
-  const data = await mallService.upsertShopProfile(req.params.unitId, getCompanyId(req), req.body);
+  const data = await mallService.upsertShopProfile(String(req.params.unitId), getCompanyId(req), req.body);
   res.json({ success: true, data });
 }));
 
@@ -72,12 +72,12 @@ router.get('/tenant-mix', asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════
 
 router.get('/commercial-leases/:leaseId', asyncHandler(async (req, res) => {
-  const data = await mallService.getCommercialLease(req.params.leaseId, getCompanyId(req));
+  const data = await mallService.getCommercialLease(String(req.params.leaseId), getCompanyId(req));
   res.json({ success: true, data });
 }));
 
 router.put('/commercial-leases/:leaseId', validateRequest(upsertCommercialLeaseSchema), asyncHandler(async (req, res) => {
-  const data = await mallService.upsertCommercialLease(req.params.leaseId, getCompanyId(req), req.body);
+  const data = await mallService.upsertCommercialLease(String(req.params.leaseId), getCompanyId(req), req.body);
   res.json({ success: true, data });
 }));
 
@@ -104,7 +104,7 @@ router.post('/gto', validateRequest(submitGtoSchema), asyncHandler(async (req, r
 }));
 
 router.post('/gto/:id/verify', validateRequest(verifyGtoSchema), asyncHandler(async (req, res) => {
-  const data = await mallService.verifyGto(req.params.id, getCompanyId(req), getUserId(req), req.body);
+  const data = await mallService.verifyGto(String(req.params.id), getCompanyId(req), getUserId(req), req.body);
   res.json({ success: true, data });
 }));
 
@@ -141,7 +141,7 @@ router.post('/cam/pools', validateRequest(createCamPoolSchema), asyncHandler(asy
 }));
 
 router.put('/cam/pools/:id', validateRequest(updateCamPoolSchema), asyncHandler(async (req, res) => {
-  const data = await mallService.updateCamPool(req.params.id, getCompanyId(req), req.body);
+  const data = await mallService.updateCamPool(String(req.params.id), getCompanyId(req), req.body);
   res.json({ success: true, data });
 }));
 
@@ -198,27 +198,27 @@ router.post('/events', validateRequest(createEventSchema), asyncHandler(async (r
 }));
 
 router.put('/events/:id', validateRequest(updateEventSchema), asyncHandler(async (req, res) => {
-  const data = await mallService.updateEvent(req.params.id, getCompanyId(req), req.body);
+  const data = await mallService.updateEvent(String(req.params.id), getCompanyId(req), req.body);
   res.json({ success: true, data });
 }));
 
 router.get('/events/:id', asyncHandler(async (req, res) => {
-  const data = await mallService.getEventDetail(req.params.id, getCompanyId(req));
+  const data = await mallService.getEventDetail(String(req.params.id), getCompanyId(req));
   res.json({ success: true, data });
 }));
 
 router.post('/events/:eventId/booths', validateRequest(createBoothSchema), asyncHandler(async (req, res) => {
-  const data = await mallService.createBooth(req.params.eventId, getCompanyId(req), req.body);
+  const data = await mallService.createBooth(String(req.params.eventId), getCompanyId(req), req.body);
   res.status(201).json({ success: true, data });
 }));
 
 router.put('/booths/:id', asyncHandler(async (req, res) => {
-  const data = await mallService.updateBooth(req.params.id, getCompanyId(req), req.body);
+  const data = await mallService.updateBooth(String(req.params.id), getCompanyId(req), req.body);
   res.json({ success: true, data });
 }));
 
 router.post('/booths/:id/invoice', asyncHandler(async (req, res) => {
-  const data = await mallService.invoiceBooth(req.params.id, getCompanyId(req), getUserId(req));
+  const data = await mallService.invoiceBooth(String(req.params.id), getCompanyId(req), getUserId(req));
   res.status(201).json({ success: true, data });
 }));
 
@@ -237,22 +237,22 @@ router.post('/footfall/sensors', validateRequest(createSensorSchema), asyncHandl
 }));
 
 router.put('/footfall/sensors/:id', asyncHandler(async (req, res) => {
-  const data = await mallService.updateSensor(req.params.id, getCompanyId(req), req.body);
+  const data = await mallService.updateSensor(String(req.params.id), getCompanyId(req), req.body);
   res.json({ success: true, data });
 }));
 
 router.delete('/footfall/sensors/:id', asyncHandler(async (req, res) => {
-  const data = await mallService.deleteSensor(req.params.id, getCompanyId(req));
+  const data = await mallService.deleteSensor(String(req.params.id), getCompanyId(req));
   res.json({ success: true, data });
 }));
 
 router.patch('/footfall/sensors/:id/toggle', asyncHandler(async (req, res) => {
-  const data = await mallService.toggleSensorActive(req.params.id, getCompanyId(req));
+  const data = await mallService.toggleSensorActive(String(req.params.id), getCompanyId(req));
   res.json({ success: true, data });
 }));
 
 router.post('/footfall/sensors/:id/sync', asyncHandler(async (req, res) => {
-  const data = await mallService.syncFootfallSensor(req.params.id, getCompanyId(req));
+  const data = await mallService.syncFootfallSensor(String(req.params.id), getCompanyId(req));
   res.json({ success: true, data });
 }));
 

@@ -279,7 +279,7 @@ authRouter.get('/devices', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 authRouter.delete('/devices/:deviceId', validateRequest(deviceIdParamSchema), asyncHandler(async (req: Request, res: Response) => {
-  await deviceService.revokeDevice(req.params.deviceId, req.user!.sub);
+  await deviceService.revokeDevice(String(req.params.deviceId), req.user!.sub);
   await auditService.log({
     userId: req.user!.sub,
     companyId: req.user!.companyId,
@@ -326,7 +326,7 @@ authRouter.post('/ip-policies', adminOnly, validateRequest(createIpPolicySchema)
 }));
 
 authRouter.delete('/ip-policies/:id', adminOnly, validateRequest(uuidParamSchema), asyncHandler(async (req: Request, res: Response) => {
-  await ipPolicyService.deletePolicy(req.params.id, req.user!.companyId);
+  await ipPolicyService.deletePolicy(String(req.params.id), req.user!.companyId);
   res.status(204).send();
 }));
 
@@ -544,7 +544,7 @@ authRouter.get('/sso/configs', adminOnly, asyncHandler(async (req: Request, res:
 }));
 
 authRouter.get('/sso/configs/:id', adminOnly, asyncHandler(async (req: Request, res: Response) => {
-  const config = await ssoService.getConfig(req.params.id as string, req.user!.companyId);
+  const config = await ssoService.getConfig(String(req.params.id) as string, req.user!.companyId);
   res.json({ success: true, data: config });
 }));
 
@@ -554,16 +554,16 @@ authRouter.post('/sso/configs', adminOnly, validateRequest(createSsoConfigSchema
 }));
 
 authRouter.put('/sso/configs/:id', adminOnly, validateRequest(updateSsoConfigSchema), asyncHandler(async (req: Request, res: Response) => {
-  const config = await ssoService.updateConfig(req.params.id as string, req.user!.companyId, req.body);
+  const config = await ssoService.updateConfig(String(req.params.id) as string, req.user!.companyId, req.body);
   res.json({ success: true, data: config });
 }));
 
 authRouter.delete('/sso/configs/:id', adminOnly, validateRequest(uuidParamSchema), asyncHandler(async (req: Request, res: Response) => {
-  await ssoService.deleteConfig(req.params.id as string, req.user!.companyId);
+  await ssoService.deleteConfig(String(req.params.id) as string, req.user!.companyId);
   res.status(204).send();
 }));
 
 authRouter.patch('/sso/configs/:id/toggle', adminOnly, validateRequest(toggleSsoConfigSchema), asyncHandler(async (req: Request, res: Response) => {
-  const config = await ssoService.toggleConfig(req.params.id as string, req.user!.companyId, req.body.enabled);
+  const config = await ssoService.toggleConfig(String(req.params.id) as string, req.user!.companyId, req.body.enabled);
   res.json({ success: true, data: config });
 }));

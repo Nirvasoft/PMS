@@ -6,7 +6,7 @@ export class DeviceService {
     userId: string,
     data: { fingerprint: string; deviceName?: string; userAgent: string; ipAddress: string },
   ) {
-    const ua = new UAParser(data.userAgent);
+    const ua = new UAParser.UAParser(data.userAgent);
     const browser = ua.getBrowser();
     const os = ua.getOS();
     const deviceType = ua.getDevice().type || 'browser';
