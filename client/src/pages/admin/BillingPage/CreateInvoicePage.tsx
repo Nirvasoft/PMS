@@ -121,11 +121,17 @@ export default function CreateInvoicePage() {
               <label>Tenant <span className="req">*</span></label>
               <select required value={form.tenantId} onChange={e => setForm({ ...form, tenantId: e.target.value })}>
                 <option value="">Select tenant</option>
-                {tenants.map((t: any) => (
-                  <option key={t.id} value={t.id}>
-                    {t.tenantType === 'company' ? t.companyName : `${t.firstName || ''} ${t.lastName || ''}`.trim()}
-                  </option>
-                ))}
+                {tenants
+                  .map((t: any) => ({
+                    id: t.id,
+                    label: t.tenantType === 'company'
+                      ? (t.companyName || '').trim()
+                      : `${t.firstName || ''} ${t.lastName || ''}`.trim(),
+                  }))
+                  .filter(t => t.label !== '')
+                  .map(t => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
               </select>
             </div>
             <div className="inv-field">

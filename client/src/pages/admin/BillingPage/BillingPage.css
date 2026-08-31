@@ -1045,10 +1045,18 @@
   border-color: rgba(0,0,0,0.12);
   color: #111;
 }
+[data-theme="light"] .inv-field select option {
+  background: #fff;
+  color: #111;
+}
 [data-theme="light"] .inv-lines-table .line-input,
 [data-theme="light"] .inv-lines-table .line-select {
   background: #fafafa;
   border-color: rgba(0,0,0,0.1);
+  color: #111;
+}
+[data-theme="light"] .inv-lines-table .line-select option {
+  background: #fff;
   color: #111;
 }
 [data-theme="light"] .inv-lines-table thead tr {

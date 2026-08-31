@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useGetLeasesQuery, useDeleteLeaseMutation, type LeaseListItem } from '../../../store/api/leasesApi';
 import {
   FileText, Plus, Search, X, AlertTriangle, ChevronRight, Trash2,
-  Clock, CheckCircle, XCircle, AlertCircle, PenLine, Archive,
+  Clock, CheckCircle, XCircle, PenLine, Archive, Import,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import ImportLeadModal from './ImportLeadModal';
 import './LeaseListPage.css';
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -23,10 +24,11 @@ const STATUS_META: Record<string, { label: string; color: string; icon: React.Re
 export default function LeaseListPage() {
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
-  const [search, setSearch]     = useState('');
-  const [status, setStatus]     = useState('');
-  const [expiring, setExpiring] = useState<number | undefined>(undefined);
-  const [page, setPage]         = useState(1);
+  const [search, setSearch]           = useState('');
+  const [status, setStatus]           = useState('');
+  const [expiring, setExpiring]       = useState<number | undefined>(undefined);
+  const [page, setPage]               = useState(1);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const { data, isLoading } = useGetLeasesQuery({
     search: search || undefined,
@@ -62,11 +64,17 @@ export default function LeaseListPage() {
           <button className="btn-ghost" onClick={() => navigate('/admin/leases/clauses')}>
             <Archive size={14} /> Clauses
           </button>
+          <button className="btn-import-lead" onClick={() => setShowImportModal(true)}>
+            <Import size={14} /> Import Lead
+          </button>
           <button className="btn-primary" onClick={() => navigate('/admin/leases/new')}>
             <Plus size={15} /> New Lease
           </button>
         </div>
       </div>
+
+      {/* Import Lead Modal */}
+      {showImportModal && <ImportLeadModal onClose={() => setShowImportModal(false)} />}
 
       {/* Expiry alert */}
       {expiringCount > 0 && (
