@@ -18,6 +18,7 @@ import {
   LayoutGrid, List, Layers, Plus, Search, Building2,
   Zap, Droplets, Wind, X, Grid3x3, ChevronRight, ChevronLeft,
   ChevronsUp, ChevronsDown, Filter, Calendar, Trash2,
+  Car, Bike,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -49,11 +50,33 @@ const ZOOM_CELL: Record<string, { w: number; h: number }> = {
   large:   { w: 78, h: 66 },
 };
 
-type FloorPlanUnit = FloorPlanMatrix['floors'][number]['units'][number];
+/* ── Parking unit helpers ────────────────────────── */
+function getParkingStyle(code: string): { color: string; icon: (size: number) => React.ReactNode } {
+  const lc = code.toLowerCase();
+  if (lc.includes('ev') || lc.includes('electric'))
+    return { color: '#34d399', icon: (s) => <Zap size={s} /> };
+  if (lc.includes('bike') || lc.includes('bicycle') || lc.includes('cycle'))
+    return { color: '#fb923c', icon: (s) => <Bike size={s} /> };
+  return { color: '#60a5fa', icon: (s) => <Car size={s} /> };
+}
+
+function ParkingCellBadge({ unitType, zoom }: { unitType: string; zoom: string }) {
+  const size = zoom === 'compact' ? 12 : zoom === 'large' ? 30 : 23;
+  const { color, icon } = getParkingStyle(unitType);
+  return (
+    <div className="cell-park-badge" style={{ color }}>
+      {icon(size)}
+    </div>
+  );
+}
+
+
 
 /* ════════════════════════════════════════════
    Main Tab
    ════════════════════════════════════════════ */
+type FloorPlanUnit = FloorPlanMatrix['floors'][number]['units'][number];
+
 export default function UnitsTab() {
   const { id: propertyId } = useParams<{ id: string }>();
   const dispatch = useAppDispatch();
@@ -132,6 +155,12 @@ export default function UnitsTab() {
   /* P-Unit types for filter dropdown */
   const { data: unitTypesData } = useGetUnitTypesQuery();
   const unitTypes = unitTypesData?.data || [];
+
+  /* Set of unit type codes that belong to the "parking" category */
+  const parkingTypeCodes = useMemo(
+    () => new Set(unitTypes.filter((t) => t.category === 'parking').map((t) => t.code)),
+    [unitTypes]
+  );
 
   /* Apply floor + unit type filters to floor plan */
   const filteredFloors = floors
@@ -345,6 +374,9 @@ export default function UnitsTab() {
                                   >
                                     {unit.unitNumber}
                                   </span>
+                                  {parkingTypeCodes.has(unit.unitType) && (
+                                    <ParkingCellBadge unitType={unit.unitType} zoom={zoomLevel} />
+                                  )}
                                   {zoomLevel === 'large' && (
                                     <span className="cell-type">{unit.unitType}</span>
                                   )}
@@ -355,7 +387,7 @@ export default function UnitsTab() {
                         ))
                     }
                   </div>
-                  {/* Status legend */}
+                  {/* Status + Parking legend */}
                   {filteredFloors.length > 0 && (
                     <div className="floor-legend">
                       {STATUSES.map((s) => (
@@ -364,6 +396,27 @@ export default function UnitsTab() {
                           <span>{s.label}</span>
                         </div>
                       ))}
+                      {/* Parking type legend — only shown when parking units are visible */}
+                      {filteredFloors.some((f) => f.units.some((u) => parkingTypeCodes.has(u.unitType))) && (
+                        <>
+                          <span className="floor-legend-divider" />
+                          {[...new Set(
+                            filteredFloors.flatMap((f) =>
+                              f.units.filter((u) => parkingTypeCodes.has(u.unitType)).map((u) => u.unitType)
+                            )
+                          )].map((code) => {
+                            const { color, icon } = getParkingStyle(code);
+                            const name = unitTypes.find((t) => t.code === code)?.name || code.replace(/_/g, ' ');
+                            return (
+                              <div key={code} className="legend-item" style={{ color }}>
+                                {icon(13)}
+                                <span>{name}</span>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+
                     </div>
                   )}
                   {/* Floor jump buttons */}

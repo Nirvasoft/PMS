@@ -517,6 +517,30 @@
   letter-spacing: 0.03em;
 }
 
+/* ─── Parking type badge inside floor-plan cell ─── */
+.cell-park-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  opacity: 0.92;
+  margin-top: 1px;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+/* ─── Legend divider between status items and parking type items ─── */
+.floor-legend-divider {
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+[data-theme="light"] .floor-legend-divider {
+  background: rgba(0, 0, 0, 0.10);
+}
+
 /* ─── Unit Tooltip (portaled to <body>, positioned in JS) ─────── */
 .unit-tooltip-portal {
   position: fixed;
