@@ -6,6 +6,7 @@ import { escalationService } from './escalation.service';
 import { workflowEngine } from '../../workflow/services/engine.service';
 import { billingSchedulesService } from '../../billing/billingSchedules.service';
 import { webhookLeaseActivated, webhookLeaseTerminated, webhookLeaseRenewed } from '../../../common/webhookHooks';
+import { unitsService } from '../../units/units.service';
 
 export class LeasesLifecycleService {
   // ── Submit for approval ───────────────────
@@ -71,6 +72,7 @@ export class LeasesLifecycleService {
       prisma.lease.update({ where: { id }, data: { status: 'active', activatedAt: new Date(), approvedBy: activatedBy, approvedAt: new Date() } }),
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: unitStatus } }),
     ]);
+    await unitsService.invalidateStatsCache(lease.propertyId);
 
     await escalationService.generateEscalationSchedule(id);
 
@@ -95,7 +97,11 @@ export class LeasesLifecycleService {
     if (!lease) throw AppError.notFound('Lease');
     if (!['draft', 'pending_approval'].includes(lease.status)) throw new AppError(400, 'INVALID_STATUS', 'Only draft or pending leases can be cancelled');
 
-    await prisma.lease.update({ where: { id }, data: { status: 'cancelled', terminationReason: reason ?? null } });
+    await prisma.$transaction([
+      prisma.lease.update({ where: { id }, data: { status: 'cancelled', terminationReason: reason ?? null } }),
+      prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
+    ]);
+    await unitsService.invalidateStatsCache(lease.propertyId);
     return { leaseId: id, status: 'cancelled' };
   }
 
@@ -121,6 +127,7 @@ export class LeasesLifecycleService {
       prisma.lease.update({ where: { id }, data: { status: 'terminated', terminationDate: termDate, terminationReason: dto.reason, terminationType: isEarly ? 'early' : 'normal', earlyTerminationPenalty: penalty } }),
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
     ]);
+    await unitsService.invalidateStatsCache(lease.propertyId);
 
     const result = { leaseId: id, status: 'terminated', terminationDate: dto.terminationDate, terminationType: isEarly ? 'early' : 'normal', earlyTerminationPenalty: penalty, penaltyBreakdown };
     webhookLeaseTerminated(result, companyId);

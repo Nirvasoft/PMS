@@ -1,5 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
+import { unitsApi } from './unitsApi';
 
 // ─── Types ───────────────────────────────────
 
@@ -140,6 +141,23 @@ interface PaginatedResponse<T> {
   meta: { total: number; page: number; limit: number; totalPages: number };
 }
 
+// ─── Helpers ─────────────────────────────────
+
+// Lease create/activate/cancel/terminate all change the linked unit's status
+// server-side; unitsApi is a separate RTK Query slice, so its cache needs an
+// explicit cross-api invalidation to reflect that without a manual refresh.
+async function invalidateUnitTagsOnSuccess(
+  _arg: unknown,
+  { dispatch, queryFulfilled }: { dispatch: (action: unknown) => void; queryFulfilled: Promise<unknown> }
+) {
+  try {
+    await queryFulfilled;
+    dispatch(unitsApi.util.invalidateTags(['Units', 'FloorPlan', 'UnitStats']));
+  } catch {
+    // request failed — nothing to invalidate
+  }
+}
+
 // ─── API ─────────────────────────────────────
 
 export const leasesApi = createApi({
@@ -164,6 +182,7 @@ export const leasesApi = createApi({
     createLease: builder.mutation<ApiResponse<LeaseDetail>, Record<string, unknown>>({
       query: (body) => ({ url: '/leases', method: 'POST', body }),
       invalidatesTags: ['Leases'],
+      onQueryStarted: invalidateUnitTagsOnSuccess,
     }),
 
     updateLease: builder.mutation<ApiResponse<LeaseDetail>, { id: string; data: Record<string, unknown> }>({
@@ -184,11 +203,13 @@ export const leasesApi = createApi({
     activateLease: builder.mutation<ApiResponse<LeaseDetail>, string>({
       query: (id) => ({ url: `/leases/${id}/activate`, method: 'POST' }),
       invalidatesTags: (_, __, id) => [{ type: 'Leases', id }, 'Leases'],
+      onQueryStarted: invalidateUnitTagsOnSuccess,
     }),
 
     cancelLease: builder.mutation<ApiResponse<{ leaseId: string; status: string }>, { id: string; reason?: string }>({
       query: ({ id, ...body }) => ({ url: `/leases/${id}/cancel`, method: 'POST', body }),
       invalidatesTags: (_, __, { id }) => [{ type: 'Leases', id }, 'Leases'],
+      onQueryStarted: invalidateUnitTagsOnSuccess,
     }),
 
     terminateLease: builder.mutation<ApiResponse<{ earlyTerminationPenalty: number; penaltyBreakdown: string }>, {
@@ -196,6 +217,7 @@ export const leasesApi = createApi({
     }>({
       query: ({ id, ...data }) => ({ url: `/leases/${id}/terminate`, method: 'POST', body: data }),
       invalidatesTags: (_, __, { id }) => [{ type: 'Leases', id }, 'Leases'],
+      onQueryStarted: invalidateUnitTagsOnSuccess,
     }),
 
     createRenewal: builder.mutation<ApiResponse<LeaseDetail>, { id: string; startDate: string; endDate: string; rentAmount?: number; offerExpiresAt?: string }>({

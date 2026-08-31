@@ -493,7 +493,7 @@ export class UnitsService {
   }
 
   /** Invalidate the unit stats cache for a property */
-  private async invalidateStatsCache(propertyId: string) {
+  async invalidateStatsCache(propertyId: string) {
     try {
       await redis.del(`unit_stats:${propertyId}`);
     } catch (e) {

@@ -2,6 +2,7 @@ import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { calcLeaseTermMonths, nextLeaseNumber, daysUntilExpiry } from './helpers';
 import { webhookLeaseCreated } from '../../../common/webhookHooks';
+import { unitsService } from '../../units/units.service';
 
 export class LeasesService {
   // ── List ──────────────────────────────────
@@ -165,6 +166,14 @@ export class LeasesService {
           createdBy,
         })),
       });
+    }
+
+    // A lease reserves its unit as soon as it exists (draft), and stays
+    // reserved through pending_approval/approved until activate()/terminate()
+    // move it to occupied/available.
+    if (unit.status !== 'reserved') {
+      await prisma.unit.update({ where: { id: unitId }, data: { status: 'reserved' } });
+      await unitsService.invalidateStatsCache(propertyId);
     }
 
     webhookLeaseCreated(lease);

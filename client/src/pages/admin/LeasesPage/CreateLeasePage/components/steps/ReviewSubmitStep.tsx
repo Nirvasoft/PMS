@@ -3,10 +3,24 @@ import { useGetUnitQuery } from '../../../../../../store/api/unitsApi';
 import { useGetChargeTypesQuery } from '../../../../../../store/api/billingApi';
 import { PREDEFINED_TYPE_LABELS, type FormState } from '../../types';
 
+/** Mirror of server-side calcLeaseTermMonths */
+function calcTermMonths(startDate: string, endDate: string): number {
+  if (!startDate || !endDate || endDate <= startDate) return 0;
+  const start = new Date(startDate);
+  const end   = new Date(endDate);
+  const months =
+    (end.getFullYear() - start.getFullYear()) * 12 +
+    (end.getMonth()   - start.getMonth());
+  return Math.max(1, months);
+}
+
+/** Format raw billingCycle values to human-readable */
+function formatBillingCycle(cycle: string): string {
+  return cycle.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export function ReviewSubmitStep({ form }: { form: FormState }) {
-  const TermMonths = form.startDate && form.endDate && form.endDate > form.startDate
-    ? (new Date(form.endDate).getFullYear() - new Date(form.startDate).getFullYear()) * 12 + new Date(form.endDate).getMonth() - new Date(form.startDate).getMonth()
-    : 0;
+  const termMonths = calcTermMonths(form.startDate, form.endDate);
 
   const { data: unitData } = useGetUnitQuery(
     form.propertyId && form.unitId ? { propertyId: form.propertyId, unitId: form.unitId } : skipToken,
@@ -20,21 +34,23 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
 
   return (
     <div className="step-content">
-      <h3>Review & Confirm</h3>
+      <h3>Review &amp; Confirm</h3>
       <div className="review-grid">
-        <ReviewRow label="Property ID" value={form.propertyCode || form.propertyId} />
-        <ReviewRow label="Unit ID"     value={form.unitCode     || form.unitId} />
-        <ReviewRow label="Total Area"  value={unitArea != null ? `${unitArea.toLocaleString()} sqft` : '—'} />
-        <ReviewRow label="Tenant ID"   value={form.tenantCode   || form.tenantId} />
-        <ReviewRow label="Start Date"  value={form.startDate} />
-        <ReviewRow label="End Date"    value={form.endDate} />
+        <ReviewRow label="Property"        value={form.propertyCode || form.propertyId} />
+        <ReviewRow label="Unit"            value={form.unitCode     || form.unitId} />
+        <ReviewRow label="Total Area"      value={unitArea != null ? `${unitArea.toLocaleString()} sqft` : '—'} />
+        <ReviewRow label="Tenant"          value={form.tenantCode   || form.tenantId} />
+        <ReviewRow label="Start Date"      value={form.startDate} />
+        <ReviewRow label="End Date"        value={form.endDate} />
+        <ReviewRow label="Handover Date"   value={form.handoverDate || '—'} />
         <ReviewRow label="Predefined Type" value={PREDEFINED_TYPE_LABELS[form.predefinedType] || '—'} />
-        <ReviewRow label="Term"        value={`${TermMonths} months`} />
-        <ReviewRow label="Rent"        value={`${form.currency} ${Number(form.rentAmount || 0).toLocaleString()}`} />
-        <ReviewRow label="Deposit"     value={form.securityDeposit ? `${form.currency} ${Number(form.securityDeposit).toLocaleString()}` : '—'} />
-        <ReviewRow label="Billing"     value={`${form.billingCycle}, day ${form.billingDay}`} />
-        <ReviewRow label="Escalation"  value={form.escalationType ? `${form.escalationType} · ${form.escalationValue} · ${form.escalationFrequency}` : 'None'} />
-        <ReviewRow label="Clauses"     value={`${form.clauses.length} clause(s)`} />
+        <ReviewRow label="Term"            value={termMonths ? `${termMonths} month${termMonths !== 1 ? 's' : ''}` : '—'} />
+        <ReviewRow label="Rent"            value={`${form.currency} ${Number(form.rentAmount || 0).toLocaleString()}`} />
+        <ReviewRow label="Deposit"         value={form.securityDeposit ? `${form.currency} ${Number(form.securityDeposit).toLocaleString()}` : '—'} />
+        <ReviewRow label="Billing Cycle"   value={`${formatBillingCycle(form.billingCycle)}, day ${form.billingDay}`} />
+        <ReviewRow label="Payment Due"     value={`${form.paymentDueDays} day${form.paymentDueDays !== 1 ? 's' : ''} after billing`} />
+        <ReviewRow label="Escalation"      value={form.escalationType ? `${form.escalationType} · ${form.escalationValue} · ${form.escalationFrequency}` : 'None'} />
+        <ReviewRow label="Clauses"         value={`${form.clauses.length} clause${form.clauses.length !== 1 ? 's' : ''}`} />
       </div>
 
       <div className="review-subhead">Lease Charges</div>
@@ -69,11 +85,11 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
         <div className="review-ra-divider" />
         <div className="review-ra-col">
           <div className="review-ra-colhead">Customer</div>
-          <ReviewRow label="Company"     value={ra.companyName       || '—'} />
-          <ReviewRow label="Address"     value={ra.customerAddress   || '—'} />
-          <ReviewRow label="Signed Name" value={ra.customerSignedName|| '—'} />
-          <ReviewRow label="NRC"         value={ra.customerNirc      || '—'} />
-          <ReviewRow label="Date"        value={ra.customerDate      || '—'} />
+          <ReviewRow label="Company"     value={ra.companyName        || '—'} />
+          <ReviewRow label="Address"     value={ra.customerAddress    || '—'} />
+          <ReviewRow label="Signed Name" value={ra.customerSignedName || '—'} />
+          <ReviewRow label="NRC"         value={ra.customerNirc       || '—'} />
+          <ReviewRow label="Date"        value={ra.customerDate       || '—'} />
         </div>
       </div>
 
