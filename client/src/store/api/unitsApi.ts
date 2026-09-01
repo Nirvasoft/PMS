@@ -359,7 +359,7 @@ export const unitsApi = createApi({
       query: ({ propertyId, unitId, meterId, data }) => ({
         url: `/properties/${propertyId}/units/${unitId}/meters/${meterId}`, method: 'PUT', body: data,
       }),
-      invalidatesTags: (_, __, { unitId }) => [{ type: 'Meters', id: unitId }],
+      invalidatesTags: (_, __, { unitId }) => [{ type: 'Meters', id: unitId }, { type: 'Units', id: unitId }],
     }),
     deleteMeter: builder.mutation<void, { propertyId: string; unitId: string; meterId: string }>({
       query: ({ propertyId, unitId, meterId }) => ({

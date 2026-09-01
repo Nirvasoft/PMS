@@ -520,6 +520,8 @@ export class UnitsService {
       ? `${unit.unitNumber.slice(0, 50 - archiveSuffix.length)}${archiveSuffix}`
       : `${unit.unitNumber}${archiveSuffix}`;
     await prisma.unit.update({ where: { id: unitId }, data: { deletedAt: new Date(), isActive: false, unitNumber: archivedNumber } });
+    // Free up meter serial numbers so they can be reassigned to another unit
+    await prisma.utilityMeter.updateMany({ where: { unitId, isActive: true }, data: { isActive: false } });
     await prisma.property.update({ where: { id: propertyId }, data: { totalUnits: { decrement: 1 } } });
 
     // Invalidate cached stats
@@ -592,9 +594,12 @@ export class MetersService {
       throw new AppError(409, 'METER_SERIAL_EXISTS', `Meter No. "${dto.meterSerialNo}" is already assigned to this unit`);
     }
 
-    // Check for an ACTIVE duplicate serial on a DIFFERENT unit in this property
+    // Check for an ACTIVE duplicate serial on a DIFFERENT, non-deleted unit in this property
     const duplicateSerial = await prisma.utilityMeter.findFirst({
-      where: { propertyId, meterSerialNo: dto.meterSerialNo as string, isActive: true },
+      where: {
+        propertyId, meterSerialNo: dto.meterSerialNo as string, isActive: true,
+        unit: { deletedAt: null },
+      },
       include: { unit: { select: { unitNumber: true } } },
     });
     if (duplicateSerial) {
@@ -602,15 +607,21 @@ export class MetersService {
       throw new AppError(409, 'METER_SERIAL_EXISTS', `Meter No. "${dto.meterSerialNo}" is already assigned to Unit ${unitNo}`);
     }
 
-    // If a soft-deleted record exists with the same serial+property, reactivate it
-    // (avoids the DB unique constraint on meter_serial_no + property_id)
-    const softDeleted = await prisma.utilityMeter.findFirst({
-      where: { propertyId, meterSerialNo: dto.meterSerialNo as string, isActive: false },
+    // Any other existing row for this serial+property — either soft-deleted, or left
+    // orphaned (still isActive) on a unit that has since been deleted — reassign it to
+    // this unit instead of inserting, since (meterSerialNo, propertyId) is unique.
+    const existing = await prisma.utilityMeter.findFirst({
+      where: { propertyId, meterSerialNo: dto.meterSerialNo as string },
     });
-    if (softDeleted) {
+    if (existing) {
+      // This is a fresh install on this unit — clear out any reading history left
+      // over from the record's previous life, unless the caller explicitly passed one.
       return prisma.utilityMeter.update({
-        where: { id: softDeleted.id },
-        data: { ...dto as any, unitId, propertyId, companyId, isActive: true },
+        where: { id: existing.id },
+        data: {
+          lastReading: null, lastReadingDate: null,
+          ...dto as any, unitId, propertyId, companyId, isActive: true,
+        },
       });
     }
 
