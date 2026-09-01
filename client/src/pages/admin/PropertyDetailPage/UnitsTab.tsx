@@ -717,6 +717,10 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
   const sections = selectedTower?.sections || [];
   const selectedFloor = floors.find((f) => f.floorNumber === Number(form.floorNumber));
 
+  /* Floor label prefixes the P-Unit number and is not itself editable there */
+  const unitNumberPrefix = form.floorLabel ? `${form.floorLabel}-` : '';
+  const fullUnitNumber = `${unitNumberPrefix}${form.unitNumber.trim()}`;
+
   const handleSubmit = async () => {
     if (!form.unitNumber.trim() || !form.unitType) {
       toast.error('P-Unit number and type are required');
@@ -726,7 +730,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
       await createUnit({
         propertyId,
         data: {
-          unitNumber:    form.unitNumber.trim(),
+          unitNumber:    fullUnitNumber,
           unitType:      form.unitType,
           zone:          form.zone        || undefined,
           towerId:       form.towerId     || undefined,
@@ -748,12 +752,12 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           commonBillCalculate: form.commonBillCalculate,
         } as any,
       }).unwrap();
-      toast.success(`P-Unit ${form.unitNumber} created`);
+      toast.success(`P-Unit ${fullUnitNumber} created`);
       close();
     } catch (e: any) {
       const err = e?.data?.errors?.[0];
       if (err?.code === 'UNIT_NUMBER_TAKEN') {
-        toast.error(`P-Unit number "${form.unitNumber.trim()}" already exists`);
+        toast.error(`P-Unit number "${fullUnitNumber}" already exists`);
       } else {
         toast.error(err?.message || 'Failed to create unit');
       }
@@ -772,33 +776,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
         </div>
 
         <div className="cu-body">
-          {/* P-Unit Number + Type */}
-          <div className="cu-section-title">P-Unit Identity</div>
-          <div className="cu-grid">
-            <div className="cu-field">
-              <label>P-Unit Number *</label>
-              <input placeholder="e.g. A-101" value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)} />
-            </div>
-            <div className="cu-field">
-              <label>P-Unit Type *</label>
-              <select value={form.unitType} onChange={(e) => set('unitType', e.target.value)}>
-                <option value="">Select type…</option>
-                {unitTypes.length > 0
-                  ? [...unitTypes].sort((a, b) => a.name.localeCompare(b.name)).map((t) => <option key={t.id} value={t.code}>{t.name}</option>)
-                  : ['studio','one_bedroom','two_bedroom','three_bedroom','penthouse','shop','office','warehouse'].map((t) =>
-                      <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-              </select>
-            </div>
-            <div className="cu-field">
-              <label>Zone <span className="cu-opt">(optional)</span></label>
-              <select value={form.zone} onChange={(e) => set('zone', e.target.value)}>
-                <option value="">-</option>
-                {ZONE_OPTIONS.map((z) => <option key={z} value={z}>{z}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Tower & Section */}
+          {/* Tower & Section — largest scope first */}
           {towers.length > 0 && (
             <>
               <div className="cu-section-title">Location</div>
@@ -854,6 +832,45 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
             </div>
           </div>
 
+          {/* P-Unit Number + Type — smallest scope last */}
+          <div className="cu-section-title">P-Unit Identity</div>
+          <div className="cu-grid">
+            <div className="cu-field">
+              <label>P-Unit Number *</label>
+              {unitNumberPrefix ? (
+                <div className="cu-unitno-combo">
+                  <span className="cu-unitno-prefix" title="Floor label — set from the selected floor, not editable here">
+                    {unitNumberPrefix}
+                  </span>
+                  <input placeholder="e.g. 101" value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)} />
+                </div>
+              ) : (
+                <input placeholder="e.g. A-101" value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)} />
+              )}
+            </div>
+            <div className="cu-field">
+              <label>P-Unit Type *</label>
+              <select value={form.unitType} onChange={(e) => set('unitType', e.target.value)}>
+                <option value="">Select type…</option>
+                {unitTypes.length > 0
+                  ? ['residential', 'commercial', 'storage', 'parking'].map((cat) => (
+                      <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                        {unitTypes.filter((t) => t.category === cat).map((t) => <option key={t.id} value={t.code}>{t.name}</option>)}
+                      </optgroup>
+                    ))
+                  : ['studio','one_bedroom','two_bedroom','three_bedroom','penthouse','shop','office','warehouse'].map((t) =>
+                      <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div className="cu-field">
+              <label>Zone <span className="cu-opt">(optional)</span></label>
+              <select value={form.zone} onChange={(e) => set('zone', e.target.value)}>
+                <option value="">-</option>
+                {ZONE_OPTIONS.map((z) => <option key={z} value={z}>{z}</option>)}
+              </select>
+            </div>
+          </div>
+
           {/* Area */}
           <div className="cu-section-title">Size</div>
           <div className="cu-grid">
@@ -869,17 +886,18 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
 
           {/* Rental Period / Calculation / Rate */}
           <div className="cu-section-title">Rental</div>
-          <div className="cu-grid">
+          <div className="cu-grid cu-grid-4">
             <div className="cu-field">
               <label>Rental Period</label>
-              <div className="cu-field-combo">
-                <input type="number" min={0} placeholder="e.g. 12" value={form.rentalPeriod} onChange={(e) => set('rentalPeriod', e.target.value)} />
-                <select value={form.rentalPeriodUnit} onChange={(e) => set('rentalPeriodUnit', e.target.value)}>
-                  <option value="day">Day</option>
-                  <option value="month">Month</option>
-                  <option value="year">Year</option>
-                </select>
-              </div>
+              <input type="number" min={0} placeholder="e.g. 12" value={form.rentalPeriod} onChange={(e) => set('rentalPeriod', e.target.value)} />
+            </div>
+            <div className="cu-field">
+              <label>Period Unit</label>
+              <select value={form.rentalPeriodUnit} onChange={(e) => set('rentalPeriodUnit', e.target.value)}>
+                <option value="day">Day</option>
+                <option value="month">Month</option>
+                <option value="year">Year</option>
+              </select>
             </div>
             <div className="cu-field">
               <label>Calculation on:</label>
@@ -888,10 +906,10 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
                 <option value="per_sqft">PerSqFt</option>
               </select>
             </div>
-          </div>
-          <div className="cu-field">
-            <label>Rate</label>
-            <input type="number" min={0} placeholder="e.g. 3500" value={form.rate} onChange={(e) => set('rate', e.target.value)} />
+            <div className="cu-field">
+              <label>Rate</label>
+              <input type="number" min={0} placeholder="e.g. 3500" value={form.rate} onChange={(e) => set('rate', e.target.value)} />
+            </div>
           </div>
 
           {/* Bed/Bath/Furnishing/Ownership */}

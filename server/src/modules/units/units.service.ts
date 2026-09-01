@@ -295,9 +295,10 @@ export class UnitsService {
       const floorLabelMap = new Map(floorSetups.map((f) => [f.floorNumber, f.floorLabel]));
 
       for (let floor = from; floor <= to; floor++) {
+        const floorLabel = floorLabelMap.get(floor) ?? String(floor);
         for (let u = 1; u <= unitsPerFloor; u++) {
           const unitNum = u.toString().padStart(2, '0');
-          const unitNumber = `${floor}${prefix ?? ''}${unitNum}`;
+          const unitNumber = `${floorLabel}${prefix ?? ''}${unitNum}`;
           units.push({
             propertyId, companyId,
             towerId: dto.towerId ?? null,
@@ -305,7 +306,7 @@ export class UnitsService {
             unitType: unitType.code,
             unitTypeId,
             floorNumber: floor,
-            floorLabel: floorLabelMap.get(floor) ?? String(floor),
+            floorLabel,
             areaSqft: areaSqftCalc,
             areaSqm: areaSqmCalc,
             status: 'available',

@@ -59,6 +59,29 @@
 
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
+.form-field input.field-error {
+  border-color: rgba(239,68,68,0.5);
+}
+.form-field input.field-error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
+}
+.field-error-msg {
+  font-size: 0.7rem;
+  color: #ef4444;
+}
+.ff-label-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+.field-hint {
+  text-transform: none;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
 .total-summary {
   display: flex;
   align-items: center;

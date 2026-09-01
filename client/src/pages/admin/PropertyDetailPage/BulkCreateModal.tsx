@@ -23,20 +23,29 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
   const [form, setForm] = useState({
     towerId: '',
     fromFloor: 1,
-    toFloor: 10,
+    toFloor: 1,
     unitsPerFloor: 4,
     unitTypeId: '',
     areaSqft: '' as number | '',
-    prefix: '',
   });
 
+  // Fixed separator between the floor label and the sequence number (e.g. "8F-01")
+  const UNIT_NUMBER_SEPARATOR = '-';
+
   const unitTypes = typesData?.data || [];
+  const invalidFloorRange = form.toFloor < form.fromFloor;
 
   // ── Floor labels (from Floor Setup) ─────────
   const floorLabelMap = useMemo(() => {
     const map = new Map<number, string>();
     for (const f of floorSetupsData?.data || []) map.set(f.floorNumber, f.floorLabel);
     return map;
+  }, [floorSetupsData]);
+
+  // Highest floor number actually configured for this property — To Floor can't go past it
+  const maxFloorNumber = useMemo(() => {
+    const nums = (floorSetupsData?.data || []).map((f) => f.floorNumber);
+    return nums.length ? Math.max(...nums) : undefined;
   }, [floorSetupsData]);
 
   const floorsMissingLabel = useMemo(() => {
@@ -53,16 +62,20 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Generate ALL units (not limited) ────────
+  // Unit numbers are prefixed by each floor's label (from Floor Setup), not the raw
+  // floor index — matching the "Add New P-Unit" form, where the floor label is fixed
+  // and only the sequence number is user-controlled (via the separator).
   const allUnits = useMemo(() => {
     const list: Array<{ unitNumber: string; floor: number }> = [];
     if (!form.unitTypeId) return list;
     for (let floor = form.fromFloor; floor <= form.toFloor; floor++) {
+      const floorLabel = floorLabelMap.get(floor) ?? String(floor);
       for (let u = 1; u <= form.unitsPerFloor; u++) {
-        list.push({ unitNumber: `${floor}${form.prefix}${u.toString().padStart(2, '0')}`, floor });
+        list.push({ unitNumber: `${floorLabel}${UNIT_NUMBER_SEPARATOR}${u.toString().padStart(2, '0')}`, floor });
       }
     }
     return list;
-  }, [form.fromFloor, form.toFloor, form.unitsPerFloor, form.prefix, form.unitTypeId]);
+  }, [form.fromFloor, form.toFloor, form.unitsPerFloor, form.unitTypeId, floorLabelMap]);
 
   const allUnitNumbers = useMemo(() => allUnits.map((u) => u.unitNumber), [allUnits]);
 
@@ -108,9 +121,9 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
 
   const handleCreate = async () => {
     if (!form.unitTypeId) { toast.error('Select a unit type'); return; }
-    if (form.fromFloor > form.toFloor) { toast.error('Invalid floor range'); return; }
+    if (invalidFloorRange) { toast.error('To Floor must be greater than or equal to From Floor'); return; }
     if (totalUnits > 500) { toast.error('Maximum 500 units per bulk operation'); return; }
-    if (conflictCount > 0) { toast.error(`${conflictCount} unit number(s) already exist — change the range or prefix`); return; }
+    if (conflictCount > 0) { toast.error(`${conflictCount} unit number(s) already exist — change the range`); return; }
 
     try {
       const result = await bulkCreate({
@@ -123,7 +136,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
             unitsPerFloor: form.unitsPerFloor,
             unitTypeId: form.unitTypeId,
             areaSqft: form.areaSqft ? Number(form.areaSqft) : undefined,
-            prefix: form.prefix,
+            prefix: UNIT_NUMBER_SEPARATOR,
           },
         },
       }).unwrap();
@@ -180,9 +193,15 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
                   onChange={(e) => setForm({ ...form, fromFloor: parseInt(e.target.value) || 1 })} />
               </div>
               <div className="form-field">
-                <label>To Floor</label>
-                <input type="number" min={-5} max={200} value={form.toFloor}
-                  onChange={(e) => setForm({ ...form, toFloor: parseInt(e.target.value) || 1 })} />
+                <label className="ff-label-row">To Floor {maxFloorNumber != null && <span className="field-hint">(up to {maxFloorNumber})</span>}</label>
+                <input type="number" min={form.fromFloor} max={maxFloorNumber ?? 200} value={form.toFloor}
+                  className={invalidFloorRange ? 'field-error' : ''}
+                  onChange={(e) => {
+                    const raw = parseInt(e.target.value) || 1;
+                    const clamped = maxFloorNumber != null ? Math.min(raw, maxFloorNumber) : raw;
+                    setForm({ ...form, toFloor: clamped });
+                  }} />
+                {invalidFloorRange && <span className="field-error-msg">Must be ≥ From Floor</span>}
               </div>
             </div>
 
@@ -193,16 +212,10 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
                   onChange={(e) => setForm({ ...form, unitsPerFloor: parseInt(e.target.value) || 1 })} />
               </div>
               <div className="form-field">
-                <label>Number Separator (optional)</label>
-                <input placeholder='e.g. "-"' value={form.prefix} maxLength={2}
-                  onChange={(e) => setForm({ ...form, prefix: e.target.value })} />
+                <label>Area (sqft, optional)</label>
+                <input type="number" placeholder="e.g. 750" value={form.areaSqft}
+                  onChange={(e) => setForm({ ...form, areaSqft: e.target.value ? parseFloat(e.target.value) : '' })} />
               </div>
-            </div>
-
-            <div className="form-field">
-              <label>Area (sqft, optional — applied to all units)</label>
-              <input type="number" placeholder="e.g. 750" value={form.areaSqft}
-                onChange={(e) => setForm({ ...form, areaSqft: e.target.value ? parseFloat(e.target.value) : '' })} />
             </div>
 
             {/* Total summary */}
@@ -268,7 +281,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
         <div className="modal-footer">
           <button className="btn-ghost" onClick={() => dispatch(setBulkCreateOpen(false))}>Cancel</button>
           <button className="btn-primary" onClick={handleCreate}
-            disabled={isLoading || checking || totalUnits > 500 || !form.unitTypeId || conflictCount > 0}>
+            disabled={isLoading || checking || invalidFloorRange || totalUnits > 500 || !form.unitTypeId || conflictCount > 0}>
             {isLoading ? 'Creating…' : `Create ${totalUnits} Units`}
           </button>
         </div>
