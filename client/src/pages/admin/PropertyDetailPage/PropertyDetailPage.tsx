@@ -10,6 +10,7 @@ import {
   useGetFacilityTypesQuery, useUploadPhotosMutation,
   useUpdatePropertyMutation, useReorderPhotosMutation,
 } from '../../../store/api/propertiesApi';
+import { useGetUnitStatsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useGetDocumentsQuery } from '../../../store/api/documentsApi';
 import { useGetInvoicesQuery, useGetBillingSchedulesQuery } from '../../../store/api/billingApi';
@@ -51,6 +52,8 @@ export default function PropertyDetailPage() {
 
   const { data: propertyData, isLoading } = useGetPropertyQuery(id!);
   const property = propertyData?.data;
+  const { data: unitStatsData } = useGetUnitStatsQuery(id!, { skip: !id });
+  const unitStats = unitStatsData?.data;
 
   const [updateStatus] = useUpdatePropertyStatusMutation();
 
@@ -118,8 +121,8 @@ export default function PropertyDetailPage() {
       {/* Quick stats bar */}
       <div className="stats-bar">
         <div className="stat-item"><span className="stat-val">{property.totalUnits}</span><span className="stat-lbl">Total Units</span></div>
-        <div className="stat-item"><span className="stat-val">0</span><span className="stat-lbl">Occupied</span></div>
-        <div className="stat-item"><span className="stat-val">0%</span><span className="stat-lbl">Occupancy</span></div>
+        <div className="stat-item"><span className="stat-val">{unitStats?.occupied ?? 0}</span><span className="stat-lbl">Occupied</span></div>
+        <div className="stat-item"><span className="stat-val">{unitStats?.occupancyRate ?? 0}%</span><span className="stat-lbl">Occupancy</span></div>
         <div className="stat-item"><span className="stat-val">{property.currency}</span><span className="stat-lbl">Currency</span></div>
         <div className="stat-item"><span className="stat-val">{property.billingCycle}</span><span className="stat-lbl">Billing Cycle</span></div>
         {property.yearBuilt && <div className="stat-item"><span className="stat-val">{property.yearBuilt}</span><span className="stat-lbl">Year Built</span></div>}
