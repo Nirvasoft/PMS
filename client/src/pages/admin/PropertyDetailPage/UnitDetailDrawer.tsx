@@ -487,7 +487,13 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       <label>Unit Type</label>
                       <select value={editForm.unitType} onChange={(e) => ef('unitType', e.target.value)}>
                         {unitTypes.length > 0
-                          ? [...unitTypes].sort((a, b) => a.name.localeCompare(b.name)).map((t) => <option key={t.id} value={t.code}>{t.name}</option>)
+                          ? ['residential', 'commercial', 'storage', 'parking'].map((cat) => (
+                              <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                                {unitTypes.filter((t) => t.category === cat).sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
+                                  <option key={t.id} value={t.code}>{t.name}</option>
+                                ))}
+                              </optgroup>
+                            ))
                           : <option value={editForm.unitType}>{editForm.unitType}</option>}
                       </select>
                     </div>

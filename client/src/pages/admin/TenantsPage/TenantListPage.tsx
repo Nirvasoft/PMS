@@ -6,7 +6,7 @@ import {
 } from '../../../store/api/tenantsApi';
 import {
   Users, Plus, Search, X, Building2, User, Shield, ShieldOff,
-  Trash2, ChevronRight, Filter, GitMerge, Tag,
+  Trash2, Filter, GitMerge, Tag,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -151,7 +151,7 @@ export default function TenantListPage() {
             : <><span>Code</span><span>Name</span></>
           }
           <span>Type</span><span>Contact</span>
-          <span>KYC Status</span><span>Active Leases</span><span>Tags</span><span>Added</span><span></span>
+          <span>KYC Status</span><span>Active Leases</span><span></span>
         </div>
 
         {isLoading ? (
@@ -250,19 +250,9 @@ function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
       {/* Active Leases */}
       <div className="tenant-active-leases">{tenant.activeLeases}</div>
 
-      {/* Tags */}
-      <div className="tag-cell">
-        {tenant.tags.slice(0, 2).map((tag) => <span key={tag} className="tenant-tag">{tag.replace(/_/g, ' ')}</span>)}
-        {tenant.tags.length > 2 && <span className="tag-more">+{tenant.tags.length - 2}</span>}
-      </div>
-
-      {/* Date */}
-      <div className="tenant-date">{new Date(tenant.createdAt).toLocaleDateString()}</div>
-
       {/* Actions */}
       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
         <button className="row-btn-delete" onClick={onDelete}><Trash2 size={13} /></button>
-        <ChevronRight size={14} className="row-chevron" />
       </div>
     </div>
   );

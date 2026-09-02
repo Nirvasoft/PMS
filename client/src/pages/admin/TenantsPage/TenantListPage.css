@@ -144,7 +144,7 @@
 
 .tenant-table-header {
   display: grid;
-  grid-template-columns: 46px 110px 1fr 100px 150px 130px 100px 1fr 100px 60px;
+  grid-template-columns: 46px 110px 1fr 100px 150px 130px 100px 60px;
   gap: 12px;
   padding: 10px 16px;
   font-size: 0.68rem;
@@ -157,7 +157,7 @@
 
 .tenant-row {
   display: grid;
-  grid-template-columns: 46px 110px 1fr 100px 150px 130px 100px 1fr 100px 60px;
+  grid-template-columns: 46px 110px 1fr 100px 150px 130px 100px 60px;
   gap: 12px;
   align-items: center;
   padding: 10px 16px;
@@ -239,16 +239,9 @@
   font-size: 0.7rem; font-weight: 700; border: 1px solid;
 }
 
-.tag-cell { display: flex; gap: 4px; flex-wrap: wrap; }
-.tenant-tag { padding: 2px 7px; background: rgba(255,255,255,0.06); border-radius: 4px; font-size: 0.68rem; color: var(--text-muted); }
-.tag-more   { font-size: 0.68rem; color: var(--text-muted); }
-
-.tenant-date { font-size: 0.75rem; color: var(--text-muted); }
-
 .row-actions { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
 .row-btn-delete { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 5px; transition: color 0.15s; display: flex; }
 .row-btn-delete:hover { color: #e74c3c; }
-.row-chevron { color: var(--text-muted); }
 
 /* ─── States ─────────────────────────────────── */
 .table-loading { padding: 24px 16px; display: flex; flex-direction: column; gap: 8px; }

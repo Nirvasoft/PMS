@@ -593,6 +593,7 @@
   box-shadow: 0 0 0 2px rgba(108,92,231,0.1);
 }
 .ef-field select option { background: #1a1f2e; }
+.ef-field select optgroup { background: #1a1f2e; font-weight: 700; }
 .ef-field textarea { resize: vertical; min-height: 42px; }
 
 /* Amenity toggles */
@@ -701,6 +702,7 @@
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 [data-theme="light"] .ef-field select option { background: #ffffff; }
+[data-theme="light"] .ef-field select optgroup { background: #ffffff; }
 
 [data-theme="light"] .amenity-toggle {
   border-color: rgba(0,0,0,0.08);
