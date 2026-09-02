@@ -5505,7 +5505,7 @@ select.input-full:focus {
 }
 
 /* Status badge (Active / Under Renovation / etc): dark glass → white pill */
-[data-theme="light"] .status-badge {
+[data-theme="light"] .card-image .status-badge {
   background: rgba(255,255,255,0.88);
   backdrop-filter: blur(6px);
   box-shadow: 0 1px 4px rgba(0,0,0,0.12);

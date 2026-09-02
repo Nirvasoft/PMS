@@ -174,7 +174,7 @@
 /* ─── Overview Grid ──────────────────────────── */
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
 }
 
@@ -237,7 +237,7 @@
 .capitalize { text-transform: capitalize; }
 
 /* ─── Section ────────────────────────────────── */
-.tab-section { max-width: 900px; }
+.tab-section { max-width: 100%; }
 .tab-section > h3 { font-size: 1rem; font-weight: 700; margin: 0 0 16px; }
 
 .section-header {
@@ -1301,7 +1301,7 @@
 }
 
 .leases-table {
-  width: 100%; border-collapse: collapse; font-size: .82rem;
+  width: 100%; table-layout: fixed; border-collapse: collapse; font-size: .82rem;
 }
 .leases-table th {
   text-align: left; padding: 10px 14px;
@@ -1310,10 +1310,12 @@
   color: var(--text-muted);
   background: rgba(255,255,255,.02);
   border-bottom: 1px solid rgba(255,255,255,.06);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .leases-table td {
   padding: 12px 14px;
   border-bottom: 1px solid rgba(255,255,255,.04);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .leases-table tbody tr:hover { background: rgba(108,92,231,.04); }
 

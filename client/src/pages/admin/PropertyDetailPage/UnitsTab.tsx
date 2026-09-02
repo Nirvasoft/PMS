@@ -17,7 +17,7 @@ import type { UnitListItem, Tower, FloorPlanMatrix } from '../../../store/api/un
 import {
   LayoutGrid, List, Layers, Plus, Search, Building2,
   Zap, Droplets, Wind, X, Grid3x3, ChevronRight, ChevronLeft,
-  ChevronsUp, ChevronsDown, Filter, Calendar, Trash2,
+  Filter, Calendar, Trash2,
   Car, Bike,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -417,25 +417,6 @@ export default function UnitsTab() {
                         </>
                       )}
 
-                    </div>
-                  )}
-                  {/* Floor jump buttons */}
-                  {filteredFloors.length > 2 && (
-                    <div className="floor-jump-btns">
-                      <button
-                        className="floor-jump-btn"
-                        title="Jump to top floor"
-                        onClick={() => floorScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-                      >
-                        <ChevronsUp size={14} />
-                      </button>
-                      <button
-                        className="floor-jump-btn"
-                        title="Jump to ground floor"
-                        onClick={() => floorScrollRef.current?.scrollTo({ top: floorScrollRef.current.scrollHeight, behavior: 'smooth' })}
-                      >
-                        <ChevronsDown size={14} />
-                      </button>
                     </div>
                   )}
                 </div>

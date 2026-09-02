@@ -933,6 +933,15 @@ function LeasesTab({ propertyId }: { propertyId: string }) {
       ) : (
         <div className="leases-table-wrap">
           <table className="leases-table">
+            <colgroup>
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '20%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '15%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Lease #</th>

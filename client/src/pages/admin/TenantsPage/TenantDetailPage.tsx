@@ -866,7 +866,7 @@ function LeasesTab({ tenantId }: { tenantId: string }) {
         <span className="lease-stat">{leases.length} total leases</span>
         {active > 0 && <span className="lease-stat active">{active} active</span>}
       </div>
-      <div className="leases-table">
+      <div className="tenant-leases-list">
         <div className="lease-row header">
           <span>Lease #</span><span>Property</span><span>Unit</span>
           <span>Period</span><span>Rent</span><span>Status</span>

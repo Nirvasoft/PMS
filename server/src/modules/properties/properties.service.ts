@@ -215,22 +215,44 @@ export class PropertiesService {
 
   // ── Summary stats ─────────────────────────────
   async getPropertyStats(propertyId: string) {
-    // Phase 2: aggregate from units/leases when those tables exist
-    // For now return property-level counts
     const property = await prisma.property.findUnique({
       where: { id: propertyId },
       select: { totalUnits: true },
     });
     if (!property) throw AppError.notFound('Property');
 
+    const now = new Date();
+    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const [statusCounts, activeLeases, expiringLeases] = await Promise.all([
+      prisma.unit.groupBy({
+        by: ['status'],
+        where: { propertyId, deletedAt: null },
+        _count: true,
+      }),
+      prisma.lease.count({ where: { propertyId, status: 'active' } }),
+      prisma.lease.count({
+        where: { propertyId, status: 'active', endDate: { gte: now, lte: in30Days } },
+      }),
+    ]);
+
+    const unitCounts = { available: 0, occupied: 0, reserved: 0, maintenance: 0, not_for_rent: 0 };
+    let totalCounted = 0;
+    for (const s of statusCounts) {
+      (unitCounts as any)[s.status] = s._count;
+      totalCounted += s._count;
+    }
+
+    const occupancyRate = totalCounted > 0 ? Math.round((unitCounts.occupied / totalCounted) * 100) : 0;
+
     return {
       totalUnits: property.totalUnits,
-      occupiedUnits: 0,     // from units table — Phase 2.2
-      availableUnits: 0,
-      maintenanceUnits: 0,
-      occupancyRate: 0,
-      activeLeases: 0,      // from leases table — Phase 2.4
-      expiringLeases: 0,
+      occupiedUnits: unitCounts.occupied,
+      availableUnits: unitCounts.available,
+      maintenanceUnits: unitCounts.maintenance,
+      occupancyRate,
+      activeLeases,
+      expiringLeases,
     };
   }
 
