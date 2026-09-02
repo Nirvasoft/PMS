@@ -287,6 +287,23 @@
 .empty-sm { color: var(--text-muted); font-size: 0.82rem; text-align: center; padding: 20px 0; }
 
 /* ─── History ─────────────────────────────────── */
+.history-filter-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.history-type-select {
+  flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  padding: 6px 10px; border-radius: 7px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-primary); font-size: 0.78rem; font-weight: 600;
+  outline: none; cursor: pointer;
+}
+.history-category-select { margin: 0; }
+.history-type-select-spacer { visibility: hidden; cursor: default; }
+.history-type-select option { background: #1a1f2e; color: var(--text-primary); }
+
+.history-date-filter { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 16px; }
+.history-date-filter .ef-field { flex: 1; min-width: 0; }
+.history-date-filter .ef-field input { width: 100%; max-width: none; }
+.history-date-clear, .history-clear-spacer { flex: 0 0 61px; width: 61px; }
+.history-date-clear-hidden { visibility: hidden; pointer-events: none; }
 .drawer-history { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: 16px; }
 
 .drawer-history::before {
@@ -302,9 +319,12 @@
   border: 2px solid rgba(0,0,0,0.3); flex-shrink: 0;
 }
 
-.history-change-sm { display: flex; gap: 5px; font-size: 0.8rem; font-weight: 500; text-transform: capitalize; }
+.history-change-sm { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; font-weight: 500; text-transform: capitalize; }
 .history-reason-sm { font-size: 0.72rem; color: var(--text-muted); font-style: italic; margin-top: 1px; }
 .history-meta-sm { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+
+.history-dot-meter { background: #6c5ce7; }
+.history-meter-type { color: var(--text-muted); font-weight: 400; text-transform: none; }
 
 /* ═══════════════════════════════════════════════
    LIGHT MODE — Unit Detail Drawer
@@ -371,6 +391,8 @@
 }
 [data-theme="light"] .meter-form select option,
 [data-theme="light"] .meter-edit-inline select option { background: #ffffff; color: var(--text-primary); }
+[data-theme="light"] .history-type-select { background: #ffffff; border-color: #d1e6d9; color: var(--text-primary); }
+[data-theme="light"] .history-type-select option { background: #ffffff; color: var(--text-primary); }
 [data-theme="light"] .meter-form select:focus,
 [data-theme="light"] .meter-form input:focus {
   border-color: var(--accent);

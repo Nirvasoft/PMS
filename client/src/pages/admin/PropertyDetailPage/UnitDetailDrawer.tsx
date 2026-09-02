@@ -54,6 +54,10 @@ type DrawerTab = 'info' | 'meters' | 'charges' | 'floor_plan' | 'leases' | 'hist
 export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; unitId: string }) {
   const dispatch = useAppDispatch();
   const [activeTab, setActiveTab] = useState<DrawerTab>('info');
+  const [historyFilter, setHistoryFilter] = useState<'status' | 'meter'>('status');
+  const [historyFromDate, setHistoryFromDate] = useState('');
+  const [historyToDate, setHistoryToDate] = useState('');
+  const [historyMeterCategory, setHistoryMeterCategory] = useState('all');
   const [editing, setEditing] = useState(false);
   const [statusModal, setStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
@@ -70,7 +74,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [meterEditFormErrors, setMeterEditFormErrors] = useState<Record<string, string>>({});
   const [readingMeterId, setReadingMeterId] = useState<string | null>(null);
   const [readingValue, setReadingValue] = useState('');
-  const [readingDate, setReadingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [readingStartDate, setReadingStartDate] = useState('');
+  const [readingEndDate, setReadingEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [addingCharge, setAddingCharge] = useState(false);
   const [chargeForm, setChargeForm] = useState({ chargeTypeId: '', amount: '' });
   const [savingCharge, setSavingCharge] = useState(false);
@@ -290,11 +295,13 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     try {
       await updateMeter({ propertyId, unitId, meterId: readingMeterId, data: {
         lastReading: Number(readingValue),
-        lastReadingDate: readingDate ? new Date(readingDate).toISOString() : undefined,
+        lastReadingStartDate: readingStartDate ? new Date(readingStartDate).toISOString() : null,
+        lastReadingDate: readingEndDate ? new Date(readingEndDate).toISOString() : undefined,
       }}).unwrap();
       toast.success('Reading recorded');
       setReadingMeterId(null);
       setReadingValue('');
+      setReadingStartDate('');
     } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed'); }
   };
 
@@ -853,18 +860,21 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                             {METER_ICONS[m.meterType] || <Activity size={14} />}
                             <span>Record Reading — {m.meterSerialNo}</span>
                           </div>
-                          <div className="meter-form-row">
-                            <div className="ef-field">
-                              <label>Reading Value</label>
-                              <input type="number" step="0.001" value={readingValue}
-                                onChange={(e) => setReadingValue(e.target.value)}
-                                placeholder="e.g. 1250.5" autoFocus />
-                            </div>
-                            <div className="ef-field">
-                              <label>Date</label>
-                              <input type="date" value={readingDate}
-                                onChange={(e) => setReadingDate(e.target.value)} />
-                            </div>
+                          <div className="ef-field full-width">
+                            <label>Reading Value</label>
+                            <input type="number" step="0.001" value={readingValue}
+                              onChange={(e) => setReadingValue(e.target.value)}
+                              placeholder="e.g. 1250.5" autoFocus />
+                          </div>
+                          <div className="ef-field full-width">
+                            <label>Start Date</label>
+                            <input type="date" value={readingStartDate}
+                              onChange={(e) => setReadingStartDate(e.target.value)} />
+                          </div>
+                          <div className="ef-field full-width">
+                            <label>End Date</label>
+                            <input type="date" value={readingEndDate}
+                              onChange={(e) => setReadingEndDate(e.target.value)} />
                           </div>
                           <div className="form-row">
                             <button className="btn-primary-sm" onClick={handleRecordReading}><Check size={12} /> Save</button>
@@ -908,9 +918,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                               <div className="meter-last-reading">
                                 <span className="mlr-label">Last Reading</span>
                                 <span className="mlr-value">{Number(m.lastReading).toLocaleString()}</span>
-                                {m.lastReadingDate && (
+                                {(m.lastReadingStartDate || m.lastReadingDate) && (
                                   <span className="mlr-date">
-                                    {new Date(m.lastReadingDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    {m.lastReadingStartDate && new Date(m.lastReadingStartDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    {m.lastReadingStartDate && m.lastReadingDate && ' – '}
+                                    {m.lastReadingDate && new Date(m.lastReadingDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
                                   </span>
                                 )}
                               </div>
@@ -919,7 +931,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                           </div>
                           <div className="meter-actions">
                             <button className="meter-action-btn" title="Record Reading"
-                              onClick={() => { setReadingMeterId(m.id); setReadingValue(m.lastReading != null ? String(m.lastReading) : ''); }}>
+                              onClick={() => {
+                                setReadingMeterId(m.id);
+                                setReadingValue(m.lastReading != null ? String(m.lastReading) : '');
+                                setReadingStartDate(m.lastReadingStartDate ? m.lastReadingStartDate.split('T')[0] : '');
+                                setReadingEndDate(m.lastReadingDate ? m.lastReadingDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+                              }}>
                               <Activity size={12} />
                             </button>
                             <button className="meter-action-btn" title="Edit Meter" onClick={() => handleMeterEdit(m)}>
@@ -1144,31 +1161,145 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
           )}
 
           {/* ═══ HISTORY TAB ═══ */}
-          {activeTab === 'history' && (
-            <div className="drawer-history">
-              {unit.statusHistory.length === 0
-                ? <div className="empty-sm">No status history</div>
-                : unit.statusHistory.map((h) => (
-                    <div key={h.id} className="history-item-sm">
-                      <div className="history-dot-sm" style={{ background: STATUS_COLORS[h.toStatus] }} />
-                      <div>
-                        <div className="history-change-sm">
-                          {h.fromStatus ? <span>{h.fromStatus.replace(/_/g, ' ')} →</span> : null}
-                          <span style={{ color: STATUS_COLORS[h.toStatus] }}>{h.toStatus.replace(/_/g, ' ')}</span>
-                        </div>
-                        {h.reason && <div className="history-reason-sm">{h.reason}</div>}
-                        <div className="history-meta-sm">
-                          {h.changedByUser?.profile
-                            ? `${h.changedByUser.profile.firstName} ${h.changedByUser.profile.lastName}`
-                            : h.changedByUser?.email}
-                          · {new Date(h.changedAt).toLocaleString()}
-                        </div>
+          {activeTab === 'history' && (() => {
+            type HistoryEvent = { id: string; at: string; filterStart: string; filterEnd: string; meterType?: string; node: JSX.Element };
+
+            const statusEvents: HistoryEvent[] = unit.statusHistory.map((h) => ({
+              id: `status-${h.id}`,
+              at: h.changedAt,
+              filterStart: h.changedAt,
+              filterEnd: h.changedAt,
+              node: (
+                <div key={`status-${h.id}`} className="history-item-sm">
+                  <div className="history-dot-sm" style={{ background: STATUS_COLORS[h.toStatus] }} />
+                  <div>
+                    <div className="history-change-sm">
+                      {h.fromStatus ? <span>{h.fromStatus.replace(/_/g, ' ')} →</span> : null}
+                      <span style={{ color: STATUS_COLORS[h.toStatus] }}>{h.toStatus.replace(/_/g, ' ')}</span>
+                    </div>
+                    {h.reason && <div className="history-reason-sm">{h.reason}</div>}
+                    <div className="history-meta-sm">
+                      {h.changedByUser?.profile
+                        ? `${h.changedByUser.profile.firstName} ${h.changedByUser.profile.lastName}`
+                        : h.changedByUser?.email}
+                      · {new Date(h.changedAt).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              ),
+            }));
+
+            const meterEvents: HistoryEvent[] = unit.meterReadingHistory.map((r) => {
+              const typeLabel = METER_CATEGORIES.find((c) => c.value === r.meterType)?.label || r.meterType.replace(/_/g, ' ');
+              return {
+                id: `meter-${r.id}`,
+                at: r.recordedAt,
+                filterStart: r.startDate || r.endDate || r.recordedAt,
+                filterEnd: r.endDate || r.startDate || r.recordedAt,
+                meterType: r.meterType,
+                node: (
+                  <div key={`meter-${r.id}`} className="history-item-sm">
+                    <div className="history-dot-sm history-dot-meter" />
+                    <div>
+                      <div className="history-change-sm">
+                        {METER_ICONS[r.meterType] || <Activity size={12} />}
+                        <span>Meter Reading</span>
+                        <span className="history-meter-type">· {typeLabel}</span>
+                      </div>
+                      <div className="history-reason-sm">
+                        {r.meterSerialNo} — {Number(r.readingValue).toLocaleString()}
+                        {(r.startDate || r.endDate) && (
+                          <> ({r.startDate ? new Date(r.startDate).toLocaleDateString() : '—'} – {r.endDate ? new Date(r.endDate).toLocaleDateString() : '—'})</>
+                        )}
+                      </div>
+                      <div className="history-meta-sm">
+                        {r.recordedByUser?.profile
+                          ? `${r.recordedByUser.profile.firstName} ${r.recordedByUser.profile.lastName}`
+                          : r.recordedByUser?.email}
+                        · {new Date(r.recordedAt).toLocaleString()}
                       </div>
                     </div>
-                  ))
-              }
-            </div>
-          )}
+                  </div>
+                ),
+              };
+            });
+
+            const sortDesc = (a: HistoryEvent, b: HistoryEvent) => new Date(b.at).getTime() - new Date(a.at).getTime();
+            statusEvents.sort(sortDesc);
+            meterEvents.sort(sortDesc);
+
+            const fromTime = historyFromDate ? new Date(`${historyFromDate}T00:00:00.000Z`).getTime() : null;
+            const toTime = historyToDate ? new Date(`${historyToDate}T23:59:59.999Z`).getTime() : null;
+            const inRange = (e: HistoryEvent) => {
+              const startT = new Date(e.filterStart).getTime();
+              const endT = new Date(e.filterEnd).getTime();
+              return (fromTime === null || endT >= fromTime) && (toTime === null || startT <= toTime);
+            };
+
+            const shown = (historyFilter === 'status' ? statusEvents : meterEvents)
+              .filter(inRange)
+              .filter((e) => historyFilter !== 'meter' || historyMeterCategory === 'all' || e.meterType === historyMeterCategory);
+            const emptyLabel = historyFilter === 'status' ? 'No status history' : 'No meter readings recorded';
+
+            return (
+              <div>
+                <div className="history-filter-row">
+                  <select className="history-type-select" value={historyFilter}
+                    onChange={(e) => setHistoryFilter(e.target.value as 'status' | 'meter')}>
+                    <option value="status">Status History</option>
+                    <option value="meter">Meter Reading History</option>
+                  </select>
+                  {historyFilter === 'meter'
+                    ? (
+                      <select className="history-type-select history-category-select" value={historyMeterCategory}
+                        onChange={(e) => setHistoryMeterCategory(e.target.value)}>
+                        <option value="all">All</option>
+                        {METER_CATEGORIES.map((c) => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    )
+                    : (
+                      <select className="history-type-select history-type-select-spacer" disabled aria-hidden="true" tabIndex={-1} value="all">
+                        <option value="all">All</option>
+                      </select>
+                    )
+                  }
+                  <div className="history-clear-spacer" aria-hidden="true" />
+                </div>
+                <div className="history-date-filter">
+                  <div className="ef-field">
+                    <label>From</label>
+                    <input type="date" value={historyFromDate} max={historyToDate || undefined}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v && historyToDate && v > historyToDate) return;
+                        setHistoryFromDate(v);
+                      }} />
+                  </div>
+                  <div className="ef-field">
+                    <label>To</label>
+                    <input type="date" value={historyToDate} min={historyFromDate || undefined}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v && historyFromDate && v < historyFromDate) return;
+                        setHistoryToDate(v);
+                      }} />
+                  </div>
+                  <button
+                    className={`btn-ghost-sm history-date-clear${(historyFromDate || historyToDate) ? '' : ' history-date-clear-hidden'}`}
+                    disabled={!(historyFromDate || historyToDate)}
+                    onClick={() => { setHistoryFromDate(''); setHistoryToDate(''); }}>Clear</button>
+                </div>
+                <div className="drawer-history">
+                  {shown.length === 0
+                    ? <div className="empty-sm">{(historyFromDate || historyToDate) ? 'No history in this date range' : emptyLabel}</div>
+                    : shown.map((e) => e.node)
+                  }
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

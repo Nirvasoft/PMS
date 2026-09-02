@@ -198,6 +198,13 @@ export class UnitsService {
           orderBy: { changedAt: 'desc' },
           take: 20,
         },
+        meterReadingHistory: {
+          include: {
+            recordedByUser: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
+          },
+          orderBy: { recordedAt: 'desc' },
+          take: 20,
+        },
         leases: {
           select: {
             id: true,
@@ -619,7 +626,7 @@ export class MetersService {
       return prisma.utilityMeter.update({
         where: { id: existing.id },
         data: {
-          lastReading: null, lastReadingDate: null,
+          lastReading: null, lastReadingStartDate: null, lastReadingDate: null,
           ...dto as any, unitId, propertyId, companyId, isActive: true,
         },
       });
@@ -628,10 +635,30 @@ export class MetersService {
     return prisma.utilityMeter.create({ data: { unitId, propertyId, companyId, ...dto as any } });
   }
 
-  async update(meterId: string, unitId: string, dtoRaw: Record<string, unknown>) {
+  async update(meterId: string, unitId: string, dtoRaw: Record<string, unknown>, userId: string) {
     const dto = this.normalizeMeterDto(dtoRaw);
     const meter = await prisma.utilityMeter.findFirst({ where: { id: meterId, unitId } });
     if (!meter) throw AppError.notFound('Meter');
+
+    if ('lastReading' in dto) {
+      const [updated] = await prisma.$transaction([
+        prisma.utilityMeter.update({ where: { id: meterId }, data: dto as any }),
+        prisma.meterReadingHistory.create({
+          data: {
+            meterId,
+            unitId,
+            meterType: meter.meterType,
+            meterSerialNo: meter.meterSerialNo,
+            readingValue: dto.lastReading as number,
+            startDate: dto.lastReadingStartDate ? new Date(dto.lastReadingStartDate as string) : null,
+            endDate: dto.lastReadingDate ? new Date(dto.lastReadingDate as string) : null,
+            recordedBy: userId,
+          },
+        }),
+      ]);
+      return updated;
+    }
+
     return prisma.utilityMeter.update({ where: { id: meterId }, data: dto as any });
   }
 

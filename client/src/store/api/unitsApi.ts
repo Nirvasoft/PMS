@@ -55,6 +55,7 @@ export interface UtilityMeter {
   meterProvider: string | null;
   location: string | null;
   lastReading: number | null;
+  lastReadingStartDate: string | null;
   lastReadingDate: string | null;
   isSmartMeter: boolean;
   isActive: boolean;
@@ -71,6 +72,19 @@ export interface UnitStatusHistory {
   reason: string | null;
   changedByUser: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
   changedAt: string;
+}
+
+export interface MeterReadingHistoryEntry {
+  id: string;
+  unitId: string;
+  meterId: string;
+  meterType: string;
+  meterSerialNo: string;
+  readingValue: number;
+  startDate: string | null;
+  endDate: string | null;
+  recordedByUser: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
+  recordedAt: string;
 }
 
 export interface UnitLease {
@@ -130,6 +144,7 @@ export interface UnitDetail extends UnitListItem {
   commonBillCalculate: boolean;
   unitTypeRef: UnitType | null;
   statusHistory: UnitStatusHistory[];
+  meterReadingHistory: MeterReadingHistoryEntry[];
   meters: UtilityMeter[];
   amenities: UnitAmenity[];
   leases: UnitLease[];

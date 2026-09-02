@@ -340,7 +340,8 @@ model User {
   propertyStatusChanges PropertyStatusHistory[] @relation("StatusChanger")
 
   // Relations — Units (Module 2.2)
-  unitStatusChanges UnitStatusHistory[] @relation("UnitStatusChanger")
+  unitStatusChanges  UnitStatusHistory[]   @relation("UnitStatusChanger")
+  meterReadingsTaken MeterReadingHistory[] @relation("MeterReadingRecorder")
 
   // Relations — Tenants (Module 2.3)
   kycVerifications    Tenant[]             @relation("KycVerifier")
@@ -1257,10 +1258,11 @@ model Unit {
   section       TowerSection?       @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   unitTypeRef   UnitType?           @relation(fields: [unitTypeId], references: [id], onDelete: SetNull)
   company       Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  statusHistory UnitStatusHistory[]
-  meters        UtilityMeter[]
-  amenities     UnitAmenity[]
-  unitCharges   UnitCharge[]
+  statusHistory       UnitStatusHistory[]
+  meters              UtilityMeter[]
+  meterReadingHistory MeterReadingHistory[]
+  amenities           UnitAmenity[]
+  unitCharges         UnitCharge[]
 
   // Relations — Leases (Module 2.4)
   leases         Lease[]
@@ -1355,8 +1357,9 @@ model UtilityMeter {
   meterSerialNo   String    @map("meter_serial_no") @db.VarChar(100)
   meterProvider   String?   @map("meter_provider") @db.VarChar(100)
   location        String?   @db.VarChar(255)
-  lastReading     Decimal?  @map("last_reading") @db.Decimal(12, 3)
-  lastReadingDate DateTime? @map("last_reading_date") @db.Date
+  lastReading          Decimal?  @map("last_reading") @db.Decimal(12, 3)
+  lastReadingStartDate DateTime? @map("last_reading_start_date") @db.Date
+  lastReadingDate      DateTime? @map("last_reading_date") @db.Date
   isSmartMeter    Boolean   @default(false) @map("is_smart_meter")
   smartMeterId    String?   @map("smart_meter_id") @db.VarChar(100)
   isActive        Boolean   @default(true) @map("is_active")
@@ -1365,9 +1368,10 @@ model UtilityMeter {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  unit               Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  property           Property            @relation(fields: [propertyId], references: [id], onDelete: Restrict)
-  company            Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  unit               Unit                  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  property           Property              @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  company            Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  readingHistory     MeterReadingHistory[]
   // Relations — Condo (Module 6.2)
   smartMeterReadings SmartMeterReading[]
   smartMeterDevice   SmartMeterDevice?
@@ -1376,6 +1380,27 @@ model UtilityMeter {
   @@index([unitId])
   @@index([propertyId])
   @@map("utility_meters")
+}
+
+model MeterReadingHistory {
+  id            String    @id @default(uuid()) @db.Uuid
+  meterId       String    @map("meter_id") @db.Uuid
+  unitId        String    @map("unit_id") @db.Uuid
+  meterType     String    @map("meter_type") @db.VarChar(20)
+  meterSerialNo String    @map("meter_serial_no") @db.VarChar(100)
+  readingValue  Decimal   @map("reading_value") @db.Decimal(12, 3)
+  startDate     DateTime? @map("start_date") @db.Date
+  endDate       DateTime? @map("end_date") @db.Date
+  recordedBy    String    @map("recorded_by") @db.Uuid
+  recordedAt    DateTime  @default(now()) @map("recorded_at") @db.Timestamptz
+
+  meter          UtilityMeter @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  unit           Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  recordedByUser User         @relation("MeterReadingRecorder", fields: [recordedBy], references: [id])
+
+  @@index([unitId])
+  @@index([meterId])
+  @@map("meter_reading_history")
 }
 
 model UnitAmenity {

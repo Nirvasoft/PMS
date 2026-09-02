@@ -177,7 +177,7 @@ unitsRouter.post('/:unitId/meters', requirePermission('unit.update'), asyncHandl
 
 /** PUT /properties/:propertyId/units/:unitId/meters/:meterId */
 unitsRouter.put('/:unitId/meters/:meterId', requirePermission('unit.update'), asyncHandler(async (req, res) => {
-  const data = await metersService.update(p(req, 'meterId'), p(req, 'unitId'), req.body);
+  const data = await metersService.update(p(req, 'meterId'), p(req, 'unitId'), req.body, req.user!.sub);
   res.json({ success: true, data });
 }));
 
