@@ -17,22 +17,62 @@ import { AppError } from '../common/errors';
 /**
  * Resolve the set of property IDs a user is explicitly scoped to.
  * Returns empty array if user has company-wide access (no property scoping).
+ *
+ * Two independent scoping layers feed into this, combined per assignment:
+ * - Assignment-level: `user_roles.property_id` (a role granted to this user for one property only).
+ * - Role-level: `role_properties` rows on the Role itself (the "All Properties" picker in Roles &
+ *   Permissions), which apply when the assignment itself is unscoped (`property_id` is null).
+ * Any single assignment that resolves to company-wide access (an unscoped assignment of an
+ * unrestricted role) grants company-wide access overall, matching the pre-existing OR semantics.
  */
 async function resolveUserPropertyIds(userId: string): Promise<string[]> {
   const userRoles = await prisma.userRole.findMany({
     where: { userId },
-    select: { propertyId: true },
+    select: {
+      propertyId: true,
+      role: { select: { isActive: true, roleProperties: { select: { propertyId: true } } } },
+    },
   });
 
-  // If any role has null propertyId → user has company-wide access
-  const hasCompanyWide = userRoles.some((ur) => ur.propertyId === null);
-  if (hasCompanyWide) return [];
+  const ids = new Set<string>();
+  for (const ur of userRoles) {
+    if (!ur.role.isActive) continue;
 
-  // Otherwise return the distinct list of property IDs
-  const ids = userRoles
-    .map((ur) => ur.propertyId)
-    .filter((id): id is string => id !== null);
-  return [...new Set(ids)];
+    if (ur.propertyId) {
+      // Assignment scoped to a single property — always restricts to that property.
+      ids.add(ur.propertyId);
+      continue;
+    }
+
+    // Assignment unscoped — falls back to the role's own property scope.
+    if (ur.role.roleProperties.length === 0) {
+      return []; // this assignment grants company-wide access
+    }
+    for (const rp of ur.role.roleProperties) ids.add(rp.propertyId);
+  }
+  return [...ids];
+}
+
+/**
+ * Resolve the set of floor numbers a user is scoped to via their roles' "All Floor" picker.
+ * Returns null if the user has unrestricted floor access (no floor scoping on any role).
+ */
+export async function getUserFloorScope(userId: string): Promise<number[] | null> {
+  const userRoles = await prisma.userRole.findMany({
+    where: { userId },
+    select: {
+      role: { select: { isActive: true, roleFloors: { select: { floorNumber: true } } } },
+    },
+  });
+
+  const floors = new Set<number>();
+  for (const ur of userRoles) {
+    if (!ur.role.isActive) continue;
+    if (ur.role.roleFloors.length === 0) return null; // this role grants unrestricted floor access
+    for (const rf of ur.role.roleFloors) floors.add(rf.floorNumber);
+  }
+  // No active roles at all → treat like resolveUserPropertyIds: unrestricted rather than blocked.
+  return floors.size > 0 ? [...floors] : null;
 }
 
 /**

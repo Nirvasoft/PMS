@@ -73,6 +73,9 @@ export interface RoleItem {
   userCount: number;
   permissionCount?: number;
   permissions?: { code: string; name: string; module: string; action: string }[];
+  properties?: { id: string; name: string }[];
+  propertyIds?: string[];
+  floorNumbers?: number[];
 }
 
 export interface DepartmentNode {
@@ -198,7 +201,7 @@ export const usersApi = createApi({
       providesTags: (_r, _e, id) => [{ type: 'Roles', id }],
     }),
 
-    createRole: builder.mutation<ApiResponse<RoleItem>, { name: string; description?: string; permissionCodes: string[] }>({
+    createRole: builder.mutation<ApiResponse<RoleItem>, { name: string; description?: string; permissionCodes: string[]; propertyIds?: string[]; floorNumbers?: number[] }>({
       query: (body) => ({ url: '/roles', method: 'POST', body }),
       invalidatesTags: ['Roles'],
     }),

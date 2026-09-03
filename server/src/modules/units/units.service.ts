@@ -115,12 +115,20 @@ export class TowersService {
 // ══════════════════════════════════════════════
 export class UnitsService {
 
+  /** Throws if floorNumber is set and outside the caller's role-scoped floor access. */
+  private assertFloorAllowed(floorScope: number[] | null | undefined, floorNumber: unknown) {
+    if (!floorScope || floorNumber === undefined || floorNumber === null) return;
+    if (!floorScope.includes(floorNumber as number)) {
+      throw new AppError(403, 'FLOOR_ACCESS_DENIED', `You do not have access to floor ${floorNumber}`);
+    }
+  }
+
   // ── List ───────────────────────────────────
   async findAll(propertyId: string, query: {
     towerId?: string; sectionId?: string; status?: string; unitType?: string;
-    floor?: number; search?: string; page?: number; limit?: number;
+    floor?: number; search?: string; page?: number; limit?: number; floorScope?: number[];
   }) {
-    const { towerId, sectionId, status, unitType, floor, search, page = 1, limit = 50 } = query;
+    const { towerId, sectionId, status, unitType, floor, search, page = 1, limit = 50, floorScope } = query;
     const where: Record<string, unknown> = { propertyId, deletedAt: null };
 
     if (towerId)   where.towerId   = towerId;
@@ -130,7 +138,12 @@ export class UnitsService {
       where.status = statuses.length === 1 ? statuses[0] : { in: statuses };
     }
     if (unitType)  where.unitType  = unitType;
-    if (floor !== undefined) where.floorNumber = floor;
+    if (floor !== undefined) {
+      this.assertFloorAllowed(floorScope, floor);
+      where.floorNumber = floor;
+    } else if (floorScope) {
+      where.floorNumber = { in: floorScope };
+    }
     if (search)    where.OR = [
       { unitNumber:  { contains: search, mode: 'insensitive' } },
       { description: { contains: search, mode: 'insensitive' } },
@@ -182,7 +195,7 @@ export class UnitsService {
     return parkingUnitTypes.filter((t) => present.has(t.code));
   }
 
-  async findById(propertyId: string, unitId: string) {
+  async findById(propertyId: string, unitId: string, floorScope?: number[] | null) {
     const unit = await prisma.unit.findFirst({
       where: { id: unitId, propertyId, deletedAt: null },
       include: {
@@ -233,6 +246,7 @@ export class UnitsService {
       },
     });
     if (!unit) throw AppError.notFound('Unit');
+    this.assertFloorAllowed(floorScope, unit.floorNumber);
     return unit;
   }
   // ── Check conflicts (case-insensitive) ─────
@@ -248,9 +262,10 @@ export class UnitsService {
   }
 
   // ── Create ─────────────────────────────────
-  async create(propertyId: string, companyId: string, dto: Record<string, unknown>, userId: string) {
+  async create(propertyId: string, companyId: string, dto: Record<string, unknown>, userId: string, floorScope?: number[] | null) {
     const { amenities, ...unitData } = dto;
 
+    this.assertFloorAllowed(floorScope, unitData.floorNumber);
     autoConvertArea(unitData);
 
     // Check unique (case-insensitive)
@@ -286,11 +301,14 @@ export class UnitsService {
     towerId?: string;
     floorRange?: { from: number; to: number; unitsPerFloor: number; unitTypeId: string; areaSqft?: number; areaSqm?: number; prefix?: string };
     floors?: Array<{ floorNumber: number; units: Array<Record<string, unknown>> }>;
-  }, userId: string) {
+  }, userId: string, floorScope?: number[] | null) {
     const units: Array<Record<string, unknown>> = [];
 
     if (dto.floorRange) {
       const { from, to, unitsPerFloor, unitTypeId, areaSqft, areaSqm, prefix } = dto.floorRange;
+      if (floorScope) {
+        for (let floor = from; floor <= to; floor++) this.assertFloorAllowed(floorScope, floor);
+      }
       const unitType = await prisma.unitType.findUniqueOrThrow({ where: { id: unitTypeId } });
       const areaSqmCalc = areaSqm ?? (areaSqft ? Math.round((areaSqft / SQM_TO_SQFT) * 100) / 100 : undefined);
       const areaSqftCalc = areaSqft ?? (areaSqm ? Math.round(areaSqm * SQM_TO_SQFT * 100) / 100 : undefined);
@@ -390,15 +408,17 @@ export class UnitsService {
   }
 
   // ── Update ─────────────────────────────────
-  async update(propertyId: string, unitId: string, dto: Record<string, unknown>) {
+  async update(propertyId: string, unitId: string, dto: Record<string, unknown>, floorScope?: number[] | null) {
     const unit = await prisma.unit.findFirst({ where: { id: unitId, propertyId, deletedAt: null } });
     if (!unit) throw AppError.notFound('Unit');
+    this.assertFloorAllowed(floorScope, unit.floorNumber);
 
     if (await this.isUsedInParkingManagement(unitId)) {
       throw new AppError(403, 'PARKING_UNIT_LOCKED', 'This unit has zones/slots created under Parking Management and cannot be updated here');
     }
 
     const { amenities, ...unitData } = dto;
+    this.assertFloorAllowed(floorScope, unitData.floorNumber);
     autoConvertArea(unitData);
 
     if (unitData.unitNumber && unitData.unitNumber !== unit.unitNumber) {
@@ -438,9 +458,10 @@ export class UnitsService {
   }
 
   // ── Floor plan matrix ──────────────────────
-  async getFloorPlan(propertyId: string, towerId?: string) {
+  async getFloorPlan(propertyId: string, towerId?: string, floorScope?: number[] | null) {
     const where: Record<string, unknown> = { propertyId, deletedAt: null };
     if (towerId) where.towerId = towerId;
+    if (floorScope) where.floorNumber = { in: floorScope };
 
     const units = await prisma.unit.findMany({
       where,
@@ -510,9 +531,10 @@ export class UnitsService {
   }
 
   // ── Soft delete ─────────────────────────────
-  async delete(propertyId: string, unitId: string) {
+  async delete(propertyId: string, unitId: string, floorScope?: number[] | null) {
     const unit = await prisma.unit.findFirst({ where: { id: unitId, propertyId, deletedAt: null } });
     if (!unit) throw AppError.notFound('Unit');
+    this.assertFloorAllowed(floorScope, unit.floorNumber);
 
     if (await this.isUsedInParkingManagement(unitId)) {
       throw new AppError(403, 'PARKING_UNIT_LOCKED', 'This unit has zones/slots created under Parking Management and cannot be deleted here');
@@ -536,9 +558,10 @@ export class UnitsService {
   }
 
   // ── Floor plan upload ──────────────────────
-  async uploadFloorPlan(propertyId: string, unitId: string, file: Express.Multer.File) {
+  async uploadFloorPlan(propertyId: string, unitId: string, file: Express.Multer.File, floorScope?: number[] | null) {
     const unit = await prisma.unit.findFirst({ where: { id: unitId, propertyId, deletedAt: null } });
     if (!unit) throw AppError.notFound('Unit');
+    this.assertFloorAllowed(floorScope, unit.floorNumber);
 
     // Store using local storage (same as documents pattern)
     const fs = await import('fs/promises');

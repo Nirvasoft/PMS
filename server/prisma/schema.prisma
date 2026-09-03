@@ -716,9 +716,42 @@ model Role {
   rolePermissions RolePermission[]
   userRoles       UserRole[]
   invitations     UserInvitation[]
+  roleProperties  RoleProperty[]
+  roleFloors      RoleFloor[]
 
   @@unique([name, companyId], name: "uq_role_name_company")
   @@map("roles")
+}
+
+/// Restricts a Role's Properties-module access to specific properties.
+/// No rows for a role = unrestricted (all properties), preserving existing role behavior.
+model RoleProperty {
+  id         String   @id @default(uuid()) @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  role     Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, propertyId], name: "uq_role_property")
+  @@index([propertyId])
+  @@map("role_properties")
+}
+
+/// Restricts a Role's Properties-module access to specific floor numbers
+/// (e.g. floor 1, 2, 3 across whichever properties the role can access).
+/// No rows for a role = unrestricted (all floors).
+model RoleFloor {
+  id          String   @id @default(uuid()) @db.Uuid
+  roleId      String   @map("role_id") @db.Uuid
+  floorNumber Int      @map("floor_number")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, floorNumber], name: "uq_role_floor")
+  @@map("role_floors")
 }
 
 model Permission {
@@ -942,6 +975,7 @@ model Property {
   units         Unit[]
   utilityMeters UtilityMeter[]
   floorSetups   FloorSetup[]
+  roleProperties RoleProperty[]
 
   // Relations — Tenants (Module 2.3)
   blacklistScoped TenantBlacklistLog[]

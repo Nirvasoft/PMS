@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { asyncHandler } from '../../middleware';
+import { asyncHandler, propertyAccessGuard, getUserFloorScope } from '../../middleware';
 import { requirePermission } from '../auth/guards/roleGuard';
 import { towersService, unitsService, metersService, unitChargesService } from './units.service';
 
@@ -20,6 +20,7 @@ unitTypesRouter.get('/', asyncHandler(async (_req, res) => {
 // TOWERS — nested under /properties/:propertyId/towers
 // ═══════════════════════════════════════════════════
 export const towersRouter = Router({ mergeParams: true });
+towersRouter.use(propertyAccessGuard);
 
 /** GET /properties/:propertyId/towers */
 towersRouter.get('/', requirePermission('unit.read'), asyncHandler(async (req, res) => {
@@ -67,9 +68,11 @@ towersRouter.delete('/:towerId/sections/:sectionId', requirePermission('unit.del
 // UNITS — nested under /properties/:propertyId/units
 // ═══════════════════════════════════════════════════
 export const unitsRouter = Router({ mergeParams: true });
+unitsRouter.use(propertyAccessGuard);
 
 /** GET /properties/:propertyId/units */
 unitsRouter.get('/', requirePermission('unit.read'), asyncHandler(async (req, res) => {
+  const floorScope = await getUserFloorScope(req.user!.sub);
   const result = await unitsService.findAll(p(req, 'propertyId'), {
     towerId:   req.query.towerId as string,
     sectionId: req.query.sectionId as string,
@@ -79,13 +82,15 @@ unitsRouter.get('/', requirePermission('unit.read'), asyncHandler(async (req, re
     search:    req.query.search as string,
     page:      parseInt(req.query.page as string) || 1,
     limit:     Math.min(parseInt(req.query.limit as string) || 50, 200),
+    floorScope: floorScope ?? undefined,
   });
   res.json({ success: true, ...result });
 }));
 
 /** GET /properties/:propertyId/floor-plan */
 unitsRouter.get('/floor-plan', requirePermission('unit.read'), asyncHandler(async (req, res) => {
-  const data = await unitsService.getFloorPlan(p(req, 'propertyId'), req.query.towerId as string);
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  const data = await unitsService.getFloorPlan(p(req, 'propertyId'), req.query.towerId as string, floorScope);
   res.json({ success: true, data });
 }));
 
@@ -97,7 +102,8 @@ unitsRouter.get('/stats', requirePermission('unit.read'), asyncHandler(async (re
 
 /** POST /properties/:propertyId/units/bulk */
 unitsRouter.post('/bulk', requirePermission('unit.create'), asyncHandler(async (req, res) => {
-  const data = await unitsService.bulkCreate(p(req, 'propertyId'), req.user!.companyId, req.body, req.user!.sub);
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  const data = await unitsService.bulkCreate(p(req, 'propertyId'), req.user!.companyId, req.body, req.user!.sub, floorScope);
   res.status(201).json({ success: true, data });
 }));
 
@@ -114,25 +120,29 @@ unitsRouter.post('/check-conflicts', requirePermission('unit.read'), asyncHandle
 
 /** POST /properties/:propertyId/units */
 unitsRouter.post('/', requirePermission('unit.create'), asyncHandler(async (req, res) => {
-  const data = await unitsService.create(p(req, 'propertyId'), req.user!.companyId, req.body, req.user!.sub);
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  const data = await unitsService.create(p(req, 'propertyId'), req.user!.companyId, req.body, req.user!.sub, floorScope);
   res.status(201).json({ success: true, data });
 }));
 
 /** GET /properties/:propertyId/units/:unitId */
 unitsRouter.get('/:unitId', requirePermission('unit.read'), asyncHandler(async (req, res) => {
-  const data = await unitsService.findById(p(req, 'propertyId'), p(req, 'unitId'));
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  const data = await unitsService.findById(p(req, 'propertyId'), p(req, 'unitId'), floorScope);
   res.json({ success: true, data });
 }));
 
 /** PUT /properties/:propertyId/units/:unitId */
 unitsRouter.put('/:unitId', requirePermission('unit.update'), asyncHandler(async (req, res) => {
-  const data = await unitsService.update(p(req, 'propertyId'), p(req, 'unitId'), req.body);
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  const data = await unitsService.update(p(req, 'propertyId'), p(req, 'unitId'), req.body, floorScope);
   res.json({ success: true, data });
 }));
 
 /** DELETE /properties/:propertyId/units/:unitId */
 unitsRouter.delete('/:unitId', requirePermission('unit.delete'), asyncHandler(async (req, res) => {
-  await unitsService.delete(p(req, 'propertyId'), p(req, 'unitId'));
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  await unitsService.delete(p(req, 'propertyId'), p(req, 'unitId'), floorScope);
   res.status(204).send();
 }));
 
@@ -151,7 +161,8 @@ unitsRouter.get('/:unitId/status-history', requirePermission('unit.read'), async
 /** POST /properties/:propertyId/units/:unitId/floor-plan */
 unitsRouter.post('/:unitId/floor-plan', requirePermission('unit.update'), upload.single('floorPlan'), asyncHandler(async (req, res) => {
   if (!req.file) throw new Error('No file uploaded');
-  const data = await unitsService.uploadFloorPlan(p(req, 'propertyId'), p(req, 'unitId'), req.file);
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  const data = await unitsService.uploadFloorPlan(p(req, 'propertyId'), p(req, 'unitId'), req.file, floorScope);
   res.json({ success: true, data });
 }));
 

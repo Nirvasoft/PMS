@@ -46,12 +46,14 @@ export class RolesService {
     }));
   }
 
-  /** Get single role with permissions */
+  /** Get single role with permissions and property/floor scope */
   async findById(roleId: string) {
     const role = await prisma.role.findUnique({
       where: { id: roleId },
       include: {
         rolePermissions: { include: { permission: true } },
+        roleProperties: { include: { property: { select: { id: true, name: true } } } },
+        roleFloors: true,
         _count: { select: { userRoles: true } },
       },
     });
@@ -59,16 +61,39 @@ export class RolesService {
     return {
       ...role,
       permissions: role.rolePermissions.map((rp) => rp.permission),
+      properties: role.roleProperties.map((rp) => rp.property),
+      propertyIds: role.roleProperties.map((rp) => rp.propertyId),
+      floorNumbers: role.roleFloors.map((rf) => rf.floorNumber).sort((a, b) => a - b),
       userCount: role._count.userRoles,
     };
   }
 
-  /** Create a new role with permissions */
-  async create(dto: { name: string; description?: string; permissionCodes: string[] }, companyId: string, createdBy: string) {
+  /** Filter propertyIds down to ones that actually belong to this company */
+  private async resolveCompanyPropertyIds(propertyIds: string[], companyId: string): Promise<string[]> {
+    if (propertyIds.length === 0) return [];
+    const properties = await prisma.property.findMany({
+      where: { id: { in: propertyIds }, companyId },
+      select: { id: true },
+    });
+    return properties.map((p) => p.id);
+  }
+
+  private normalizeFloorNumbers(floorNumbers: number[]): number[] {
+    return [...new Set(floorNumbers.filter((n) => Number.isInteger(n) && n > 0))];
+  }
+
+  /** Create a new role with permissions and optional property/floor scope */
+  async create(
+    dto: { name: string; description?: string; permissionCodes: string[]; propertyIds?: string[]; floorNumbers?: number[] },
+    companyId: string,
+    createdBy: string,
+  ) {
     // Find permission IDs from codes
     const permissions = await prisma.permission.findMany({
       where: { code: { in: dto.permissionCodes }, isActive: true },
     });
+    const propertyIds = dto.propertyIds ? await this.resolveCompanyPropertyIds(dto.propertyIds, companyId) : [];
+    const floorNumbers = dto.floorNumbers ? this.normalizeFloorNumbers(dto.floorNumbers) : [];
 
     const role = await prisma.$transaction(async (tx) => {
       const r = await tx.role.create({
@@ -90,17 +115,36 @@ export class RolesService {
         });
       }
 
+      if (propertyIds.length > 0) {
+        await tx.roleProperty.createMany({
+          data: propertyIds.map((propertyId) => ({ roleId: r.id, propertyId })),
+        });
+      }
+
+      if (floorNumbers.length > 0) {
+        await tx.roleFloor.createMany({
+          data: floorNumbers.map((floorNumber) => ({ roleId: r.id, floorNumber })),
+        });
+      }
+
       return r;
     });
 
     return this.findById(role.id);
   }
 
-  /** Update role name/description and permissions */
-  async update(roleId: string, dto: { name?: string; description?: string; permissionCodes?: string[] }, updatedBy: string) {
+  /** Update role name/description, permissions, and property/floor scope */
+  async update(
+    roleId: string,
+    dto: { name?: string; description?: string; permissionCodes?: string[]; propertyIds?: string[]; floorNumbers?: number[] },
+    updatedBy: string,
+  ) {
     const role = await prisma.role.findUnique({ where: { id: roleId } });
     if (!role) throw AppError.notFound('Role');
     if (role.isSystem) throw AppError.forbidden('Cannot modify a system role');
+
+    const propertyIds = dto.propertyIds ? await this.resolveCompanyPropertyIds(dto.propertyIds, role.companyId) : undefined;
+    const floorNumbers = dto.floorNumbers ? this.normalizeFloorNumbers(dto.floorNumbers) : undefined;
 
     await prisma.$transaction(async (tx) => {
       if (dto.name || dto.description !== undefined) {
@@ -131,10 +175,30 @@ export class RolesService {
           });
         }
       }
+
+      if (propertyIds) {
+        // Replace all property scope (empty array = unrestricted, all properties)
+        await tx.roleProperty.deleteMany({ where: { roleId } });
+        if (propertyIds.length > 0) {
+          await tx.roleProperty.createMany({
+            data: propertyIds.map((propertyId) => ({ roleId, propertyId })),
+          });
+        }
+      }
+
+      if (floorNumbers) {
+        // Replace all floor scope (empty array = unrestricted, all floors)
+        await tx.roleFloor.deleteMany({ where: { roleId } });
+        if (floorNumbers.length > 0) {
+          await tx.roleFloor.createMany({
+            data: floorNumbers.map((floorNumber) => ({ roleId, floorNumber })),
+          });
+        }
+      }
     });
 
     // Invalidate cache outside transaction
-    if (dto.permissionCodes) {
+    if (dto.permissionCodes || propertyIds || floorNumbers) {
       await permissionResolver.invalidateCacheForRole(roleId);
     }
 

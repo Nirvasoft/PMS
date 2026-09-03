@@ -35,6 +35,7 @@ export class PermissionResolver {
             rolePermissions: {
               include: { permission: true },
             },
+            roleProperties: { select: { propertyId: true } },
           },
         },
       },
@@ -45,6 +46,13 @@ export class PermissionResolver {
       // Skip expired role assignments
       if (ur.expiresAt && ur.expiresAt < now) continue;
       if (!ur.role.isActive) continue;
+
+      // Role-level property scope: no rows = unrestricted (all properties).
+      // When scoped, the requested property must be in the role's allow-list.
+      if (propertyId && ur.role.roleProperties.length > 0) {
+        const allowed = ur.role.roleProperties.some((rp) => rp.propertyId === propertyId);
+        if (!allowed) continue;
+      }
 
       for (const rp of ur.role.rolePermissions) {
         if (rp.permission.isActive) {

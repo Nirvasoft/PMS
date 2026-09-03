@@ -1,20 +1,21 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useGetRolesQuery, useCreateRoleMutation, useDeleteRoleMutation,
   useGetPermissionsQuery, useGetRoleQuery, useUpdateRoleMutation,
   useGetRoleTemplatesQuery, useCreateRoleFromTemplateMutation,
   type PermissionsByModule,
 } from '../../../store/api/usersApi';
+import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { useConfirm } from '../../../components/DialogProvider';
 import toast from 'react-hot-toast';
 
 // Modules that are displayed nested under a parent module in the permission matrix,
-// reflecting the real hierarchy: a Property has Floors, and each Floor has Units.
+// reflecting the real hierarchy: a Property has Floors and Units (siblings, same level).
 // Billing has Meters and Charge Categories.
 const NESTED_MODULES: Record<string, string[]> = {
-  properties: ['floor'],
-  floor: ['unit'],
+  properties: ['floor', 'unit'],
   billing: ['meter', 'charge-category'],
 };
 const CHILD_MODULES = new Set(Object.values(NESTED_MODULES).flat());
@@ -104,12 +105,18 @@ function RoleEditorModal({ roleId, onClose }: { roleId?: string; onClose: () => 
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
   const [initialized, setInitialized] = useState(false);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState<Set<string>>(new Set());
+  const [selectedFloors, setSelectedFloors] = useState<Set<number>>(new Set());
+  const [showPropertiesModal, setShowPropertiesModal] = useState(false);
+  const [showFloorsModal, setShowFloorsModal] = useState(false);
 
   // Initialize form from existing role
   if (existingRole && !initialized) {
     setName(existingRole.data.name);
     setDescription(existingRole.data.description || '');
     setSelectedPerms(new Set(existingRole.data.permissions?.map((p) => p.code) ?? []));
+    setSelectedPropertyIds(new Set(existingRole.data.propertyIds ?? []));
+    setSelectedFloors(new Set(existingRole.data.floorNumbers ?? []));
     setInitialized(true);
   }
 
@@ -138,12 +145,14 @@ function RoleEditorModal({ roleId, onClose }: { roleId?: string; onClose: () => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const permissionCodes = Array.from(selectedPerms);
+    const propertyIds = Array.from(selectedPropertyIds);
+    const floorNumbers = Array.from(selectedFloors);
     try {
       if (roleId) {
-        await updateRole({ id: roleId, data: { name, description, permissionCodes } }).unwrap();
+        await updateRole({ id: roleId, data: { name, description, permissionCodes, propertyIds, floorNumbers } }).unwrap();
         toast.success('Role updated');
       } else {
-        await createRole({ name, description, permissionCodes }).unwrap();
+        await createRole({ name, description, permissionCodes, propertyIds, floorNumbers }).unwrap();
         toast.success('Role created');
       }
       onClose();
@@ -193,9 +202,38 @@ function RoleEditorModal({ roleId, onClose }: { roleId?: string; onClose: () => 
                     expandedModules={expandedModules}
                     toggleExpand={toggleExpand}
                   />
+                  {module === 'properties' && (
+                    <div className="perm-actions" style={{ paddingLeft: 32 }}>
+                      <button type="button" className="btn btn-sm" disabled={isSystem}
+                        onClick={() => setShowPropertiesModal(true)}>
+                        All Properties{selectedPropertyIds.size > 0 && ` (${selectedPropertyIds.size})`}
+                      </button>
+                      <button type="button" className="btn btn-sm" disabled={isSystem}
+                        onClick={() => setShowFloorsModal(true)}>
+                        All Floor{selectedFloors.size > 0 && ` (${selectedFloors.size})`}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
           </div>
+
+          {showPropertiesModal && (
+            <PropertyScopeModal
+              selected={selectedPropertyIds}
+              onChange={setSelectedPropertyIds}
+              onClose={() => setShowPropertiesModal(false)}
+              disabled={isSystem}
+            />
+          )}
+          {showFloorsModal && (
+            <FloorScopeModal
+              selected={selectedFloors}
+              onChange={setSelectedFloors}
+              onClose={() => setShowFloorsModal(false)}
+              disabled={isSystem}
+            />
+          )}
 
           {!isSystem && (
             <div className="modal-actions">
@@ -276,6 +314,136 @@ function ModuleTree({ module, permsByModule, selectedPerms, toggleModule, toggle
         </>
       )}
     </>
+  );
+}
+
+/* ─── Property Scope Modal (which properties this role can access) ── */
+function PropertyScopeModal({ selected, onChange, onClose, disabled }: {
+  selected: Set<string>;
+  onChange: (ids: Set<string>) => void;
+  onClose: () => void;
+  disabled?: boolean;
+}) {
+  const { data, isLoading } = useGetPropertiesQuery({ page: 1, limit: 200 });
+  const properties = data?.data ?? [];
+  const allChecked = properties.length > 0 && properties.every((p) => selected.has(p.id));
+  const someChecked = properties.some((p) => selected.has(p.id));
+
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    onChange(next);
+  };
+
+  const toggleAll = () => {
+    onChange(allChecked ? new Set() : new Set(properties.map((p) => p.id)));
+  };
+
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>All Properties</h2>
+          <button className="btn-icon" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <p className="text-secondary text-small">
+            Check the properties this role can access. Leave all unchecked for unrestricted (all properties).
+          </p>
+          {isLoading ? (
+            <div className="loading-inline"><div className="loading-spinner" /> Loading properties...</div>
+          ) : (
+            <>
+              <label className="perm-module-header" style={{ borderRadius: 'var(--radius-sm)' }}>
+                <input type="checkbox" checked={allChecked}
+                  ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+                  onChange={toggleAll} disabled={disabled || properties.length === 0} />
+                <span className="perm-module-name">Select All</span>
+              </label>
+              <div className="perm-actions" style={{ paddingLeft: 0 }}>
+                {properties.map((p) => (
+                  <label key={p.id} className={`perm-item ${selected.has(p.id) ? 'selected' : ''}`}>
+                    <input type="checkbox" checked={selected.has(p.id)}
+                      onChange={() => toggle(p.id)} disabled={disabled} />
+                    <span>{p.name}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="modal-actions">
+            <button type="button" className="btn btn-primary" onClick={onClose}>Done</button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ─── Floor Scope Modal (which floor numbers this role can access) ── */
+function FloorScopeModal({ selected, onChange, onClose, disabled }: {
+  selected: Set<number>;
+  onChange: (floors: Set<number>) => void;
+  onClose: () => void;
+  disabled?: boolean;
+}) {
+  const { data, isLoading } = useGetPropertiesQuery({ page: 1, limit: 200 });
+  const properties = data?.data ?? [];
+  const maxFloor = Math.max(1, ...properties.map((p) => p.totalFloors ?? 0));
+  const floorOptions = Array.from({ length: maxFloor }, (_, i) => i + 1);
+  const allChecked = floorOptions.length > 0 && floorOptions.every((f) => selected.has(f));
+  const someChecked = floorOptions.some((f) => selected.has(f));
+
+  const toggle = (floor: number) => {
+    const next = new Set(selected);
+    if (next.has(floor)) next.delete(floor); else next.add(floor);
+    onChange(next);
+  };
+
+  const toggleAll = () => {
+    onChange(allChecked ? new Set() : new Set(floorOptions));
+  };
+
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>All Floor</h2>
+          <button className="btn-icon" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <p className="text-secondary text-small">
+            Check the floor numbers this role can access. Leave all unchecked for unrestricted (all floors).
+          </p>
+          {isLoading ? (
+            <div className="loading-inline"><div className="loading-spinner" /> Loading floors...</div>
+          ) : (
+            <>
+              <label className="perm-module-header" style={{ borderRadius: 'var(--radius-sm)' }}>
+                <input type="checkbox" checked={allChecked}
+                  ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+                  onChange={toggleAll} disabled={disabled || floorOptions.length === 0} />
+                <span className="perm-module-name">Select All</span>
+              </label>
+              <div className="perm-actions" style={{ paddingLeft: 0 }}>
+                {floorOptions.map((floor) => (
+                  <label key={floor} className={`perm-item ${selected.has(floor) ? 'selected' : ''}`}>
+                    <input type="checkbox" checked={selected.has(floor)}
+                      onChange={() => toggle(floor)} disabled={disabled} />
+                    <span>Floor {floor}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="modal-actions">
+            <button type="button" className="btn btn-primary" onClick={onClose}>Done</button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
