@@ -234,19 +234,9 @@ billingRunRouter.post('/', asyncHandler(async (req, res) => {
   const propertyId = req.body.propertyId as string | undefined;
 
   const dueSchedules = await billingSchedulesService.findDueSchedules(asOfDate, propertyId);
-  let generated = 0;
-  const errors: string[] = [];
+  const { processed, generated, errors } = await invoicesService.runBilling(dueSchedules);
 
-  for (const schedule of dueSchedules) {
-    try {
-      await invoicesService.generateFromSchedule(schedule.id);
-      generated++;
-    } catch (err: any) {
-      errors.push(`Schedule ${schedule.id}: ${err.message}`);
-    }
-  }
-
-  res.json({ success: true, data: { processed: dueSchedules.length, generated, errors, asOfDate: asOfDate.toISOString().split('T')[0] } });
+  res.json({ success: true, data: { processed, generated, errors, asOfDate: asOfDate.toISOString().split('T')[0] } });
 }));
 
 // ════════════════════════════════════════════════

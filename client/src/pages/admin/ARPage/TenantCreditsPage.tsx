@@ -278,7 +278,7 @@ export default function TenantCreditsPage() {
                     <option value="">Select tenant…</option>
                     {tenants.map((t: any) => (
                       <option key={t.id} value={t.id}>
-                        {t.tenantType === 'company' ? t.companyName : `${t.firstName || ''} ${t.lastName || ''}`.trim()}
+                        {t.tenantType !== 'individual' ? t.companyName : `${t.firstName || ''} ${t.lastName || ''}`.trim()}
                       </option>
                     ))}
                   </select>
@@ -413,7 +413,7 @@ export default function TenantCreditsPage() {
 
 function getTenantName(item: TenantCreditWithTenant) {
   if (!item.tenant) return '—';
-  return item.tenant.tenantType === 'company'
+  return item.tenant.tenantType !== 'individual'
     ? item.tenant.companyName || ''
     : `${item.tenant.firstName || ''} ${item.tenant.lastName || ''}`.trim();
 }

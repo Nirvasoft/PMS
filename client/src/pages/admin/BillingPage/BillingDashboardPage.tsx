@@ -70,7 +70,7 @@ export default function BillingDashboardPage() {
 
   const getTenantName = (inv: any) => {
     if (!inv.tenant) return '—';
-    return inv.tenant.tenantType === 'company'
+    return inv.tenant.tenantType !== 'individual'
       ? inv.tenant.companyName || ''
       : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
   };

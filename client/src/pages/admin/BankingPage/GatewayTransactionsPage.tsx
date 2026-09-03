@@ -397,7 +397,7 @@ export default function GatewayTransactionsPage() {
 
 function getTenantName(txn: GatewayTransaction) {
   if (!txn.tenant) return txn.payerName || '—';
-  return txn.tenant.tenantType === 'company'
+  return txn.tenant.tenantType !== 'individual'
     ? txn.tenant.companyName || ''
     : `${txn.tenant.firstName || ''} ${txn.tenant.lastName || ''}`.trim();
 }

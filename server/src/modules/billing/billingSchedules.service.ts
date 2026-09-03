@@ -146,12 +146,25 @@ export class BillingSchedulesService {
     }
 
     const updateData: any = {};
+    if (dto.chargeTypeId !== undefined) updateData.chargeTypeId = dto.chargeTypeId;
+    if (dto.propertyId !== undefined) updateData.propertyId = dto.propertyId;
+    if (dto.tenantId !== undefined) updateData.tenantId = dto.tenantId;
+    if (dto.unitId !== undefined) updateData.unitId = dto.unitId;
+    if (dto.currency !== undefined) updateData.currency = dto.currency;
+    if (dto.billingCycle !== undefined) updateData.billingCycle = dto.billingCycle;
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.amount !== undefined) updateData.amount = dto.amount;
     if (dto.billingDay !== undefined) updateData.billingDay = dto.billingDay;
     if (dto.paymentDueDays !== undefined) updateData.paymentDueDays = dto.paymentDueDays;
     if (dto.endDate !== undefined) updateData.endDate = dto.endDate ? new Date(dto.endDate as string) : null;
     if (dto.notes !== undefined) updateData.notes = dto.notes;
+    if (dto.startDate !== undefined) {
+      const startDate = new Date(dto.startDate as string);
+      updateData.startDate = startDate;
+      // No invoices generated yet — safe to move the next billing date along with the start date.
+      // Once billing has run, nextBillingDate has already advanced past the original start and must be left alone.
+      if (schedule.invoiceCount === 0) updateData.nextBillingDate = startDate;
+    }
 
     return prisma.billingSchedule.update({
       where: { id },

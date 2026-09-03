@@ -144,7 +144,7 @@ export default function InvoiceDetailPage() {
     return <div className="billing-page" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)' }}>Loading invoice…</div>;
   }
 
-  const tenantName = inv.tenant.tenantType === 'company'
+  const tenantName = inv.tenant.tenantType !== 'individual'
     ? inv.tenant.companyName || ''
     : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
 

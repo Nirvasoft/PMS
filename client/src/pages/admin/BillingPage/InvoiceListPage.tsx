@@ -1,13 +1,14 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  useGetInvoicesQuery, useRunBillingMutation,
+  useGetInvoicesQuery, useRunBillingMutation, useGetBillingSchedulesQuery,
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
 } from '../../../store/api/billingApi';
+import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
   FileText, Plus, Play, Search, ChevronLeft, ChevronRight,
   DollarSign, AlertTriangle, CheckCircle, Receipt,
-  Send, Ban, Download, XCircle,
+  Send, Ban, Download, XCircle, X, Building2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -25,6 +26,7 @@ export default function InvoiceListPage() {
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [runBillingModalOpen, setRunBillingModalOpen] = useState(false);
 
   const { data, isFetching } = useGetInvoicesQuery({ status: status || undefined, page, limit: 15 });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
@@ -129,18 +131,22 @@ export default function InvoiceListPage() {
     toast.success(`Opened ${success} PDF(s)${failed > 0 ? `, ${failed} failed` : ''}`);
   };
 
-  const handleRunBilling = async () => {
-    if (!(await confirmDialog('This will generate invoices for all due billing schedules. Continue?'))) return;
-    const result = await runBilling().unwrap();
-    toast.success(`Generated ${result.data.generated} invoices from ${result.data.processed} schedules.`);
-    if (result.data.errors.length > 0) {
-      toast.error(`${result.data.errors.length} errors occurred during billing run`);
+  const handleRunBilling = async (propertyId: string, asOfDate: string) => {
+    try {
+      const result = await runBilling({ propertyId: propertyId || undefined, asOfDate }).unwrap();
+      toast.success(`Generated ${result.data.generated} invoices from ${result.data.processed} schedules.`);
+      if (result.data.errors.length > 0) {
+        toast.error(`${result.data.errors.length} errors occurred during billing run`);
+      }
+      setRunBillingModalOpen(false);
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to run billing');
     }
   };
 
   const getTenantName = (inv: any) => {
     if (!inv.tenant) return '—';
-    return inv.tenant.tenantType === 'company'
+    return inv.tenant.tenantType !== 'individual'
       ? inv.tenant.companyName || ''
       : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
   };
@@ -162,9 +168,9 @@ export default function InvoiceListPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={handleRunBilling} disabled={runningBilling}
+          <button className="btn btn-secondary" onClick={() => setRunBillingModalOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Play size={14} /> {runningBilling ? 'Running…' : 'Run Billing'}
+            <Play size={14} /> Run Billing
           </button>
           <button className="btn btn-primary" onClick={() => navigate('/admin/billing/invoices/new')}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -234,6 +240,7 @@ export default function InvoiceListPage() {
                   title="Select all"
                 />
               </th>
+              <th style={{ width: 110 }}>Invoice Date</th>
               <th style={{ width: 140 }}>Invoice #</th>
               <th style={{ width: 160 }}>Tenant</th>
               <th style={{ width: 180 }}>Property / Unit</th>
@@ -247,7 +254,7 @@ export default function InvoiceListPage() {
           <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={10}>
                   <div className="billing-empty">
                     {isFetching ? 'Loading invoices…' : 'No invoices found.'}
                   </div>
@@ -274,6 +281,9 @@ export default function InvoiceListPage() {
                         onChange={() => {}}
                         onClick={(e) => toggleSelect(inv.id, e)}
                       />
+                    </td>
+                    <td>
+                      <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{format(new Date(inv.invoiceDate), 'MMM d, yyyy')}</div>
                     </td>
                     <td>
                       <div className="cell-primary">{inv.invoiceNumber}</div>
@@ -363,6 +373,125 @@ export default function InvoiceListPage() {
           </div>
         </div>
       )}
+
+      {runBillingModalOpen && (
+        <RunBillingModal
+          onClose={() => setRunBillingModalOpen(false)}
+          onSubmit={handleRunBilling}
+          isLoading={runningBilling}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Run Billing Modal ────────────────────────
+function RunBillingModal({ onClose, onSubmit, isLoading }: {
+  onClose: () => void;
+  onSubmit: (propertyId: string, asOfDate: string) => void;
+  isLoading: boolean;
+}) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [propertyId, setPropertyId] = useState('');
+  const [asOfDate, setAsOfDate] = useState(todayStr);
+
+  const { data: propertiesData } = useGetPropertiesQuery({ limit: 200 });
+  const properties = propertiesData?.data || [];
+
+  const { data: schedulesData, isFetching: schedulesLoading } = useGetBillingSchedulesQuery({
+    status: 'active',
+    propertyId: propertyId || undefined,
+    limit: 200,
+  });
+
+  const dueSchedules = useMemo(() => {
+    const schedules = schedulesData?.data || [];
+    return schedules.filter(s =>
+      s.nextBillingDate && s.nextBillingDate.split('T')[0] <= asOfDate
+    );
+  }, [schedulesData, asOfDate]);
+
+  const getTenantName = (s: any) => s.tenant?.tenantType && s.tenant.tenantType !== 'individual'
+    ? s.tenant.companyName || ''
+    : `${s.tenant?.firstName || ''} ${s.tenant?.lastName || ''}`.trim();
+
+  const handleSubmit = () => {
+    if (!asOfDate || asOfDate > todayStr) {
+      toast.error('Bill date cannot be in the future');
+      return;
+    }
+    onSubmit(propertyId, asOfDate);
+  };
+
+  return (
+    <div className="rb-overlay" onClick={onClose}>
+      <div className="rb-modal rb-modal-lg" onClick={e => e.stopPropagation()}>
+        <div className="rb-header">
+          <div className="rb-title"><Play size={16} /> Run Billing</div>
+          <button className="btn-icon" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div className="rb-body">
+          <div className="rb-grid-2">
+            <div className="rb-field">
+              <label>Property</label>
+              <select value={propertyId} onChange={e => setPropertyId(e.target.value)}>
+                <option value="">All Properties</option>
+                {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="rb-field">
+              <label>Bill Date</label>
+              <input
+                type="date"
+                value={asOfDate}
+                max={todayStr}
+                onChange={e => setAsOfDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="rb-field">
+            <label>Due Schedules ({dueSchedules.length})</label>
+            <div className="rb-schedule-list">
+              <div className="rb-schedule-row rb-schedule-header">
+                <span>Charge</span>
+                <span>Tenant</span>
+                <span>Next Billing Day</span>
+                <span className="text-right">Amount</span>
+              </div>
+              {schedulesLoading ? (
+                <div className="rb-schedule-empty">Loading…</div>
+              ) : dueSchedules.length === 0 ? (
+                <div className="rb-schedule-empty">No active schedules due on or before this date.</div>
+              ) : (
+                dueSchedules.map(s => (
+                  <div key={s.id} className="rb-schedule-row">
+                    <span className="rb-schedule-charge">{s.description || s.chargeType.name}</span>
+                    <span>{getTenantName(s)}</span>
+                    <span>{s.nextBillingDate ? format(new Date(s.nextBillingDate), 'MMM d, yyyy') : '—'}</span>
+                    <span className="text-right">{formatCurrency(s.amount, s.currency)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <p className="rb-hint">
+            <Building2 size={12} />
+            Generates invoices for all billing schedules due on or before the selected date
+            {propertyId ? '' : ', across all properties'}.
+          </p>
+        </div>
+
+        <div className="rb-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={isLoading}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Play size={14} /> {isLoading ? 'Running…' : 'Run Billing'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

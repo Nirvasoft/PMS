@@ -29,14 +29,10 @@ export function startDailyBillingJob() {
 
           const today = new Date();
           const dueSchedules = await billingSchedulesService.findDueSchedules(today);
-
-          for (const schedule of dueSchedules) {
-            try {
-              await invoicesService.generateFromSchedule(schedule.id);
-              totalGenerated++;
-            } catch (err: any) {
-              logger.error(`Billing job error for schedule ${schedule.id} (company ${company.code}): ${err.message}`);
-            }
+          const result = await invoicesService.runBilling(dueSchedules);
+          totalGenerated += result.generated;
+          for (const errMsg of result.errors) {
+            logger.error(`Billing job error (company ${company.code}): ${errMsg}`);
           }
         } catch (err: any) {
           logger.error(`Billing job error for company ${company.code}: ${err.message}`);

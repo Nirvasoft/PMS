@@ -167,11 +167,13 @@
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 16px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .billing-table {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
 }
 
@@ -1325,3 +1327,160 @@
 @keyframes pdf-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Run Billing Modal ────────────────────── */
+.rb-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+  animation: fade-in 0.2s ease;
+}
+
+.rb-modal {
+  background: var(--surface-elevated, #1a1f2e);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.25);
+  animation: pdf-scale-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.rb-modal-lg { max-width: 720px; }
+
+.rb-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.rb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rb-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.rb-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.rb-field { display: flex; flex-direction: column; gap: 5px; }
+.rb-field label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+.rb-field select,
+.rb-field input {
+  padding: 9px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.rb-field select:focus,
+.rb-field input:focus { border-color: var(--primary); }
+.rb-field select option { background: #1a1f2e; }
+
+.rb-schedule-list {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.rb-schedule-row {
+  display: grid;
+  grid-template-columns: 1.6fr 1.2fr 1fr 0.9fr;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  border-bottom: 1px solid var(--border-subtle);
+  align-items: center;
+}
+.rb-schedule-row:last-child { border-bottom: none; }
+.rb-schedule-row .text-right { text-align: right; }
+.rb-schedule-header {
+  position: sticky;
+  top: 0;
+  background: rgba(255,255,255,0.04);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  z-index: 1;
+}
+.rb-schedule-charge {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.rb-schedule-empty {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+}
+
+.rb-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+.rb-hint svg { flex-shrink: 0; margin-top: 2px; }
+
+.rb-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+[data-theme="light"] .rb-modal { background: #ffffff; }
+[data-theme="light"] .rb-field select,
+[data-theme="light"] .rb-field input {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.1);
+}
+[data-theme="light"] .rb-field select option { background: #ffffff; }
+[data-theme="light"] .rb-hint { background: rgba(0,0,0,0.02); }
+[data-theme="light"] .rb-schedule-header { background: rgba(0,0,0,0.02); }

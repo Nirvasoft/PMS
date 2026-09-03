@@ -280,8 +280,8 @@ export const billingApi = createApi({
     }),
 
     // ── Manual Billing Run ────────────────
-    runBilling: builder.mutation<ApiResponse<{ processed: number; generated: number; errors: string[] }>, void>({
-      query: () => ({ url: '/billing/run', method: 'POST' }),
+    runBilling: builder.mutation<ApiResponse<{ processed: number; generated: number; errors: string[] }>, { propertyId?: string; asOfDate?: string } | void>({
+      query: (body) => ({ url: '/billing/run', method: 'POST', body: body || {} }),
       invalidatesTags: ['Invoices', 'BillingSchedules'],
     }),
 

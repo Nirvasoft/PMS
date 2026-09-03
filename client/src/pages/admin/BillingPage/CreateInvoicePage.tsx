@@ -124,7 +124,7 @@ export default function CreateInvoicePage() {
                 {tenants
                   .map((t: any) => ({
                     id: t.id,
-                    label: t.tenantType === 'company'
+                    label: t.tenantType !== 'individual'
                       ? (t.companyName || '').trim()
                       : `${t.firstName || ''} ${t.lastName || ''}`.trim(),
                   }))

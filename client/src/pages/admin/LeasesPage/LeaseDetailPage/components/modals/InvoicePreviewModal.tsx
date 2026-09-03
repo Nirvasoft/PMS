@@ -33,7 +33,7 @@ export function InvoicePreviewModal({ lease, onClose }: { lease: LeaseDetail; on
   const invoiceNo = `RINV-${lease.leaseNumber}`;
   const dateStr = fmtDate(new Date());
 
-  const isCompany = lease.tenant.tenantType === 'company';
+  const isCompany = lease.tenant.tenantType !== 'individual';
   const customerId = isCompany ? '-' : (lease.tenant.firstName || '-');
   const customerName = isCompany ? (lease.tenant.companyName || '') : (lease.tenant.lastName || '');
 

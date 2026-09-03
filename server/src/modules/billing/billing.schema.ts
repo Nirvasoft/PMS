@@ -115,10 +115,17 @@ export const createBillingScheduleSchema = z.object({
 
 export const updateBillingScheduleSchema = z.object({
   body: z.object({
+    chargeTypeId: z.string().uuid().optional(),
+    propertyId: z.string().uuid().optional(),
+    tenantId: z.string().uuid().optional(),
+    unitId: z.string().uuid().nullable().optional(),
+    currency: z.string().length(3).optional(),
+    billingCycle: z.enum(['monthly', 'quarterly', 'semi_annual', 'annual', 'one_time']).optional(),
     description: z.string().max(500).optional(),
     amount: z.number().min(0).optional(),
     billingDay: z.number().int().min(1).max(28).optional(),
     paymentDueDays: z.number().int().min(1).max(90).optional(),
+    startDate: dateString.optional(),
     endDate: dateString.nullable().optional(),
     notes: z.string().optional(),
   }),

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetBillingSchedulesQuery, usePauseScheduleMutation,
   useResumeScheduleMutation, useCancelScheduleMutation,
@@ -6,7 +7,8 @@ import {
   useGetChargeTypesQuery,
 } from '../../../store/api/billingApi';
 import type { BillingSchedule } from '../../../store/api/billingApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
+import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
@@ -22,7 +24,7 @@ const CHARGE_CATEGORY_MAP: Record<string, string> = {
   LATE_PAYMENT_PENALTY: 'penalty', ADMIN_FEE: 'misc', LEGAL_FEE: 'misc', REPAIR_CHARGE: 'misc', MISC: 'misc',
 };
 
-const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annually', 'annually'] as const;
+const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'] as const;
 
 interface ScheduleForm {
   chargeTypeId: string; propertyId: string; tenantId: string; unitId: string;
@@ -42,11 +44,17 @@ export default function BillingSchedulesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<ScheduleForm>(emptyForm);
+  const [floorId, setFloorId] = useState('');
 
   const { data, isFetching } = useGetBillingSchedulesQuery({ status: statusFilter || undefined, page, limit: 15 });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 200 });
+  const { data: floorsData } = useGetFloorSetupsQuery(form.propertyId ? { propertyId: form.propertyId } : skipToken);
+  const floorNumber = floorsData?.data.find(f => f.id === floorId)?.floorNumber;
+  const { data: unitsData } = useGetUnitsQuery(
+    form.propertyId ? { propertyId: form.propertyId, floor: floorNumber, limit: 200 } : skipToken,
+  );
 
   const [pauseSchedule] = usePauseScheduleMutation();
   const [resumeSchedule] = useResumeScheduleMutation();
@@ -61,6 +69,8 @@ export default function BillingSchedulesPage() {
   const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
   const tenants = tenantsData?.data || [];
+  const floors = (floorsData?.data || []).slice().sort((a, b) => a.floorNumber - b.floorNumber);
+  const units = unitsData?.data || [];
 
   const handleAction = async (id: string, action: 'pause' | 'resume' | 'cancel') => {
     if (action === 'cancel' && !(await confirmDialog('Cancel this billing schedule? No future invoices will be generated.', { danger: true, confirmText: 'Cancel Schedule' }))) return;
@@ -76,11 +86,13 @@ export default function BillingSchedulesPage() {
   const openCreate = () => {
     setEditId(null);
     setForm(emptyForm);
+    setFloorId('');
     setShowForm(true);
   };
 
   const openEdit = (s: BillingSchedule) => {
     setEditId(s.id);
+    setFloorId('');
     setForm({
       chargeTypeId: s.chargeType.id,
       propertyId: s.property.id,
@@ -113,12 +125,15 @@ export default function BillingSchedulesPage() {
         startDate: form.startDate,
         description: form.description || undefined,
       };
-      if (form.unitId) payload.unitId = form.unitId;
-      if (form.endDate) payload.endDate = form.endDate;
 
       if (editId) {
+        // Always send unit/end date on edit (even cleared) so removing either actually clears it.
+        payload.unitId = form.unitId || null;
+        payload.endDate = form.endDate || null;
         await updateSchedule({ id: editId, data: payload }).unwrap();
       } else {
+        if (form.unitId) payload.unitId = form.unitId;
+        if (form.endDate) payload.endDate = form.endDate;
         await createSchedule(payload).unwrap();
       }
       setShowForm(false);
@@ -127,7 +142,7 @@ export default function BillingSchedulesPage() {
     }
   };
 
-  const getTenantName = (s: any) => s.tenant.tenantType === 'company'
+  const getTenantName = (s: any) => s.tenant.tenantType !== 'individual'
     ? s.tenant.companyName || ''
     : `${s.tenant.firstName || ''} ${s.tenant.lastName || ''}`.trim();
 
@@ -304,9 +319,29 @@ export default function BillingSchedulesPage() {
                   </div>
                   <div className="inv-field">
                     <label>Property <span className="req">*</span></label>
-                    <select required value={form.propertyId} onChange={e => setForm({ ...form, propertyId: e.target.value })}>
+                    <select required value={form.propertyId} onChange={e => {
+                      setForm({ ...form, propertyId: e.target.value, unitId: '' });
+                      setFloorId('');
+                    }}>
                       <option value="">Select property</option>
                       {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="inv-field">
+                    <label>Floor</label>
+                    <select value={floorId} disabled={!form.propertyId} onChange={e => {
+                      setFloorId(e.target.value);
+                      setForm({ ...form, unitId: '' });
+                    }}>
+                      <option value="">{form.propertyId ? 'Select floor' : 'Select property first'}</option>
+                      {floors.map(f => <option key={f.id} value={f.id}>{f.floorLabel}</option>)}
+                    </select>
+                  </div>
+                  <div className="inv-field">
+                    <label>Unit</label>
+                    <select value={form.unitId} disabled={!form.propertyId} onChange={e => setForm({ ...form, unitId: e.target.value })}>
+                      <option value="">{form.propertyId ? 'No specific unit' : 'Select property first'}</option>
+                      {units.map(u => <option key={u.id} value={u.id}>{u.unitNumber}</option>)}
                     </select>
                   </div>
                   <div className="inv-field">
@@ -315,7 +350,7 @@ export default function BillingSchedulesPage() {
                       <option value="">Select tenant</option>
                       {tenants.map((t: any) => (
                         <option key={t.id} value={t.id}>
-                          {t.tenantType === 'company' ? t.companyName : `${t.firstName || ''} ${t.lastName || ''}`.trim()}
+                          {t.tenantType !== 'individual' ? t.companyName : `${t.firstName || ''} ${t.lastName || ''}`.trim()}
                         </option>
                       ))}
                     </select>

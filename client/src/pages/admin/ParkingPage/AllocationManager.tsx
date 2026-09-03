@@ -77,7 +77,7 @@ export default function AllocationManager() {
           <div className="table-empty"><Car size={40} /><p>No allocations found</p></div>
         ) : (
           allocations.map((a: ParkingAllocation) => {
-            const tenantName = a.tenant.tenantType === 'company' ? a.tenant.companyName : `${a.tenant.firstName} ${a.tenant.lastName}`;
+            const tenantName = a.tenant.tenantType !== 'individual' ? a.tenant.companyName : `${a.tenant.firstName} ${a.tenant.lastName}`;
             return (
               <div key={a.id} className="alloc-row">
                 <div>
@@ -195,7 +195,7 @@ function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAlloc
     }
   };
 
-  const tenantName = allocation.tenant.tenantType === 'company'
+  const tenantName = allocation.tenant.tenantType !== 'individual'
     ? allocation.tenant.companyName
     : `${allocation.tenant.firstName} ${allocation.tenant.lastName}`;
 
@@ -406,7 +406,7 @@ function CreateAllocationModal({ properties, onClose }: { properties: any[]; onC
           <label>Tenant *</label>
           <select className="form-input" value={form.tenantId} onChange={e => set('tenantId', e.target.value)}>
             <option value="">— Select tenant —</option>
-            {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType === 'company' ? t.companyName : `${t.firstName} ${t.lastName}`}</option>)}
+            {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType !== 'individual' ? t.companyName : `${t.firstName} ${t.lastName}`}</option>)}
           </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>

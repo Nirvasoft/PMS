@@ -200,140 +200,216 @@ export class InvoicesService {
     return invoice;
   }
 
-  // ── Auto-Generate from Billing Schedule ─────
+  // ── Auto-Generate from Billing Schedule(s) ──
 
+  /** Single-schedule convenience wrapper around {@link generateFromSchedules}. */
   async generateFromSchedule(scheduleId: string) {
-    const schedule = await prisma.billingSchedule.findUnique({
-      where: { id: scheduleId },
+    return this.generateFromSchedules([scheduleId]);
+  }
+
+  /**
+   * Generates ONE invoice covering every given schedule as its own line item.
+   * Callers group schedules that share property + tenant + unit (a unit implies its
+   * floor, so matching on unit already covers "same floor, same unit") before calling
+   * this — see {@link runBilling}. A schedule that already has an invoice for its
+   * current period is skipped; if every schedule in the batch is already invoiced,
+   * no invoice is created and this returns null.
+   */
+  async generateFromSchedules(scheduleIds: string[]) {
+    const schedules = await prisma.billingSchedule.findMany({
+      where: { id: { in: scheduleIds } },
       include: { chargeType: true, lease: true, tenant: true },
     });
-    if (!schedule) throw AppError.notFound('Billing schedule');
+    if (schedules.length === 0) throw AppError.notFound('Billing schedule');
 
-    const periodFrom = schedule.nextBillingDate!;
-    const periodTo = this.computePeriodEnd(periodFrom, schedule.billingCycle);
+    type LineInput = {
+      schedule: (typeof schedules)[number];
+      periodFrom: Date; periodTo: Date; amount: number; taxRate: number; taxAmount: number; lineTotal: number;
+    };
+    const lineInputs: LineInput[] = [];
 
-    // Idempotency: check if invoice already exists for this period
-    const existing = await prisma.invoice.findFirst({
-      where: {
-        leaseId: schedule.leaseId,
-        periodFrom,
-        invoiceType: 'invoice',
-        status: { not: 'void' },
-      },
-    });
-    if (existing) {
-      logger.warn(`Invoice already exists for schedule ${scheduleId} period ${periodFrom.toISOString()}, skipping`);
-      return existing;
+    for (const schedule of schedules) {
+      const periodFrom = schedule.nextBillingDate!;
+      const periodTo = this.computePeriodEnd(periodFrom, schedule.billingCycle);
+
+      // Idempotency: check if this schedule already has an invoice for this period.
+      // Scoped to tenant/property/unit/charge type (not just leaseId) — multiple ad-hoc
+      // schedules commonly share a null leaseId and the same period, and must not be
+      // mistaken for each other's invoices.
+      const existing = await prisma.invoice.findFirst({
+        where: {
+          tenantId: schedule.tenantId,
+          propertyId: schedule.propertyId,
+          unitId: schedule.unitId,
+          periodFrom,
+          invoiceType: 'invoice',
+          status: { not: 'void' },
+          lines: { some: { chargeTypeId: schedule.chargeTypeId } },
+        },
+      });
+      if (existing) {
+        logger.warn(`Invoice already exists for schedule ${schedule.id} period ${periodFrom.toISOString()}, skipping`);
+        continue;
+      }
+
+      let amount = Number(schedule.amount);
+
+      // Prorate first invoice if needed
+      if (schedule.isProrated && schedule.invoiceCount === 0 && schedule.prorateStart) {
+        amount = this.calculateProratedAmount(amount, schedule.prorateStart, periodTo, schedule.billingCycle);
+      }
+
+      // Tax calculation
+      const taxRate = await taxService.getApplicableRate(
+        schedule.companyId, schedule.chargeType.code, periodFrom,
+      );
+      const taxAmount = Math.round(amount * taxRate * 100) / 100;
+      lineInputs.push({ schedule, periodFrom, periodTo, amount, taxRate, taxAmount, lineTotal: amount + taxAmount });
     }
 
-    let amount = Number(schedule.amount);
+    if (lineInputs.length === 0) return null;
 
-    // Prorate first invoice if needed
-    if (schedule.isProrated && schedule.invoiceCount === 0 && schedule.prorateStart) {
-      amount = this.calculateProratedAmount(amount, schedule.prorateStart, periodTo, schedule.billingCycle);
-    }
+    const first = lineInputs[0].schedule;
+    const invoiceDate = lineInputs.reduce((min, l) => (l.periodFrom < min ? l.periodFrom : min), lineInputs[0].periodFrom);
+    const periodFrom = invoiceDate;
+    const periodTo = lineInputs.reduce((max, l) => (l.periodTo > max ? l.periodTo : max), lineInputs[0].periodTo);
+    const dueDate = lineInputs.reduce((min, l) => {
+      const d = new Date(l.periodFrom);
+      d.setDate(d.getDate() + l.schedule.paymentDueDays);
+      return d < min ? d : min;
+    }, (() => {
+      const d = new Date(lineInputs[0].periodFrom);
+      d.setDate(d.getDate() + lineInputs[0].schedule.paymentDueDays);
+      return d;
+    })());
+    const leaseId = lineInputs.every(l => l.schedule.leaseId === first.leaseId) ? first.leaseId : null;
 
-    // Tax calculation
-    const taxRate = await taxService.getApplicableRate(
-      schedule.companyId, schedule.chargeType.code, periodFrom,
-    );
-    const taxAmount = Math.round(amount * taxRate * 100) / 100;
-    const totalAmount = amount + taxAmount;
+    const subtotal = lineInputs.reduce((sum, l) => sum + l.amount, 0);
+    const taxAmount = lineInputs.reduce((sum, l) => sum + l.taxAmount, 0);
+    const totalAmount = subtotal + taxAmount;
 
-    const invoiceNumber = await this.generateInvoiceNumber(schedule.companyId);
-    const dueDate = new Date(periodFrom);
-    dueDate.setDate(dueDate.getDate() + schedule.paymentDueDays);
+    const invoiceNumber = await this.generateInvoiceNumber(first.companyId);
 
     // Get grace period
     const penaltyConfig = await prisma.penaltyConfiguration.findFirst({
-      where: { companyId: schedule.companyId, isActive: true },
+      where: { companyId: first.companyId, isActive: true },
       orderBy: { createdAt: 'desc' },
     });
 
     const invoice = await prisma.invoice.create({
       data: {
-        companyId: schedule.companyId,
-        propertyId: schedule.propertyId,
-        unitId: schedule.unitId,
-        tenantId: schedule.tenantId,
-        leaseId: schedule.leaseId,
+        companyId: first.companyId,
+        propertyId: first.propertyId,
+        unitId: first.unitId,
+        tenantId: first.tenantId,
+        leaseId,
         invoiceNumber,
         invoiceType: 'invoice',
         status: 'issued',
-        invoiceDate: periodFrom,
+        invoiceDate,
         dueDate,
         periodFrom,
         periodTo,
-        subtotal: amount,
+        subtotal,
         taxAmount,
         totalAmount,
         paidAmount: 0,
-        currency: schedule.currency,
+        currency: first.currency,
         gracePeriodDays: penaltyConfig?.gracePeriodDays || 0,
         lines: {
-          create: [{
-            chargeTypeId: schedule.chargeTypeId,
-            description: schedule.description || schedule.chargeType.name,
+          create: lineInputs.map((l, idx) => ({
+            chargeTypeId: l.schedule.chargeTypeId,
+            description: l.schedule.description || l.schedule.chargeType.name,
             quantity: 1,
-            unitPrice: amount,
-            amount,
-            taxRate,
-            taxAmount,
-            lineTotal: totalAmount,
-            periodFrom,
-            periodTo,
-            sortOrder: 0,
-          }],
+            unitPrice: l.amount,
+            amount: l.amount,
+            taxRate: l.taxRate,
+            taxAmount: l.taxAmount,
+            lineTotal: l.lineTotal,
+            periodFrom: l.periodFrom,
+            periodTo: l.periodTo,
+            sortOrder: idx,
+          })),
         },
       },
     });
 
-    // Advance schedule
-    const nextDate = this.computeNextBillingDate(periodTo, schedule.billingDay, schedule.billingCycle);
-    const scheduleEndDate = schedule.endDate;
-    const isCompleted = scheduleEndDate && nextDate > scheduleEndDate;
+    // Advance each included schedule independently.
+    for (const l of lineInputs) {
+      const nextDate = this.computeNextBillingDate(l.periodTo, l.schedule.billingDay, l.schedule.billingCycle);
+      const scheduleEndDate = l.schedule.endDate;
+      const isCompleted = scheduleEndDate && nextDate > scheduleEndDate;
 
-    await prisma.billingSchedule.update({
-      where: { id: scheduleId },
-      data: {
-        nextBillingDate: isCompleted ? null : nextDate,
-        lastInvoicedAt: new Date(),
-        invoiceCount: { increment: 1 },
-        isProrated: false,
-        status: isCompleted ? 'completed' : 'active',
-      },
-    });
+      await prisma.billingSchedule.update({
+        where: { id: l.schedule.id },
+        data: {
+          nextBillingDate: isCompleted ? null : nextDate,
+          lastInvoicedAt: new Date(),
+          invoiceCount: { increment: 1 },
+          isProrated: false,
+          status: isCompleted ? 'completed' : 'active',
+        },
+      });
+    }
 
     // GL auto-posting: Dr AR / Cr Revenue / Cr Tax Payable
     const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
       { accountCode: '1100', debit: totalAmount, credit: 0, description: `AR — ${invoiceNumber}` },
-      { accountCode: '4100', debit: 0, credit: amount, description: `Revenue — ${invoiceNumber}` },
+      { accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoiceNumber}` },
     ];
     if (taxAmount > 0) {
       glLines.push({ accountCode: '2200', debit: 0, credit: taxAmount, description: `Tax Payable — ${invoiceNumber}` });
     }
     await glService.postAutoJournal({
-      companyId: schedule.companyId,
-      entryDate: periodFrom,
+      companyId: first.companyId,
+      entryDate: invoiceDate,
       entryType: 'ar_invoice',
       description: `AR Invoice ${invoiceNumber}`,
       referenceType: 'invoice',
       referenceId: invoice.id,
-      propertyId: schedule.propertyId,
+      propertyId: first.propertyId,
       lines: glLines,
     });
     // Send notification
-    const tenantName = schedule.tenant
-      ? `${schedule.tenant.firstName || ''} ${schedule.tenant.lastName || ''}`.trim()
+    const tenantName = first.tenant
+      ? `${first.tenant.firstName || ''} ${first.tenant.lastName || ''}`.trim()
       : '';
     billingNotifications.invoiceIssued({
-      ...invoice, companyId: schedule.companyId, tenantId: schedule.tenantId,
-      totalAmount: invoice.totalAmount, currency: schedule.currency,
+      ...invoice, companyId: first.companyId, tenantId: first.tenantId,
+      totalAmount: invoice.totalAmount, currency: first.currency,
     }, tenantName);
 
-    logger.info(`Generated invoice ${invoiceNumber} for schedule ${scheduleId} (${amount} ${schedule.currency})`);
-    webhookInvoiceIssued({ ...invoice, companyId: schedule.companyId, tenantId: schedule.tenantId, currency: schedule.currency });
+    logger.info(`Generated invoice ${invoiceNumber} for ${lineInputs.length} schedule(s) [${lineInputs.map(l => l.schedule.id).join(', ')}] (${totalAmount} ${first.currency})`);
+    webhookInvoiceIssued({ ...invoice, companyId: first.companyId, tenantId: first.tenantId, currency: first.currency });
     return invoice;
+  }
+
+  /**
+   * Groups due schedules by property + tenant + unit (unit implies floor) and generates
+   * one consolidated invoice per group. Used by both the manual "Run Billing" endpoint
+   * and the daily billing cron so their behavior stays identical.
+   */
+  async runBilling(dueSchedules: Array<{ id: string; propertyId: string; tenantId: string; unitId: string | null }>) {
+    const groups = new Map<string, string[]>();
+    for (const s of dueSchedules) {
+      const key = `${s.propertyId}|${s.tenantId}|${s.unitId ?? 'none'}`;
+      const ids = groups.get(key);
+      if (ids) ids.push(s.id); else groups.set(key, [s.id]);
+    }
+
+    let generated = 0;
+    const errors: string[] = [];
+
+    for (const scheduleIds of groups.values()) {
+      try {
+        const invoice = await this.generateFromSchedules(scheduleIds);
+        if (invoice) generated++;
+      } catch (err: any) {
+        errors.push(`Schedules ${scheduleIds.join(', ')}: ${err.message}`);
+      }
+    }
+
+    return { processed: dueSchedules.length, generated, errors };
   }
 
   // ── Void ────────────────────────────────────
