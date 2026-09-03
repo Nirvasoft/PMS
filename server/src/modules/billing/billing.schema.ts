@@ -119,6 +119,7 @@ export const updateBillingScheduleSchema = z.object({
     propertyId: z.string().uuid().optional(),
     tenantId: z.string().uuid().optional(),
     unitId: z.string().uuid().nullable().optional(),
+    leaseId: z.string().uuid().nullable().optional(),
     currency: z.string().length(3).optional(),
     billingCycle: z.enum(['monthly', 'quarterly', 'semi_annual', 'annual', 'one_time']).optional(),
     description: z.string().max(500).optional(),

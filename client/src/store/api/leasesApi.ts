@@ -18,7 +18,7 @@ export interface LeaseListItem {
   createdAt: string;
   unit:     { id: string; unitNumber: string; unitType: string };
   property: { id: string; name: string };
-  tenant:   { id: string; displayName: string; tenantType: string };
+  tenant:   { id: string; displayName: string; tenantType: string; firstName: string | null; lastName: string | null; companyName: string | null };
 }
 
 export interface LeaseDetail extends LeaseListItem {

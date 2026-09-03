@@ -20,6 +20,7 @@ export class BillingSchedulesService {
           tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
           unit: { select: { id: true, unitNumber: true } },
           property: { select: { id: true, name: true } },
+          lease: { select: { id: true, leaseNumber: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -150,6 +151,7 @@ export class BillingSchedulesService {
     if (dto.propertyId !== undefined) updateData.propertyId = dto.propertyId;
     if (dto.tenantId !== undefined) updateData.tenantId = dto.tenantId;
     if (dto.unitId !== undefined) updateData.unitId = dto.unitId;
+    if (dto.leaseId !== undefined) updateData.leaseId = dto.leaseId;
     if (dto.currency !== undefined) updateData.currency = dto.currency;
     if (dto.billingCycle !== undefined) updateData.billingCycle = dto.billingCycle;
     if (dto.description !== undefined) updateData.description = dto.description;
@@ -174,6 +176,7 @@ export class BillingSchedulesService {
         tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
         unit: { select: { id: true, unitNumber: true } },
         property: { select: { id: true, name: true } },
+        lease: { select: { id: true, leaseNumber: true } },
       },
     });
   }

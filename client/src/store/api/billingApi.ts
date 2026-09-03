@@ -63,6 +63,8 @@ export interface BillingSchedule {
   tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
   unit: { id: string; unitNumber: string } | null;
   property: { id: string; name: string };
+  leaseId: string | null;
+  lease: { id: string; leaseNumber: string } | null;
 }
 
 export interface InvoiceLine {

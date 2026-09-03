@@ -9,7 +9,7 @@ import {
 import type { BillingSchedule } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
-import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
@@ -27,13 +27,13 @@ const CHARGE_CATEGORY_MAP: Record<string, string> = {
 const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'] as const;
 
 interface ScheduleForm {
-  chargeTypeId: string; propertyId: string; tenantId: string; unitId: string;
+  chargeTypeId: string; propertyId: string; tenantId: string; unitId: string; leaseId: string;
   amount: number; currency: string; billingCycle: string; billingDay: number;
   paymentDueDays: number; startDate: string; endDate: string; description: string;
 }
 
 const emptyForm: ScheduleForm = {
-  chargeTypeId: '', propertyId: '', tenantId: '', unitId: '',
+  chargeTypeId: '', propertyId: '', tenantId: '', unitId: '', leaseId: '',
   amount: 0, currency: 'USD', billingCycle: 'monthly', billingDay: 1,
   paymentDueDays: 14, startDate: new Date().toISOString().split('T')[0], endDate: '', description: '',
 };
@@ -41,19 +41,25 @@ const emptyForm: ScheduleForm = {
 export default function BillingSchedulesPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  const [propertyFilter, setPropertyFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<ScheduleForm>(emptyForm);
   const [floorId, setFloorId] = useState('');
 
-  const { data, isFetching } = useGetBillingSchedulesQuery({ status: statusFilter || undefined, page, limit: 15 });
+  const { data, isFetching } = useGetBillingSchedulesQuery({
+    status: statusFilter || undefined, propertyId: propertyFilter || undefined, page, limit: 15,
+  });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 200 });
   const { data: floorsData } = useGetFloorSetupsQuery(form.propertyId ? { propertyId: form.propertyId } : skipToken);
   const floorNumber = floorsData?.data.find(f => f.id === floorId)?.floorNumber;
   const { data: unitsData } = useGetUnitsQuery(
     form.propertyId ? { propertyId: form.propertyId, floor: floorNumber, limit: 200 } : skipToken,
+  );
+  // Tenant choices come from the property's active leases, so a schedule is always tied to the lease it bills.
+  const { data: leasesData } = useGetLeasesQuery(
+    form.propertyId ? { propertyId: form.propertyId, status: 'active', limit: 200 } : skipToken,
   );
 
   const [pauseSchedule] = usePauseScheduleMutation();
@@ -68,9 +74,20 @@ export default function BillingSchedulesPage() {
   const meta = data?.meta;
   const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
-  const tenants = tenantsData?.data || [];
   const floors = (floorsData?.data || []).slice().sort((a, b) => a.floorNumber - b.floorNumber);
   const units = unitsData?.data || [];
+  const leases = leasesData?.data || [];
+
+  // `units` already reflects the current floor filter (all of the property's units when none is
+  // picked yet), so cross-referencing against it is how leases stay scoped to Floor as well as Unit.
+  const filteredLeases = leases.filter(l =>
+    (!form.unitId || l.unit?.id === form.unitId) && (!l.unit || units.some(u => u.id === l.unit!.id)),
+  );
+  const deriveFloorId = (unitId: string) => {
+    const unit = units.find(u => u.id === unitId);
+    const floor = unit ? floors.find(f => f.floorNumber === unit.floorNumber) : undefined;
+    return floor?.id || '';
+  };
 
   const handleAction = async (id: string, action: 'pause' | 'resume' | 'cancel') => {
     if (action === 'cancel' && !(await confirmDialog('Cancel this billing schedule? No future invoices will be generated.', { danger: true, confirmText: 'Cancel Schedule' }))) return;
@@ -98,6 +115,7 @@ export default function BillingSchedulesPage() {
       propertyId: s.property.id,
       tenantId: s.tenant.id,
       unitId: s.unit?.id || '',
+      leaseId: s.leaseId || '',
       amount: Number(s.amount),
       currency: s.currency,
       billingCycle: s.billingCycle,
@@ -127,12 +145,14 @@ export default function BillingSchedulesPage() {
       };
 
       if (editId) {
-        // Always send unit/end date on edit (even cleared) so removing either actually clears it.
+        // Always send unit/lease/end date on edit (even cleared) so removing any of them actually clears it.
         payload.unitId = form.unitId || null;
+        payload.leaseId = form.leaseId || null;
         payload.endDate = form.endDate || null;
         await updateSchedule({ id: editId, data: payload }).unwrap();
       } else {
         if (form.unitId) payload.unitId = form.unitId;
+        if (form.leaseId) payload.leaseId = form.leaseId;
         if (form.endDate) payload.endDate = form.endDate;
         await createSchedule(payload).unwrap();
       }
@@ -164,6 +184,10 @@ export default function BillingSchedulesPage() {
           </button>
         </div>
         <div className="billing-filters" style={{ marginBottom: 0 }}>
+          <select className="filter-select" value={propertyFilter} onChange={e => { setPropertyFilter(e.target.value); setPage(1); }}>
+            <option value="">All Properties</option>
+            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
           <select className="filter-select" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
             <option value="">All Statuses</option>
             <option value="active">Active</option>
@@ -320,7 +344,7 @@ export default function BillingSchedulesPage() {
                   <div className="inv-field">
                     <label>Property <span className="req">*</span></label>
                     <select required value={form.propertyId} onChange={e => {
-                      setForm({ ...form, propertyId: e.target.value, unitId: '' });
+                      setForm({ ...form, propertyId: e.target.value, unitId: '', tenantId: '', leaseId: '' });
                       setFloorId('');
                     }}>
                       <option value="">Select property</option>
@@ -331,7 +355,7 @@ export default function BillingSchedulesPage() {
                     <label>Floor</label>
                     <select value={floorId} disabled={!form.propertyId} onChange={e => {
                       setFloorId(e.target.value);
-                      setForm({ ...form, unitId: '' });
+                      setForm({ ...form, unitId: '', tenantId: '', leaseId: '' });
                     }}>
                       <option value="">{form.propertyId ? 'Select floor' : 'Select property first'}</option>
                       {floors.map(f => <option key={f.id} value={f.id}>{f.floorLabel}</option>)}
@@ -339,18 +363,34 @@ export default function BillingSchedulesPage() {
                   </div>
                   <div className="inv-field">
                     <label>Unit</label>
-                    <select value={form.unitId} disabled={!form.propertyId} onChange={e => setForm({ ...form, unitId: e.target.value })}>
+                    <select value={form.unitId} disabled={!form.propertyId} onChange={e => {
+                      const unitId = e.target.value;
+                      setForm({ ...form, unitId, tenantId: '', leaseId: '' });
+                      if (unitId) setFloorId(deriveFloorId(unitId));
+                    }}>
                       <option value="">{form.propertyId ? 'No specific unit' : 'Select property first'}</option>
                       {units.map(u => <option key={u.id} value={u.id}>{u.unitNumber}</option>)}
                     </select>
                   </div>
                   <div className="inv-field">
                     <label>Tenant <span className="req">*</span></label>
-                    <select required value={form.tenantId} onChange={e => setForm({ ...form, tenantId: e.target.value })}>
-                      <option value="">Select tenant</option>
-                      {tenants.map((t: any) => (
-                        <option key={t.id} value={t.id}>
-                          {t.tenantType !== 'individual' ? t.companyName : `${t.firstName || ''} ${t.lastName || ''}`.trim()}
+                    <select required value={form.leaseId} disabled={!form.propertyId} onChange={e => {
+                      const lease = leases.find(l => l.id === e.target.value);
+                      const unitId = lease?.unit?.id || form.unitId;
+                      setForm({
+                        ...form,
+                        leaseId: lease?.id || '',
+                        tenantId: lease?.tenant.id || '',
+                        unitId,
+                      });
+                      if (lease?.unit?.id) setFloorId(deriveFloorId(lease.unit.id));
+                    }}>
+                      <option value="">
+                        {!form.propertyId ? 'Select property first' : filteredLeases.length > 0 ? 'Select tenant' : 'No active leases for this property/floor/unit'}
+                      </option>
+                      {filteredLeases.map(l => (
+                        <option key={l.id} value={l.id}>
+                          {l.tenant.tenantType !== 'individual' ? l.tenant.companyName : l.tenant.lastName}
                         </option>
                       ))}
                     </select>
