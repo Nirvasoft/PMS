@@ -60,11 +60,13 @@ function getParkingStyle(code: string): { color: string; icon: (size: number) =>
   return { color: '#60a5fa', icon: (s) => <Car size={s} /> };
 }
 
-function ParkingCellBadge({ unitType, zoom }: { unitType: string; zoom: string }) {
-  const size = zoom === 'compact' ? 12 : zoom === 'large' ? 30 : 23;
-  const { color, icon } = getParkingStyle(unitType);
+const CELL_TOP_SLOT: Record<string, number> = { compact: 13, normal: 17, large: 23 };
+
+function ParkingCellBadge({ unitType, zoom, statusColor }: { unitType: string; zoom: string; statusColor: string }) {
+  const size = CELL_TOP_SLOT[zoom];
+  const { icon } = getParkingStyle(unitType);
   return (
-    <div className="cell-park-badge" style={{ color }}>
+    <div className="cell-park-badge" style={{ color: statusColor, height: size }}>
       {icon(size)}
     </div>
   );
@@ -367,16 +369,18 @@ export default function UnitsTab() {
                                   onMouseEnter={(e) => setHoveredUnit({ unit, rect: e.currentTarget.getBoundingClientRect() })}
                                   onMouseLeave={() => setHoveredUnit((cur) => (cur?.unit.id === unit.id ? null : cur))}
                                 >
-                                  <div className="cell-dot" style={{ background: STATUS_COLOR[unit.status] }} />
+                                  <div className="cell-top-slot" style={{ height: CELL_TOP_SLOT[zoomLevel] }}>
+                                    {parkingTypeCodes.has(unit.unitType)
+                                      ? <ParkingCellBadge unitType={unit.unitType} zoom={zoomLevel} statusColor={STATUS_COLOR[unit.status]} />
+                                      : <div className="cell-dot" style={{ background: STATUS_COLOR[unit.status] }} />
+                                    }
+                                  </div>
                                   <span
                                     className="cell-num"
                                     style={{ fontSize: zoomLevel === 'compact' ? 8 : zoomLevel === 'large' ? 12 : 10 }}
                                   >
                                     {unit.unitNumber}
                                   </span>
-                                  {parkingTypeCodes.has(unit.unitType) && (
-                                    <ParkingCellBadge unitType={unit.unitType} zoom={zoomLevel} />
-                                  )}
                                   {zoomLevel === 'large' && (
                                     <span className="cell-type">{unit.unitType}</span>
                                   )}

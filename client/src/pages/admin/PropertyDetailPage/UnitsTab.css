@@ -480,13 +480,19 @@
 }
 
 /* ─── Parking type badge inside floor-plan cell ─── */
+.cell-top-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 .cell-park-badge {
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
+  flex-shrink: 0;
   opacity: 0.92;
-  margin-top: 1px;
   filter: drop-shadow(0 0 3px currentColor);
 }
 
