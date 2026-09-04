@@ -138,29 +138,47 @@ export default function AssignPermissionPage() {
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
   const properties = propertiesData?.data ?? [];
 
-  // System roles can't be modified, so they're not offered here.
+  // System roles (e.g. Super Admin) are listed so their permissions can be viewed,
+  // but the backend rejects any update to them, so the form below renders read-only.
   const roles = [...(rolesData?.data ?? [])]
-    .filter((r) => !r.isSystem)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      if (a.isSystem !== b.isSystem) return a.isSystem ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+  const selectedRole = roles.find((r) => r.id === roleId);
+  const isSystemRole = selectedRole?.isSystem ?? false;
 
   const permsByModule: PermissionsByModule = permsData?.data ?? {};
   const modules = sortByMenuOrder(Object.keys(permsByModule).filter((m) => permsByModule[m]?.length > 0));
   const blocks = groupModulesBySection(modules);
+  const allCodes = modules.flatMap((m) => permsByModule[m]?.map((p) => p.code) ?? []);
 
   const { data: roleDetail } = useGetRoleQuery(roleId, { skip: !roleId });
 
   // Pre-tag whatever the selected role already has, once per role selection.
-  // If the role has no property scoping yet, default to the first property — at least
-  // one must always stay checked, so wait for properties to load before initializing.
+  // A system role (Super Admin) has unrestricted access by definition, so it always shows
+  // every permission and property checked here, regardless of what's actually stored —
+  // the backend refuses edits to it anyway, so this is display-only.
+  // For custom roles, if the role has no property scoping yet, default to the first
+  // property — at least one must always stay checked, so wait for properties to load
+  // before initializing.
   if (roleId && roleDetail && initializedFor !== roleId) {
-    const existingPropertyIds = roleDetail.data.propertyIds ?? [];
-    if (existingPropertyIds.length > 0 || propertiesData) {
-      setSelectedPerms(new Set(roleDetail.data.permissions?.map((p) => p.code) ?? []));
-      setSelectedPropertyIds(new Set(
-        existingPropertyIds.length > 0 ? existingPropertyIds : (properties[0] ? [properties[0].id] : [])
-      ));
-      setSelectedFloorNumbers(new Set(roleDetail.data.floorNumbers ?? []));
+    if (isSystemRole) {
+      setSelectedPerms(new Set(allCodes));
+      setSelectedPropertyIds(new Set(properties.map((p) => p.id)));
+      setSelectedFloorNumbers(new Set());
       setInitializedFor(roleId);
+    } else {
+      const existingPropertyIds = roleDetail.data.propertyIds ?? [];
+      if (existingPropertyIds.length > 0 || propertiesData) {
+        setSelectedPerms(new Set(roleDetail.data.permissions?.map((p) => p.code) ?? []));
+        setSelectedPropertyIds(new Set(
+          existingPropertyIds.length > 0 ? existingPropertyIds : (properties[0] ? [properties[0].id] : [])
+        ));
+        setSelectedFloorNumbers(new Set(roleDetail.data.floorNumbers ?? []));
+        setInitializedFor(roleId);
+      }
     }
   }
 
@@ -173,6 +191,7 @@ export default function AssignPermissionPage() {
   };
 
   const toggleProperty = (id: string) => {
+    if (isSystemRole) return;
     // At least one active property must stay checked — unchecking the last one is a no-op.
     if (selectedPropertyIds.has(id) && selectedPropertyIds.size === 1) {
       toast.error('At least one active property must stay checked');
@@ -202,16 +221,19 @@ export default function AssignPermissionPage() {
   }, [maxFloorNumber]);
 
   const toggleFloor = (n: number) => {
+    if (isSystemRole) return;
     const next = new Set(selectedFloorNumbers);
     if (next.has(n)) next.delete(n); else next.add(n);
     setSelectedFloorNumbers(next);
   };
 
   const toggleAllFloors = () => {
+    if (isSystemRole) return;
     setSelectedFloorNumbers(allFloorsChecked ? new Set() : new Set(floorOptions));
   };
 
   const togglePerm = (code: string) => {
+    if (isSystemRole) return;
     const next = new Set(selectedPerms);
     if (next.has(code)) next.delete(code); else next.add(code);
     setSelectedPerms(next);
@@ -230,6 +252,7 @@ export default function AssignPermissionPage() {
   };
 
   const toggleModuleAll = (module: string) => {
+    if (isSystemRole) return;
     const codes = (permsByModule[module] ?? []).map((p) => p.code);
     const allSelected = codes.length > 0 && codes.every((c) => selectedPerms.has(c));
     const next = new Set(selectedPerms);
@@ -238,6 +261,7 @@ export default function AssignPermissionPage() {
   };
 
   const toggleSectionAll = (sectionModules: string[]) => {
+    if (isSystemRole) return;
     const codes = sectionModules.flatMap((m) => (permsByModule[m] ?? []).map((p) => p.code));
     const allSelected = codes.length > 0 && codes.every((c) => selectedPerms.has(c));
     const next = new Set(selectedPerms);
@@ -245,17 +269,17 @@ export default function AssignPermissionPage() {
     setSelectedPerms(next);
   };
 
-  const allCodes = modules.flatMap((m) => permsByModule[m]?.map((p) => p.code) ?? []);
   const allPermsChecked = allCodes.length > 0 && allCodes.every((c) => selectedPerms.has(c));
   const somePermsChecked = selectedPerms.size > 0 && !allPermsChecked;
 
   const toggleAllPerms = () => {
+    if (isSystemRole) return;
     setSelectedPerms(allPermsChecked ? new Set() : new Set(allCodes));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roleId) return;
+    if (!roleId || isSystemRole) return;
     if (selectedPerms.size < 2) {
       toast.error('Select at least two permissions before assigning');
       return;
@@ -321,6 +345,7 @@ export default function AssignPermissionPage() {
                 type="button"
                 className="btn btn-sm"
                 style={{ marginTop: 8 }}
+                disabled={isSystemRole}
                 onClick={() => setFloorModalOpen(true)}
               >
                 All Floor{selectedFloorNumbers.size > 0 ? ` (${selectedFloorNumbers.size})` : ''}
@@ -394,8 +419,14 @@ export default function AssignPermissionPage() {
           </select>
         </div>
 
+        {roleId && isSystemRole && (
+          <p className="text-muted text-small" style={{ marginTop: -8 }}>
+            {selectedRole?.name} is a system role — its permissions are fixed and shown here for reference only.
+          </p>
+        )}
+
         {roleId && (
-          <div className="perm-matrix">
+          <div className={`perm-matrix ${isSystemRole ? 'perm-readonly' : ''}`}>
             <h3>
               <input
                 type="checkbox"
@@ -478,7 +509,7 @@ export default function AssignPermissionPage() {
           </div>
         )}
 
-        {roleId && selectedPerms.size < 2 && (
+        {roleId && !isSystemRole && selectedPerms.size < 2 && (
           <p style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>
             {selectedPerms.size === 0
               ? 'No permissions selected — this role will end up with no access.'
@@ -486,7 +517,7 @@ export default function AssignPermissionPage() {
           </p>
         )}
 
-        {roleId && properties.length > 0 && selectedPropertyIds.size === 0 && (
+        {roleId && !isSystemRole && properties.length > 0 && selectedPropertyIds.size === 0 && (
           <p style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>
             No active property selected — check at least one property before assigning.
           </p>
@@ -494,7 +525,9 @@ export default function AssignPermissionPage() {
 
         <div className="modal-actions">
           <button type="button" className="btn" onClick={() => navigate('/admin/roles')}>Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={!roleId || saving}>Assign Permissions</button>
+          {!isSystemRole && (
+            <button type="submit" className="btn btn-primary" disabled={!roleId || saving}>Assign Permissions</button>
+          )}
         </div>
       </form>
 

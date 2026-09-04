@@ -3082,6 +3082,12 @@ select.input-full:focus {
   height: 12px;
 }
 
+/* Read-only system-role view: pointer-events (not the disabled attribute) locks these down —
+   browsers mute accent-color heavily on :disabled, which made "checked" boxes read as unchecked. */
+.perm-readonly input[type="checkbox"] {
+  pointer-events: none;
+}
+
 /* ─── Department Tree ───────────────────────── */
 .dept-tree {
   border: 1px solid var(--border);
