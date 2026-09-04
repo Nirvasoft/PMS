@@ -36,6 +36,7 @@ export interface KpiCardData {
   breakdown?: Record<string, number>;
   sparkline?: number[];
   updatedAt?: string;
+  disabled?: boolean;
 }
 
 export interface ChartSeries {
@@ -50,6 +51,7 @@ export interface LineChartData {
   xAxis: { label: string; type: string };
   yAxis: { label: string; unit: string };
   updatedAt?: string;
+  disabled?: boolean;
 }
 
 export interface BarChartData {
@@ -58,6 +60,7 @@ export interface BarChartData {
   series: ChartSeries[];
   yAxis: { label: string; unit: string };
   updatedAt?: string;
+  disabled?: boolean;
 }
 
 export interface PieChartData {
@@ -65,6 +68,7 @@ export interface PieChartData {
   label: string;
   data: Array<{ name: string; value: number; color: string }>;
   updatedAt?: string;
+  disabled?: boolean;
 }
 
 export interface GaugeData {
@@ -75,6 +79,7 @@ export interface GaugeData {
   target?: number;
   breakdown?: Record<string, number>;
   updatedAt?: string;
+  disabled?: boolean;
 }
 
 export interface DataTableData {
@@ -83,6 +88,7 @@ export interface DataTableData {
   columns: string[];
   rows: string[][];
   updatedAt?: string;
+  disabled?: boolean;
 }
 
 export interface HeatmapData {
@@ -93,6 +99,7 @@ export interface HeatmapData {
   data: number[][];   // [row][col] intensity 0-100
   maxValue?: number;
   updatedAt?: string;
+  disabled?: boolean;
 }
 
 export type WidgetData = KpiCardData | LineChartData | BarChartData | PieChartData | GaugeData | DataTableData | HeatmapData;

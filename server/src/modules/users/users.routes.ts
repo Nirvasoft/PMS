@@ -7,6 +7,8 @@ import { departmentsService } from './services/departments.service';
 import { positionsService } from './services/positions.service';
 import { avatarUpload, csvUpload, getFileUrl, saveUploadedFileToSpaces } from '../../common/upload';
 import { prisma } from '../../common/database';
+import { requirePermission } from '../auth/guards/roleGuard';
+import { AppError } from '../../common/errors';
 
 /** Helper to extract route param as string */
 const param = (req: Request, name: string): string => req.params[name] as string;
@@ -15,7 +17,7 @@ export const usersRouter = Router();
 
 // ─── Users ─────────────────────────────────────
 
-usersRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.get('/', requirePermission('users.read'), asyncHandler(async (req: Request, res: Response) => {
   const { search, departmentId, roleId, isActive, page, limit, sort, order } = req.query;
   const result = await usersService.findAll(req.user!.companyId, {
     search: search as string,
@@ -30,46 +32,51 @@ usersRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, ...result });
 }));
 
-usersRouter.get('/:id', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.get('/:id', requirePermission('users.read'), asyncHandler(async (req: Request, res: Response) => {
   const data = await usersService.findById(param(req, 'id'));
   res.json({ success: true, data });
 }));
 
-usersRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.post('/', requirePermission('users.create'), asyncHandler(async (req: Request, res: Response) => {
   const user = await usersService.create(req.body, req.user!.companyId);
   res.status(201).json({ success: true, data: { id: user.id, email: user.email } });
 }));
 
-usersRouter.put('/:id', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.put('/:id', requirePermission('users.update'), asyncHandler(async (req: Request, res: Response) => {
   const data = await usersService.updateProfile(param(req, 'id'), req.body);
   res.json({ success: true, data });
 }));
 
-usersRouter.post('/:id/deactivate', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.post('/:id/deactivate', requirePermission('users.deactivate'), asyncHandler(async (req: Request, res: Response) => {
   await usersService.deactivate(param(req, 'id'), req.body.reason || 'No reason provided');
   res.json({ success: true });
 }));
 
-usersRouter.post('/:id/reactivate', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.post('/:id/reactivate', requirePermission('users.deactivate'), asyncHandler(async (req: Request, res: Response) => {
   await usersService.reactivate(param(req, 'id'));
   res.json({ success: true });
 }));
 
-usersRouter.post('/:id/reset-password', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.post('/:id/reset-password', requirePermission('users.update'), asyncHandler(async (req: Request, res: Response) => {
   const result = await usersService.adminResetPassword(param(req, 'id'));
   res.json({ success: true, data: result });
 }));
 
-// Avatar upload
+// Avatar upload — a user may always upload their own; editing someone else's needs users.update
 usersRouter.post('/:id/avatar', avatarUpload.single('avatar'), asyncHandler(async (req: Request, res: Response) => {
+  const targetId = param(req, 'id');
+  const isSelf = req.user!.sub === targetId;
+  if (!isSelf && !req.user!.permissions?.includes('users.update')) {
+    throw AppError.forbidden('This action requires the users.update permission');
+  }
   if (!req.file) { res.status(400).json({ success: false, errors: [{ message: 'No file uploaded' }] }); return; }
   const avatarUrl = await saveUploadedFileToSpaces(req.file, 'avatars');
-  await prisma.userProfile.update({ where: { userId: param(req, 'id') }, data: { avatarUrl } });
+  await prisma.userProfile.update({ where: { userId: targetId }, data: { avatarUrl } });
   res.json({ success: true, data: { avatarUrl } });
 }));
 
 // CSV Bulk Import
-usersRouter.post('/import', csvUpload.single('csv'), asyncHandler(async (req: Request, res: Response) => {
+usersRouter.post('/import', requirePermission('users.create'), csvUpload.single('csv'), asyncHandler(async (req: Request, res: Response) => {
   if (!req.file?.buffer) { res.status(400).json({ success: false, errors: [{ message: 'No CSV file uploaded' }] }); return; }
   
   const content = req.file.buffer.toString('utf-8').replace(/^﻿/, '');
@@ -144,29 +151,29 @@ usersRouter.post('/import', csvUpload.single('csv'), asyncHandler(async (req: Re
 
 // ─── User Roles ────────────────────────────────
 
-usersRouter.post('/:id/roles', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.post('/:id/roles', requirePermission('users.manage-roles'), asyncHandler(async (req: Request, res: Response) => {
   await usersService.assignRole(param(req, 'id'), req.body, req.user!.sub);
   res.status(201).json({ success: true });
 }));
 
-usersRouter.delete('/:id/roles/:roleId', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.delete('/:id/roles/:roleId', requirePermission('users.manage-roles'), asyncHandler(async (req: Request, res: Response) => {
   await usersService.removeRole(param(req, 'id'), param(req, 'roleId'));
   res.status(204).send();
 }));
 
 // ─── User Permission Overrides ─────────────────
 
-usersRouter.get('/:id/permission-overrides', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.get('/:id/permission-overrides', requirePermission('users.manage-permissions'), asyncHandler(async (req: Request, res: Response) => {
   const data = await usersService.getPermissionOverrides(param(req, 'id'));
   res.json({ success: true, data });
 }));
 
-usersRouter.post('/:id/permission-overrides', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.post('/:id/permission-overrides', requirePermission('users.manage-permissions'), asyncHandler(async (req: Request, res: Response) => {
   await usersService.setPermissionOverride(param(req, 'id'), req.body, req.user!.sub);
   res.status(201).json({ success: true });
 }));
 
-usersRouter.delete('/:id/permission-overrides/:overrideId', asyncHandler(async (req: Request, res: Response) => {
+usersRouter.delete('/:id/permission-overrides/:overrideId', requirePermission('users.manage-permissions'), asyncHandler(async (req: Request, res: Response) => {
   await usersService.removePermissionOverride(param(req, 'id'), param(req, 'overrideId'));
   res.status(204).send();
 }));
@@ -175,33 +182,33 @@ usersRouter.delete('/:id/permission-overrides/:overrideId', asyncHandler(async (
 
 export const rolesRouter = Router();
 
-rolesRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
+rolesRouter.get('/', requirePermission('roles.read'), asyncHandler(async (req: Request, res: Response) => {
   const includePermissions = req.query.includePermissions === 'true';
   const data = await rolesService.findAll(req.user!.companyId, includePermissions);
   res.json({ success: true, data });
 }));
 
-rolesRouter.get('/:id', asyncHandler(async (req: Request, res: Response) => {
+rolesRouter.get('/:id', requirePermission('roles.read'), asyncHandler(async (req: Request, res: Response) => {
   const data = await rolesService.findById(param(req, 'id'));
   res.json({ success: true, data });
 }));
 
-rolesRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
+rolesRouter.post('/', requirePermission('roles.create'), asyncHandler(async (req: Request, res: Response) => {
   const data = await rolesService.create(req.body, req.user!.companyId, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
 
-rolesRouter.put('/:id', asyncHandler(async (req: Request, res: Response) => {
+rolesRouter.put('/:id', requirePermission('roles.manage'), asyncHandler(async (req: Request, res: Response) => {
   const data = await rolesService.update(param(req, 'id'), req.body, req.user!.sub);
   res.json({ success: true, data });
 }));
 
-rolesRouter.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+rolesRouter.delete('/:id', requirePermission('roles.manage'), asyncHandler(async (req: Request, res: Response) => {
   await rolesService.delete(param(req, 'id'));
   res.status(204).send();
 }));
 
-rolesRouter.post('/from-template', asyncHandler(async (req: Request, res: Response) => {
+rolesRouter.post('/from-template', requirePermission('roles.create'), asyncHandler(async (req: Request, res: Response) => {
   const data = await rolesService.createFromTemplate(
     req.body.templateId, req.body.name, req.user!.companyId, req.user!.sub,
   );
@@ -212,7 +219,7 @@ rolesRouter.post('/from-template', asyncHandler(async (req: Request, res: Respon
 
 export const roleTemplatesRouter = Router();
 
-roleTemplatesRouter.get('/', asyncHandler(async (_req: Request, res: Response) => {
+roleTemplatesRouter.get('/', requirePermission('roles.read'), asyncHandler(async (_req: Request, res: Response) => {
   const data = await rolesService.getTemplates();
   res.json({ success: true, data });
 }));
@@ -221,7 +228,7 @@ roleTemplatesRouter.get('/', asyncHandler(async (_req: Request, res: Response) =
 
 export const permissionsRouter = Router();
 
-permissionsRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
+permissionsRouter.get('/', requirePermission('roles.read'), asyncHandler(async (req: Request, res: Response) => {
   const data = await permissionsService.findAllGrouped(req.query.module as string);
   res.json({ success: true, data });
 }));
@@ -230,7 +237,7 @@ permissionsRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 export const departmentsRouter = Router();
 
-departmentsRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
+departmentsRouter.get('/', requirePermission('departments.read'), asyncHandler(async (req: Request, res: Response) => {
   if (req.query.tree === 'true') {
     const data = await departmentsService.getTree(req.user!.companyId);
     res.json({ success: true, data });
@@ -240,22 +247,22 @@ departmentsRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
   }
 }));
 
-departmentsRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
+departmentsRouter.post('/', requirePermission('departments.create'), asyncHandler(async (req: Request, res: Response) => {
   const data = await departmentsService.create(req.body, req.user!.companyId);
   res.status(201).json({ success: true, data });
 }));
 
-departmentsRouter.put('/:id', asyncHandler(async (req: Request, res: Response) => {
+departmentsRouter.put('/:id', requirePermission('departments.update'), asyncHandler(async (req: Request, res: Response) => {
   const data = await departmentsService.update(param(req, 'id'), req.body);
   res.json({ success: true, data });
 }));
 
-departmentsRouter.post('/:id/move', asyncHandler(async (req: Request, res: Response) => {
+departmentsRouter.post('/:id/move', requirePermission('departments.update'), asyncHandler(async (req: Request, res: Response) => {
   const data = await departmentsService.move(param(req, 'id'), req.body.newParentId);
   res.json({ success: true, data });
 }));
 
-departmentsRouter.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+departmentsRouter.delete('/:id', requirePermission('departments.delete'), asyncHandler(async (req: Request, res: Response) => {
   await departmentsService.delete(param(req, 'id'));
   res.status(204).send();
 }));
@@ -264,22 +271,22 @@ departmentsRouter.delete('/:id', asyncHandler(async (req: Request, res: Response
 
 export const positionsRouter = Router();
 
-positionsRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
+positionsRouter.get('/', requirePermission('positions.read'), asyncHandler(async (req: Request, res: Response) => {
   const data = await positionsService.findAll(req.user!.companyId, req.query.departmentId as string);
   res.json({ success: true, data });
 }));
 
-positionsRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
+positionsRouter.post('/', requirePermission('positions.create'), asyncHandler(async (req: Request, res: Response) => {
   const data = await positionsService.create(req.body, req.user!.companyId);
   res.status(201).json({ success: true, data });
 }));
 
-positionsRouter.put('/:id', asyncHandler(async (req: Request, res: Response) => {
+positionsRouter.put('/:id', requirePermission('positions.update'), asyncHandler(async (req: Request, res: Response) => {
   const data = await positionsService.update(param(req, 'id'), req.body);
   res.json({ success: true, data });
 }));
 
-positionsRouter.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+positionsRouter.delete('/:id', requirePermission('positions.delete'), asyncHandler(async (req: Request, res: Response) => {
   await positionsService.delete(param(req, 'id'));
   res.status(204).send();
 }));

@@ -5,6 +5,7 @@ import { useAppSelector } from '../../store';
 import { Eye, EyeOff, Building2, Lock, Mail, AlertTriangle, Loader2, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ThemeToggle from '../../components/ThemeToggle';
+import { getDefaultRoute } from '../../utils/defaultRoute';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -74,10 +75,11 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login({ companyCode, email, password, rememberMe }).unwrap();
+      const result = await login({ companyCode, email, password, rememberMe }).unwrap();
       if (!mfaPending) {
         toast.success('Welcome back!');
-        navigate('/dashboard');
+        const user = 'user' in result.data ? result.data.user : undefined;
+        navigate(getDefaultRoute(user?.permissions ?? [], user?.roles ?? []));
       }
     } catch (err: unknown) {
       const apiErr = err as { data?: { errors?: Array<{ message: string; code: string; meta?: { unlockAt: string } }> } };

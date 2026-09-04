@@ -115,7 +115,7 @@ authRouter.post('/mfa/verify', validateRequest(mfaVerifySchema), asyncHandler(as
 }));
 
 authRouter.post('/refresh', asyncHandler(async (req: Request, res: Response) => {
-  const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+  const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
   if (!refreshToken) {
     res.status(401).json({ success: false, errors: [{ code: 'NO_REFRESH_TOKEN', message: 'No refresh token' }] });
     return;

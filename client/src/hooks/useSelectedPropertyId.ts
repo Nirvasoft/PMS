@@ -1,16 +1,19 @@
 import { useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '../store';
 import { setSelectedProperty } from '../store/slices/propertiesSlice';
-import { useGetPropertiesQuery } from '../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../store/api/propertiesApi';
 
 /**
  * Returns the currently selected propertyId.
  * Auto-selects the first property if none is selected.
+ *
+ * Uses the scope-only /properties/my-scope endpoint (not gated by properties.read) so this
+ * stays correct for property-scoped users who lack admin access to the Properties module.
  */
 export function useSelectedPropertyId(): string {
   const dispatch = useAppDispatch();
   const selectedPropertyId = useAppSelector((s) => s.properties.selectedPropertyId);
-  const { data: propertiesRes } = useGetPropertiesQuery({ limit: 100 });
+  const { data: propertiesRes } = useGetMyPropertyScopeQuery();
   const properties = propertiesRes?.data || [];
 
   useEffect(() => {

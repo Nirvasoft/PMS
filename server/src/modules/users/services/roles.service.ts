@@ -33,7 +33,7 @@ export class RolesService {
 
     const roles = await prisma.role.findMany({
       where: { companyId },
-      include: { _count: { select: { userRoles: true } } },
+      include: { _count: { select: { userRoles: true, rolePermissions: true } } },
       orderBy: { name: 'asc' },
     });
     return roles.map((r) => ({
@@ -43,6 +43,7 @@ export class RolesService {
       isSystem: r.isSystem,
       isActive: r.isActive,
       userCount: r._count.userRoles,
+      permissionCount: r._count.rolePermissions,
     }));
   }
 

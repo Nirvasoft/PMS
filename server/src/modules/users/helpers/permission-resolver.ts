@@ -1,6 +1,12 @@
 import { prisma } from '../../../common/database';
 import { redis } from '../../../common/redis';
+import { config } from '../../../common/config';
 import { logger } from '../../../common/logger';
+
+// redis.keys() does NOT auto-prefix like get/set/del, so the prefix must be prepended
+// to the pattern manually, and stripped again from whatever keys() returns before
+// passing them to del() (which re-adds the prefix itself). See token.service.ts.
+const KEY_PREFIX = config.redis.prefix || '';
 
 /**
  * Resolves the effective permission codes for a user.
@@ -84,7 +90,8 @@ export class PermissionResolver {
   }
 
   async invalidateCache(userId: string): Promise<void> {
-    const keys = await redis.keys(`perms:${userId}:*`);
+    const rawKeys = await redis.keys(`${KEY_PREFIX}perms:${userId}:*`);
+    const keys = rawKeys.map((k) => (k.startsWith(KEY_PREFIX) ? k.slice(KEY_PREFIX.length) : k));
     if (keys.length) await redis.del(...keys);
   }
 

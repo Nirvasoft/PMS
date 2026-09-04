@@ -88,6 +88,17 @@ export class PropertiesService {
     };
   }
 
+  // ── Minimal scoped list (for context switchers, e.g. sidebar "Active Property") ──
+  async listMinimal(companyId: string, propertyIds?: string[]) {
+    const where: Record<string, unknown> = { companyId, deletedAt: null };
+    if (propertyIds && propertyIds.length > 0) where.id = { in: propertyIds };
+    return prisma.property.findMany({
+      where,
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   // ── Get one ───────────────────────────────────
   async findById(propertyId: string) {
     const property = await prisma.property.findUnique({

@@ -15,6 +15,7 @@ import AcceptInvitePage from './pages/AcceptInvitePage/AcceptInvitePage';
 import SsoConfigPage from './pages/admin/SsoConfigPage';
 import UsersPage from './pages/admin/UsersPage/UsersPage';
 import RolesPage from './pages/admin/RolesPage/RolesPage';
+import AssignPermissionPage from './pages/admin/RolesPage/AssignPermissionPage';
 import DepartmentsPage from './pages/admin/DepartmentsPage/DepartmentsPage';
 import CompanyPage from './pages/admin/CompanyPage/CompanyPage';
 import PropertiesPage from './pages/admin/PropertiesPage/PropertiesPage';
@@ -229,6 +230,7 @@ function AppRoutes() {
             <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/users/:id" element={<UserDetailPage />} />
             <Route path="/admin/roles" element={<RolesPage />} />
+            <Route path="/admin/roles/assign-permission" element={<AssignPermissionPage />} />
             <Route path="/admin/departments" element={<DepartmentsPage />} />
             <Route path="/admin/positions" element={<PositionsPage />} />
           </Route>

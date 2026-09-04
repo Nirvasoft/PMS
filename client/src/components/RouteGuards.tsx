@@ -1,5 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAppSelector } from '../store';
+import { isAdminRole } from '../utils/permissions';
+import { getDefaultRoute } from '../utils/defaultRoute';
 
 export function ProtectedRoute() {
   const { isAuthenticated, isLoading, user } = useAppSelector((s) => s.auth);
@@ -27,9 +29,9 @@ export function ProtectedRoute() {
 }
 
 export function PublicRoute() {
-  const { isAuthenticated } = useAppSelector((s) => s.auth);
+  const { isAuthenticated, user } = useAppSelector((s) => s.auth);
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDefaultRoute(user?.permissions ?? [], user?.roles ?? [])} replace />;
   }
   return <Outlet />;
 }
@@ -54,13 +56,8 @@ export function RequirePermission({
   const roles = useAppSelector((s) => s.auth.user?.roles ?? []);
   const perms = Array.isArray(permission) ? permission : [permission];
 
-  // Admin / super_admin bypass all permission checks
-  // Normalize role names: "Super Admin" → "super_admin" for comparison
-  const isAdmin = roles.some((r) => {
-    const normalized = r.toLowerCase().replace(/\s+/g, '_');
-    return ['admin', 'super_admin'].includes(normalized);
-  });
-  const hasAccess = isAdmin || (requireAll
+  // Admin / Super Admin bypass all permission checks.
+  const hasAccess = isAdminRole(roles) || (requireAll
     ? perms.every((p) => permissions.includes(p))
     : perms.some((p) => permissions.includes(p)));
 

@@ -410,6 +410,12 @@ function WidgetContainer({ item, dateRange, propertyId, editMode, onRemove, onDr
 // WIDGET RENDERER — dispatches to type-specific components
 // ═══════════════════════════════════════════════════
 function WidgetRenderer({ data, onDrillDown }: { data: WidgetData; onDrillDown: (key?: string) => void }) {
+  // Server sends this shape for any widget type whose feature flag is off —
+  // it carries no type-specific fields (data/series/columns), so it must be
+  // handled before dispatching to a type-specific renderer.
+  if (data.disabled) {
+    return <div className="widget-disabled">Not available</div>;
+  }
   switch (data.type) {
     case 'kpi_card': return <KpiCardWidget data={data} onDrillDown={onDrillDown} />;
     case 'line_chart': return <LineChartWidget data={data} onDrillDown={onDrillDown} />;

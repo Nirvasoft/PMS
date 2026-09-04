@@ -4,6 +4,7 @@ import { useAppDispatch } from '../../store';
 import { setCredentials } from '../../store/slices/authSlice';
 import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import ThemeToggle from '../../components/ThemeToggle';
+import { getDefaultRoute } from '../../utils/defaultRoute';
 
 /**
  * SSO Complete Page — handles the IdP redirect callback.
@@ -41,6 +42,8 @@ export default function SsoCompletePage() {
         }
 
         const payload = JSON.parse(atob(payloadBase64));
+        const roles: string[] = payload.roles || [];
+        const permissions: string[] = payload.permissions || [];
 
         // Store credentials in Redux
         dispatch(setCredentials({
@@ -48,8 +51,8 @@ export default function SsoCompletePage() {
             id: payload.sub,
             email: payload.email,
             companyId: payload.companyId,
-            roles: payload.roles || [],
-            permissions: payload.permissions || [],
+            roles,
+            permissions,
             mustChangePassword: false,
           },
           accessToken,
@@ -63,7 +66,7 @@ export default function SsoCompletePage() {
 
         // Short delay to show success, then redirect
         setTimeout(() => {
-          navigate(isNewUser ? '/settings/profile' : '/dashboard', { replace: true });
+          navigate(isNewUser ? '/settings/profile' : getDefaultRoute(permissions, roles), { replace: true });
         }, 1500);
       } catch (err) {
         console.error('SSO token processing failed:', err);

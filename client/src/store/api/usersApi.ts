@@ -47,7 +47,10 @@ export interface UserDetail {
   locale: string;
   department: { id: string; name: string } | null;
   position: { id: string; name: string; level: number } | null;
-  roles: { id: string; name: string; propertyId: string | null; expiresAt: string | null }[];
+  roles: {
+    id: string; name: string; propertyId: string | null; expiresAt: string | null;
+    scopedProperties: { id: string; name: string }[];
+  }[];
   permissionOverrides: {
     id: string;
     permissionCode: string;
@@ -106,12 +109,17 @@ export const usersApi = createApi({
 
     getUser: builder.query<ApiResponse<UserDetail>, string>({
       query: (id) => `/users/${id}`,
-      providesTags: (_r, _e, id) => [{ type: 'Users', id }],
+      // Also provides the generic 'Users' tag: a role-permission change (updateRole)
+      // only knows the role id, not which users hold it, so it can only invalidate the
+      // generic tag — without this, an open UserDetailPage's Effective Permissions
+      // would stay stale after editing that user's role elsewhere (e.g. Assign Permission).
+      providesTags: (_r, _e, id) => [{ type: 'Users', id }, 'Users'],
     }),
 
     createUser: builder.mutation<ApiResponse<{ id: string; email: string }>, Record<string, unknown>>({
       query: (body) => ({ url: '/users', method: 'POST', body }),
-      invalidatesTags: ['Users'],
+      // 'Roles' too: creating a user can assign roles at creation time, changing their user counts.
+      invalidatesTags: ['Users', 'Roles'],
       // Keep the Organization Summary user count live without a page reload.
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
@@ -139,12 +147,13 @@ export const usersApi = createApi({
 
     assignUserRole: builder.mutation<void, { userId: string; roleId: string; expiresAt?: string }>({
       query: ({ userId, ...body }) => ({ url: `/users/${userId}/roles`, method: 'POST', body }),
-      invalidatesTags: (_r, _e, { userId }) => [{ type: 'Users', id: userId }],
+      // 'Roles' too: assigning a role changes that role's displayed user count on the Roles page.
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'Users', id: userId }, 'Users', 'Roles'],
     }),
 
     removeUserRole: builder.mutation<void, { userId: string; roleId: string }>({
       query: ({ userId, roleId }) => ({ url: `/users/${userId}/roles/${roleId}`, method: 'DELETE' }),
-      invalidatesTags: (_r, _e, { userId }) => [{ type: 'Users', id: userId }],
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'Users', id: userId }, 'Users', 'Roles'],
     }),
 
     reactivateUser: builder.mutation<void, string>({
@@ -169,7 +178,8 @@ export const usersApi = createApi({
         return { url: '/users/import', method: 'POST', body: formData };
       },
       // Refresh the user list so imported users appear without a page reload.
-      invalidatesTags: ['Users'],
+      // 'Roles' too: the CSV can assign a role per row, changing role user counts.
+      invalidatesTags: ['Users', 'Roles'],
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
@@ -208,7 +218,8 @@ export const usersApi = createApi({
 
     updateRole: builder.mutation<ApiResponse<RoleItem>, { id: string; data: Record<string, unknown> }>({
       query: ({ id, data }) => ({ url: `/roles/${id}`, method: 'PUT', body: data }),
-      invalidatesTags: (_r, _e, { id }) => [{ type: 'Roles', id }, 'Roles'],
+      // 'Users' too: renaming a role would otherwise leave stale role-name chips on the Users list.
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'Roles', id }, 'Roles', 'Users'],
     }),
 
     deleteRole: builder.mutation<void, string>({

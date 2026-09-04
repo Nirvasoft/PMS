@@ -5,6 +5,7 @@ import { useAppSelector } from '../../store';
 import { ShieldCheck, AlertTriangle, Loader2, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ThemeToggle from '../../components/ThemeToggle';
+import { getDefaultRoute } from '../../utils/defaultRoute';
 
 export default function MfaVerifyPage() {
   const navigate = useNavigate();
@@ -65,9 +66,9 @@ export default function MfaVerifyPage() {
     if (!finalCode || !mfaToken) return;
 
     try {
-      await verifyMfa({ mfaToken, code: finalCode }).unwrap();
+      const result = await verifyMfa({ mfaToken, code: finalCode }).unwrap();
       toast.success('Authentication successful!');
-      navigate('/dashboard');
+      navigate(getDefaultRoute(result.data.user.permissions ?? [], result.data.user.roles ?? []));
     } catch {
       setError('Invalid or expired code. Please try again.');
       setCode(Array(6).fill(''));

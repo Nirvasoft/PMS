@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { prisma } from '../../../common/database';
 import { Prisma } from '@prisma/client';
-import { redis } from '../../../common/redis';
+import { permissionResolver } from '../helpers/permission-resolver';
 import { logger } from '../../../common/logger';
 
 /**
@@ -80,8 +80,7 @@ export function startPermissionOverrideExpiryJob() {
 
       // Invalidate permission cache for all affected users
       for (const userId of affectedUserIds) {
-        const keys = await redis.keys(`perms:${userId}:*`);
-        if (keys.length) await redis.del(...keys);
+        await permissionResolver.invalidateCache(userId);
       }
 
       const elapsed = Date.now() - jobStart;

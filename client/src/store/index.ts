@@ -1,7 +1,7 @@
-import { configureStore } from '@reduxjs/toolkit';
+import { configureStore, type Middleware } from '@reduxjs/toolkit';
 import { useDispatch, useSelector } from 'react-redux';
 import type { TypedUseSelectorHook } from 'react-redux';
-import authReducer from './slices/authSlice';
+import authReducer, { clearAuth } from './slices/authSlice';
 import themeReducer from './slices/themeSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import propertiesReducer from './slices/propertiesSlice';
@@ -40,6 +40,25 @@ import { mallApi } from './api/mallApi';
 import { condoApi } from './api/condoApi';
 import { biApi } from './api/biApi';
 import { integrationsApi } from './api/integrationsApi';
+
+// Every RTK Query slice, so its cache can be wiped on logout — otherwise a second user
+// signing in on the same tab (no full page reload) sees the previous user's cached data,
+// e.g. a property-scoped user briefly seeing an unscoped admin's cached property list.
+const apiSlices = [
+  authApi, usersApi, organizationApi, workflowApi, notificationsApi, documentsApi,
+  dashboardApi, propertiesApi, unitsApi, tenantsApi, leasesApi, crmApi, parkingApi,
+  billingApi, arApi, apApi, glApi, assetsApi, bankingApi, maintenanceApi, pmApi,
+  facilityApi, inventoryApi, housekeepingApi, securityApi, portalApi, visitorsApi,
+  bookingsApi, communityApi, mallApi, condoApi, biApi, integrationsApi,
+];
+
+const resetApiCachesOnLogout: Middleware = (storeApi) => (next) => (action) => {
+  const result = next(action);
+  if (clearAuth.match(action)) {
+    for (const api of apiSlices) storeApi.dispatch(api.util.resetApiState());
+  }
+  return result;
+};
 
 export const store = configureStore({
   reducer: {
@@ -110,6 +129,7 @@ export const store = configureStore({
       condoApi.middleware,
       biApi.middleware,
       integrationsApi.middleware,
+      resetApiCachesOnLogout,
     ),
 });
 

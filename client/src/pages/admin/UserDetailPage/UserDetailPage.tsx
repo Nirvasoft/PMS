@@ -11,6 +11,7 @@ import {
 } from '../../../store/api/usersApi';
 import { useGetAuditLogsQuery } from '../../../store/api/authApi';
 import { useConfirm } from '../../../components/DialogProvider';
+import { useRefreshAuth } from '../../../hooks/useRefreshAuth';
 import toast from 'react-hot-toast';
 
 type Tab = 'profile' | 'roles' | 'security' | 'activity';
@@ -228,6 +229,7 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
 
 function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void }) {
   const confirmDialog = useConfirm();
+  const refreshAuth = useRefreshAuth();
   const { data: rolesData } = useGetRolesQuery();
   const { data: permsData } = useGetPermissionsQuery();
   const [assignRole] = useAssignUserRoleMutation();
@@ -248,6 +250,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
       toast.success('Role assigned');
       setSelectedRoleId('');
       onRefresh();
+      refreshAuth();
     } catch { toast.error('Failed to assign role'); }
   };
 
@@ -257,6 +260,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
       await removeRole({ userId: user.id, roleId }).unwrap();
       toast.success('Role removed');
       onRefresh();
+      refreshAuth();
     } catch { toast.error('Failed to remove role'); }
   };
 
@@ -266,6 +270,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
       await removeOverride({ userId: user.id, overrideId }).unwrap();
       toast.success('Override removed');
       onRefresh();
+      refreshAuth();
     } catch { toast.error('Failed to remove override'); }
   };
 
@@ -280,6 +285,9 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
           <div key={r.id} className="role-list-item">
             <div>
               <strong>{r.name}</strong>
+              {r.scopedProperties.length > 0 && (
+                <span className="text-muted text-small"> · Active Property: {r.scopedProperties.map(p => p.name).join(', ')}</span>
+              )}
               {r.expiresAt && <span className="text-muted text-small"> · expires {new Date(r.expiresAt).toLocaleDateString()}</span>}
             </div>
             <button className="btn btn-sm btn-danger" onClick={() => handleRemove(r.id, r.name)}>Remove</button>
@@ -341,7 +349,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
           permsByModule={permsData?.data ?? {}}
           existingOverrides={user.permissionOverrides.map(o => o.permissionCode)}
           onClose={() => setShowOverrideModal(false)}
-          onSuccess={() => { setShowOverrideModal(false); onRefresh(); }}
+          onSuccess={() => { setShowOverrideModal(false); onRefresh(); refreshAuth(); }}
         />
       )}
     </div>

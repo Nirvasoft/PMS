@@ -33,6 +33,18 @@ propertiesRouter.get('/', requirePermission('properties.read'), asyncHandler(asy
   res.json({ success: true, ...result });
 }));
 
+/**
+ * GET /properties/my-scope — properties the current user can switch context to.
+ * Deliberately not gated by `properties.read`: this feeds the sidebar's "Active Property"
+ * selector (navigation context), not the Properties admin module — a property-scoped user
+ * with no admin access to the Properties module still needs to see their own scope here.
+ */
+propertiesRouter.get('/my-scope', asyncHandler(async (req: Request, res: Response) => {
+  const propertyScope = await getUserPropertyScope(req.user!.sub);
+  const data = await propertiesService.listMinimal(req.user!.companyId, propertyScope ?? undefined);
+  res.json({ success: true, data });
+}));
+
 /** GET /properties/types — property type catalog */
 propertiesRouter.get('/types', asyncHandler(async (_req: Request, res: Response) => {
   const data = await propertiesService.getPropertyTypes();

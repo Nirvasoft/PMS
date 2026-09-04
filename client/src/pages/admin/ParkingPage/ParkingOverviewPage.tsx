@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useState, useEffect } from 'react';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useGetUnitsQuery, type UnitListItem } from '../../../store/api/unitsApi';
 import {
   useGetParkingTypesQuery,
@@ -21,15 +22,21 @@ function unitLabel(u: { unitNumber: string; floorLabel: string | null }) {
 }
 
 export default function ParkingOverviewPage() {
-  const [propertyId, setPropertyId] = useState('');
   const [parkingType, setParkingType] = useState('');
   const [unitId, setUnitId] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'slots' | 'zones'>('overview');
 
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
-  // Auto-select first property
-  const selectedProperty = propertyId || properties[0]?.id || '';
+  // Property follows the sidebar's "Active Property" selector — not independently choosable here.
+  const selectedProperty = useSelectedPropertyId();
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+
+  // Reset downstream filters whenever the active property changes.
+  useEffect(() => {
+    setParkingType('');
+    setUnitId('');
+  }, [selectedProperty]);
 
   const { currentData: typesData } = useGetParkingTypesQuery(selectedProperty, {
     skip: !selectedProperty,
@@ -47,7 +54,6 @@ export default function ParkingOverviewPage() {
   const parkUnits = parkUnitsData?.data || [];
   const selectedUnit = unitId || parkUnits[0]?.id || '';
 
-  const handlePropertyChange = (id: string) => { setPropertyId(id); setParkingType(''); setUnitId(''); };
   const handleTypeChange = (type: string) => { setParkingType(type); setUnitId(''); };
 
   const scopeReady = !!(selectedProperty && selectedType && selectedUnit);
@@ -66,9 +72,10 @@ export default function ParkingOverviewPage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div className="parking-filter-field">
             <label>Properties</label>
-            <select className="filter-select" value={propertyId} onChange={(e) => handlePropertyChange(e.target.value)} style={{ minWidth: 200 }}>
-              {properties.length === 0 && <option value="">Loading…</option>}
-              {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+            <select className="filter-select" value={selectedProperty} disabled style={{ minWidth: 200 }}>
+              {!selectedProperty && <option value="">Loading…</option>}
+              {selectedProperty && <option value={selectedProperty}>{selectedPropertyName}</option>}
             </select>
           </div>
 

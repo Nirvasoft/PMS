@@ -43,7 +43,9 @@ class MemoryStore {
   }
 
   async keys(pattern: string): Promise<string[]> {
-    // Simple glob matching for patterns like "pms:refresh:userId:*"
+    // Matches real ioredis semantics: keys() does NOT auto-prefix like get/set/del —
+    // callers must include the prefix in `pattern` themselves (see token.service.ts),
+    // and the returned keys are raw/prefixed, same as they're stored.
     const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
     const result: string[] = [];
     for (const key of this.store.keys()) {

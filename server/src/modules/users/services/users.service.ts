@@ -90,7 +90,15 @@ export class UsersService {
           },
         },
         userRoles: {
-          include: { role: { select: { id: true, name: true } } },
+          include: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+                roleProperties: { include: { property: { select: { id: true, name: true } } } },
+              },
+            },
+          },
         },
         permissionOverrides: {
           include: { permission: { select: { code: true, name: true, module: true } } },
@@ -122,6 +130,9 @@ export class UsersService {
         name: ur.role.name,
         propertyId: ur.propertyId,
         expiresAt: ur.expiresAt,
+        // Role-level "Active Property" scope (set on the role itself, distinct from
+        // this UserRole's own propertyId assignment scope above).
+        scopedProperties: ur.role.roleProperties.map((rp) => rp.property),
       })),
       permissionOverrides: user.permissionOverrides.map((o) => ({
         id: o.id,

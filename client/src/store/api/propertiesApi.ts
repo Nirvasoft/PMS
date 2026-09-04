@@ -195,6 +195,13 @@ export const propertiesApi = createApi({
       query: (params) => ({ url: '/properties', params }),
       providesTags: ['Properties'],
     }),
+    // Lightweight, scope-only list for the sidebar's "Active Property" context switcher —
+    // not gated by properties.read, so a property-scoped user with no admin access to the
+    // Properties module still sees their own scope here.
+    getMyPropertyScope: builder.query<ApiResponse<{ id: string; name: string; code: string }[]>, void>({
+      query: () => '/properties/my-scope',
+      providesTags: ['Properties'],
+    }),
     getProperty: builder.query<ApiResponse<PropertyDetail>, string>({
       query: (id) => `/properties/${id}`,
       providesTags: (_, __, id) => [{ type: 'Properties', id }],
@@ -337,6 +344,7 @@ export const {
   useGetPropertyTypesQuery,
   useGetFacilityTypesQuery,
   useGetPropertiesQuery,
+  useGetMyPropertyScopeQuery,
   useGetPropertyQuery,
   useGetPropertyStatsQuery,
   useGetCompanyPropertyStatsQuery,
