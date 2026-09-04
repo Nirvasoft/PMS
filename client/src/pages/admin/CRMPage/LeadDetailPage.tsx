@@ -552,24 +552,6 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
               <option value="700_above">700 Sq.ft & Above</option>
             </select>
           </div>
-          <div className="edit-form-row">
-            <div className="form-group">
-              <label>Ceiling</label>
-              <select className="form-input" value={form.ceiling} onChange={e => set('ceiling', e.target.value)}>
-                <option value="">Select…</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Current Shop</label>
-              <select className="form-input" value={form.currentShop} onChange={e => set('currentShop', e.target.value)}>
-                <option value="">Select…</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-          </div>
         </div>
 
         {/* Pipeline Details */}

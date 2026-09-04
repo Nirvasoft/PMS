@@ -8,11 +8,6 @@ import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './CreateLeadPage.css';
 
-const YES_NO_OPTIONS: [string, string][] = [
-  ['yes', 'Yes'],
-  ['no', 'No'],
-];
-
 export default function CreateLeadPage() {
   const navigate = useNavigate();
   const [createLead, { isLoading }] = useCreateLeadMutation();
@@ -33,7 +28,6 @@ export default function CreateLeadPage() {
     // Applicant Information
     applicantDate: '', shopName: '', address: '',
     businessType: '', doorType: '', productPlan: '',
-    ceiling: '', currentShop: '',
   });
 
   useEffect(() => {
@@ -132,9 +126,6 @@ export default function CreateLeadPage() {
               options={[['', 'Select…'], ['glass_door', 'Glass Door'], ['other', 'Other'], ['roller_shutter', 'Roller Shutter']]} />
             <SelectField label="Product Plan" value={loi.productPlan} onChange={(v) => setLoiField('productPlan', v)}
               options={[['', 'Select…'], ['100_300', '100-300 Sq.ft'], ['300_500', '300-500 Sq.ft'], ['500_700', '500-700 Sq.ft'], ['700_above', '700 Sq.ft & Above']]} />
-
-            <RadioGroup label="Ceiling" name="ceiling" value={loi.ceiling} onChange={(v) => setLoiField('ceiling', v)} options={YES_NO_OPTIONS} />
-            <RadioGroup label="Current Shop (If have)" name="currentShop" value={loi.currentShop} onChange={(v) => setLoiField('currentShop', v)} options={YES_NO_OPTIONS} />
           </div>
         </div>
 
@@ -193,25 +184,6 @@ function SelectField({ label, value, onChange, options, span }: {
       <select value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
-    </div>
-  );
-}
-
-function RadioGroup({ label, name, value, onChange, options, span }: {
-  label: string; name: string; value: string; onChange: (v: string) => void;
-  options: [string, string][]; span?: number;
-}) {
-  return (
-    <div className="form-field" style={{ gridColumn: span ? `span ${span}` : undefined }}>
-      <label>{label}</label>
-      <div className="cl-radio-options">
-        {options.map(([v, l]) => (
-          <label key={v} className="cl-radio-option">
-            <input type="radio" name={name} checked={value === v} onChange={() => onChange(v)} />
-            {l}
-          </label>
-        ))}
-      </div>
     </div>
   );
 }
