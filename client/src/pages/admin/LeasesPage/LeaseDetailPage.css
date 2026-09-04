@@ -250,8 +250,10 @@
 /* White "paper" invoice — A4 landscape aspect */
 .invoice-paper { background: #fff; color: #1a1a2e; padding: 48px 56px; border-radius: 6px; font-family: Arial, Helvetica, sans-serif; max-width: 1280px; margin: 0 auto; }
 .inv-title { color: #2f6fd0; font-size: 1.75rem; font-weight: 700; margin-bottom: 22px; }
-.inv-meta { text-align: right; font-size: 1.1rem; line-height: 2.1; margin-bottom: 32px; color: #1a1a2e; }
-.inv-meta-label { font-weight: 400; }
+.inv-meta { display: grid; grid-template-columns: auto auto auto; justify-content: end; column-gap: 10px; row-gap: 14px; font-size: 1.1rem; margin-bottom: 32px; color: #000; }
+.inv-meta-label { text-align: right; font-weight: 400; }
+.inv-meta-colon { text-align: center; }
+.inv-meta-value { text-align: left; }
 .inv-table { width: 100%; border-collapse: collapse; font-size: 1.05rem; }
 .inv-table th, .inv-table td { border: 1px solid #333; padding: 14px 18px; }
 .inv-desc-col, .inv-month-col, .inv-num-col { text-align: center; }

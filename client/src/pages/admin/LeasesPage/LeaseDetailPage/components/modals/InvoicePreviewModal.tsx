@@ -61,14 +61,14 @@ export function InvoicePreviewModal({ lease, onClose }: { lease: LeaseDetail; on
         <div className="invoice-modal-body">
           {/* The printable invoice */}
           <div className="invoice-paper" ref={printRef}>
-            <div className="inv-title">Invoice</div>
+            <div className="inv-title">Lease Preview</div>
 
             <div className="inv-meta">
-              <div><span className="inv-meta-label">Customer ID</span> : {customerId}</div>
-              <div><span className="inv-meta-label">Customer Name</span> : {customerName}</div>
-              <div><span className="inv-meta-label">Invoice No</span> : {invoiceNo}</div>
-              <div><span className="inv-meta-label">Date</span> : {dateStr}</div>
-              <div><span className="inv-meta-label">Refer No</span> : {lease.unit.unitNumber}</div>
+              <span className="inv-meta-label">Customer ID</span><span className="inv-meta-colon">:</span><span className="inv-meta-value">{customerId}</span>
+              <span className="inv-meta-label">Customer Name</span><span className="inv-meta-colon">:</span><span className="inv-meta-value">{customerName}</span>
+              <span className="inv-meta-label">Invoice No</span><span className="inv-meta-colon">:</span><span className="inv-meta-value">{invoiceNo}</span>
+              <span className="inv-meta-label">Date</span><span className="inv-meta-colon">:</span><span className="inv-meta-value">{dateStr}</span>
+              <span className="inv-meta-label">Refer No</span><span className="inv-meta-colon">:</span><span className="inv-meta-value">{lease.unit.unitNumber}</span>
             </div>
 
             <table className="inv-table">
@@ -160,8 +160,10 @@ const PRINT_CSS = `
   * { box-sizing: border-box; }
   body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #1a1a2e; background: #fff; }
   .inv-title { color: #2f6fd0; font-size: 20px; font-weight: 700; margin-bottom: 12px; }
-  .inv-meta { text-align: right; font-size: 14px; line-height: 1.9; margin-bottom: 20px; }
-  .inv-meta-label { font-weight: 400; }
+  .inv-meta { display: grid; grid-template-columns: auto auto auto; justify-content: end; column-gap: 8px; row-gap: 10px; font-size: 14px; margin-bottom: 20px; color: #000; }
+  .inv-meta-label { text-align: right; font-weight: 400; }
+  .inv-meta-colon { text-align: center; }
+  .inv-meta-value { text-align: left; }
   .inv-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .inv-table th, .inv-table td { border: 1px solid #333; padding: 8px 10px; }
   .inv-desc-col { text-align: center; }

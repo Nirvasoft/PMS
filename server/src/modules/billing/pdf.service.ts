@@ -279,7 +279,7 @@ const INVOICE_TEMPLATE = `
     </div>
     <div class="footer-hours">
       <span class="label">ငွေလက်ခံချိန်</span>
-      <span class="time">9:00 Am to 5:00 Pm</span>
+      <span class="time">9:00 Am to 4:00 Pm</span>
     </div>
   </div>
 
@@ -316,7 +316,7 @@ export class InvoicePdfService {
 
     const tenantName = invoice.tenant.tenantType === 'company'
       ? invoice.tenant.companyName || ''
-      : `${invoice.tenant.firstName || ''} ${invoice.tenant.lastName || ''}`.trim();
+      : [invoice.tenant.firstName, invoice.tenant.lastName].filter(Boolean).join(' - ');
 
     // ── Group lines by chargeType.category ──────────────────────────────────
     const categoryMap = new Map<string, typeof invoice.lines>();
