@@ -5,6 +5,7 @@ import {
   useUpdateUtilitySystemMutation, useDeleteUtilitySystemMutation,
 } from '../../../store/api/facilityApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Gauge, Plus, Loader2, XCircle, Inbox, Pencil, Trash2,
   Zap, Droplets, Flame, Snowflake, Activity,
@@ -19,7 +20,7 @@ const SYSTEM_TYPES: Record<string, { label: string; icon: typeof Zap; color: str
 };
 
 export default function UtilitySystemsPage() {
-  const [propertyFilter, setPropertyFilter] = useState('');
+  const propertyFilter = useSelectedPropertyFilter();
   const [showModal, setShowModal] = useState(false);
   const [editSystem, setEditSystem] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -71,9 +72,11 @@ export default function UtilitySystemsPage() {
       {/* Filters */}
       <div className="maint-toolbar">
         <div className="filter-group">
-          <select className="filter-select" value={propertyFilter} onChange={(e) => setPropertyFilter(e.target.value)}>
-            <option value="">All Properties</option>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="filter-select" value={propertyFilter} disabled>
+            {propertyFilter && (
+              <option value={propertyFilter}>{properties.find((p: any) => p.id === propertyFilter)?.name || ''}</option>
+            )}
           </select>
         </div>
         <div className="toolbar-stats">

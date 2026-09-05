@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   useGetAnomaliesQuery, useDetectAnomaliesMutation,
   useAcknowledgeAnomalyMutation, useMarkFalsePositiveMutation,
 } from '../../store/api/biApi';
-import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../components/DialogProvider';
 import {
   AlertTriangle, Activity, Building2, DollarSign, TrendingDown, Clock,
@@ -58,25 +59,31 @@ export default function AnomalyDashboardPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'acknowledged' | 'false_positive'>('all');
   const [typeFilter, setTypeFilter] = useState('');
-  const [propertyFilter, setPropertyFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propsRes } = useGetMyPropertyScopeQuery();
+  const properties = propsRes?.data || [];
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+
+  // Reset page whenever the active property changes.
+  useEffect(() => { setPage(1); }, [selectedProperty]);
 
   // Build query params
   const queryParams: any = { page };
   if (statusFilter === 'active') queryParams.acknowledged = 'false';
   else if (statusFilter === 'acknowledged') queryParams.acknowledged = 'true';
-  if (propertyFilter) queryParams.propertyId = propertyFilter;
+  if (selectedProperty) queryParams.propertyId = selectedProperty;
 
   const { data: anomaliesRes, isLoading, isFetching } = useGetAnomaliesQuery(queryParams);
-  const { data: propsRes } = useGetPropertiesQuery({});
   const [detectAnomalies, { isLoading: detecting }] = useDetectAnomaliesMutation();
   const [acknowledgeAnomaly] = useAcknowledgeAnomalyMutation();
   const [markFalsePositive] = useMarkFalsePositiveMutation();
   const confirmDialog = useConfirm();
 
-  const properties = propsRes?.data || [];
   const allAnomalies = anomaliesRes?.data || [];
   const total = anomaliesRes?.total || 0;
   const limit = anomaliesRes?.limit || 50;
@@ -229,15 +236,14 @@ export default function AnomalyDashboardPage() {
           )}
         </div>
         <div style={S.filterRight}>
+          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select
             style={S.select}
-            value={propertyFilter}
-            onChange={e => { setPropertyFilter(e.target.value); setPage(1); }}
+            value={selectedProperty}
+            disabled
           >
-            <option value="">All Properties</option>
-            {properties.map((p: any) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
+            {!selectedProperty && <option value="">All Properties</option>}
+            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
           </select>
           <select
             style={S.select}
@@ -262,10 +268,10 @@ export default function AnomalyDashboardPage() {
         <div style={S.emptyState}>
           <CheckCircle size={52} style={{ color: '#22c55e', opacity: 0.2, marginBottom: 16 }} />
           <h3 style={{ margin: '0 0 8px', fontWeight: 600, fontSize: 18 }}>
-            {searchQuery || typeFilter || propertyFilter ? 'No matching anomalies' : 'All Clear!'}
+            {searchQuery || typeFilter || selectedProperty ? 'No matching anomalies' : 'All Clear!'}
           </h3>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 14, maxWidth: 400 }}>
-            {searchQuery || typeFilter || propertyFilter
+            {searchQuery || typeFilter || selectedProperty
               ? 'Try adjusting your filters or run a new detection scan.'
               : 'No anomalies detected. Run a detection scan to check for billing spikes, occupancy drops, or late payment risks.'}
           </p>

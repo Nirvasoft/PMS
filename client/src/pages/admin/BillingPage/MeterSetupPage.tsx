@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetMeterSetupsQuery, useCreateMeterSetupMutation, useUpdateMeterSetupMutation, useDeleteMeterSetupMutation,
   type MeterSetup,
 } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { Gauge, Plus, X, Pencil, Trash2, Search } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import './BillingPage.css';
@@ -51,7 +52,7 @@ export default function MeterSetupPage() {
 
   // ── Search ──────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchPropertyId, setSearchPropertyId] = useState('');
+  const searchPropertyId = useSelectedPropertyFilter();
   const [searchFloorId, setSearchFloorId] = useState('');
 
   const { data: searchFloorsData } = useGetFloorSetupsQuery(
@@ -60,10 +61,8 @@ export default function MeterSetupPage() {
   );
   const searchFloors = searchFloorsData?.data || [];
 
-  const handleSearchPropertyChange = (propertyId: string) => {
-    setSearchPropertyId(propertyId);
-    setSearchFloorId('');
-  };
+  // Floor filter resets whenever the sidebar's Active Property changes.
+  useEffect(() => { setSearchFloorId(''); }, [searchPropertyId]);
 
   const filteredMeters = meters.filter((m) => {
     const q = searchQuery.toLowerCase().trim();
@@ -205,15 +204,11 @@ export default function MeterSetupPage() {
           )}
         </div>
         <div className="meter-search-filter-wrap">
-          <select
-            className="meter-search-select"
-            value={searchPropertyId}
-            onChange={(e) => handleSearchPropertyChange(e.target.value)}
-          >
-            <option value="">All Properties</option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="meter-search-select" value={searchPropertyId} disabled>
+            {searchPropertyId && (
+              <option value={searchPropertyId}>{properties.find((p) => p.id === searchPropertyId)?.name || ''}</option>
+            )}
           </select>
           <select
             className="meter-search-select"
@@ -226,12 +221,12 @@ export default function MeterSetupPage() {
               <option key={f.id} value={f.id}>{f.floorLabel}</option>
             ))}
           </select>
-          {(searchPropertyId || searchFloorId) && (
+          {searchFloorId && (
             <button
               type="button"
               className="meter-search-reset-btn"
-              onClick={() => { setSearchPropertyId(''); setSearchFloorId(''); }}
-              title="Clear filters"
+              onClick={() => setSearchFloorId('')}
+              title="Clear floor filter"
             >
               <X size={13} /> Clear
             </button>

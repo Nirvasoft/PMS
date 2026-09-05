@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetBillingSchedulesQuery, usePauseScheduleMutation,
@@ -13,6 +13,7 @@ import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -41,14 +42,17 @@ const emptyForm: ScheduleForm = {
 export default function BillingSchedulesPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
-  const [propertyFilter, setPropertyFilter] = useState('');
+  const selectedProperty = useSelectedPropertyFilter();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<ScheduleForm>(emptyForm);
   const [floorId, setFloorId] = useState('');
 
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setPage(1); }, [selectedProperty]);
+
   const { data, isFetching } = useGetBillingSchedulesQuery({
-    status: statusFilter || undefined, propertyId: propertyFilter || undefined, page, limit: 15,
+    status: statusFilter || undefined, propertyId: selectedProperty || undefined, page, limit: 15,
   });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
@@ -184,9 +188,11 @@ export default function BillingSchedulesPage() {
           </button>
         </div>
         <div className="billing-filters" style={{ marginBottom: 0 }}>
-          <select className="filter-select" value={propertyFilter} onChange={e => { setPropertyFilter(e.target.value); setPage(1); }}>
-            <option value="">All Properties</option>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="filter-select" value={selectedProperty} disabled>
+            {selectedProperty && (
+              <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
+            )}
           </select>
           <select className="filter-select" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
             <option value="">All Statuses</option>

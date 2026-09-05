@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetPropertiesQuery, useDeletePropertyMutation, useGetPropertyStatsQuery,
@@ -9,6 +9,7 @@ import type { PropertyListItem } from '../../../store/api/propertiesApi';
 import { useGetBranchesQuery } from '../../../store/api/organizationApi';
 import { useAppSelector, useAppDispatch } from '../../../store';
 import { setListView, setListFilter, resetFilters } from '../../../store/slices/propertiesSlice';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Plus, LayoutGrid, List, Search, Filter, X, MapPin,
   Building2, Wrench, MoreVertical, Trash2, Eye, BarChart2, Home, Edit3, Save, Upload,
@@ -397,19 +398,31 @@ export default function PropertiesPage() {
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [editingProperty, setEditingProperty] = useState<PropertyListItem | null>(null);
 
+  // When the sidebar's Active Property is a specific property (not "All Properties"),
+  // the list narrows to just that one property instead of the full portfolio.
+  const activePropertyFilter = useSelectedPropertyFilter();
+
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setPage(1); }, [activePropertyFilter]);
+
   const { data, isLoading } = useGetPropertiesQuery({
     search: listFilters.search || undefined,
     status: listFilters.status || undefined,
     propertyType: listFilters.propertyType || undefined,
     regionId: listFilters.regionId || undefined,
-    page,
-    limit: 12,
+    page: activePropertyFilter ? 1 : page,
+    limit: activePropertyFilter ? 100 : 12,
   });
 
   const [deleteProperty] = useDeletePropertyMutation();
   const confirmDialog = useConfirm();
-  const properties = data?.data || [];
-  const meta = data?.meta;
+  const allProperties = data?.data || [];
+  const properties = activePropertyFilter
+    ? allProperties.filter((p) => p.id === activePropertyFilter)
+    : allProperties;
+  const meta = activePropertyFilter
+    ? { ...(data?.meta ?? { total: 0, page: 1, limit: 100, totalPages: 1 }), total: properties.length, totalPages: 1 }
+    : data?.meta;
 
   const handleDelete = async (id: string, name: string) => {
     if (!(await confirmDialog(`Delete "${name}"? This cannot be undone.`, { danger: true, confirmText: 'Delete' }))) return;

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetAdminBookingsQuery, useApproveBookingMutation, useRejectBookingMutation,
 } from '../../../store/api/bookingsApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   CalendarDays, CheckCircle, XCircle, Clock, Search,
   ChevronLeft, ChevronRight, User, Building2, Filter,
@@ -29,21 +30,26 @@ function getWeekRange(date: Date) {
 export default function FacilitySchedulePage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
-  const [propertyFilter, setPropertyFilter] = useState('');
   const [weekOffset, setWeekOffset] = useState(0);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
+  const properties = propertiesData?.data || [];
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+
+  // Reset page whenever the active property changes.
+  useEffect(() => { setPage(1); }, [selectedProperty]);
 
   // Week date range
   const baseDate = new Date();
   baseDate.setDate(baseDate.getDate() + weekOffset * 7);
   const { startDate, endDate } = getWeekRange(baseDate);
 
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const properties = propertiesData?.data || [];
-
   const { data, isLoading } = useGetAdminBookingsQuery({
-    propertyId: propertyFilter || undefined,
+    propertyId: selectedProperty || undefined,
     status: statusFilter || undefined,
     startDate,
     endDate,
@@ -119,16 +125,15 @@ export default function FacilitySchedulePage() {
           )}
         </div>
         <div style={{ flex: 1 }} />
+        {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select
-          value={propertyFilter}
-          onChange={(e) => { setPropertyFilter(e.target.value); setPage(1); }}
+          value={selectedProperty}
+          disabled
           className="form-select"
           style={{ width: 180 }}
         >
-          <option value="">All Properties</option>
-          {properties.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
+          {!selectedProperty && <option value="">All Properties</option>}
+          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
         </select>
         <select
           value={statusFilter}

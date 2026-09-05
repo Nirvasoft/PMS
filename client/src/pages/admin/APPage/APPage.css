@@ -124,9 +124,7 @@
   vertical-align: middle;
 }
 
-.ap-table tr:hover {
-  background: var(--hover-bg, #f9fafb);
-}
+
 
 .ap-table tr.clickable { cursor: pointer; }
 

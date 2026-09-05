@@ -7,7 +7,8 @@ import {
   useDeleteFootfallSensorMutation, useToggleFootfallSensorMutation,
   useSyncFootfallSensorMutation, useSyncAllFootfallSensorsMutation,
 } from '../../store/api/mallApi';
-import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { useConfirm, useAlertDialog } from '../../components/DialogProvider';
 import {
   Users, TrendingUp, TrendingDown, Clock, BarChart3, MapPin, Activity,
@@ -26,10 +27,12 @@ function formatDate(d: Date): string { return d.toISOString().split('T')[0]; }
 function formatNum(n: number): string { return n.toLocaleString(); }
 
 export default function FootfallAnalyticsPage() {
-  const { data: propsRes } = useGetPropertiesQuery({ limit: 100 });
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propsRes } = useGetMyPropertyScopeQuery();
   const properties = propsRes?.data || [];
-  const [propertyId, setPropertyId] = useState('');
-  const selectedPropId = propertyId || properties[0]?.id || '';
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+  const selectedPropId = selectedProperty;
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();
 
@@ -177,18 +180,18 @@ export default function FootfallAnalyticsPage() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select
             value={selectedPropId}
-            onChange={e => setPropertyId(e.target.value)}
+            disabled
             style={{
               padding: '8px 12px', borderRadius: 8,
               border: '1px solid var(--border-color)', background: 'var(--card-bg)',
               color: 'var(--text-primary)', fontSize: 13, minWidth: 180,
             }}
           >
-            {properties.map((p: any) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
+            {!selectedPropId && <option value="">All Properties</option>}
+            {selectedPropId && <option value={selectedPropId}>{selectedPropertyName || 'Loading…'}</option>}
           </select>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button onClick={() => shiftDate(-1)} style={navBtnStyle}><ChevronLeft size={16} /></button>

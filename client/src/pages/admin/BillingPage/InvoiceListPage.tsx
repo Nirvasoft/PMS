@@ -1,10 +1,11 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetInvoicesQuery, useRunBillingMutation, useGetBillingSchedulesQuery,
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
 } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   FileText, Plus, Play, Search, ChevronLeft, ChevronRight,
   DollarSign, AlertTriangle, CheckCircle, Receipt,
@@ -28,7 +29,16 @@ export default function InvoiceListPage() {
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [runBillingModalOpen, setRunBillingModalOpen] = useState(false);
 
-  const { data, isFetching } = useGetInvoicesQuery({ status: status || undefined, page, limit: 15 });
+  const activePropertyFilter = useSelectedPropertyFilter();
+
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setPage(1); }, [activePropertyFilter]);
+
+  const { data, isFetching } = useGetInvoicesQuery({
+    propertyId: activePropertyFilter || undefined,
+    status: status || undefined,
+    page, limit: 15,
+  });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
   const [voidInvoice] = useVoidInvoiceMutation();
   const [sendInvoice] = useSendInvoiceMutation();

@@ -5,6 +5,7 @@ import {
   useDeleteCamCostMutation, useGetCamCostSummaryQuery,
 } from '../../../store/api/facilityApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Receipt, Plus, Loader2, XCircle, PieChart, DollarSign,
   Pencil, Trash2,
@@ -36,12 +37,13 @@ export default function CamCostPage() {
     propertyId: '', year: today.getFullYear(), month: today.getMonth() + 1,
     page: 1, limit: 50,
   });
+  const selectedProperty = useSelectedPropertyFilter();
 
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
   const properties = propertiesData?.data || [];
 
   const { data: costsData, isLoading } = useGetCamCostsQuery({
-    propertyId: filters.propertyId || undefined,
+    propertyId: selectedProperty || undefined,
     year: filters.year,
     month: filters.month,
     page: filters.page,
@@ -49,10 +51,10 @@ export default function CamCostPage() {
   });
 
   const { data: summaryData } = useGetCamCostSummaryQuery({
-    propertyId: filters.propertyId || properties[0]?.id,
+    propertyId: selectedProperty,
     year: filters.year,
     month: filters.month,
-  }, { skip: !filters.propertyId && !properties[0]?.id });
+  }, { skip: !selectedProperty });
 
   const [deleteCamCost, { isLoading: deleting }] = useDeleteCamCostMutation();
 
@@ -99,9 +101,11 @@ export default function CamCostPage() {
 
       {/* Filters */}
       <div className="maint-filters">
-        <select className="filter-select" value={filters.propertyId} onChange={(e) => setFilters(f => ({ ...f, propertyId: e.target.value }))}>
-          <option value="">All Properties</option>
-          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select className="filter-select" value={selectedProperty} disabled>
+          {selectedProperty && (
+            <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
+          )}
         </select>
         <select className="filter-select" value={filters.year} onChange={(e) => setFilters(f => ({ ...f, year: parseInt(e.target.value) }))}>
           {[today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1].map(y => (

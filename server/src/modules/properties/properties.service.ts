@@ -118,8 +118,38 @@ export class PropertiesService {
     return this.formatProperty(property);
   }
 
+  /**
+   * Generate a unique property code from the property name, scoped to the company
+   * (code is only unique per-company, unlike the global company code).
+   * Strips non-alphanumeric chars, uppercases, truncates to 8 chars,
+   * and appends a numeric suffix if the code already exists.
+   */
+  async generateCode(name: string, companyId: string): Promise<string> {
+    const base = name
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 8)
+      .toUpperCase();
+
+    if (!base) return `PR${Date.now().toString(36).toUpperCase().slice(-6)}`;
+
+    const existing = await prisma.property.findUnique({ where: { uq_property_code_company: { code: base, companyId } } });
+    if (!existing) return base;
+
+    for (let i = 2; i < 100; i++) {
+      const candidate = `${base.substring(0, 6)}${i}`;
+      const exists = await prisma.property.findUnique({ where: { uq_property_code_company: { code: candidate, companyId } } });
+      if (!exists) return candidate;
+    }
+
+    return `${base.substring(0, 12)}${Date.now().toString(36).toUpperCase().slice(-6)}`;
+  }
+
   // ── Create ────────────────────────────────────
   async create(dto: Record<string, unknown>, companyId: string, userId: string) {
+    if (!dto.code || !String(dto.code).trim()) {
+      dto.code = await this.generateCode((dto.name as string) || '', companyId);
+    }
+
     // Validate limits
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } });
     const settings = (company?.settings ?? {}) as Record<string, unknown>;

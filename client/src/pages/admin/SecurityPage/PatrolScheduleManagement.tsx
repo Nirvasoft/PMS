@@ -1,5 +1,6 @@
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   useGetPatrolSchedulesQuery, useCreatePatrolScheduleMutation,
   useGetPatrolCheckpointsQuery, useCreatePatrolCheckpointMutation,
@@ -24,7 +25,7 @@ export default function PatrolScheduleManagement() {
   const [tab, setTab] = useState<'schedules' | 'checkpoints'>('schedules');
   const [showCreateSchedule, setShowCreateSchedule] = useState(false);
   const [showCreateCheckpoint, setShowCreateCheckpoint] = useState(false);
-  const [filterProperty, setFilterProperty] = useState('');
+  const filterProperty = useSelectedPropertyFilter();
 
   const { data: schedsData, isLoading } = useGetPatrolSchedulesQuery({ propertyId: filterProperty || undefined });
   const { data: chkData } = useGetPatrolCheckpointsQuery({ propertyId: filterProperty || undefined });
@@ -128,10 +129,11 @@ export default function PatrolScheduleManagement() {
             </button>
           ))}
         </div>
-        <select className="filter-select" value={filterProperty}
-          onChange={(e) => setFilterProperty(e.target.value)} style={{ marginLeft: 'auto' }}>
-          <option value="">All Properties</option>
-          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select className="filter-select" value={filterProperty} disabled style={{ marginLeft: 'auto' }}>
+          {filterProperty && (
+            <option value={filterProperty}>{properties.find((p: any) => p.id === filterProperty)?.name || ''}</option>
+          )}
         </select>
       </div>
 

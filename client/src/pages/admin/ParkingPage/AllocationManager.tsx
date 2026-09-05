@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetAllocationsQuery, useCreateAllocationMutation, useCancelAllocationMutation,
   useUpdateAllocationMutation, useGetVehiclesQuery,
@@ -6,6 +6,7 @@ import {
 } from '../../../store/api/parkingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../../components/DialogProvider';
 import { Link2, Plus, Trash2, Car, Edit3, Save, X, Calendar, DollarSign, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -21,13 +22,16 @@ function ordinalSuffix(n: number): string {
 
 export default function AllocationManager() {
   const confirmDialog = useConfirm();
-  const [propertyFilter, setPropertyFilter] = useState('');
+  const selectedProperty = useSelectedPropertyFilter();
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [editingAlloc, setEditingAlloc] = useState<ParkingAllocation | null>(null);
 
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const { data, isLoading } = useGetAllocationsQuery({ propertyId: propertyFilter || undefined, page, limit: 20 });
+  const { data, isLoading } = useGetAllocationsQuery({ propertyId: selectedProperty || undefined, page, limit: 20 });
+
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setPage(1); }, [selectedProperty]);
   const [cancelAllocation] = useCancelAllocationMutation();
 
   const properties = propertiesData?.data || [];
@@ -60,9 +64,11 @@ export default function AllocationManager() {
       </div>
 
       <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>
-        <select className="filter-select" value={propertyFilter} onChange={(e) => { setPropertyFilter(e.target.value); setPage(1); }}>
-          <option value="">All Properties</option>
-          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select className="filter-select" value={selectedProperty} disabled>
+          {selectedProperty && (
+            <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
+          )}
         </select>
       </div>
 

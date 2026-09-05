@@ -1,11 +1,12 @@
 import '../MaintenancePage/MaintenancePage.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetPmWorkOrdersQuery, useCompletePmWorkOrderMutation,
   useSkipPmWorkOrderMutation,
 } from '../../../store/api/pmApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   ClipboardList, Loader2, Inbox, Clock, Check, SkipForward,
   CheckCircle2, XCircle, AlertTriangle,
@@ -32,22 +33,29 @@ const WO_STATUS_MAP: Record<string, string> = {
 export default function PmWorkOrderListPage() {
   const navigate = useNavigate();
   const [filters, setFilters] = useState({
-    status: '', propertyId: '', page: 1, limit: 20,
+    status: '', page: 1, limit: 20,
   });
+
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
+  const properties = propertiesData?.data || [];
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+
+  // Reset page whenever the active property changes.
+  useEffect(() => { setFilters(f => ({ ...f, page: 1 })); }, [selectedProperty]);
 
   const { data: woData, isLoading } = useGetPmWorkOrdersQuery({
     status: filters.status || undefined,
-    propertyId: filters.propertyId || undefined,
+    propertyId: selectedProperty || undefined,
     page: filters.page,
     limit: filters.limit,
   });
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
   const [completeWo] = useCompletePmWorkOrderMutation();
   const [skipWo] = useSkipPmWorkOrderMutation();
 
   const workOrders = woData?.data || [];
   const meta = woData?.meta;
-  const properties = propertiesData?.data || [];
 
   const handleQuickComplete = async (woId: string) => {
     try {
@@ -91,10 +99,10 @@ export default function PmWorkOrderListPage() {
             onChange={(e) => setFilters(f => ({ ...f, status: e.target.value, page: 1 }))}>
             {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <select className="filter-select" value={filters.propertyId}
-            onChange={(e) => setFilters(f => ({ ...f, propertyId: e.target.value, page: 1 }))}>
-            <option value="">All Properties</option>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="filter-select" value={selectedProperty} disabled>
+            {!selectedProperty && <option value="">All Properties</option>}
+            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
           </select>
         </div>
         <div className="toolbar-stats">

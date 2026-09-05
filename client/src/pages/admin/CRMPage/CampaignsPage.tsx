@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetCampaignsQuery, useCreateCampaignMutation, useUpdateCampaignMutation,
   useDeleteCampaignMutation,
   useGetCampaignROIQuery, type CampaignItem,
 } from '../../../store/api/crmApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Megaphone, Plus, Edit3, Save, X, Calendar, DollarSign, Trash2, AlertTriangle,
 } from 'lucide-react';
@@ -15,8 +16,15 @@ export default function CampaignsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<CampaignItem | null>(null);
   const [page, setPage] = useState(1);
+  const activePropertyFilter = useSelectedPropertyFilter();
 
-  const { data, isLoading } = useGetCampaignsQuery({ page, limit: 20 });
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setPage(1); }, [activePropertyFilter]);
+
+  const { data, isLoading } = useGetCampaignsQuery({
+    propertyId: activePropertyFilter || undefined,
+    page, limit: 20,
+  });
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
 
   const campaigns = data?.data || [];

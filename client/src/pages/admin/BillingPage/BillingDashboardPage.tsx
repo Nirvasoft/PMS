@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGetInvoicesQuery, useRunBillingMutation } from '../../../store/api/billingApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   LayoutDashboard, FileText, AlertTriangle, Clock, DollarSign,
   Play, ArrowRight, TrendingUp, Receipt, CalendarClock, CheckCircle,
@@ -19,10 +20,12 @@ export default function BillingDashboardPage() {
   const weekEnd = addDays(today, 7).toISOString().split('T')[0];
   const monthStart = startOfMonth(today).toISOString().split('T')[0];
 
-  // Fetch recent invoices
-  const { data: allData, isFetching } = useGetInvoicesQuery({ page: 1, limit: 50 });
-  const { data: overdueData } = useGetInvoicesQuery({ status: 'overdue', page: 1, limit: 50 });
-  const { data: paidData } = useGetInvoicesQuery({ status: 'paid', page: 1, limit: 50, from: monthStart });
+  // Fetch recent invoices — scoped to the sidebar's Active Property when one is chosen.
+  const activePropertyFilter = useSelectedPropertyFilter();
+  const propertyIdParam = activePropertyFilter || undefined;
+  const { data: allData, isFetching } = useGetInvoicesQuery({ propertyId: propertyIdParam, page: 1, limit: 50 });
+  const { data: overdueData } = useGetInvoicesQuery({ propertyId: propertyIdParam, status: 'overdue', page: 1, limit: 50 });
+  const { data: paidData } = useGetInvoicesQuery({ propertyId: propertyIdParam, status: 'paid', page: 1, limit: 50, from: monthStart });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();

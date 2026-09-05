@@ -2,6 +2,7 @@ import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import { useGetStoresQuery, useCreateStoreMutation, useUpdateStoreMutation, useGetStockLevelsQuery } from '../../../store/api/inventoryApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Store, Plus, Loader2, Inbox, XCircle, Building2, Package, Box,
   MapPin, Edit3, ToggleLeft, ToggleRight, Search, Warehouse,
@@ -22,7 +23,7 @@ const STORE_COLORS = [
 export default function StoreManagementPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editStore, setEditStore] = useState<any>(null);
-  const [filterProperty, setFilterProperty] = useState('');
+  const filterProperty = useSelectedPropertyFilter();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'items' | 'value'>('name');
 
@@ -226,11 +227,12 @@ export default function StoreManagementPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Filter size={13} style={{ color: 'var(--text-tertiary)' }} />
-          <select className="filter-select" value={filterProperty}
-            onChange={(e) => setFilterProperty(e.target.value)}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="filter-select" value={filterProperty} disabled
             style={{ borderRadius: 10, fontSize: 12, padding: '7px 28px 7px 10px' }}>
-            <option value="">All Properties</option>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {filterProperty && (
+              <option value={filterProperty}>{properties.find((p: any) => p.id === filterProperty)?.name || ''}</option>
+            )}
           </select>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

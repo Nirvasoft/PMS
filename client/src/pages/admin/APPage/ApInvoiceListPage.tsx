@@ -1,14 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetApInvoicesQuery, useCreateApInvoiceMutation,
   useApproveApInvoiceMutation, useRejectApInvoiceMutation,
 } from '../../../store/api/apApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   FileText, Plus, X, Clock, CheckCircle, AlertTriangle,
-  DollarSign, Building2, Trash2, ChevronLeft, ChevronRight,
+  DollarSign, Trash2, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -22,10 +23,22 @@ export default function ApInvoiceListPage() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
+
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
+  const properties = propertiesData?.data || [];
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+
+  // Reset page whenever the active property changes.
+  useEffect(() => { setPage(1); }, [selectedProperty]);
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: invoicesData, isLoading } = useGetApInvoicesQuery({ status: statusFilter || undefined, page: String(page), limit: '20' });
-  const { data: propertiesData } = useGetPropertiesQuery({});
+  const { data: invoicesData, isLoading } = useGetApInvoicesQuery({
+    status: statusFilter || undefined,
+    propertyId: selectedProperty || undefined,
+    page: String(page), limit: '20',
+  });
   const { data: chargeTypesRes } = useGetChargeTypesQuery({});
   const [createApInvoice, { isLoading: creating }] = useCreateApInvoiceMutation();
   const [approveApInvoice] = useApproveApInvoiceMutation();
@@ -33,7 +46,6 @@ export default function ApInvoiceListPage() {
 
   const invoices = invoicesData?.data || [];
   const meta = invoicesData?.meta;
-  const properties = (propertiesData as any)?.data || [];
   const chargeTypes = (chargeTypesRes as any)?.data || [];
 
   // Stats
@@ -47,9 +59,9 @@ export default function ApInvoiceListPage() {
     };
   }, [invoices]);
 
-  // Create form
+  // Create form — propertyId is always seeded from the active property.
   const [form, setForm] = useState({
-    vendorName: '', vendorInvoiceNo: '', propertyId: '', invoiceDate: format(new Date(), 'yyyy-MM-dd'),
+    vendorName: '', vendorInvoiceNo: '', propertyId: selectedProperty, invoiceDate: format(new Date(), 'yyyy-MM-dd'),
     dueDate: format(new Date(Date.now() + 30 * 86400000), 'yyyy-MM-dd'), description: '',
     currency: 'USD', departmentId: '', costCenter: '', poReference: '', notes: '',
   });
@@ -77,7 +89,7 @@ export default function ApInvoiceListPage() {
       await createApInvoice({ ...form, lines }).unwrap();
       toast.success('AP Invoice created');
       setShowCreate(false);
-      setForm({ vendorName: '', vendorInvoiceNo: '', propertyId: '', invoiceDate: format(new Date(), 'yyyy-MM-dd'),
+      setForm({ vendorName: '', vendorInvoiceNo: '', propertyId: selectedProperty, invoiceDate: format(new Date(), 'yyyy-MM-dd'),
         dueDate: format(new Date(Date.now() + 30 * 86400000), 'yyyy-MM-dd'), description: '', currency: 'USD',
         departmentId: '', costCenter: '', poReference: '', notes: '' });
       setLines([{ description: '', quantity: 1, unitPrice: 0, taxRate: 0 }]);
@@ -128,6 +140,11 @@ export default function ApInvoiceListPage() {
 
       {/* Filter */}
       <div className="ap-filters">
+        {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select value={selectedProperty} disabled style={{ minWidth: 180 }}>
+          {!selectedProperty && <option value="">All Properties</option>}
+          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
+        </select>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
@@ -231,9 +248,10 @@ export default function ApInvoiceListPage() {
                 </div>
                 <div className="ap-form-group">
                   <label>Property</label>
-                  <select value={form.propertyId} onChange={e => setForm(f => ({ ...f, propertyId: e.target.value }))}>
-                    <option value="">— All Properties —</option>
-                    {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {/* Locked to the sidebar's Active Property — not independently editable. */}
+                  <select value={form.propertyId} disabled>
+                    {!form.propertyId && <option value="">All Properties</option>}
+                    {form.propertyId && <option value={form.propertyId}>{selectedPropertyName || 'Loading…'}</option>}
                   </select>
                 </div>
                 <div className="ap-form-group">

@@ -1,7 +1,8 @@
 import '../MaintenancePage/MaintenancePage.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGetAccessEventsQuery, useGetSecurityStatsQuery } from '../../../store/api/securityApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   DoorOpen, Loader2, Inbox, ShieldAlert, ShieldCheck, ShieldX,
   Key, Clock, Building2, CreditCard, User, AlertTriangle,
@@ -33,18 +34,25 @@ function fullName(user: any) {
 }
 
 export default function AccessEventsPage() {
-  const [propertyFilter, setPropertyFilter] = useState('');
   const [eventType, setEventType] = useState('');
   const [page, setPage] = useState(1);
 
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propsData } = useGetMyPropertyScopeQuery();
+  const properties = propsData?.data || [];
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+
+  // Reset page whenever the active property changes.
+  useEffect(() => { setPage(1); }, [selectedProperty]);
+
   const { data: eventsData, isLoading } = useGetAccessEventsQuery({
-    propertyId: propertyFilter || undefined,
+    propertyId: selectedProperty || undefined,
     eventType: eventType || undefined,
     page,
     limit: 50,
   });
   const { data: statsData } = useGetSecurityStatsQuery({});
-  const { data: propsData } = useGetPropertiesQuery({ page: 1, limit: 100 });
 
   const events = eventsData?.data || [];
   const meta = eventsData?.meta;
@@ -102,10 +110,10 @@ export default function AccessEventsPage() {
       {/* Filters */}
       <div className="maint-toolbar">
         <div className="filter-group">
-          <select className="filter-select" value={propertyFilter}
-            onChange={(e) => { setPropertyFilter(e.target.value); setPage(1); }}>
-            <option value="">All Properties</option>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="filter-select" value={selectedProperty} disabled>
+            {!selectedProperty && <option value="">All Properties</option>}
+            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
           </select>
           <select className="filter-select" value={eventType}
             onChange={(e) => { setEventType(e.target.value); setPage(1); }}>

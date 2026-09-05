@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   useGetExpensesQuery, useCreateExpenseMutation, useApproveExpenseMutation,
 } from '../../../store/api/apApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Receipt, Plus, X, Clock, CheckCircle, DollarSign,
-  ChevronLeft, ChevronRight, PieChart, Tag,
+  ChevronLeft, ChevronRight, Tag,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -24,18 +25,26 @@ export default function ExpensesPage() {
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
 
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
+  const properties = propertiesData?.data || [];
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+
+  // Reset page whenever the active property changes.
+  useEffect(() => { setPage(1); }, [selectedProperty]);
+
   const { data: expensesData, isLoading } = useGetExpensesQuery({
     status: statusFilter || undefined,
     category: categoryFilter || undefined,
+    propertyId: selectedProperty || undefined,
     page: String(page), limit: '20',
   });
-  const { data: propertiesData } = useGetPropertiesQuery({});
   const [createExpense, { isLoading: creating }] = useCreateExpenseMutation();
   const [approveExpense] = useApproveExpenseMutation();
 
   const expenses = expensesData?.data || [];
   const meta = expensesData?.meta;
-  const properties = (propertiesData as any)?.data || [];
 
   const stats = useMemo(() => {
     return {
@@ -46,9 +55,10 @@ export default function ExpensesPage() {
     };
   }, [expenses]);
 
+  // Create form — propertyId is always seeded from the active property.
   const [form, setForm] = useState({
     expenseDate: format(new Date(), 'yyyy-MM-dd'), category: 'maintenance',
-    description: '', amount: '', currency: 'USD', propertyId: '',
+    description: '', amount: '', currency: 'USD', propertyId: selectedProperty,
     receiptUrl: '', glAccountCode: '',
   });
 
@@ -61,7 +71,7 @@ export default function ExpensesPage() {
       }).unwrap();
       toast.success('Expense submitted');
       setShowCreate(false);
-      setForm({ expenseDate: format(new Date(), 'yyyy-MM-dd'), category: 'maintenance', description: '', amount: '', currency: 'USD', propertyId: '', receiptUrl: '', glAccountCode: '' });
+      setForm({ expenseDate: format(new Date(), 'yyyy-MM-dd'), category: 'maintenance', description: '', amount: '', currency: 'USD', propertyId: selectedProperty, receiptUrl: '', glAccountCode: '' });
     } catch { toast.error('Failed to submit expense'); }
   };
 
@@ -98,6 +108,11 @@ export default function ExpensesPage() {
 
       {/* Filters */}
       <div className="ap-filters">
+        {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select value={selectedProperty} disabled style={{ minWidth: 180 }}>
+          {!selectedProperty && <option value="">All Properties</option>}
+          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
+        </select>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
@@ -198,9 +213,10 @@ export default function ExpensesPage() {
                 </div>
                 <div className="ap-form-group">
                   <label>Property</label>
-                  <select value={form.propertyId} onChange={e => setForm(f => ({ ...f, propertyId: e.target.value }))}>
-                    <option value="">— None —</option>
-                    {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {/* Locked to the sidebar's Active Property — not independently editable. */}
+                  <select value={form.propertyId} disabled>
+                    {!form.propertyId && <option value="">None</option>}
+                    {form.propertyId && <option value={form.propertyId}>{selectedPropertyName || 'Loading…'}</option>}
                   </select>
                 </div>
                 <div className="ap-form-group">

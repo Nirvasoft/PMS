@@ -4,6 +4,7 @@ import { useGetPropertyStatsQuery } from '../../store/api/organizationApi';
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useAppSelector, useAppDispatch } from '../../store';
 import { setSelectedProperty } from '../../store/slices/propertiesSlice';
+import { ALL_PROPERTIES } from '../../hooks/useSelectedPropertyId';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { FeatureGate } from '../../components/guards/FeatureGate';
 import {
@@ -158,29 +159,36 @@ export default function DashboardLayout() {
         </div>
 
         {/* Property Selector */}
-        {properties.length > 0 && (
-          <div className={`sidebar-property-selector${isCollapsed ? ' sidebar-property-selector--collapsed' : ''}`}>
-            {!isCollapsed && <label htmlFor="sidebar-prop-select">Active Property</label>}
-            {isCollapsed ? (
-              <div className="sidebar-property-icon" title={properties.find((p: any) => p.id === (selectedPropertyId || properties[0]?.id))?.name || 'Property'}>
-                <Home size={16} />
-              </div>
-            ) : (
-              <select
-                id="sidebar-prop-select"
-                value={selectedPropertyId || properties[0]?.id || ''}
-                onChange={(e) => dispatch(setSelectedProperty(e.target.value))}
-                className="sidebar-property-dropdown"
-              >
-                {properties.map((p: any) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.code})
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        )}
+        {properties.length > 0 && (() => {
+          const currentPropertyValue = selectedPropertyId === ALL_PROPERTIES
+            ? ALL_PROPERTIES
+            : (selectedPropertyId || properties[0]?.id || '');
+          const currentPropertyLabel = currentPropertyValue === ALL_PROPERTIES
+            ? 'All Properties'
+            : properties.find((p: any) => p.id === currentPropertyValue)?.name || 'Property';
+          return (
+            <div className={`sidebar-property-selector${isCollapsed ? ' sidebar-property-selector--collapsed' : ''}`}>
+              {!isCollapsed && <label htmlFor="sidebar-prop-select">Active Property</label>}
+              {isCollapsed ? (
+                <div className="sidebar-property-icon" title={currentPropertyLabel}>
+                  <Home size={16} />
+                </div>
+              ) : (
+                <select
+                  id="sidebar-prop-select"
+                  value={currentPropertyValue}
+                  onChange={(e) => dispatch(setSelectedProperty(e.target.value))}
+                  className="sidebar-property-dropdown"
+                >
+                  <option value={ALL_PROPERTIES}>All Properties</option>
+                  {properties.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          );
+        })()}
 
         <nav className={`sidebar-nav${isCollapsed ? ' sidebar-nav--collapsed' : ''}`}>
           <PermissionGuard permission="dashboard.view">

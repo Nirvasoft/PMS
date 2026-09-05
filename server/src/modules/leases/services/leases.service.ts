@@ -186,14 +186,21 @@ export class LeasesService {
     if (!lease) throw AppError.notFound('Lease');
     if (lease.status !== 'draft') throw new AppError(400, 'NOT_DRAFT', 'Only draft leases can be updated');
 
-    const { startDate, endDate, leaseCharges, rentalAgreement, ...rest } = dto as any;
+    const { startDate, endDate, handoverDate, leaseCharges, rentalAgreement, ...rest } = dto as any;
     const start = startDate ? new Date(startDate) : new Date(lease.startDate);
     const end   = endDate   ? new Date(endDate)   : new Date(lease.endDate);
     if (end <= start) throw new AppError(400, 'INVALID_DATES', 'End date must be after start date');
 
     const updated = await prisma.lease.update({
       where: { id },
-      data: { ...rest, ...(startDate ? { startDate: start } : {}), ...(endDate ? { endDate: end } : {}), leaseTermMonths: calcLeaseTermMonths(start, end) },
+      data: {
+        ...rest,
+        ...(startDate ? { startDate: start } : {}),
+        ...(endDate ? { endDate: end } : {}),
+        // Convert handoverDate string → Date (or null to clear) so Prisma doesn't reject it
+        ...(handoverDate !== undefined ? { handoverDate: handoverDate ? new Date(handoverDate) : null } : {}),
+        leaseTermMonths: calcLeaseTermMonths(start, end),
+      },
     });
 
     // Rental agreement JSONB written via raw SQL (see create()).

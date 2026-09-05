@@ -5,6 +5,7 @@ import {
   type LeadListItem,
 } from '../../../store/api/crmApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { Target, Plus, Search, X, ShieldOff } from 'lucide-react';
 import './CRMPage.css';
 
@@ -31,7 +32,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 export default function LeadPipelinePage() {
   const navigate = useNavigate();
-  const [propertyFilter, setPropertyFilter] = useState('');
+  const propertyFilter = useSelectedPropertyFilter();
 
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
@@ -94,9 +95,11 @@ export default function LeadPipelinePage() {
           />
           {search && <button onClick={() => setSearch('')} title="Clear search"><X size={14} /></button>}
         </div>
-        <select className="filter-select" value={propertyFilter} onChange={(e) => setPropertyFilter(e.target.value)}>
-          <option value="">All Properties</option>
-          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select className="filter-select" value={propertyFilter} disabled>
+          {propertyFilter && (
+            <option value={propertyFilter}>{properties.find((p: any) => p.id === propertyFilter)?.name || ''}</option>
+          )}
         </select>
         <select className="filter-select" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
           <option value="">All Statuses</option>

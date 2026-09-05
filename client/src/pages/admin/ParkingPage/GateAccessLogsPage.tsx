@@ -1,21 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useGetGateLogsQuery } from '../../../store/api/parkingApi';
 import { Activity, ShieldCheck, ShieldAlert, LogIn, LogOut, ChevronLeft, ChevronRight, Car } from 'lucide-react';
 import '../BillingPage/BillingPage.css';
 import { format } from 'date-fns';
 
 export default function GateAccessLogsPage() {
-  const [propertyId, setPropertyId] = useState('');
+  // Gate logs are fetched from a property-scoped endpoint (no "all properties" variant
+  // exists), so this always follows the sidebar's Active Property like Parking Management.
+  const propertyId = useSelectedPropertyId();
   const [page, setPage] = useState(1);
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
 
-  useEffect(() => {
-    if (!propertyId && properties.length > 0) {
-      setPropertyId(properties[0].id);
-    }
-  }, [properties, propertyId]);
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setPage(1); }, [propertyId]);
 
   const { data: logsData, isFetching } = useGetGateLogsQuery(
     { propertyId, page, limit: 20 },
@@ -43,14 +43,12 @@ export default function GateAccessLogsPage() {
           </div>
         </div>
         <div className="billing-filters" style={{ marginBottom: 0 }}>
-          <select
-            className="filter-select"
-            value={propertyId}
-            onChange={(e) => { setPropertyId(e.target.value); setPage(1); }}
-            style={{ minWidth: 220 }}
-          >
-            {properties.length === 0 && <option value="">Loading…</option>}
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="filter-select" value={propertyId} disabled style={{ minWidth: 220 }}>
+            {!propertyId && <option value="">Loading…</option>}
+            {propertyId && (
+              <option value={propertyId}>{properties.find((p: any) => p.id === propertyId)?.name || ''}</option>
+            )}
           </select>
         </div>
       </div>

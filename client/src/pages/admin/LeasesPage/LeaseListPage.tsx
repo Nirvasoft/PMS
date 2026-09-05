@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGetLeasesQuery, useDeleteLeaseMutation, type LeaseListItem } from '../../../store/api/leasesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   FileText, Plus, Search, X, AlertTriangle, ChevronRight, Trash2,
   Clock, CheckCircle, XCircle, PenLine, Archive, Import,
@@ -29,16 +30,25 @@ export default function LeaseListPage() {
   const [expiring, setExpiring]       = useState<number | undefined>(undefined);
   const [page, setPage]               = useState(1);
   const [showImportModal, setShowImportModal] = useState(false);
+  const activePropertyFilter = useSelectedPropertyFilter();
+
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setPage(1); }, [activePropertyFilter]);
 
   const { data, isLoading } = useGetLeasesQuery({
     search: search || undefined,
     status: status || undefined,
     expiringWithinDays: expiring,
+    propertyId: activePropertyFilter || undefined,
     page, limit: 20,
   });
 
   // Count expiring soon for alert banner
-  const { data: expiringData } = useGetLeasesQuery({ expiringWithinDays: 30, limit: 100 });
+  const { data: expiringData } = useGetLeasesQuery({
+    expiringWithinDays: 30,
+    propertyId: activePropertyFilter || undefined,
+    limit: 100,
+  });
   const expiringCount = expiringData?.meta?.total ?? 0;
 
   const [deleteLease] = useDeleteLeaseMutation();

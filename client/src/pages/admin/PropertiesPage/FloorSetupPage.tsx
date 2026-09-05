@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetFloorSetupsQuery, useCreateFloorSetupMutation, useUpdateFloorSetupMutation, useDeleteFloorSetupMutation,
   useGetPropertiesQuery, type FloorSetup,
 } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { Layers, Plus, X, Pencil, Trash2, Search } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import '../BillingPage/BillingPage.css';
@@ -35,7 +36,7 @@ export default function FloorSetupPage() {
 
   // ── Search ──────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchPropertyId, setSearchPropertyId] = useState('');
+  const searchPropertyId = useSelectedPropertyFilter();
   const [searchFloorNumber, setSearchFloorNumber] = useState('');
 
   const { data: floorsData, isFetching } = useGetFloorSetupsQuery();
@@ -47,10 +48,8 @@ export default function FloorSetupPage() {
 
   const floors = floorsData?.data || [];
 
-  const handleSearchPropertyChange = (propertyId: string) => {
-    setSearchPropertyId(propertyId);
-    setSearchFloorNumber('');
-  };
+  // Floor filter resets whenever the sidebar's Active Property changes.
+  useEffect(() => { setSearchFloorNumber(''); }, [searchPropertyId]);
 
   const filteredFloors = floors.filter((f) => {
     const q = searchQuery.toLowerCase().trim();
@@ -150,15 +149,11 @@ export default function FloorSetupPage() {
           )}
         </div>
         <div className="meter-search-filter-wrap">
-          <select
-            className="meter-search-select"
-            value={searchPropertyId}
-            onChange={(e) => handleSearchPropertyChange(e.target.value)}
-          >
-            <option value="">All Properties</option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="meter-search-select" value={searchPropertyId} disabled>
+            {searchPropertyId && (
+              <option value={searchPropertyId}>{properties.find((p) => p.id === searchPropertyId)?.name || ''}</option>
+            )}
           </select>
           <select
             className="meter-search-select"
@@ -171,12 +166,12 @@ export default function FloorSetupPage() {
               <option key={n} value={n}>{ordinalFloorLabel(n)}</option>
             ))}
           </select>
-          {(searchPropertyId || searchFloorNumber) && (
+          {searchFloorNumber && (
             <button
               type="button"
               className="meter-search-reset-btn"
-              onClick={() => { setSearchPropertyId(''); setSearchFloorNumber(''); }}
-              title="Clear filters"
+              onClick={() => setSearchFloorNumber('')}
+              title="Clear floor filter"
             >
               <X size={13} /> Clear
             </button>

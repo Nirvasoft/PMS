@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
-import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useGetUnitsQuery, type UnitListItem } from '../../../store/api/unitsApi';
 import {
   useGetParkingTypesQuery,
@@ -29,7 +29,7 @@ export default function ParkingOverviewPage() {
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
   // Property follows the sidebar's "Active Property" selector — not independently choosable here.
-  const selectedProperty = useSelectedPropertyId();
+  const selectedProperty = useSelectedPropertyFilter();
   const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
 
   // Reset downstream filters whenever the active property changes.

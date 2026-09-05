@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetPaymentVouchersQuery, useCreatePaymentVoucherMutation, useMarkVoucherPaidMutation,
   useGetApInvoicesQuery,
 } from '../../../store/api/apApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   CreditCard, Plus, X, Clock, CheckCircle, DollarSign,
   ChevronLeft, ChevronRight, Banknote,
@@ -20,8 +22,25 @@ export default function PaymentVouchersPage() {
   const [payId, setPayId] = useState<string | null>(null);
   const [payRef, setPayRef] = useState('');
 
-  const { data: vouchersData, isLoading } = useGetPaymentVouchersQuery({ status: statusFilter || undefined, page: String(page), limit: '20' });
-  const { data: approvedInvoices } = useGetApInvoicesQuery({ status: 'approved', limit: '100' });
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
+  const properties = propertiesData?.data || [];
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+
+  // Reset page whenever the active property changes.
+  useEffect(() => { setPage(1); }, [selectedProperty]);
+
+  const { data: vouchersData, isLoading } = useGetPaymentVouchersQuery({
+    status: statusFilter || undefined,
+    propertyId: selectedProperty || undefined,
+    page: String(page), limit: '20',
+  });
+  const { data: approvedInvoices } = useGetApInvoicesQuery({
+    status: 'approved',
+    propertyId: selectedProperty || undefined,
+    limit: '100',
+  });
   const [createPaymentVoucher, { isLoading: creating }] = useCreatePaymentVoucherMutation();
   const [markVoucherPaid, { isLoading: marking }] = useMarkVoucherPaidMutation();
 
@@ -86,6 +105,11 @@ export default function PaymentVouchersPage() {
 
       {/* Filter */}
       <div className="ap-filters">
+        {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select value={selectedProperty} disabled style={{ minWidth: 180 }}>
+          {!selectedProperty && <option value="">All Properties</option>}
+          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
+        </select>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>

@@ -5,6 +5,7 @@ import {
   type AccessCard,
 } from '../../../store/api/portalApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   CreditCard, Search, Plus, ShieldCheck, ShieldOff, ShieldAlert,
   Tag, User, Building2, AlertTriangle, X,
@@ -18,7 +19,7 @@ export default function AccessCardsPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [propertyFilter, setPropertyFilter] = useState('');
+  const selectedProperty = useSelectedPropertyFilter();
   const [search, setSearch] = useState('');
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [editCard, setEditCard] = useState<AccessCard | null>(null);
@@ -26,8 +27,11 @@ export default function AccessCardsPage() {
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
 
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setPage(1); }, [selectedProperty]);
+
   const { data, isLoading } = useGetAccessCardsQuery({
-    propertyId: propertyFilter || undefined,
+    propertyId: selectedProperty || undefined,
     status: statusFilter || undefined,
     cardType: typeFilter || undefined,
     search: search || undefined,
@@ -115,9 +119,11 @@ export default function AccessCardsPage() {
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
-        <select value={propertyFilter} onChange={(e) => { setPropertyFilter(e.target.value); setPage(1); }} className="form-select" style={{ width: 170 }}>
-          <option value="">All Properties</option>
-          {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select value={selectedProperty} disabled className="form-select" style={{ width: 170 }}>
+          {selectedProperty && (
+            <option value={selectedProperty}>{properties.find(p => p.id === selectedProperty)?.name || ''}</option>
+          )}
         </select>
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="form-select" style={{ width: 130 }}>
           {STATUSES.map(s => <option key={s} value={s}>{s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All Status'}</option>)}

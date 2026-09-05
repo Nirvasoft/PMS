@@ -1,5 +1,5 @@
 import '../MaintenancePage/MaintenancePage.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetPmSchedulesQuery, useCreatePmScheduleMutation,
@@ -8,6 +8,7 @@ import {
 } from '../../../store/api/pmApi';
 import { useGetCategoriesQuery } from '../../../store/api/maintenanceApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   CalendarClock, Plus, Search, Loader2, XCircle, Inbox,
   Play, Pause, Zap, RotateCcw, Clock, CheckCircle2,
@@ -45,12 +46,16 @@ export default function PmScheduleListPage() {
     status: '', frequencyType: '', propertyId: '', search: '',
     page: 1, limit: 20,
   });
+  const selectedProperty = useSelectedPropertyFilter();
+
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setFilters(f => ({ ...f, page: 1 })); }, [selectedProperty]);
 
   const { data: schedulesData, isLoading } = useGetPmSchedulesQuery({
     ...filters,
     status: filters.status || undefined,
     frequencyType: filters.frequencyType || undefined,
-    propertyId: filters.propertyId || undefined,
+    propertyId: selectedProperty || undefined,
     search: filters.search || undefined,
   });
   const { data: categoriesData } = useGetCategoriesQuery();
@@ -136,9 +141,11 @@ export default function PmScheduleListPage() {
             onChange={(e) => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))}
           />
         </div>
-        <select className="filter-select" value={filters.propertyId} onChange={(e) => setFilters(f => ({ ...f, propertyId: e.target.value, page: 1 }))}>
-          <option value="">All Properties</option>
-          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select className="filter-select" value={selectedProperty} disabled>
+          {selectedProperty && (
+            <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
+          )}
         </select>
         <select className="filter-select" value={filters.status} onChange={(e) => setFilters(f => ({ ...f, status: e.target.value, page: 1 }))}>
           <option value="">All Statuses</option>

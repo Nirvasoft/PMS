@@ -1,11 +1,12 @@
 import '../MaintenancePage/MaintenancePage.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetFacilityAssetsQuery, useCreateFacilityAssetMutation, useGetFacilityStatsQuery,
   useGetServiceDueAssetsQuery, useGetWarrantyExpiringAssetsQuery,
 } from '../../../store/api/facilityApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Box, Plus, Search, Loader2, XCircle, Wrench, AlertTriangle,
   CheckCircle2, ShieldAlert, Clock, Settings2, Shield, ChevronDown, ChevronUp,
@@ -38,16 +39,20 @@ export default function AssetRegistryPage() {
     propertyId: '', assetType: '', status: '', search: '',
     page: 1, limit: 20,
   });
+  const selectedProperty = useSelectedPropertyFilter();
+
+  // Reset pagination whenever the sidebar's Active Property changes.
+  useEffect(() => { setFilters(f => ({ ...f, page: 1 })); }, [selectedProperty]);
 
   const { data: assetsData, isLoading } = useGetFacilityAssetsQuery({
     ...filters,
-    propertyId: filters.propertyId || undefined,
+    propertyId: selectedProperty || undefined,
     assetType: filters.assetType || undefined,
     status: filters.status || undefined,
     search: filters.search || undefined,
   });
   const { data: statsData } = useGetFacilityStatsQuery({
-    propertyId: filters.propertyId || undefined,
+    propertyId: selectedProperty || undefined,
   });
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
 
@@ -60,11 +65,11 @@ export default function AssetRegistryPage() {
   const [showWarrantyExpiring, setShowWarrantyExpiring] = useState(false);
 
   const { data: serviceDueData } = useGetServiceDueAssetsQuery(
-    { propertyId: filters.propertyId || undefined },
+    { propertyId: selectedProperty || undefined },
     { skip: !showServiceDue },
   );
   const { data: warrantyExpData } = useGetWarrantyExpiringAssetsQuery(
-    { propertyId: filters.propertyId || undefined },
+    { propertyId: selectedProperty || undefined },
     { skip: !showWarrantyExpiring },
   );
   const serviceDueAssets = serviceDueData?.data || [];
@@ -185,9 +190,11 @@ export default function AssetRegistryPage() {
           <input type="text" placeholder="Search assets..." value={filters.search}
             onChange={(e) => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))} />
         </div>
-        <select className="filter-select" value={filters.propertyId} onChange={(e) => setFilters(f => ({ ...f, propertyId: e.target.value, page: 1 }))}>
-          <option value="">All Properties</option>
-          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select className="filter-select" value={selectedProperty} disabled>
+          {selectedProperty && (
+            <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
+          )}
         </select>
         <select className="filter-select" value={filters.assetType} onChange={(e) => setFilters(f => ({ ...f, assetType: e.target.value, page: 1 }))}>
           <option value="">All Types</option>

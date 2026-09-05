@@ -1,5 +1,5 @@
 import './MaintenancePage.css';
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../../../store';
 import {
@@ -7,6 +7,7 @@ import {
   useGetMaintenanceStatsQuery, useUploadTicketPhotosMutation,
 } from '../../../store/api/maintenanceApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Wrench, Plus, Search, LayoutGrid, List, AlertTriangle,
   Clock, CheckCircle2, XCircle, Loader2,
@@ -68,6 +69,16 @@ export default function TicketListPage() {
   const viewMode = useAppSelector((s) => s.maintenance.viewMode);
   const filters = useAppSelector((s) => s.maintenance.ticketFilters);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const selectedProperty = useSelectedPropertyFilter();
+
+  // Keep the ticket filter's propertyId in sync with the sidebar's Active Property —
+  // it's no longer independently choosable via the filter dropdown below.
+  useEffect(() => {
+    if (filters.propertyId !== selectedProperty) {
+      dispatch(setTicketFilters({ propertyId: selectedProperty, page: 1 }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProperty]);
 
   const { data: ticketsData, isLoading } = useGetTicketsQuery({
     ...filters,
@@ -75,10 +86,10 @@ export default function TicketListPage() {
     priority: filters.priority || undefined,
     categoryId: filters.categoryId || undefined,
     search: filters.search || undefined,
-    propertyId: filters.propertyId || undefined,
+    propertyId: selectedProperty || undefined,
   });
   const { data: statsData } = useGetMaintenanceStatsQuery({
-    propertyId: filters.propertyId || undefined,
+    propertyId: selectedProperty || undefined,
   });
   const { data: categoriesData } = useGetCategoriesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
@@ -173,9 +184,11 @@ export default function TicketListPage() {
             onChange={(e) => dispatch(setTicketFilters({ search: e.target.value, page: 1 }))}
           />
         </div>
-        <select className="filter-select" value={filters.propertyId} onChange={(e) => dispatch(setTicketFilters({ propertyId: e.target.value, page: 1 }))}>
-          <option value="">All Properties</option>
-          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select className="filter-select" value={selectedProperty} disabled>
+          {selectedProperty && (
+            <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
+          )}
         </select>
         <select className="filter-select" value={filters.status} onChange={(e) => dispatch(setTicketFilters({ status: e.target.value, page: 1 }))}>
           <option value="">All Statuses</option>

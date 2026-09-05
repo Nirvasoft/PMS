@@ -5,6 +5,7 @@ import {
   useGetHkZonesQuery,
 } from '../../../store/api/housekeepingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   ClipboardCheck, Plus, Loader2, Inbox, Star, XCircle,
   AlertTriangle, MapPin, Eye, Ticket, Search, Filter,
@@ -39,7 +40,7 @@ function ScoreStars({ score, size = 14 }: { score: number; size?: number }) {
 }
 
 export default function InspectionsPage() {
-  const [propertyFilter, setPropertyFilter] = useState('');
+  const propertyFilter = useSelectedPropertyFilter();
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [detailInsp, setDetailInsp] = useState<any>(null);
@@ -226,11 +227,12 @@ export default function InspectionsPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Filter size={13} style={{ color: 'var(--text-tertiary)' }} />
-          <select className="filter-select" value={propertyFilter}
-            onChange={(e) => setPropertyFilter(e.target.value)}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="filter-select" value={propertyFilter} disabled
             style={{ borderRadius: 10, fontSize: 12, padding: '7px 28px 7px 10px' }}>
-            <option value="">All Properties</option>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {propertyFilter && (
+              <option value={propertyFilter}>{properties.find((p: any) => p.id === propertyFilter)?.name || ''}</option>
+            )}
           </select>
         </div>
       </div>

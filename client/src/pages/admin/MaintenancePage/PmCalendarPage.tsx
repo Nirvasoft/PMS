@@ -1,8 +1,9 @@
 import '../MaintenancePage/MaintenancePage.css';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGetPmSchedulesQuery } from '../../../store/api/pmApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Calendar, ChevronLeft, ChevronRight, ArrowLeft, Loader2,
 } from 'lucide-react';
@@ -20,16 +21,19 @@ export default function PmCalendarPage() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
-  const [propertyId, setPropertyId] = useState('');
+
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
+  const properties = propertiesData?.data || [];
+  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
 
   const { data: schedulesData, isLoading } = useGetPmSchedulesQuery({
     status: 'active',
-    propertyId: propertyId || undefined,
+    propertyId: selectedProperty || undefined,
     page: 1,
     limit: 500,
   });
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
-  const properties = propertiesData?.data || [];
   const schedules = schedulesData?.data || [];
 
   // Build calendar grid
@@ -89,9 +93,10 @@ export default function PmCalendarPage() {
           </div>
         </div>
         <div className="header-actions">
-          <select className="filter-select" value={propertyId} onChange={e => setPropertyId(e.target.value)}>
-            <option value="">All Properties</option>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          <select className="filter-select" value={selectedProperty} disabled>
+            {!selectedProperty && <option value="">All Properties</option>}
+            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
           </select>
         </div>
       </div>

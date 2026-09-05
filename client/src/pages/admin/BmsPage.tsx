@@ -4,7 +4,8 @@ import {
   useCreateBmsDeviceMutation, useDeleteBmsDeviceMutation, usePollBmsDeviceMutation,
   useUpdateBmsDeviceMutation, useGetBmsReadingsQuery, useGetBmsFaultsQuery,
 } from '../../store/api/integrationsApi';
-import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../components/DialogProvider';
 import {
   Server, Plus, RefreshCw, Trash2, Wifi, WifiOff, AlertTriangle,
@@ -58,7 +59,6 @@ const statusCfg = {
    ═══════════════════════════════════════════ */
 
 export default function BmsPage() {
-  const [propFilter, setPropFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -66,11 +66,16 @@ export default function BmsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [selDevice, setSelDevice] = useState<any>(null);
 
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  const selectedProperty = useSelectedPropertyFilter();
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
+  const propList = propertiesData?.data || [];
+  const selectedPropertyName = propList.find((p) => p.id === selectedProperty)?.name || '';
+
   const { data: summary } = useGetBmsSummaryQuery();
   const { data: devicesRaw, isLoading, isFetching } = useGetBmsDevicesQuery({
-    propertyId: propFilter || undefined, deviceType: typeFilter || undefined,
+    propertyId: selectedProperty || undefined, deviceType: typeFilter || undefined,
   });
-  const { data: properties } = useGetPropertiesQuery({});
   const { data: meta } = useGetBmsMetaQuery();
   const [pollDevice, { isLoading: polling }] = usePollBmsDeviceMutation();
   const [deleteDevice] = useDeleteBmsDeviceMutation();
@@ -78,7 +83,6 @@ export default function BmsPage() {
 
   const devices = devicesRaw?.data || devicesRaw || [];
   const stats = summary?.data || summary || { totalDevices: 0, activeDevices: 0, faultDevices: 0, totalReadings: 0, byType: [] };
-  const propList = properties?.data || properties || [];
 
   const filtered = useMemo(() => {
     let r = devices;
@@ -165,9 +169,10 @@ export default function BmsPage() {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or IP…"
             style={{ ...inputBase, paddingLeft: 36, width: '100%', boxSizing: 'border-box' as const }} />
         </div>
-        <select value={propFilter} onChange={e => setPropFilter(e.target.value)} style={selectBase}>
-          <option value="">All Properties</option>
-          {propList.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select value={selectedProperty} disabled style={selectBase}>
+          {!selectedProperty && <option value="">All Properties</option>}
+          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={selectBase}>
           <option value="">All Status</option>

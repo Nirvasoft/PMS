@@ -4,6 +4,7 @@ import {
   useUpdateQuickActionMutation, useDeleteQuickActionMutation,
 } from '../../../store/api/portalApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Zap, Plus, X, Trash2, ToggleLeft, ToggleRight,
   Loader2, ExternalLink, ArrowUpDown,
@@ -24,7 +25,7 @@ const ICON_OPTIONS = [
 
 export default function QuickActionsAdminPage() {
   const confirmDialog = useConfirm();
-  const [propertyFilter, setPropertyFilter] = useState('');
+  const propertyFilter = useSelectedPropertyFilter();
   const { data: actions = [], isLoading } = useGetQuickActionsQuery(
     propertyFilter ? { propertyId: propertyFilter } : undefined,
   );
@@ -88,16 +89,11 @@ export default function QuickActionsAdminPage() {
       </div>
 
       <div className="section-toolbar" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
-        <select
-          value={propertyFilter}
-          onChange={(e) => setPropertyFilter(e.target.value)}
-          className="form-select"
-          style={{ width: 220 }}
-        >
-          <option value="">All Properties</option>
-          {properties.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select value={propertyFilter} disabled className="form-select" style={{ width: 220 }}>
+          {propertyFilter && (
+            <option value={propertyFilter}>{properties.find((p) => p.id === propertyFilter)?.name || ''}</option>
+          )}
         </select>
         <div style={{ flex: 1 }} />
         <button className="btn btn-primary" onClick={() => setShowForm(true)} id="add-quick-action-btn">

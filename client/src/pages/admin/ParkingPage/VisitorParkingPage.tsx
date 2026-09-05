@@ -4,6 +4,7 @@ import {
   type VisitorPass,
 } from '../../../store/api/parkingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { QRCode, useQRDownload } from '../../../components/QRCode';
 import { useConfirm } from '../../../components/DialogProvider';
 import { Ticket, Plus, X, Clock, CheckCircle, AlertCircle, QrCode, Download, Printer, Maximize2 } from 'lucide-react';
@@ -25,7 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function VisitorParkingPage() {
   const confirmDialog = useConfirm();
-  const [propertyFilter, setPropertyFilter] = useState('');
+  const propertyFilter = useSelectedPropertyFilter();
   const [statusFilter, setStatusFilter] = useState('');
   const [showIssue, setShowIssue] = useState(false);
   const [qrPass, setQrPass] = useState<VisitorPass | null>(null);
@@ -75,9 +76,11 @@ export default function VisitorParkingPage() {
       </div>
 
       <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>
-        <select className="filter-select" value={propertyFilter} onChange={(e) => setPropertyFilter(e.target.value)}>
-          <option value="">All Properties</option>
-          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        <select className="filter-select" value={propertyFilter} disabled>
+          {propertyFilter && (
+            <option value={propertyFilter}>{properties.find((p: any) => p.id === propertyFilter)?.name || ''}</option>
+          )}
         </select>
         <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">All Statuses</option>
