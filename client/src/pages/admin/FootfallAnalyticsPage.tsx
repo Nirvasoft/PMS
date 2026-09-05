@@ -210,7 +210,20 @@ export default function FootfallAnalyticsPage() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* No property selected guard — all queries are skipped when selectedPropId is empty */}
+      {!selectedPropId && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', gap: 12 }}>
+          <Users size={48} style={{ color: 'var(--text-secondary)', opacity: 0.3 }} />
+          <h3 style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)' }}>Select a Property</h3>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 14, maxWidth: 340, textAlign: 'center' }}>
+            Choose an active property from the sidebar to view footfall analytics.
+          </p>
+        </div>
+      )}
+
+      {/* Tabs and content — only shown when a property is selected */}
+      {selectedPropId && (
+      <>
       <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: '2px solid var(--border-color)', paddingBottom: 0 }}>
         {TABS.map((t, i) => (
           <button
@@ -835,6 +848,8 @@ export default function FootfallAnalyticsPage() {
           </div>
         </div>
       , document.body)}
+      </>
+      )}
     </div>
   );
 }

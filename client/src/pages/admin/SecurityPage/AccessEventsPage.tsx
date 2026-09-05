@@ -56,7 +56,6 @@ export default function AccessEventsPage() {
 
   const events = eventsData?.data || [];
   const meta = eventsData?.meta;
-  const properties = propsData?.data || [];
   const accessDenied24h = statsData?.data?.accessDenied24h || 0;
 
   // Count events by type in current page

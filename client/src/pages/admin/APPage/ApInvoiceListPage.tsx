@@ -83,6 +83,7 @@ export default function ApInvoiceListPage() {
   const [rejectReason, setRejectReason] = useState('');
 
   const handleCreate = async () => {
+    if (!form.propertyId) return toast.error('Please select a property from the sidebar first');
     if (!form.vendorName) return toast.error('Vendor name is required');
     if (lines.some(l => !l.description || l.unitPrice <= 0)) return toast.error('All line items must have description and positive unit price');
     try {
@@ -115,7 +116,14 @@ export default function ApInvoiceListPage() {
     <div className="ap-page">
       <div className="page-header">
         <h1><FileText size={24} /> AP Invoices</h1>
-        <button className="ap-btn primary" onClick={() => setShowCreate(true)}><Plus size={16} /> New AP Invoice</button>
+        <button
+          className="ap-btn primary"
+          onClick={() => setShowCreate(true)}
+          disabled={!selectedProperty}
+          title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
+        >
+          <Plus size={16} /> New AP Invoice
+        </button>
       </div>
 
       {/* Stats */}

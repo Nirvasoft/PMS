@@ -72,6 +72,7 @@ export default function PaymentVouchersPage() {
   const removeAllocation = (idx: number) => setAllocations(prev => prev.filter((_, i) => i !== idx));
 
   const handleCreate = async () => {
+    if (!selectedProperty) return toast.error('Please select a property from the sidebar first');
     if (!form.vendorName) return toast.error('Vendor name is required');
     if (allocations.length === 0) return toast.error('At least one AP invoice allocation is required');
     try {
@@ -100,7 +101,14 @@ export default function PaymentVouchersPage() {
     <div className="ap-page">
       <div className="page-header">
         <h1><CreditCard size={24} /> Payment Vouchers</h1>
-        <button className="ap-btn primary" onClick={() => setShowCreate(true)}><Plus size={16} /> New Voucher</button>
+        <button
+          className="ap-btn primary"
+          onClick={() => setShowCreate(true)}
+          disabled={!selectedProperty}
+          title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
+        >
+          <Plus size={16} /> New Voucher
+        </button>
       </div>
 
       {/* Filter */}

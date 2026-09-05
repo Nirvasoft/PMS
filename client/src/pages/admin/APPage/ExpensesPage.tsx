@@ -63,6 +63,7 @@ export default function ExpensesPage() {
   });
 
   const handleCreate = async () => {
+    if (!form.propertyId) return toast.error('Please select a property from the sidebar first');
     if (!form.description || !form.amount) return toast.error('Description and amount are required');
     try {
       await createExpense({
@@ -83,7 +84,14 @@ export default function ExpensesPage() {
     <div className="ap-page">
       <div className="page-header">
         <h1><Receipt size={24} /> Expenses</h1>
-        <button className="ap-btn primary" onClick={() => setShowCreate(true)}><Plus size={16} /> Submit Expense</button>
+        <button
+          className="ap-btn primary"
+          onClick={() => setShowCreate(true)}
+          disabled={!selectedProperty}
+          title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
+        >
+          <Plus size={16} /> Submit Expense
+        </button>
       </div>
 
       {/* Stats */}
