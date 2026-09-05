@@ -104,20 +104,20 @@ export const updateAllocationSchema = z.object({
 export const createVehicleSchema = z.object({
   body: z.object({
     plateNumber: z.string().min(1, 'Plate number is required'),
-    make: z.string().optional(),
-    model: z.string().optional(),
-    color: z.string().optional(),
-    vehicleType: z.enum(['car', 'motorcycle', 'truck', 'van', 'ev']).optional(),
-    rfidTagNo: z.string().optional(),
+    make: z.string().nullable().optional(),
+    model: z.string().nullable().optional(),
+    color: z.string().nullable().optional(),
+    vehicleType: z.enum(['car', 'suv', 'motorcycle', 'truck', 'van']).optional(),
+    rfidTagNo: z.string().nullable().optional(),
   }),
 });
 
 export const updateVehicleSchema = z.object({
   body: z.object({
     plateNumber: z.string().optional(),
-    make: z.string().optional(),
-    model: z.string().optional(),
-    color: z.string().optional(),
+    make: z.string().nullable().optional(),
+    model: z.string().nullable().optional(),
+    color: z.string().nullable().optional(),
     vehicleType: z.string().optional(),
     rfidTagNo: z.string().nullable().optional(),
     isActive: z.boolean().optional(),
