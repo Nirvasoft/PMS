@@ -86,6 +86,26 @@ const NESTED_MODULES: Record<string, string[]> = {
   floor: ['unit'],
 };
 const CHILD_MODULES = new Set(Object.values(NESTED_MODULES).flat());
+const CHILD_TO_PARENT: Record<string, string> = Object.fromEntries(
+  Object.entries(NESTED_MODULES).flatMap(([parent, children]) => children.map((child) => [child, parent])),
+);
+
+// Checking any permission on a child module (unit) implies the role needs visibility
+// into its parent's context, so auto-check the parent's "view" permission — cascading
+// upward (unit -> floor -> properties). One-way only: unchecking never cascades back down.
+function withParentViewCascade(perms: Set<string>, permsByModule: PermissionsByModule): Set<string> {
+  const next = new Set(perms);
+  for (const module of Object.keys(permsByModule)) {
+    if (!(permsByModule[module] ?? []).some((p) => next.has(p.code))) continue;
+    let parent = CHILD_TO_PARENT[module];
+    while (parent) {
+      const viewPerm = permsByModule[parent]?.find((p) => p.action === 'read');
+      if (viewPerm) next.add(viewPerm.code);
+      parent = CHILD_TO_PARENT[parent];
+    }
+  }
+  return next;
+}
 
 type ModuleBlock =
   | { type: 'standalone'; module: string }
@@ -214,7 +234,7 @@ export default function AssignPermissionPage() {
   const togglePerm = (code: string) => {
     const next = new Set(selectedPerms);
     if (next.has(code)) next.delete(code); else next.add(code);
-    setSelectedPerms(next);
+    setSelectedPerms(withParentViewCascade(next, permsByModule));
   };
 
   const toggleExpand = (module: string) => {
@@ -234,7 +254,7 @@ export default function AssignPermissionPage() {
     const allSelected = codes.length > 0 && codes.every((c) => selectedPerms.has(c));
     const next = new Set(selectedPerms);
     codes.forEach((c) => allSelected ? next.delete(c) : next.add(c));
-    setSelectedPerms(next);
+    setSelectedPerms(allSelected ? next : withParentViewCascade(next, permsByModule));
   };
 
   const toggleSectionAll = (sectionModules: string[]) => {
@@ -242,7 +262,7 @@ export default function AssignPermissionPage() {
     const allSelected = codes.length > 0 && codes.every((c) => selectedPerms.has(c));
     const next = new Set(selectedPerms);
     codes.forEach((c) => allSelected ? next.delete(c) : next.add(c));
-    setSelectedPerms(next);
+    setSelectedPerms(allSelected ? next : withParentViewCascade(next, permsByModule));
   };
 
   const allCodes = modules.flatMap((m) => permsByModule[m]?.map((p) => p.code) ?? []);
