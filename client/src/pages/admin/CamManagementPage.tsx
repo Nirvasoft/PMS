@@ -8,6 +8,7 @@ import {
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { Plus, BarChart3, Zap, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const POOL_TYPES = ['controllable', 'uncontrollable', 'capital'];
 const ALLOC_BASIS = ['gla', 'equal', 'zone', 'custom'];
@@ -73,9 +74,11 @@ export default function CamManagementPage() {
             {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           {activeTab === 0 && (
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-              <Plus size={14} style={{ marginRight: 4 }} />New Pool
-            </button>
+            <PermissionGuard permission="mall-cam.write">
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+                <Plus size={14} style={{ marginRight: 4 }} />New Pool
+              </button>
+            </PermissionGuard>
           )}
         </div>
       </div>
@@ -164,22 +167,24 @@ export default function CamManagementPage() {
                 {Array.from({length: 12}, (_, i) => <option key={i+1} value={i+1}>{new Date(2025, i).toLocaleString('default', {month:'long'})}</option>)}
               </select>
             </label>
-            <button
-              className="btn btn-primary"
-              disabled={genLoading || !propertyId}
-              onClick={async () => {
-                setGenLoading(true);
-                try {
-                  const res = await generateCamBilling({ propertyId, month: genMonth, year }).unwrap();
-                  toast.success(`Generated ${res.data.generated} billing records for ${res.data.pools} pools × ${res.data.units} units`);
-                } catch (e: any) {
-                  toast.error(e?.data?.errors?.[0]?.message || 'Failed to generate');
-                }
-                setGenLoading(false);
-              }}
-            >
-              <Zap size={14} /> {genLoading ? 'Generating...' : 'Generate Billing'}
-            </button>
+            <PermissionGuard permission="mall-cam.write">
+              <button
+                className="btn btn-primary"
+                disabled={genLoading || !propertyId}
+                onClick={async () => {
+                  setGenLoading(true);
+                  try {
+                    const res = await generateCamBilling({ propertyId, month: genMonth, year }).unwrap();
+                    toast.success(`Generated ${res.data.generated} billing records for ${res.data.pools} pools × ${res.data.units} units`);
+                  } catch (e: any) {
+                    toast.error(e?.data?.errors?.[0]?.message || 'Failed to generate');
+                  }
+                  setGenLoading(false);
+                }}
+              >
+                <Zap size={14} /> {genLoading ? 'Generating...' : 'Generate Billing'}
+              </button>
+            </PermissionGuard>
           </div>
           <div className="mall-table-wrap">
           <table className="mall-table">
@@ -222,22 +227,24 @@ export default function CamManagementPage() {
       {activeTab === 2 && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-            <button
-              className="btn btn-primary"
-              disabled={reconLoading || !propertyId}
-              onClick={async () => {
-                setReconLoading(true);
-                try {
-                  const res = await runCamReconciliation({ propertyId, year }).unwrap();
-                  toast.success(`Reconciliation complete: ${res.data.reconciliations} records, total variance: $${Number(res.data.totalVariance).toLocaleString()}`);
-                } catch (e: any) {
-                  toast.error(e?.data?.errors?.[0]?.message || 'Failed to run reconciliation');
-                }
-                setReconLoading(false);
-              }}
-            >
-              <RefreshCw size={14} /> {reconLoading ? 'Running...' : `Run ${year} Reconciliation`}
-            </button>
+            <PermissionGuard permission="mall-cam.write">
+              <button
+                className="btn btn-primary"
+                disabled={reconLoading || !propertyId}
+                onClick={async () => {
+                  setReconLoading(true);
+                  try {
+                    const res = await runCamReconciliation({ propertyId, year }).unwrap();
+                    toast.success(`Reconciliation complete: ${res.data.reconciliations} records, total variance: $${Number(res.data.totalVariance).toLocaleString()}`);
+                  } catch (e: any) {
+                    toast.error(e?.data?.errors?.[0]?.message || 'Failed to run reconciliation');
+                  }
+                  setReconLoading(false);
+                }}
+              >
+                <RefreshCw size={14} /> {reconLoading ? 'Running...' : `Run ${year} Reconciliation`}
+              </button>
+            </PermissionGuard>
           </div>
           <div className="mall-table-wrap">
           <table className="mall-table">

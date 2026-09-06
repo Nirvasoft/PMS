@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './LeaseDetailPage.css';
 
 // Tabs
@@ -96,13 +97,41 @@ export default function LeaseDetailPage() {
           {/* Action toolbar */}
           <div className="ld-actions">
             <button className="btn-action-preview" onClick={() => setShowPreview(true)}><FileText size={14}/> Preview</button>
-            {isDraft  && <button className="btn-action-edit" onClick={() => setShowEditDraft(true)}><Edit2 size={14}/> Edit</button>}
-            {isDraft  && <button className="btn-action-submit" onClick={handleSubmit}  disabled={submitting}><Send size={14}/> Submit</button>}
-            {(isApproved || isPending) && <button className="btn-action-activate" onClick={handleActivate} disabled={activating}><CheckCircle size={14}/> Activate</button>}
-            {isActive  && <button className="btn-action-amend"     onClick={() => setShowAmendModal(true)}><PenLine size={14}/> Amend</button>}
-            {isActive  && <button className="btn-action-renew"     onClick={() => setShowRenewalModal(true)}><RefreshCw size={14}/> Renew</button>}
-            {isActive  && <button className="btn-action-terminate" onClick={() => setShowTerminateModal(true)}><Scissors size={14}/> Terminate</button>}
-            {(isDraft || isPending) && <button className="btn-action-cancel" onClick={handleCancel} disabled={cancelling}><XCircle size={14}/> Cancel</button>}
+            {isDraft  && (
+              <PermissionGuard permission="leases.update">
+                <button className="btn-action-edit" onClick={() => setShowEditDraft(true)}><Edit2 size={14}/> Edit</button>
+              </PermissionGuard>
+            )}
+            {isDraft  && (
+              <PermissionGuard permission="leases.update">
+                <button className="btn-action-submit" onClick={handleSubmit}  disabled={submitting}><Send size={14}/> Submit</button>
+              </PermissionGuard>
+            )}
+            {(isApproved || isPending) && (
+              <PermissionGuard permission="leases.approve">
+                <button className="btn-action-activate" onClick={handleActivate} disabled={activating}><CheckCircle size={14}/> Activate</button>
+              </PermissionGuard>
+            )}
+            {isActive  && (
+              <PermissionGuard permission="leases.update">
+                <button className="btn-action-amend"     onClick={() => setShowAmendModal(true)}><PenLine size={14}/> Amend</button>
+              </PermissionGuard>
+            )}
+            {isActive  && (
+              <PermissionGuard permission="leases.update">
+                <button className="btn-action-renew"     onClick={() => setShowRenewalModal(true)}><RefreshCw size={14}/> Renew</button>
+              </PermissionGuard>
+            )}
+            {isActive  && (
+              <PermissionGuard permission="leases.terminate">
+                <button className="btn-action-terminate" onClick={() => setShowTerminateModal(true)}><Scissors size={14}/> Terminate</button>
+              </PermissionGuard>
+            )}
+            {(isDraft || isPending) && (
+              <PermissionGuard permission="leases.update">
+                <button className="btn-action-cancel" onClick={handleCancel} disabled={cancelling}><XCircle size={14}/> Cancel</button>
+              </PermissionGuard>
+            )}
           </div>
         </div>
 

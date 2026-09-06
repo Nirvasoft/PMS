@@ -12,6 +12,7 @@ import {
   Camera, Key, Shield, Car, Zap, ArrowUp, Lock, Battery, ImagePlus, X, Upload,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CreatePropertyPage.css';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
@@ -456,9 +457,11 @@ export default function CreatePropertyPage() {
               Next →
             </button>
           ) : (
-            <button className="cp-btn-submit" onClick={handleSubmit} disabled={isLoading || !form.name.trim() || !form.propertyType}>
-              {isLoading ? 'Creating…' : '+ Create Property'}
-            </button>
+            <PermissionGuard permission="properties.create">
+              <button className="cp-btn-submit" onClick={handleSubmit} disabled={isLoading || !form.name.trim() || !form.propertyType}>
+                {isLoading ? 'Creating…' : '+ Create Property'}
+              </button>
+            </PermissionGuard>
           )}
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useGetGlAccountsQuery, useCreateGlAccountMutation, useUpdateGlAccountMutation, useSeedCOAMutation } from '../../../store/api/glApi';
 import type { GlAccount } from '../../../store/api/glApi';
 import { useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './GLPage.css';
 
 function AccountNode({ account, accounts, onEdit }: { account: GlAccount; accounts: GlAccount[]; onEdit: (a: GlAccount) => void }) {
@@ -17,7 +18,9 @@ function AccountNode({ account, accounts, onEdit }: { account: GlAccount; accoun
         <span className="coa-name">{account.name}</span>
         <span className={`gl-type-chip ${account.accountType}`}>{account.accountType}</span>
         {account.isControl && <span className="gl-badge closed" style={{fontSize:'0.65rem'}}>Control</span>}
-        <button className="btn-sm" onClick={() => onEdit(account)} title="Edit">✏️</button>
+        <PermissionGuard permission="finance-coa.write">
+          <button className="btn-sm" onClick={() => onEdit(account)} title="Edit">✏️</button>
+        </PermissionGuard>
       </div>
       {open && children.length > 0 && (
         <ul className="coa-children">
@@ -56,8 +59,10 @@ export default function ChartOfAccountsPage() {
           <option value="expense">Expense</option>
         </select>
         <div style={{ flex: 1 }} />
-        <button className="btn-primary" onClick={handleNew}>+ Add Account</button>
-        <button className="btn-sm" onClick={() => seedCOA()} title="Seed default accounts">🌱 Seed COA</button>
+        <PermissionGuard permission="finance-coa.write">
+          <button className="btn-primary" onClick={handleNew}>+ Add Account</button>
+          <button className="btn-sm" onClick={() => seedCOA()} title="Seed default accounts">🌱 Seed COA</button>
+        </PermissionGuard>
       </div>
 
       {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (

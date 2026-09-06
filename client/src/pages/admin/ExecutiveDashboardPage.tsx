@@ -12,6 +12,7 @@ import {
   Wrench, AlertTriangle, ChevronRight, RefreshCw, CheckCircle, Eye,
   Activity, PieChart, Calendar,
 } from 'lucide-react';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#ef4444',
@@ -198,20 +199,22 @@ export default function ExecutiveDashboardPage() {
             <Activity size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
             Detected Anomalies
           </h3>
-          <button
-            onClick={() => detectAnomalies()}
-            disabled={detecting}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 14px', borderRadius: 8,
-              border: '1px solid var(--border-color)',
-              background: 'var(--card-bg)', color: 'var(--text-primary)',
-              cursor: 'pointer', fontSize: 12,
-            }}
-          >
-            <RefreshCw size={14} className={detecting ? 'spin' : ''} />
-            {detecting ? 'Scanning...' : 'Run Detection'}
-          </button>
+          <PermissionGuard permission="reports-anomalies.write">
+            <button
+              onClick={() => detectAnomalies()}
+              disabled={detecting}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 8,
+                border: '1px solid var(--border-color)',
+                background: 'var(--card-bg)', color: 'var(--text-primary)',
+                cursor: 'pointer', fontSize: 12,
+              }}
+            >
+              <RefreshCw size={14} className={detecting ? 'spin' : ''} />
+              {detecting ? 'Scanning...' : 'Run Detection'}
+            </button>
+          </PermissionGuard>
         </div>
 
         {anomalies.length === 0 ? (
@@ -254,17 +257,19 @@ export default function ExecutiveDashboardPage() {
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    onClick={() => acknowledgeAnomaly(a.id)}
-                    style={{
-                      fontSize: 11, padding: '4px 10px', borderRadius: 6,
-                      border: '1px solid var(--border-color)', background: 'var(--card-bg)',
-                      color: 'var(--text-primary)', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 4,
-                    }}
-                  >
-                    <Eye size={12} /> Acknowledge
-                  </button>
+                  <PermissionGuard permission="reports-anomalies.write">
+                    <button
+                      onClick={() => acknowledgeAnomaly(a.id)}
+                      style={{
+                        fontSize: 11, padding: '4px 10px', borderRadius: 6,
+                        border: '1px solid var(--border-color)', background: 'var(--card-bg)',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      <Eye size={12} /> Acknowledge
+                    </button>
+                  </PermissionGuard>
                 </div>
               </div>
             ))}

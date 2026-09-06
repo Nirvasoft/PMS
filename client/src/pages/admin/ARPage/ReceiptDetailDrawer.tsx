@@ -2,6 +2,7 @@ import { useGetReceiptQuery, useReverseReceiptMutation } from '../../../store/ap
 import { X, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
@@ -121,12 +122,14 @@ export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
 
             {/* Actions */}
             {receipt.status === 'confirmed' && (
-              <div style={{ marginTop: 24 }}>
-                <button className="btn btn-secondary" onClick={handleReverse} disabled={reversing}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f87171' }}>
-                  <RotateCcw size={14} /> {reversing ? 'Reversing…' : 'Reverse Receipt'}
-                </button>
-              </div>
+              <PermissionGuard permission="ar-receipts.write">
+                <div style={{ marginTop: 24 }}>
+                  <button className="btn btn-secondary" onClick={handleReverse} disabled={reversing}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f87171' }}>
+                    <RotateCcw size={14} /> {reversing ? 'Reversing…' : 'Reverse Receipt'}
+                  </button>
+                </div>
+              </PermissionGuard>
             )}
           </>
         )}

@@ -3,6 +3,7 @@ import { useGetPenaltyConfigsQuery, useCreatePenaltyConfigMutation, useGetCharge
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { Shield, Plus, AlertTriangle, Percent, DollarSign, Clock, X } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 const PENALTY_TYPES: Record<string, string> = {
@@ -100,9 +101,11 @@ export default function PenaltyConfigPage() {
             <h1>Penalty Configuration</h1>
             <p>Configure late payment penalties for overdue invoices</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> New Config
-          </button>
+          <PermissionGuard permission="billing-settings.write">
+            <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> New Config
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 

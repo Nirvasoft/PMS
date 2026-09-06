@@ -8,6 +8,7 @@ import {
   ArrowLeft, FileText, Plus, X, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './LeaseTemplatesPage.css';
 
 const PROPERTY_TYPES = ['residential', 'commercial', 'industrial', 'mixed_use', 'retail'];
@@ -65,9 +66,11 @@ export default function LeaseTemplatesPage() {
           <h1><FileText size={22} /> Lease Templates</h1>
           <p className="lt-subtitle">Manage reusable lease templates with default terms. Templates can be selected when creating new leases.</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
-          <Plus size={14} /> New Template
-        </button>
+        <PermissionGuard permission="leases.update">
+          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
+            <Plus size={14} /> New Template
+          </button>
+        </PermissionGuard>
       </div>
 
       {showForm && (

@@ -8,6 +8,7 @@ import {
   Search, Filter, Layers, Ruler, StickyNote, Map,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const ZONE_TYPES = ['corridor', 'lobby', 'car_park', 'amenity', 'office', 'restroom', 'other'];
 const ZONE_META: Record<string, { emoji: string; color: string; bg: string }> = {
@@ -101,9 +102,11 @@ export default function ZoneManagementPage() {
             {zones.length} zone{zones.length !== 1 ? 's' : ''} across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
-          <Plus size={14} /> New Zone
-        </button>
+        <PermissionGuard permission="housekeeping-zones.write">
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
+            <Plus size={14} /> New Zone
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* ── Stats ── */}

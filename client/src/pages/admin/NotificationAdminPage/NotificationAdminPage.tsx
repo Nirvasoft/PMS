@@ -7,6 +7,7 @@ import {
 } from '../../../store/api/notificationsApi';
 import { FileText, RotateCw, Loader2, Mail, Bell, Smartphone, MessageSquare, Plus, Trash2, Save, X, Eye, Code } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 type Tab = 'logs' | 'templates';
 
@@ -131,12 +132,14 @@ function LogsTab() {
                   <td className="text-small">{log.sentAt ? new Date(log.sentAt).toLocaleString() : new Date(log.createdAt).toLocaleString()}</td>
                   <td>
                     {log.status === 'failed' && (
-                      <button className="btn btn-sm" title="Retry" onClick={async () => {
-                        try { await retryNotif(log.id).unwrap(); toast.success('Retrying...'); }
-                        catch { toast.error('Retry failed'); }
-                      }}>
-                        <RotateCw size={14} />
-                      </button>
+                      <PermissionGuard permission="notifications.send">
+                        <button className="btn btn-sm" title="Retry" onClick={async () => {
+                          try { await retryNotif(log.id).unwrap(); toast.success('Retrying...'); }
+                          catch { toast.error('Retry failed'); }
+                        }}>
+                          <RotateCw size={14} />
+                        </button>
+                      </PermissionGuard>
                     )}
                   </td>
                 </tr>
@@ -264,9 +267,11 @@ function TemplatesTab() {
       <div>
         <div className="toolbar" style={{ marginBottom: 12 }}>
           <span className="text-secondary">{templates.length} template(s)</span>
-          <button className="btn btn-sm btn-primary" onClick={startCreate}>
-            <Plus size={14} /> New
-          </button>
+          <PermissionGuard permission="notifications.manage">
+            <button className="btn btn-sm btn-primary" onClick={startCreate}>
+              <Plus size={14} /> New
+            </button>
+          </PermissionGuard>
         </div>
         {templates.length === 0 && !isNew ? (
           <div className="info-card" style={{ textAlign: 'center', padding: 32 }}>
@@ -294,21 +299,23 @@ function TemplatesTab() {
                   {t.isCritical && <span style={{ color: 'var(--danger)', marginLeft: 6 }}>⚠ critical</span>}
                 </div>
                 {/* Delete button on hover */}
-                {deleteConfirm === t.id ? (
-                  <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-                    <button className="btn btn-sm btn-danger" style={{ fontSize: 11 }}
-                      onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}>Confirm Delete</button>
-                    <button className="btn btn-sm" style={{ fontSize: 11 }}
-                      onClick={(e) => { e.stopPropagation(); setDeleteConfirm(null); }}>Cancel</button>
-                  </div>
-                ) : (
-                  <button className="btn btn-sm"
-                    style={{ position: 'absolute', top: 8, right: 8, opacity: 0.4, padding: '2px 4px' }}
-                    onClick={(e) => { e.stopPropagation(); setDeleteConfirm(t.id); }}
-                    title="Delete template">
-                    <Trash2 size={12} />
-                  </button>
-                )}
+                <PermissionGuard permission="notifications.manage">
+                  {deleteConfirm === t.id ? (
+                    <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                      <button className="btn btn-sm btn-danger" style={{ fontSize: 11 }}
+                        onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}>Confirm Delete</button>
+                      <button className="btn btn-sm" style={{ fontSize: 11 }}
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirm(null); }}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button className="btn btn-sm"
+                      style={{ position: 'absolute', top: 8, right: 8, opacity: 0.4, padding: '2px 4px' }}
+                      onClick={(e) => { e.stopPropagation(); setDeleteConfirm(t.id); }}
+                      title="Delete template">
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </PermissionGuard>
               </div>
             ))}
           </div>
@@ -504,9 +511,11 @@ function TemplatesTab() {
           <div style={{ background: 'var(--surface-elevated)', borderRadius: 12, padding: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ marginTop: 0 }}><FileText size={16} /> {selectedTemplate.name}</h3>
-              <button className="btn btn-sm btn-primary" onClick={() => startEdit(selectedTemplate)}>
-                ✏️ Edit
-              </button>
+              <PermissionGuard permission="notifications.manage">
+                <button className="btn btn-sm btn-primary" onClick={() => startEdit(selectedTemplate)}>
+                  ✏️ Edit
+                </button>
+              </PermissionGuard>
             </div>
             {selectedTemplate.description && <p className="text-muted text-small">{selectedTemplate.description}</p>}
 

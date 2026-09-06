@@ -13,6 +13,7 @@ import {
   CheckCircle, AlertCircle, ThumbsUp, ThumbsDown, MinusCircle, Loader2,
   Bell, Upload, Eye, UserCheck, Shield, BarChart3, PieChart,
 } from 'lucide-react';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const STATUSES = ['planned', 'notice_sent', 'in_progress', 'completed', 'adjourned'];
 
@@ -148,9 +149,11 @@ export default function MeetingsPage() {
           <h1>General Meetings</h1>
           <p className="condo-page-subtitle">AGM / EGM management with digital voting</p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-          <Plus size={14} style={{ marginRight: 4 }} />New Meeting
-        </button>
+        <PermissionGuard permission="condo-meetings.write">
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+            <Plus size={14} style={{ marginRight: 4 }} />New Meeting
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Status Filters */}
@@ -233,27 +236,31 @@ export default function MeetingsPage() {
                 <div style={actionBarStyle}>
                   {/* Send Notice — available when status is "planned" */}
                   {(detail.status === 'planned') && (
-                    <button
-                      style={noticeBtnStyle}
-                      onClick={handleSendNotice}
-                      disabled={noticeSending}
-                    >
-                      {noticeSending ? (
-                        <><Loader2 size={14} className="spin" /> Sending...</>
-                      ) : (
-                        <><Bell size={14} /> Send Meeting Notice</>
-                      )}
-                    </button>
+                    <PermissionGuard permission="condo-meetings.write">
+                      <button
+                        style={noticeBtnStyle}
+                        onClick={handleSendNotice}
+                        disabled={noticeSending}
+                      >
+                        {noticeSending ? (
+                          <><Loader2 size={14} className="spin" /> Sending...</>
+                        ) : (
+                          <><Bell size={14} /> Send Meeting Notice</>
+                        )}
+                      </button>
+                    </PermissionGuard>
                   )}
 
                   {/* Publish Minutes — available when completed */}
                   {(detail.status === 'completed' || detail.status === 'adjourned') && (
-                    <button
-                      style={minutesBtnStyle}
-                      onClick={() => setShowMinutesModal(true)}
-                    >
-                      <Upload size={14} /> Publish Minutes
-                    </button>
+                    <PermissionGuard permission="condo-meetings.write">
+                      <button
+                        style={minutesBtnStyle}
+                        onClick={() => setShowMinutesModal(true)}
+                      >
+                        <Upload size={14} /> Publish Minutes
+                      </button>
+                    </PermissionGuard>
                   )}
 
                   {/* Minutes link if already published */}
@@ -280,7 +287,9 @@ export default function MeetingsPage() {
                 {/* Resolutions */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 16 }}>
                   <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>Resolutions</h4>
-                  <button className="condo-btn-sm" onClick={() => setShowAddRes(true)}>+ Add Resolution</button>
+                  <PermissionGuard permission="condo-meetings.write">
+                    <button className="condo-btn-sm" onClick={() => setShowAddRes(true)}>+ Add Resolution</button>
+                  </PermissionGuard>
                 </div>
 
                 {detail.resolutions?.length === 0 ? (
@@ -320,18 +329,20 @@ export default function MeetingsPage() {
 
                     {/* ═══ Cast Vote Button ═══ */}
                     {(detail.status === 'in_progress' || detail.status === 'notice_sent') && !r.result && (
-                      <div style={voteActionRowStyle}>
-                        <button
-                          style={castVoteBtnStyle}
-                          onClick={() => setShowVoteModal({
-                            meetingId: detail.id,
-                            resolutionId: r.id,
-                            resolutionTitle: r.title,
-                          })}
-                        >
-                          <Vote size={14} /> Cast Vote
-                        </button>
-                      </div>
+                      <PermissionGuard permission="condo-meetings.write">
+                        <div style={voteActionRowStyle}>
+                          <button
+                            style={castVoteBtnStyle}
+                            onClick={() => setShowVoteModal({
+                              meetingId: detail.id,
+                              resolutionId: r.id,
+                              resolutionTitle: r.title,
+                            })}
+                          >
+                            <Vote size={14} /> Cast Vote
+                          </button>
+                        </div>
+                      </PermissionGuard>
                     )}
                   </div>
                 ))}
@@ -342,9 +353,11 @@ export default function MeetingsPage() {
                     Proxy Forms ({detail.proxies?.length || 0})
                   </h4>
                   {(detail.status === 'planned' || detail.status === 'notice_sent') && (
-                    <button style={proxyBtnStyle} onClick={() => setShowProxyModal(true)}>
-                      <UserCheck size={14} /> Submit Proxy
-                    </button>
+                    <PermissionGuard permission="condo-meetings.write">
+                      <button style={proxyBtnStyle} onClick={() => setShowProxyModal(true)}>
+                        <UserCheck size={14} /> Submit Proxy
+                      </button>
+                    </PermissionGuard>
                   )}
                 </div>
 

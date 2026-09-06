@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './APPage.css';
 
 const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -60,14 +61,16 @@ export default function ApInvoiceDetailPage() {
           {isOverdue && <span className="ap-status" style={{ background: '#fef2f2', color: '#b91c1c' }}>Overdue</span>}
         </div>
         {inv.status === 'pending' && (
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="ap-btn success" onClick={handleApprove} disabled={approving}>
-              <CheckCircle size={16} /> {approving ? 'Approving...' : 'Approve'}
-            </button>
-            <button className="ap-btn danger" onClick={() => setShowReject(true)} disabled={rejecting}>
-              <XCircle size={16} /> Reject
-            </button>
-          </div>
+          <PermissionGuard permission="ap-invoices.write">
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="ap-btn success" onClick={handleApprove} disabled={approving}>
+                <CheckCircle size={16} /> {approving ? 'Approving...' : 'Approve'}
+              </button>
+              <button className="ap-btn danger" onClick={() => setShowReject(true)} disabled={rejecting}>
+                <XCircle size={16} /> Reject
+              </button>
+            </div>
+          </PermissionGuard>
         )}
       </div>
 

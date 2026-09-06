@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight, User, Building2, Filter,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const STATUSES = ['', 'pending', 'confirmed', 'completed', 'cancelled', 'no_show'];
 
@@ -219,24 +220,26 @@ export default function FacilitySchedulePage() {
                             {b.status.replace(/_/g, ' ')}
                           </span>
                           {b.status === 'pending' && (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              <button
-                                className="btn-icon"
-                                onClick={() => handleApprove(b.id)}
-                                title="Approve"
-                                style={{ color: 'var(--success, #22c55e)' }}
-                              >
-                                <CheckCircle size={14} />
-                              </button>
-                              <button
-                                className="btn-icon"
-                                onClick={() => setRejectId(b.id)}
-                                title="Reject"
-                                style={{ color: 'var(--danger, #ef4444)' }}
-                              >
-                                <XCircle size={14} />
-                              </button>
-                            </div>
+                            <PermissionGuard permission="facility-schedule.write">
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <button
+                                  className="btn-icon"
+                                  onClick={() => handleApprove(b.id)}
+                                  title="Approve"
+                                  style={{ color: 'var(--success, #22c55e)' }}
+                                >
+                                  <CheckCircle size={14} />
+                                </button>
+                                <button
+                                  className="btn-icon"
+                                  onClick={() => setRejectId(b.id)}
+                                  title="Reject"
+                                  style={{ color: 'var(--danger, #ef4444)' }}
+                                >
+                                  <XCircle size={14} />
+                                </button>
+                              </div>
+                            </PermissionGuard>
                           )}
                         </div>
                       </div>

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './APPage.css';
 
 const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -116,14 +117,16 @@ export default function ApInvoiceListPage() {
     <div className="ap-page">
       <div className="page-header">
         <h1><FileText size={24} /> AP Invoices</h1>
-        <button
-          className="ap-btn primary"
-          onClick={() => setShowCreate(true)}
-          disabled={!selectedProperty}
-          title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
-        >
-          <Plus size={16} /> New AP Invoice
-        </button>
+        <PermissionGuard permission="ap-invoices.write">
+          <button
+            className="ap-btn primary"
+            onClick={() => setShowCreate(true)}
+            disabled={!selectedProperty}
+            title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
+          >
+            <Plus size={16} /> New AP Invoice
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Stats */}
@@ -196,10 +199,12 @@ export default function ApInvoiceListPage() {
                 <td><span className={`ap-status ${inv.status}`}>{inv.status}</span></td>
                 <td onClick={e => e.stopPropagation()}>
                   {inv.status === 'pending' && (
-                    <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      <button className="ap-btn sm success" onClick={(e) => handleApprove(inv.id, e)}>Approve</button>
-                      <button className="ap-btn sm danger" onClick={(e) => { e.stopPropagation(); setRejectId(inv.id); }}>Reject</button>
-                    </div>
+                    <PermissionGuard permission="ap-invoices.write">
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        <button className="ap-btn sm success" onClick={(e) => handleApprove(inv.id, e)}>Approve</button>
+                        <button className="ap-btn sm danger" onClick={(e) => { e.stopPropagation(); setRejectId(inv.id); }}>Reject</button>
+                      </div>
+                    </PermissionGuard>
                   )}
                 </td>
               </tr>

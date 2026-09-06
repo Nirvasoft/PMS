@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './PropertiesPage.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -379,9 +380,11 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
         {/* Footer */}
         <div className="edit-drawer-footer">
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave} disabled={isLoading}>
-            <Save size={14} /> {isLoading ? 'Saving…' : 'Save Changes'}
-          </button>
+          <PermissionGuard permission="properties.update">
+            <button className="btn-primary" onClick={handleSave} disabled={isLoading}>
+              <Save size={14} /> {isLoading ? 'Saving…' : 'Save Changes'}
+            </button>
+          </PermissionGuard>
         </div>
       </div>
     </div>
@@ -450,9 +453,11 @@ export default function PropertiesPage() {
             <button className={listView === 'grid' ? 'active' : ''} onClick={() => dispatch(setListView('grid'))}><LayoutGrid size={16} /></button>
             <button className={listView === 'list' ? 'active' : ''} onClick={() => dispatch(setListView('list'))}><List size={16} /></button>
           </div>
-          <button className="btn-primary" onClick={() => navigate('/admin/properties/create')}>
-            <Plus size={16} /> Add Property
-          </button>
+          <PermissionGuard permission="properties.create">
+            <button className="btn-primary" onClick={() => navigate('/admin/properties/create')}>
+              <Plus size={16} /> Add Property
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -500,9 +505,11 @@ export default function PropertiesPage() {
           <Building2 size={48} />
           <h3>No properties found</h3>
           <p>Add your first property to get started</p>
-          <button className="btn-primary" onClick={() => navigate('/admin/properties/create')}>
-            <Plus size={16} /> Add Property
-          </button>
+          <PermissionGuard permission="properties.create">
+            <button className="btn-primary" onClick={() => navigate('/admin/properties/create')}>
+              <Plus size={16} /> Add Property
+            </button>
+          </PermissionGuard>
         </div>
       ) : listView === 'grid' ? (
         <div className="property-grid">
@@ -575,8 +582,12 @@ function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onEdit, onDel
         {menuOpen && (
           <div className="card-menu" onClick={(e) => e.stopPropagation()}>
             <button onClick={onView}><Eye size={14} /> View Details</button>
-            <button onClick={onEdit}><Edit3 size={14} /> Edit</button>
-            <button onClick={onDelete} className="danger"><Trash2 size={14} /> Delete</button>
+            <PermissionGuard permission="properties.update">
+              <button onClick={onEdit}><Edit3 size={14} /> Edit</button>
+            </PermissionGuard>
+            <PermissionGuard permission="properties.delete">
+              <button onClick={onDelete} className="danger"><Trash2 size={14} /> Delete</button>
+            </PermissionGuard>
           </div>
         )}
       </div>
@@ -632,8 +643,12 @@ function PropertyRow({ property: p, onView, onEdit, onDelete }: {
       <span>{p.city || '—'}</span>
       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
         <button title="View" onClick={onView}><Eye size={15} /></button>
-        <button title="Edit" onClick={onEdit}><Edit3 size={15} /></button>
-        <button title="Delete" onClick={onDelete} className="danger"><Trash2 size={15} /></button>
+        <PermissionGuard permission="properties.update">
+          <button title="Edit" onClick={onEdit}><Edit3 size={15} /></button>
+        </PermissionGuard>
+        <PermissionGuard permission="properties.delete">
+          <button title="Delete" onClick={onDelete} className="danger"><Trash2 size={15} /></button>
+        </PermissionGuard>
       </div>
     </div>
   );

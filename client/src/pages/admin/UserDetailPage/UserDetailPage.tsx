@@ -12,6 +12,7 @@ import {
 import { useGetAuditLogsQuery } from '../../../store/api/authApi';
 import { useConfirm } from '../../../components/DialogProvider';
 import { useRefreshAuth } from '../../../hooks/useRefreshAuth';
+import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 import toast from 'react-hot-toast';
 
 type Tab = 'profile' | 'roles' | 'security' | 'activity';
@@ -134,7 +135,9 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
       <div className="section-header">
         <h3>Profile Information</h3>
         {!editing ? (
-          <button className="btn btn-sm btn-primary" onClick={() => setEditing(true)}>Edit</button>
+          <PermissionGuard permission="users.update">
+            <button className="btn btn-sm btn-primary" onClick={() => setEditing(true)}>Edit</button>
+          </PermissionGuard>
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm" onClick={() => setEditing(false)}>Cancel</button>
@@ -290,7 +293,9 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
               )}
               {r.expiresAt && <span className="text-muted text-small"> · expires {new Date(r.expiresAt).toLocaleDateString()}</span>}
             </div>
-            <button className="btn btn-sm btn-danger" onClick={() => handleRemove(r.id, r.name)}>Remove</button>
+            <PermissionGuard permission="users.manage-roles">
+              <button className="btn btn-sm btn-danger" onClick={() => handleRemove(r.id, r.name)}>Remove</button>
+            </PermissionGuard>
           </div>
         ))}
         {user.roles.length === 0 && <p className="text-muted">No roles assigned</p>}
@@ -298,15 +303,17 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
 
       {/* Add Role */}
       {availableRoles.length > 0 && (
-        <div className="add-role-row">
-          <select className="input-full" value={selectedRoleId} onChange={(e) => setSelectedRoleId(e.target.value)}>
-            <option value="">— Select role to add —</option>
-            {availableRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-          <button className="btn btn-primary" onClick={handleAssign} disabled={!selectedRoleId}>
-            + Assign
-          </button>
-        </div>
+        <PermissionGuard permission="users.manage-roles">
+          <div className="add-role-row">
+            <select className="input-full" value={selectedRoleId} onChange={(e) => setSelectedRoleId(e.target.value)}>
+              <option value="">— Select role to add —</option>
+              {availableRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+            <button className="btn btn-primary" onClick={handleAssign} disabled={!selectedRoleId}>
+              + Assign
+            </button>
+          </div>
+        </PermissionGuard>
       )}
 
       {/* Effective Permissions — Grouped by Module */}
@@ -318,7 +325,9 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
       {/* Permission Overrides */}
       <div className="section-header" style={{ marginTop: 24 }}>
         <h3>Permission Overrides ({user.permissionOverrides.length})</h3>
-        <button className="btn btn-sm btn-primary" onClick={() => setShowOverrideModal(true)}>+ Add Override</button>
+        <PermissionGuard permission="users.manage-permissions">
+          <button className="btn btn-sm btn-primary" onClick={() => setShowOverrideModal(true)}>+ Add Override</button>
+        </PermissionGuard>
       </div>
       <div className="role-list">
         {user.permissionOverrides.map(o => (
@@ -336,7 +345,9 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
                 </span>
               )}
             </div>
-            <button className="btn btn-sm btn-danger" onClick={() => handleRemoveOverride(o.id, o.permissionName)}>Remove</button>
+            <PermissionGuard permission="users.manage-permissions">
+              <button className="btn btn-sm btn-danger" onClick={() => handleRemoveOverride(o.id, o.permissionName)}>Remove</button>
+            </PermissionGuard>
           </div>
         ))}
         {user.permissionOverrides.length === 0 && <p className="text-muted">No overrides — permissions come from assigned roles only</p>}
@@ -724,7 +735,9 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
             <h4>🔑 Reset Password</h4>
             <p className="text-muted text-small">Generate a temporary password. User will be forced to change it on next login.</p>
           </div>
-          <button className="btn btn-primary" onClick={handleResetPassword}>Reset Password</button>
+          <PermissionGuard permission="users.update">
+            <button className="btn btn-primary" onClick={handleResetPassword}>Reset Password</button>
+          </PermissionGuard>
         </div>
 
         {tempPassword && (
@@ -751,11 +764,13 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
                 : 'Re-enable this user account to allow login.'}
             </p>
           </div>
-          {user.isActive ? (
-            <button className="btn btn-danger" onClick={() => setShowDeactivate(true)}>Deactivate</button>
-          ) : (
-            <button className="btn btn-primary" onClick={handleReactivate}>Reactivate</button>
-          )}
+          <PermissionGuard permission="users.deactivate">
+            {user.isActive ? (
+              <button className="btn btn-danger" onClick={() => setShowDeactivate(true)}>Deactivate</button>
+            ) : (
+              <button className="btn btn-primary" onClick={handleReactivate}>Reactivate</button>
+            )}
+          </PermissionGuard>
         </div>
 
         {showDeactivate && (
@@ -843,28 +858,34 @@ function AvatarUpload({ user, onRefresh }: { user: UserDetail; onRefresh: () => 
   };
 
   const initial = (user.firstName || user.email).charAt(0).toUpperCase();
+  const canEdit = usePermission('users.update');
 
   return (
     <div
       className={`user-avatar-lg clickable ${isLoading ? 'uploading' : ''}`}
-      onClick={() => fileRef.current?.click()}
-      title="Click to change avatar"
+      onClick={() => canEdit && fileRef.current?.click()}
+      title={canEdit ? 'Click to change avatar' : 'Permission required'}
+      style={canEdit ? undefined : { cursor: 'not-allowed' }}
     >
       {user.avatarUrl ? (
         <img src={user.avatarUrl} alt={user.firstName} className="avatar-img" />
       ) : (
         initial
       )}
-      <div className="avatar-overlay">
-        {isLoading ? '⏳' : '📷'}
-      </div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileChange}
-        style={{ display: 'none' }}
-      />
+      {canEdit && (
+        <div className="avatar-overlay">
+          {isLoading ? '⏳' : '📷'}
+        </div>
+      )}
+      {canEdit && (
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+      )}
     </div>
   );
 }

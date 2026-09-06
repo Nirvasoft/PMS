@@ -13,6 +13,7 @@ import {
   Layers, Users, Zap, CircleDot,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }> = {
   pending: { color: '#6b7280', bg: 'rgba(107,114,128,0.12)', label: 'Pending' },
@@ -293,18 +294,20 @@ export default function HousekeepingDashboard() {
                       <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: st.bg, color: st.color, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {st.label}
                       </span>
-                      {task.status === 'pending' && (
-                        <button onClick={() => handleStart(task.id)} title="Start"
-                          style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.08)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                          <Play size={11} />
-                        </button>
-                      )}
-                      {task.status === 'in_progress' && (
-                        <button onClick={() => handleComplete(task.id)} title="Complete"
-                          style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.08)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                          <CheckCircle2 size={11} />
-                        </button>
-                      )}
+                      <PermissionGuard permission="housekeeping-tasks.write">
+                        {task.status === 'pending' && (
+                          <button onClick={() => handleStart(task.id)} title="Start"
+                            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.08)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                            <Play size={11} />
+                          </button>
+                        )}
+                        {task.status === 'in_progress' && (
+                          <button onClick={() => handleComplete(task.id)} title="Complete"
+                            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.08)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                            <CheckCircle2 size={11} />
+                          </button>
+                        )}
+                      </PermissionGuard>
                     </div>
                   );
                 })}

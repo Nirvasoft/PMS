@@ -11,6 +11,7 @@ import {
   Building2, Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const FREQ_META: Record<string, { color: string; bg: string; label: string; icon: any }> = {
   daily:   { color: '#6366f1', bg: 'rgba(99,102,241,0.08)', label: 'Daily', icon: Repeat },
@@ -109,9 +110,11 @@ export default function ScheduleManagementPage() {
             {schedules.length} cleaning schedule{schedules.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
-          <Plus size={14} /> New Schedule
-        </button>
+        <PermissionGuard permission="housekeeping-schedules.write">
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
+            <Plus size={14} /> New Schedule
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* ── Stats ── */}

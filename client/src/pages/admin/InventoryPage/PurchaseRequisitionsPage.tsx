@@ -9,6 +9,7 @@ import {
   ShoppingCart, AlertTriangle, Clock, Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
@@ -213,27 +214,29 @@ export default function PurchaseRequisitionsPage() {
                             onClick={() => setDetailPr(pr)}>
                             <Eye size={14} />
                           </button>
-                          {pr.status === 'draft' && (
-                            <button className="btn btn-ghost btn-sm" title="Submit for Approval"
-                              style={{ color: '#6366f1' }} disabled={submitting}
-                              onClick={() => handleSubmit(pr.id)}>
-                              <Send size={14} />
-                            </button>
-                          )}
-                          {pr.status === 'submitted' && (
-                            <>
-                              <button className="btn btn-ghost btn-sm" title="Approve"
-                                style={{ color: '#22c55e' }} disabled={approving}
-                                onClick={() => handleApprove(pr.id)}>
-                                <CheckCircle2 size={14} />
+                          <PermissionGuard permission="inventory-purchase-req.write">
+                            {pr.status === 'draft' && (
+                              <button className="btn btn-ghost btn-sm" title="Submit for Approval"
+                                style={{ color: '#6366f1' }} disabled={submitting}
+                                onClick={() => handleSubmit(pr.id)}>
+                                <Send size={14} />
                               </button>
-                              <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Reject"
-                                disabled={rejecting}
-                                onClick={() => handleReject(pr.id)}>
-                                <XCircle size={14} />
-                              </button>
-                            </>
-                          )}
+                            )}
+                            {pr.status === 'submitted' && (
+                              <>
+                                <button className="btn btn-ghost btn-sm" title="Approve"
+                                  style={{ color: '#22c55e' }} disabled={approving}
+                                  onClick={() => handleApprove(pr.id)}>
+                                  <CheckCircle2 size={14} />
+                                </button>
+                                <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Reject"
+                                  disabled={rejecting}
+                                  onClick={() => handleReject(pr.id)}>
+                                  <XCircle size={14} />
+                                </button>
+                              </>
+                            )}
+                          </PermissionGuard>
                         </div>
                       </td>
                     </tr>
@@ -340,30 +343,32 @@ export default function PurchaseRequisitionsPage() {
 
             {/* Footer Actions */}
             {(detailPr.status === 'draft' || detailPr.status === 'submitted') && (
-              <div className="maint-modal-footer">
-                {detailPr.status === 'draft' && (
-                  <button className="btn btn-primary" disabled={submitting} onClick={() => {
-                    handleSubmit(detailPr.id);
-                    setDetailPr(null);
-                  }}>
-                    <Send size={16} /> Submit for Approval
-                  </button>
-                )}
-                {detailPr.status === 'submitted' && (
-                  <>
-                    <button className="btn btn-ghost" disabled={rejecting}
-                      style={{ color: '#ef4444', borderColor: '#ef4444' }}
-                      onClick={() => handleReject(detailPr.id)}>
-                      <XCircle size={16} /> Reject
+              <PermissionGuard permission="inventory-purchase-req.write">
+                <div className="maint-modal-footer">
+                  {detailPr.status === 'draft' && (
+                    <button className="btn btn-primary" disabled={submitting} onClick={() => {
+                      handleSubmit(detailPr.id);
+                      setDetailPr(null);
+                    }}>
+                      <Send size={16} /> Submit for Approval
                     </button>
-                    <button className="btn btn-primary" disabled={approving}
-                      style={{ background: '#22c55e', borderColor: '#22c55e' }}
-                      onClick={() => handleApprove(detailPr.id)}>
-                      <CheckCircle2 size={16} /> Approve
-                    </button>
-                  </>
-                )}
-              </div>
+                  )}
+                  {detailPr.status === 'submitted' && (
+                    <>
+                      <button className="btn btn-ghost" disabled={rejecting}
+                        style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                        onClick={() => handleReject(detailPr.id)}>
+                        <XCircle size={16} /> Reject
+                      </button>
+                      <button className="btn btn-primary" disabled={approving}
+                        style={{ background: '#22c55e', borderColor: '#22c55e' }}
+                        onClick={() => handleApprove(detailPr.id)}>
+                        <CheckCircle2 size={16} /> Approve
+                      </button>
+                    </>
+                  )}
+                </div>
+              </PermissionGuard>
             )}
           </div>
         </div>

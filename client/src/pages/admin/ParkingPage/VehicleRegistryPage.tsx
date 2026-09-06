@@ -10,6 +10,7 @@ import {
   ChevronDown, AlertTriangle, Truck, Bike,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './ParkingPage.css';
 
 const VEHICLE_TYPES: Record<string, { label: string; icon: JSX.Element; color: string }> = {
@@ -135,9 +136,11 @@ export default function VehicleRegistryPage() {
                       placeholder="Filter vehicles…"
                     />
                   </div>
-                  <button className="btn-primary" onClick={() => { setEditingVehicle(null); setShowAddModal(true); }}>
-                    <Plus size={14} /> Add Vehicle
-                  </button>
+                  <PermissionGuard permission="parking-vehicles.write">
+                    <button className="btn-primary" onClick={() => { setEditingVehicle(null); setShowAddModal(true); }}>
+                      <Plus size={14} /> Add Vehicle
+                    </button>
+                  </PermissionGuard>
                 </div>
               </div>
 
@@ -257,14 +260,16 @@ function VehicleCard({
       </div>
 
       {!inactive && (
-        <div className="vc-actions">
-          <button className="btn-sm btn-ghost" onClick={onEdit} title="Edit">
-            <Edit3 size={13} /> Edit
-          </button>
-          <button className="btn-sm btn-ghost btn-danger-text" onClick={onDelete} title="Deactivate">
-            <Trash2 size={13} />
-          </button>
-        </div>
+        <PermissionGuard permission="parking-vehicles.write">
+          <div className="vc-actions">
+            <button className="btn-sm btn-ghost" onClick={onEdit} title="Edit">
+              <Edit3 size={13} /> Edit
+            </button>
+            <button className="btn-sm btn-ghost btn-danger-text" onClick={onDelete} title="Deactivate">
+              <Trash2 size={13} />
+            </button>
+          </div>
+        </PermissionGuard>
       )}
       {inactive && (
         <div className="vc-inactive-badge">Deactivated</div>

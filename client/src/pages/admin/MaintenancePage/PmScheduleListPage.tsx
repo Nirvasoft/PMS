@@ -15,6 +15,7 @@ import {
   AlertTriangle, Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const FREQUENCIES: Record<string, string> = {
   daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly',
@@ -101,9 +102,11 @@ export default function PmScheduleListPage() {
           <button className="btn btn-ghost" onClick={() => navigate('/admin/maintenance/pm/calendar')}>
             <Calendar size={16} /> Calendar
           </button>
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} /> New Schedule
-          </button>
+          <PermissionGuard permission="maintenance-pm.write">
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} /> New Schedule
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -166,9 +169,11 @@ export default function PmScheduleListPage() {
         <div className="maint-empty">
           <div className="empty-icon"><CalendarClock size={28} /></div>
           <p>No PM schedules found</p>
-          <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} /> Create First Schedule
-          </button>
+          <PermissionGuard permission="maintenance-pm.write">
+            <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} /> Create First Schedule
+            </button>
+          </PermissionGuard>
         </div>
       ) : (
         <>
@@ -218,23 +223,25 @@ export default function PmScheduleListPage() {
                       </span>
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        {s.status === 'active' && (
-                          <>
-                            <button className="btn btn-ghost btn-sm" title="Pause" onClick={() => handlePause(s.id)}>
-                              <Pause size={14} />
+                      <PermissionGuard permission="maintenance-pm.write">
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {s.status === 'active' && (
+                            <>
+                              <button className="btn btn-ghost btn-sm" title="Pause" onClick={() => handlePause(s.id)}>
+                                <Pause size={14} />
+                              </button>
+                              <button className="btn btn-ghost btn-sm" title="Generate WO" onClick={() => handleGenerate(s.id)}>
+                                <Zap size={14} />
+                              </button>
+                            </>
+                          )}
+                          {s.status === 'paused' && (
+                            <button className="btn btn-ghost btn-sm" title="Resume" onClick={() => handleResume(s.id)}>
+                              <Play size={14} />
                             </button>
-                            <button className="btn btn-ghost btn-sm" title="Generate WO" onClick={() => handleGenerate(s.id)}>
-                              <Zap size={14} />
-                            </button>
-                          </>
-                        )}
-                        {s.status === 'paused' && (
-                          <button className="btn btn-ghost btn-sm" title="Resume" onClick={() => handleResume(s.id)}>
-                            <Play size={14} />
-                          </button>
-                        )}
-                      </div>
+                          )}
+                        </div>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))}

@@ -8,6 +8,7 @@ import {
   Camera, Send, Shield, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 export default function PatrolScanPage() {
   const [qrCode, setQrCode] = useState('');
@@ -116,11 +117,13 @@ export default function PatrolScanPage() {
             placeholder="Optional notes (e.g. 'All clear', 'Door left open')..."
             value={notes} onChange={(e) => setNotes(e.target.value)}
             rows={2} />
-          <button className="btn btn-primary scan-btn" onClick={handleScan}
-            disabled={isSending || scanning || !qrCode.trim()}>
-            {(isSending || scanning) ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
-            {(isSending || scanning) ? 'Scanning...' : 'Log Checkpoint'}
-          </button>
+          <PermissionGuard permission="security-patrol-scan.write">
+            <button className="btn btn-primary scan-btn" onClick={handleScan}
+              disabled={isSending || scanning || !qrCode.trim()}>
+              {(isSending || scanning) ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
+              {(isSending || scanning) ? 'Scanning...' : 'Log Checkpoint'}
+            </button>
+          </PermissionGuard>
         </div>
 
         {/* Last Scan Success */}

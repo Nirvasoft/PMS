@@ -14,6 +14,7 @@ import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Pl
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -183,9 +184,11 @@ export default function BillingSchedulesPage() {
             <h1>Billing Schedules</h1>
             <p>Recurring charge schedules for leases</p>
           </div>
-          <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> New Schedule
-          </button>
+          <PermissionGuard permission="billing-schedules.write">
+            <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> New Schedule
+            </button>
+          </PermissionGuard>
         </div>
         <div className="billing-filters" style={{ marginBottom: 0 }}>
           {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
@@ -282,28 +285,30 @@ export default function BillingSchedulesPage() {
                       </span>
                     </td>
                     <td className="text-center">
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                        {['active', 'paused'].includes(s.status) && (
-                          <button className="action-btn" onClick={() => openEdit(s)} title="Edit schedule">
-                            <Pencil size={13} />
-                          </button>
-                        )}
-                        {s.status === 'active' && (
-                          <button className="action-btn" onClick={() => handleAction(s.id, 'pause')} title="Pause schedule">
-                            <Pause size={13} />
-                          </button>
-                        )}
-                        {s.status === 'paused' && (
-                          <button className="action-btn" onClick={() => handleAction(s.id, 'resume')} title="Resume schedule">
-                            <Play size={13} />
-                          </button>
-                        )}
-                        {['active', 'paused'].includes(s.status) && (
-                          <button className="action-btn danger" onClick={() => handleAction(s.id, 'cancel')} title="Cancel schedule">
-                            <X size={13} />
-                          </button>
-                        )}
-                      </div>
+                      <PermissionGuard permission="billing-schedules.write">
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                          {['active', 'paused'].includes(s.status) && (
+                            <button className="action-btn" onClick={() => openEdit(s)} title="Edit schedule">
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                          {s.status === 'active' && (
+                            <button className="action-btn" onClick={() => handleAction(s.id, 'pause')} title="Pause schedule">
+                              <Pause size={13} />
+                            </button>
+                          )}
+                          {s.status === 'paused' && (
+                            <button className="action-btn" onClick={() => handleAction(s.id, 'resume')} title="Resume schedule">
+                              <Play size={13} />
+                            </button>
+                          )}
+                          {['active', 'paused'].includes(s.status) && (
+                            <button className="action-btn danger" onClick={() => handleAction(s.id, 'cancel')} title="Cancel schedule">
+                              <X size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 );

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import ImportLeadModal from './ImportLeadModal';
 import './LeaseListPage.css';
 
@@ -74,12 +75,16 @@ export default function LeaseListPage() {
           <button className="btn-ghost" onClick={() => navigate('/admin/leases/clauses')}>
             <Archive size={14} /> Clauses
           </button>
-          <button className="btn-import-lead" onClick={() => setShowImportModal(true)}>
-            <Import size={14} /> Import Lead
-          </button>
-          <button className="btn-primary" onClick={() => navigate('/admin/leases/new')}>
-            <Plus size={15} /> New Lease
-          </button>
+          <PermissionGuard permission="leases.create">
+            <button className="btn-import-lead" onClick={() => setShowImportModal(true)}>
+              <Import size={14} /> Import Lead
+            </button>
+          </PermissionGuard>
+          <PermissionGuard permission="leases.create">
+            <button className="btn-primary" onClick={() => navigate('/admin/leases/new')}>
+              <Plus size={15} /> New Lease
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -187,7 +192,9 @@ function LeaseRow({ lease, onOpen, onDelete }: {
       </div>
       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
         {['draft', 'cancelled', 'expired', 'terminated'].includes(lease.status) && (
-          <button className="row-btn-delete" onClick={onDelete}><Trash2 size={13} /></button>
+          <PermissionGuard permission="leases.terminate">
+            <button className="row-btn-delete" onClick={onDelete}><Trash2 size={13} /></button>
+          </PermissionGuard>
         )}
         <ChevronRight size={14} className="row-chevron" />
       </div>

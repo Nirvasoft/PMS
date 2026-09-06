@@ -1,5 +1,6 @@
 import { Send, FileText } from 'lucide-react';
 import { useGetEsignStatusQuery, type LeaseDetail } from '../../../../../../store/api/leasesApi';
+import { PermissionGuard } from '../../../../../../components/guards/PermissionGuard';
 
 export function ESignTab({ leaseId, lease, onSend }: { leaseId: string; lease: LeaseDetail; onSend: () => void }) {
   const { data: esignData } = useGetEsignStatusQuery(leaseId);
@@ -16,7 +17,9 @@ export function ESignTab({ leaseId, lease, onSend }: { leaseId: string; lease: L
           {lease.esignStatus.replace(/_/g,' ')}
         </div>
         {lease.esignStatus !== 'completed' && (
-          <button className="btn-send-esign" onClick={onSend}><Send size={14}/> Send for Signing</button>
+          <PermissionGuard permission="leases.update">
+            <button className="btn-send-esign" onClick={onSend}><Send size={14}/> Send for Signing</button>
+          </PermissionGuard>
         )}
       </div>
 

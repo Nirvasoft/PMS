@@ -5,6 +5,7 @@ import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 interface LineItem {
@@ -240,10 +241,12 @@ export default function CreateInvoicePage() {
               <span className="t-value">{formatCurrency(total)}</span>
             </div>
           </div>
-          <button type="submit" className="inv-submit-btn" disabled={isLoading}>
-            <Send size={16} />
-            {isLoading ? 'Creating…' : 'Create Invoice'}
-          </button>
+          <PermissionGuard permission="billing-invoices.write">
+            <button type="submit" className="inv-submit-btn" disabled={isLoading}>
+              <Send size={16} />
+              {isLoading ? 'Creating…' : 'Create Invoice'}
+            </button>
+          </PermissionGuard>
         </div>
       </form>
     </div>

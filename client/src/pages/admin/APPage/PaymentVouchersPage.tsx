@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './APPage.css';
 
 const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -101,14 +102,16 @@ export default function PaymentVouchersPage() {
     <div className="ap-page">
       <div className="page-header">
         <h1><CreditCard size={24} /> Payment Vouchers</h1>
-        <button
-          className="ap-btn primary"
-          onClick={() => setShowCreate(true)}
-          disabled={!selectedProperty}
-          title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
-        >
-          <Plus size={16} /> New Voucher
-        </button>
+        <PermissionGuard permission="ap-vouchers.write">
+          <button
+            className="ap-btn primary"
+            onClick={() => setShowCreate(true)}
+            disabled={!selectedProperty}
+            title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
+          >
+            <Plus size={16} /> New Voucher
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Filter */}
@@ -160,9 +163,11 @@ export default function PaymentVouchersPage() {
                 <td>{pv.paidAt ? format(new Date(pv.paidAt), 'dd MMM yyyy') : '—'}</td>
                 <td>
                   {pv.status === 'pending' && (
-                    <button className="ap-btn sm success" onClick={() => setPayId(pv.id)}>
-                      <Banknote size={14} /> Pay
-                    </button>
+                    <PermissionGuard permission="ap-vouchers.write">
+                      <button className="ap-btn sm success" onClick={() => setPayId(pv.id)}>
+                        <Banknote size={14} /> Pay
+                      </button>
+                    </PermissionGuard>
                   )}
                 </td>
               </tr>

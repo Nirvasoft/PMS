@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const PROVIDERS = [
   { value: 'azure_ad', label: 'Azure AD', icon: '🔷' },
@@ -106,9 +107,11 @@ export default function SsoConfigPage() {
           <h1><Shield size={24} /> SSO Configuration</h1>
           <p className="text-muted">Manage Single Sign-On providers for your organization</p>
         </div>
-        <button className="btn btn-primary" onClick={handleNew}>
-          <Plus size={16} /> Add Provider
-        </button>
+        <PermissionGuard permission="company.manage">
+          <button className="btn btn-primary" onClick={handleNew}>
+            <Plus size={16} /> Add Provider
+          </button>
+        </PermissionGuard>
       </div>
 
       {configs.length === 0 ? (
@@ -116,9 +119,11 @@ export default function SsoConfigPage() {
           <Globe size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
           <h3>No SSO Providers Configured</h3>
           <p className="text-muted">Add an OIDC provider like Azure AD, Google, or Okta to enable SSO for your users.</p>
-          <button className="btn btn-primary" onClick={handleNew} style={{ marginTop: 16 }}>
-            <Plus size={16} /> Add First Provider
-          </button>
+          <PermissionGuard permission="company.manage">
+            <button className="btn btn-primary" onClick={handleNew} style={{ marginTop: 16 }}>
+              <Plus size={16} /> Add First Provider
+            </button>
+          </PermissionGuard>
         </div>
       ) : (
         <div className="sso-config-grid">
@@ -132,16 +137,18 @@ export default function SsoConfigPage() {
                     <h3>{config.name}</h3>
                     <span className="text-muted text-small">{provider?.label || config.provider} · {config.protocol.toUpperCase()}</span>
                   </div>
-                  <button
-                    className="btn-icon"
-                    onClick={() => handleToggle(config.id, config.isEnabled)}
-                    title={config.isEnabled ? 'Disable' : 'Enable'}
-                  >
-                    {config.isEnabled
-                      ? <ToggleRight size={28} style={{ color: 'var(--success)' }} />
-                      : <ToggleLeft size={28} style={{ color: 'var(--text-muted)' }} />
-                    }
-                  </button>
+                  <PermissionGuard permission="company.manage">
+                    <button
+                      className="btn-icon"
+                      onClick={() => handleToggle(config.id, config.isEnabled)}
+                      title={config.isEnabled ? 'Disable' : 'Enable'}
+                    >
+                      {config.isEnabled
+                        ? <ToggleRight size={28} style={{ color: 'var(--success)' }} />
+                        : <ToggleLeft size={28} style={{ color: 'var(--text-muted)' }} />
+                      }
+                    </button>
+                  </PermissionGuard>
                 </div>
 
                 <div className="sso-config-details">
@@ -170,14 +177,16 @@ export default function SsoConfigPage() {
                   )}
                 </div>
 
-                <div className="sso-config-actions">
-                  <button className="btn btn-sm btn-outline" onClick={() => handleEdit(config.id)}>
-                    <Pencil size={14} /> Edit
-                  </button>
-                  <button className="btn btn-sm btn-outline btn-danger" onClick={() => handleDelete(config.id, config.name)}>
-                    <Trash2 size={14} /> Delete
-                  </button>
-                </div>
+                <PermissionGuard permission="company.manage">
+                  <div className="sso-config-actions">
+                    <button className="btn btn-sm btn-outline" onClick={() => handleEdit(config.id)}>
+                      <Pencil size={14} /> Edit
+                    </button>
+                    <button className="btn btn-sm btn-outline btn-danger" onClick={() => handleDelete(config.id, config.name)}>
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
+                </PermissionGuard>
               </div>
             );
           })}

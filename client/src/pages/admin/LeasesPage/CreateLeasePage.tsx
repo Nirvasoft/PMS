@@ -9,6 +9,7 @@ import { useConvertLeadMutation } from '../../../store/api/crmApi';
 import { useGetUnitChargesQuery, useUpdateUnitChargeMutation } from '../../../store/api/unitsApi';
 import { ArrowLeft, ArrowRight, Check, Building2, FileText, DollarSign, List, FileSignature } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CreateLeasePage.css';
 
 import type { Step, FormState } from './CreateLeasePage/types';
@@ -181,9 +182,11 @@ export default function CreateLeasePage() {
               Next <ArrowRight size={14} />
             </button>
           ) : (
-            <button className="btn-primary" onClick={handleSubmit} disabled={isLoading}>
-              {isLoading ? 'Creating…' : 'Create Lease'}
-            </button>
+            <PermissionGuard permission="leases.create">
+              <button className="btn-primary" onClick={handleSubmit} disabled={isLoading}>
+                {isLoading ? 'Creating…' : 'Create Lease'}
+              </button>
+            </PermissionGuard>
           )}
         </div>
       </div>

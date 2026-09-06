@@ -5,6 +5,7 @@ import {
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { useAlertDialog } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import {
   ShoppingCart, Terminal, RefreshCw, Upload, ChevronDown, ChevronUp,
   CheckCircle, AlertTriangle, XCircle, DollarSign, CreditCard, Globe, Banknote,
@@ -92,16 +93,18 @@ export default function PosIntegrationPage() {
           <h1>POS Integration</h1>
           <p className="condo-page-subtitle">Connect POS systems for automated GTO sales data ingestion</p>
         </div>
-        <button
-          onClick={() => openIngest()}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-            background: 'hsl(260, 65%, 55%)', color: '#fff', border: 'none', cursor: 'pointer',
-          }}
-        >
-          <Upload size={14} /> Ingest Sales Data
-        </button>
+        <PermissionGuard permission="mall-pos.write">
+          <button
+            onClick={() => openIngest()}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: 'hsl(260, 65%, 55%)', color: '#fff', border: 'none', cursor: 'pointer',
+            }}
+          >
+            <Upload size={14} /> Ingest Sales Data
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* KPI Cards */}
@@ -219,17 +222,19 @@ export default function PosIntegrationPage() {
                     </td>
                     <td style={{ fontSize: 12 }}>{shop.tradeCategory || '—'}</td>
                     <td>
-                      <button
-                        onClick={() => openIngest(shop)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 3,
-                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                          background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6',
-                          border: '1px solid rgba(139, 92, 246, 0.2)', cursor: 'pointer',
-                        }}
-                      >
-                        <Upload size={11} /> Push Sales
-                      </button>
+                      <PermissionGuard permission="mall-pos.write">
+                        <button
+                          onClick={() => openIngest(shop)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 3,
+                            padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6',
+                            border: '1px solid rgba(139, 92, 246, 0.2)', cursor: 'pointer',
+                          }}
+                        >
+                          <Upload size={11} /> Push Sales
+                        </button>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))}

@@ -9,6 +9,7 @@ import {
   ToggleLeft, ToggleRight, Building2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 export default function PortalBrandingPage() {
   const [selectedProperty, setSelectedProperty] = useState('');
@@ -221,15 +222,17 @@ function BrandingEditor({ propertyId }: { propertyId: string }) {
         </div>
 
         {/* Save */}
-        <button
-          className="btn btn-primary"
-          onClick={handleSave}
-          disabled={saving || !hasChanges}
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-        >
-          {saving ? <div className="loading-spinner" style={{ width: 14, height: 14 }} /> : <Save size={14} />}
-          {saving ? 'Saving...' : 'Save Branding'}
-        </button>
+        <PermissionGuard permission="community-branding.write">
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={saving || !hasChanges}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            {saving ? <div className="loading-spinner" style={{ width: 14, height: 14 }} /> : <Save size={14} />}
+            {saving ? 'Saving...' : 'Save Branding'}
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Live Preview */}

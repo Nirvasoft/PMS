@@ -15,6 +15,7 @@ import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   ArrowLeft, User, Calendar, Mail, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
@@ -118,24 +119,26 @@ export default function LeadDetailPage() {
           </div>
         </div>
         <div className="lead-header-actions">
-          {canConvert && !lead.isBlacklisted && (
-            <button className="btn-convert" onClick={() => setShowConvert(true)}>
-              <Repeat size={14} /> Convert to Lease
+          <PermissionGuard permission="crm-leads.write">
+            {canConvert && !lead.isBlacklisted && (
+              <button className="btn-convert" onClick={() => setShowConvert(true)}>
+                <Repeat size={14} /> Convert to Lease
+              </button>
+            )}
+            {lead.isBlacklisted ? (
+              <button className="btn-sm btn-secondary" onClick={handleUnblacklist} title="Remove from blacklist">
+                <Shield size={14} /> Unblacklist
+              </button>
+            ) : (
+              <button className="btn-sm btn-blacklist" onClick={() => setShowBlacklistConfirm(true)} title="Blacklist lead">
+                <ShieldOff size={14} /> Blacklist
+              </button>
+            )}
+            <StageSelector leadId={lead.id} currentStage={lead.stage} />
+            <button className="btn-ghost btn-danger-ghost" onClick={() => setShowDeleteConfirm(true)} title="Delete Lead">
+              <Trash2 size={14} />
             </button>
-          )}
-          {lead.isBlacklisted ? (
-            <button className="btn-sm btn-secondary" onClick={handleUnblacklist} title="Remove from blacklist">
-              <Shield size={14} /> Unblacklist
-            </button>
-          ) : (
-            <button className="btn-sm btn-blacklist" onClick={() => setShowBlacklistConfirm(true)} title="Blacklist lead">
-              <ShieldOff size={14} /> Blacklist
-            </button>
-          )}
-          <StageSelector leadId={lead.id} currentStage={lead.stage} />
-          <button className="btn-ghost btn-danger-ghost" onClick={() => setShowDeleteConfirm(true)} title="Delete Lead">
-            <Trash2 size={14} />
-          </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -407,9 +410,11 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
     return (
       <div>
         <div className="info-tab-header">
-          <button className="btn-edit" onClick={() => setIsEditing(true)}>
-            <Edit3 size={14} /> Edit Lead
-          </button>
+          <PermissionGuard permission="crm-leads.write">
+            <button className="btn-edit" onClick={() => setIsEditing(true)}>
+              <Edit3 size={14} /> Edit Lead
+            </button>
+          </PermissionGuard>
         </div>
         <div className="lead-info-grid">
           <div className="lead-info-section">
@@ -801,7 +806,9 @@ function ViewingsTab({ leadId }: { leadId: string }) {
               </a>
             )
           )}
-          <button className="btn-primary" onClick={() => setShowSchedule(true)}><Calendar size={14} /> Schedule Viewing</button>
+          <PermissionGuard permission="crm-leads.write">
+            <button className="btn-primary" onClick={() => setShowSchedule(true)}><Calendar size={14} /> Schedule Viewing</button>
+          </PermissionGuard>
         </div>
       </div>
       {viewings.length === 0 ? (
@@ -832,28 +839,30 @@ function ViewingsTab({ leadId }: { leadId: string }) {
             </div>
             {v.agentNotes && <div className="vc-notes">{v.agentNotes}</div>}
             {v.status === 'scheduled' && (
-              <div className="vc-actions">
-                <div className="vc-outcome-group">
-                  <span className="vc-action-label">Mark as:</span>
-                  <button className="btn-sm btn-primary" onClick={() => handleComplete(v.id, 'interested')}>
-                    <CheckCircle size={12} /> Interested
-                  </button>
-                  <button className="btn-sm btn-secondary" onClick={() => handleComplete(v.id, 'not_interested')}>
-                    <X size={12} /> Not Interested
-                  </button>
-                  <button className="btn-sm btn-ghost" onClick={() => handleComplete(v.id, 'undecided')}>
-                    ? Undecided
-                  </button>
+              <PermissionGuard permission="crm-leads.write">
+                <div className="vc-actions">
+                  <div className="vc-outcome-group">
+                    <span className="vc-action-label">Mark as:</span>
+                    <button className="btn-sm btn-primary" onClick={() => handleComplete(v.id, 'interested')}>
+                      <CheckCircle size={12} /> Interested
+                    </button>
+                    <button className="btn-sm btn-secondary" onClick={() => handleComplete(v.id, 'not_interested')}>
+                      <X size={12} /> Not Interested
+                    </button>
+                    <button className="btn-sm btn-ghost" onClick={() => handleComplete(v.id, 'undecided')}>
+                      ? Undecided
+                    </button>
+                  </div>
+                  <div className="vc-manage-group">
+                    <button className="btn-sm btn-reschedule" onClick={() => setRescheduleTarget(v)} title="Reschedule">
+                      <RefreshCw size={12} /> Reschedule
+                    </button>
+                    <button className="btn-sm btn-cancel-viewing" onClick={() => handleCancel(v)} title="Cancel viewing">
+                      <Trash2 size={12} /> Cancel
+                    </button>
+                  </div>
                 </div>
-                <div className="vc-manage-group">
-                  <button className="btn-sm btn-reschedule" onClick={() => setRescheduleTarget(v)} title="Reschedule">
-                    <RefreshCw size={12} /> Reschedule
-                  </button>
-                  <button className="btn-sm btn-cancel-viewing" onClick={() => handleCancel(v)} title="Cancel viewing">
-                    <Trash2 size={12} /> Cancel
-                  </button>
-                </div>
-              </div>
+              </PermissionGuard>
             )}
           </div>
         ))
@@ -1013,7 +1022,9 @@ function ActivityTab({ leadId }: { leadId: string }) {
             <option value="email">Email</option>
           </select>
           <textarea className="form-input" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Log an activity…" rows={2} style={{ flex: 1 }} />
-          <button className="btn-primary" onClick={handleAdd} disabled={!desc.trim()} style={{ alignSelf: 'flex-end' }}>Add</button>
+          <PermissionGuard permission="crm-leads.write">
+            <button className="btn-primary" onClick={handleAdd} disabled={!desc.trim()} style={{ alignSelf: 'flex-end' }}>Add</button>
+          </PermissionGuard>
         </div>
       </div>
 

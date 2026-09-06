@@ -1,6 +1,7 @@
 import { Plus, PenLine } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApproveAmendmentMutation, type LeaseDetail, type LeaseAmendment } from '../../../../../../store/api/leasesApi';
+import { PermissionGuard } from '../../../../../../components/guards/PermissionGuard';
 
 export function AmendmentsTab({ leaseId, lease, onAddAmendment }: { leaseId: string; lease: LeaseDetail; onAddAmendment: () => void }) {
   const [approveAmendment] = useApproveAmendmentMutation();
@@ -14,7 +15,9 @@ export function AmendmentsTab({ leaseId, lease, onAddAmendment }: { leaseId: str
     <div className="tab-panel">
       {lease.status === 'active' && (
         <div className="tab-toolbar">
-          <button className="btn-add-amendment" onClick={onAddAmendment}><Plus size={13}/> Add Amendment</button>
+          <PermissionGuard permission="leases.update">
+            <button className="btn-add-amendment" onClick={onAddAmendment}><Plus size={13}/> Add Amendment</button>
+          </PermissionGuard>
         </div>
       )}
       {lease.amendments.length === 0 ? (
@@ -34,7 +37,9 @@ export function AmendmentsTab({ leaseId, lease, onAddAmendment }: { leaseId: str
               {a.newEndDate    && ` · New end: ${new Date(a.newEndDate).toLocaleDateString()}`}
             </div>
             {a.status === 'pending_approval' && (
-              <button className="btn-approve-amendment" onClick={() => handleApprove(a.id)}>Approve Amendment</button>
+              <PermissionGuard permission="leases.approve">
+                <button className="btn-approve-amendment" onClick={() => handleApprove(a.id)}>Approve Amendment</button>
+              </PermissionGuard>
             )}
           </div>
         ))

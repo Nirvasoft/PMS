@@ -7,6 +7,7 @@ import {
 import { ArrowLeft, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, AlertTriangle, Clock, Banknote, History, ShieldAlert, Timer, Eye, ExternalLink } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -182,25 +183,27 @@ export default function InvoiceDetailPage() {
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Download size={14} /> Download
           </button>
-          {['draft', 'issued'].includes(inv.status) && (
-            <button className="btn btn-primary" onClick={handleSend} disabled={sending}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Send size={14} /> {sending ? 'Sending…' : 'Send'}
-            </button>
-          )}
-          {/* Credit Note button */}
-          {['issued', 'sent', 'partially_paid', 'paid', 'overdue'].includes(inv.status) && inv.invoiceType === 'invoice' && (
-            <button className="btn btn-secondary" onClick={() => setShowCreditModal(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#34d399' }}>
-              <CreditCard size={14} /> Credit Note
-            </button>
-          )}
-          {['draft', 'issued', 'sent'].includes(inv.status) && (
-            <button className="btn btn-secondary" onClick={handleVoid} disabled={voiding}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#ef4444' }}>
-              <Ban size={14} /> Void
-            </button>
-          )}
+          <PermissionGuard permission="billing-invoices.write">
+            {['draft', 'issued'].includes(inv.status) && (
+              <button className="btn btn-primary" onClick={handleSend} disabled={sending}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Send size={14} /> {sending ? 'Sending…' : 'Send'}
+              </button>
+            )}
+            {/* Credit Note button */}
+            {['issued', 'sent', 'partially_paid', 'paid', 'overdue'].includes(inv.status) && inv.invoiceType === 'invoice' && (
+              <button className="btn btn-secondary" onClick={() => setShowCreditModal(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#34d399' }}>
+                <CreditCard size={14} /> Credit Note
+              </button>
+            )}
+            {['draft', 'issued', 'sent'].includes(inv.status) && (
+              <button className="btn btn-secondary" onClick={handleVoid} disabled={voiding}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#ef4444' }}>
+                <Ban size={14} /> Void
+              </button>
+            )}
+          </PermissionGuard>
         </div>
       </div>
 

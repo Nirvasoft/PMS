@@ -11,6 +11,7 @@ import {
   ArrowLeftRight, ClipboardEdit,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 type ModalType = null | 'receive' | 'issue' | 'transfer' | 'adjust';
 
@@ -80,20 +81,22 @@ export default function StockLevelsPage() {
           <div className="page-icon-lg"><Layers size={20} /></div>
           <div><h1>Stock Levels</h1><p>{levels.length} records</p></div>
         </div>
-        <div className="header-actions">
-          <button className="btn btn-success btn-sm" onClick={() => setModal('receive')}>
-            <ArrowDownToLine size={14} /> Receive
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => setModal('issue')}>
-            <ArrowUpFromLine size={14} /> Issue
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => setModal('transfer')}>
-            <ArrowLeftRight size={14} /> Transfer
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => setModal('adjust')}>
-            <ClipboardEdit size={14} /> Adjust
-          </button>
-        </div>
+        <PermissionGuard permission="inventory-stock.write">
+          <div className="header-actions">
+            <button className="btn btn-success btn-sm" onClick={() => setModal('receive')}>
+              <ArrowDownToLine size={14} /> Receive
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setModal('issue')}>
+              <ArrowUpFromLine size={14} /> Issue
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setModal('transfer')}>
+              <ArrowLeftRight size={14} /> Transfer
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setModal('adjust')}>
+              <ClipboardEdit size={14} /> Adjust
+            </button>
+          </div>
+        </PermissionGuard>
       </div>
 
       <div className="maint-filters">

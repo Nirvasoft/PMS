@@ -17,16 +17,17 @@ const DEFAULT_ROLES: Record<string, { description: string; permissions: string[]
       'users.read', 'properties.read', 'properties.update',
       'tenants.read', 'tenants.create', 'tenants.update', 'tenants.blacklist', 'tenants.kyc',
       'leases.read', 'leases.create', 'leases.update', 'leases.approve', 'leases.terminate',
-      'billing.read', 'billing.create',
+      'billing-dashboard.read', 'billing-invoices.read', 'billing-invoices.write',
       'documents.read', 'documents.write',
-      'departments.read', 'positions.read', 'reports.view',
+      'departments.read', 'positions.read', 'reports-executive.read',
     ],
   },
   'Finance': {
     description: 'Full billing, accounts, and financial reporting access',
     permissions: [
-      'billing.read', 'billing.create',
-      'reports.view',
+      'billing-dashboard.read', 'billing-invoices.read', 'billing-invoices.write',
+      'billing-schedules.read', 'billing-charge-types.read', 'billing-settings.read',
+      'reports-executive.read', 'reports-bi.read',
       'leases.read', 'properties.read', 'users.read', 'tenants.read',
     ],
   },
@@ -37,8 +38,8 @@ const DEFAULT_ROLES: Record<string, { description: string; permissions: string[]
   'Viewer': {
     description: 'Read-only access to the system',
     permissions: [
-      'users.read', 'properties.read', 'tenants.read', 'leases.read', 'billing.read',
-      'reports.view', 'departments.read', 'positions.read', 'documents.read',
+      'users.read', 'properties.read', 'tenants.read', 'leases.read', 'billing-dashboard.read',
+      'reports-executive.read', 'departments.read', 'positions.read', 'documents.read',
     ],
   },
 };

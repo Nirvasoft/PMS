@@ -11,6 +11,7 @@ import {
   FileText, Phone, Building2, Users2, CalendarClock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const TYPE_ICONS: Record<string, string> = {
   theft: '🔓', vandalism: '🔨', trespassing: '🚷', fire: '🔥',
@@ -140,14 +141,16 @@ export default function IncidentDetailPage() {
               <StIcon size={13} /> {st.label}
             </span>
             {(inc.status === 'open' || inc.status === 'investigating') && (
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => setShowStatusChange(true)}>
-                  Change Status
-                </button>
-                <button className="btn btn-success btn-sm" onClick={() => setShowResolve(true)}>
-                  <CheckCircle2 size={14} /> Resolve
-                </button>
-              </div>
+              <PermissionGuard permission="security-incidents.write">
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowStatusChange(true)}>
+                    Change Status
+                  </button>
+                  <button className="btn btn-success btn-sm" onClick={() => setShowResolve(true)}>
+                    <CheckCircle2 size={14} /> Resolve
+                  </button>
+                </div>
+              </PermissionGuard>
             )}
           </div>
         </div>

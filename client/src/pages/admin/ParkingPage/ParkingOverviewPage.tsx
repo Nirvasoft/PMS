@@ -10,6 +10,7 @@ import {
 } from '../../../store/api/parkingApi';
 import { Car, LayoutGrid, Plus, Layers, Grid3X3, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './ParkingPage.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -308,9 +309,11 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
           <option value="">All Statuses</option>
           {Object.keys(STATUS_COLORS).map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <button className="btn-primary" onClick={() => setShowBulk(true)} style={{ marginLeft: 'auto' }}>
-          <Plus size={14} /> Bulk Create Slots
-        </button>
+        <PermissionGuard permission="parking-overview.write">
+          <button className="btn-primary" onClick={() => setShowBulk(true)} style={{ marginLeft: 'auto' }}>
+            <Plus size={14} /> Bulk Create Slots
+          </button>
+        </PermissionGuard>
       </div>
 
       <div className="slot-table-wrap">
@@ -333,20 +336,22 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
                 </span>
               </div>
               <div>{slot.monthlyRate ? `$${Number(slot.monthlyRate).toLocaleString()}` : '—'}</div>
-              <div className="row-actions">
-                <button
-                  className="btn-icon-sm"
-                  title={slotInUse(slot) ? `Slot is ${slot.status} — cannot edit` : 'Edit slot'}
-                  disabled={slotInUse(slot)}
-                  onClick={() => setEditingSlot(slot)}
-                ><Pencil size={14} /></button>
-                <button
-                  className="btn-icon-sm btn-icon-danger"
-                  title={slotInUse(slot) ? `Slot is ${slot.status} — cannot delete` : 'Delete slot'}
-                  disabled={slotInUse(slot)}
-                  onClick={() => setDeletingSlot(slot)}
-                ><Trash2 size={14} /></button>
-              </div>
+              <PermissionGuard permission="parking-overview.write">
+                <div className="row-actions">
+                  <button
+                    className="btn-icon-sm"
+                    title={slotInUse(slot) ? `Slot is ${slot.status} — cannot edit` : 'Edit slot'}
+                    disabled={slotInUse(slot)}
+                    onClick={() => setEditingSlot(slot)}
+                  ><Pencil size={14} /></button>
+                  <button
+                    className="btn-icon-sm btn-icon-danger"
+                    title={slotInUse(slot) ? `Slot is ${slot.status} — cannot delete` : 'Delete slot'}
+                    disabled={slotInUse(slot)}
+                    onClick={() => setDeletingSlot(slot)}
+                  ><Trash2 size={14} /></button>
+                </div>
+              </PermissionGuard>
             </div>
           ))
         )}
@@ -583,7 +588,9 @@ function ZonesManager({ propertyId, unitId }: { propertyId: string; unitId: stri
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600 }}>Parking Zones ({zones.length})</h3>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} /> Add Zone</button>
+        <PermissionGuard permission="parking-overview.write">
+          <button className="btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} /> Add Zone</button>
+        </PermissionGuard>
       </div>
       <div className="zone-cards-grid">
         {zones.map((z: ParkingZone) => (
@@ -597,15 +604,17 @@ function ZonesManager({ propertyId, unitId }: { propertyId: string; unitId: stri
               <span>{z._count.slots} slots</span>
               <span>{z.isActive ? '✓ Active' : '✗ Inactive'}</span>
             </div>
-            <div className="row-actions" style={{ marginTop: 12, justifyContent: 'flex-end' }}>
-              <button className="btn-icon-sm" title="Edit zone" onClick={() => setEditingZone(z)}><Pencil size={14} /></button>
-              <button
-                className="btn-icon-sm btn-icon-danger"
-                title={z._count.slots > 0 ? `Zone has ${z._count.slots} slot(s) — cannot delete` : 'Delete zone'}
-                disabled={z._count.slots > 0}
-                onClick={() => setDeletingZone(z)}
-              ><Trash2 size={14} /></button>
-            </div>
+            <PermissionGuard permission="parking-overview.write">
+              <div className="row-actions" style={{ marginTop: 12, justifyContent: 'flex-end' }}>
+                <button className="btn-icon-sm" title="Edit zone" onClick={() => setEditingZone(z)}><Pencil size={14} /></button>
+                <button
+                  className="btn-icon-sm btn-icon-danger"
+                  title={z._count.slots > 0 ? `Zone has ${z._count.slots} slot(s) — cannot delete` : 'Delete zone'}
+                  disabled={z._count.slots > 0}
+                  onClick={() => setDeletingZone(z)}
+                ><Trash2 size={14} /></button>
+              </div>
+            </PermissionGuard>
           </div>
         ))}
         {zones.length === 0 && <div style={{ color: 'var(--text-tertiary)', padding: 40, textAlign: 'center' }}>No zones yet — add one to organize your parking</div>}

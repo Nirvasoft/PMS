@@ -5,6 +5,7 @@ import {
   useGetDepreciationScheduleQuery,
 } from '../../../store/api/assetsApi';
 import { useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -83,10 +84,12 @@ export default function AssetDetailPage() {
         <div className="gl-card">
           <h3 style={{margin:'0 0 12px'}}>Actions</h3>
           {asset.status === 'active' && (
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <button className="btn-primary" onClick={() => setShowTransfer(true)} style={{width:'100%'}}>🔄 Transfer Asset</button>
-              <button className="btn-sm btn-danger" onClick={() => setShowDispose(true)} style={{width:'100%'}}>🗑️ Dispose Asset</button>
-            </div>
+            <PermissionGuard permission="finance-assets.write">
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                <button className="btn-primary" onClick={() => setShowTransfer(true)} style={{width:'100%'}}>🔄 Transfer Asset</button>
+                <button className="btn-sm btn-danger" onClick={() => setShowDispose(true)} style={{width:'100%'}}>🗑️ Dispose Asset</button>
+              </div>
+            </PermissionGuard>
           )}
           {asset.status === 'disposed' && asset.disposalDate && (
             <div style={{padding:12,background:'var(--surface-hover)',borderRadius:8}}>

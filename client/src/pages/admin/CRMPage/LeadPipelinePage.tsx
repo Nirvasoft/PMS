@@ -7,6 +7,7 @@ import {
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { Target, Plus, Search, X, ShieldOff } from 'lucide-react';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CRMPage.css';
 
 const STAGE_META: Record<string, { label: string; color: string }> = {
@@ -56,9 +57,11 @@ export default function LeadPipelinePage() {
             <p>Manage your CRM leasing pipeline</p>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => navigate('/admin/crm/leads/new')}>
-          <Plus size={15} /> New Lead
-        </button>
+        <PermissionGuard permission="crm-leads.write">
+          <button className="btn-primary" onClick={() => navigate('/admin/crm/leads/new')}>
+            <Plus size={15} /> New Lead
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Stats */}

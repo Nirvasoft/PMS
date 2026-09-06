@@ -10,6 +10,7 @@ import {
   Layers, ShieldCheck, Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 
 const STORE_COLORS = [
   { bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.18)', icon: '#6366f1', accent: '#6366f1' },
@@ -21,6 +22,7 @@ const STORE_COLORS = [
 ];
 
 export default function StoreManagementPage() {
+  const canWrite = usePermission('inventory-stores.write');
   const [showCreate, setShowCreate] = useState(false);
   const [editStore, setEditStore] = useState<any>(null);
   const filterProperty = useSelectedPropertyFilter();
@@ -129,9 +131,11 @@ export default function StoreManagementPage() {
             {stores.length} store{stores.length !== 1 ? 's' : ''} across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
-          <Plus size={14} /> New Store
-        </button>
+        <PermissionGuard permission="inventory-stores.write">
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
+            <Plus size={14} /> New Store
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* ── Stats ── */}
@@ -267,9 +271,11 @@ export default function StoreManagementPage() {
             {searchTerm ? 'Try adjusting your search or filter' : 'Create storage locations to track inventory'}
           </span>
           {!searchTerm && (
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ marginTop: 8, borderRadius: 10 }}>
-              <Plus size={14} /> Create First Store
-            </button>
+            <PermissionGuard permission="inventory-stores.write">
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ marginTop: 8, borderRadius: 10 }}>
+                <Plus size={14} /> Create First Store
+              </button>
+            </PermissionGuard>
           )}
         </div>
       ) : (
@@ -312,9 +318,9 @@ export default function StoreManagementPage() {
                     border: `1px solid ${colorSet.border}`,
                     transition: 'all 0.2s',
                     opacity: isActive ? 1 : 0.6,
-                    cursor: 'pointer',
+                    cursor: canWrite ? 'pointer' : 'default',
                   }}
-                    onClick={() => setEditStore(store)}
+                    onClick={() => canWrite && setEditStore(store)}
                   >
                     {/* Top Row: Icon + Name + Status */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>

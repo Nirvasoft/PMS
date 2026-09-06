@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { format, startOfMonth, isAfter, isBefore, addDays } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 const formatCurrency = (amount: number, currency = 'USD') =>
@@ -148,14 +149,16 @@ export default function BillingDashboardPage() {
               </div>
             </div>
           </div>
-          <button
-            className="btn btn-primary"
-            onClick={handleRunBilling}
-            disabled={runningBilling}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Play size={14} /> {runningBilling ? 'Running…' : 'Run Now'}
-          </button>
+          <PermissionGuard permission="billing-dashboard.write">
+            <button
+              className="btn btn-primary"
+              onClick={handleRunBilling}
+              disabled={runningBilling}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Play size={14} /> {runningBilling ? 'Running…' : 'Run Now'}
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 export default function VisitorBlacklistPage() {
   const [page, setPage] = useState(1);
@@ -104,9 +105,11 @@ export default function VisitorBlacklistPage() {
           <option value="false">Inactive</option>
         </select>
         <div style={{ flex: 1 }} />
-        <button className="btn btn-primary" onClick={() => setShowForm(true)} id="add-blacklist-btn">
-          <Plus size={14} /> Add to Blacklist
-        </button>
+        <PermissionGuard permission="security-blacklist.write">
+          <button className="btn btn-primary" onClick={() => setShowForm(true)} id="add-blacklist-btn">
+            <Plus size={14} /> Add to Blacklist
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Create Form */}
@@ -200,22 +203,24 @@ export default function VisitorBlacklistPage() {
                       </span>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button
-                          className="btn-icon"
-                          onClick={() => handleToggle(entry.id, entry.isActive)}
-                          title={entry.isActive ? 'Deactivate' : 'Reactivate'}
-                        >
-                          {entry.isActive ? <ToggleRight size={16} className="text-danger" /> : <ToggleLeft size={16} />}
-                        </button>
-                        <button
-                          className="btn-icon btn-danger"
-                          onClick={() => handleDelete(entry.id)}
-                          title="Delete permanently"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <PermissionGuard permission="security-blacklist.write">
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            className="btn-icon"
+                            onClick={() => handleToggle(entry.id, entry.isActive)}
+                            title={entry.isActive ? 'Deactivate' : 'Reactivate'}
+                          >
+                            {entry.isActive ? <ToggleRight size={16} className="text-danger" /> : <ToggleLeft size={16} />}
+                          </button>
+                          <button
+                            className="btn-icon btn-danger"
+                            onClick={() => handleDelete(entry.id)}
+                            title="Delete permanently"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))}

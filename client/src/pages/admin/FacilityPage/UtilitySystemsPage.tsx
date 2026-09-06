@@ -11,6 +11,7 @@ import {
   Zap, Droplets, Flame, Snowflake, Activity,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const SYSTEM_TYPES: Record<string, { label: string; icon: typeof Zap; color: string; unit: string }> = {
   electricity: { label: 'Electricity', icon: Zap, color: '#facc15', unit: 'kWh' },
@@ -63,9 +64,11 @@ export default function UtilitySystemsPage() {
           </div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => { setEditSystem(null); setShowModal(true); }}>
-            <Plus size={16} /> Add System
-          </button>
+          <PermissionGuard permission="facility-assets.write">
+            <button className="btn btn-primary" onClick={() => { setEditSystem(null); setShowModal(true); }}>
+              <Plus size={16} /> Add System
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -94,9 +97,11 @@ export default function UtilitySystemsPage() {
         <div className="maint-empty">
           <Inbox size={40} />
           <p>No utility systems found</p>
-          <button className="btn btn-primary btn-sm" onClick={() => { setEditSystem(null); setShowModal(true); }}>
-            <Plus size={14} /> Add First System
-          </button>
+          <PermissionGuard permission="facility-assets.write">
+            <button className="btn btn-primary btn-sm" onClick={() => { setEditSystem(null); setShowModal(true); }}>
+              <Plus size={14} /> Add First System
+            </button>
+          </PermissionGuard>
         </div>
       ) : (
         <div className="utility-systems-grid">
@@ -117,14 +122,16 @@ export default function UtilitySystemsPage() {
                           <span className="utility-type-label">{typeInfo.label}</span>
                           {sys.meterId && <span className="utility-meter-id">Meter: {sys.meterId}</span>}
                         </div>
-                        <div className="sla-row-actions">
-                          <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => { setEditSystem(sys); setShowModal(true); }}>
-                            <Pencil size={14} />
-                          </button>
-                          <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Delete" onClick={() => setDeleteConfirm(sys.id)}>
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                        <PermissionGuard permission="facility-assets.write">
+                          <div className="sla-row-actions">
+                            <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => { setEditSystem(sys); setShowModal(true); }}>
+                              <Pencil size={14} />
+                            </button>
+                            <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Delete" onClick={() => setDeleteConfirm(sys.id)}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </PermissionGuard>
                       </div>
                       <div className="utility-card-body">
                         {sys.capacity != null && (

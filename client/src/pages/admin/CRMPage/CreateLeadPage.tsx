@@ -6,6 +6,7 @@ import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
 import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CreateLeadPage.css';
 
 export default function CreateLeadPage() {
@@ -144,9 +145,11 @@ export default function CreateLeadPage() {
 
       <div className="cl-footer">
         <button className="btn-secondary" onClick={() => navigate('/admin/crm/leads')}>Cancel</button>
-        <button className="btn-primary" onClick={handleSubmit} disabled={isLoading || !form.lastName}>
-          {isLoading ? 'Creating…' : 'Create Lead'}
-        </button>
+        <PermissionGuard permission="crm-leads.write">
+          <button className="btn-primary" onClick={handleSubmit} disabled={isLoading || !form.lastName}>
+            {isLoading ? 'Creating…' : 'Create Lead'}
+          </button>
+        </PermissionGuard>
       </div>
     </div>
   );

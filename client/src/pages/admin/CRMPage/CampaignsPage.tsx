@@ -10,6 +10,7 @@ import {
   Megaphone, Plus, Edit3, Save, X, Calendar, DollarSign, Trash2, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CRMPage.css';
 
 export default function CampaignsPage() {
@@ -42,9 +43,11 @@ export default function CampaignsPage() {
             <p>{meta ? `${meta.total} campaigns` : 'Loading…'}</p>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus size={15} /> New Campaign
-        </button>
+        <PermissionGuard permission="crm-campaigns.write">
+          <button className="btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={15} /> New Campaign
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Table */}
@@ -135,14 +138,16 @@ function CampaignRow({ campaign, onEdit }: { campaign: CampaignItem; onEdit: () 
             </span>
           ) : '—'}
         </div>
-        <div className="camp-actions">
-          <button className="row-btn-edit" onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Edit campaign">
-            <Edit3 size={13} />
-          </button>
-          <button className="row-btn-delete" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }} title="Delete campaign">
-            <Trash2 size={13} />
-          </button>
-        </div>
+        <PermissionGuard permission="crm-campaigns.write">
+          <div className="camp-actions">
+            <button className="row-btn-edit" onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Edit campaign">
+              <Edit3 size={13} />
+            </button>
+            <button className="row-btn-delete" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }} title="Delete campaign">
+              <Trash2 size={13} />
+            </button>
+          </div>
+        </PermissionGuard>
       </div>
 
       {/* Delete Confirmation Dialog */}

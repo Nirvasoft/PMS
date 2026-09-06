@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const PRIORITIES = ['P1', 'P2', 'P3', 'P4'];
 const PRIORITY_COLORS: Record<string, string> = {
@@ -63,9 +64,11 @@ export default function SlaConfigPage() {
           </div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} /> Add SLA Config
-          </button>
+          <PermissionGuard permission="maintenance-sla.write">
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} /> Add SLA Config
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -101,9 +104,11 @@ export default function SlaConfigPage() {
           <div className="empty-icon"><Shield size={28} /></div>
           <p>No custom SLA configurations yet</p>
           <p style={{ fontSize: '12px', marginTop: '4px' }}>System defaults are active for all priorities</p>
-          <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} /> Create First Config
-          </button>
+          <PermissionGuard permission="maintenance-sla.write">
+            <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} /> Create First Config
+            </button>
+          </PermissionGuard>
         </div>
       ) : (
         <div className="maint-table-wrap">
@@ -146,23 +151,25 @@ export default function SlaConfigPage() {
                       </span>
                     </td>
                     <td>
-                      <div className="sla-row-actions">
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          title="Edit"
-                          onClick={() => setEditConfig(c)}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          className="btn btn-ghost btn-sm btn-danger-ghost"
-                          title="Delete"
-                          disabled={deletingId === c.id}
-                          onClick={() => handleDelete(c)}
-                        >
-                          {deletingId === c.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
-                        </button>
-                      </div>
+                      <PermissionGuard permission="maintenance-sla.write">
+                        <div className="sla-row-actions">
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            title="Edit"
+                            onClick={() => setEditConfig(c)}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-sm btn-danger-ghost"
+                            title="Delete"
+                            disabled={deletingId === c.id}
+                            onClick={() => handleDelete(c)}
+                          >
+                            {deletingId === c.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+                          </button>
+                        </div>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))

@@ -6,6 +6,7 @@ import {
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { Layers, Plus, X, Pencil, Trash2, Search } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../BillingPage/BillingPage.css';
 
 // Unicode superscript letters — native <option> text can't render <sup> HTML, so the
@@ -120,9 +121,11 @@ export default function FloorSetupPage() {
             <h1>Floor Setup</h1>
             <p>Define standard floor numbers and labels for each property</p>
           </div>
-          <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> New Floor
-          </button>
+          <PermissionGuard permission="floor.create">
+            <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> New Floor
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -203,12 +206,16 @@ export default function FloorSetupPage() {
                 <td><span className="cell-mono">{ordinalFloorLabel(f.floorNumber)}</span></td>
                 <td>{f.floorLabel}</td>
                 <td className="text-center">
-                  <button className="btn-icon" title="Edit" onClick={() => openEdit(f)}>
-                    <Pencil size={14} />
-                  </button>
-                  <button className="btn-danger" title="Delete" onClick={() => handleDelete(f)}>
-                    <Trash2 size={14} />
-                  </button>
+                  <PermissionGuard permission="floor.update">
+                    <button className="btn-icon" title="Edit" onClick={() => openEdit(f)}>
+                      <Pencil size={14} />
+                    </button>
+                  </PermissionGuard>
+                  <PermissionGuard permission="floor.delete">
+                    <button className="btn-danger" title="Delete" onClick={() => handleDelete(f)}>
+                      <Trash2 size={14} />
+                    </button>
+                  </PermissionGuard>
                 </td>
               </tr>
             ))}

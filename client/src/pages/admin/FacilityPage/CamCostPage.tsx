@@ -11,6 +11,7 @@ import {
   Pencil, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const COST_CATEGORIES: Record<string, { label: string; color: string }> = {
   cleaning: { label: 'Cleaning', color: '#3b82f6' },
@@ -93,9 +94,11 @@ export default function CamCostPage() {
           </div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={openCreate}>
-            <Plus size={16} /> Add Entry
-          </button>
+          <PermissionGuard permission="facility-cam.write">
+            <button className="btn btn-primary" onClick={openCreate}>
+              <Plus size={16} /> Add Entry
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -188,9 +191,11 @@ export default function CamCostPage() {
           <div className="maint-empty">
             <div className="empty-icon"><Receipt size={28} /></div>
             <p>No CAM cost entries for this period</p>
-            <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={openCreate}>
-              <Plus size={16} /> Add Entry
-            </button>
+            <PermissionGuard permission="facility-cam.write">
+              <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={openCreate}>
+                <Plus size={16} /> Add Entry
+              </button>
+            </PermissionGuard>
           </div>
         ) : (
           <div className="maint-table-wrap">
@@ -236,14 +241,16 @@ export default function CamCostPage() {
                     </td>
                     <td><span className="cell-secondary">{new Date(c.createdAt).toLocaleDateString()}</span></td>
                     <td>
-                      <div className="sla-row-actions">
-                        <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(c)}>
-                          <Pencil size={14} />
-                        </button>
-                        <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Delete" onClick={() => setDeleteConfirm(c.id)}>
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <PermissionGuard permission="facility-cam.write">
+                        <div className="sla-row-actions">
+                          <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(c)}>
+                            <Pencil size={14} />
+                          </button>
+                          <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Delete" onClick={() => setDeleteConfirm(c.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))}

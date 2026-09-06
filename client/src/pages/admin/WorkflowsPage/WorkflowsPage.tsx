@@ -10,6 +10,7 @@ import {
 import WorkflowEditor from './WorkflowEditor';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   Settings, Layers, RefreshCw, Plus, Palette, Eye, Pencil,
   Rocket, Play, ArchiveX, Trash2,
@@ -69,9 +70,11 @@ function DefinitionsTab() {
       <div className="users-toolbar">
         <span className="users-count-badge">{defs.length} workflow{defs.length !== 1 ? 's' : ''}</span>
         <div style={{ marginLeft: 'auto' }}>
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus size={16} /> New Workflow
-          </button>
+          <PermissionGuard permission="workflows-engine.write">
+            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+              <Plus size={16} /> New Workflow
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -110,12 +113,19 @@ function DefinitionsTab() {
                       onClick={() => navigate(`/admin/workflows/${d.id}/design`)}>
                       <Palette size={15} />
                     </button>
-                    <button className="btn-icon" title={d.status === 'draft' ? 'Edit' : 'View'}
-                      onClick={() => setEditDef(d)}>
-                      {d.status === 'draft' ? <Pencil size={15} /> : <Eye size={15} />}
-                    </button>
+                    {d.status === 'draft' ? (
+                      <PermissionGuard permission="workflows-engine.write">
+                        <button className="btn-icon" title="Edit" onClick={() => setEditDef(d)}>
+                          <Pencil size={15} />
+                        </button>
+                      </PermissionGuard>
+                    ) : (
+                      <button className="btn-icon" title="View" onClick={() => setEditDef(d)}>
+                        <Eye size={15} />
+                      </button>
+                    )}
                     {d.status === 'draft' && (
-                      <>
+                      <PermissionGuard permission="workflows-engine.write">
                         <button className="btn-icon" title="Publish" style={{ color: 'var(--success)' }}
                           onClick={async () => {
                             try { await publishDef(d.id).unwrap(); toast.success('Published!'); }
@@ -127,17 +137,17 @@ function DefinitionsTab() {
                             try { await deleteDef(d.id).unwrap(); toast.success('Deleted'); }
                             catch { toast.error('Cannot delete'); }
                           }}><Trash2 size={15} /></button>
-                      </>
+                      </PermissionGuard>
                     )}
                     {d.status === 'active' && (
-                      <>
+                      <PermissionGuard permission="workflows-engine.write">
                         <button className="btn-icon" title="Run Instance" style={{ color: 'var(--success)' }}
                           onClick={() => setStartDef(d)}><Play size={15} /></button>
                         <button className="btn-icon" title="Deprecate"
                           onClick={async () => {
                             await deprecateDef(d.id).unwrap(); toast.success('Deprecated');
                           }}><ArchiveX size={15} /></button>
-                      </>
+                      </PermissionGuard>
                     )}
                   </div>
                 </td>
@@ -219,10 +229,12 @@ function InstancesTab() {
                 <Link to={`/admin/workflows/instances/${inst.id}`} className="btn btn-sm">
                   View
                 </Link>
-                <button className="btn btn-sm btn-danger" onClick={() => {
-                  setCancelModal({ id: inst.id, name: inst.definition.name });
-                  setCancelReason('');
-                }}>Cancel</button>
+                <PermissionGuard permission="workflows-engine.write">
+                  <button className="btn btn-sm btn-danger" onClick={() => {
+                    setCancelModal({ id: inst.id, name: inst.definition.name });
+                    setCancelReason('');
+                  }}>Cancel</button>
+                </PermissionGuard>
               </div>
             )}
             {inst.status !== 'running' && (

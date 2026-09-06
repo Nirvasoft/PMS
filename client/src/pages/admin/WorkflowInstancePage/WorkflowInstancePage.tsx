@@ -9,6 +9,7 @@ import {
   ArrowLeft, Clock, CheckCircle2, XCircle, Ban,
   User, ArrowRightLeft, AlertTriangle, Timer,
 } from 'lucide-react';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 export default function WorkflowInstancePage() {
   const { id } = useParams<{ id: string }>();
@@ -83,9 +84,11 @@ export default function WorkflowInstancePage() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm" onClick={() => refetch()}>↻ Refresh</button>
             {inst.status === 'running' && (
-              <button className="btn btn-sm btn-danger" onClick={() => { setCancelModal(true); setCancelReason(''); }}>
-                Cancel Workflow
-              </button>
+              <PermissionGuard permission="workflows-engine.write">
+                <button className="btn btn-sm btn-danger" onClick={() => { setCancelModal(true); setCancelReason(''); }}>
+                  Cancel Workflow
+                </button>
+              </PermissionGuard>
             )}
           </div>
         </div>

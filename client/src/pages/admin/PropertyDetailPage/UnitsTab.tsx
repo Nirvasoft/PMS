@@ -28,6 +28,7 @@ import { BulkCreateModal } from './BulkCreateModal';
 import { TowerSidebar } from './TowerSidebar';
 import { TowerFormModal } from './TowerFormModal';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { ZONE_OPTIONS } from './zoneOptions';
 import './UnitsTab.css';
 
@@ -312,12 +313,14 @@ export default function UnitsTab() {
               ><Calendar size={14} /></button>
             </div>
 
-            <button className="ut-btn-bulk" onClick={() => dispatch(setBulkCreateOpen(true))}>
-              <Layers size={13} /> Bulk Create
-            </button>
-            <button className="ut-btn-add" onClick={() => dispatch(selectUnit('new'))}>
-              <Plus size={14} /> Add P-Unit
-            </button>
+            <PermissionGuard permission="unit.create">
+              <button className="ut-btn-bulk" onClick={() => dispatch(setBulkCreateOpen(true))}>
+                <Layers size={13} /> Bulk Create
+              </button>
+              <button className="ut-btn-add" onClick={() => dispatch(selectUnit('new'))}>
+                <Plus size={14} /> Add P-Unit
+              </button>
+            </PermissionGuard>
           </div>
         </div>
       </div>
@@ -624,9 +627,11 @@ function UnitListRow({ unit, onClick, onDelete }: {
         {unit.status.replace(/_/g, ' ')}
       </span>
       <span className="capitalize ul-furn">{unit.furnishing.replace(/_/g, ' ')}</span>
-      <button className="ul-del" onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete unit">
-        <Trash2 size={13} />
-      </button>
+      <PermissionGuard permission="unit.delete">
+        <button className="ul-del" onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete unit">
+          <Trash2 size={13} />
+        </button>
+      </PermissionGuard>
     </div>
   );
 }

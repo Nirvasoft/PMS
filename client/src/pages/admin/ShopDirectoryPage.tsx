@@ -11,6 +11,7 @@ import {
   TrendingUp, Percent, ExternalLink, Package, Layers, Plus,
   FileText, Shield, Wrench, Receipt,
 } from 'lucide-react';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const CATEGORIES = ['F&B', 'Fashion', 'Electronics', 'Beauty', 'Services', 'Entertainment', 'Anchor', 'Other'];
 const ZONES = ['north_wing', 'south_wing', 'east_wing', 'west_wing', 'atrium', 'basement'];
@@ -205,9 +206,11 @@ export default function ShopDirectoryPage() {
             <h1>Shop Directory</h1>
             <p className="mall-page-subtitle">Manage shop profiles, brands, and trade categories</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowCreateShop(true)}>
-            <Plus size={16} /> Add Shop
-          </button>
+          <PermissionGuard permission="mall-shops.write">
+            <button className="btn btn-primary" onClick={() => setShowCreateShop(true)}>
+              <Plus size={16} /> Add Shop
+            </button>
+          </PermissionGuard>
         </div>
 
         {/* Stats Bar */}
@@ -521,9 +524,11 @@ export default function ShopDirectoryPage() {
                 )}
               </div>
               <div className="shop-detail-header-actions">
-                <button className="btn btn-sm btn-outline" onClick={() => openEdit(detailShop)}>
-                  <Edit3 size={14} /> Edit
-                </button>
+                <PermissionGuard permission="mall-shops.write">
+                  <button className="btn btn-sm btn-outline" onClick={() => openEdit(detailShop)}>
+                    <Edit3 size={14} /> Edit
+                  </button>
+                </PermissionGuard>
                 <button className="shop-detail-close" onClick={closeDetail}>
                   <X size={20} />
                 </button>
@@ -637,9 +642,11 @@ export default function ShopDirectoryPage() {
                         <h5 style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <FileText size={13} /> Commercial Lease Terms
                         </h5>
-                        <button className="btn btn-sm btn-outline" onClick={openLeaseEdit} style={{ fontSize: '0.72rem', padding: '3px 10px' }}>
-                          <Edit3 size={12} /> Edit Terms
-                        </button>
+                        <PermissionGuard permission="mall-shops.write">
+                          <button className="btn btn-sm btn-outline" onClick={openLeaseEdit} style={{ fontSize: '0.72rem', padding: '3px 10px' }}>
+                            <Edit3 size={12} /> Edit Terms
+                          </button>
+                        </PermissionGuard>
                       </div>
 
                       <div className="shop-detail-cl-grid">

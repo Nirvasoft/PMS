@@ -11,6 +11,7 @@ import {
   MessageSquare, Loader2, Star,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 type Tab = 'announcements' | 'polls' | 'complaints' | 'moves';
 
@@ -99,9 +100,11 @@ function AnnouncementsTab() {
           <option value="archived">Archived</option>
         </select>
         <div style={{ flex: 1 }} />
-        <button className="btn btn-primary" onClick={() => setShowForm(true)} id="create-announcement-btn">
-          <Plus size={14} /> New Announcement
-        </button>
+        <PermissionGuard permission="community-admin.write">
+          <button className="btn btn-primary" onClick={() => setShowForm(true)} id="create-announcement-btn">
+            <Plus size={14} /> New Announcement
+          </button>
+        </PermissionGuard>
       </div>
 
       {showForm && (
@@ -255,9 +258,11 @@ function PollsTab() {
   return (
     <>
       <div className="section-toolbar" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)} id="create-poll-btn">
-          <Plus size={14} /> New Poll
-        </button>
+        <PermissionGuard permission="community-admin.write">
+          <button className="btn btn-primary" onClick={() => setShowForm(true)} id="create-poll-btn">
+            <Plus size={14} /> New Poll
+          </button>
+        </PermissionGuard>
       </div>
 
       {showForm && (
@@ -508,12 +513,14 @@ function ComplaintsTab() {
                   <td>{new Date(c.createdAt).toLocaleDateString()}</td>
                   <td>
                     {['open', 'in_review'].includes(c.status) && (
-                      <button
-                        className="btn btn-sm btn-primary"
-                        onClick={() => { setRespondingId(c.id); setResponseText(''); }}
-                      >
-                        <MessageSquare size={12} /> Respond
-                      </button>
+                      <PermissionGuard permission="community-admin.write">
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => { setRespondingId(c.id); setResponseText(''); }}
+                        >
+                          <MessageSquare size={12} /> Respond
+                        </button>
+                      </PermissionGuard>
                     )}
                   </td>
                 </tr>
@@ -619,13 +626,15 @@ function MoveRequestsTab() {
                   <td><span className={`status-badge status-${m.status}`}>{m.status}</span></td>
                   <td>
                     {m.status === 'pending' && (
-                      <button
-                        className="btn btn-sm btn-primary"
-                        onClick={() => handleApprove(m.id)}
-                        disabled={approving}
-                      >
-                        <CheckCircle2 size={12} /> Approve
-                      </button>
+                      <PermissionGuard permission="community-admin.write">
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => handleApprove(m.id)}
+                          disabled={approving}
+                        >
+                          <CheckCircle2 size={12} /> Approve
+                        </button>
+                      </PermissionGuard>
                     )}
                   </td>
                 </tr>

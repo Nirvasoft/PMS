@@ -3,6 +3,7 @@ import { useGetPositionsQuery, useCreatePositionMutation, useDeletePositionMutat
 import { Briefcase, Trash2, Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const PAGE_SIZE = 10;
 
@@ -70,9 +71,11 @@ export default function PositionsPage() {
 
       <div className="toolbar">
         <span className="text-secondary">{positions.length} position(s)</span>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          <Plus size={16} /> New Position
-        </button>
+        <PermissionGuard permission="positions.create">
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            <Plus size={16} /> New Position
+          </button>
+        </PermissionGuard>
       </div>
 
       {showForm && (
@@ -162,9 +165,11 @@ export default function PositionsPage() {
                     )}
                   </td>
                   <td>
-                    <button className="btn-danger" onClick={() => handleDelete(p.id, p.name)} title="Delete">
-                      <Trash2 size={14} />
-                    </button>
+                    <PermissionGuard permission="positions.delete">
+                      <button className="btn-danger" onClick={() => handleDelete(p.id, p.name)} title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </PermissionGuard>
                   </td>
                 </tr>
               ))}

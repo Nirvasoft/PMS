@@ -11,6 +11,7 @@ import {
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 export default function PatrolLogsPage() {
   const [page, setPage] = useState(1);
@@ -100,9 +101,11 @@ export default function PatrolLogsPage() {
           <div><h1>Patrol Management</h1><p>{checkpoints.length} checkpoints · {meta?.total ?? 0} logs</p></div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
-            <Plus size={14} /> Add Checkpoint
-          </button>
+          <PermissionGuard permission="security-patrol.write">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
+              <Plus size={14} /> Add Checkpoint
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 

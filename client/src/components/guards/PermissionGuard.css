@@ -1,0 +1,12 @@
+/* Denied-action styling: dims the control and shows a not-allowed cursor.
+   The "Permission required" label is the native `title` attribute tooltip. */
+.perm-denied-wrap {
+  display: inline-block;
+  cursor: not-allowed;
+  vertical-align: middle;
+}
+
+.perm-denied-inner {
+  pointer-events: none;
+  opacity: 0.5;
+}

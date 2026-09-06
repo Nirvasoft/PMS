@@ -15,6 +15,7 @@ import {
   Check, SkipForward, ShieldAlert, Pencil, Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const FREQUENCIES: Record<string, string> = {
   daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly',
@@ -81,18 +82,20 @@ export default function PmScheduleDetailPage() {
             <p>{schedule.property?.name} · {FREQUENCIES[schedule.frequencyType]} · <span className={`maint-priority ${schedule.priority?.toLowerCase()}`}>{schedule.priority}</span></p>
           </div>
         </div>
-        <div className="header-actions">
-          <button className="btn btn-ghost" onClick={() => setShowEditModal(true)}><Pencil size={16} /> Edit</button>
-          {schedule.status === 'active' && (
-            <>
-              <button className="btn btn-ghost" onClick={handlePause}><Pause size={16} /> Pause</button>
-              <button className="btn btn-primary" onClick={handleGenerate}><Zap size={16} /> Generate WO</button>
-            </>
-          )}
-          {schedule.status === 'paused' && (
-            <button className="btn btn-primary" onClick={handleResume}><Play size={16} /> Resume</button>
-          )}
-        </div>
+        <PermissionGuard permission="maintenance-pm.write">
+          <div className="header-actions">
+            <button className="btn btn-ghost" onClick={() => setShowEditModal(true)}><Pencil size={16} /> Edit</button>
+            {schedule.status === 'active' && (
+              <>
+                <button className="btn btn-ghost" onClick={handlePause}><Pause size={16} /> Pause</button>
+                <button className="btn btn-primary" onClick={handleGenerate}><Zap size={16} /> Generate WO</button>
+              </>
+            )}
+            {schedule.status === 'paused' && (
+              <button className="btn btn-primary" onClick={handleResume}><Play size={16} /> Resume</button>
+            )}
+          </div>
+        </PermissionGuard>
       </div>
 
       {/* Detail Cards */}
@@ -246,23 +249,25 @@ export default function PmScheduleDetailPage() {
                 </td>
                 <td>
                   {(wo.status === 'scheduled' || wo.status === 'in_progress' || wo.status === 'overdue') ? (
-                    <div className="sla-row-actions">
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        title="Complete"
-                        style={{ color: '#22c55e' }}
-                        onClick={() => setCompleteWoId(wo.id)}
-                      >
-                        <Check size={14} />
-                      </button>
-                      <button
-                        className="btn btn-ghost btn-sm btn-danger-ghost"
-                        title="Skip"
-                        onClick={() => setSkipWoId(wo.id)}
-                      >
-                        <SkipForward size={14} />
-                      </button>
-                    </div>
+                    <PermissionGuard permission="maintenance-pm.write">
+                      <div className="sla-row-actions">
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          title="Complete"
+                          style={{ color: '#22c55e' }}
+                          onClick={() => setCompleteWoId(wo.id)}
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm btn-danger-ghost"
+                          title="Skip"
+                          onClick={() => setSkipWoId(wo.id)}
+                        >
+                          <SkipForward size={14} />
+                        </button>
+                      </div>
+                    </PermissionGuard>
                   ) : (
                     <span className="cell-secondary" style={{ fontSize: 11 }}>—</span>
                   )}

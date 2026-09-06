@@ -7,6 +7,7 @@ import {
   UserPlus, Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const WO_COLORS: Record<string, string> = {
   pending: '#94a3b8',
@@ -95,9 +96,11 @@ export default function TechnicianSchedulePage() {
           </div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => setShowProfileModal(true)}>
-            <UserPlus size={16} /> Manage Profiles
-          </button>
+          <PermissionGuard permission="maintenance-technicians.write">
+            <button className="btn btn-primary" onClick={() => setShowProfileModal(true)}>
+              <UserPlus size={16} /> Manage Profiles
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 

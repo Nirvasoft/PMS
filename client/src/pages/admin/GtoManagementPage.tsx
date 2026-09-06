@@ -6,6 +6,7 @@ import {
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { AlertTriangle, Clock, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -222,12 +223,14 @@ export default function GtoManagementPage() {
                   </td>
                   <td>
                     {!gto.verified && (
-                      <button
-                        className="mall-btn-sm"
-                        onClick={() => { setVerifyModal(gto); setVerifyData({ verified: true, variancePct: 0, notes: '' }); }}
-                      >
-                        Verify
-                      </button>
+                      <PermissionGuard permission="mall-gto.write">
+                        <button
+                          className="mall-btn-sm"
+                          onClick={() => { setVerifyModal(gto); setVerifyData({ verified: true, variancePct: 0, notes: '' }); }}
+                        >
+                          Verify
+                        </button>
+                      </PermissionGuard>
                     )}
                   </td>
                 </tr>

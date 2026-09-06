@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './KycRequirementsPage.css';
 
 const DOC_TYPES = [
@@ -77,9 +78,11 @@ export default function KycRequirementsPage() {
             Configure which documents are required for KYC verification. Requirements are applied to new tenants on creation.
           </p>
         </div>
-        <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
-          <Plus size={14} /> Add Requirement
-        </button>
+        <PermissionGuard permission="tenants.kyc">
+          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
+            <Plus size={14} /> Add Requirement
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Type filter */}
@@ -190,7 +193,9 @@ function ReqSection({ title, icon, items, onDelete }: {
             <span className="req-doctype">{r.docType.replace(/_/g, ' ')}</span>
             <span>{r.isRequired ? <span className="required-chip">Required</span> : <span className="optional-chip">Optional</span>}</span>
             <span className="req-validity">{r.validityDays ? `${r.validityDays} days` : '—'}</span>
-            <button className="req-delete" onClick={() => onDelete(r.id, r.name)}><Trash2 size={13} /></button>
+            <PermissionGuard permission="tenants.kyc">
+              <button className="req-delete" onClick={() => onDelete(r.id, r.name)}><Trash2 size={13} /></button>
+            </PermissionGuard>
           </div>
         ))}
       </div>

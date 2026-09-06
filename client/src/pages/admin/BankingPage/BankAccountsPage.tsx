@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGetBankAccountsQuery, useCreateBankAccountMutation } from '../../../store/api/bankingApi';
 import type { BankAccount } from '../../../store/api/bankingApi';
 import { useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -25,7 +26,9 @@ export default function BankAccountsPage() {
       <h2>Bank Accounts</h2>
       <div className="gl-toolbar">
         <div style={{ flex: 1 }} />
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Bank Account</button>
+        <PermissionGuard permission="finance-banking.write">
+          <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Bank Account</button>
+        </PermissionGuard>
       </div>
 
       <div className="gl-stats">

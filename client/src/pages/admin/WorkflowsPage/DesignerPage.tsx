@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { Save, X, Plus, ChevronRight, Settings } from 'lucide-react';
 import { WorkflowNode } from './components/WorkflowNode';
 import { NodeConfigPanel } from './components/NodeConfigPanel';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './designer.css';
 
 const RF_NODE_TYPES: NodeTypes = { workflowNode: WorkflowNode };
@@ -216,13 +217,15 @@ export default function DesignerPage() {
             <Settings size={15} /> {sidebarOpen ? 'Hide' : 'Show'} Panel
           </button>
           {!isReadOnly && (
-            <button
-              className="designer-btn designer-btn-primary"
-              onClick={handleSave}
-              disabled={saving || !dirty}
-            >
-              <Save size={15} /> {saving ? 'Saving…' : 'Save'}
-            </button>
+            <PermissionGuard permission="workflows-engine.write">
+              <button
+                className="designer-btn designer-btn-primary"
+                onClick={handleSave}
+                disabled={saving || !dirty}
+              >
+                <Save size={15} /> {saving ? 'Saving…' : 'Save'}
+              </button>
+            </PermissionGuard>
           )}
         </div>
       </div>

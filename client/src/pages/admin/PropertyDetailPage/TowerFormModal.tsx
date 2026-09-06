@@ -6,6 +6,7 @@ import {
 import type { Tower, TowerSection } from '../../../store/api/unitsApi';
 import { X, Plus, Trash2, Building2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './TowerFormModal.css';
 
 interface Props {
@@ -312,9 +313,11 @@ export function TowerFormModal({ propertyId, tower, onClose }: Props) {
         <div className="tw-footer">
           <div className="tw-footer-left">
             {isEdit && !showDeleteConfirm && (
-              <button className="tw-btn-delete" onClick={() => setShowDeleteConfirm(true)}>
-                <Trash2 size={13} /> Delete
-              </button>
+              <PermissionGuard permission="unit.delete">
+                <button className="tw-btn-delete" onClick={() => setShowDeleteConfirm(true)}>
+                  <Trash2 size={13} /> Delete
+                </button>
+              </PermissionGuard>
             )}
           </div>
           <div className="tw-footer-right">

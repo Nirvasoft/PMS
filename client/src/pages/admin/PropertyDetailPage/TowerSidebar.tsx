@@ -1,5 +1,6 @@
 import { Building2, ChevronRight, Plus, Pencil, Settings2 } from 'lucide-react';
 import type { Tower } from '../../../store/api/unitsApi';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 interface TowerSidebarProps {
   propertyId: string;
@@ -22,9 +23,11 @@ export function TowerSidebar({
     <div className="tower-sidebar">
       <div className="tower-sidebar-header">
         <span className="tower-sidebar-title">Towers / Blocks</span>
-        <button className="tower-add-btn" onClick={onAddTower} title="Add tower">
-          <Plus size={12} />
-        </button>
+        <PermissionGuard permission="unit.create">
+          <button className="tower-add-btn" onClick={onAddTower} title="Add tower">
+            <Plus size={12} />
+          </button>
+        </PermissionGuard>
       </div>
 
       <button className={`tower-item ${!selectedTowerId ? 'active' : ''}`} onClick={() => onSelect(null)}>
@@ -56,13 +59,15 @@ export function TowerSidebar({
                   </div>
                 )}
               </button>
-              <button
-                className="tower-edit-btn"
-                onClick={(e) => { e.stopPropagation(); onEditTower(tower); }}
-                title={`Edit ${tower.name}`}
-              >
-                <Pencil size={11} />
-              </button>
+              <PermissionGuard permission="unit.update">
+                <button
+                  className="tower-edit-btn"
+                  onClick={(e) => { e.stopPropagation(); onEditTower(tower); }}
+                  title={`Edit ${tower.name}`}
+                >
+                  <Pencil size={11} />
+                </button>
+              </PermissionGuard>
             </div>
             {isSelected && tower.sections.length > 0 && (
               <div className="tower-sections">

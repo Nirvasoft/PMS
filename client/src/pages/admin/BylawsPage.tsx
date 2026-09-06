@@ -8,6 +8,7 @@ import {
 } from '../../store/api/condoApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { Gavel, Plus, BookOpen, AlertTriangle, CheckCircle, X, Edit, MessageCircle, Shield } from 'lucide-react';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const CATEGORIES = ['noise', 'pets', 'parking', 'renovation', 'common_area'];
 const SEVERITIES = ['warning', 'minor', 'major'];
@@ -114,9 +115,11 @@ export default function BylawsPage() {
       {activeTab === 0 && (
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCreateBylaw(true)}>
-              <Plus size={14} style={{ marginRight: 4 }} />New By-Law
-            </button>
+            <PermissionGuard permission="condo-bylaws.write">
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCreateBylaw(true)}>
+                <Plus size={14} style={{ marginRight: 4 }} />New By-Law
+              </button>
+            </PermissionGuard>
           </div>
           {loadingBylaws ? (
             <div className="module-skeleton-grid"><div className="module-skeleton-card module-skeleton-wide" /></div>
@@ -146,10 +149,12 @@ export default function BylawsPage() {
                       <td><span className={`condo-status-badge condo-status-${b.isActive ? 'active' : 'completed'}`}>{b.isActive ? 'Active' : 'Inactive'}</span></td>
                       <td>{b._count?.violations || 0}</td>
                       <td>
-                        <button className="condo-btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                          onClick={() => openEditBylaw(b)}>
-                          <Edit size={12} /> Edit
-                        </button>
+                        <PermissionGuard permission="condo-bylaws.write">
+                          <button className="condo-btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            onClick={() => openEditBylaw(b)}>
+                            <Edit size={12} /> Edit
+                          </button>
+                        </PermissionGuard>
                       </td>
                     </tr>
                   ))}
@@ -168,9 +173,11 @@ export default function BylawsPage() {
             {['open', 'warned', 'fined', 'appealing', 'resolved', 'closed'].map(s => (
               <button key={s} className={`condo-filter-chip ${statusFilter === s ? 'active' : ''}`} onClick={() => setStatusFilter(s)}>{s}</button>
             ))}
-            <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setShowCreateViolation(true)}>
-              <Plus size={14} style={{ marginRight: 4 }} />Report Violation
-            </button>
+            <PermissionGuard permission="condo-bylaws.write">
+              <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setShowCreateViolation(true)}>
+                <Plus size={14} style={{ marginRight: 4 }} />Report Violation
+              </button>
+            </PermissionGuard>
           </div>
           {loadingViolations ? (
             <div className="module-skeleton-grid"><div className="module-skeleton-card module-skeleton-wide" /></div>
@@ -204,22 +211,24 @@ export default function BylawsPage() {
                       <td>{Number(v.fineAmount) > 0 ? `$${Number(v.fineAmount).toFixed(2)}` : '—'}</td>
                       <td>{new Date(v.createdAt).toLocaleDateString()}</td>
                       <td>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {(v.status === 'open' || v.status === 'warned') && (
-                            <button className="condo-btn-sm" onClick={() => setShowFine(v.id)}>Fine</button>
-                          )}
-                          {(v.status === 'fined' || v.status === 'warned' || v.status === 'open') && (
-                            <button className="condo-btn-sm"
-                              style={{ borderColor: '#f59e0b', color: '#f59e0b' }}
-                              onClick={() => { setAppealNotes(''); setShowAppeal(v.id); }}>
-                              Appeal
-                            </button>
-                          )}
-                          {(v.status !== 'resolved' && v.status !== 'closed') && (
-                            <button className="condo-btn-sm" style={{ borderColor: '#10b981', color: '#10b981' }}
-                              onClick={() => resolveViolation({ id: v.id, data: { resolutionNotes: 'Resolved by admin' } })}>Resolve</button>
-                          )}
-                        </div>
+                        <PermissionGuard permission="condo-bylaws.write">
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {(v.status === 'open' || v.status === 'warned') && (
+                              <button className="condo-btn-sm" onClick={() => setShowFine(v.id)}>Fine</button>
+                            )}
+                            {(v.status === 'fined' || v.status === 'warned' || v.status === 'open') && (
+                              <button className="condo-btn-sm"
+                                style={{ borderColor: '#f59e0b', color: '#f59e0b' }}
+                                onClick={() => { setAppealNotes(''); setShowAppeal(v.id); }}>
+                                Appeal
+                              </button>
+                            )}
+                            {(v.status !== 'resolved' && v.status !== 'closed') && (
+                              <button className="condo-btn-sm" style={{ borderColor: '#10b981', color: '#10b981' }}
+                                onClick={() => resolveViolation({ id: v.id, data: { resolutionNotes: 'Resolved by admin' } })}>Resolve</button>
+                            )}
+                          </div>
+                        </PermissionGuard>
                       </td>
                     </tr>
                   ))}

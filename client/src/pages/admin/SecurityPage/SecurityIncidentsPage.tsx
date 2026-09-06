@@ -12,6 +12,7 @@ import {
   TrendingUp, DoorOpen, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const TYPES = ['theft', 'vandalism', 'trespassing', 'fire', 'medical', 'accident', 'suspicious_activity', 'other'];
 const TYPE_ICONS: Record<string, string> = {
@@ -142,9 +143,11 @@ export default function SecurityIncidentsPage() {
           <div><h1>Security Incidents</h1><p>{meta?.total ?? 0} incidents</p></div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-            <Plus size={14} /> Report Incident
-          </button>
+          <PermissionGuard permission="security-incidents.write">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+              <Plus size={14} /> Report Incident
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -234,9 +237,11 @@ export default function SecurityIncidentsPage() {
                     <StIcon size={11} /> {inc.status}
                   </span>
                   {(inc.status === 'open' || inc.status === 'investigating') && (
-                    <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); setResolveId(inc.id); }} style={{ fontSize: '11px' }}>
-                      <CheckCircle2 size={11} /> Resolve
-                    </button>
+                    <PermissionGuard permission="security-incidents.write">
+                      <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); setResolveId(inc.id); }} style={{ fontSize: '11px' }}>
+                        <CheckCircle2 size={11} /> Resolve
+                      </button>
+                    </PermissionGuard>
                   )}
                 </div>
               </div>

@@ -11,6 +11,7 @@ import {
   Tag, User, Building2, AlertTriangle, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const STATUSES = ['', 'active', 'suspended', 'cancelled', 'lost'];
 const CARD_TYPES = ['', 'rfid', 'nfc', 'qr', 'barcode'];
@@ -76,9 +77,11 @@ export default function AccessCardsPage() {
           <h1><CreditCard size={24} /> Resident Access Cards</h1>
           <p className="text-muted">Manage access cards, fobs, and NFC tags for residents</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowIssueForm(true)}>
-          <Plus size={14} /> Issue Card
-        </button>
+        <PermissionGuard permission="community-access-cards.write">
+          <button className="btn btn-primary" onClick={() => setShowIssueForm(true)}>
+            <Plus size={14} /> Issue Card
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Stats Cards */}
@@ -232,7 +235,9 @@ export default function AccessCardsPage() {
                     </span>
                   </td>
                   <td>
-                    <button className="btn btn-sm" onClick={() => setEditCard(card)}>Edit</button>
+                    <PermissionGuard permission="community-access-cards.write">
+                      <button className="btn btn-sm" onClick={() => setEditCard(card)}>Edit</button>
+                    </PermissionGuard>
                   </td>
                 </tr>
               ))}

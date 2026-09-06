@@ -7,6 +7,7 @@ import {
 import { format } from 'date-fns';
 import CreateReceiptModal from './CreateReceiptModal';
 import ReceiptDetailDrawer from './ReceiptDetailDrawer';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './ARPage.css';
 
 const STATUS_OPTIONS = ['', 'pending', 'confirmed', 'reversed', 'refunded'];
@@ -62,10 +63,12 @@ export default function ReceiptsPage() {
             <p>Record and manage incoming payments</p>
           </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Plus size={14} /> Record Payment
-        </button>
+        <PermissionGuard permission="ar-receipts.write">
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={14} /> Record Payment
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Summary Cards */}

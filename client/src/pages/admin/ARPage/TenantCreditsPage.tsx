@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './ARPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -115,10 +116,12 @@ export default function TenantCreditsPage() {
             <h1>Tenant Credits</h1>
             <p>Manage credit balances from overpayments, credit notes, and adjustments</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> Issue Credit
-          </button>
+          <PermissionGuard permission="ar-credits.write">
+            <button className="btn btn-primary" onClick={() => setShowCreate(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> Issue Credit
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -235,14 +238,16 @@ export default function TenantCreditsPage() {
                   </td>
                   <td className="text-center">
                     {hasBalance && (
-                      <button
-                        className="action-btn"
-                        onClick={() => { setApplyModal(credit); setApplyAmount(String(credit.balance)); }}
-                        title="Apply credit to invoice"
-                        style={{ color: '#3b82f6' }}
-                      >
-                        <ArrowRightCircle size={15} />
-                      </button>
+                      <PermissionGuard permission="ar-credits.write">
+                        <button
+                          className="action-btn"
+                          onClick={() => { setApplyModal(credit); setApplyAmount(String(credit.balance)); }}
+                          title="Apply credit to invoice"
+                          style={{ color: '#3b82f6' }}
+                        >
+                          <ArrowRightCircle size={15} />
+                        </button>
+                      </PermissionGuard>
                     )}
                   </td>
                 </tr>

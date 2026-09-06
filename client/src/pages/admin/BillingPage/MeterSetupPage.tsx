@@ -7,6 +7,7 @@ import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../store/ap
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { Gauge, Plus, X, Pencil, Trash2, Search } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 export const METER_TYPES = [
@@ -175,9 +176,11 @@ export default function MeterSetupPage() {
             <h1>Meter Setup</h1>
             <p>Register and configure electricity meters across your properties</p>
           </div>
-          <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> New Meter
-          </button>
+          <PermissionGuard permission="meter.create">
+            <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> New Meter
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -268,12 +271,16 @@ export default function MeterSetupPage() {
                 <td className="text-right">{m.maintenanceFee != null && m.maintenanceFee !== '' ? Number(m.maintenanceFee).toFixed(2) : '—'}</td>
                 <td>{m.usageType ? labelFor(USAGE_TYPES, m.usageType) : '—'}</td>
                 <td className="text-center">
-                  <button className="btn-icon" title="Edit" onClick={() => openEdit(m)}>
-                    <Pencil size={14} />
-                  </button>
-                  <button className="btn-danger" title="Delete" onClick={() => handleDelete(m)}>
-                    <Trash2 size={14} />
-                  </button>
+                  <PermissionGuard permission="meter.update">
+                    <button className="btn-icon" title="Edit" onClick={() => openEdit(m)}>
+                      <Pencil size={14} />
+                    </button>
+                  </PermissionGuard>
+                  <PermissionGuard permission="meter.delete">
+                    <button className="btn-danger" title="Delete" onClick={() => handleDelete(m)}>
+                      <Trash2 size={14} />
+                    </button>
+                  </PermissionGuard>
                 </td>
               </tr>
             ))}
@@ -380,9 +387,11 @@ export default function MeterSetupPage() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={creating || updating}>
-                  {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Meter'}
-                </button>
+                <PermissionGuard permission={editing ? 'meter.update' : 'meter.create'}>
+                  <button type="submit" className="btn btn-primary" disabled={creating || updating}>
+                    {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Meter'}
+                  </button>
+                </PermissionGuard>
               </div>
             </form>
           </div>

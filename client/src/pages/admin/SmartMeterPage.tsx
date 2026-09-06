@@ -7,6 +7,7 @@ import {
 } from '../../store/api/condoApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { useAlertDialog } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import {
   Zap, Wifi, WifiOff, Activity, Gauge, Plus, X, AlertTriangle, Wrench,
   RefreshCw, Loader2, Settings, FileText, Receipt,
@@ -291,43 +292,45 @@ export default function SmartMeterPage() {
                         >
                           View Readings
                         </button>
-                        <button
-                          className="condo-btn-sm"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6,
-                            background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
-                            color: '#fff', border: 'none', fontWeight: 600,
-                            opacity: syncingMeterId === d.meterId ? 0.7 : 1,
-                          }}
-                          disabled={syncingMeterId === d.meterId}
-                          onClick={async () => {
-                            setSyncingMeterId(d.meterId);
-                            try {
-                              await syncMeter(d.meterId).unwrap();
-                            } catch (e: any) {
-                              alertDialog(e?.data?.errors?.[0]?.message || 'Sync failed');
-                            } finally {
-                              setSyncingMeterId(null);
-                            }
-                          }}
-                        >
-                          {syncingMeterId === d.meterId ? (
-                            <><Loader2 size={12} className="spin" /> Syncing</>
-                          ) : (
-                            <><RefreshCw size={12} /> Sync</>
-                          )}
-                        </button>
-                        <button
-                          className="condo-btn-sm"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6,
-                            border: '1px solid var(--border-color)', background: 'transparent',
-                            color: 'var(--text-primary)', fontWeight: 500,
-                          }}
-                          onClick={() => openDeviceConfig(d)}
-                        >
-                          <Settings size={12} /> Config
-                        </button>
+                        <PermissionGuard permission="condo-meters.write">
+                          <button
+                            className="condo-btn-sm"
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6,
+                              background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
+                              color: '#fff', border: 'none', fontWeight: 600,
+                              opacity: syncingMeterId === d.meterId ? 0.7 : 1,
+                            }}
+                            disabled={syncingMeterId === d.meterId}
+                            onClick={async () => {
+                              setSyncingMeterId(d.meterId);
+                              try {
+                                await syncMeter(d.meterId).unwrap();
+                              } catch (e: any) {
+                                alertDialog(e?.data?.errors?.[0]?.message || 'Sync failed');
+                              } finally {
+                                setSyncingMeterId(null);
+                              }
+                            }}
+                          >
+                            {syncingMeterId === d.meterId ? (
+                              <><Loader2 size={12} className="spin" /> Syncing</>
+                            ) : (
+                              <><RefreshCw size={12} /> Sync</>
+                            )}
+                          </button>
+                          <button
+                            className="condo-btn-sm"
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6,
+                              border: '1px solid var(--border-color)', background: 'transparent',
+                              color: 'var(--text-primary)', fontWeight: 500,
+                            }}
+                            onClick={() => openDeviceConfig(d)}
+                          >
+                            <Settings size={12} /> Config
+                          </button>
+                        </PermissionGuard>
                       </td>
                     </tr>
                   ))}
@@ -341,26 +344,28 @@ export default function SmartMeterPage() {
             <div className="condo-card module-animate-in">
               <div className="condo-card-header">
                 <h3><Activity size={16} style={{ marginRight: 8, verticalAlign: 'middle' }} />Meter Readings</h3>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    className="btn btn-sm"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                      color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.82rem',
-                    }}
-                    onClick={() => {
-                      setInvoiceForm({ from: '', to: '' });
-                      setInvoiceResult(null);
-                      setShowInvoiceModal(true);
-                    }}
-                  >
-                    <Receipt size={14} /> Generate Invoice
-                  </button>
-                  <button className="btn btn-primary btn-sm" onClick={() => setShowAddReading(true)}>
-                    <Plus size={14} style={{ marginRight: 4 }} />Add Reading
-                  </button>
-                </div>
+                <PermissionGuard permission="condo-meters.write">
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn btn-sm"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                        color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.82rem',
+                      }}
+                      onClick={() => {
+                        setInvoiceForm({ from: '', to: '' });
+                        setInvoiceResult(null);
+                        setShowInvoiceModal(true);
+                      }}
+                    >
+                      <Receipt size={14} /> Generate Invoice
+                    </button>
+                    <button className="btn btn-primary btn-sm" onClick={() => setShowAddReading(true)}>
+                      <Plus size={14} style={{ marginRight: 4 }} />Add Reading
+                    </button>
+                  </div>
+                </PermissionGuard>
               </div>
               <div className="condo-table-wrap">
                 <table className="condo-table">

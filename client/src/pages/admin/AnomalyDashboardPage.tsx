@@ -6,6 +6,7 @@ import {
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import {
   AlertTriangle, Activity, Building2, DollarSign, TrendingDown, Clock,
   CheckCircle, XCircle, Eye, EyeOff, RefreshCw, Search, Filter, X,
@@ -151,14 +152,16 @@ export default function AnomalyDashboardPage() {
             AI-powered anomaly detection across billing, occupancy, and payments
           </p>
         </div>
-        <button
-          style={S.detectBtn}
-          onClick={() => detectAnomalies()}
-          disabled={detecting}
-        >
-          <RefreshCw size={16} className={detecting ? 'spin' : ''} />
-          {detecting ? 'Scanning...' : 'Run Detection'}
-        </button>
+        <PermissionGuard permission="reports-anomalies.write">
+          <button
+            style={S.detectBtn}
+            onClick={() => detectAnomalies()}
+            disabled={detecting}
+          >
+            <RefreshCw size={16} className={detecting ? 'spin' : ''} />
+            {detecting ? 'Scanning...' : 'Run Detection'}
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* ═══ KPI Cards ═══ */}
@@ -404,7 +407,7 @@ export default function AnomalyDashboardPage() {
                         {/* Actions */}
                         <div style={S.detailActions}>
                           {!isAcked && (
-                            <>
+                            <PermissionGuard permission="reports-anomalies.write">
                               <button
                                 style={S.ackBtn}
                                 onClick={(e) => { e.stopPropagation(); handleAcknowledge(a.id); }}
@@ -417,7 +420,7 @@ export default function AnomalyDashboardPage() {
                               >
                                 <Ban size={14} /> Mark False Positive
                               </button>
-                            </>
+                            </PermissionGuard>
                           )}
                           {isAcked && !isFP && (
                             <span style={{ fontSize: 13, color: '#22c55e', display: 'flex', alignItems: 'center', gap: 6 }}>

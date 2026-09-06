@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './LeaseClausesPage.css';
 
 const CATEGORIES = ['general', 'payment', 'termination', 'use', 'maintenance', 'insurance', 'other'];
@@ -64,9 +65,11 @@ export default function LeaseClausesPage() {
           <h1><BookOpen size={22} /> Clause Library</h1>
           <p className="lc-subtitle">Manage reusable lease clauses. Standard clauses are auto-included in new templates.</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
-          <Plus size={14} /> New Clause
-        </button>
+        <PermissionGuard permission="leases.update">
+          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
+            <Plus size={14} /> New Clause
+          </button>
+        </PermissionGuard>
       </div>
 
       <div className="lc-filters">
@@ -132,7 +135,9 @@ export default function LeaseClausesPage() {
                     {c.isStandard && <Star size={12} className="standard-star" />}
                     {c.title}
                   </div>
-                  <button className="lc-clause-delete" onClick={() => handleDelete(c.id, c.title)}><Trash2 size={13} /></button>
+                  <PermissionGuard permission="leases.update">
+                    <button className="lc-clause-delete" onClick={() => handleDelete(c.id, c.title)}><Trash2 size={13} /></button>
+                  </PermissionGuard>
                 </div>
                 <p className="lc-clause-content">{c.content}</p>
               </div>

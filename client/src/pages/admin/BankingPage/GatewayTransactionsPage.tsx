@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../GLPage/GLPage.css';
 import '../BillingPage/BillingPage.css';
 
@@ -244,10 +245,12 @@ export default function GatewayTransactionsPage() {
                   </td>
                   <td className="text-center" onClick={e => e.stopPropagation()}>
                     {txn.gatewayStatus === 'completed' && (
-                      <button className="action-btn" onClick={() => { setRefundModal(txn); setRefundReason(''); }}
-                        title="Refund" style={{ color: '#8b5cf6' }}>
-                        <RotateCcw size={14} />
-                      </button>
+                      <PermissionGuard permission="finance-gateway.write">
+                        <button className="action-btn" onClick={() => { setRefundModal(txn); setRefundReason(''); }}
+                          title="Refund" style={{ color: '#8b5cf6' }}>
+                          <RotateCcw size={14} />
+                        </button>
+                      </PermissionGuard>
                     )}
                   </td>
                 </tr>
@@ -332,10 +335,12 @@ export default function GatewayTransactionsPage() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setDetailTxn(null)}>Close</button>
               {detailTxn.gatewayStatus === 'completed' && (
-                <button className="btn btn-primary" onClick={() => { setRefundModal(detailTxn); setRefundReason(''); setDetailTxn(null); }}
-                  style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <RotateCcw size={14} /> Refund
-                </button>
+                <PermissionGuard permission="finance-gateway.write">
+                  <button className="btn btn-primary" onClick={() => { setRefundModal(detailTxn); setRefundReason(''); setDetailTxn(null); }}
+                    style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <RotateCcw size={14} /> Refund
+                  </button>
+                </PermissionGuard>
               )}
             </div>
           </div>

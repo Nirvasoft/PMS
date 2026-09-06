@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 // Map icon string names to Lucide components
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -75,9 +76,11 @@ export default function CategoriesPage() {
           </div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} /> Add Category
-          </button>
+          <PermissionGuard permission="maintenance-tickets.write">
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} /> Add Category
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -88,9 +91,11 @@ export default function CategoriesPage() {
         <div className="maint-empty">
           <div className="empty-icon"><Tags size={28} /></div>
           <p>No categories found</p>
-          <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} /> Create First Category
-          </button>
+          <PermissionGuard permission="maintenance-tickets.write">
+            <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} /> Create First Category
+            </button>
+          </PermissionGuard>
         </div>
       ) : (
         <div className="maint-table-wrap">
@@ -140,19 +145,21 @@ export default function CategoriesPage() {
                           <span className="cell-secondary" title="System categories cannot be modified" style={{ fontSize: 11 }}>—</span>
                         </div>
                       ) : (
-                        <div className="sla-row-actions">
-                          <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => setEditCategory(cat)}>
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-sm btn-danger-ghost"
-                            title="Delete"
-                            disabled={deletingId === cat.id}
-                            onClick={() => handleDelete(cat)}
-                          >
-                            {deletingId === cat.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
-                          </button>
-                        </div>
+                        <PermissionGuard permission="maintenance-tickets.write">
+                          <div className="sla-row-actions">
+                            <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => setEditCategory(cat)}>
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              className="btn btn-ghost btn-sm btn-danger-ghost"
+                              title="Delete"
+                              disabled={deletingId === cat.id}
+                              onClick={() => handleDelete(cat)}
+                            >
+                              {deletingId === cat.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+                            </button>
+                          </div>
+                        </PermissionGuard>
                       )}
                     </td>
                   </tr>

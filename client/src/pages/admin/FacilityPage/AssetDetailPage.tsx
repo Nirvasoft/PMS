@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const ASSET_TYPES: Record<string, { label: string; icon: string }> = {
   hvac: { label: 'HVAC', icon: '❄️' }, elevator: { label: 'Elevator', icon: '🛗' },
@@ -93,18 +94,20 @@ export default function AssetDetailPage() {
             </p>
           </div>
         </div>
-        <div className="header-actions">
-          <select className="filter-select" value={asset.status} onChange={(e) => handleStatusChange(e.target.value)}
-            disabled={statusChanging} style={{ minWidth: '180px' }}>
-            <option value="operational">✅ Operational</option>
-            <option value="under_maintenance">🔧 Under Maintenance</option>
-            <option value="fault">⚠️ Fault</option>
-            <option value="decommissioned">🚫 Decommissioned</option>
-          </select>
-          <button className="btn btn-ghost btn-danger-ghost" onClick={() => setShowDeleteConfirm(true)}>
-            <Trash2 size={16} /> Delete
-          </button>
-        </div>
+        <PermissionGuard permission="facility-assets.write">
+          <div className="header-actions">
+            <select className="filter-select" value={asset.status} onChange={(e) => handleStatusChange(e.target.value)}
+              disabled={statusChanging} style={{ minWidth: '180px' }}>
+              <option value="operational">✅ Operational</option>
+              <option value="under_maintenance">🔧 Under Maintenance</option>
+              <option value="fault">⚠️ Fault</option>
+              <option value="decommissioned">🚫 Decommissioned</option>
+            </select>
+            <button className="btn btn-ghost btn-danger-ghost" onClick={() => setShowDeleteConfirm(true)}>
+              <Trash2 size={16} /> Delete
+            </button>
+          </div>
+        </PermissionGuard>
       </div>
 
       {/* Main Grid */}

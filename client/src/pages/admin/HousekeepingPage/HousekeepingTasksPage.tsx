@@ -13,6 +13,7 @@ import {
   Clock, Timer, TrendingUp, LayoutGrid, Star,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const ZONE_TYPES = ['corridor', 'lobby', 'car_park', 'amenity', 'office', 'restroom', 'other'];
 const ZONE_ICONS: Record<string, string> = {
@@ -196,8 +197,12 @@ export default function HousekeepingTasksPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowZoneModal(true)} style={{ borderRadius: 10 }}><MapPin size={14} /> Add Zone</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowScheduleModal(true)} style={{ borderRadius: 10 }}><Plus size={14} /> Add Schedule</button>
+          <PermissionGuard permission="housekeeping-zones.write">
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowZoneModal(true)} style={{ borderRadius: 10 }}><MapPin size={14} /> Add Zone</button>
+          </PermissionGuard>
+          <PermissionGuard permission="housekeeping-schedules.write">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowScheduleModal(true)} style={{ borderRadius: 10 }}><Plus size={14} /> Add Schedule</button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -272,18 +277,20 @@ export default function HousekeepingTasksPage() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {t.status === 'pending' && (
-                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => handleStartTask(t.id)}>
-                        <Play size={12} /> Start Task
-                      </button>
-                    )}
-                    {t.status === 'in_progress' && (
-                      <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => openCompleteModal(t)}>
-                        <CheckCircle2 size={12} /> Mark Complete
-                      </button>
-                    )}
-                  </div>
+                  <PermissionGuard permission="housekeeping-tasks.write">
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {t.status === 'pending' && (
+                        <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => handleStartTask(t.id)}>
+                          <Play size={12} /> Start Task
+                        </button>
+                      )}
+                      {t.status === 'in_progress' && (
+                        <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => openCompleteModal(t)}>
+                          <CheckCircle2 size={12} /> Mark Complete
+                        </button>
+                      )}
+                    </div>
+                  </PermissionGuard>
                 </div>
               );
             })}

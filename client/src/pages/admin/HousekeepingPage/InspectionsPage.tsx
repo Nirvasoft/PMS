@@ -12,6 +12,7 @@ import {
   Building2, Calendar, User,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const SCORE_COLORS = ['', '#ef4444', '#f59e0b', '#eab308', '#22c55e', '#10b981'];
 const SCORE_LABELS = ['', 'Poor', 'Below Avg', 'Average', 'Good', 'Excellent'];
@@ -143,9 +144,11 @@ export default function InspectionsPage() {
             Quality inspections with per-item scoring and issue tracking
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
-          <Plus size={14} /> New Inspection
-        </button>
+        <PermissionGuard permission="housekeeping-inspections.write">
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
+            <Plus size={14} /> New Inspection
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* ── Stats ── */}

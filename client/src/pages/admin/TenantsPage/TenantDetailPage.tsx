@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useGetDocumentsQuery, useUploadDocumentMutation, useDeleteDocumentMutation, type DocumentItem } from '../../../store/api/documentsApi';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 import toast from 'react-hot-toast';
 import './TenantDetailPage.css';
 
@@ -36,6 +37,7 @@ export default function TenantDetailPage() {
   const { data, isLoading } = useGetTenantQuery(id!);
   const [uploadAvatar, { isLoading: uploadingAvatar }] = useUploadAvatarMutation();
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const canEditAvatar = usePermission('tenants.update');
 
   const tenant = data?.data;
 
@@ -70,14 +72,23 @@ export default function TenantDetailPage() {
         </button>
 
         <div className="td-hero">
-          <div className="td-avatar-wrapper" onClick={() => avatarInputRef.current?.click()}>
+          <div
+            className="td-avatar-wrapper"
+            onClick={() => canEditAvatar && avatarInputRef.current?.click()}
+            title={canEditAvatar ? undefined : 'Permission required'}
+            style={canEditAvatar ? undefined : { cursor: 'not-allowed' }}
+          >
             <div className="td-avatar" style={{ background: tenant.isBlacklisted ? 'rgba(231,76,60,0.15)' : 'rgba(108,92,231,0.15)' }}>
               {tenant.avatarUrl ? <img src={tenant.avatarUrl} alt="" /> : tenant.displayName.charAt(0).toUpperCase()}
             </div>
-            <div className="td-avatar-overlay">
-              <Camera size={20} />
-            </div>
-            <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleAvatarUpload} />
+            {canEditAvatar && (
+              <div className="td-avatar-overlay">
+                <Camera size={20} />
+              </div>
+            )}
+            {canEditAvatar && (
+              <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleAvatarUpload} />
+            )}
           </div>
           <div className="td-info">
             <h1 className="td-name">
@@ -182,7 +193,9 @@ function BlacklistButton({ tenantId }: { tenantId: string }) {
 
   return (
     <>
-      <button className="btn-danger-ghost" onClick={() => setOpen(true)}><ShieldOff size={14} /> Blacklist</button>
+      <PermissionGuard permission="tenants.blacklist">
+        <button className="btn-danger-ghost" onClick={() => setOpen(true)}><ShieldOff size={14} /> Blacklist</button>
+      </PermissionGuard>
       {open && (
         <div className="modal-overlay">
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
@@ -229,7 +242,9 @@ function WhitelistButton({ tenantId }: { tenantId: string }) {
 
   return (
     <>
-      <button className="btn-success-ghost" onClick={() => setOpen(true)}><Shield size={14} /> Whitelist</button>
+      <PermissionGuard permission="tenants.blacklist">
+        <button className="btn-success-ghost" onClick={() => setOpen(true)}><Shield size={14} /> Whitelist</button>
+      </PermissionGuard>
       {open && (
         <div className="modal-overlay">
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
@@ -422,7 +437,9 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
       <div className="info-card">
         <div className="card-header-row">
           <h4>{tenant.tenantType === 'individual' ? 'Personal Info' : 'Company Info'}</h4>
-          <button className="btn-edit-profile" onClick={startEdit}><Edit2 size={13} /> Edit Profile</button>
+          <PermissionGuard permission="tenants.update">
+            <button className="btn-edit-profile" onClick={startEdit}><Edit2 size={13} /> Edit Profile</button>
+          </PermissionGuard>
         </div>
         <div className="info-rows">
           {tenant.tenantType === 'individual' ? (
@@ -595,7 +612,9 @@ function EmergencyContactsSection({ tenantId }: { tenantId: string }) {
     <div className="info-card">
       <div className="card-header-row">
         <h4>Emergency Contacts</h4>
-        <button className="btn-add-sm" onClick={() => setShowForm(!showForm)}><Plus size={12} /></button>
+        <PermissionGuard permission="tenants.update">
+          <button className="btn-add-sm" onClick={() => setShowForm(!showForm)}><Plus size={12} /></button>
+        </PermissionGuard>
       </div>
 
       {showForm && (
@@ -647,13 +666,15 @@ function EmergencyContactsSection({ tenantId }: { tenantId: string }) {
                   <div className="ec-contact"><Phone size={11} />{c.phone}</div>
                   {c.email && <div className="ec-contact"><Mail size={11} />{c.email}</div>}
                 </div>
-                <div className="ec-actions">
-                  <button className="ec-edit" onClick={() => startEdit(c)} title="Edit"><Pencil size={12} /></button>
-                  <button className="ec-del" onClick={async () => {
-                    try { await del({ tenantId, contactId: c.id }).unwrap(); toast.success('Removed'); }
-                    catch { toast.error('Failed'); }
-                  }}><Trash2 size={12} /></button>
-                </div>
+                <PermissionGuard permission="tenants.update">
+                  <div className="ec-actions">
+                    <button className="ec-edit" onClick={() => startEdit(c)} title="Edit"><Pencil size={12} /></button>
+                    <button className="ec-del" onClick={async () => {
+                      try { await del({ tenantId, contactId: c.id }).unwrap(); toast.success('Removed'); }
+                      catch { toast.error('Failed'); }
+                    }}><Trash2 size={12} /></button>
+                  </div>
+                </PermissionGuard>
               </>
             )}
           </div>
@@ -725,14 +746,18 @@ function KycTab({ tenantId }: { tenantId: string }) {
             </div>
             <div className="kyc-doc-actions">
               {doc.documentId && doc.status !== 'approved' && (
-                <button className="btn-kyc-review" onClick={() => { setReviewModal({ docId: doc.id, name: doc.name }); setDecision('approved'); }}>
-                  Review
-                </button>
+                <PermissionGuard permission="tenants.kyc">
+                  <button className="btn-kyc-review" onClick={() => { setReviewModal({ docId: doc.id, name: doc.name }); setDecision('approved'); }}>
+                    Review
+                  </button>
+                </PermissionGuard>
               )}
               {(!doc.documentId || doc.status === 'rejected') && (
-                <button className="btn-kyc-submit btn-primary-sm" onClick={() => setSubmitModal({ reqId: doc.requirementId, name: doc.name || doc.docType })}>
-                  Submit
-                </button>
+                <PermissionGuard permission="tenants.kyc">
+                  <button className="btn-kyc-submit btn-primary-sm" onClick={() => setSubmitModal({ reqId: doc.requirementId, name: doc.name || doc.docType })}>
+                    Submit
+                  </button>
+                </PermissionGuard>
               )}
             </div>
           </div>
@@ -950,9 +975,11 @@ function DocumentsTab({ tenantId }: { tenantId: string }) {
         <h4>Tenant Documents</h4>
         <div>
           <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleUpload} />
-          <button className="btn-primary-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-            <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Document'}
-          </button>
+          <PermissionGuard permission="documents.write">
+            <button className="btn-primary-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Document'}
+            </button>
+          </PermissionGuard>
         </div>
       </div>
       
@@ -973,9 +1000,11 @@ function DocumentsTab({ tenantId }: { tenantId: string }) {
                 <a href={`/api/v1/documents/${doc.id}/download`} target="_blank" rel="noreferrer" title="Download">
                   <Download size={14} />
                 </a>
-                <button onClick={() => handleDelete(doc.id)} className="btn-danger-ghost" title="Delete">
-                  <Trash2 size={14} />
-                </button>
+                <PermissionGuard permission="documents.write">
+                  <button onClick={() => handleDelete(doc.id)} className="btn-danger-ghost" title="Delete">
+                    <Trash2 size={14} />
+                  </button>
+                </PermissionGuard>
               </div>
             </div>
           ))}
@@ -1017,7 +1046,9 @@ function NotesTab({ tenantId }: { tenantId: string }) {
             <input type="checkbox" checked={isPinned} onChange={(e) => setIsPinned(e.target.checked)} />
             <Pin size={12} /> Pin note
           </label>
-          <button className="btn-primary-sm" onClick={handleAdd} disabled={!content.trim()}>Add Note</button>
+          <PermissionGuard permission="tenants.update">
+            <button className="btn-primary-sm" onClick={handleAdd} disabled={!content.trim()}>Add Note</button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -1054,12 +1085,14 @@ function NoteCard({ note, tenantId, onTogglePin, onDelete }: {
         <span>{new Date(note.createdAt).toLocaleString()}</span>
       </div>
       <div className="note-actions">
-        <button onClick={onTogglePin} title={note.isPinned ? 'Unpin' : 'Pin'}>
-          {note.isPinned ? <PinOff size={12} /> : <Pin size={12} />}
-        </button>
-        <button onClick={async () => { try { await onDelete(); toast.success('Deleted'); } catch { toast.error('Failed'); } }} title="Delete">
-          <Trash2 size={12} />
-        </button>
+        <PermissionGuard permission="tenants.update">
+          <button onClick={onTogglePin} title={note.isPinned ? 'Unpin' : 'Pin'}>
+            {note.isPinned ? <PinOff size={12} /> : <Pin size={12} />}
+          </button>
+          <button onClick={async () => { try { await onDelete(); toast.success('Deleted'); } catch { toast.error('Failed'); } }} title="Delete">
+            <Trash2 size={12} />
+          </button>
+        </PermissionGuard>
       </div>
     </div>
   );

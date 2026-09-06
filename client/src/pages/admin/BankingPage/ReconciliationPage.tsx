@@ -6,6 +6,7 @@ import {
   useExcludeLineMutation, useUnmatchLineMutation, useGetBalanceQuery,
 } from '../../../store/api/bankingApi';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -89,7 +90,9 @@ export default function ReconciliationPage() {
           <option value="excluded">Excluded</option>
         </select>
         <div style={{ flex: 1 }} />
-        <button className="btn-primary" onClick={() => setShowImport(true)}>📥 Import Statement</button>
+        <PermissionGuard permission="finance-banking.write">
+          <button className="btn-primary" onClick={() => setShowImport(true)}>📥 Import Statement</button>
+        </PermissionGuard>
       </div>
 
       {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
@@ -119,15 +122,17 @@ export default function ReconciliationPage() {
                     {line.matchConfidence ? `${line.matchConfidence}%` : '—'}
                   </td>
                   <td style={{display:'flex',gap:4}}>
-                    {line.matchStatus === 'unmatched' && (
-                      <button className="btn-sm" onClick={() => handleExclude(line.id)} title="Exclude">✕</button>
-                    )}
-                    {(line.matchStatus === 'auto_matched' || line.matchStatus === 'manually_matched') && (
-                      <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Unmatch">↩</button>
-                    )}
-                    {line.matchStatus === 'excluded' && (
-                      <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Restore">♻</button>
-                    )}
+                    <PermissionGuard permission="finance-banking.write">
+                      {line.matchStatus === 'unmatched' && (
+                        <button className="btn-sm" onClick={() => handleExclude(line.id)} title="Exclude">✕</button>
+                      )}
+                      {(line.matchStatus === 'auto_matched' || line.matchStatus === 'manually_matched') && (
+                        <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Unmatch">↩</button>
+                      )}
+                      {line.matchStatus === 'excluded' && (
+                        <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Restore">♻</button>
+                      )}
+                    </PermissionGuard>
                   </td>
                 </tr>
               ))}

@@ -10,6 +10,7 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import { useConfirm } from '../../../components/DialogProvider';
 import { Link2, Plus, Trash2, Car, Edit3, Save, X, Calendar, DollarSign, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './ParkingPage.css';
 
 function ordinalSuffix(n: number): string {
@@ -58,9 +59,11 @@ export default function AllocationManager() {
             <p>{meta ? `${meta.total} allocations` : 'Loading…'}</p>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus size={15} /> New Allocation
-        </button>
+        <PermissionGuard permission="parking-allocations.write">
+          <button className="btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={15} /> New Allocation
+          </button>
+        </PermissionGuard>
       </div>
 
       <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>
@@ -110,14 +113,14 @@ export default function AllocationManager() {
                 </div>
                 <div className="alloc-row-actions">
                   {a.status === 'active' && (
-                    <>
+                    <PermissionGuard permission="parking-allocations.write">
                       <button className="row-btn-edit" onClick={() => setEditingAlloc(a)} title="Edit allocation">
                         <Edit3 size={13} />
                       </button>
                       <button className="row-btn-delete" onClick={() => handleCancel(a.id, a.slot.slotNumber)} title="Cancel allocation">
                         <Trash2 size={13} />
                       </button>
-                    </>
+                    </PermissionGuard>
                   )}
                 </div>
               </div>

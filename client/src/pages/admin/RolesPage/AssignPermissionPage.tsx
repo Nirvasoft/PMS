@@ -6,6 +6,7 @@ import {
 } from '../../../store/api/usersApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useRefreshAuth } from '../../../hooks/useRefreshAuth';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import toast from 'react-hot-toast';
 
 // Modules ordered to match the side menu's section/item order, top to bottom.
@@ -15,27 +16,27 @@ const MODULE_ORDER = [
   'dashboard',
   'users', 'roles', 'departments', 'positions',
   'company', 'properties', 'floor', 'unit', 'tenants', 'leases',
-  'crm',
-  'parking',
-  'billing', 'meter', 'charge-category',
-  'ar',
-  'ap',
-  'finance',
-  'workflows',
-  'maintenance',
-  'facility',
-  'inventory',
-  'housekeeping',
-  'security',
+  'crm-leads', 'crm-campaigns',
+  'parking-overview', 'parking-allocations', 'parking-visitors', 'parking-gate-logs', 'parking-vehicles',
+  'billing-dashboard', 'billing-invoices', 'billing-schedules', 'charge-category', 'billing-charge-types', 'meter', 'billing-settings',
+  'ar-receipts', 'ar-aging', 'ar-collections', 'ar-refunds', 'ar-statements', 'ar-credits',
+  'ap-invoices', 'ap-vouchers', 'ap-expenses',
+  'finance-coa', 'finance-journal', 'finance-fiscal-periods', 'finance-trial-balance', 'finance-pnl', 'finance-balance-sheet', 'finance-cash-flow', 'finance-budgets', 'finance-assets', 'finance-banking', 'finance-gateway',
+  'workflows-tasks', 'workflows-engine',
+  'maintenance-dashboard', 'maintenance-tickets', 'maintenance-technicians', 'maintenance-sla', 'maintenance-pm', 'maintenance-pm-calendar',
+  'facility-assets', 'facility-cam', 'facility-schedule',
+  'inventory-dashboard', 'inventory-items', 'inventory-stock', 'inventory-stores', 'inventory-movements', 'inventory-purchase-req',
+  'housekeeping-dashboard', 'housekeeping-tasks', 'housekeeping-schedules', 'housekeeping-zones', 'housekeeping-inspections',
+  'security-dashboard', 'security-incidents', 'security-patrol', 'security-patrol-schedules', 'security-patrol-scan', 'security-access-events', 'security-blacklist',
   'documents',
   'notifications',
-  'mall',
-  'community',
-  'condo',
+  'mall-dashboard', 'mall-shops', 'mall-gto', 'mall-cam', 'mall-events', 'mall-footfall', 'mall-pos',
+  'community-admin', 'community-quick-actions', 'community-analytics', 'community-access-cards', 'community-branding',
+  'condo-meters', 'condo-funds', 'condo-meetings', 'condo-bylaws',
   'portal',
-  'reports',
-  'developer',
-  'settings', 'audit',
+  'reports-executive', 'reports-bi', 'reports-anomalies', 'reports-list',
+  'developer-integrations', 'developer-webhooks', 'developer-api-keys', 'developer-bms',
+  'settings-security', 'settings-notifications', 'settings-profile',
 ];
 
 function sortByMenuOrder(modules: string[]): string[] {
@@ -55,28 +56,27 @@ function sortByMenuOrder(modules: string[]): string[] {
 const MODULE_SECTIONS: Record<string, string> = {
   users: 'Administration', roles: 'Administration', departments: 'Administration', positions: 'Administration',
   company: 'Organization', properties: 'Organization', floor: 'Organization', unit: 'Organization', tenants: 'Organization', leases: 'Organization',
-  crm: 'CRM',
-  parking: 'Parking',
-  billing: 'Billing', meter: 'Billing', 'charge-category': 'Billing',
-  ar: 'Accounts Receivable',
-  ap: 'Accounts Payable',
-  finance: 'Finance',
-  workflows: 'Workflows',
-  maintenance: 'Maintenance',
-  facility: 'Facility',
-  inventory: 'Inventory',
-  housekeeping: 'Housekeeping',
-  security: 'Security',
+  'crm-leads': 'CRM', 'crm-campaigns': 'CRM',
+  'parking-overview': 'Parking', 'parking-allocations': 'Parking', 'parking-visitors': 'Parking', 'parking-gate-logs': 'Parking', 'parking-vehicles': 'Parking',
+  'billing-dashboard': 'Billing', 'billing-invoices': 'Billing', 'billing-schedules': 'Billing', 'charge-category': 'Billing', 'billing-charge-types': 'Billing', meter: 'Billing', 'billing-settings': 'Billing',
+  'ar-receipts': 'Accounts Receivable', 'ar-aging': 'Accounts Receivable', 'ar-collections': 'Accounts Receivable', 'ar-refunds': 'Accounts Receivable', 'ar-statements': 'Accounts Receivable', 'ar-credits': 'Accounts Receivable',
+  'ap-invoices': 'Accounts Payable', 'ap-vouchers': 'Accounts Payable', 'ap-expenses': 'Accounts Payable',
+  'finance-coa': 'Finance', 'finance-journal': 'Finance', 'finance-fiscal-periods': 'Finance', 'finance-trial-balance': 'Finance', 'finance-pnl': 'Finance', 'finance-balance-sheet': 'Finance', 'finance-cash-flow': 'Finance', 'finance-budgets': 'Finance', 'finance-assets': 'Finance', 'finance-banking': 'Finance', 'finance-gateway': 'Finance',
+  'workflows-tasks': 'Workflows', 'workflows-engine': 'Workflows',
+  'maintenance-dashboard': 'Maintenance', 'maintenance-tickets': 'Maintenance', 'maintenance-technicians': 'Maintenance', 'maintenance-sla': 'Maintenance', 'maintenance-pm': 'Maintenance', 'maintenance-pm-calendar': 'Maintenance',
+  'facility-assets': 'Facility', 'facility-cam': 'Facility', 'facility-schedule': 'Facility',
+  'inventory-dashboard': 'Inventory', 'inventory-items': 'Inventory', 'inventory-stock': 'Inventory', 'inventory-stores': 'Inventory', 'inventory-movements': 'Inventory', 'inventory-purchase-req': 'Inventory',
+  'housekeeping-dashboard': 'Housekeeping', 'housekeeping-tasks': 'Housekeeping', 'housekeeping-schedules': 'Housekeeping', 'housekeeping-zones': 'Housekeeping', 'housekeeping-inspections': 'Housekeeping',
+  'security-dashboard': 'Security', 'security-incidents': 'Security', 'security-patrol': 'Security', 'security-patrol-schedules': 'Security', 'security-patrol-scan': 'Security', 'security-access-events': 'Security', 'security-blacklist': 'Security',
   documents: 'Documents',
   notifications: 'Notifications',
-  mall: 'Shopping Mall',
-  community: 'Community',
-  condo: 'Condo',
+  'mall-dashboard': 'Shopping Mall', 'mall-shops': 'Shopping Mall', 'mall-gto': 'Shopping Mall', 'mall-cam': 'Shopping Mall', 'mall-events': 'Shopping Mall', 'mall-footfall': 'Shopping Mall', 'mall-pos': 'Shopping Mall',
+  'community-admin': 'Community', 'community-quick-actions': 'Community', 'community-analytics': 'Community', 'community-access-cards': 'Community', 'community-branding': 'Community',
+  'condo-meters': 'Condo', 'condo-funds': 'Condo', 'condo-meetings': 'Condo', 'condo-bylaws': 'Condo',
   portal: 'Tenant Portal',
-  reports: 'Analytics',
-  developer: 'Developer',
-  settings: 'Settings',
-  audit: 'Settings',
+  'reports-executive': 'Analytics', 'reports-bi': 'Analytics', 'reports-anomalies': 'Analytics', 'reports-list': 'Analytics',
+  'developer-integrations': 'Developer', 'developer-webhooks': 'Developer', 'developer-api-keys': 'Developer', 'developer-bms': 'Developer',
+  'settings-security': 'Settings', 'settings-notifications': 'Settings', 'settings-profile': 'Settings',
 };
 
 // Physical containment hierarchy — a Property has Floors, and each Floor has Units — so
@@ -89,6 +89,105 @@ const CHILD_MODULES = new Set(Object.values(NESTED_MODULES).flat());
 const CHILD_TO_PARENT: Record<string, string> = Object.fromEntries(
   Object.entries(NESTED_MODULES).flatMap(([parent, children]) => children.map((child) => [child, parent])),
 );
+
+// Display name for a module row — falls back to the raw module code (title-cased by CSS)
+// when a module's slug doesn't already read naturally, e.g. a hyphenated sub-menu module
+// that should show the same label as its side-menu link ("crm-leads" -> "Lead Pipeline").
+const MODULE_LABELS: Record<string, string> = {
+  'crm-leads': 'Lead Pipeline',
+  'crm-campaigns': 'Campaigns',
+  'parking-overview': 'Parking Overview',
+  'parking-allocations': 'Allocations',
+  'parking-visitors': 'Visitor Parking',
+  'parking-gate-logs': 'Gate Logs',
+  'parking-vehicles': 'Vehicle Registry',
+  'billing-dashboard': 'Dashboard',
+  'billing-invoices': 'Invoices',
+  'billing-schedules': 'Schedules',
+  'charge-category': 'Charge Categories',
+  'billing-charge-types': 'Charge Types',
+  meter: 'Meter Setup',
+  'billing-settings': 'Settings',
+  'ar-receipts': 'Receipts',
+  'ar-aging': 'Aging Report',
+  'ar-collections': 'Collections',
+  'ar-refunds': 'Refunds',
+  'ar-statements': 'Statements',
+  'ar-credits': 'Tenant Credits',
+  'ap-invoices': 'AP Invoices',
+  'ap-vouchers': 'Payment Vouchers',
+  'ap-expenses': 'Expenses',
+  'finance-coa': 'Chart of Accounts',
+  'finance-journal': 'Journal Entries',
+  'finance-fiscal-periods': 'Fiscal Periods',
+  'finance-trial-balance': 'Trial Balance',
+  'finance-pnl': 'Profit & Loss',
+  'finance-balance-sheet': 'Balance Sheet',
+  'finance-cash-flow': 'Cash Flow',
+  'finance-budgets': 'Budgets',
+  'finance-assets': 'Fixed Assets',
+  'finance-banking': 'Banking',
+  'finance-gateway': 'Gateway Payments',
+  'workflows-tasks': 'My Tasks',
+  'workflows-engine': 'Workflow Engine',
+  'maintenance-dashboard': 'Dashboard',
+  'maintenance-tickets': 'Tickets',
+  'maintenance-technicians': 'Technician Schedule',
+  'maintenance-sla': 'SLA Configuration',
+  'maintenance-pm': 'PM Schedules',
+  'maintenance-pm-calendar': 'PM Calendar',
+  'facility-assets': 'Asset Registry',
+  'facility-cam': 'CAM Costs',
+  'facility-schedule': 'Booking Schedule',
+  'inventory-dashboard': 'Dashboard',
+  'inventory-items': 'Item Catalog',
+  'inventory-stock': 'Stock Levels',
+  'inventory-stores': 'Stores',
+  'inventory-movements': 'Movements',
+  'inventory-purchase-req': 'Purchase Requisitions',
+  'housekeeping-dashboard': 'Dashboard',
+  'housekeeping-tasks': 'Tasks',
+  'housekeeping-schedules': 'Schedules',
+  'housekeeping-zones': 'Zones',
+  'housekeeping-inspections': 'Inspections',
+  'security-dashboard': 'Dashboard',
+  'security-incidents': 'Incidents',
+  'security-patrol': 'Patrol Logs',
+  'security-patrol-schedules': 'Patrol Schedules',
+  'security-patrol-scan': 'Patrol Scan',
+  'security-access-events': 'Access Events',
+  'security-blacklist': 'Visitor Blacklist',
+  'mall-dashboard': 'Mall Dashboard',
+  'mall-shops': 'Shop Directory',
+  'mall-gto': 'GTO Management',
+  'mall-cam': 'CAM Management',
+  'mall-events': 'Events',
+  'mall-footfall': 'Footfall Analytics',
+  'mall-pos': 'POS Integration',
+  'community-admin': 'Community Admin',
+  'community-quick-actions': 'Portal Quick Actions',
+  'community-analytics': 'Portal Analytics',
+  'community-access-cards': 'Access Cards',
+  'community-branding': 'Portal Branding',
+  'condo-meters': 'Smart Meters',
+  'condo-funds': 'Funds',
+  'condo-meetings': 'Meetings (AGM)',
+  'condo-bylaws': 'By-Laws',
+  'reports-executive': 'Executive Dashboard',
+  'reports-bi': 'BI Reports',
+  'reports-anomalies': 'Anomaly Dashboard',
+  'reports-list': 'Reports',
+  'developer-integrations': 'Integrations',
+  'developer-webhooks': 'Webhooks',
+  'developer-api-keys': 'API Keys',
+  'developer-bms': 'BMS Devices',
+  'settings-security': 'Security',
+  'settings-notifications': 'Notification Prefs',
+  'settings-profile': 'My Profile',
+};
+function moduleLabel(module: string): string {
+  return MODULE_LABELS[module] ?? module;
+}
 
 // Checking any permission on a child module (unit) implies the role needs visibility
 // into its parent's context, so auto-check the parent's "view" permission — cascading
@@ -131,12 +230,12 @@ function groupModulesBySection(modules: string[]): ModuleBlock[] {
   return blocks;
 }
 
-// "leases.create" (module "leases") -> "Allow to create"; "users.manage-roles" -> "Allow to manage roles".
-// "read" actions display as "view" (e.g. "billing.read" -> "Allow to view").
+// "leases.create" (module "leases") -> "Create"; "users.manage-roles" -> "Manage roles".
+// "read" actions display as "view" (e.g. "billing.read" -> "View").
 function permissionLabel(code: string, module: string): string {
   const suffix = code.startsWith(`${module}.`) ? code.slice(module.length + 1) : code;
-  const display = suffix === 'read' ? 'view' : suffix;
-  return `Allow to ${display.replace(/-/g, ' ')}`;
+  const display = (suffix === 'read' ? 'view' : suffix).replace(/-/g, ' ');
+  return display.charAt(0).toUpperCase() + display.slice(1);
 }
 
 export default function AssignPermissionPage() {
@@ -325,7 +424,7 @@ export default function AssignPermissionPage() {
             onClick={(e) => e.stopPropagation()}
             onChange={() => toggleModuleAll(module)}
           />
-          <span className="perm-module-name">{module}</span>
+          <span className="perm-module-name">{moduleLabel(module)}</span>
           <span className="text-muted text-small">{selectedCount}/{perms.length}</span>
         </div>
         {isOpen && (
@@ -349,6 +448,25 @@ export default function AssignPermissionPage() {
           </div>
         )}
         {isOpen && childModules.map((child) => renderModule(child, depth + 1))}
+      </div>
+    );
+  };
+
+  // When a section wraps exactly one module (e.g. "CRM" section around the sole "crm"
+  // module), rendering that module as its own nested row just repeats the section's name
+  // one level down. Skip the inner module header for those and show its permissions
+  // directly under the section, the same way a multi-module section like Administration
+  // never had this redundant single-item wrapper to begin with.
+  const renderModulePermsOnly = (module: string) => {
+    const perms = permsByModule[module];
+    return (
+      <div key={module} className="perm-actions" style={{ paddingLeft: 32 }}>
+        {perms.map((p) => (
+          <label key={p.code} className={`perm-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+            <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code)} />
+            <span style={{ textTransform: 'none' }}>{permissionLabel(p.code, module)}</span>
+          </label>
+        ))}
       </div>
     );
   };
@@ -380,7 +498,7 @@ export default function AssignPermissionPage() {
             onClick={(e) => e.stopPropagation()}
             onChange={() => toggleModuleAll(module)}
           />
-          <span className="perm-section-label">{module}</span>
+          <span className="perm-section-label">{moduleLabel(module)}</span>
           <span className="text-muted text-small">{selectedCount}/{perms.length}</span>
         </div>
         {isOpen && (
@@ -491,7 +609,11 @@ export default function AssignPermissionPage() {
                     <span className="perm-section-label">{block.label}</span>
                     <span className="text-muted text-small">{selectedCount}/{sectionCodes.length}</span>
                   </div>
-                  {isOpen && block.modules.filter((m) => !CHILD_MODULES.has(m)).map((m) => renderModule(m))}
+                  {isOpen && (
+                    block.modules.length === 1 && !NESTED_MODULES[block.modules[0]]
+                      ? renderModulePermsOnly(block.modules[0])
+                      : block.modules.filter((m) => !CHILD_MODULES.has(m)).map((m) => renderModule(m))
+                  )}
                 </div>
               );
             })}
@@ -514,7 +636,9 @@ export default function AssignPermissionPage() {
 
         <div className="modal-actions">
           <button type="button" className="btn" onClick={() => navigate('/admin/roles')}>Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={!roleId || saving}>Assign Permissions</button>
+          <PermissionGuard permission="roles.manage">
+            <button type="submit" className="btn btn-primary" disabled={!roleId || saving}>Assign Permissions</button>
+          </PermissionGuard>
         </div>
       </form>
 

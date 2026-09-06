@@ -9,6 +9,7 @@ import {
   Store, TrendingUp, DollarSign, Radio, Calendar, Users, BarChart3,
   Settings, X, Building2, Percent, Hash, Maximize2,
 } from 'lucide-react';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
@@ -114,9 +115,11 @@ export default function MallDashboard() {
           <h1>Mall Dashboard</h1>
           <p className="mall-page-subtitle">Overview of mall operations and performance</p>
         </div>
-        <button className="btn btn-outline" onClick={openConfig} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Settings size={16} /> Mall Settings
-        </button>
+        <PermissionGuard permission="mall-dashboard.write">
+          <button className="btn btn-outline" onClick={openConfig} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Settings size={16} /> Mall Settings
+          </button>
+        </PermissionGuard>
       </div>
 
       {isLoading ? (

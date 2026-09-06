@@ -267,16 +267,18 @@ function AppRoutes() {
             <Route path="/admin/leases/:id" element={<LeaseDetailPage />} />
           </Route>
 
-          {/* CRM — requires crm.read */}
-          <Route element={<RequirePermission permission="crm.read" />}>
+          {/* CRM — leads and campaigns are gated independently */}
+          <Route element={<RequirePermission permission="crm-leads.read" />}>
             <Route path="/admin/crm/leads" element={<LeadPipelinePage />} />
             <Route path="/admin/crm/leads/new" element={<CreateLeadPage />} />
             <Route path="/admin/crm/leads/:id" element={<CRMLeadDetailPage />} />
+          </Route>
+          <Route element={<RequirePermission permission="crm-campaigns.read" />}>
             <Route path="/admin/crm/campaigns" element={<CampaignsPage />} />
           </Route>
 
-          {/* Parking — requires parking.read */}
-          <Route element={<RequirePermission permission="parking.read" />}>
+          {/* Parking — requires any parking sub-menu read permission */}
+          <Route element={<RequirePermission permission={['parking-overview.read', 'parking-allocations.read', 'parking-visitors.read', 'parking-gate-logs.read', 'parking-vehicles.read']} />}>
             <Route path="/admin/parking" element={<ParkingOverviewPage />} />
             <Route path="/admin/parking/allocations" element={<AllocationManager />} />
             <Route path="/admin/parking/visitors" element={<VisitorParkingPage />} />
@@ -284,8 +286,13 @@ function AppRoutes() {
             <Route path="/admin/parking/vehicles" element={<VehicleRegistryPage />} />
           </Route>
 
-          {/* Billing & Finance — requires billing.read */}
-          <Route element={<RequirePermission permission="billing.read" />}>
+          {/* Billing & Finance — requires any billing/AR/AP/finance sub-menu read permission */}
+          <Route element={<RequirePermission permission={[
+            'billing-dashboard.read', 'billing-invoices.read', 'billing-schedules.read', 'charge-category.read', 'billing-charge-types.read', 'meter.read', 'billing-settings.read',
+            'ar-receipts.read', 'ar-aging.read', 'ar-collections.read', 'ar-refunds.read', 'ar-statements.read', 'ar-credits.read',
+            'ap-invoices.read', 'ap-vouchers.read', 'ap-expenses.read',
+            'finance-coa.read', 'finance-journal.read', 'finance-fiscal-periods.read', 'finance-trial-balance.read', 'finance-pnl.read', 'finance-balance-sheet.read', 'finance-cash-flow.read', 'finance-budgets.read', 'finance-assets.read', 'finance-banking.read', 'finance-gateway.read',
+          ]} />}>
             <Route path="/admin/billing/invoices" element={<InvoiceListPage />} />
             <Route path="/admin/billing/invoices/new" element={<CreateInvoicePage />} />
             <Route path="/admin/billing/invoices/:id" element={<InvoiceDetailPage />} />
@@ -322,8 +329,8 @@ function AppRoutes() {
             <Route path="/admin/banking/gateway-transactions" element={<GatewayTransactionsPage />} />
           </Route>
 
-          {/* Maintenance — requires maintenance.read */}
-          <Route element={<RequirePermission permission="maintenance.read" />}>
+          {/* Maintenance — requires any maintenance sub-menu read permission */}
+          <Route element={<RequirePermission permission={['maintenance-dashboard.read', 'maintenance-tickets.read', 'maintenance-technicians.read', 'maintenance-sla.read', 'maintenance-pm.read', 'maintenance-pm-calendar.read']} />}>
             <Route path="/admin/maintenance" element={<MaintenanceDashboard />} />
             <Route path="/admin/maintenance/tickets" element={<TicketListPage />} />
             <Route path="/admin/maintenance/tickets/:id" element={<TicketDetailPage />} />
@@ -337,8 +344,8 @@ function AppRoutes() {
             <Route path="/admin/maintenance/pm/:id" element={<PmScheduleDetailPage />} />
           </Route>
 
-          {/* Facility — requires facility.read */}
-          <Route element={<RequirePermission permission="facility.read" />}>
+          {/* Facility — requires any facility sub-menu read permission */}
+          <Route element={<RequirePermission permission={['facility-assets.read', 'facility-cam.read', 'facility-schedule.read']} />}>
             <Route path="/admin/facility/assets" element={<AssetRegistryPage />} />
             <Route path="/admin/facility/assets/:id/scan" element={<QrScanLandingPage />} />
             <Route path="/admin/facility/assets/:id" element={<FacilityAssetDetailPage />} />
@@ -347,8 +354,8 @@ function AppRoutes() {
             <Route path="/admin/facility/schedule" element={<FacilitySchedulePage />} />
           </Route>
 
-          {/* Inventory — requires inventory.read */}
-          <Route element={<RequirePermission permission="inventory.read" />}>
+          {/* Inventory — requires any inventory sub-menu read permission */}
+          <Route element={<RequirePermission permission={['inventory-dashboard.read', 'inventory-items.read', 'inventory-stock.read', 'inventory-stores.read', 'inventory-movements.read', 'inventory-purchase-req.read']} />}>
             <Route path="/admin/inventory/dashboard" element={<InventoryDashboard />} />
             <Route path="/admin/inventory/items" element={<ItemCatalogPage />} />
             <Route path="/admin/inventory/stock" element={<StockLevelsPage />} />

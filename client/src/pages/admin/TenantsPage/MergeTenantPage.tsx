@@ -9,6 +9,7 @@ import {
   ShieldOff, ArrowRight, CheckCircle, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './MergeTenantPage.css';
 
 export default function MergeTenantPage() {
@@ -281,9 +282,11 @@ function MergePreview({ primaryId, duplicateId, onBack, onConfirm, merging, conf
 
       <div className="merge-footer">
         <button className="btn-ghost" onClick={onBack}>← Back</button>
-        <button className="btn-danger" onClick={onConfirm} disabled={merging || (hasActiveLeases && !confirmActive)}>
-          <GitMerge size={14} /> {merging ? 'Merging…' : 'Confirm Merge'}
-        </button>
+        <PermissionGuard permission="tenants.update">
+          <button className="btn-danger" onClick={onConfirm} disabled={merging || (hasActiveLeases && !confirmActive)}>
+            <GitMerge size={14} /> {merging ? 'Merging…' : 'Confirm Merge'}
+          </button>
+        </PermissionGuard>
       </div>
     </div>
   );

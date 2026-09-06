@@ -12,6 +12,7 @@ import {
   Shield, CheckCircle2, QrCode,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const FREQ_BADGES: Record<string, { bg: string; color: string }> = {
   hourly: { bg: 'rgba(239,68,68,0.12)', color: '#ef4444' },
@@ -80,14 +81,16 @@ export default function PatrolScheduleManagement() {
             <p>Schedules, checkpoints & QR-enabled patrol routes</p>
           </div>
         </div>
-        <div className="header-actions">
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowCreateCheckpoint(true)}>
-            <QrCode size={14} /> Add Checkpoint
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreateSchedule(true)}>
-            <Plus size={14} /> New Schedule
-          </button>
-        </div>
+        <PermissionGuard permission="security-patrol-schedules.write">
+          <div className="header-actions">
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowCreateCheckpoint(true)}>
+              <QrCode size={14} /> Add Checkpoint
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCreateSchedule(true)}>
+              <Plus size={14} /> New Schedule
+            </button>
+          </div>
+        </PermissionGuard>
       </div>
 
       {/* Stats */}

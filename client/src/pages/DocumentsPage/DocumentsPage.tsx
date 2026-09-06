@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import './DocumentsPage.css';
 
 // ─── File type icon mapping ────────────────────
@@ -108,12 +109,14 @@ export default function DocumentsPage() {
           </div>
         </div>
         <div className="header-actions">
-          <button className="btn-secondary" onClick={() => setShowNewFolder(true)}>
-            <FolderPlus size={16} /> New Folder
-          </button>
-          <button className="btn-primary" onClick={() => setShowUpload(true)}>
-            <Upload size={16} /> Upload Document
-          </button>
+          <PermissionGuard permission="documents.write">
+            <button className="btn-secondary" onClick={() => setShowNewFolder(true)}>
+              <FolderPlus size={16} /> New Folder
+            </button>
+            <button className="btn-primary" onClick={() => setShowUpload(true)}>
+              <Upload size={16} /> Upload Document
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -193,9 +196,11 @@ export default function DocumentsPage() {
               <FileText size={48} />
               <h3>No documents found</h3>
               <p>Upload your first document to get started</p>
-              <button className="btn-primary" onClick={() => setShowUpload(true)}>
-                <Upload size={16} /> Upload Document
-              </button>
+              <PermissionGuard permission="documents.write">
+                <button className="btn-primary" onClick={() => setShowUpload(true)}>
+                  <Upload size={16} /> Upload Document
+                </button>
+              </PermissionGuard>
             </div>
           ) : (
             <>
@@ -303,15 +308,17 @@ function FolderTreeItem({ folder, activeId, onSelect, onRename, onDelete, depth 
         </button>
 
         {showCtx && (
-          <div className="folder-context-menu" onClick={(e) => e.stopPropagation()}>
-            <button className="menu-item" onClick={() => { onRename(folder); setShowCtx(false); }}>
-              <Edit3 size={14} /> Rename
-            </button>
-            <div className="menu-divider" />
-            <button className="menu-item danger" onClick={() => { onDelete(folder); setShowCtx(false); }}>
-              <Trash2 size={14} /> Delete
-            </button>
-          </div>
+          <PermissionGuard permission="documents.write">
+            <div className="folder-context-menu" onClick={(e) => e.stopPropagation()}>
+              <button className="menu-item" onClick={() => { onRename(folder); setShowCtx(false); }}>
+                <Edit3 size={14} /> Rename
+              </button>
+              <div className="menu-divider" />
+              <button className="menu-item danger" onClick={() => { onDelete(folder); setShowCtx(false); }}>
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          </PermissionGuard>
         )}
       </li>
       {expanded && folder.children?.map((child) => (
@@ -364,9 +371,11 @@ function DocumentCard({ doc, isSelected, onSelect, onDelete, onVersions, onEdit,
               <button className="menu-item" onClick={() => { onPreview(); setShowMenu(false); }}>
                 <Eye size={14} /> Preview
               </button>
-              <button className="menu-item" onClick={() => { onEdit(); setShowMenu(false); }}>
-                <Edit3 size={14} /> Edit
-              </button>
+              <PermissionGuard permission="documents.write">
+                <button className="menu-item" onClick={() => { onEdit(); setShowMenu(false); }}>
+                  <Edit3 size={14} /> Edit
+                </button>
+              </PermissionGuard>
               <a href={`/api/v1/documents/${doc.id}/download`} className="menu-item" target="_blank" rel="noreferrer">
                 <Download size={14} /> Download
               </a>
@@ -374,9 +383,11 @@ function DocumentCard({ doc, isSelected, onSelect, onDelete, onVersions, onEdit,
                 <History size={14} /> Versions
               </button>
               <div className="menu-divider" />
-              <button className="menu-item danger" onClick={() => { onDelete(); setShowMenu(false); }}>
-                <Trash2 size={14} /> Delete
-              </button>
+              <PermissionGuard permission="documents.write">
+                <button className="menu-item danger" onClick={() => { onDelete(); setShowMenu(false); }}>
+                  <Trash2 size={14} /> Delete
+                </button>
+              </PermissionGuard>
             </div>
           )}
         </div>
@@ -448,9 +459,11 @@ function DetailPanel({ doc, onClose, onEdit, onPreview }: {
           <button className="btn-secondary" onClick={onPreview}>
             <Eye size={14} /> Preview
           </button>
-          <button className="btn-secondary" onClick={onEdit}>
-            <Edit3 size={14} /> Edit
-          </button>
+          <PermissionGuard permission="documents.write">
+            <button className="btn-secondary" onClick={onEdit}>
+              <Edit3 size={14} /> Edit
+            </button>
+          </PermissionGuard>
         </div>
 
         <div className="detail-actions">
@@ -776,17 +789,19 @@ function VersionsModal({ docId, onClose }: { docId: string; onClose: () => void 
           ))}
         </div>
 
-        <div className="upload-version-section">
-          <h4>Upload New Version</h4>
-          <div className="form-group">
-            <label>Change Notes</label>
-            <input type="text" value={changeNotes} onChange={(e) => setChangeNotes(e.target.value)} placeholder="What changed?" />
+        <PermissionGuard permission="documents.write">
+          <div className="upload-version-section">
+            <h4>Upload New Version</h4>
+            <div className="form-group">
+              <label>Change Notes</label>
+              <input type="text" value={changeNotes} onChange={(e) => setChangeNotes(e.target.value)} placeholder="What changed?" />
+            </div>
+            <input ref={fileRef} type="file" onChange={handleUploadVersion} style={{ display: 'none' }} />
+            <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={isLoading}>
+              <Plus size={14} /> {isLoading ? 'Uploading...' : 'Select File'}
+            </button>
           </div>
-          <input ref={fileRef} type="file" onChange={handleUploadVersion} style={{ display: 'none' }} />
-          <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={isLoading}>
-            <Plus size={14} /> {isLoading ? 'Uploading...' : 'Select File'}
-          </button>
-        </div>
+        </PermissionGuard>
 
         <div className="modal-footer">
           <button className="btn-secondary" onClick={onClose}>Close</button>

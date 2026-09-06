@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Upload, UploadCloud, Download, FileText, Users, X } from 'lucide-react';
 import { useImportUsersMutation, type BulkImportResult } from '../../../store/api/usersApi';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const MAX_SIZE = 5 * 1024 * 1024; // matches the server's csvUpload limit
 
@@ -137,9 +138,11 @@ export function BulkImportTab({ onViewUsers }: { onViewUsers?: () => void }) {
         )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
-          <button className="btn btn-primary" onClick={handleImport} disabled={importing || !file}>
-            {importing ? '⏳ Importing...' : <><Upload size={14} /> Import {file ? `${file.name.length > 24 ? 'file' : file.name}` : ''}</>}
-          </button>
+          <PermissionGuard permission="users.create">
+            <button className="btn btn-primary" onClick={handleImport} disabled={importing || !file}>
+              {importing ? '⏳ Importing...' : <><Upload size={14} /> Import {file ? `${file.name.length > 24 ? 'file' : file.name}` : ''}</>}
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 

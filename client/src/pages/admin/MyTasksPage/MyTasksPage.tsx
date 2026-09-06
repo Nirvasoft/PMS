@@ -7,6 +7,7 @@ import {
 import { useGetUsersQuery } from '../../../store/api/usersApi';
 import toast from 'react-hot-toast';
 import { UserCheck, ArrowRightLeft, Search, X, Paperclip, Upload } from 'lucide-react';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 export default function MyTasksPage() {
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -159,21 +160,23 @@ export default function MyTasksPage() {
                 </div>
 
                 {t.status === 'pending' && (
-                  <div className="task-card-actions">
-                    <button className="btn btn-sm btn-primary"
-                      onClick={() => { setActionTask({ task: t, action: 'approve' }); setComments(''); }}>
-                      ✓ Approve
-                    </button>
-                    <button className="btn btn-sm btn-danger"
-                      onClick={() => { setActionTask({ task: t, action: 'reject' }); setComments(''); }}>
-                      ✕ Reject
-                    </button>
-                    <button className="btn btn-sm btn-delegate"
-                      onClick={() => setDelegateTask(t)}>
-                      <ArrowRightLeft size={14} /> Delegate
-                    </button>
-                    <AttachButton taskId={t.id} />
-                  </div>
+                  <PermissionGuard permission="workflows-tasks.write">
+                    <div className="task-card-actions">
+                      <button className="btn btn-sm btn-primary"
+                        onClick={() => { setActionTask({ task: t, action: 'approve' }); setComments(''); }}>
+                        ✓ Approve
+                      </button>
+                      <button className="btn btn-sm btn-danger"
+                        onClick={() => { setActionTask({ task: t, action: 'reject' }); setComments(''); }}>
+                        ✕ Reject
+                      </button>
+                      <button className="btn btn-sm btn-delegate"
+                        onClick={() => setDelegateTask(t)}>
+                        <ArrowRightLeft size={14} /> Delegate
+                      </button>
+                      <AttachButton taskId={t.id} />
+                    </div>
+                  </PermissionGuard>
                 )}
               </div>
             );

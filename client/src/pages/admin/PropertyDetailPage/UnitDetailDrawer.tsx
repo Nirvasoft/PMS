@@ -17,6 +17,7 @@ import {
   Upload, FileImage, ExternalLink, FileText, CalendarDays, AlertCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './UnitDetailDrawer.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -430,14 +431,16 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
         {/* Status transitions */}
         {transitions.length > 0 && (
-          <div className="status-transition-bar">
-            {transitions.map((s) => (
-              <button key={s} onClick={() => { setNewStatus(s); setStatusModal(true); }}
-                style={{ borderColor: STATUS_COLORS[s] + '66', color: STATUS_COLORS[s] }}>
-                → {s.replace(/_/g, ' ')}
-              </button>
-            ))}
-          </div>
+          <PermissionGuard permission="unit.update">
+            <div className="status-transition-bar">
+              {transitions.map((s) => (
+                <button key={s} onClick={() => { setNewStatus(s); setStatusModal(true); }}
+                  style={{ borderColor: STATUS_COLORS[s] + '66', color: STATUS_COLORS[s] }}>
+                  → {s.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
+          </PermissionGuard>
         )}
 
         {/* Tabs */}
@@ -471,9 +474,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     <button className="btn-cancel-edit" onClick={cancelEditing}>Cancel</button>
                   </>
                 ) : (
-                  <button className="btn-start-edit" onClick={startEditing}>
-                    <Pencil size={12} /> Edit
-                  </button>
+                  <PermissionGuard permission="unit.update">
+                    <button className="btn-start-edit" onClick={startEditing}>
+                      <Pencil size={12} /> Edit
+                    </button>
+                  </PermissionGuard>
                 )}
               </div>
 
@@ -714,9 +719,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
           {/* ═══ METERS TAB ═══ */}
           {activeTab === 'meters' && (
             <div className="drawer-meters">
-              <button className="btn-add-meter" onClick={() => { setAddingMeter(!addingMeter); setMeterFormErrors({}); }}>
-                <Plus size={13} /> Add Meter
-              </button>
+              <PermissionGuard permission="meter.create">
+                <button className="btn-add-meter" onClick={() => { setAddingMeter(!addingMeter); setMeterFormErrors({}); }}>
+                  <Plus size={13} /> Add Meter
+                </button>
+              </PermissionGuard>
 
               {addingMeter && (
                 <div className="meter-form">
@@ -935,24 +942,28 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                             )}
                             {m.isSmartMeter && <span className="smart-badge">Smart{m.smartMeterId ? ` · ${m.smartMeterId}` : ''}</span>}
                           </div>
-                          <div className="meter-actions">
-                            <button className="meter-action-btn" title="Record Reading"
-                              onClick={() => {
-                                setReadingMeterId(m.id);
-                                setReadingValue(m.lastReading != null ? String(m.lastReading) : '');
-                                setReadingStartDate(m.lastReadingStartDate ? m.lastReadingStartDate.split('T')[0] : '');
-                                setReadingEndDate(m.lastReadingDate ? m.lastReadingDate.split('T')[0] : new Date().toISOString().split('T')[0]);
-                              }}>
-                              <Activity size={12} />
-                            </button>
-                            <button className="meter-action-btn" title="Edit Meter" onClick={() => handleMeterEdit(m)}>
-                              <Pencil size={12} />
-                            </button>
-                            <button className="meter-delete" onClick={async () => {
-                              try { await deleteMeter({ propertyId, unitId, meterId: m.id }).unwrap(); toast.success('Removed'); }
-                              catch { toast.error('Failed'); }
-                            }}><Trash2 size={13} /></button>
-                          </div>
+                          <PermissionGuard permission="meter.update">
+                            <div className="meter-actions">
+                              <button className="meter-action-btn" title="Record Reading"
+                                onClick={() => {
+                                  setReadingMeterId(m.id);
+                                  setReadingValue(m.lastReading != null ? String(m.lastReading) : '');
+                                  setReadingStartDate(m.lastReadingStartDate ? m.lastReadingStartDate.split('T')[0] : '');
+                                  setReadingEndDate(m.lastReadingDate ? m.lastReadingDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+                                }}>
+                                <Activity size={12} />
+                              </button>
+                              <button className="meter-action-btn" title="Edit Meter" onClick={() => handleMeterEdit(m)}>
+                                <Pencil size={12} />
+                              </button>
+                              <PermissionGuard permission="meter.delete">
+                                <button className="meter-delete" onClick={async () => {
+                                  try { await deleteMeter({ propertyId, unitId, meterId: m.id }).unwrap(); toast.success('Removed'); }
+                                  catch { toast.error('Failed'); }
+                                }}><Trash2 size={13} /></button>
+                              </PermissionGuard>
+                            </div>
+                          </PermissionGuard>
                         </>
                       )}
                     </div>
@@ -966,9 +977,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
             <div className="drawer-charges">
 
               {/* Add Charge button */}
-              <button className="btn-add-meter" onClick={() => { setAddingCharge(!addingCharge); setChargeForm({ chargeTypeId: '', amount: '' }); }}>
-                <Plus size={13} /> Add Charge
-              </button>
+              <PermissionGuard permission="unit.update">
+                <button className="btn-add-meter" onClick={() => { setAddingCharge(!addingCharge); setChargeForm({ chargeTypeId: '', amount: '' }); }}>
+                  <Plus size={13} /> Add Charge
+                </button>
+              </PermissionGuard>
 
               {/* Add Charge form */}
               {addingCharge && (
@@ -1051,22 +1064,24 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                           <span className="charge-card-name">{c.chargeType.name}</span>
                           <span className="charge-card-amount">{Number(c.amount).toLocaleString()}</span>
                         </div>
-                        <div className="charge-actions">
-                          <button
-                            className="meter-action-btn"
-                            title="Edit charge"
-                            onClick={() => handleChargeEdit(c)}
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            className="meter-delete"
-                            title="Remove charge"
-                            onClick={() => handleDeleteCharge(c.id)}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                        <PermissionGuard permission="unit.update">
+                          <div className="charge-actions">
+                            <button
+                              className="meter-action-btn"
+                              title="Edit charge"
+                              onClick={() => handleChargeEdit(c)}
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              className="meter-delete"
+                              title="Remove charge"
+                              onClick={() => handleDeleteCharge(c.id)}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </PermissionGuard>
                       </>
                     )}
                   </div>
@@ -1109,18 +1124,22 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     </div>
                   )}
                   <div className="fp-actions">
-                    <button className="btn-fp-replace" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                      <Upload size={13} /> {uploading ? 'Uploading…' : 'Replace'}
-                    </button>
+                    <PermissionGuard permission="unit.update">
+                      <button className="btn-fp-replace" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                        <Upload size={13} /> {uploading ? 'Uploading…' : 'Replace'}
+                      </button>
+                    </PermissionGuard>
                   </div>
                 </div>
               ) : (
                 <div className="fp-empty">
                   <FileImage size={36} />
                   <p>No floor plan uploaded</p>
-                  <button className="btn-fp-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                    <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Floor Plan'}
-                  </button>
+                  <PermissionGuard permission="unit.update">
+                    <button className="btn-fp-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                      <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Floor Plan'}
+                    </button>
+                  </PermissionGuard>
                   <span className="fp-hint">PDF, PNG, or JPEG — max 10MB</span>
                 </div>
               )}

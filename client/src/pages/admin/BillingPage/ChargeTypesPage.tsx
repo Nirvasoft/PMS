@@ -6,6 +6,7 @@ import {
 } from '../../../store/api/billingApi';
 import { DollarSign, Plus, X, Tag, Check, Pencil, Lock } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
@@ -86,9 +87,11 @@ export default function ChargeTypesPage() {
             <h1>Charge Types</h1>
             <p>Manage charge categories used across billing and invoicing</p>
           </div>
-          <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> New Charge Type
-          </button>
+          <PermissionGuard permission="billing-charge-types.write">
+            <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> New Charge Type
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -165,9 +168,11 @@ export default function ChargeTypesPage() {
                         <Lock size={14} />
                       </span>
                     ) : (
-                      <button className="btn-icon" title="Edit" onClick={() => openEdit(ct)}>
-                        <Pencil size={14} />
-                      </button>
+                      <PermissionGuard permission="billing-charge-types.write">
+                        <button className="btn-icon" title="Edit" onClick={() => openEdit(ct)}>
+                          <Pencil size={14} />
+                        </button>
+                      </PermissionGuard>
                     )}
                   </td>
                 </tr>

@@ -12,6 +12,7 @@ import { useGetUsersQuery } from '../../../store/api/usersApi';
 import toast from 'react-hot-toast';
 import { FEATURE_FLAGS } from '../../../hooks/useFeatureFlags';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 
 type Tab = 'general' | 'branches' | 'regions' | 'business-units' | 'features';
 
@@ -67,6 +68,7 @@ function GeneralTab() {
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
+  const canManage = usePermission('company.manage');
 
   const startEdit = () => {
     if (!company) return;
@@ -120,7 +122,9 @@ function GeneralTab() {
         <div className="org-detail-header">
           <h3>Company Information</h3>
           {!editing ? (
-            <button className="btn btn-sm" onClick={startEdit}>Edit</button>
+            <PermissionGuard permission="company.manage">
+              <button className="btn btn-sm" onClick={startEdit}>Edit</button>
+            </PermissionGuard>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-sm" onClick={() => setEditing(false)}>Cancel</button>
@@ -168,8 +172,9 @@ function GeneralTab() {
         <h3>Logo & Branding</h3>
         <div
           className={`logo-upload-area ${uploading ? 'uploading' : ''}`}
-          onClick={() => fileRef.current?.click()}
-          title="Click to upload logo"
+          onClick={() => canManage && fileRef.current?.click()}
+          title={canManage ? 'Click to upload logo' : 'Permission required'}
+          style={canManage ? undefined : { cursor: 'not-allowed' }}
         >
           {company.logoUrl ? (
             <img src={company.logoUrl} alt="Company Logo" className="company-logo-img" />
@@ -179,10 +184,14 @@ function GeneralTab() {
               <span className="text-muted text-small">Click to upload logo</span>
             </div>
           )}
-          <div className="logo-upload-overlay">
-            {uploading ? '⏳ Uploading...' : '📷 Change Logo'}
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+          {canManage && (
+            <div className="logo-upload-overlay">
+              {uploading ? '⏳ Uploading...' : '📷 Change Logo'}
+            </div>
+          )}
+          {canManage && (
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+          )}
         </div>
 
         {/* Summary Stats */}
@@ -277,7 +286,9 @@ function BranchesTab() {
     <>
       <div className="toolbar">
         <span className="text-secondary">{branches.length} branch(es)</span>
-        <button className="btn btn-primary" onClick={() => setShowModal('create')}>+ New Branch</button>
+        <PermissionGuard permission="company.manage">
+          <button className="btn btn-primary" onClick={() => setShowModal('create')}>+ New Branch</button>
+        </PermissionGuard>
       </div>
 
       <div className="org-cards-grid">
@@ -299,10 +310,12 @@ function BranchesTab() {
                 <span>👤 {b.manager.profile ? `${b.manager.profile.firstName} ${b.manager.profile.lastName}` : 'Manager assigned'}</span>
               )}
             </div>
-            <div className="org-card-actions">
-              <button className="btn btn-sm" onClick={() => setShowModal(b.id)}>Edit</button>
-              <button className="btn btn-sm btn-danger" onClick={() => handleDelete(b.id, b.name)}>Delete</button>
-            </div>
+            <PermissionGuard permission="company.manage">
+              <div className="org-card-actions">
+                <button className="btn btn-sm" onClick={() => setShowModal(b.id)}>Edit</button>
+                <button className="btn btn-sm btn-danger" onClick={() => handleDelete(b.id, b.name)}>Delete</button>
+              </div>
+            </PermissionGuard>
           </div>
         ))}
       </div>
@@ -373,7 +386,9 @@ function RegionsTab() {
     <>
       <div className="toolbar">
         <span className="text-secondary">{regions.length} region(s)</span>
-        <button className="btn btn-primary" onClick={() => setShowModal('create')}>+ New Region</button>
+        <PermissionGuard permission="company.manage">
+          <button className="btn btn-primary" onClick={() => setShowModal('create')}>+ New Region</button>
+        </PermissionGuard>
       </div>
 
       <div className="org-cards-grid">
@@ -395,12 +410,14 @@ function RegionsTab() {
             </div>
             <div className="org-card-actions">
               <button className="btn btn-sm" onClick={() => setPickerRegionId(r.id)}>🏠 Properties</button>
-              <button className="btn btn-sm" onClick={() => setShowModal(r.id)}>Edit</button>
-              <button className="btn btn-sm btn-danger" onClick={async () => {
-                if (!(await confirmDialog(`Delete region "${r.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
-                try { await deleteRegion(r.id).unwrap(); toast.success('Deleted'); }
-                catch { toast.error('Cannot delete'); }
-              }}>Delete</button>
+              <PermissionGuard permission="company.manage">
+                <button className="btn btn-sm" onClick={() => setShowModal(r.id)}>Edit</button>
+                <button className="btn btn-sm btn-danger" onClick={async () => {
+                  if (!(await confirmDialog(`Delete region "${r.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
+                  try { await deleteRegion(r.id).unwrap(); toast.success('Deleted'); }
+                  catch { toast.error('Cannot delete'); }
+                }}>Delete</button>
+              </PermissionGuard>
             </div>
           </div>
         ))}
@@ -474,10 +491,12 @@ function RegionPropertyPicker({ regionId, onClose }: { regionId: string; onClose
                         {p.code && <span className="dept-code">{p.code}</span>}
                         <span className="text-muted text-small" style={{ marginLeft: 8 }}>{p.city || ''}</span>
                       </div>
-                      <button className="btn btn-sm btn-danger" onClick={async () => {
-                        try { await removeProp({ regionId, propertyId: p.id }).unwrap(); toast.success('Removed'); }
-                        catch { toast.error('Failed'); }
-                      }}>Remove</button>
+                      <PermissionGuard permission="company.manage">
+                        <button className="btn btn-sm btn-danger" onClick={async () => {
+                          try { await removeProp({ regionId, propertyId: p.id }).unwrap(); toast.success('Removed'); }
+                          catch { toast.error('Failed'); }
+                        }}>Remove</button>
+                      </PermissionGuard>
                     </div>
                   ))}
                 </div>
@@ -495,10 +514,12 @@ function RegionPropertyPicker({ regionId, onClose }: { regionId: string; onClose
                         {p.code && <span className="dept-code">{p.code}</span>}
                         <span className="text-muted text-small" style={{ marginLeft: 8 }}>{p.city || ''}</span>
                       </div>
-                      <button className="btn btn-sm btn-primary" onClick={async () => {
-                        try { await addProp({ regionId, propertyId: p.id }).unwrap(); toast.success('Added'); }
-                        catch { toast.error('Failed'); }
-                      }}>+ Add</button>
+                      <PermissionGuard permission="company.manage">
+                        <button className="btn btn-sm btn-primary" onClick={async () => {
+                          try { await addProp({ regionId, propertyId: p.id }).unwrap(); toast.success('Added'); }
+                          catch { toast.error('Failed'); }
+                        }}>+ Add</button>
+                      </PermissionGuard>
                     </div>
                   ))}
                 </div>
@@ -545,7 +566,9 @@ function BusinessUnitsTab() {
     <>
       <div className="toolbar">
         <span className="text-secondary">{units.length} business unit(s)</span>
-        <button className="btn btn-primary" onClick={() => setShowModal('create')}>+ New Unit</button>
+        <PermissionGuard permission="company.manage">
+          <button className="btn btn-primary" onClick={() => setShowModal('create')}>+ New Unit</button>
+        </PermissionGuard>
       </div>
 
       <div className="org-cards-grid">
@@ -565,17 +588,19 @@ function BusinessUnitsTab() {
                 <span>👤 {bu.manager.profile ? `${bu.manager.profile.firstName} ${bu.manager.profile.lastName}` : 'Manager'}</span>
               )}
             </div>
-            <div className="org-card-actions">
-              <button className="btn btn-sm" onClick={() => setShowModal(bu.id)}>Edit</button>
-              <button className="btn btn-sm btn-danger" onClick={async () => {
-                if (!(await confirmDialog(`Delete "${bu.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
-                try { await deleteBU(bu.id).unwrap(); toast.success('Deleted'); }
-                catch (err: unknown) {
-                  const e = err as { data?: { errors?: { message: string }[] } };
-                  toast.error(e.data?.errors?.[0]?.message || 'Cannot delete');
-                }
-              }}>Delete</button>
-            </div>
+            <PermissionGuard permission="company.manage">
+              <div className="org-card-actions">
+                <button className="btn btn-sm" onClick={() => setShowModal(bu.id)}>Edit</button>
+                <button className="btn btn-sm btn-danger" onClick={async () => {
+                  if (!(await confirmDialog(`Delete "${bu.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
+                  try { await deleteBU(bu.id).unwrap(); toast.success('Deleted'); }
+                  catch (err: unknown) {
+                    const e = err as { data?: { errors?: { message: string }[] } };
+                    toast.error(e.data?.errors?.[0]?.message || 'Cannot delete');
+                  }
+                }}>Delete</button>
+              </div>
+            </PermissionGuard>
           </div>
         ))}
       </div>
@@ -635,13 +660,15 @@ function FeaturesTab() {
                 <span className="feature-flag-label">{meta.label}</span>
                 <span className="text-muted text-small">{meta.desc}</span>
               </div>
-              <button
-                className={`toggle-switch ${isOn ? 'on' : ''}`}
-                onClick={() => toggle(key)}
-                disabled={isLoading}
-              >
-                <span className="toggle-knob" />
-              </button>
+              <PermissionGuard permission="company.manage">
+                <button
+                  className={`toggle-switch ${isOn ? 'on' : ''}`}
+                  onClick={() => toggle(key)}
+                  disabled={isLoading}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </PermissionGuard>
             </div>
           );
         })}

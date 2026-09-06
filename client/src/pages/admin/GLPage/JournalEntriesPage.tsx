@@ -5,6 +5,7 @@ import {
   useGetGlAccountsQuery,
 } from '../../../store/api/glApi';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -43,7 +44,9 @@ export default function JournalEntriesPage() {
           <option value="reversed">Reversed</option>
         </select>
         <div style={{ flex: 1 }} />
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New Journal Entry</button>
+        <PermissionGuard permission="finance-journal.write">
+          <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New Journal Entry</button>
+        </PermissionGuard>
       </div>
 
       {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
@@ -66,8 +69,10 @@ export default function JournalEntriesPage() {
                   <td className="amount">{fmtAmt(Number(je.totalCredit))}</td>
                   <td><span className={`gl-badge ${je.status}`}>{je.status}</span></td>
                   <td style={{display:'flex',gap:6}}>
-                    {je.status === 'draft' && <button className="btn-sm btn-success" onClick={() => handlePost(je.id)}>Post</button>}
-                    {je.status === 'posted' && <button className="btn-sm btn-danger" onClick={() => handleReverse(je.id)}>Reverse</button>}
+                    <PermissionGuard permission="finance-journal.write">
+                      {je.status === 'draft' && <button className="btn-sm btn-success" onClick={() => handlePost(je.id)}>Post</button>}
+                      {je.status === 'posted' && <button className="btn-sm btn-danger" onClick={() => handleReverse(je.id)}>Reverse</button>}
+                    </PermissionGuard>
                   </td>
                 </tr>
               ))}

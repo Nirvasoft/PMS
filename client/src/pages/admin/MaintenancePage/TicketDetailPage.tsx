@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const PRIORITIES: Record<string, { label: string; color: string }> = {
   P1: { label: 'P1 — Emergency', color: '#ef4444' },
@@ -164,30 +165,32 @@ export default function TicketDetailPage() {
             <h1 style={{ fontSize: '1.25rem', marginTop: 4 }}>{ticket.title}</h1>
           </div>
         </div>
-        <div className="page-header-right">
-          {ticket.status === 'open' && (
-            <>
-              <button className="btn btn-secondary" onClick={() => setShowAssignModal(true)}>
-                <UserPlus size={16} /> Assign
+        <PermissionGuard permission="maintenance-tickets.write">
+          <div className="page-header-right">
+            {ticket.status === 'open' && (
+              <>
+                <button className="btn btn-secondary" onClick={() => setShowAssignModal(true)}>
+                  <UserPlus size={16} /> Assign
+                </button>
+                <button className="btn btn-accent" onClick={handleAutoAssign} disabled={isAutoAssigning}>
+                  {isAutoAssigning ? <Loader2 size={16} className="spinner" /> : <Zap size={16} />}
+                  Auto-Assign
+                </button>
+              </>
+            )}
+            {!['completed', 'closed', 'cancelled'].includes(ticket.status) && (
+              <>
+                <button className="btn btn-warning" onClick={() => setShowEscalateModal(true)}>Escalate</button>
+                <button className="btn btn-danger" onClick={() => setShowCancelModal(true)}>Cancel</button>
+              </>
+            )}
+            {ticket.status === 'completed' && !ticket.rating && (
+              <button className="btn btn-secondary" onClick={() => setShowRateModal(true)}>
+                <Star size={16} /> Rate
               </button>
-              <button className="btn btn-accent" onClick={handleAutoAssign} disabled={isAutoAssigning}>
-                {isAutoAssigning ? <Loader2 size={16} className="spinner" /> : <Zap size={16} />}
-                Auto-Assign
-              </button>
-            </>
-          )}
-          {!['completed', 'closed', 'cancelled'].includes(ticket.status) && (
-            <>
-              <button className="btn btn-warning" onClick={() => setShowEscalateModal(true)}>Escalate</button>
-              <button className="btn btn-danger" onClick={() => setShowCancelModal(true)}>Cancel</button>
-            </>
-          )}
-          {ticket.status === 'completed' && !ticket.rating && (
-            <button className="btn btn-secondary" onClick={() => setShowRateModal(true)}>
-              <Star size={16} /> Rate
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        </PermissionGuard>
       </div>
 
       {/* SLA Bar */}
@@ -405,30 +408,32 @@ export default function TicketDetailPage() {
                       </span>
                     </div>
                     <div className="wo-card-actions">
-                      {wo.status === 'pending' && (
-                        <button className="btn btn-sm btn-accent" onClick={(e) => { e.stopPropagation(); handleWoAction('start', wo.id); }}>
-                          <Play size={14} /> Start
-                        </button>
-                      )}
-                      {wo.status === 'in_progress' && (
-                        <>
-                          <button className="btn btn-sm btn-success" onClick={(e) => { e.stopPropagation(); handleWoAction('complete', wo.id); }}>
-                            <CheckCircle2 size={14} /> Complete
+                      <PermissionGuard permission="maintenance-tickets.write">
+                        {wo.status === 'pending' && (
+                          <button className="btn btn-sm btn-accent" onClick={(e) => { e.stopPropagation(); handleWoAction('start', wo.id); }}>
+                            <Play size={14} /> Start
                           </button>
-                          <button className="btn btn-sm btn-warning" onClick={(e) => {
-                            e.stopPropagation();
-                            const reason = window.prompt('Why is this on hold?');
-                            if (reason) handleWoAction('hold', wo.id, reason);
-                          }}>
-                            <PauseCircle size={14} /> Hold
+                        )}
+                        {wo.status === 'in_progress' && (
+                          <>
+                            <button className="btn btn-sm btn-success" onClick={(e) => { e.stopPropagation(); handleWoAction('complete', wo.id); }}>
+                              <CheckCircle2 size={14} /> Complete
+                            </button>
+                            <button className="btn btn-sm btn-warning" onClick={(e) => {
+                              e.stopPropagation();
+                              const reason = window.prompt('Why is this on hold?');
+                              if (reason) handleWoAction('hold', wo.id, reason);
+                            }}>
+                              <PauseCircle size={14} /> Hold
+                            </button>
+                          </>
+                        )}
+                        {wo.status === 'on_hold' && (
+                          <button className="btn btn-sm btn-accent" onClick={(e) => { e.stopPropagation(); handleWoAction('resume', wo.id); }}>
+                            <Play size={14} /> Resume
                           </button>
-                        </>
-                      )}
-                      {wo.status === 'on_hold' && (
-                        <button className="btn btn-sm btn-accent" onClick={(e) => { e.stopPropagation(); handleWoAction('resume', wo.id); }}>
-                          <Play size={14} /> Resume
-                        </button>
-                      )}
+                        )}
+                      </PermissionGuard>
                       {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </div>
                   </div>

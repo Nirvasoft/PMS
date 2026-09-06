@@ -6,6 +6,7 @@ import {
 } from '../../../store/api/billingApi';
 import { Tag, Plus, X, Pencil, Trash2, Check, Lock } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 export default function ChargeCategoriesPage() {
@@ -71,9 +72,11 @@ export default function ChargeCategoriesPage() {
             <h1>Charge Categories</h1>
             <p>Define charge categories used to classify charge types</p>
           </div>
-          <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> New Charge Category
-          </button>
+          <PermissionGuard permission="charge-category.create">
+            <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> New Charge Category
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -117,12 +120,16 @@ export default function ChargeCategoriesPage() {
                     </span>
                   ) : (
                     <>
-                      <button className="btn-icon" title="Edit" onClick={() => openEdit(cc)}>
-                        <Pencil size={14} />
-                      </button>
-                      <button className="btn-danger" title="Delete" onClick={() => handleDelete(cc)}>
-                        <Trash2 size={14} />
-                      </button>
+                      <PermissionGuard permission="charge-category.update">
+                        <button className="btn-icon" title="Edit" onClick={() => openEdit(cc)}>
+                          <Pencil size={14} />
+                        </button>
+                      </PermissionGuard>
+                      <PermissionGuard permission="charge-category.delete">
+                        <button className="btn-danger" title="Delete" onClick={() => handleDelete(cc)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </PermissionGuard>
                     </>
                   )}
                 </td>
@@ -166,9 +173,11 @@ export default function ChargeCategoriesPage() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={creating || updating}>
-                  {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Charge Category'}
-                </button>
+                <PermissionGuard permission={editing ? 'charge-category.update' : 'charge-category.create'}>
+                  <button type="submit" className="btn btn-primary" disabled={creating || updating}>
+                    {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Charge Category'}
+                  </button>
+                </PermissionGuard>
               </div>
             </form>
           </div>

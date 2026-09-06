@@ -12,6 +12,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
@@ -194,19 +195,21 @@ export default function PmWorkOrderListPage() {
                       </td>
                       <td>
                         {isActionable ? (
-                          <div className="sla-row-actions">
-                            <button className="btn btn-ghost btn-sm" title="Quick Complete"
-                              style={{ color: '#22c55e' }}
-                              onClick={() => handleQuickComplete(wo.id)}
-                            >
-                              <Check size={14} />
-                            </button>
-                            <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Skip"
-                              onClick={() => handleQuickSkip(wo.id)}
-                            >
-                              <SkipForward size={14} />
-                            </button>
-                          </div>
+                          <PermissionGuard permission="maintenance-pm.write">
+                            <div className="sla-row-actions">
+                              <button className="btn btn-ghost btn-sm" title="Quick Complete"
+                                style={{ color: '#22c55e' }}
+                                onClick={() => handleQuickComplete(wo.id)}
+                              >
+                                <Check size={14} />
+                              </button>
+                              <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Skip"
+                                onClick={() => handleQuickSkip(wo.id)}
+                              >
+                                <SkipForward size={14} />
+                              </button>
+                            </div>
+                          </PermissionGuard>
                         ) : (
                           <span className="cell-secondary" style={{ fontSize: 11 }}>—</span>
                         )}

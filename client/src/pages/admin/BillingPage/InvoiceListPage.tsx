@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 const STATUS_OPTIONS = ['', 'draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
@@ -177,16 +178,18 @@ export default function InvoiceListPage() {
             <p>Manage billing invoices and credit notes</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => setRunBillingModalOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Play size={14} /> Run Billing
-          </button>
-          <button className="btn btn-primary" onClick={() => navigate('/admin/billing/invoices/new')}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> New Invoice
-          </button>
-        </div>
+        <PermissionGuard permission="billing-invoices.write">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-secondary" onClick={() => setRunBillingModalOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Play size={14} /> Run Billing
+            </button>
+            <button className="btn btn-primary" onClick={() => navigate('/admin/billing/invoices/new')}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> New Invoice
+            </button>
+          </div>
+        </PermissionGuard>
       </div>
 
       {/* Summary Cards */}
@@ -365,18 +368,22 @@ export default function InvoiceListPage() {
             <span>invoice{selectedIds.size !== 1 ? 's' : ''} selected</span>
           </div>
           <div className="bulk-btns">
-            <button className="bulk-btn send" onClick={handleBulkSend} disabled={bulkProcessing}
-              title="Send selected invoices to tenants">
-              <Send size={14} /> Send
-            </button>
+            <PermissionGuard permission="billing-invoices.write">
+              <button className="bulk-btn send" onClick={handleBulkSend} disabled={bulkProcessing}
+                title="Send selected invoices to tenants">
+                <Send size={14} /> Send
+              </button>
+            </PermissionGuard>
             <button className="bulk-btn download" onClick={handleBulkDownload} disabled={bulkProcessing}
               title="Download PDF for selected invoices">
               <Download size={14} /> Download PDFs
             </button>
-            <button className="bulk-btn void" onClick={handleBulkVoid} disabled={bulkProcessing}
-              title="Void selected invoices">
-              <Ban size={14} /> Void
-            </button>
+            <PermissionGuard permission="billing-invoices.write">
+              <button className="bulk-btn void" onClick={handleBulkVoid} disabled={bulkProcessing}
+                title="Void selected invoices">
+                <Ban size={14} /> Void
+              </button>
+            </PermissionGuard>
             <button className="bulk-btn deselect" onClick={clearSelection} disabled={bulkProcessing}>
               <XCircle size={14} /> Deselect All
             </button>

@@ -10,6 +10,7 @@ import {
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { useConfirm, useAlertDialog } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import {
   Users, TrendingUp, TrendingDown, Clock, BarChart3, MapPin, Activity,
   ArrowUpRight, ArrowDownRight, Wifi, WifiOff, Radio, Calendar,
@@ -574,31 +575,33 @@ export default function FootfallAnalyticsPage() {
                 <span> · {sensors.filter((s: any) => !s.isActive).length} inactive</span>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={handleSyncAll}
-                disabled={isSyncingAll || sensors.filter((s: any) => s.isActive).length === 0}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: 'rgba(16, 185, 129, 0.12)', color: '#10b981',
-                  border: '1px solid rgba(16, 185, 129, 0.3)', cursor: 'pointer',
-                }}
-              >
-                <RefreshCw size={14} className={isSyncingAll ? 'spin-animation' : ''} />
-                {isSyncingAll ? 'Syncing...' : 'Sync All'}
-              </button>
-              <button
-                onClick={openCreateSensor}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: 'hsl(200, 75%, 55%)', color: '#fff', border: 'none', cursor: 'pointer',
-                }}
-              >
-                <Plus size={14} /> Add Sensor
-              </button>
-            </div>
+            <PermissionGuard permission="mall-footfall.write">
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={handleSyncAll}
+                  disabled={isSyncingAll || sensors.filter((s: any) => s.isActive).length === 0}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                    background: 'rgba(16, 185, 129, 0.12)', color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.3)', cursor: 'pointer',
+                  }}
+                >
+                  <RefreshCw size={14} className={isSyncingAll ? 'spin-animation' : ''} />
+                  {isSyncingAll ? 'Syncing...' : 'Sync All'}
+                </button>
+                <button
+                  onClick={openCreateSensor}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                    background: 'hsl(200, 75%, 55%)', color: '#fff', border: 'none', cursor: 'pointer',
+                  }}
+                >
+                  <Plus size={14} /> Add Sensor
+                </button>
+              </div>
+            </PermissionGuard>
           </div>
 
           {/* Sync Results Banner */}
@@ -684,61 +687,63 @@ export default function FootfallAnalyticsPage() {
                       ID: {s.sensorId}
                     </div>
                     {/* Action row */}
-                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                      <button
-                        onClick={() => handleSyncSensor(s.id)}
-                        disabled={!s.isActive || (isSyncingSingle && syncingSensorId === s.id)}
-                        title={s.isActive ? 'Sync sensor data' : 'Activate sensor first'}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 3,
-                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                          background: 'rgba(16, 185, 129, 0.1)', color: '#10b981',
-                          border: '1px solid rgba(16, 185, 129, 0.2)', cursor: s.isActive ? 'pointer' : 'not-allowed',
-                          opacity: s.isActive ? 1 : 0.5,
-                        }}
-                      >
-                        <RefreshCw size={11} className={(isSyncingSingle && syncingSensorId === s.id) ? 'spin-animation' : ''} />
-                        {(isSyncingSingle && syncingSensorId === s.id) ? 'Syncing...' : 'Sync'}
-                      </button>
-                      <button
-                        onClick={() => openEditSensor(s)}
-                        title="Edit sensor"
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 3,
-                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                          background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1',
-                          border: '1px solid rgba(99, 102, 241, 0.2)', cursor: 'pointer',
-                        }}
-                      >
-                        <Edit3 size={11} /> Edit
-                      </button>
-                      <button
-                        onClick={() => handleToggleSensor(s.id)}
-                        title={s.isActive ? 'Deactivate sensor' : 'Activate sensor'}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 3,
-                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                          background: s.isActive ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                          color: s.isActive ? '#f59e0b' : '#10b981',
-                          border: `1px solid ${s.isActive ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Power size={11} /> {s.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSensor(s)}
-                        title="Delete sensor"
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 3,
-                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                          background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444',
-                          border: '1px solid rgba(239, 68, 68, 0.2)', cursor: 'pointer',
-                        }}
-                      >
-                        <Trash2 size={11} /> Delete
-                      </button>
-                    </div>
+                    <PermissionGuard permission="mall-footfall.write">
+                      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => handleSyncSensor(s.id)}
+                          disabled={!s.isActive || (isSyncingSingle && syncingSensorId === s.id)}
+                          title={s.isActive ? 'Sync sensor data' : 'Activate sensor first'}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 3,
+                            padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            background: 'rgba(16, 185, 129, 0.1)', color: '#10b981',
+                            border: '1px solid rgba(16, 185, 129, 0.2)', cursor: s.isActive ? 'pointer' : 'not-allowed',
+                            opacity: s.isActive ? 1 : 0.5,
+                          }}
+                        >
+                          <RefreshCw size={11} className={(isSyncingSingle && syncingSensorId === s.id) ? 'spin-animation' : ''} />
+                          {(isSyncingSingle && syncingSensorId === s.id) ? 'Syncing...' : 'Sync'}
+                        </button>
+                        <button
+                          onClick={() => openEditSensor(s)}
+                          title="Edit sensor"
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 3,
+                            padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1',
+                            border: '1px solid rgba(99, 102, 241, 0.2)', cursor: 'pointer',
+                          }}
+                        >
+                          <Edit3 size={11} /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleToggleSensor(s.id)}
+                          title={s.isActive ? 'Deactivate sensor' : 'Activate sensor'}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 3,
+                            padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            background: s.isActive ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                            color: s.isActive ? '#f59e0b' : '#10b981',
+                            border: `1px solid ${s.isActive ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Power size={11} /> {s.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSensor(s)}
+                          title="Delete sensor"
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 3,
+                            padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444',
+                            border: '1px solid rgba(239, 68, 68, 0.2)', cursor: 'pointer',
+                          }}
+                        >
+                          <Trash2 size={11} /> Delete
+                        </button>
+                      </div>
+                    </PermissionGuard>
                   </div>
                   <span style={{
                     fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 8,

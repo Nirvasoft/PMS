@@ -12,6 +12,7 @@ import {
   Cloud, CreditCard, FileSignature, Building2, Edit, Map, Database,
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const TYPE_META: Record<string, { name: string; icon: string; cat: string; color: string }> = {
   sap:         { name: 'SAP S/4HANA',           icon: '🏢', cat: 'ERP',        color: '#0070f3' },
@@ -96,9 +97,11 @@ export default function IntegrationsPage() {
           <h1><Plug size={24} /> Integrations</h1>
           <p className="mall-page-subtitle">Connect external ERP, accounting, and payment systems</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus size={16} /> Add Integration
-        </button>
+        <PermissionGuard permission="developer-integrations.write">
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={16} /> Add Integration
+          </button>
+        </PermissionGuard>
       </div>
 
       {isLoading ? (
@@ -158,21 +161,25 @@ export default function IntegrationsPage() {
                   <button className="intg-action-btn" onClick={() => handleTest(intg.id)} title="Test Connection">
                     <Zap size={14} /> Test
                   </button>
-                  <button className="intg-action-btn" onClick={() => handleSync(intg.id)} title="Trigger Sync">
-                    <RefreshCw size={14} /> Sync
-                  </button>
+                  <PermissionGuard permission="developer-integrations.write">
+                    <button className="intg-action-btn" onClick={() => handleSync(intg.id)} title="Trigger Sync">
+                      <RefreshCw size={14} /> Sync
+                    </button>
+                  </PermissionGuard>
                   <button className="intg-action-btn" onClick={() => setShowLogs(intg.id)} title="View Logs">
                     <Activity size={14} /> Logs
                   </button>
-                  <button className="intg-action-btn" onClick={() => openEdit(intg)} title="Edit Integration">
-                    <Edit size={14} />
-                  </button>
-                  <button className="intg-action-btn" onClick={() => setShowEntityMap(intg.id)} title="Entity Map">
-                    <Map size={14} />
-                  </button>
-                  <button className="intg-action-btn danger" onClick={async () => { if (await confirmDialog('Delete this integration?', { danger: true })) deleteIntegration(intg.id); }} title="Delete">
-                    <Trash2 size={14} />
-                  </button>
+                  <PermissionGuard permission="developer-integrations.write">
+                    <button className="intg-action-btn" onClick={() => openEdit(intg)} title="Edit Integration">
+                      <Edit size={14} />
+                    </button>
+                    <button className="intg-action-btn" onClick={() => setShowEntityMap(intg.id)} title="Entity Map">
+                      <Map size={14} />
+                    </button>
+                    <button className="intg-action-btn danger" onClick={async () => { if (await confirmDialog('Delete this integration?', { danger: true })) deleteIntegration(intg.id); }} title="Delete">
+                      <Trash2 size={14} />
+                    </button>
+                  </PermissionGuard>
                 </div>
               </div>
             );

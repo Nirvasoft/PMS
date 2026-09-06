@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCreateTenantMutation } from '../../../store/api/tenantsApi';
 import { ArrowLeft, User, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CreateTenantPage.css';
 
 type TenantType = 'individual' | 'company';
@@ -215,9 +216,11 @@ export default function CreateTenantPage() {
       {/* Submit */}
       <div className="ct-footer">
         <button className="btn-ghost" onClick={() => navigate('/admin/tenants')}>Cancel</button>
-        <button className="btn-primary" onClick={handleSubmit} disabled={isLoading}>
-          {isLoading ? 'Creating…' : 'Create Tenant'}
-        </button>
+        <PermissionGuard permission="tenants.create">
+          <button className="btn-primary" onClick={handleSubmit} disabled={isLoading}>
+            {isLoading ? 'Creating…' : 'Create Tenant'}
+          </button>
+        </PermissionGuard>
       </div>
     </div>
   );

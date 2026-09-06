@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './TenantListPage.css';
 
 const KYC_COLORS: Record<string, string> = {
@@ -86,12 +87,16 @@ export default function TenantListPage() {
           <button className="btn-ghost" onClick={() => navigate('/admin/tenants/kyc-requirements')}>
             <Shield size={14} /> KYC Requirements
           </button>
-          <button className="btn-ghost" onClick={() => navigate('/admin/tenants/merge')}>
-            <GitMerge size={14} /> Merge
-          </button>
-          <button className="btn-primary" onClick={() => navigate('/admin/tenants/new')}>
-            <Plus size={15} /> New Tenant
-          </button>
+          <PermissionGuard permission="tenants.update">
+            <button className="btn-ghost" onClick={() => navigate('/admin/tenants/merge')}>
+              <GitMerge size={14} /> Merge
+            </button>
+          </PermissionGuard>
+          <PermissionGuard permission="tenants.create">
+            <button className="btn-primary" onClick={() => navigate('/admin/tenants/new')}>
+              <Plus size={15} /> New Tenant
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -252,7 +257,9 @@ function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
 
       {/* Actions */}
       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-        <button className="row-btn-delete" onClick={onDelete}><Trash2 size={13} /></button>
+        <PermissionGuard permission="tenants.delete">
+          <button className="row-btn-delete" onClick={onDelete}><Trash2 size={13} /></button>
+        </PermissionGuard>
       </div>
     </div>
   );

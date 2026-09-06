@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const ACTION_TYPES = [
   { value: 'page', label: 'Internal Page', desc: 'Navigate to a portal page (e.g. /portal/invoices)' },
@@ -96,9 +97,11 @@ export default function QuickActionsAdminPage() {
           )}
         </select>
         <div style={{ flex: 1 }} />
-        <button className="btn btn-primary" onClick={() => setShowForm(true)} id="add-quick-action-btn">
-          <Plus size={14} /> Add Quick Action
-        </button>
+        <PermissionGuard permission="community-quick-actions.write">
+          <button className="btn btn-primary" onClick={() => setShowForm(true)} id="add-quick-action-btn">
+            <Plus size={14} /> Add Quick Action
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Create Form */}
@@ -246,22 +249,24 @@ export default function QuickActionsAdminPage() {
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button
-                        className="btn-icon"
-                        onClick={() => handleToggle(qa.id, qa.isActive !== false)}
-                        title={qa.isActive !== false ? 'Deactivate' : 'Activate'}
-                      >
-                        {qa.isActive !== false ? <ToggleRight size={16} className="text-success" /> : <ToggleLeft size={16} />}
-                      </button>
-                      <button
-                        className="btn-icon btn-danger"
-                        onClick={() => handleDelete(qa.id)}
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                    <PermissionGuard permission="community-quick-actions.write">
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          className="btn-icon"
+                          onClick={() => handleToggle(qa.id, qa.isActive !== false)}
+                          title={qa.isActive !== false ? 'Deactivate' : 'Activate'}
+                        >
+                          {qa.isActive !== false ? <ToggleRight size={16} className="text-success" /> : <ToggleLeft size={16} />}
+                        </button>
+                        <button
+                          className="btn-icon btn-danger"
+                          onClick={() => handleDelete(qa.id)}
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </PermissionGuard>
                   </td>
                 </tr>
               ))}

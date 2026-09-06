@@ -12,6 +12,7 @@ import {
   CheckCircle2, ShieldAlert, Clock, Settings2, Shield, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const ASSET_TYPES: Record<string, { label: string; icon: string }> = {
   hvac: { label: 'HVAC', icon: '❄️' },
@@ -87,9 +88,11 @@ export default function AssetRegistryPage() {
           </div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} /> Register Asset
-          </button>
+          <PermissionGuard permission="facility-assets.write">
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} /> Register Asset
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -216,9 +219,11 @@ export default function AssetRegistryPage() {
         <div className="maint-empty">
           <div className="empty-icon"><Box size={28} /></div>
           <p>No assets registered</p>
-          <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} /> Register First Asset
-          </button>
+          <PermissionGuard permission="facility-assets.write">
+            <button className="btn btn-primary" style={{ marginTop: '16px' }} onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} /> Register First Asset
+            </button>
+          </PermissionGuard>
         </div>
       ) : (
         <>

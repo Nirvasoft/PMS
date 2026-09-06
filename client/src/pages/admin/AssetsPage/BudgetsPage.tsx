@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,7 +35,11 @@ export default function BudgetsPage() {
         <div style={{ flex: 1 }} />
         <label>FY</label>
         <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} min={2020} max={2099} style={{width:80}} />
-        {tab === 'spreadsheet' && <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New Budget</button>}
+        {tab === 'spreadsheet' && (
+          <PermissionGuard permission="finance-budgets.write">
+            <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New Budget</button>
+          </PermissionGuard>
+        )}
       </div>
 
       {tab === 'spreadsheet' ? (
@@ -60,6 +65,7 @@ function SpreadsheetTab({ year }: { year: number }) {
   const confirmDialog = useConfirm();
 
   // Track which cell is being edited: `row-col`
+  const canWrite = usePermission('finance-budgets.write');
   const [editCell, setEditCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -80,12 +86,13 @@ function SpreadsheetTab({ year }: { year: number }) {
 
   // Start editing a cell
   const startEdit = useCallback((budgetId: string, monthIdx: number, currentVal: number) => {
+    if (!canWrite) return;
     // Don't allow editing locked/approved budgets
     const budget = budgets.find(b => b.id === budgetId);
     if (budget && budget.status === 'locked') return;
     setEditCell(`${budgetId}-${monthIdx}`);
     setEditValue(currentVal ? String(currentVal) : '');
-  }, [budgets]);
+  }, [budgets, canWrite]);
 
   // Commit a cell edit
   const commitEdit = useCallback(async (budgetId: string, monthIdx: number) => {
@@ -365,24 +372,26 @@ function SpreadsheetTab({ year }: { year: number }) {
 
                     {/* Actions */}
                     <td>
-                      <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap' }}>
-                        {!isLocked && (
-                          <>
-                            <button className="btn-sm" onClick={() => distributeEvenly(b.id)} title="Distribute evenly"
-                              style={{ fontSize: 11, padding: '3px 6px' }}>⇉</button>
-                            <button className="btn-sm" onClick={() => copyFirstMonth(b.id)} title="Copy Jan to all months"
-                              style={{ fontSize: 11, padding: '3px 6px' }}>📋</button>
-                          </>
-                        )}
-                        {b.status === 'draft' && (
-                          <button className="btn-sm btn-success" onClick={() => handleApprove(b.id)} title="Approve"
-                            style={{ fontSize: 11, padding: '3px 6px' }}>✓</button>
-                        )}
-                        {!isLocked && (
-                          <button className="btn-sm btn-danger" onClick={() => handleDelete(b.id)} title="Delete"
-                            style={{ fontSize: 11, padding: '3px 6px' }}>✕</button>
-                        )}
-                      </div>
+                      <PermissionGuard permission="finance-budgets.write">
+                        <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap' }}>
+                          {!isLocked && (
+                            <>
+                              <button className="btn-sm" onClick={() => distributeEvenly(b.id)} title="Distribute evenly"
+                                style={{ fontSize: 11, padding: '3px 6px' }}>⇉</button>
+                              <button className="btn-sm" onClick={() => copyFirstMonth(b.id)} title="Copy Jan to all months"
+                                style={{ fontSize: 11, padding: '3px 6px' }}>📋</button>
+                            </>
+                          )}
+                          {b.status === 'draft' && (
+                            <button className="btn-sm btn-success" onClick={() => handleApprove(b.id)} title="Approve"
+                              style={{ fontSize: 11, padding: '3px 6px' }}>✓</button>
+                          )}
+                          {!isLocked && (
+                            <button className="btn-sm btn-danger" onClick={() => handleDelete(b.id)} title="Delete"
+                              style={{ fontSize: 11, padding: '3px 6px' }}>✕</button>
+                          )}
+                        </div>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 );

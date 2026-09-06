@@ -3,6 +3,7 @@ import { useGetTaxConfigsQuery, useCreateTaxConfigMutation, useGetChargeTypesQue
 import { Calculator, Plus, X, Percent, Calendar, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 export default function TaxConfigPage() {
@@ -59,9 +60,11 @@ export default function TaxConfigPage() {
             <h1>Tax Configuration</h1>
             <p>Manage GST, VAT, and other tax rates applied to charges</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> New Tax Config
-          </button>
+          <PermissionGuard permission="billing-settings.write">
+            <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> New Tax Config
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 

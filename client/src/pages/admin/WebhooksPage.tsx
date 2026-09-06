@@ -10,6 +10,7 @@ import {
   CheckCircle2, AlertCircle, Clock, RefreshCw, XCircle, Edit,
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const DELIVERY_STATUS: Record<string, { color: string; icon: any }> = {
   delivered: { color: 'var(--success)', icon: CheckCircle2 },
@@ -84,9 +85,11 @@ export default function WebhooksPage() {
           <h1><Webhook size={24} /> Webhooks</h1>
           <p className="mall-page-subtitle">Configure outbound webhook endpoints for event notifications</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus size={16} /> Add Webhook
-        </button>
+        <PermissionGuard permission="developer-webhooks.write">
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={16} /> Add Webhook
+          </button>
+        </PermissionGuard>
       </div>
 
       {isLoading ? (
@@ -139,18 +142,22 @@ export default function WebhooksPage() {
                   <td className="intg-date-cell">{wh.lastSuccessAt ? new Date(wh.lastSuccessAt).toLocaleDateString() : '—'}</td>
                   <td>
                     <div className="intg-row-actions">
-                      <button className="intg-action-btn-sm" onClick={() => testWebhook(wh.id)} title="Send Test">
-                        <Send size={13} />
-                      </button>
-                      <button className="intg-action-btn-sm" onClick={() => openEdit(wh)} title="Edit">
-                        <Edit size={13} />
-                      </button>
+                      <PermissionGuard permission="developer-webhooks.write">
+                        <button className="intg-action-btn-sm" onClick={() => testWebhook(wh.id)} title="Send Test">
+                          <Send size={13} />
+                        </button>
+                        <button className="intg-action-btn-sm" onClick={() => openEdit(wh)} title="Edit">
+                          <Edit size={13} />
+                        </button>
+                      </PermissionGuard>
                       <button className="intg-action-btn-sm" onClick={() => setShowDeliveries(wh.id)} title="View Deliveries">
                         <Eye size={13} />
                       </button>
-                      <button className="intg-action-btn-sm danger" onClick={async () => { if (await confirmDialog('Delete webhook?', { danger: true })) deleteWebhook(wh.id); }} title="Delete">
-                        <Trash2 size={13} />
-                      </button>
+                      <PermissionGuard permission="developer-webhooks.write">
+                        <button className="intg-action-btn-sm danger" onClick={async () => { if (await confirmDialog('Delete webhook?', { danger: true })) deleteWebhook(wh.id); }} title="Delete">
+                          <Trash2 size={13} />
+                        </button>
+                      </PermissionGuard>
                     </div>
                   </td>
                 </tr>
@@ -337,9 +344,11 @@ function DeliveriesDrawer({ endpointId, onClose }: { endpointId: string; onClose
                   <div className="intg-log-stats">
                     <span>Attempt {d.attemptCount}</span>
                     {d.status === 'failed' && (
-                      <button className="intg-action-btn-sm" onClick={() => retryDelivery(d.id)} style={{ marginLeft: 'auto' }}>
-                        <RefreshCw size={12} /> Retry
-                      </button>
+                      <PermissionGuard permission="developer-webhooks.write">
+                        <button className="intg-action-btn-sm" onClick={() => retryDelivery(d.id)} style={{ marginLeft: 'auto' }}>
+                          <RefreshCw size={12} /> Retry
+                        </button>
+                      </PermissionGuard>
                     )}
                   </div>
                   <div className="intg-log-date">{new Date(d.createdAt).toLocaleString()}</div>

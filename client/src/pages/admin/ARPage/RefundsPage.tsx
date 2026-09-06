@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './ARPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -56,10 +57,12 @@ export default function RefundsPage() {
             <p>Manage refunds for overpayments, deposits, and adjustments</p>
           </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Plus size={14} /> New Refund
-        </button>
+        <PermissionGuard permission="ar-refunds.write">
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={14} /> New Refund
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Filters */}
@@ -122,21 +125,23 @@ export default function RefundsPage() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {r.status === 'pending' && (
-                        <>
-                          <button className="action-btn" title="Approve" onClick={() => setActionModal({ type: 'approve', refund: r })}>
-                            <Check size={14} />
+                      <PermissionGuard permission="ar-refunds.write">
+                        {r.status === 'pending' && (
+                          <>
+                            <button className="action-btn" title="Approve" onClick={() => setActionModal({ type: 'approve', refund: r })}>
+                              <Check size={14} />
+                            </button>
+                            <button className="action-btn danger" title="Reject" onClick={() => setActionModal({ type: 'reject', refund: r })}>
+                              <XCircle size={14} />
+                            </button>
+                          </>
+                        )}
+                        {r.status === 'approved' && (
+                          <button className="action-btn" title="Mark Paid" onClick={() => setActionModal({ type: 'mark_paid', refund: r })}>
+                            <Banknote size={14} />
                           </button>
-                          <button className="action-btn danger" title="Reject" onClick={() => setActionModal({ type: 'reject', refund: r })}>
-                            <XCircle size={14} />
-                          </button>
-                        </>
-                      )}
-                      {r.status === 'approved' && (
-                        <button className="action-btn" title="Mark Paid" onClick={() => setActionModal({ type: 'mark_paid', refund: r })}>
-                          <Banknote size={14} />
-                        </button>
-                      )}
+                        )}
+                      </PermissionGuard>
                       {(r.status === 'rejected' || r.status === 'paid') && (
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                           {r.status === 'paid' ? r.paymentReference || '—' : r.rejectionReason || '—'}

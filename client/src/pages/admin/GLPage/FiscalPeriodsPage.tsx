@@ -4,6 +4,7 @@ import {
   useCloseFiscalPeriodMutation, useReopenFiscalPeriodMutation,
 } from '../../../store/api/glApi';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './GLPage.css';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -45,9 +46,11 @@ export default function FiscalPeriodsPage() {
         <div style={{ flex: 1 }} />
         <label>Generate FY</label>
         <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} min={2020} max={2099} style={{width:80}} />
-        <button className="btn-primary" onClick={handleGenerate} disabled={generating}>
-          {generating ? 'Generating…' : '📅 Generate 12 Months'}
-        </button>
+        <PermissionGuard permission="finance-fiscal-periods.write">
+          <button className="btn-primary" onClick={handleGenerate} disabled={generating}>
+            {generating ? 'Generating…' : '📅 Generate 12 Months'}
+          </button>
+        </PermissionGuard>
       </div>
 
       {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
@@ -66,8 +69,10 @@ export default function FiscalPeriodsPage() {
                   <td>{fmtDate(p.endDate)}</td>
                   <td><span className={`gl-badge ${p.status}`}>{p.status}</span></td>
                   <td>
-                    {p.status === 'open' && <button className="btn-sm" onClick={() => handleClose(p.id)}>🔒 Close</button>}
-                    {p.status === 'closed' && <button className="btn-sm" onClick={() => handleReopen(p.id)}>🔓 Reopen</button>}
+                    <PermissionGuard permission="finance-fiscal-periods.write">
+                      {p.status === 'open' && <button className="btn-sm" onClick={() => handleClose(p.id)}>🔒 Close</button>}
+                      {p.status === 'closed' && <button className="btn-sm" onClick={() => handleReopen(p.id)}>🔓 Reopen</button>}
+                    </PermissionGuard>
                   </td>
                 </tr>
               ))}

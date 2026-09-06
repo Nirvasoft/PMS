@@ -9,6 +9,7 @@ import {
   Clock, CheckCircle2,
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 export default function ApiKeysPage() {
   const { data: res, isLoading } = useGetApiKeysQuery();
@@ -54,9 +55,11 @@ export default function ApiKeysPage() {
           <h1><Key size={24} /> API Keys</h1>
           <p className="mall-page-subtitle">Manage developer API keys for programmatic access</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus size={16} /> Create API Key
-        </button>
+        <PermissionGuard permission="developer-api-keys.write">
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={16} /> Create API Key
+          </button>
+        </PermissionGuard>
       </div>
 
       {isLoading ? (
@@ -108,16 +111,18 @@ export default function ApiKeysPage() {
                   <td className="intg-date-cell">{ak.lastUsedAt ? new Date(ak.lastUsedAt).toLocaleDateString() : '—'}</td>
                   <td className="intg-date-cell">{new Date(ak.createdAt).toLocaleDateString()}</td>
                   <td>
-                    <div className="intg-row-actions">
-                      {ak.isActive && (
-                        <button className="intg-action-btn-sm" onClick={async () => { if (await confirmDialog('Revoke this key?', { danger: true, confirmText: 'Revoke' })) revokeApiKey(ak.id); }} title="Revoke">
-                          <ShieldOff size={13} />
+                    <PermissionGuard permission="developer-api-keys.write">
+                      <div className="intg-row-actions">
+                        {ak.isActive && (
+                          <button className="intg-action-btn-sm" onClick={async () => { if (await confirmDialog('Revoke this key?', { danger: true, confirmText: 'Revoke' })) revokeApiKey(ak.id); }} title="Revoke">
+                            <ShieldOff size={13} />
+                          </button>
+                        )}
+                        <button className="intg-action-btn-sm danger" onClick={async () => { if (await confirmDialog('Delete this key permanently?', { danger: true, confirmText: 'Delete' })) deleteApiKey(ak.id); }} title="Delete">
+                          <Trash2 size={13} />
                         </button>
-                      )}
-                      <button className="intg-action-btn-sm danger" onClick={async () => { if (await confirmDialog('Delete this key permanently?', { danger: true, confirmText: 'Delete' })) deleteApiKey(ak.id); }} title="Delete">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+                      </div>
+                    </PermissionGuard>
                   </td>
                 </tr>
               ))}

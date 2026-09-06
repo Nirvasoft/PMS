@@ -6,6 +6,7 @@ import {
 } from '../../store/api/biApi';
 import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
 import { useConfirm } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import {
   FileBarChart, Plus, X, Trash2, Play, Clock, Building2, DollarSign,
   Wrench, BarChart3, PieChart, Users, CheckCircle, AlertCircle,
@@ -102,9 +103,11 @@ export default function BiReportsPage() {
             Create, manage and run analytical reports • {total} report{total !== 1 ? 's' : ''}
           </p>
         </div>
-        <button style={styles.createBtn} onClick={() => setShowCreate(true)}>
-          <Plus size={16} /> New Report
-        </button>
+        <PermissionGuard permission="reports-bi.write">
+          <button style={styles.createBtn} onClick={() => setShowCreate(true)}>
+            <Plus size={16} /> New Report
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Type Cards */}
@@ -150,9 +153,11 @@ export default function BiReportsPage() {
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 14 }}>
             {typeFilter ? `No ${getTypeMeta(typeFilter).label} reports found.` : 'Create a report to start analyzing your portfolio data.'}
           </p>
-          <button style={{ ...styles.createBtn, marginTop: 16 }} onClick={() => setShowCreate(true)}>
-            <Plus size={16} /> Create Your First Report
-          </button>
+          <PermissionGuard permission="reports-bi.write">
+            <button style={{ ...styles.createBtn, marginTop: 16 }} onClick={() => setShowCreate(true)}>
+              <Plus size={16} /> Create Your First Report
+            </button>
+          </PermissionGuard>
         </div>
       ) : (
         <div style={styles.reportList}>
@@ -211,9 +216,11 @@ export default function BiReportsPage() {
                       <><Play size={14} /> Run</>
                     )}
                   </button>
-                  <button style={styles.iconBtn} onClick={() => handleDelete(r.id)} title="Delete">
-                    <Trash2 size={15} />
-                  </button>
+                  <PermissionGuard permission="reports-bi.write">
+                    <button style={styles.iconBtn} onClick={() => handleDelete(r.id)} title="Delete">
+                      <Trash2 size={15} />
+                    </button>
+                  </PermissionGuard>
                 </div>
               </div>
             );

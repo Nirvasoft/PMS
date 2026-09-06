@@ -9,6 +9,7 @@ import { QRCode, useQRDownload } from '../../../components/QRCode';
 import { useConfirm } from '../../../components/DialogProvider';
 import { Ticket, Plus, X, Clock, CheckCircle, AlertCircle, QrCode, Download, Printer, Maximize2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './ParkingPage.css';
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
@@ -70,9 +71,11 @@ export default function VisitorParkingPage() {
             <p>{data?.meta ? `${data.meta.total} passes` : 'Loading…'}</p>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => setShowIssue(true)}>
-          <Plus size={15} /> Issue Pass
-        </button>
+        <PermissionGuard permission="parking-visitors.write">
+          <button className="btn-primary" onClick={() => setShowIssue(true)}>
+            <Plus size={15} /> Issue Pass
+          </button>
+        </PermissionGuard>
       </div>
 
       <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>
@@ -135,9 +138,11 @@ export default function VisitorParkingPage() {
                   <QrCode size={13} /> QR
                 </button>
                 {['pending', 'active'].includes(pass.status) && (
-                  <button className="btn-sm btn-ghost" style={{ color: '#ef4444' }} onClick={() => handleCancel(pass.id)}>
-                    <X size={12} /> Cancel
-                  </button>
+                  <PermissionGuard permission="parking-visitors.write">
+                    <button className="btn-sm btn-ghost" style={{ color: '#ef4444' }} onClick={() => handleCancel(pass.id)}>
+                      <X size={12} /> Cancel
+                    </button>
+                  </PermissionGuard>
                 )}
               </div>
             </div>

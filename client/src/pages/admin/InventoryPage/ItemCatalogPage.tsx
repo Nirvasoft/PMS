@@ -12,6 +12,7 @@ import {
   Warehouse, TrendingDown, DollarSign, BarChart3, Edit3, XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const CATEGORIES = ['plumbing', 'electrical', 'hvac', 'cleaning', 'general', 'other'];
 const UNITS = ['pcs', 'meters', 'kg', 'litres', 'roll', 'box', 'set'];
@@ -138,12 +139,16 @@ export default function ItemCatalogPage() {
           <div><h1>Item Catalog</h1><p>{meta?.total ?? 0} items · {stores.length} stores</p></div>
         </div>
         <div className="header-actions">
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowStoreModal(true)}>
-            <Warehouse size={14} /> Add Store
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={openCreate}>
-            <Plus size={14} /> Add Item
-          </button>
+          <PermissionGuard permission="inventory-stores.write">
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowStoreModal(true)}>
+              <Warehouse size={14} /> Add Store
+            </button>
+          </PermissionGuard>
+          <PermissionGuard permission="inventory-items.write">
+            <button className="btn btn-primary btn-sm" onClick={openCreate}>
+              <Plus size={14} /> Add Item
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -209,10 +214,12 @@ export default function ItemCatalogPage() {
                     )}
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <button className="btn btn-ghost btn-sm" title="Edit Item"
-                      onClick={() => openEdit(item)}>
-                      <Edit3 size={14} />
-                    </button>
+                    <PermissionGuard permission="inventory-items.write">
+                      <button className="btn btn-ghost btn-sm" title="Edit Item"
+                        onClick={() => openEdit(item)}>
+                        <Edit3 size={14} />
+                      </button>
+                    </PermissionGuard>
                   </td>
                 </tr>
               ))}

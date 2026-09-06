@@ -7,6 +7,7 @@ import {
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import {
   Server, Plus, RefreshCw, Trash2, Wifi, WifiOff, AlertTriangle,
   Thermometer, Zap, Droplets, Shield, ArrowUpDown, Activity, X,
@@ -114,15 +115,17 @@ export default function BmsPage() {
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => { for (const d of devices.filter((d: any) => d.isActive)) handlePoll(d.id); }}
-            disabled={polling} style={outlineBtn}>
-            <RefreshCw size={15} className={polling ? 'spin' : ''} /> Poll All
-          </button>
-          <button onClick={() => setShowAdd(true)} style={primaryBtn}>
-            <Plus size={16} /> Add Device
-          </button>
-        </div>
+        <PermissionGuard permission="developer-bms.write">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { for (const d of devices.filter((d: any) => d.isActive)) handlePoll(d.id); }}
+              disabled={polling} style={outlineBtn}>
+              <RefreshCw size={15} className={polling ? 'spin' : ''} /> Poll All
+            </button>
+            <button onClick={() => setShowAdd(true)} style={primaryBtn}>
+              <Plus size={16} /> Add Device
+            </button>
+          </div>
+        </PermissionGuard>
       </div>
 
       {/* ── STATS ROW ── */}
@@ -270,9 +273,11 @@ function EmptyState({ hasDevices, onAdd }: { hasDevices: boolean; onAdd: () => v
         {hasDevices ? 'Try adjusting your search, type, or status filters.' : 'Connect your building\'s HVAC, metering, fire safety, and access control systems.'}
       </p>
       {!hasDevices && (
-        <button onClick={onAdd} style={primaryBtn}>
-          <Plus size={16} /> Add First Device
-        </button>
+        <PermissionGuard permission="developer-bms.write">
+          <button onClick={onAdd} style={primaryBtn}>
+            <Plus size={16} /> Add First Device
+          </button>
+        </PermissionGuard>
       )}
     </div>
   );
@@ -357,16 +362,18 @@ function DeviceCard({ d, onPoll, onDelete, onSelect, polling }: any) {
           <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <Clock size={11} /> {ago(d.lastSeenAt)}
           </span>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button onClick={e => { e.stopPropagation(); onPoll(); }} disabled={polling}
-              style={{ ...smallBtn, background: `${cfg.color}10`, color: cfg.color }}>
-              <RefreshCw size={12} className={polling ? 'spin' : ''} /> Poll
-            </button>
-            <button onClick={e => { e.stopPropagation(); onDelete(); }}
-              style={{ ...smallBtn, background: '#ef444408', color: '#ef4444' }}>
-              <Trash2 size={12} />
-            </button>
-          </div>
+          <PermissionGuard permission="developer-bms.write">
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={e => { e.stopPropagation(); onPoll(); }} disabled={polling}
+                style={{ ...smallBtn, background: `${cfg.color}10`, color: cfg.color }}>
+                <RefreshCw size={12} className={polling ? 'spin' : ''} /> Poll
+              </button>
+              <button onClick={e => { e.stopPropagation(); onDelete(); }}
+                style={{ ...smallBtn, background: '#ef444408', color: '#ef4444' }}>
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </PermissionGuard>
         </div>
       </div>
     </div>
@@ -405,14 +412,16 @@ function ListRow({ d, onPoll, onDelete, onSelect, polling }: any) {
       <span style={{ color: 'var(--text-secondary)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{d.property?.name || '—'}</span>
       <StatusBadge status={st} small />
       <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{ago(d.lastSeenAt)}</span>
-      <div style={{ display: 'flex', gap: 3 }} onClick={e => e.stopPropagation()}>
-        <button onClick={() => onPoll()} disabled={polling} style={{ ...smallBtn, background: `${cfg.color}0d`, color: cfg.color, padding: '3px 6px' }}>
-          <RefreshCw size={11} className={polling ? 'spin' : ''} />
-        </button>
-        <button onClick={() => onDelete()} style={{ ...smallBtn, background: '#ef444408', color: '#ef4444', padding: '3px 6px' }}>
-          <Trash2 size={11} />
-        </button>
-      </div>
+      <PermissionGuard permission="developer-bms.write">
+        <div style={{ display: 'flex', gap: 3 }} onClick={e => e.stopPropagation()}>
+          <button onClick={() => onPoll()} disabled={polling} style={{ ...smallBtn, background: `${cfg.color}0d`, color: cfg.color, padding: '3px 6px' }}>
+            <RefreshCw size={11} className={polling ? 'spin' : ''} />
+          </button>
+          <button onClick={() => onDelete()} style={{ ...smallBtn, background: '#ef444408', color: '#ef4444', padding: '3px 6px' }}>
+            <Trash2 size={11} />
+          </button>
+        </div>
+      </PermissionGuard>
     </div>
   );
 }

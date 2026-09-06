@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './APPage.css';
 
 const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -84,14 +85,16 @@ export default function ExpensesPage() {
     <div className="ap-page">
       <div className="page-header">
         <h1><Receipt size={24} /> Expenses</h1>
-        <button
-          className="ap-btn primary"
-          onClick={() => setShowCreate(true)}
-          disabled={!selectedProperty}
-          title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
-        >
-          <Plus size={16} /> Submit Expense
-        </button>
+        <PermissionGuard permission="ap-expenses.write">
+          <button
+            className="ap-btn primary"
+            onClick={() => setShowCreate(true)}
+            disabled={!selectedProperty}
+            title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
+          >
+            <Plus size={16} /> Submit Expense
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Stats */}
@@ -167,9 +170,11 @@ export default function ExpensesPage() {
                 <td><span className={`ap-status ${exp.status}`}>{exp.status}</span></td>
                 <td>
                   {exp.status === 'pending' && (
-                    <button className="ap-btn sm success" onClick={() => handleApprove(exp.id)}>
-                      <CheckCircle size={14} /> Approve
-                    </button>
+                    <PermissionGuard permission="ap-expenses.write">
+                      <button className="ap-btn sm success" onClick={() => handleApprove(exp.id)}>
+                        <CheckCircle size={14} /> Approve
+                      </button>
+                    </PermissionGuard>
                   )}
                 </td>
               </tr>

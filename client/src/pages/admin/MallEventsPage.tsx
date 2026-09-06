@@ -7,6 +7,7 @@ import {
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { Calendar, Plus, MapPin, Tag, Edit3, X, Receipt, CheckCircle, DollarSign } from 'lucide-react';
 import { useAlertDialog } from '../../components/DialogProvider';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const EVENT_TYPES = ['campaign', 'event', 'roadshow', 'sale', 'exhibition'];
 const STATUSES = ['planned', 'active', 'completed', 'cancelled'];
@@ -119,9 +120,11 @@ export default function MallEventsPage() {
           <h1>Events & Promotions</h1>
           <p className="mall-page-subtitle">Manage mall events, campaigns, and booth rentals</p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-          <Plus size={14} style={{ marginRight: 4 }} />New Event
-        </button>
+        <PermissionGuard permission="mall-events.write">
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+            <Plus size={14} style={{ marginRight: 4 }} />New Event
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Filters */}
@@ -185,9 +188,11 @@ export default function MallEventsPage() {
         <div className="mall-card" style={{ marginTop: 20 }}>
           <div className="mall-card-header">
             <h3>{detail.title}</h3>
-            <button className="mall-btn-sm" onClick={() => setShowBooth(true)}>
-              <Plus size={12} style={{ marginRight: 4 }} />Add Booth
-            </button>
+            <PermissionGuard permission="mall-events.write">
+              <button className="mall-btn-sm" onClick={() => setShowBooth(true)}>
+                <Plus size={12} style={{ marginRight: 4 }} />Add Booth
+              </button>
+            </PermissionGuard>
           </div>
           <div className="mall-card-body">
             <div className="mall-detail-row">
@@ -230,25 +235,29 @@ export default function MallEventsPage() {
                               <CheckCircle size={12} /> Invoiced
                             </span>
                           ) : (
-                            <button
-                              className="btn btn-sm"
-                              style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)' }}
-                              onClick={() => handleInvoiceBooth(b.id)}
-                              disabled={isInvoicing || !b.tenantId}
-                              title={!b.tenantId ? 'Assign a tenant first' : 'Generate invoice'}
-                            >
-                              <Receipt size={12} /> Invoice
-                            </button>
+                            <PermissionGuard permission="mall-events.write">
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)' }}
+                                onClick={() => handleInvoiceBooth(b.id)}
+                                disabled={isInvoicing || !b.tenantId}
+                                title={!b.tenantId ? 'Assign a tenant first' : 'Generate invoice'}
+                              >
+                                <Receipt size={12} /> Invoice
+                              </button>
+                            </PermissionGuard>
                           )}
                         </td>
                         <td>
-                          <button
-                            className="mall-btn-sm"
-                            onClick={() => openEditBooth(b)}
-                            style={{ fontSize: '0.72rem' }}
-                          >
+                          <PermissionGuard permission="mall-events.write">
+                            <button
+                              className="mall-btn-sm"
+                              onClick={() => openEditBooth(b)}
+                              style={{ fontSize: '0.72rem' }}
+                            >
                             <Edit3 size={12} /> Edit
-                          </button>
+                            </button>
+                          </PermissionGuard>
                         </td>
                       </tr>
                     ))}

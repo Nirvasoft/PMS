@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './PropertyDetailPage.css';
 
 type Tab = 'overview' | 'units' | 'leases' | 'documents' | 'facilities' | 'contacts' | 'photos' | 'history' | 'finance' | 'settings';
@@ -107,13 +108,15 @@ export default function PropertyDetailPage() {
             {property.status.replace(/_/g, ' ')}
           </div>
           {transitions.length > 0 && (
-            <div className="status-actions">
-              {transitions.map((t) => (
-                <button key={t.value} className="btn-status" onClick={() => { setNewStatus(t.value); setStatusModal(true); }}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
+            <PermissionGuard permission="properties.update">
+              <div className="status-actions">
+                {transitions.map((t) => (
+                  <button key={t.value} className="btn-status" onClick={() => { setNewStatus(t.value); setStatusModal(true); }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </PermissionGuard>
           )}
         </div>
       </div>
@@ -340,9 +343,11 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
     <div className="tab-section">
       <div className="section-header">
         <h3>Facilities &amp; Amenities</h3>
-        <button className="btn-secondary" onClick={() => { setAdding(!adding); if (adding) resetForm(); }}>
-          <Plus size={14} /> Add Facility
-        </button>
+        <PermissionGuard permission="properties.update">
+          <button className="btn-secondary" onClick={() => { setAdding(!adding); if (adding) resetForm(); }}>
+            <Plus size={14} /> Add Facility
+          </button>
+        </PermissionGuard>
       </div>
 
       {adding && (
@@ -427,7 +432,9 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
                     </span>
                   )}
                 </div>
-                <button className="remove-btn" onClick={() => handleRemove(f.id)}><Trash2 size={14} /></button>
+                <PermissionGuard permission="properties.update">
+                  <button className="remove-btn" onClick={() => handleRemove(f.id)}><Trash2 size={14} /></button>
+                </PermissionGuard>
               </div>
             );
           })}
@@ -499,9 +506,11 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
     <div className="tab-section">
       <div className="section-header">
         <h3>Key Contacts</h3>
-        <button className="btn-secondary" onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...BLANK_CONTACT }); }}>
-          <Plus size={14} /> {showForm ? 'Cancel' : 'Add Contact'}
-        </button>
+        <PermissionGuard permission="properties.update">
+          <button className="btn-secondary" onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...BLANK_CONTACT }); }}>
+            <Plus size={14} /> {showForm ? 'Cancel' : 'Add Contact'}
+          </button>
+        </PermissionGuard>
       </div>
 
       {showForm && (
@@ -554,10 +563,12 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
                     {c.email  && <span><Mail size={12} /> {c.email}</span>}
                   </div>
                 </div>
-                <div className="contact-card-actions">
-                  <button className="edit-btn" title="Edit" onClick={() => handleEdit(c)}><Edit3 size={14} /></button>
-                  <button className="remove-btn" disabled={isRemoving === c.id} onClick={() => handleRemove(c.id)}><Trash2 size={14} /></button>
-                </div>
+                <PermissionGuard permission="properties.update">
+                  <div className="contact-card-actions">
+                    <button className="edit-btn" title="Edit" onClick={() => handleEdit(c)}><Edit3 size={14} /></button>
+                    <button className="remove-btn" disabled={isRemoving === c.id} onClick={() => handleRemove(c.id)}><Trash2 size={14} /></button>
+                  </div>
+                </PermissionGuard>
               </div>
             ))}
           </div>
@@ -653,10 +664,12 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
         <h3>Photo Gallery</h3>
         <div className="section-header-actions">
           {photos.length > 1 && <span className="drag-hint"><GripVertical size={12} /> Drag to reorder</span>}
-          <label className="btn-secondary upload-label">
-            <Upload size={14} /> Upload Photos
-            <input type="file" multiple accept="image/*" hidden onChange={handleUpload} />
-          </label>
+          <PermissionGuard permission="properties.update">
+            <label className="btn-secondary upload-label">
+              <Upload size={14} /> Upload Photos
+              <input type="file" multiple accept="image/*" hidden onChange={handleUpload} />
+            </label>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -677,19 +690,21 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
                 <img src={photo.url} alt="" loading="lazy" onClick={() => setLightboxIdx(idx)} />
                 <div className="photo-sort-badge">#{idx + 1}</div>
                 {photo.isCover && <div className="cover-badge"><Star size={12} /> Cover</div>}
-                <div className="photo-actions">
-                  {!photo.isCover && (
-                    <button title="Set as cover" onClick={async () => {
-                      try { await setCover({ propertyId, photoId: photo.id }).unwrap(); toast.success('Cover updated'); }
+                <PermissionGuard permission="properties.update">
+                  <div className="photo-actions">
+                    {!photo.isCover && (
+                      <button title="Set as cover" onClick={async () => {
+                        try { await setCover({ propertyId, photoId: photo.id }).unwrap(); toast.success('Cover updated'); }
+                        catch { toast.error('Failed'); }
+                      }}><Star size={14} /></button>
+                    )}
+                    <button className="danger" title="Delete" onClick={async () => {
+                      if (!(await confirmDialog('Delete this photo?', { danger: true, confirmText: 'Delete' }))) return;
+                      try { await deletePhoto({ propertyId, photoId: photo.id }).unwrap(); toast.success('Deleted'); }
                       catch { toast.error('Failed'); }
-                    }}><Star size={14} /></button>
-                  )}
-                  <button className="danger" title="Delete" onClick={async () => {
-                    if (!(await confirmDialog('Delete this photo?', { danger: true, confirmText: 'Delete' }))) return;
-                    try { await deletePhoto({ propertyId, photoId: photo.id }).unwrap(); toast.success('Deleted'); }
-                    catch { toast.error('Failed'); }
-                  }}><Trash2 size={14} /></button>
-                </div>
+                    }}><Trash2 size={14} /></button>
+                  </div>
+                </PermissionGuard>
               </div>
             ))}
           </div>
@@ -808,14 +823,16 @@ function SettingsTab({ property }: { property: any }) {
     <div className="tab-section settings-tab">
       <div className="section-header">
         <h3>Property Settings</h3>
-        <button
-          className="btn-primary"
-          onClick={handleSave}
-          disabled={isLoading}
-          style={{ gap: 6 }}
-        >
-          {isLoading ? 'Saving…' : saved ? '✓ Saved' : 'Save Changes'}
-        </button>
+        <PermissionGuard permission="properties.update">
+          <button
+            className="btn-primary"
+            onClick={handleSave}
+            disabled={isLoading}
+            style={{ gap: 6 }}
+          >
+            {isLoading ? 'Saving…' : saved ? '✓ Saved' : 'Save Changes'}
+          </button>
+        </PermissionGuard>
       </div>
 
       <div className="settings-form">

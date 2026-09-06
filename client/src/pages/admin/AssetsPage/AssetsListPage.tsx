@@ -5,6 +5,7 @@ import {
 } from '../../../store/api/assetsApi';
 import type { FixedAsset } from '../../../store/api/assetsApi';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -54,10 +55,12 @@ export default function AssetsListPage() {
           <option value="transferred">Transferred</option>
         </select>
         <div style={{ flex: 1 }} />
-        <button className="btn-sm" onClick={handleRunDepreciation} disabled={depRunning}>
-          {depRunning ? '⏳ Running…' : '⚙️ Run Depreciation'}
-        </button>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Asset</button>
+        <PermissionGuard permission="finance-assets.write">
+          <button className="btn-sm" onClick={handleRunDepreciation} disabled={depRunning}>
+            {depRunning ? '⏳ Running…' : '⚙️ Run Depreciation'}
+          </button>
+          <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Asset</button>
+        </PermissionGuard>
       </div>
 
       <div className="gl-stats">

@@ -7,6 +7,7 @@ import {
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { useAlertDialog } from '../../components/DialogProvider';
 import { Wallet, Plus, X, ArrowUpRight, ArrowDownRight, CheckCircle, XCircle, Clock, ShieldCheck } from 'lucide-react';
+import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const FUND_TYPES = ['sinking_fund', 'management_fund', 'reserve_fund'];
 const TXN_TYPES = ['contribution', 'expenditure', 'interest', 'transfer'];
@@ -90,9 +91,11 @@ export default function FundsPage() {
           <select className="condo-filter-select" value={year} onChange={e => setYear(Number(e.target.value))}>
             {[currentYear - 1, currentYear, currentYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreateFund(true)}>
-            <Plus size={14} style={{ marginRight: 4 }} />New Fund
-          </button>
+          <PermissionGuard permission="condo-funds.write">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCreateFund(true)}>
+              <Plus size={14} style={{ marginRight: 4 }} />New Fund
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -151,9 +154,11 @@ export default function FundsPage() {
                 }}>{pendingCount} pending approval</span>
               )}
             </h3>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAddTxn(true)}>
-              <Plus size={14} style={{ marginRight: 4 }} />Add Transaction
-            </button>
+            <PermissionGuard permission="condo-funds.write">
+              <button className="btn btn-primary btn-sm" onClick={() => setShowAddTxn(true)}>
+                <Plus size={14} style={{ marginRight: 4 }} />Add Transaction
+              </button>
+            </PermissionGuard>
           </div>
           <div className="condo-table-wrap">
             <table className="condo-table">
@@ -199,24 +204,26 @@ export default function FundsPage() {
                     <td>{t.creator?.profile?.firstName || t.creator?.email || '—'}</td>
                     <td>
                       {t.status === 'pending_approval' && (
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button
-                            className="btn btn-sm"
-                            style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}
-                            onClick={() => handleApprove(t.id)}
-                            disabled={isApproving}
-                          >
-                            <CheckCircle size={12} /> Approve
-                          </button>
-                          <button
-                            className="btn btn-sm"
-                            style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
-                            onClick={() => { setShowRejectModal(t.id); setRejectReason(''); }}
-                            disabled={isRejecting}
-                          >
-                            <XCircle size={12} /> Reject
-                          </button>
-                        </div>
+                        <PermissionGuard permission="condo-funds.write">
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button
+                              className="btn btn-sm"
+                              style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}
+                              onClick={() => handleApprove(t.id)}
+                              disabled={isApproving}
+                            >
+                              <CheckCircle size={12} /> Approve
+                            </button>
+                            <button
+                              className="btn btn-sm"
+                              style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                              onClick={() => { setShowRejectModal(t.id); setRejectReason(''); }}
+                              disabled={isRejecting}
+                            >
+                              <XCircle size={12} /> Reject
+                            </button>
+                          </div>
+                        </PermissionGuard>
                       )}
                     </td>
                   </tr>

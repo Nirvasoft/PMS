@@ -16,6 +16,7 @@ import {
 import toast from 'react-hot-toast';
 import { useMaintenanceSocket } from '../../../hooks/useMaintenanceSocket';
 import { setTicketFilters, setViewMode as setViewModeAction } from '../../../store/slices/maintenanceSlice';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const PRIORITIES = [
   { value: 'P1', label: 'P1 — Emergency', color: '#ef4444' },
@@ -136,10 +137,12 @@ export default function TicketListPage() {
               <LayoutGrid size={16} />
             </button>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            <Plus size={16} />
-            <span>Create Ticket</span>
-          </button>
+          <PermissionGuard permission="maintenance-tickets.write">
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} />
+              <span>Create Ticket</span>
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
