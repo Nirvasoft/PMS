@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   useGetAllocationsQuery, useCreateAllocationMutation, useCancelAllocationMutation,
   useUpdateAllocationMutation, useGetVehiclesQuery,
   useGetSlotsQuery, useGetParkingTypesQuery, useGetZonesQuery, type ParkingAllocation, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -137,7 +137,7 @@ export default function AllocationManager() {
         </div>
       )}
 
-      {showCreate && <CreateAllocationModal properties={properties} onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateAllocationModal properties={properties} activeProperty={selectedProperty} onClose={() => setShowCreate(false)} />}
       {editingAlloc && (
         <EditAllocationModal
           allocation={editingAlloc}
@@ -319,16 +319,26 @@ function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAlloc
 
 // ── Create Allocation Modal ────────────────
 
-function CreateAllocationModal({ properties, onClose }: { properties: any[]; onClose: () => void }) {
+function CreateAllocationModal({ properties, activeProperty, onClose }: { properties: any[]; activeProperty: string; onClose: () => void }) {
   const [createAllocation, { isLoading }] = useCreateAllocationMutation();
-  const [propertyId, setPropertyId] = useState(properties[0]?.id || '');
+  // /properties requires properties.read, which a parking-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const lockedPropertyName = (scopeData?.data || []).find((p: any) => p.id === activeProperty)?.name;
+  const propertyLocked = !!activeProperty;
+
+  const [propertyId, setPropertyId] = useState(activeProperty || '');
   const [parkingType, setParkingType] = useState('');
   const [zoneId, setZoneId] = useState('');
   const { data: typesData } = useGetParkingTypesQuery(propertyId, { skip: !propertyId });
   const parkingTypes = typesData?.data || [];
   const { data: zonesData } = useGetZonesQuery({ propertyId, unitType: parkingType || undefined }, { skip: !propertyId });
   const zones = zonesData?.data || [];
-  const { data: slotsData } = useGetSlotsQuery({ propertyId, unitType: parkingType || undefined, zoneId: zoneId || undefined, status: 'available', limit: 200 });
+  const { data: slotsData } = useGetSlotsQuery(
+    { propertyId, unitType: parkingType || undefined, zoneId: zoneId || undefined, status: 'available', limit: 200 },
+    { skip: !propertyId },
+  );
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 100 });
 
   const [form, setForm] = useState({ slotId: '', tenantId: '', startDate: '', endDate: '', monthlyRate: '' });
@@ -337,6 +347,19 @@ function CreateAllocationModal({ properties, onClose }: { properties: any[]; onC
   const handlePropertyChange = (id: string) => { setPropertyId(id); setParkingType(''); setZoneId(''); set('slotId', ''); };
   const handleTypeChange = (type: string) => { setParkingType(type); setZoneId(''); set('slotId', ''); };
   const handleZoneChange = (id: string) => { setZoneId(id); set('slotId', ''); };
+
+  // Bound to the sidebar's Active Property; only "All Properties" allows picking one here.
+  // Clears back to "Select property" if the sidebar is switched to "All Properties".
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (propertyLocked) {
+      if (propertyId !== activeProperty) handlePropertyChange(activeProperty);
+    } else if (prevPropertyLockedRef.current) {
+      handlePropertyChange('');
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, activeProperty]);
 
   const slots = slotsData?.data || [];
   const tenants = tenantsData?.data || [];
@@ -373,8 +396,15 @@ function CreateAllocationModal({ properties, onClose }: { properties: any[]; onC
         <div className="form-row">
           <div className="form-group">
             <label>Property</label>
-            <select className="form-input" value={propertyId} onChange={e => handlePropertyChange(e.target.value)}>
-              {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <select className="form-input" value={propertyId} disabled={propertyLocked} onChange={e => handlePropertyChange(e.target.value)}>
+              {propertyLocked ? (
+                <option value={activeProperty}>{lockedPropertyName || 'Loading…'}</option>
+              ) : (
+                <>
+                  <option value="">— Select property —</option>
+                  {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </>
+              )}
             </select>
           </div>
           <div className="form-group">

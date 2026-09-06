@@ -148,6 +148,10 @@
   font-size: 0.85rem;
   cursor: pointer;
 }
+.filter-group select option {
+  background: var(--surface, #1a1f2e);
+  color: var(--text-primary, #e2e8f0);
+}
 
 /* ─── Layout ─────────────────────────────────── */
 .documents-layout {
@@ -741,6 +745,11 @@
   transition: border-color 0.2s;
 }
 
+.documents-page .form-group select option {
+  background: var(--surface, #1a1f2e);
+  color: var(--text-primary, #e2e8f0);
+}
+
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
@@ -1157,6 +1166,11 @@
   font-size: 0.82rem;
   font-family: inherit;
   transition: border-color 0.2s;
+}
+
+.share-field select option {
+  background: var(--surface, #1a1f2e);
+  color: var(--text-primary, #e2e8f0);
 }
 
 .share-field input:focus,

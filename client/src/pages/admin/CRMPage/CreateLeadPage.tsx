@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCreateLeadMutation } from '../../../store/api/crmApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -19,6 +20,17 @@ export default function CreateLeadPage() {
   const { data: unitTypesData } = useGetUnitTypesQuery();
   const unitTypes = unitTypesData?.data || [];
 
+  // Locked to the sidebar's Active Property, same convention as Expenses/Payment
+  // Vouchers/New Lease/New Floor — only when "All Properties" is active can the
+  // property be chosen here.
+  const activeProperty = useSelectedPropertyFilter();
+  const propertyLocked = !!activeProperty;
+  // /properties requires properties.read, which a CRM-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const lockedPropertyName = (scopeData?.data || []).find((p) => p.id === activeProperty)?.name;
+
   const [form, setForm] = useState({
     lastName: '', email: '', phone: '',
     propertyId: '', source: 'website', priority: 'medium', assignedTo: '',
@@ -31,11 +43,17 @@ export default function CreateLeadPage() {
     businessType: '', doorType: '', productPlan: '',
   });
 
+  // Track the previous lock state so switching to "All Properties" clears the
+  // field back to "Select property" instead of leaving the old locked value behind.
+  const prevPropertyLockedRef = useRef(propertyLocked);
   useEffect(() => {
-    if (properties.length === 1 && !form.propertyId) {
-      setForm((f) => ({ ...f, propertyId: properties[0].id }));
+    if (propertyLocked) {
+      if (form.propertyId !== activeProperty) setForm((f) => ({ ...f, propertyId: activeProperty }));
+    } else if (prevPropertyLockedRef.current) {
+      setForm((f) => ({ ...f, propertyId: '' }));
     }
-  }, [properties]);
+    prevPropertyLockedRef.current = propertyLocked;
+  }, [propertyLocked, activeProperty]);
 
   const set = (key: string, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -111,7 +129,10 @@ export default function CreateLeadPage() {
           <h3>Requirements</h3>
           <div className="form-grid">
             <SelectField label="Property" value={form.propertyId} onChange={(v) => set('propertyId', v)}
-              options={[['', '— Select property —'], ...properties.map((p: any) => [p.id, p.name] as [string, string])]} span={2} />
+              options={propertyLocked
+                ? [[activeProperty, lockedPropertyName || 'Loading…']]
+                : [['', '— Select property —'], ...properties.map((p: any) => [p.id, p.name] as [string, string])]}
+              span={2} disabled={propertyLocked} />
             <SelectField label="Unit Type Preference" value={form.unitTypePreference} onChange={(v) => set('unitTypePreference', v)}
               options={[['', 'Select…'], ...[...unitTypes].sort((a, b) => a.name.localeCompare(b.name)).map((t) => [t.code, t.name] as [string, string])]} />
             <Field label="Lease Term (months)" value={form.leaseTermMonths} onChange={(v) => set('leaseTermMonths', v)} type="number" min={0} placeholder="12" />
@@ -177,14 +198,14 @@ function Field({ label, value, onChange, type = 'text', span, placeholder, min }
   );
 }
 
-function SelectField({ label, value, onChange, options, span }: {
+function SelectField({ label, value, onChange, options, span, disabled }: {
   label: string; value: string; onChange: (v: string) => void;
-  options: [string, string][]; span?: number;
+  options: [string, string][]; span?: number; disabled?: boolean;
 }) {
   return (
     <div className="form-field" style={{ gridColumn: span ? `span ${span}` : undefined }}>
       <label>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
     </div>

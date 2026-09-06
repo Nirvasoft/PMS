@@ -89,6 +89,7 @@ export interface PropertyListItem {
   coverImageUrl: string | null;
   totalUnits: number;
   totalFloors: number | null;
+  currency: string;
   manager: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
   regions: Array<{ id: string; name: string }>;
   createdAt: string;
@@ -105,7 +106,6 @@ export interface PropertyDetail extends PropertyListItem {
   totalAreaSqft: number | null;
   billingCycle: string;
   billingDay: number;
-  currency: string;
   timezone: string;
   description: string | null;
   settings: Record<string, unknown>;
@@ -198,7 +198,7 @@ export const propertiesApi = createApi({
     // Lightweight, scope-only list for the sidebar's "Active Property" context switcher —
     // not gated by properties.read, so a property-scoped user with no admin access to the
     // Properties module still sees their own scope here.
-    getMyPropertyScope: builder.query<ApiResponse<{ id: string; name: string; code: string }[]>, void>({
+    getMyPropertyScope: builder.query<ApiResponse<{ id: string; name: string; code: string; currency: string }[]>, void>({
       query: () => '/properties/my-scope',
       providesTags: ['Properties'],
     }),

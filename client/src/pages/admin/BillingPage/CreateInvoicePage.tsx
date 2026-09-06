@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGetChargeTypesQuery, useCreateInvoiceMutation } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -31,10 +32,29 @@ export default function CreateInvoicePage() {
   const properties = propertiesData?.data || [];
   const tenants = tenantsData?.data || [];
 
+  // Locked to the sidebar's Active Property, same convention as Expenses/Payment
+  // Vouchers/New Lease/New Floor/New Lead — only when "All Properties" is active
+  // can the property be chosen here.
+  const activeProperty = useSelectedPropertyFilter();
+  const propertyLocked = !!activeProperty;
+
   const [form, setForm] = useState({
     propertyId: '', tenantId: '', invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: '', notes: '',
   });
+
+  // Clears back to "Select property" if the sidebar switches to "All Properties" after
+  // having been locked to a specific property.
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (propertyLocked) {
+      if (form.propertyId !== activeProperty) setForm((f) => ({ ...f, propertyId: activeProperty }));
+    } else if (prevPropertyLockedRef.current) {
+      setForm((f) => ({ ...f, propertyId: '' }));
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, activeProperty]);
 
   const [lines, setLines] = useState<LineItem[]>([
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
@@ -113,7 +133,8 @@ export default function CreateInvoicePage() {
           <div className="inv-form-grid">
             <div className="inv-field">
               <label>Property <span className="req">*</span></label>
-              <select required value={form.propertyId} onChange={e => setForm({ ...form, propertyId: e.target.value })}>
+              {/* Locked to the sidebar's Active Property; not independently choosable then. */}
+              <select required value={form.propertyId} disabled={propertyLocked} onChange={e => setForm({ ...form, propertyId: e.target.value })}>
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>

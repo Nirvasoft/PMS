@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   useGetPortalBrandingQuery, useUpdatePortalBrandingMutation,
   type PortalBranding,
 } from '../../../store/api/portalApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Palette, Save, Eye, Image, Type, Mail, Phone,
   ToggleLeft, ToggleRight, Building2,
@@ -12,16 +13,27 @@ import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 export default function PortalBrandingPage() {
-  const [selectedProperty, setSelectedProperty] = useState('');
+  // Locked to the sidebar's Active Property; only "All Properties" allows picking one here.
+  const activeProperty = useSelectedPropertyFilter();
+  const propertyLocked = !!activeProperty;
+  const [manualPropertyId, setManualPropertyId] = useState('');
+  const selectedProperty = propertyLocked ? activeProperty : manualPropertyId;
+
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
+  // /properties requires properties.read, which a community-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const scopeProperties = scopeData?.data || [];
+  const lockedPropertyName = scopeProperties.find(p => p.id === activeProperty)?.name;
 
-  // Auto-select first property
+  // Clears the manual pick back to "Select property" if the sidebar leaves "All Properties".
+  const prevPropertyLockedRef = useRef(propertyLocked);
   useEffect(() => {
-    if (properties.length > 0 && !selectedProperty) {
-      setSelectedProperty(properties[0].id);
-    }
-  }, [properties, selectedProperty]);
+    if (!propertyLocked && prevPropertyLockedRef.current) setManualPropertyId('');
+    prevPropertyLockedRef.current = propertyLocked;
+  }, [propertyLocked]);
 
   return (
     <div className="page-content">
@@ -35,12 +47,19 @@ export default function PortalBrandingPage() {
         <Building2 size={16} style={{ opacity: 0.5 }} />
         <select
           value={selectedProperty}
-          onChange={(e) => setSelectedProperty(e.target.value)}
+          disabled={propertyLocked}
+          onChange={(e) => setManualPropertyId(e.target.value)}
           className="form-select"
           style={{ width: 280 }}
         >
-          <option value="">Select property...</option>
-          {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {propertyLocked ? (
+            <option value={selectedProperty}>{lockedPropertyName || 'Loading…'}</option>
+          ) : (
+            <>
+              <option value="">Select property...</option>
+              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </>
+          )}
         </select>
       </div>
 

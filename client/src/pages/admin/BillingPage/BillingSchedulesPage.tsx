@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetBillingSchedulesQuery, usePauseScheduleMutation,
@@ -7,7 +7,7 @@ import {
   useGetChargeTypesQuery,
 } from '../../../store/api/billingApi';
 import type { BillingSchedule } from '../../../store/api/billingApi';
-import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil } from 'lucide-react';
@@ -57,6 +57,10 @@ export default function BillingSchedulesPage() {
   });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  // /properties requires properties.read, which a billing-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
   const { data: floorsData } = useGetFloorSetupsQuery(form.propertyId ? { propertyId: form.propertyId } : skipToken);
   const floorNumber = floorsData?.data.find(f => f.id === floorId)?.floorNumber;
   const { data: unitsData } = useGetUnitsQuery(
@@ -79,9 +83,34 @@ export default function BillingSchedulesPage() {
   const meta = data?.meta;
   const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
+  const scopeProperties = scopeData?.data || [];
   const floors = (floorsData?.data || []).slice().sort((a, b) => a.floorNumber - b.floorNumber);
   const units = unitsData?.data || [];
   const leases = leasesData?.data || [];
+
+  // New schedules bind to the sidebar's Active Property; only "All Properties" allows
+  // picking one here. Editing an existing schedule keeps its own property, unaffected.
+  const propertyLocked = !editId && !!selectedProperty;
+  const lockedPropertyName = scopeProperties.find((p) => p.id === selectedProperty)?.name;
+
+  // Clears back to "Select property" (or re-locks to the new property) if the sidebar
+  // changes while the create form is open.
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (showForm && !editId) {
+      if (propertyLocked) {
+        if (form.propertyId !== selectedProperty) {
+          setForm((f) => ({ ...f, propertyId: selectedProperty, unitId: '', tenantId: '', leaseId: '' }));
+          setFloorId('');
+        }
+      } else if (prevPropertyLockedRef.current) {
+        setForm((f) => ({ ...f, propertyId: '', unitId: '', tenantId: '', leaseId: '' }));
+        setFloorId('');
+      }
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, selectedProperty, showForm, editId]);
 
   // `units` already reflects the current floor filter (all of the property's units when none is
   // picked yet), so cross-referencing against it is how leases stay scoped to Floor as well as Unit.
@@ -107,7 +136,7 @@ export default function BillingSchedulesPage() {
 
   const openCreate = () => {
     setEditId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, propertyId: selectedProperty });
     setFloorId('');
     setShowForm(true);
   };
@@ -193,6 +222,7 @@ export default function BillingSchedulesPage() {
         <div className="billing-filters" style={{ marginBottom: 0 }}>
           {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select className="filter-select" value={selectedProperty} disabled>
+            {!selectedProperty && <option value="">All Properties</option>}
             {selectedProperty && (
               <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
             )}
@@ -354,12 +384,18 @@ export default function BillingSchedulesPage() {
                   </div>
                   <div className="inv-field">
                     <label>Property <span className="req">*</span></label>
-                    <select required value={form.propertyId} onChange={e => {
+                    <select required value={form.propertyId} disabled={propertyLocked} onChange={e => {
                       setForm({ ...form, propertyId: e.target.value, unitId: '', tenantId: '', leaseId: '' });
                       setFloorId('');
                     }}>
-                      <option value="">Select property</option>
-                      {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      {propertyLocked ? (
+                        <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
+                      ) : (
+                        <>
+                          <option value="">Select property</option>
+                          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </>
+                      )}
                     </select>
                   </div>
                   <div className="inv-field">

@@ -236,6 +236,24 @@ export class LeasesService {
           });
         }
       }
+    } else {
+      // Existing billing schedules carry their own copies of currency/billing
+      // day/dates for invoice generation — keep them in sync with lease-level
+      // edits (e.g. start date, billing day) even when charges aren't replaced.
+      const scheduleUpdate: Record<string, unknown> = {};
+      if (rest.currency !== undefined)       scheduleUpdate.currency = rest.currency;
+      if (rest.billingCycle !== undefined)   scheduleUpdate.billingCycle = rest.billingCycle;
+      if (rest.billingDay !== undefined)     scheduleUpdate.billingDay = rest.billingDay;
+      if (rest.paymentDueDays !== undefined) scheduleUpdate.paymentDueDays = rest.paymentDueDays;
+      if (endDate) scheduleUpdate.endDate = end;
+      if (startDate) {
+        scheduleUpdate.startDate = start;
+        scheduleUpdate.nextBillingDate = start;
+      }
+
+      if (Object.keys(scheduleUpdate).length > 0) {
+        await prisma.billingSchedule.updateMany({ where: { leaseId: id }, data: scheduleUpdate });
+      }
     }
 
     return updated;

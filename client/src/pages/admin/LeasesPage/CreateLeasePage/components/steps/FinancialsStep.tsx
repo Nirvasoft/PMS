@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetUnitQuery, useGetUnitChargesQuery } from '../../../../../../store/api/unitsApi';
 import { useGetChargeTypesQuery } from '../../../../../../store/api/billingApi';
+import { useGetPropertyQuery } from '../../../../../../store/api/propertiesApi';
+import { CURRENCIES } from '../../../../../../constants/currencies';
 import type { FormState } from '../../types';
 
 // BillingSchedule/Lease amount columns are Decimal(15,2) — 13 integer digits max.
@@ -45,6 +47,18 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
 
   const unitRate = unitData?.data?.rate ?? null;
   const prefilledFromUnit = unitRate != null && form.rentAmount === String(unitRate);
+
+  // Default the currency to the selected property's own currency, but let the user
+  // override it — re-sync only while they haven't picked a currency by hand for this
+  // property, so switching property doesn't clobber a deliberate manual choice.
+  const { data: propertyData } = useGetPropertyQuery(form.propertyId || skipToken);
+  const manualCurrency = useRef(false);
+  useEffect(() => { manualCurrency.current = false; }, [form.propertyId]);
+  useEffect(() => {
+    if (propertyData?.data?.currency && !manualCurrency.current) {
+      set('currency', propertyData.data.currency);
+    }
+  }, [propertyData]);
 
   // ── Lease Charges — seeded from whatever charges are already set up on the unit ──
   const { data: unitChargesData } = useGetUnitChargesQuery(
@@ -123,8 +137,8 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
         </div>
         <div className="form-field">
           <label>Currency</label>
-          <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
-            {['USD','SGD','EUR','GBP','AED','THB','MMK'].map((c) => <option key={c} value={c}>{c}</option>)}
+          <select value={form.currency} onChange={(e) => { manualCurrency.current = true; set('currency', e.target.value); }}>
+            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <div className="form-field">

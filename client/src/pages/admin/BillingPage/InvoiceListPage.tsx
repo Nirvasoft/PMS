@@ -4,7 +4,7 @@ import {
   useGetInvoicesQuery, useRunBillingMutation, useGetBillingSchedulesQuery,
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
 } from '../../../store/api/billingApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   FileText, Plus, Play, Search, ChevronLeft, ChevronRight,
@@ -393,6 +393,7 @@ export default function InvoiceListPage() {
 
       {runBillingModalOpen && (
         <RunBillingModal
+          activeProperty={activePropertyFilter}
           onClose={() => setRunBillingModalOpen(false)}
           onSubmit={handleRunBilling}
           isLoading={runningBilling}
@@ -403,17 +404,28 @@ export default function InvoiceListPage() {
 }
 
 // ── Run Billing Modal ────────────────────────
-function RunBillingModal({ onClose, onSubmit, isLoading }: {
+function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
+  activeProperty: string;
   onClose: () => void;
   onSubmit: (propertyId: string, asOfDate: string) => void;
   isLoading: boolean;
 }) {
   const todayStr = new Date().toISOString().split('T')[0];
-  const [propertyId, setPropertyId] = useState('');
+  // Locked to the sidebar's Active Property, same convention as elsewhere — only when
+  // "All Properties" is active can a specific property (or "All Properties" itself) be
+  // chosen here.
+  const propertyLocked = !!activeProperty;
+  const [manualPropertyId, setManualPropertyId] = useState('');
+  const propertyId = propertyLocked ? activeProperty : manualPropertyId;
   const [asOfDate, setAsOfDate] = useState(todayStr);
 
   const { data: propertiesData } = useGetPropertiesQuery({ limit: 200 });
   const properties = propertiesData?.data || [];
+  // /properties requires properties.read, which a billing-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const lockedPropertyName = (scopeData?.data || []).find((p) => p.id === activeProperty)?.name;
 
   const { data: schedulesData, isFetching: schedulesLoading } = useGetBillingSchedulesQuery({
     status: 'active',
@@ -452,9 +464,15 @@ function RunBillingModal({ onClose, onSubmit, isLoading }: {
           <div className="rb-grid-2">
             <div className="rb-field">
               <label>Property</label>
-              <select value={propertyId} onChange={e => setPropertyId(e.target.value)}>
-                <option value="">All Properties</option>
-                {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <select value={propertyId} disabled={propertyLocked} onChange={e => setManualPropertyId(e.target.value)}>
+                {propertyLocked ? (
+                  <option value={propertyId}>{lockedPropertyName || 'Loading…'}</option>
+                ) : (
+                  <>
+                    <option value="">All Properties</option>
+                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </>
+                )}
               </select>
             </div>
             <div className="rb-field">

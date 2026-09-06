@@ -36,7 +36,8 @@ import { dashboardService } from './modules/dashboard/dashboard.service';
 import { leadsRouter, campaignsRouter, calendarRouter } from './modules/crm/crm.routes';
 import {
   parkingTypesRouter, parkingZonesRouter, parkingSlotsRouter, parkingAllocationsRouter,
-  tenantVehiclesRouter, visitorPassesRouter, parkingRfidRouter
+  tenantVehiclesRouter, visitorPassesRouter, parkingRfidRouter,
+  parkingZonesAllRouter, parkingSlotsAllRouter,
 } from './modules/parking/parking.routes';
 import { requireFeature } from './common/featureFlags';
 import {
@@ -193,6 +194,8 @@ async function bootstrap() {
   app.use('/api/v1/properties/:propertyId/parking/types', requireFeature('parkingEnabled'), parkingTypesRouter);
   app.use('/api/v1/properties/:propertyId/parking/zones', requireFeature('parkingEnabled'), parkingZonesRouter);
   app.use('/api/v1/properties/:propertyId/parking/slots', requireFeature('parkingEnabled'), parkingSlotsRouter);
+  app.use('/api/v1/parking/zones', requireFeature('parkingEnabled'), parkingZonesAllRouter);
+  app.use('/api/v1/parking/slots', requireFeature('parkingEnabled'), parkingSlotsAllRouter);
   app.use('/api/v1/parking/allocations', requireFeature('parkingEnabled'), parkingAllocationsRouter);
   app.use('/api/v1/tenants/:tenantId/vehicles', requireFeature('parkingEnabled'), tenantVehiclesRouter);
   app.use('/api/v1/parking/visitor-passes', requireFeature('parkingEnabled'), visitorPassesRouter);

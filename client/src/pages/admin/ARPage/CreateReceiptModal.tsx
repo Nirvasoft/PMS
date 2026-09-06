@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useCreateReceiptMutation } from '../../../store/api/arApi';
 import { useGetInvoicesQuery } from '../../../store/api/billingApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { Banknote, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { CURRENCIES } from '../../../constants/currencies';
 
 const formatCurrency = (amount: number, currency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
@@ -35,6 +36,16 @@ export default function CreateReceiptModal({ onClose }: Props) {
   }, [invoicesData]);
 
   const [createReceipt, { isLoading }] = useCreateReceiptMutation();
+
+  // Default the currency to the tenant's own outstanding invoices, but let the user
+  // override it — re-sync only while they haven't picked a currency by hand.
+  const manualCurrency = useRef(false);
+  useEffect(() => { manualCurrency.current = false; }, [tenantId]);
+  useEffect(() => {
+    if (outstandingInvoices[0]?.currency && !manualCurrency.current) {
+      setCurrency(outstandingInvoices[0].currency);
+    }
+  }, [outstandingInvoices]);
 
   const totalAllocated = Object.values(allocations).reduce((s, v) => s + (v || 0), 0);
   const amountNum = parseFloat(amount) || 0;
@@ -132,13 +143,8 @@ export default function CreateReceiptModal({ onClose }: Props) {
           </div>
           <div className="ar-field">
             <label>Currency</label>
-            <select value={currency} onChange={e => setCurrency(e.target.value)}>
-              <option value="USD">USD</option>
-              <option value="SGD">SGD</option>
-              <option value="MYR">MYR</option>
-              <option value="MMK">MMK</option>
-              <option value="EUR">EUR</option>
-              <option value="GBP">GBP</option>
+            <select value={currency} onChange={e => { manualCurrency.current = true; setCurrency(e.target.value); }}>
+              {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>

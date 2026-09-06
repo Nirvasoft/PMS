@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { CURRENCIES } from '../../../constants/currencies';
 
 const COST_CATEGORIES: Record<string, { label: string; color: string }> = {
   cleaning: { label: 'Cleaning', color: '#3b82f6' },
@@ -365,7 +366,11 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
             <div className="maint-field">
               <label>Property <span style={{ color: '#f87171' }}>*</span></label>
               <select required value={form.propertyId} disabled={isEdit}
-                onChange={(e) => setForm(f => ({ ...f, propertyId: e.target.value }))}
+                onChange={(e) => {
+                  const propertyId = e.target.value;
+                  const propertyCurrency = properties.find((p: any) => p.id === propertyId)?.currency;
+                  setForm(f => ({ ...f, propertyId, currency: propertyCurrency || f.currency }));
+                }}
               >
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -400,9 +405,7 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
             <div className="maint-field">
               <label>Currency</label>
               <select value={form.currency} onChange={(e) => setForm(f => ({ ...f, currency: e.target.value }))}>
-                <option value="USD">USD</option>
-                <option value="SGD">SGD</option>
-                <option value="MMK">MMK</option>
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           </div>

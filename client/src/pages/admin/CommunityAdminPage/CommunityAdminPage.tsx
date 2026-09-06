@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   useGetAdminAnnouncementsQuery, useCreateAnnouncementMutation,
   useGetAdminPollsQuery, useCreatePollMutation,
   useGetAdminComplaintsQuery, useRespondToComplaintMutation,
   useGetAdminMoveRequestsQuery, useApproveMoveRequestMutation,
 } from '../../../store/api/communityApi';
+import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Megaphone, BarChart3, MessageSquareWarning, Truck,
   Plus, X, Pin, Eye, Send, CheckCircle2, Clock, AlertCircle,
@@ -67,11 +69,39 @@ function AnnouncementsTab() {
     page,
   });
   const [createAnnouncement, { isLoading: creating }] = useCreateAnnouncementMutation();
+  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const properties = propertiesData?.data || [];
+  // /properties requires properties.read, which a community-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const scopeProperties = scopeData?.data || [];
+
+  // New announcements bind to the sidebar's Active Property; only "All Properties" allows
+  // picking one here.
+  const activeProperty = useSelectedPropertyFilter();
+  const propertyLocked = !!activeProperty;
+  const lockedPropertyName = scopeProperties.find((p) => p.id === activeProperty)?.name;
 
   const [form, setForm] = useState({
     propertyId: '', title: '', content: '', category: 'general', priority: 'normal',
     targetAudience: 'all', isPinned: false, sendPush: true, sendEmail: false,
   });
+
+  // Clears back to "Select property" (or re-locks to the new property) if the sidebar
+  // changes while the create form is open.
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (showForm) {
+      if (propertyLocked) {
+        if (form.propertyId !== activeProperty) setForm((f) => ({ ...f, propertyId: activeProperty }));
+      } else if (prevPropertyLockedRef.current) {
+        setForm((f) => ({ ...f, propertyId: '' }));
+      }
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, activeProperty, showForm]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +131,11 @@ function AnnouncementsTab() {
         </select>
         <div style={{ flex: 1 }} />
         <PermissionGuard permission="community-admin.write">
-          <button className="btn btn-primary" onClick={() => setShowForm(true)} id="create-announcement-btn">
+          <button
+            className="btn btn-primary"
+            onClick={() => { setForm((f) => ({ ...f, propertyId: activeProperty })); setShowForm(true); }}
+            id="create-announcement-btn"
+          >
             <Plus size={14} /> New Announcement
           </button>
         </PermissionGuard>
@@ -116,8 +150,23 @@ function AnnouncementsTab() {
           <form onSubmit={handleCreate}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
-                <label>Property ID *</label>
-                <input value={form.propertyId} onChange={(e) => setForm({ ...form, propertyId: e.target.value })} placeholder="Property UUID" required />
+                <label>Property *</label>
+                <select
+                  value={form.propertyId}
+                  disabled={propertyLocked}
+                  onChange={(e) => setForm({ ...form, propertyId: e.target.value })}
+                  className="form-select"
+                  required
+                >
+                  {propertyLocked ? (
+                    <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
+                  ) : (
+                    <>
+                      <option value="">Select property...</option>
+                      {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </>
+                  )}
+                </select>
               </div>
               <div className="form-group">
                 <label>Title *</label>
@@ -227,12 +276,40 @@ function PollsTab() {
   const [showForm, setShowForm] = useState(false);
   const { data, isLoading } = useGetAdminPollsQuery({ page });
   const [createPoll, { isLoading: creating }] = useCreatePollMutation();
+  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const properties = propertiesData?.data || [];
+  // /properties requires properties.read, which a community-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const scopeProperties = scopeData?.data || [];
+
+  // New polls bind to the sidebar's Active Property; only "All Properties" allows
+  // picking one here.
+  const activeProperty = useSelectedPropertyFilter();
+  const propertyLocked = !!activeProperty;
+  const lockedPropertyName = scopeProperties.find((p) => p.id === activeProperty)?.name;
 
   const [form, setForm] = useState({
     propertyId: '', title: '', description: '', pollType: 'single',
     startAt: '', endAt: '', isAnonymous: true,
     options: [{ id: 'opt-1', text: '' }, { id: 'opt-2', text: '' }],
   });
+
+  // Clears back to "Select property" (or re-locks to the new property) if the sidebar
+  // changes while the create form is open.
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (showForm) {
+      if (propertyLocked) {
+        if (form.propertyId !== activeProperty) setForm((f) => ({ ...f, propertyId: activeProperty }));
+      } else if (prevPropertyLockedRef.current) {
+        setForm((f) => ({ ...f, propertyId: '' }));
+      }
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, activeProperty, showForm]);
 
   const addOption = () => {
     setForm({ ...form, options: [...form.options, { id: `opt-${form.options.length + 1}`, text: '' }] });
@@ -259,7 +336,11 @@ function PollsTab() {
     <>
       <div className="section-toolbar" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <PermissionGuard permission="community-admin.write">
-          <button className="btn btn-primary" onClick={() => setShowForm(true)} id="create-poll-btn">
+          <button
+            className="btn btn-primary"
+            onClick={() => { setForm((f) => ({ ...f, propertyId: activeProperty })); setShowForm(true); }}
+            id="create-poll-btn"
+          >
             <Plus size={14} /> New Poll
           </button>
         </PermissionGuard>
@@ -274,8 +355,23 @@ function PollsTab() {
           <form onSubmit={handleCreate}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
-                <label>Property ID *</label>
-                <input value={form.propertyId} onChange={(e) => setForm({ ...form, propertyId: e.target.value })} placeholder="Property UUID" required />
+                <label>Property *</label>
+                <select
+                  value={form.propertyId}
+                  disabled={propertyLocked}
+                  onChange={(e) => setForm({ ...form, propertyId: e.target.value })}
+                  className="form-select"
+                  required
+                >
+                  {propertyLocked ? (
+                    <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
+                  ) : (
+                    <>
+                      <option value="">Select property...</option>
+                      {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </>
+                  )}
+                </select>
               </div>
               <div className="form-group">
                 <label>Title *</label>
@@ -299,6 +395,7 @@ function PollsTab() {
               {form.options.map((opt, i) => (
                 <div key={opt.id} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                   <input
+                    className="input-full"
                     value={opt.text}
                     onChange={(e) => {
                       const opts = [...form.options];
@@ -309,7 +406,7 @@ function PollsTab() {
                     style={{ flex: 1 }}
                   />
                   {form.options.length > 2 && (
-                    <button type="button" className="btn-icon btn-danger" onClick={() => setForm({ ...form, options: form.options.filter((_, j) => j !== i) })}>
+                    <button type="button" className="  btn-danger" onClick={() => setForm({ ...form, options: form.options.filter((_, j) => j !== i) })}>
                       <X size={14} />
                     </button>
                   )}
@@ -321,7 +418,7 @@ function PollsTab() {
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
                 <input type="checkbox" checked={form.isAnonymous} onChange={(e) => setForm({ ...form, isAnonymous: e.target.checked })} /> Anonymous voting
               </label>
-              <select value={form.pollType} onChange={(e) => setForm({ ...form, pollType: e.target.value })} style={{ width: 160 }}>
+              <select value={form.pollType} onChange={(e) => setForm({ ...form, pollType: e.target.value })} className="form-select" style={{ width: 160 }}>
                 <option value="single">Single choice</option>
                 <option value="multiple">Multiple choice</option>
               </select>

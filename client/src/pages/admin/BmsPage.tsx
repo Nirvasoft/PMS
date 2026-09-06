@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   useGetBmsSummaryQuery, useGetBmsDevicesQuery, useGetBmsMetaQuery,
   useCreateBmsDeviceMutation, useDeleteBmsDeviceMutation, usePollBmsDeviceMutation,
@@ -223,7 +223,7 @@ export default function BmsPage() {
         </div>
       )}
 
-      {showAdd && <AddDeviceWizard properties={propList} meta={meta?.data} onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddDeviceWizard properties={propList} activeProperty={selectedProperty} meta={meta?.data} onClose={() => setShowAdd(false)} />}
       {selDevice && <DetailDrawer device={selDevice} onClose={() => setSelDevice(null)} />}
     </div>
   );
@@ -453,13 +453,28 @@ function StatusBadge({ status, small }: { status: string; small?: boolean }) {
    ADD DEVICE WIZARD
    ═══════════════════════════════════════════ */
 
-function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; meta: any; onClose: () => void }) {
+function AddDeviceWizard({ properties, activeProperty, meta, onClose }: { properties: any[]; activeProperty: string; meta: any; onClose: () => void }) {
   const [createDevice, { isLoading }] = useCreateBmsDeviceMutation();
   const [step, setStep] = useState(1);
+  // Bound to the sidebar's Active Property; only "All Properties" allows picking one here.
+  const propertyLocked = !!activeProperty;
   const [form, setForm] = useState({
-    propertyId: '', deviceName: '', deviceType: 'hvac', protocol: 'bacnet_ip',
+    propertyId: activeProperty, deviceName: '', deviceType: 'hvac', protocol: 'bacnet_ip',
     ipAddress: '', port: '', bacnetDeviceId: '',
   });
+
+  // Clears back to "Select property" (or re-locks to the new property) if the sidebar
+  // changes while the wizard is open.
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (propertyLocked) {
+      if (form.propertyId !== activeProperty) setForm((f) => ({ ...f, propertyId: activeProperty }));
+    } else if (prevPropertyLockedRef.current) {
+      setForm((f) => ({ ...f, propertyId: '' }));
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, activeProperty]);
 
   const types = meta?.deviceTypes || Object.keys(TYPE_CFG);
   const protocols = meta?.protocols || Object.keys(PROTOCOL_LABELS);
@@ -517,10 +532,16 @@ function AddDeviceWizard({ properties, meta, onClose }: { properties: any[]; met
           {step === 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <Field label="Property" required>
-                <select value={form.propertyId} onChange={e => setForm(f => ({ ...f, propertyId: e.target.value }))}
+                <select value={form.propertyId} disabled={propertyLocked} onChange={e => setForm(f => ({ ...f, propertyId: e.target.value }))}
                   required style={fieldInput}>
-                  <option value="">Select property…</option>
-                  {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {propertyLocked ? (
+                    <option value={form.propertyId}>{properties.find((p: any) => p.id === form.propertyId)?.name || 'Loading…'}</option>
+                  ) : (
+                    <>
+                      <option value="">Select property…</option>
+                      {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </>
+                  )}
                 </select>
               </Field>
               <Field label="Device Name" required>

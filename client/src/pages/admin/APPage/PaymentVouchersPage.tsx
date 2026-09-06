@@ -12,6 +12,7 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { CURRENCIES } from '../../../constants/currencies';
 import './APPage.css';
 
 const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -105,7 +106,11 @@ export default function PaymentVouchersPage() {
         <PermissionGuard permission="ap-vouchers.write">
           <button
             className="ap-btn primary"
-            onClick={() => setShowCreate(true)}
+            onClick={() => {
+              const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
+              setForm((f) => ({ ...f, currency: propertyCurrency || 'USD' }));
+              setShowCreate(true);
+            }}
             disabled={!selectedProperty}
             title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
           >
@@ -236,9 +241,7 @@ export default function PaymentVouchersPage() {
                 <div className="ap-form-group">
                   <label>Currency</label>
                   <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}>
-                    <option value="USD">USD</option>
-                    <option value="SGD">SGD</option>
-                    <option value="MMK">MMK</option>
+                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div className="ap-form-group">

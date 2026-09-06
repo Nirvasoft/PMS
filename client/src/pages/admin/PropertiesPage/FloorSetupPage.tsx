@@ -70,7 +70,9 @@ export default function FloorSetupPage() {
   const [editing, setEditing] = useState<FloorSetup | null>(null);
   const [form, setForm] = useState(emptyForm);
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
+  // New floors bind to the sidebar's Active Property, same convention as Expenses/Payment
+  // Vouchers — only when "All Properties" is active can the property be chosen here.
+  const openCreate = () => { setEditing(null); setForm({ ...emptyForm, propertyId: searchPropertyId }); setShowForm(true); };
   const openEdit = (f: FloorSetup) => {
     setEditing(f);
     setForm({ propertyId: f.propertyId, floorNumber: String(f.floorNumber), floorLabel: f.floorLabel });
@@ -236,7 +238,8 @@ export default function FloorSetupPage() {
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(1, 1fr)' }}>
                   <div className="inv-field">
                     <label>Property <span className="req">*</span></label>
-                    <select required value={form.propertyId}
+                    {/* Locked to the sidebar's Active Property when creating; not independently choosable then. */}
+                    <select required value={form.propertyId} disabled={!editing && !!searchPropertyId}
                       onChange={(e) => setForm({ ...form, propertyId: e.target.value, floorNumber: '' })}>
                       <option value="">Select property…</option>
                       {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

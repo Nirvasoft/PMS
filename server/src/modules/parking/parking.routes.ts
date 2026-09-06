@@ -1,5 +1,5 @@
 import { Router, Request } from 'express';
-import { asyncHandler } from '../../middleware';
+import { asyncHandler, getUserPropertyScope } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { zonesService } from './zones.service';
 import { slotsService } from './slots.service';
@@ -101,6 +101,45 @@ parkingSlotsRouter.put('/:id', validateRequest(updateSlotSchema), asyncHandler(a
 parkingSlotsRouter.delete('/:id', asyncHandler(async (req, res) => {
   await slotsService.delete(p(req, 'id'), req.user!.companyId);
   res.status(204).send();
+}));
+
+// ════════════════════════════════════════════════
+// ZONES (company-wide, "All Properties" view) — /api/v1/parking/zones
+// ════════════════════════════════════════════════
+export const parkingZonesAllRouter = Router();
+
+parkingZonesAllRouter.get('/', asyncHandler(async (req, res) => {
+  const propertyScope = await getUserPropertyScope(req.user!.sub);
+  const data = await zonesService.findAllForCompany(req.user!.companyId, {
+    unitType: req.query.unitType as string,
+    propertyIds: propertyScope ?? undefined,
+  });
+  res.json({ success: true, data });
+}));
+
+// ════════════════════════════════════════════════
+// SLOTS (company-wide, "All Properties" view) — /api/v1/parking/slots
+// ════════════════════════════════════════════════
+export const parkingSlotsAllRouter = Router();
+
+parkingSlotsAllRouter.get('/occupancy', asyncHandler(async (req, res) => {
+  const propertyScope = await getUserPropertyScope(req.user!.sub);
+  const data = await slotsService.getOccupancyForCompany(req.user!.companyId, propertyScope ?? undefined);
+  res.json({ success: true, data });
+}));
+
+parkingSlotsAllRouter.get('/', asyncHandler(async (req, res) => {
+  const propertyScope = await getUserPropertyScope(req.user!.sub);
+  const result = await slotsService.findAllForCompany(req.user!.companyId, {
+    unitType: req.query.unitType as string,
+    zoneId:   req.query.zoneId as string,
+    status:   req.query.status as string,
+    slotType: req.query.slotType as string,
+    page:     parseInt(req.query.page as string) || 1,
+    limit:    Math.min(parseInt(req.query.limit as string) || 50, 200),
+    propertyIds: propertyScope ?? undefined,
+  });
+  res.json({ success: true, ...result });
 }));
 
 // ════════════════════════════════════════════════

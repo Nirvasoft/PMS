@@ -28,6 +28,35 @@ export class SlotsService {
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
+  /** Company-wide slot list for the "All Properties" view — optionally restricted to a set of property IDs (property-scoped users). */
+  async findAllForCompany(companyId: string, query: {
+    unitType?: string; zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number; propertyIds?: string[];
+  }) {
+    const { unitType, zoneId, status, slotType, page = 1, limit = 50, propertyIds } = query;
+    const where: Record<string, unknown> = { companyId };
+    if (propertyIds) where.propertyId = { in: propertyIds };
+    if (unitType) where.unit = { unitType };
+    if (zoneId)   where.zoneId = zoneId;
+    if (status)   where.status = status;
+    if (slotType) where.slotType = slotType;
+
+    const [data, total] = await Promise.all([
+      prisma.parkingSlot.findMany({
+        where,
+        include: {
+          zone: { select: { id: true, name: true, code: true, zoneType: true } },
+          property: { select: { id: true, name: true, code: true } },
+          unit: { select: { id: true, unitNumber: true, floorLabel: true } },
+        },
+        orderBy: [{ property: { name: 'asc' } }, { slotNumber: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.parkingSlot.count({ where }),
+    ]);
+    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+  }
+
   async create(propertyId: string, companyId: string, dto: Record<string, unknown>) {
     const zoneId = (dto.zoneId as string) || null;
     const exists = await prisma.parkingSlot.findFirst({
@@ -177,6 +206,45 @@ export class SlotsService {
       maintenance: statusMap.maintenance || 0,
       occupancyRate: total > 0 ? Math.round(((statusMap.allocated || 0) + (statusMap.visitor || 0)) / total * 1000) / 10 : 0,
       byZone: zoneOccupancy,
+    };
+  }
+
+  /**
+   * Company-wide occupancy for the "All Properties" view — combined totals plus a per-property
+   * breakdown (zone names collide across properties, so the aggregate groups by property instead).
+   * Optionally restricted to a set of property IDs (property-scoped users).
+   */
+  async getOccupancyForCompany(companyId: string, propertyIds?: string[]) {
+    const where: Record<string, unknown> = { companyId, isActive: true };
+    if (propertyIds) where.propertyId = { in: propertyIds };
+
+    const slots = await prisma.parkingSlot.groupBy({ by: ['status'], where, _count: true });
+    const byProperty = await prisma.parkingSlot.groupBy({ by: ['propertyId', 'status'], where, _count: true });
+
+    const propIds = [...new Set(byProperty.map((b: typeof byProperty[number]) => b.propertyId))];
+    const properties = propIds.length > 0
+      ? await prisma.property.findMany({ where: { id: { in: propIds } }, select: { id: true, name: true, code: true } })
+      : [];
+
+    const total = slots.reduce((sum: number, s: typeof slots[number]) => sum + s._count, 0);
+    const statusMap = Object.fromEntries(slots.map((s: typeof slots[number]) => [s.status, s._count]));
+
+    const propertyOccupancy = properties.map((p: typeof properties[number]) => {
+      const propSlots = byProperty.filter((b: typeof byProperty[number]) => b.propertyId === p.id);
+      const propTotal = propSlots.reduce((sum: number, s: typeof propSlots[number]) => sum + s._count, 0);
+      const propStatus = Object.fromEntries(propSlots.map((s: typeof propSlots[number]) => [s.status, s._count]));
+      return { ...p, total: propTotal, ...propStatus };
+    });
+
+    return {
+      total,
+      available: statusMap.available || 0,
+      allocated: statusMap.allocated || 0,
+      visitor: statusMap.visitor || 0,
+      blocked: statusMap.blocked || 0,
+      maintenance: statusMap.maintenance || 0,
+      occupancyRate: total > 0 ? Math.round(((statusMap.allocated || 0) + (statusMap.visitor || 0)) / total * 1000) / 10 : 0,
+      byProperty: propertyOccupancy,
     };
   }
 }

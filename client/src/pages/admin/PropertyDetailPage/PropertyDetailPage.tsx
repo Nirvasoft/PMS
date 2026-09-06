@@ -25,6 +25,7 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { CURRENCIES } from '../../../constants/currencies';
 import './PropertyDetailPage.css';
 
 type Tab = 'overview' | 'units' | 'leases' | 'documents' | 'facilities' | 'contacts' | 'photos' | 'history' | 'finance' | 'settings';
@@ -781,7 +782,6 @@ const BILLING_CYCLES = [
   { value: 'semi_annual', label: 'Semi-Annual' },
   { value: 'annual',      label: 'Annual' },
 ];
-const CURRENCIES = ['USD','SGD','EUR','GBP','AED','THB','MMK','JPY','CNY','INR','AUD'];
 const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Paris','Asia/Singapore','Asia/Tokyo','Asia/Bangkok','Asia/Yangon','Asia/Dubai','Australia/Sydney'];
 
 function SettingsTab({ property }: { property: any }) {

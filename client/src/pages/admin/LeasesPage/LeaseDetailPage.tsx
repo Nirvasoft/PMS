@@ -11,6 +11,7 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { CURRENCIES } from '../../../constants/currencies';
 import './LeaseDetailPage.css';
 
 // Tabs
@@ -293,7 +294,7 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
               <div className="edf-row">
                 <label>Currency
                   <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
-                    {['USD','EUR','GBP','SGD','MMK','THB','MYR','AED','SAR','INR'].map(c => (
+                    {CURRENCIES.map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>

@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   useGetQuickActionsQuery, useCreateQuickActionMutation,
   useUpdateQuickActionMutation, useDeleteQuickActionMutation,
 } from '../../../store/api/portalApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Zap, Plus, X, Trash2, ToggleLeft, ToggleRight,
@@ -32,6 +32,16 @@ export default function QuickActionsAdminPage() {
   );
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
+  // /properties requires properties.read, which a community-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const scopeProperties = scopeData?.data || [];
+
+  // New quick actions bind to the sidebar's Active Property; only "All Properties" allows
+  // picking one here.
+  const propertyLocked = !!propertyFilter;
+  const lockedPropertyName = scopeProperties.find((p) => p.id === propertyFilter)?.name;
 
   const [createAction, { isLoading: creating }] = useCreateQuickActionMutation();
   const [updateAction] = useUpdateQuickActionMutation();
@@ -41,6 +51,21 @@ export default function QuickActionsAdminPage() {
   const [form, setForm] = useState({
     propertyId: '', label: '', icon: '⚡', actionType: 'page', actionUrl: '', sortOrder: 0,
   });
+
+  // Clears back to "Select Property" (or re-locks to the new property) if the sidebar
+  // changes while the create form is open.
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (showForm) {
+      if (propertyLocked) {
+        if (form.propertyId !== propertyFilter) setForm((f) => ({ ...f, propertyId: propertyFilter }));
+      } else if (prevPropertyLockedRef.current) {
+        setForm((f) => ({ ...f, propertyId: '' }));
+      }
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, propertyFilter, showForm]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,13 +117,18 @@ export default function QuickActionsAdminPage() {
       <div className="section-toolbar" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
         {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select value={propertyFilter} disabled className="form-select" style={{ width: 220 }}>
+          {!propertyFilter && <option value="">All Properties</option>}
           {propertyFilter && (
             <option value={propertyFilter}>{properties.find((p) => p.id === propertyFilter)?.name || ''}</option>
           )}
         </select>
         <div style={{ flex: 1 }} />
         <PermissionGuard permission="community-quick-actions.write">
-          <button className="btn btn-primary" onClick={() => setShowForm(true)} id="add-quick-action-btn">
+          <button
+            className="btn btn-primary"
+            onClick={() => { setForm((f) => ({ ...f, propertyId: propertyFilter })); setShowForm(true); }}
+            id="add-quick-action-btn"
+          >
             <Plus size={14} /> Add Quick Action
           </button>
         </PermissionGuard>
@@ -117,13 +147,21 @@ export default function QuickActionsAdminPage() {
                 <label>Property *</label>
                 <select
                   value={form.propertyId}
+                  disabled={propertyLocked}
                   onChange={(e) => setForm({ ...form, propertyId: e.target.value })}
+                  className="form-select"
                   required
                 >
-                  <option value="">Select Property</option>
-                  {properties.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
+                  {propertyLocked ? (
+                    <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
+                  ) : (
+                    <>
+                      <option value="">Select Property</option>
+                      {properties.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </>
+                  )}
                 </select>
               </div>
               <div className="form-group">
@@ -162,6 +200,7 @@ export default function QuickActionsAdminPage() {
                 <select
                   value={form.actionType}
                   onChange={(e) => setForm({ ...form, actionType: e.target.value })}
+                  className="form-select"
                 >
                   {ACTION_TYPES.map((at) => (
                     <option key={at.value} value={at.value}>{at.label}</option>

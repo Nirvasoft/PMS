@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetApInvoicesQuery, useCreateApInvoiceMutation,
@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { CURRENCIES } from '../../../constants/currencies';
 import './APPage.css';
 
 const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -60,12 +61,27 @@ export default function ApInvoiceListPage() {
     };
   }, [invoices]);
 
-  // Create form — propertyId is always seeded from the active property.
+  // Create form — propertyId is seeded from and locked to the active property; only when
+  // "All Properties" is active can it be chosen in the form itself.
+  const propertyLocked = !!selectedProperty;
   const [form, setForm] = useState({
     vendorName: '', vendorInvoiceNo: '', propertyId: selectedProperty, invoiceDate: format(new Date(), 'yyyy-MM-dd'),
     dueDate: format(new Date(Date.now() + 30 * 86400000), 'yyyy-MM-dd'), description: '',
     currency: 'USD', departmentId: '', costCenter: '', poReference: '', notes: '',
   });
+
+  // Clears back to "Select property" (or re-locks to the new property) if the sidebar's
+  // Active Property changes.
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (propertyLocked) {
+      if (form.propertyId !== selectedProperty) setForm((f) => ({ ...f, propertyId: selectedProperty }));
+    } else if (prevPropertyLockedRef.current) {
+      setForm((f) => ({ ...f, propertyId: '' }));
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, selectedProperty]);
   const [lines, setLines] = useState<LineItem[]>([
     { description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
   ]);
@@ -84,7 +100,7 @@ export default function ApInvoiceListPage() {
   const [rejectReason, setRejectReason] = useState('');
 
   const handleCreate = async () => {
-    if (!form.propertyId) return toast.error('Please select a property from the sidebar first');
+    if (!form.propertyId) return toast.error('Please select a property');
     if (!form.vendorName) return toast.error('Vendor name is required');
     if (lines.some(l => !l.description || l.unitPrice <= 0)) return toast.error('All line items must have description and positive unit price');
     try {
@@ -120,9 +136,11 @@ export default function ApInvoiceListPage() {
         <PermissionGuard permission="ap-invoices.write">
           <button
             className="ap-btn primary"
-            onClick={() => setShowCreate(true)}
-            disabled={!selectedProperty}
-            title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
+            onClick={() => {
+              const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
+              setForm((f) => ({ ...f, currency: propertyCurrency || f.currency }));
+              setShowCreate(true);
+            }}
           >
             <Plus size={16} /> New AP Invoice
           </button>
@@ -260,20 +278,31 @@ export default function ApInvoiceListPage() {
                   <input value={form.vendorInvoiceNo} onChange={e => setForm(f => ({ ...f, vendorInvoiceNo: e.target.value }))} placeholder="INV-2025-001" />
                 </div>
                 <div className="ap-form-group">
-                  <label>Property</label>
-                  {/* Locked to the sidebar's Active Property — not independently editable. */}
-                  <select value={form.propertyId} disabled>
-                    {!form.propertyId && <option value="">All Properties</option>}
-                    {form.propertyId && <option value={form.propertyId}>{selectedPropertyName || 'Loading…'}</option>}
+                  <label>Property *</label>
+                  {/* Locked to the sidebar's Active Property; not independently choosable then. */}
+                  <select
+                    value={form.propertyId}
+                    disabled={propertyLocked}
+                    onChange={e => {
+                      const propertyId = e.target.value;
+                      const propertyCurrency = properties.find((p) => p.id === propertyId)?.currency;
+                      setForm(f => ({ ...f, propertyId, currency: propertyCurrency || f.currency }));
+                    }}
+                  >
+                    {propertyLocked ? (
+                      <option value={form.propertyId}>{selectedPropertyName || 'Loading…'}</option>
+                    ) : (
+                      <>
+                        <option value="">Select property</option>
+                        {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </>
+                    )}
                   </select>
                 </div>
                 <div className="ap-form-group">
                   <label>Currency</label>
                   <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}>
-                    <option value="USD">USD</option>
-                    <option value="SGD">SGD</option>
-                    <option value="MMK">MMK</option>
-                    <option value="EUR">EUR</option>
+                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div className="ap-form-group">
@@ -328,7 +357,7 @@ export default function ApInvoiceListPage() {
             </div>
             <div className="ap-modal-footer">
               <button className="ap-btn ghost" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button className="ap-btn primary" onClick={handleCreate} disabled={creating}>
+              <button className="ap-btn primary" onClick={handleCreate} disabled={creating || !form.propertyId}>
                 {creating ? 'Creating...' : 'Create AP Invoice'}
               </button>
             </div>

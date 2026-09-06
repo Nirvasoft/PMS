@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { CURRENCIES } from '../../../constants/currencies';
 import './CreatePropertyPage.css';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
@@ -59,7 +60,6 @@ const STEPS = [
   { n: 6, label: 'Review',        icon: <DollarSign size={15} /> },
 ];
 
-const CURRENCIES = ['USD','SGD','EUR','GBP','AED','THB','MMK','JPY','CNY','INR'];
 const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Paris','Asia/Singapore','Asia/Tokyo','Asia/Bangkok','Asia/Yangon','Asia/Dubai'];
 const COUNTRIES  = ['US','SG','GB','TH','MM','JP','AE','AU','DE','FR','IN','CN'];
 

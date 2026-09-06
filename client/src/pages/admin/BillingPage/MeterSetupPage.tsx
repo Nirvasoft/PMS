@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   useGetMeterSetupsQuery, useCreateMeterSetupMutation, useUpdateMeterSetupMutation, useDeleteMeterSetupMutation,
   type MeterSetup,
 } from '../../../store/api/billingApi';
-import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { Gauge, Plus, X, Pencil, Trash2, Search } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
@@ -42,6 +42,11 @@ const labelFor = (opts: readonly { value: string; label: string }[], value: stri
 export default function MeterSetupPage() {
   const { data: metersData, isFetching } = useGetMeterSetupsQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ limit: 100 });
+  // /properties requires properties.read, which a billing-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const scopeProperties = scopeData?.data || [];
   const [createMeterSetup, { isLoading: creating }] = useCreateMeterSetupMutation();
   const [updateMeterSetup, { isLoading: updating }] = useUpdateMeterSetupMutation();
   const [deleteMeterSetup] = useDeleteMeterSetupMutation();
@@ -91,11 +96,34 @@ export default function MeterSetupPage() {
     { skip: !form.propertyId }
   );
   const floors = floorsData?.data || [];
+
+  // New meters bind to the sidebar's Active Property; only "All Properties" allows
+  // picking one here. Editing an existing meter keeps its own property, unaffected.
+  const propertyLocked = !editing && !!searchPropertyId;
+  const lockedPropertyName = scopeProperties.find((p) => p.id === searchPropertyId)?.name;
+
+  // Clears back to "Select property" (or re-locks to the new property) if the sidebar
+  // changes while the create form is open.
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (showForm && !editing) {
+      if (propertyLocked) {
+        if (form.propertyId !== searchPropertyId) {
+          setForm((f) => ({ ...f, propertyId: searchPropertyId, floorId: '', mainMeterId: '' }));
+        }
+      } else if (prevPropertyLockedRef.current) {
+        setForm((f) => ({ ...f, propertyId: '', floorId: '', mainMeterId: '' }));
+      }
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, searchPropertyId, showForm, editing]);
+
   const mainMeterOptions = meters.filter(
     (m) => m.propertyId === form.propertyId && m.meterType !== 'sub_meter' && m.id !== editing?.id
   );
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
+  const openCreate = () => { setEditing(null); setForm({ ...emptyForm, propertyId: searchPropertyId }); setShowForm(true); };
   const openEdit = (m: MeterSetup) => {
     setEditing(m);
     setForm({
@@ -209,6 +237,7 @@ export default function MeterSetupPage() {
         <div className="meter-search-filter-wrap">
           {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select className="meter-search-select" value={searchPropertyId} disabled>
+            {!searchPropertyId && <option value="">All Properties</option>}
             {searchPropertyId && (
               <option value={searchPropertyId}>{properties.find((p) => p.id === searchPropertyId)?.name || ''}</option>
             )}
@@ -301,9 +330,15 @@ export default function MeterSetupPage() {
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="inv-field">
                     <label>Property <span className="req">*</span></label>
-                    <select required value={form.propertyId} onChange={(e) => handlePropertyChange(e.target.value)}>
-                      <option value="">Select property…</option>
-                      {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    <select required value={form.propertyId} disabled={propertyLocked} onChange={(e) => handlePropertyChange(e.target.value)}>
+                      {propertyLocked ? (
+                        <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
+                      ) : (
+                        <>
+                          <option value="">Select property…</option>
+                          {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </>
+                      )}
                     </select>
                   </div>
                   <div className="inv-field">

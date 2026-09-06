@@ -17,6 +17,7 @@ export interface ParkingZone {
   zoneType: string;
   isActive: boolean;
   _count: { slots: number };
+  property?: { id: string; name: string; code: string | null };
 }
 
 export interface ParkingSlot {
@@ -33,6 +34,8 @@ export interface ParkingSlot {
   notes: string | null;
   isActive: boolean;
   zone: { id: string; name: string; code?: string; zoneType?: string } | null;
+  property?: { id: string; name: string; code: string | null };
+  unit?: { id: string; unitNumber: string; floorLabel: string | null } | null;
 }
 
 export interface ParkingAllocation {
@@ -108,6 +111,17 @@ export interface OccupancyStats {
   byZone: (ParkingZone & { total: number; available?: number; allocated?: number; visitor?: number })[];
 }
 
+export interface CompanyOccupancyStats {
+  total: number;
+  available: number;
+  allocated: number;
+  visitor: number;
+  blocked: number;
+  maintenance: number;
+  occupancyRate: number;
+  byProperty: { id: string; name: string; code: string | null; total: number; available?: number; allocated?: number; visitor?: number }[];
+}
+
 interface ApiResponse<T> { success: boolean; data: T; }
 interface PaginatedResponse<T> {
   success: boolean; data: T[];
@@ -131,6 +145,12 @@ export const parkingApi = createApi({
     // ── Zones ──────────────────────────────
     getZones: builder.query<ApiResponse<ParkingZone[]>, { propertyId: string; unitId?: string; unitType?: string }>({
       query: ({ propertyId, ...params }) => ({ url: `/properties/${propertyId}/parking/zones`, params }),
+      providesTags: ['ParkingZones'],
+    }),
+
+    // Company-wide, across every property in scope — for the "All Properties" view.
+    getZonesAll: builder.query<ApiResponse<ParkingZone[]>, { unitType?: string } | void>({
+      query: (params) => ({ url: '/parking/zones', params: params || undefined }),
       providesTags: ['ParkingZones'],
     }),
 
@@ -179,6 +199,19 @@ export const parkingApi = createApi({
 
     getOccupancy: builder.query<ApiResponse<OccupancyStats>, { propertyId: string; unitId?: string }>({
       query: ({ propertyId, ...params }) => ({ url: `/properties/${propertyId}/parking/slots/occupancy`, params }),
+      providesTags: ['Occupancy'],
+    }),
+
+    // Company-wide, across every property in scope — for the "All Properties" view.
+    getSlotsAll: builder.query<PaginatedResponse<ParkingSlot>, {
+      unitType?: string; zoneId?: string; status?: string; slotType?: string; page?: number; limit?: number;
+    } | void>({
+      query: (params) => ({ url: '/parking/slots', params: params || undefined }),
+      providesTags: ['ParkingSlots'],
+    }),
+
+    getOccupancyAll: builder.query<ApiResponse<CompanyOccupancyStats>, void>({
+      query: () => '/parking/slots/occupancy',
       providesTags: ['Occupancy'],
     }),
 
@@ -260,15 +293,18 @@ export const parkingApi = createApi({
 export const {
   useGetParkingTypesQuery,
   useGetZonesQuery,
+  useGetZonesAllQuery,
   useCreateZoneMutation,
   useUpdateZoneMutation,
   useDeleteZoneMutation,
   useGetSlotsQuery,
+  useGetSlotsAllQuery,
   useCreateSlotMutation,
   useBulkCreateSlotsMutation,
   useUpdateSlotMutation,
   useDeleteSlotMutation,
   useGetOccupancyQuery,
+  useGetOccupancyAllQuery,
   useGetAllocationsQuery,
   useCreateAllocationMutation,
   useUpdateAllocationMutation,

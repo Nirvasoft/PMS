@@ -15,10 +15,11 @@
 .gl-toolbar label { font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); }
 .gl-toolbar input, .gl-toolbar select {
   padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--bg); color: var(--text-primary); font-size: 0.85rem;
+  background: var(--bg-primary); color: var(--text-primary); font-size: 0.85rem;
   transition: border-color 0.2s;
 }
-.gl-toolbar input:focus, .gl-toolbar select:focus { border-color: var(--primary); outline: none; }
+.gl-toolbar input:focus, .gl-toolbar select:focus { border-color: var(--accent); outline: none; }
+.gl-toolbar select option { background: var(--surface); color: var(--text-primary); }
 
 /* ─── Table ────────────────────────────────────── */
 .gl-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
@@ -120,9 +121,10 @@
 }
 .gl-form-group input, .gl-form-group select, .gl-form-group textarea {
   width: 100%; padding: 8px 12px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--bg);
+  border: 1px solid var(--border); background: var(--bg-primary);
   color: var(--text-primary); font-size: 0.9rem;
 }
+.gl-form-group select option { background: var(--surface); color: var(--text-primary); }
 .gl-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 /* ─── JE Line Editor ──────────────────────────── */
@@ -133,8 +135,9 @@
 }
 .je-line-row input, .je-line-row select {
   padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--bg); color: var(--text-primary); font-size: 0.85rem;
+  background: var(--bg-primary); color: var(--text-primary); font-size: 0.85rem;
 }
+.je-line-row select option { background: var(--surface); color: var(--text-primary); }
 .je-line-row .remove-line {
   background: none; border: none; color: var(--danger, #ef4444);
   cursor: pointer; font-size: 1.1rem; padding: 4px;

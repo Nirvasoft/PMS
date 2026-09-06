@@ -14,6 +14,22 @@ export class ZonesService {
     });
   }
 
+  /** Company-wide zone list for the "All Properties" view — optionally restricted to a set of property IDs (property-scoped users). */
+  async findAllForCompany(companyId: string, query: { unitType?: string; propertyIds?: string[] } = {}) {
+    const where: Record<string, unknown> = { companyId };
+    if (query.unitType) where.unit = { unitType: query.unitType };
+    if (query.propertyIds) where.propertyId = { in: query.propertyIds };
+
+    return prisma.parkingZone.findMany({
+      where,
+      include: {
+        property: { select: { id: true, name: true, code: true } },
+        _count: { select: { slots: true } },
+      },
+      orderBy: [{ property: { name: 'asc' } }, { name: 'asc' }],
+    });
+  }
+
   async create(propertyId: string, companyId: string, dto: Record<string, unknown>) {
     const unitId = (dto.unitId as string) || null;
     const name = dto.name as string;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useGetUnitsQuery, type UnitListItem } from '../../../store/api/unitsApi';
@@ -6,6 +6,7 @@ import {
   useGetParkingTypesQuery,
   useGetOccupancyQuery, useGetZonesQuery, useCreateZoneMutation, useUpdateZoneMutation, useDeleteZoneMutation,
   useGetSlotsQuery, useBulkCreateSlotsMutation, useUpdateSlotMutation, useDeleteSlotMutation,
+  useGetOccupancyAllQuery, useGetZonesAllQuery, useGetSlotsAllQuery,
   type ParkingZone, type ParkingSlot, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
 import { Car, LayoutGrid, Plus, Layers, Grid3X3, Pencil, Trash2 } from 'lucide-react';
@@ -29,9 +30,20 @@ export default function ParkingOverviewPage() {
 
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
-  // Property follows the sidebar's "Active Property" selector — not independently choosable here.
-  const selectedProperty = useSelectedPropertyFilter();
+  // Locked to the sidebar's Active Property; only when "All Properties" is active
+  // can a property be chosen here, for this page only.
+  const activeProperty = useSelectedPropertyFilter();
+  const propertyLocked = !!activeProperty;
+  const [manualPropertyId, setManualPropertyId] = useState('');
+  const selectedProperty = propertyLocked ? activeProperty : manualPropertyId;
   const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
+
+  // Clears the manual pick back to "Select Property" if the sidebar leaves "All Properties".
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (!propertyLocked && prevPropertyLockedRef.current) setManualPropertyId('');
+    prevPropertyLockedRef.current = propertyLocked;
+  }, [propertyLocked]);
 
   // Reset downstream filters whenever the active property changes.
   useEffect(() => {
@@ -73,10 +85,21 @@ export default function ParkingOverviewPage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div className="parking-filter-field">
             <label>Properties</label>
-            {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
-            <select className="filter-select" value={selectedProperty} disabled style={{ minWidth: 200 }}>
-              {!selectedProperty && <option value="">Loading…</option>}
-              {selectedProperty && <option value={selectedProperty}>{selectedPropertyName}</option>}
+            <select
+              className="filter-select"
+              value={selectedProperty}
+              disabled={propertyLocked}
+              onChange={(e) => setManualPropertyId(e.target.value)}
+              style={{ minWidth: 200 }}
+            >
+              {propertyLocked ? (
+                <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>
+              ) : (
+                <>
+                  <option value="">All Properties</option>
+                  {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </>
+              )}
             </select>
           </div>
 
@@ -123,11 +146,16 @@ export default function ParkingOverviewPage() {
         </button>
       </div>
 
+      {/* "All Properties" — combined, read-only view across every property in scope. */}
+      {!propertyLocked && !selectedProperty && activeTab === 'overview' && <OccupancyOverviewAll />}
+      {!propertyLocked && !selectedProperty && activeTab === 'slots' && <SlotsManagerAll />}
+      {!propertyLocked && !selectedProperty && activeTab === 'zones' && <ZonesManagerAll />}
+
       {scopeReady && activeTab === 'overview' && <OccupancyOverview propertyId={selectedProperty} unitId={selectedUnit} />}
       {scopeReady && activeTab === 'slots' && <SlotsManager propertyId={selectedProperty} unitId={selectedUnit} />}
       {scopeReady && activeTab === 'zones' && <ZonesManager propertyId={selectedProperty} unitId={selectedUnit} />}
 
-      {!selectedProperty && <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)' }}>Select a property to manage parking</div>}
+      {propertyLocked && !selectedProperty && <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)' }}>Select a property to manage parking</div>}
       {selectedProperty && !selectedType && (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)' }}>
           No parking set up for this property yet
@@ -230,6 +258,100 @@ function OccupancyOverview({ propertyId, unitId }: { propertyId: string; unitId:
               );
             })}
             {occ.byZone.length === 0 && <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: 20 }}>No zones configured</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Occupancy Overview — All Properties (combined) ─────
+
+function OccupancyOverviewAll() {
+  const { data } = useGetOccupancyAllQuery(undefined, { refetchOnMountOrArgChange: true });
+  const occ = data?.data;
+  if (!occ) return <div className="table-loading"><div className="lp" /><div className="lp" /></div>;
+
+  const segments = [
+    { key: 'allocated', color: STATUS_COLORS.allocated, value: occ.allocated },
+    { key: 'visitor', color: STATUS_COLORS.visitor, value: occ.visitor },
+    { key: 'blocked', color: STATUS_COLORS.blocked, value: occ.blocked },
+    { key: 'maintenance', color: STATUS_COLORS.maintenance, value: occ.maintenance },
+    { key: 'available', color: STATUS_COLORS.available, value: occ.available },
+  ];
+
+  let gradientParts: string[] = [];
+  let cumulative = 0;
+  segments.forEach(s => {
+    if (s.value > 0 && occ.total > 0) {
+      const pct = (s.value / occ.total) * 100;
+      gradientParts.push(`${s.color} ${cumulative}% ${cumulative + pct}%`);
+      cumulative += pct;
+    }
+  });
+  const gradient = gradientParts.length > 0
+    ? `conic-gradient(${gradientParts.join(', ')})`
+    : 'conic-gradient(var(--border-subtle) 0% 100%)';
+
+  return (
+    <div>
+      <div className="occupancy-row">
+        <div className="occupancy-donut-card">
+          <div className="donut-container">
+            <div className="donut-ring" style={{ background: gradient }}>
+              <div className="donut-center">
+                <span className="donut-pct">{occ.occupancyRate}%</span>
+                <span className="donut-label">Occupied</span>
+              </div>
+            </div>
+          </div>
+          <div className="donut-legend">
+            {segments.filter(s => s.value > 0).map(s => (
+              <span key={s.key} className="donut-legend-item">
+                <span className="dl-dot" style={{ background: s.color }} />
+                <span className="dl-count">{s.value}</span> {s.key}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="parking-quick-stats">
+            <div className="pqs-card"><div className="pqs-value">{occ.total}</div><div className="pqs-label">Total Slots</div></div>
+            <div className="pqs-card"><div className="pqs-value" style={{ color: '#10b981' }}>{occ.available}</div><div className="pqs-label">Available</div></div>
+            <div className="pqs-card"><div className="pqs-value" style={{ color: '#3b82f6' }}>{occ.allocated}</div><div className="pqs-label">Allocated</div></div>
+            <div className="pqs-card"><div className="pqs-value" style={{ color: '#f59e0b' }}>{occ.visitor}</div><div className="pqs-label">Visitor</div></div>
+          </div>
+
+          {/* Per-property breakdown — zone names collide across properties, so this groups by property instead. */}
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--text-secondary)' }}>By Property</h3>
+          <div className="zone-cards-grid">
+            {occ.byProperty.map((p) => {
+              const allocated = p.allocated || 0;
+              const visitor = p.visitor || 0;
+              const available = p.available || 0;
+              const total = p.total || 1;
+              return (
+                <div key={p.id} className="zone-card">
+                  <div className="zc-header">
+                    <span className="zc-name">{p.name}</span>
+                    {p.code && <span className="zc-type">{p.code}</span>}
+                  </div>
+                  <div className="zc-bar">
+                    <div className="zc-bar-seg" style={{ width: `${(allocated / total) * 100}%`, background: STATUS_COLORS.allocated }} />
+                    <div className="zc-bar-seg" style={{ width: `${(visitor / total) * 100}%`, background: STATUS_COLORS.visitor }} />
+                    <div className="zc-bar-seg" style={{ width: `${(available / total) * 100}%`, background: STATUS_COLORS.available }} />
+                  </div>
+                  <div className="zc-stats">
+                    <span><span className="dl-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS.allocated, display: 'inline-block' }} /> {allocated}</span>
+                    <span><span className="dl-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS.visitor, display: 'inline-block' }} /> {visitor}</span>
+                    <span><span className="dl-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS.available, display: 'inline-block' }} /> {available}</span>
+                    <span>Total: {total}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {occ.byProperty.length === 0 && <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: 20 }}>No parking set up yet</div>}
           </div>
         </div>
       </div>
@@ -377,6 +499,69 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
           onClose={() => setDeletingSlot(null)}
           onConfirm={handleDeleteSlot}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Slots Manager — All Properties (combined, read-only) ─
+
+function SlotsManagerAll() {
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useGetSlotsAllQuery(
+    { status: statusFilter || undefined, page, limit: 50 },
+    { refetchOnMountOrArgChange: true },
+  );
+
+  const slots = data?.data || [];
+  const meta = data?.meta;
+
+  return (
+    <div>
+      <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>
+        <select className="filter-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+          <option value="">All Statuses</option>
+          {Object.keys(STATUS_COLORS).map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-tertiary)' }}>
+          Pick a property to create or edit slots
+        </span>
+      </div>
+
+      <div className="slot-table-wrap">
+        <div className="slot-table-header" style={{ gridTemplateColumns: '1.2fr 1.4fr 1fr 1fr 1fr' }}>
+          <span>Slot #</span><span>Property</span><span>Zone</span>
+          <span>Status</span><span>Monthly Rate</span>
+        </div>
+        {isLoading ? (
+          <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
+        ) : slots.length === 0 ? (
+          <div className="table-empty"><Grid3X3 size={40} /><p>No slots found</p></div>
+        ) : (
+          slots.map((slot) => (
+            <div key={slot.id} className="slot-row" style={{ gridTemplateColumns: '1.2fr 1.4fr 1fr 1fr 1fr' }}>
+              <div style={{ fontWeight: 600 }}>{slot.slotNumber}</div>
+              <div>{slot.property?.name || '—'}</div>
+              <div>{slot.zone?.name || '—'}</div>
+              <div>
+                <span className="slot-status-badge" style={{ background: (STATUS_COLORS[slot.status] || '#666') + '18', color: STATUS_COLORS[slot.status] || '#666' }}>
+                  {slot.status}
+                </span>
+              </div>
+              <div>{slot.monthlyRate ? `$${Number(slot.monthlyRate).toLocaleString()}` : '—'}</div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {meta && meta.totalPages > 1 && (
+        <div className="pagination">
+          <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
+          <span>Page {page} of {meta.totalPages}</span>
+          <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
+        </div>
       )}
     </div>
   );
@@ -635,6 +820,38 @@ function ZonesManager({ propertyId, unitId }: { propertyId: string; unitId: stri
           onConfirm={handleDelete}
         />
       )}
+    </div>
+  );
+}
+
+// ── Zones Manager — All Properties (combined, read-only) ─
+
+function ZonesManagerAll() {
+  const { data } = useGetZonesAllQuery(undefined, { refetchOnMountOrArgChange: true });
+  const zones = data?.data || [];
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600 }}>Parking Zones ({zones.length})</h3>
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Pick a property to add or edit zones</span>
+      </div>
+      <div className="zone-cards-grid">
+        {zones.map((z) => (
+          <div key={z.id} className="zone-card">
+            <div className="zc-header">
+              <span className="zc-name">{z.name}</span>
+              <span className="zc-type">{z.zoneType.replace(/_/g, ' ')}</span>
+            </div>
+            <div className="zc-stats">
+              <span>{z.property?.name || '—'}</span>
+              <span>{z._count.slots} slots</span>
+              <span>{z.isActive ? '✓ Active' : '✗ Inactive'}</span>
+            </div>
+          </div>
+        ))}
+        {zones.length === 0 && <div style={{ color: 'var(--text-tertiary)', padding: 40, textAlign: 'center' }}>No zones set up yet</div>}
+      </div>
     </div>
   );
 }

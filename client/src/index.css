@@ -375,7 +375,8 @@ a:hover { color: var(--accent-hover); }
   color: var(--text-muted);
 }
 .form-group select option {
-  background: #1a1f2e;
+  background: var(--surface);
+  color: var(--text-primary);
 }
 
 .input-with-icon {
@@ -1753,6 +1754,30 @@ input.input-full:focus {
 .sidebar-property-dropdown option {
   background: var(--surface);
   color: var(--text-primary);
+}
+
+.sidebar-property-static {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+.sidebar-property-static svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.sidebar-property-static span {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 /* ── Navigation ── */
@@ -6607,8 +6632,8 @@ textarea.form-input {
   -webkit-overflow-scrolling: touch;
 }
 
-/* ── Filter select (used across billing, parking) ── */
-.filter-select {
+/* ── Filter select (used across billing, parking, community admin, etc.) ── */
+.filter-select, .form-select {
   padding: 8px 14px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
@@ -6618,13 +6643,78 @@ textarea.form-input {
   font-family: var(--font-sans);
   outline: none;
   cursor: pointer;
+  transition: border-color 0.15s;
 }
-.filter-select option { background: var(--surface); }
-[data-theme="light"] .filter-select {
+.filter-select:focus, .form-select:focus { border-color: var(--accent); }
+.filter-select:disabled, .form-select:disabled { opacity: 0.6; cursor: not-allowed; }
+.filter-select option, .form-select option { background: var(--surface); color: var(--text-primary); }
+[data-theme="light"] .filter-select, [data-theme="light"] .form-select {
   background: white;
   border-color: rgba(0,0,0,0.12);
   color: #111;
 }
+
+/* ── Search input with leading icon (used on Access Cards, etc.) ── */
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+}
+.search-input-wrapper:focus-within { border-color: var(--accent); }
+.search-input-wrapper svg { flex-shrink: 0; }
+.search-input-wrapper input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+}
+.search-input-wrapper input::placeholder { color: var(--text-muted); }
+[data-theme="light"] .search-input-wrapper {
+  background: white;
+  border-color: rgba(0,0,0,0.12);
+  color: #666;
+}
+
+/* ── Generic data table (used across community admin, access cards, etc.) ── */
+.data-table-wrapper {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.data-table th {
+  padding: 12px 14px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--surface-hover); }
 
 /* ── Status badges (generic) ─────────────── */
 .status-badge {

@@ -94,7 +94,7 @@ export class PropertiesService {
     if (propertyIds && propertyIds.length > 0) where.id = { in: propertyIds };
     return prisma.property.findMany({
       where,
-      select: { id: true, name: true, code: true },
+      select: { id: true, name: true, code: true, currency: true },
       orderBy: { name: 'asc' },
     });
   }

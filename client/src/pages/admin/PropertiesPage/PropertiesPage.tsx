@@ -17,6 +17,7 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { CURRENCIES } from '../../../constants/currencies';
 import './PropertiesPage.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -59,7 +60,6 @@ const TYPE_ICONS: Record<string, JSX.Element> = {
   warehouse: <Building2 size={14} />,
 };
 
-const CURRENCIES = ['USD','SGD','EUR','GBP','AED','THB','MMK','JPY','CNY','INR','AUD'];
 const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Paris','Asia/Singapore','Asia/Tokyo','Asia/Bangkok','Asia/Yangon','Asia/Dubai','Australia/Sydney'];
 const COUNTRIES  = ['US','SG','GB','TH','MM','JP','AE','AU','DE','FR','IN','CN'];
 const SQM_TO_SQFT = 10.7639;

@@ -124,6 +124,7 @@ export default function AccessCardsPage() {
         </div>
         {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select value={selectedProperty} disabled className="form-select" style={{ width: 170 }}>
+          {!selectedProperty && <option value="">All Properties</option>}
           {selectedProperty && (
             <option value={selectedProperty}>{properties.find(p => p.id === selectedProperty)?.name || ''}</option>
           )}

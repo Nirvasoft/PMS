@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   useGetVisitorPassesQuery, useIssueVisitorPassMutation, useCancelVisitorPassMutation,
   type VisitorPass,
 } from '../../../store/api/parkingApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { QRCode, useQRDownload } from '../../../components/QRCode';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -150,7 +150,7 @@ export default function VisitorParkingPage() {
         </div>
       )}
 
-      {showIssue && <IssuePassModal properties={properties} onClose={() => setShowIssue(false)} />}
+      {showIssue && <IssuePassModal properties={properties} activeProperty={propertyFilter} onClose={() => setShowIssue(false)} />}
       {qrPass && <QRCodeModal pass={qrPass} onClose={() => setQrPass(null)} />}
     </div>
   );
@@ -294,14 +294,34 @@ function QRCodeModal({ pass, onClose }: { pass: VisitorPass; onClose: () => void
 
 // ── Issue Pass Modal ───────────────────────
 
-function IssuePassModal({ properties, onClose }: { properties: any[]; onClose: () => void }) {
+function IssuePassModal({ properties, activeProperty, onClose }: { properties: any[]; activeProperty: string; onClose: () => void }) {
   const [issuePass, { isLoading }] = useIssueVisitorPassMutation();
+  // /properties requires properties.read, which a parking-only role may lack — use the
+  // permission-free /properties/my-scope endpoint so the locked field still resolves
+  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const lockedPropertyName = (scopeData?.data || []).find((p: any) => p.id === activeProperty)?.name;
+  const propertyLocked = !!activeProperty;
+
   const [form, setForm] = useState({
-    propertyId: properties[0]?.id || '',
+    propertyId: activeProperty || '',
     visitorName: '', visitorVehiclePlate: '',
     validFrom: '', validTo: '', maxHours: '4',
   });
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  // Bound to the sidebar's Active Property; only "All Properties" allows picking one here.
+  // Clears back to "Select property" if the sidebar is switched to "All Properties".
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (propertyLocked) {
+      if (form.propertyId !== activeProperty) set('propertyId', activeProperty);
+    } else if (prevPropertyLockedRef.current) {
+      set('propertyId', '');
+    }
+    prevPropertyLockedRef.current = propertyLocked;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, activeProperty]);
 
   const handleSubmit = async () => {
     try {
@@ -328,22 +348,32 @@ function IssuePassModal({ properties, onClose }: { properties: any[]; onClose: (
         <h2>Issue Visitor Pass</h2>
         <div className="form-group">
           <label>Property *</label>
-          <select className="form-input" value={form.propertyId} onChange={e => set('propertyId', e.target.value)}>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          <select className="form-input" value={form.propertyId} disabled={propertyLocked} onChange={e => set('propertyId', e.target.value)}>
+            {propertyLocked ? (
+              <option value={activeProperty}>{lockedPropertyName || 'Loading…'}</option>
+            ) : (
+              <>
+                <option value="">— Select property —</option>
+                {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </>
+            )}
           </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="form-group"><label>Visitor Name *</label><input className="form-input" value={form.visitorName} onChange={e => set('visitorName', e.target.value)} placeholder="Jane Smith" /></div>
           <div className="form-group"><label>Vehicle Plate</label><input className="form-input" value={form.visitorVehiclePlate} onChange={e => set('visitorVehiclePlate', e.target.value)} placeholder="ABC-123" /></div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 0.5fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="form-group"><label>Valid From *</label><input className="form-input" type="datetime-local" value={form.validFrom} onChange={e => set('validFrom', e.target.value)} /></div>
           <div className="form-group"><label>Valid To *</label><input className="form-input" type="datetime-local" value={form.validTo} onChange={e => set('validTo', e.target.value)} /></div>
-          <div className="form-group"><label>Max Hours</label><input className="form-input" type="number" value={form.maxHours} onChange={e => set('maxHours', e.target.value)} /></div>
+        </div>
+        <div className="form-group" style={{ maxWidth: 160 }}>
+          <label>Max Hours</label>
+          <input className="form-input" type="number" value={form.maxHours} onChange={e => set('maxHours', e.target.value)} />
         </div>
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={isLoading || !form.visitorName || !form.validFrom || !form.validTo} onClick={handleSubmit}>
+          <button className="btn-primary" disabled={isLoading || !form.propertyId || !form.visitorName || !form.validFrom || !form.validTo} onClick={handleSubmit}>
             {isLoading ? 'Issuing…' : 'Issue Pass'}
           </button>
         </div>

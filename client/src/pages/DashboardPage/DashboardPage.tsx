@@ -160,9 +160,10 @@ export default function DashboardLayout() {
 
         {/* Property Selector */}
         {properties.length > 0 && (() => {
-          const currentPropertyValue = selectedPropertyId === ALL_PROPERTIES
+          const hasMultipleProperties = properties.length > 1;
+          const currentPropertyValue = selectedPropertyId === ALL_PROPERTIES && hasMultipleProperties
             ? ALL_PROPERTIES
-            : (selectedPropertyId || properties[0]?.id || '');
+            : (selectedPropertyId && selectedPropertyId !== ALL_PROPERTIES ? selectedPropertyId : properties[0]?.id || '');
           const currentPropertyLabel = currentPropertyValue === ALL_PROPERTIES
             ? 'All Properties'
             : properties.find((p: any) => p.id === currentPropertyValue)?.name || 'Property';
@@ -173,7 +174,7 @@ export default function DashboardLayout() {
                 <div className="sidebar-property-icon" title={currentPropertyLabel}>
                   <Home size={16} />
                 </div>
-              ) : (
+              ) : hasMultipleProperties ? (
                 <select
                   id="sidebar-prop-select"
                   value={currentPropertyValue}
@@ -185,6 +186,11 @@ export default function DashboardLayout() {
                     <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
                   ))}
                 </select>
+              ) : (
+                <div className="sidebar-property-static" title={currentPropertyLabel}>
+                  <Home size={16} />
+                  <span>{currentPropertyLabel}</span>
+                </div>
               )}
             </div>
           );
@@ -495,7 +501,7 @@ export default function DashboardLayout() {
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="finance-banking.read">
-                <NavLink to="/admin/banking" className="nav-item" title="Banking">
+                <NavLink to="/admin/banking" end className="nav-item" title="Banking">
                   <Building2 size={18} />
                   <span>Banking</span>
                 </NavLink>
@@ -557,7 +563,7 @@ export default function DashboardLayout() {
                   </NavLink>
                 </PermissionGuard>
                 <PermissionGuard hideWhenDenied permission="maintenance-pm.read">
-                  <NavLink to="/admin/maintenance/pm" className="nav-item" title="PM Schedules">
+                  <NavLink to="/admin/maintenance/pm" end className="nav-item" title="PM Schedules">
                     <CalendarClock size={18} />
                     <span>PM Schedules</span>
                   </NavLink>
@@ -653,7 +659,7 @@ export default function DashboardLayout() {
                   </NavLink>
                 </PermissionGuard>
                 <PermissionGuard hideWhenDenied permission="housekeeping-tasks.read">
-                  <NavLink to="/admin/housekeeping" className="nav-item" title="Tasks">
+                  <NavLink to="/admin/housekeeping" end className="nav-item" title="Tasks">
                     <Sparkles size={18} />
                     <span>Tasks</span>
                   </NavLink>
@@ -697,7 +703,7 @@ export default function DashboardLayout() {
                   </NavLink>
                 </PermissionGuard>
                 <PermissionGuard hideWhenDenied permission="security-patrol.read">
-                  <NavLink to="/admin/security/patrol" className="nav-item" title="Patrol Logs">
+                  <NavLink to="/admin/security/patrol" end className="nav-item" title="Patrol Logs">
                     <MapPin size={18} />
                     <span>Patrol Logs</span>
                   </NavLink>
@@ -889,7 +895,7 @@ export default function DashboardLayout() {
           <PermissionGuard hideWhenDenied permission={['reports-executive.read', 'reports-bi.read', 'reports-anomalies.read', 'reports-list.read']}>
             <NavSection label="Analytics" storageKey="bi" isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="reports-executive.read">
-                <NavLink to="/admin/bi" className="nav-item" title="Executive Dashboard">
+                <NavLink to="/admin/bi" end className="nav-item" title="Executive Dashboard">
                   <BarChart3 size={18} />
                   <span>Executive Dashboard</span>
                 </NavLink>

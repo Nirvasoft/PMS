@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
-import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useState, useEffect, useRef } from 'react';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useGetGateLogsQuery } from '../../../store/api/parkingApi';
 import { Activity, ShieldCheck, ShieldAlert, LogIn, LogOut, ChevronLeft, ChevronRight, Car } from 'lucide-react';
 import '../BillingPage/BillingPage.css';
@@ -8,13 +8,25 @@ import { format } from 'date-fns';
 
 export default function GateAccessLogsPage() {
   // Gate logs are fetched from a property-scoped endpoint (no "all properties" variant
-  // exists), so this always follows the sidebar's Active Property like Parking Management.
-  const propertyId = useSelectedPropertyId();
-  const [page, setPage] = useState(1);
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  // exists), so this locks to the sidebar's Active Property like Parking Management —
+  // only when "All Properties" is active can a property be picked here.
+  const activeProperty = useSelectedPropertyFilter();
+  const propertyLocked = !!activeProperty;
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
+  const [manualPropertyId, setManualPropertyId] = useState('');
+  const propertyId = propertyLocked ? activeProperty : manualPropertyId;
 
-  // Reset pagination whenever the sidebar's Active Property changes.
+  const [page, setPage] = useState(1);
+
+  // Clears the manual pick back to "Select Property" if the sidebar leaves "All Properties".
+  const prevPropertyLockedRef = useRef(propertyLocked);
+  useEffect(() => {
+    if (!propertyLocked && prevPropertyLockedRef.current) setManualPropertyId('');
+    prevPropertyLockedRef.current = propertyLocked;
+  }, [propertyLocked]);
+
+  // Reset pagination whenever the active property changes.
   useEffect(() => { setPage(1); }, [propertyId]);
 
   const { data: logsData, isFetching } = useGetGateLogsQuery(
@@ -43,11 +55,20 @@ export default function GateAccessLogsPage() {
           </div>
         </div>
         <div className="billing-filters" style={{ marginBottom: 0 }}>
-          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
-          <select className="filter-select" value={propertyId} disabled style={{ minWidth: 220 }}>
-            {!propertyId && <option value="">Loading…</option>}
-            {propertyId && (
-              <option value={propertyId}>{properties.find((p: any) => p.id === propertyId)?.name || ''}</option>
+          <select
+            className="filter-select"
+            value={propertyId}
+            disabled={propertyLocked}
+            onChange={(e) => setManualPropertyId(e.target.value)}
+            style={{ minWidth: 220 }}
+          >
+            {propertyLocked ? (
+              <option value={propertyId}>{properties.find((p) => p.id === propertyId)?.name || 'Loading…'}</option>
+            ) : (
+              <>
+                <option value="">Select Property</option>
+                {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </>
             )}
           </select>
         </div>

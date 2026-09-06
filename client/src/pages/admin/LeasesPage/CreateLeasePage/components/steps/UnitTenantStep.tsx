@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
-import { useGetPropertiesQuery, useGetFloorSetupsQuery } from '../../../../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../../../../store/api/propertiesApi';
 import { useGetUnitsQuery, useGetUnitQuery } from '../../../../../../store/api/unitsApi';
 import { useGetTenantsQuery } from '../../../../../../store/api/tenantsApi';
+import { useSelectedPropertyFilter } from '../../../../../../hooks/useSelectedPropertyId';
 import ComboBox from '../../../../../../components/ComboBox';
 import type { FormState } from '../../types';
 
@@ -18,10 +19,29 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
   const unitDebounced = useDebounced(unitSearch);
   const tenantDebounced = useDebounced(tenantSearch);
 
-  const { data: propertiesData, isFetching: propertiesLoading } = useGetPropertiesQuery({
-    search: debounced || undefined,
-    limit: 20,
-  });
+  // Locked to the sidebar's Active Property, same convention as Expenses/Payment Vouchers —
+  // only when "All Properties" is active can the property be chosen here.
+  const activeProperty = useSelectedPropertyFilter();
+  const propertyLocked = !!activeProperty;
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const lockedProperty = (scopeData?.data || []).find((p) => p.id === activeProperty);
+
+  useEffect(() => {
+    if (!propertyLocked) return;
+    if (form.propertyId === activeProperty) return;
+    set('propertyId', activeProperty);
+    set('propertyCode', lockedProperty?.code || lockedProperty?.name || '');
+    if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
+    setFloorNumber('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyLocked, activeProperty, lockedProperty]);
+
+  const { data: propertiesData, isFetching: propertiesLoading } = useGetPropertiesQuery(
+    propertyLocked ? skipToken : {
+      search: debounced || undefined,
+      limit: 20,
+    },
+  );
 
   // Floors live under a property too, and narrow the unit list below.
   const { data: floorsData } = useGetFloorSetupsQuery(
@@ -75,18 +95,25 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
   }));
 
   // Code is what staff know a property by, so it leads; the name disambiguates.
-  const propertyOptions = (propertiesData?.data || []).map((p) => ({
-    id: p.id,
-    label: p.code || p.name,
-    sublabel: [p.code ? p.name : null, p.city].filter(Boolean).join(' · ') || undefined,
-  }));
+  const propertyOptions = propertyLocked
+    ? (lockedProperty
+        ? [{ id: lockedProperty.id, label: lockedProperty.code || lockedProperty.name, sublabel: lockedProperty.code ? lockedProperty.name : undefined }]
+        : [])
+    : (propertiesData?.data || []).map((p) => ({
+        id: p.id,
+        label: p.code || p.name,
+        sublabel: [p.code ? p.name : null, p.city].filter(Boolean).join(' · ') || undefined,
+      }));
 
   return (
     <div className="step-content">
       <h3>Select Unit &amp; Tenant</h3>
       <div className="form-grid-2">
         <div className="form-field">
-          <label htmlFor="lease-property">Property ID *</label>
+          <label htmlFor="lease-property">
+            Property ID *
+            {propertyLocked && <span className="hint"> (locked to the active property)</span>}
+          </label>
           <ComboBox
             id="lease-property"
             value={form.propertyId}
@@ -98,9 +125,10 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
               setFloorNumber('');
             }}
             options={propertyOptions}
-            onSearch={setPropertySearch}
-            loading={propertiesLoading}
-            placeholder="Search by code or name…"
+            onSearch={propertyLocked ? undefined : setPropertySearch}
+            loading={propertyLocked ? false : propertiesLoading}
+            disabled={propertyLocked}
+            placeholder={propertyLocked ? 'Loading…' : 'Search by code or name…'}
             emptyText="No properties found"
           />
         </div>

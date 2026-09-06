@@ -631,6 +631,7 @@ function CreateReportModal({ onClose }: { onClose: () => void }) {
             <label style={styles.label}>Property (optional)</label>
             <select
               style={styles.input}
+              className="form-select"
               value={form.config.propertyId}
               onChange={e => setForm(f => ({ ...f, config: { ...f.config, propertyId: e.target.value } }))}
             >
@@ -746,7 +747,7 @@ const styles: Record<string, React.CSSProperties> = {
   typeCardsRow: { display: 'flex', gap: 10, marginBottom: 24, overflowX: 'auto' as any },
   typeCard: {
     display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 12,
-    border: '1px solid var(--border-color)', background: 'var(--card-bg)', cursor: 'pointer',
+    border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)', cursor: 'pointer',
     transition: 'all 0.2s', minWidth: 140, flex: 1,
   },
   typeCardActive: { border: '1px solid #6366f1', background: 'rgba(99,102,241,0.08)' },
