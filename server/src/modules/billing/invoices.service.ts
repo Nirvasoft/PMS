@@ -215,7 +215,7 @@ export class InvoicesService {
    * current period is skipped; if every schedule in the batch is already invoiced,
    * no invoice is created and this returns null.
    */
-  async generateFromSchedules(scheduleIds: string[]) {
+  async generateFromSchedules(scheduleIds: string[], asOfDate?: Date) {
     const schedules = await prisma.billingSchedule.findMany({
       where: { id: { in: scheduleIds } },
       include: { chargeType: true, lease: true, tenant: true },
@@ -270,8 +270,10 @@ export class InvoicesService {
     if (lineInputs.length === 0) return null;
 
     const first = lineInputs[0].schedule;
-    const invoiceDate = lineInputs.reduce((min, l) => (l.periodFrom < min ? l.periodFrom : min), lineInputs[0].periodFrom);
-    const periodFrom = invoiceDate;
+    const periodFrom = lineInputs.reduce((min, l) => (l.periodFrom < min ? l.periodFrom : min), lineInputs[0].periodFrom);
+    // Invoice date is when billing was actually run, not the schedule's period start —
+    // those diverge whenever Run Billing catches up a schedule that fell overdue.
+    const invoiceDate = asOfDate ?? periodFrom;
     const periodTo = lineInputs.reduce((max, l) => (l.periodTo > max ? l.periodTo : max), lineInputs[0].periodTo);
     const dueDate = lineInputs.reduce((min, l) => {
       const d = new Date(l.periodFrom);
@@ -317,19 +319,22 @@ export class InvoicesService {
         currency: first.currency,
         gracePeriodDays: penaltyConfig?.gracePeriodDays || 0,
         lines: {
-          create: lineInputs.map((l, idx) => ({
-            chargeTypeId: l.schedule.chargeTypeId,
-            description: l.schedule.description || l.schedule.chargeType.name,
-            quantity: 1,
-            unitPrice: l.amount,
-            amount: l.amount,
-            taxRate: l.taxRate,
-            taxAmount: l.taxAmount,
-            lineTotal: l.lineTotal,
-            periodFrom: l.periodFrom,
-            periodTo: l.periodTo,
-            sortOrder: idx,
-          })),
+          create: lineInputs.map((l, idx) => {
+            const quantity = Number(l.schedule.quantity) || 1;
+            return {
+              chargeTypeId: l.schedule.chargeTypeId,
+              description: l.schedule.description || l.schedule.chargeType.name,
+              quantity,
+              unitPrice: quantity ? l.amount / quantity : l.amount,
+              amount: l.amount,
+              taxRate: l.taxRate,
+              taxAmount: l.taxAmount,
+              lineTotal: l.lineTotal,
+              periodFrom: l.periodFrom,
+              periodTo: l.periodTo,
+              sortOrder: idx,
+            };
+          }),
         },
       },
     });
@@ -389,7 +394,7 @@ export class InvoicesService {
    * one consolidated invoice per group. Used by both the manual "Run Billing" endpoint
    * and the daily billing cron so their behavior stays identical.
    */
-  async runBilling(dueSchedules: Array<{ id: string; propertyId: string; tenantId: string; unitId: string | null }>) {
+  async runBilling(dueSchedules: Array<{ id: string; propertyId: string; tenantId: string; unitId: string | null }>, asOfDate?: Date) {
     const groups = new Map<string, string[]>();
     for (const s of dueSchedules) {
       const key = `${s.propertyId}|${s.tenantId}|${s.unitId ?? 'none'}`;
@@ -402,7 +407,7 @@ export class InvoicesService {
 
     for (const scheduleIds of groups.values()) {
       try {
-        const invoice = await this.generateFromSchedules(scheduleIds);
+        const invoice = await this.generateFromSchedules(scheduleIds, asOfDate);
         if (invoice) generated++;
       } catch (err: any) {
         errors.push(`Schedules ${scheduleIds.join(', ')}: ${err.message}`);

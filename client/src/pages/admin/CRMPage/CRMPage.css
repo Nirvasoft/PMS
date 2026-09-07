@@ -1007,6 +1007,14 @@
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
 }
+.btn-convert:disabled {
+  color: var(--text-tertiary);
+  background: var(--bg-hover);
+  border-color: var(--border-color);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
 .btn-danger-ghost {
   color: var(--text-tertiary) !important;
   transition: color 0.15s !important;

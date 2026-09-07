@@ -15,28 +15,23 @@ import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { CURRENCIES } from '../../../constants/currencies';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
 
-const CHARGE_CATEGORY_MAP: Record<string, string> = {
-  RENT: 'rent', SERVICE_CHARGE: 'service', PARKING_MONTHLY: 'parking', PARKING_HOURLY: 'parking',
-  ELECTRICITY: 'utility', WATER: 'utility', GAS: 'utility', CHILLED_WATER: 'utility',
-  LATE_PAYMENT_PENALTY: 'penalty', ADMIN_FEE: 'misc', LEGAL_FEE: 'misc', REPAIR_CHARGE: 'misc', MISC: 'misc',
-};
-
 const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'] as const;
 
 interface ScheduleForm {
   chargeTypeId: string; propertyId: string; tenantId: string; unitId: string; leaseId: string;
-  amount: number; currency: string; billingCycle: string; billingDay: number;
+  amount: number; quantity: number; currency: string; billingCycle: string; billingDay: number;
   paymentDueDays: number; startDate: string; endDate: string; description: string;
 }
 
 const emptyForm: ScheduleForm = {
   chargeTypeId: '', propertyId: '', tenantId: '', unitId: '', leaseId: '',
-  amount: 0, currency: 'USD', billingCycle: 'monthly', billingDay: 1,
+  amount: 0, quantity: 1, currency: 'USD', billingCycle: 'monthly', billingDay: 1,
   paymentDueDays: 14, startDate: new Date().toISOString().split('T')[0], endDate: '', description: '',
 };
 
@@ -53,7 +48,7 @@ export default function BillingSchedulesPage() {
   useEffect(() => { setPage(1); }, [selectedProperty]);
 
   const { data, isFetching } = useGetBillingSchedulesQuery({
-    status: statusFilter || undefined, propertyId: selectedProperty || undefined, page, limit: 15,
+    status: statusFilter || undefined, propertyId: selectedProperty || undefined, page, limit: 5,
   });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
@@ -92,6 +87,22 @@ export default function BillingSchedulesPage() {
   // picking one here. Editing an existing schedule keeps its own property, unaffected.
   const propertyLocked = !editId && !!selectedProperty;
   const lockedPropertyName = scopeProperties.find((p) => p.id === selectedProperty)?.name;
+
+  // Default the currency to the selected property's own currency, but let the user
+  // override it — re-sync only while they haven't picked a currency by hand for this
+  // property, so switching property doesn't clobber a deliberate manual choice.
+  const propertyCurrency = properties.find((p: any) => p.id === form.propertyId)?.currency
+    || scopeProperties.find((p) => p.id === form.propertyId)?.currency;
+  const manualCurrency = useRef(false);
+  useEffect(() => { manualCurrency.current = false; }, [form.propertyId]);
+  useEffect(() => {
+    // Only auto-default for new schedules — editing an existing one keeps its saved
+    // currency untouched even though changing its property re-runs this effect.
+    if (!editId && propertyCurrency && !manualCurrency.current) {
+      setForm((f) => ({ ...f, currency: propertyCurrency }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyCurrency, editId]);
 
   // Clears back to "Select property" (or re-locks to the new property) if the sidebar
   // changes while the create form is open.
@@ -136,6 +147,7 @@ export default function BillingSchedulesPage() {
 
   const openCreate = () => {
     setEditId(null);
+    manualCurrency.current = false;
     setForm({ ...emptyForm, propertyId: selectedProperty });
     setFloorId('');
     setShowForm(true);
@@ -151,6 +163,7 @@ export default function BillingSchedulesPage() {
       unitId: s.unit?.id || '',
       leaseId: s.leaseId || '',
       amount: Number(s.amount),
+      quantity: Number(s.quantity),
       currency: s.currency,
       billingCycle: s.billingCycle,
       billingDay: s.billingDay,
@@ -170,6 +183,7 @@ export default function BillingSchedulesPage() {
         propertyId: form.propertyId,
         tenantId: form.tenantId,
         amount: form.amount,
+        quantity: form.quantity,
         currency: form.currency,
         billingCycle: form.billingCycle,
         billingDay: form.billingDay,
@@ -198,9 +212,7 @@ export default function BillingSchedulesPage() {
 
   const getTenantName = (s: any) => s.tenant.tenantType !== 'individual'
     ? s.tenant.companyName || ''
-    : `${s.tenant.firstName || ''} ${s.tenant.lastName || ''}`.trim();
-
-  const getChargeCategory = (code: string) => CHARGE_CATEGORY_MAP[code] || 'misc';
+    : s.tenant.lastName || '';
 
   return (
     <div className="billing-page">
@@ -246,6 +258,7 @@ export default function BillingSchedulesPage() {
               <th style={{ width: 180 }}>Property / Unit</th>
               <th className="text-right" style={{ width: 110 }}>Amount</th>
               <th style={{ width: 80 }}>Cycle</th>
+              <th style={{ width: 110 }}>Start Date</th>
               <th style={{ width: 120 }}>Next Billing</th>
               <th style={{ width: 100 }}>Status</th>
               <th className="text-center" style={{ width: 70 }}>Invoices</th>
@@ -255,7 +268,7 @@ export default function BillingSchedulesPage() {
           <tbody>
             {schedules.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={10}>
                   <div className="billing-empty">
                     {isFetching ? 'Loading…' : 'No billing schedules found.'}
                   </div>
@@ -263,16 +276,10 @@ export default function BillingSchedulesPage() {
               </tr>
             ) : (
               schedules.map(s => {
-                const category = s.chargeType?.category || getChargeCategory(s.chargeType?.code || '');
                 return (
                   <tr key={s.id}>
                     <td>
-                      <div className="cell-primary">{s.description || s.chargeType.name}</div>
-                      <div style={{ marginTop: 4 }}>
-                        <span className={`charge-type-badge ${category}`}>
-                          {s.chargeType.name}
-                        </span>
-                      </div>
+                      <div className="cell-primary">{s.chargeType.name}</div>
                     </td>
                     <td>
                       <div className="cell-primary">{getTenantName(s)}</div>
@@ -288,6 +295,13 @@ export default function BillingSchedulesPage() {
                       <span style={{ fontSize: 12, textTransform: 'capitalize', color: 'var(--text-secondary)' }}>
                         {s.billingCycle.replace('_', ' ')}
                       </span>
+                    </td>
+                    <td>
+                      {s.startDate ? (
+                        <div style={{ fontSize: 13 }}>{format(new Date(s.startDate), 'MMM d, yyyy')}</div>
+                      ) : (
+                        <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+                      )}
                     </td>
                     <td>
                       {s.nextBillingDate ? (
@@ -448,6 +462,11 @@ export default function BillingSchedulesPage() {
                       onChange={e => setForm({ ...form, amount: Number(e.target.value) })} />
                   </div>
                   <div className="inv-field">
+                    <label>Qty</label>
+                    <input type="number" min={0} step={1} value={form.quantity}
+                      onChange={e => setForm({ ...form, quantity: Number(e.target.value) })} />
+                  </div>
+                  <div className="inv-field">
                     <label>Billing Cycle <span className="req">*</span></label>
                     <select required value={form.billingCycle} onChange={e => setForm({ ...form, billingCycle: e.target.value })}>
                       {BILLING_CYCLES.map(c => (
@@ -467,11 +486,11 @@ export default function BillingSchedulesPage() {
                   </div>
                   <div className="inv-field">
                     <label>Currency</label>
-                    <select value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
-                      <option value="USD">USD</option>
-                      <option value="MMK">MMK</option>
-                      <option value="SGD">SGD</option>
-                      <option value="MYR">MYR</option>
+                    <select value={form.currency} onChange={e => {
+                      manualCurrency.current = true;
+                      setForm({ ...form, currency: e.target.value });
+                    }}>
+                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div className="inv-field">

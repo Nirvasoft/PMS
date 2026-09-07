@@ -17,7 +17,7 @@ export function TermsTab({ lease }: { lease: LeaseDetail }) {
       </InfoCard>
 
       <div className="escalation-table-wrap">
-        <div className="et-label">Lease Charges</div>
+        <div className="et-label">Charges</div>
         {lease.leaseCharges.length === 0 ? (
           <div className="empty-sm">No charges configured for this lease</div>
         ) : (

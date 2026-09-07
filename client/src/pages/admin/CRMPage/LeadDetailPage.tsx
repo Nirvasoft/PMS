@@ -99,7 +99,7 @@ export default function LeadDetailPage() {
 
   const displayName = lead.companyName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unknown Lead';
   const stageMeta = STAGE_META[lead.stage] || { label: lead.stage, color: '#666' };
-  const canConvert = !['new', 'contacted', 'lost', 'duplicate', 'lease_signed'].includes(lead.stage);
+  const convertDisabled = ['new', 'contacted', 'lost', 'duplicate', 'lease_signed'].includes(lead.stage) || lead.isBlacklisted;
 
   return (
     <div className="lead-detail-page">
@@ -120,11 +120,18 @@ export default function LeadDetailPage() {
         </div>
         <div className="lead-header-actions">
           <PermissionGuard permission="crm-leads.write">
-            {canConvert && !lead.isBlacklisted && (
-              <button className="btn-convert" onClick={() => setShowConvert(true)}>
-                <Repeat size={14} /> Convert to Lease
-              </button>
-            )}
+            <button
+              className="btn-convert"
+              disabled={convertDisabled}
+              title={
+                lead.isBlacklisted ? 'Blacklisted leads cannot be converted'
+                  : convertDisabled ? 'Move the lead to a later stage before converting'
+                  : undefined
+              }
+              onClick={() => setShowConvert(true)}
+            >
+              <Repeat size={14} /> Convert to Lease
+            </button>
             {lead.isBlacklisted ? (
               <button className="btn-sm btn-secondary" onClick={handleUnblacklist} title="Remove from blacklist">
                 <Shield size={14} /> Unblacklist

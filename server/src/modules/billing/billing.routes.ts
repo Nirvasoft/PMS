@@ -234,7 +234,7 @@ billingRunRouter.post('/', asyncHandler(async (req, res) => {
   const propertyId = req.body.propertyId as string | undefined;
 
   const dueSchedules = await billingSchedulesService.findDueSchedules(asOfDate, propertyId);
-  const { processed, generated, errors } = await invoicesService.runBilling(dueSchedules);
+  const { processed, generated, errors } = await invoicesService.runBilling(dueSchedules, asOfDate);
 
   res.json({ success: true, data: { processed, generated, errors, asOfDate: asOfDate.toISOString().split('T')[0] } });
 }));

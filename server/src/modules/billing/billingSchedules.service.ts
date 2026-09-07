@@ -48,6 +48,7 @@ export class BillingSchedulesService {
         chargeTypeId: dto.chargeTypeId as string,
         description: (dto.description as string) || null,
         amount: dto.amount as number,
+        quantity: (dto.quantity as number) ?? 1,
         currency: (dto.currency as string) || 'USD',
         billingCycle,
         billingDay,
@@ -156,6 +157,7 @@ export class BillingSchedulesService {
     if (dto.billingCycle !== undefined) updateData.billingCycle = dto.billingCycle;
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.amount !== undefined) updateData.amount = dto.amount;
+    if (dto.quantity !== undefined) updateData.quantity = dto.quantity;
     if (dto.billingDay !== undefined) updateData.billingDay = dto.billingDay;
     if (dto.paymentDueDays !== undefined) updateData.paymentDueDays = dto.paymentDueDays;
     if (dto.endDate !== undefined) updateData.endDate = dto.endDate ? new Date(dto.endDate as string) : null;

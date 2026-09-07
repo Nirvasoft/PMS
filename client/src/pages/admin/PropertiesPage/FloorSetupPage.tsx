@@ -4,7 +4,7 @@ import {
   useGetPropertiesQuery, type FloorSetup,
 } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { Layers, Plus, X, Pencil, Trash2, Search } from 'lucide-react';
+import { Layers, Plus, X, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../BillingPage/BillingPage.css';
@@ -64,6 +64,14 @@ export default function FloorSetupPage() {
       ordinalFloorLabel(f.floorNumber).toLowerCase().includes(q)
     );
   });
+
+  // ── Pagination ──────────────────────────────────────
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [searchQuery, searchPropertyId, searchFloorNumber]);
+  const totalPages = Math.max(1, Math.ceil(filteredFloors.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedFloors = filteredFloors.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const emptyForm = { propertyId: '', floorNumber: '', floorLabel: '' };
   const [showForm, setShowForm] = useState(false);
@@ -202,7 +210,7 @@ export default function FloorSetupPage() {
               <tr><td colSpan={4} className="billing-empty">No floors set up yet</td></tr>
             ) : filteredFloors.length === 0 ? (
               <tr><td colSpan={4} className="billing-empty">No floors match your search</td></tr>
-            ) : filteredFloors.map((f) => (
+            ) : paginatedFloors.map((f) => (
               <tr key={f.id}>
                 <td><span className="cell-primary">{f.property.name}</span></td>
                 <td><span className="cell-mono">{ordinalFloorLabel(f.floorNumber)}</span></td>
@@ -223,6 +231,20 @@ export default function FloorSetupPage() {
             ))}
           </tbody>
         </table>
+
+        {totalPages > 1 && (
+          <div className="billing-pagination">
+            <span className="page-info">Page {currentPage} of {totalPages}</span>
+            <div className="page-btns">
+              <button disabled={currentPage === 1} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft size={15} />
+              </button>
+              <button disabled={currentPage === totalPages} onClick={() => setPage((p) => p + 1)}>
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Create / Edit Form Modal */}

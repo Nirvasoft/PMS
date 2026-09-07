@@ -50,6 +50,7 @@ export interface BillingSchedule {
   id: string;
   description: string | null;
   amount: string;
+  quantity: string;
   currency: string;
   billingCycle: string;
   billingDay: number;

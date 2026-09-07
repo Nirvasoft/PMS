@@ -155,7 +155,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
 
       {/* ── Lease Charges ── */}
       <div className="unit-charges-panel">
-        <div className="unit-charges-panel-head">Lease Charges <span className="optional">(optional)</span></div>
+        <div className="unit-charges-panel-head">Charges <span className="optional">(optional)</span></div>
         {!form.unitId ? (
           <p className="unit-charges-empty">Select a unit to see its configured charges.</p>
         ) : form.leaseCharges.length === 0 ? (

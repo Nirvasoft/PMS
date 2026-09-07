@@ -2851,6 +2851,7 @@ model BillingSchedule {
   chargeTypeId    String    @map("charge_type_id") @db.Uuid
   description     String?   @db.VarChar(500)
   amount          Decimal   @db.Decimal(15, 2)
+  quantity        Decimal   @default(1) @db.Decimal(10, 4)
   currency        String    @default("USD") @db.VarChar(3)
   billingCycle    String    @default("monthly") @map("billing_cycle") @db.VarChar(20)
   billingDay      Int       @default(1) @map("billing_day") @db.SmallInt

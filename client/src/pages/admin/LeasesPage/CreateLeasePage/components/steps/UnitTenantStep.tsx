@@ -7,8 +7,8 @@ import { useSelectedPropertyFilter } from '../../../../../../hooks/useSelectedPr
 import ComboBox from '../../../../../../components/ComboBox';
 import type { FormState } from '../../types';
 
-/** Units the lease API will accept — see leases.service.ts. */
-const LEASABLE = ['available', 'reserved'];
+/** The lease API also accepts 'reserved' units, but the dropdown only offers truly free ones. */
+const LEASABLE = ['available'];
 
 export function UnitTenantStep({ form, set, templates }: { form: FormState; set: Function; templates: any[] }) {
   const [propertySearch, setPropertySearch] = useState('');
