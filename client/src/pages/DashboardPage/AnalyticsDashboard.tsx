@@ -11,9 +11,10 @@ import {
   useResetDashboardLayoutMutation,
 } from '../../store/api/dashboardApi';
 import type { LayoutItem, WidgetData, KpiCardData, LineChartData, BarChartData, PieChartData, GaugeData, DataTableData, HeatmapData, WidgetCatalogItem } from '../../store/api/dashboardApi';
-import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
+import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useAppSelector, useAppDispatch } from '../../store';
-import { setFilters, setDatePreset, toggleEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } from '../../store/slices/dashboardSlice';
+import { setDatePreset, toggleEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } from '../../store/slices/dashboardSlice';
+import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -23,7 +24,7 @@ import {
   TrendingUp, TrendingDown, Minus, Plus, X, Settings2, RotateCcw,
   Calendar, LayoutGrid, Maximize2, GripVertical, Trash2, Search,
   BarChart3, PieChart as PieChartIcon, Table2, Gauge, Activity,
-  Building2, ChevronDown, Check,
+  Building2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../components/DialogProvider';
@@ -96,7 +97,7 @@ export default function AnalyticsDashboard() {
   const { data: layoutData, isLoading: layoutLoading } = useGetDashboardLayoutQuery('main');
   const [saveLayout] = useSaveDashboardLayoutMutation();
   const [resetLayout] = useResetDashboardLayoutMutation();
-  const { data: propertiesData } = useGetPropertiesQuery({});
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const confirmDialog = useConfirm();
 
   // Measure container width (replaces library's useContainerWidth for reliability)
@@ -117,11 +118,12 @@ export default function AnalyticsDashboard() {
 
   // Drill-down state
   const [drillDownData, setDrillDownData] = useState<{ widgetCode: string; drillKey?: string } | null>(null);
-  const [propDropdownOpen, setPropDropdownOpen] = useState(false);
 
   const layout = (layoutData?.data?.layout || []) as LayoutItem[];
   const properties = (propertiesData as any)?.data || [];
-  const selectedPropertyId = filters.propertyIds.length === 1 ? filters.propertyIds[0] : undefined;
+  // Widget data follows the sidebar's "Active Property" selector — not independently
+  // choosable here, so every module reads the same scope.
+  const selectedPropertyId = useSelectedPropertyFilter() || undefined;
   const selectedPropertyName = selectedPropertyId
     ? properties.find((p: any) => p.id === selectedPropertyId)?.name || 'Selected'
     : 'All Properties';
@@ -129,11 +131,6 @@ export default function AnalyticsDashboard() {
   const handlePreset = (preset: string) => {
     const range = getDateRange(preset);
     dispatch(setDatePreset({ preset: preset as any, ...range }));
-  };
-
-  const handlePropertyChange = (propertyId: string | null) => {
-    dispatch(setFilters({ propertyIds: propertyId ? [propertyId] : [] }));
-    setPropDropdownOpen(false);
   };
 
   const handleRemoveWidget = useCallback(async (widgetId: string) => {
@@ -230,42 +227,13 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
         <div className="header-controls">
-          {/* Property picker */}
+          {/* Property picker — follows the sidebar's "Active Property" selector, not
+              independently choosable here, so every module reads the same scope. */}
           <div className="property-picker-wrapper">
-            <button
-              className={`property-picker-btn ${selectedPropertyId ? 'filtered' : ''}`}
-              onClick={() => setPropDropdownOpen(!propDropdownOpen)}
-            >
+            <div className={`property-picker-btn ${selectedPropertyId ? 'filtered' : ''}`} title="Switch the Active Property from the sidebar">
               <Building2 size={14} />
               <span>{selectedPropertyName}</span>
-              <ChevronDown size={14} className={`chevron ${propDropdownOpen ? 'open' : ''}`} />
-            </button>
-            {propDropdownOpen && (
-              <>
-                <div className="picker-backdrop" />
-                <div className="property-dropdown">
-                  <button
-                    className={`prop-option ${!selectedPropertyId ? 'active' : ''}`}
-                    onClick={() => handlePropertyChange(null)}
-                  >
-                    <Building2 size={14} />
-                    <span>All Properties</span>
-                    {!selectedPropertyId && <Check size={14} className="check-icon" />}
-                  </button>
-                  {properties.map((p: any) => (
-                    <button
-                      key={p.id}
-                      className={`prop-option ${selectedPropertyId === p.id ? 'active' : ''}`}
-                      onClick={() => handlePropertyChange(p.id)}
-                    >
-                      <Building2 size={14} />
-                      <span>{p.name}</span>
-                      {selectedPropertyId === p.id && <Check size={14} className="check-icon" />}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+            </div>
           </div>
 
           {/* Date presets */}

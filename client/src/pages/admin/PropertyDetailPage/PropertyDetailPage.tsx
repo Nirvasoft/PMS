@@ -26,6 +26,9 @@ import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { CURRENCIES } from '../../../constants/currencies';
+import { useAppDispatch, useAppSelector } from '../../../store';
+import { setSelectedProperty } from '../../../store/slices/propertiesSlice';
+import { ALL_PROPERTIES } from '../../../hooks/useSelectedPropertyId';
 import './PropertyDetailPage.css';
 
 type Tab = 'overview' | 'units' | 'leases' | 'documents' | 'facilities' | 'contacts' | 'photos' | 'history' | 'finance' | 'settings';
@@ -47,6 +50,7 @@ const STATUS_BADGE_STYLE: Record<string, { bg: string; color: string }> = {
 export default function PropertyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [statusModal, setStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
@@ -58,6 +62,25 @@ export default function PropertyDetailPage() {
   const unitStats = unitStatsData?.data;
 
   const [updateStatus] = useUpdatePropertyStatusMutation();
+
+  // Keep the sidebar's "Active Property" switcher pointed at whichever property this
+  // page is showing, so viewing a property also makes it the active context elsewhere.
+  const selectedPropertyId = useAppSelector((s) => s.properties.selectedPropertyId);
+  useEffect(() => {
+    if (id && selectedPropertyId !== id) dispatch(setSelectedProperty(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // If the Active Property is switched elsewhere (e.g. the sidebar) while this page is
+  // open, follow it: jump to that property's detail page, or back to the list for
+  // "All Properties", which has no single detail view.
+  useEffect(() => {
+    if (!id || selectedPropertyId === null || selectedPropertyId === id) return;
+    navigate(selectedPropertyId !== ALL_PROPERTIES
+      ? `/admin/properties/${selectedPropertyId}`
+      : '/admin/properties');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPropertyId]);
 
   const handleStatusChange = async () => {
     if (!newStatus) return;

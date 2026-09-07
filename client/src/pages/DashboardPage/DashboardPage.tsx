@@ -1,4 +1,4 @@
-﻿import { useNavigate, NavLink, Outlet, useLocation } from 'react-router-dom';
+﻿import { useNavigate, NavLink, Outlet, useLocation, matchPath } from 'react-router-dom';
 import { useLogoutMutation } from '../../store/api/authApi';
 import { useGetPropertyStatsQuery } from '../../store/api/organizationApi';
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
@@ -105,6 +105,12 @@ export default function DashboardLayout() {
   const selectedPropertyId = useAppSelector((s) => s.properties.selectedPropertyId);
   const { data: propertiesRes } = useGetMyPropertyScopeQuery();
   const properties = propertiesRes?.data || [];
+  const location = useLocation();
+  // The Property Detail page always shows one specific property, so "All Properties"
+  // isn't a meaningful choice there — hide it from the switcher while it's open.
+  const isPropertyDetailPage = !!matchPath('/admin/properties/:id', location.pathname)
+    && location.pathname !== '/admin/properties/create'
+    && location.pathname !== '/admin/properties/floor-setup';
   const [logout] = useLogoutMutation();
   useRealtimeNotifications(); // Real-time WS notifications
 
@@ -161,7 +167,7 @@ export default function DashboardLayout() {
         {/* Property Selector */}
         {properties.length > 0 && (() => {
           const hasMultipleProperties = properties.length > 1;
-          const currentPropertyValue = selectedPropertyId === ALL_PROPERTIES && hasMultipleProperties
+          const currentPropertyValue = selectedPropertyId === ALL_PROPERTIES && hasMultipleProperties && !isPropertyDetailPage
             ? ALL_PROPERTIES
             : (selectedPropertyId && selectedPropertyId !== ALL_PROPERTIES ? selectedPropertyId : properties[0]?.id || '');
           const currentPropertyLabel = currentPropertyValue === ALL_PROPERTIES
@@ -181,7 +187,7 @@ export default function DashboardLayout() {
                   onChange={(e) => dispatch(setSelectedProperty(e.target.value))}
                   className="sidebar-property-dropdown"
                 >
-                  <option value={ALL_PROPERTIES}>All Properties</option>
+                  {!isPropertyDetailPage && <option value={ALL_PROPERTIES}>All Properties</option>}
                   {properties.map((p: any) => (
                     <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
                   ))}

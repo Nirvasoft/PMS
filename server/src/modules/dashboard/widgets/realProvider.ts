@@ -28,9 +28,8 @@ function getMonthLabels(count: number): string[] {
 
 async function occupancyRate(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
-  if (params.companyId) {
-    where.property = { companyId: params.companyId };
-  }
+  if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const [total, occupied] = await Promise.all([
     prisma.unit.count({ where }),
@@ -50,6 +49,7 @@ async function occupancyRate(params: WidgetDataParams) {
 async function revenueMtd(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: 'active' };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const leases = await prisma.lease.findMany({
     where,
@@ -67,6 +67,7 @@ async function revenueMtd(params: WidgetDataParams) {
 async function revenueYtd(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const leases = await prisma.lease.findMany({
     where: { ...where, status: { in: ['active', 'expired'] } },
@@ -92,6 +93,7 @@ async function collectionRate(params: WidgetDataParams) {
     status: { notIn: ['draft', 'void'] },
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const invoices = await prisma.invoice.findMany({
     where,
@@ -116,6 +118,7 @@ async function overdueInvoices(params: WidgetDataParams) {
     dueDate: { lt: now },
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const invoices = await prisma.invoice.findMany({
     where,
@@ -148,6 +151,7 @@ async function maintenanceOpen(params: WidgetDataParams) {
     status: { in: ['open', 'assigned', 'in_progress'] },
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const [total, priorities] = await Promise.all([
     prisma.maintenanceTicket.count({ where }),
@@ -180,6 +184,7 @@ async function maintenanceSla(params: WidgetDataParams) {
     status: { notIn: ['closed', 'cancelled'] },
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const count = await prisma.maintenanceTicket.count({ where });
 
@@ -226,6 +231,7 @@ async function documentsExpiring(params: WidgetDataParams) {
     deletedAt: null,
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const count = await prisma.document.count({ where });
 
@@ -238,7 +244,8 @@ async function documentsExpiring(params: WidgetDataParams) {
 async function vacancyTrend(params: WidgetDataParams) {
   const months = getMonthLabels(6);
   const where: Record<string, unknown> = {};
-  if (params.companyId) where.property = { companyId: params.companyId };
+  if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const total = await prisma.unit.count({ where });
   const vacant = await prisma.unit.count({ where: { ...where, status: 'available' } });
@@ -264,6 +271,7 @@ async function maintenanceTrend(params: WidgetDataParams) {
   const months = getMonthLabels(6);
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const tickets = await prisma.maintenanceTicket.findMany({
     where,
@@ -297,6 +305,7 @@ async function maintenanceTrend(params: WidgetDataParams) {
 async function revenueByProperty(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: 'active' };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const leases = await prisma.lease.findMany({
     where,
@@ -326,7 +335,8 @@ async function revenueByProperty(params: WidgetDataParams) {
 
 async function unitStatusBreakdown(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
-  if (params.companyId) where.property = { companyId: params.companyId };
+  if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const statuses = await prisma.unit.groupBy({
     by: ['status'],
@@ -358,6 +368,7 @@ async function unitStatusBreakdown(params: WidgetDataParams) {
 async function ticketsByCategory(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const tickets = await prisma.maintenanceTicket.findMany({
     where,
@@ -405,6 +416,7 @@ async function leaseExpiringSoon(params: WidgetDataParams) {
     endDate: { lte: ninetyDaysFromNow, gte: new Date() },
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const leases = await prisma.lease.findMany({
     where,
@@ -498,6 +510,7 @@ async function crmActiveLeads(params: WidgetDataParams) {
   const activeStages = ['new', 'contacted', 'viewing', 'negotiating', 'proposal_sent'];
   const where: Record<string, unknown> = { stage: { in: activeStages } };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const [total, stages] = await Promise.all([
     prisma.lead.count({ where }),
@@ -517,6 +530,7 @@ async function crmActiveLeads(params: WidgetDataParams) {
 async function crmLeadPipeline(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const stages = await prisma.lead.groupBy({ by: ['stage'], where, _count: true });
 
@@ -536,6 +550,7 @@ async function crmLeadPipeline(params: WidgetDataParams) {
 async function crmConversionRate(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const [total, won] = await Promise.all([
     prisma.lead.count({ where }),
@@ -565,6 +580,7 @@ async function facilityBookingsToday(params: WidgetDataParams) {
     status: { notIn: ['cancelled'] },
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const count = await prisma.facilityBooking.count({ where });
 
@@ -583,6 +599,7 @@ async function facilityUtilization(params: WidgetDataParams) {
     status: { notIn: ['cancelled'] },
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const bookings = await prisma.facilityBooking.findMany({
     where,
@@ -614,6 +631,7 @@ async function facilityUtilization(params: WidgetDataParams) {
 async function parkingOccupancy(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const [total, occupied] = await Promise.all([
     prisma.parkingSlot.count({ where }),
@@ -633,6 +651,7 @@ async function parkingOccupancy(params: WidgetDataParams) {
 async function parkingRevenue(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: 'occupied' };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const slots = await prisma.parkingSlot.findMany({
     where,
@@ -654,6 +673,7 @@ async function parkingRevenue(params: WidgetDataParams) {
 async function securityOpenIncidents(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: { in: ['open', 'investigating'] } };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const [total, severities] = await Promise.all([
     prisma.securityIncident.count({ where }),
@@ -674,6 +694,7 @@ async function securityIncidentsTrend(params: WidgetDataParams) {
   const months = getMonthLabels(6);
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const incidents = await prisma.securityIncident.findMany({
     where,
@@ -709,6 +730,7 @@ async function visitorsToday(params: WidgetDataParams) {
     checkedInAt: { gte: today, lt: tomorrow },
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const count = await prisma.visitor.count({ where });
 
@@ -732,6 +754,7 @@ async function visitorsTrend(params: WidgetDataParams) {
 
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const visitors = await prisma.visitor.findMany({
     where: { ...where, checkedInAt: { gte: weeks[0].start } },
@@ -758,6 +781,7 @@ async function visitorsTrend(params: WidgetDataParams) {
 async function cleaningCompletionRate(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: 'active' };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const [total, completed] = await Promise.all([
     prisma.cleaningSchedule.count({ where }),
@@ -777,6 +801,7 @@ async function cleaningCompletionRate(params: WidgetDataParams) {
 async function cleaningOpenTasks(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: 'active' };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const count = await prisma.cleaningSchedule.count({ where });
 
@@ -799,6 +824,7 @@ async function pmUpcoming(params: WidgetDataParams) {
     dueDate: { lte: sevenDays, gte: new Date() },
   };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.schedule = { propertyId: params.propertyId };
 
   const count = await prisma.pmWorkOrder.count({ where });
 
@@ -811,6 +837,7 @@ async function pmUpcoming(params: WidgetDataParams) {
 async function pmComplianceRate(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.schedule = { propertyId: params.propertyId };
 
   const [total, completed, overdue] = await Promise.all([
     prisma.pmWorkOrder.count({ where }),
@@ -857,6 +884,7 @@ async function glNetIncome(params: WidgetDataParams) {
 async function bankBalanceSummary(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   const accounts = await prisma.bankAccount.findMany({
     where,
@@ -885,16 +913,23 @@ async function bankBalanceSummary(params: WidgetDataParams) {
 async function inventoryLowStock(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.stockLevels = { some: { store: { propertyId: params.propertyId } } };
 
   // Find items with stock levels below reorder point
   const items = await prisma.inventoryItem.findMany({
     where,
-    select: { id: true, reorderPoint: true, stockLevels: { select: { qtyOnHand: true } } },
+    select: {
+      id: true, reorderPoint: true,
+      stockLevels: { select: { qtyOnHand: true, store: { select: { propertyId: true } } } },
+    },
   });
 
   let lowCount = 0;
   for (const item of items) {
-    const totalOnHand = item.stockLevels.reduce((s, sl) => s + (sl.qtyOnHand?.toNumber() ?? 0), 0);
+    const levels = params.propertyId
+      ? item.stockLevels.filter((sl) => sl.store.propertyId === params.propertyId)
+      : item.stockLevels;
+    const totalOnHand = levels.reduce((s, sl) => s + (sl.qtyOnHand?.toNumber() ?? 0), 0);
     if (totalOnHand <= (item.reorderPoint?.toNumber() ?? 0)) lowCount++;
   }
 
@@ -912,6 +947,7 @@ async function inventoryMovementTrend(params: WidgetDataParams) {
   const months = getMonthLabels(6);
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.store = { propertyId: params.propertyId };
 
   const movements = await prisma.stockMovement.findMany({
     where,
@@ -1008,6 +1044,7 @@ const REAL_PROVIDERS: Record<string, (params: WidgetDataParams) => Promise<unkno
 async function occupancyHeatmap(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
+  if (params.propertyId) where.propertyId = params.propertyId;
 
   // Fetch ticket timestamps from last 30 days
   const since = new Date();
