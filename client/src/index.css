@@ -483,8 +483,10 @@ input.input-full:focus {
 }
 
 .checkbox-label input[type="checkbox"] {
+  flex: none;
   width: 16px;
   height: 16px;
+  min-width: 0;
   accent-color: var(--accent);
   cursor: pointer;
 }
@@ -8195,8 +8197,10 @@ textarea.form-input {
 }
 
 .checkbox-label input[type="checkbox"] {
+  flex: none;
   width: 16px;
   height: 16px;
+  min-width: 0;
   accent-color: var(--primary);
 }
 

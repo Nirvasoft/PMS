@@ -192,7 +192,7 @@ export class AuthService {
 
     // Check MFA
     if (user.mfaEnabled) {
-      const mfa = tokenService.issueMfaToken(user.id, user.email, user.companyId);
+      const mfa = tokenService.issueMfaToken(user.id, user.email, user.companyId, dto.rememberMe);
       return { mfa };
     }
 
@@ -261,7 +261,7 @@ export class AuthService {
     code: string,
     context: RequestContext,
   ): Promise<{ tokens: AuthTokens; user: Record<string, unknown> }> {
-    const { sub: userId, companyId: mfaCompanyId } = tokenService.verifyMfaToken(mfaToken);
+    const { sub: userId, companyId: mfaCompanyId, rememberMe } = tokenService.verifyMfaToken(mfaToken);
 
     // Set tenant context so RLS allows user lookup
     await setTenantContext(mfaCompanyId);
@@ -305,7 +305,7 @@ export class AuthService {
 
     const tokens = await tokenService.issueTokens(
       { id: user.id, email: user.email, companyId: user.companyId },
-      { roles, permissions },
+      { rememberMe, roles, permissions },
     );
 
     await prisma.user.update({
@@ -337,7 +337,7 @@ export class AuthService {
     companyId: string,
     context: RequestContext,
   ): Promise<AuthTokens> {
-    const { family, deviceId } = await tokenService.validateRefreshToken(refreshToken, userId);
+    const { family, deviceId, rememberMe } = await tokenService.validateRefreshToken(refreshToken, userId);
 
     // Revoke old token
     await tokenService.revokeRefreshToken(refreshToken, userId, 'rotated');
@@ -356,10 +356,10 @@ export class AuthService {
     const roles = userRoles3.map((ur) => ur.role.name);
     const permissions = await permissionResolver.getEffectivePermissions(user.id);
 
-    // Issue new pair
+    // Issue new pair, preserving the "remember me" duration of the session being rotated
     const tokens = await tokenService.issueTokens(
       { id: user.id, email: user.email, companyId: user.companyId },
-      { deviceId: deviceId ?? undefined, roles, permissions },
+      { deviceId: deviceId ?? undefined, rememberMe, roles, permissions },
     );
 
     await auditService.log({

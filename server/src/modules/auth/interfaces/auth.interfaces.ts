@@ -15,6 +15,7 @@ export interface AuthTokens {
   refreshToken: string;
   expiresIn: number;
   tokenType: 'Bearer';
+  rememberMe: boolean;
 }
 
 export interface MfaChallengeResponse {

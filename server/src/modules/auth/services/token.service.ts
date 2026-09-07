@@ -71,15 +71,16 @@ export class TokenService {
       refreshToken: rawRefreshToken,
       expiresIn: config.jwt.accessExpiry,
       tokenType: 'Bearer',
+      rememberMe,
     };
   }
 
   /**
    * Issue a short-lived MFA challenge token
    */
-  issueMfaToken(userId: string, email: string, companyId: string): MfaChallengeResponse {
+  issueMfaToken(userId: string, email: string, companyId: string, rememberMe = false): MfaChallengeResponse {
     const token = jwt.sign(
-      { sub: userId, email, companyId, type: 'mfa' },
+      { sub: userId, email, companyId, rememberMe, type: 'mfa' },
       config.jwt.mfaSecret,
       { expiresIn: config.jwt.mfaExpiry },
     );
@@ -94,18 +95,24 @@ export class TokenService {
   /**
    * Verify and decode an MFA token
    */
-  verifyMfaToken(token: string): { sub: string; email: string; companyId: string } {
+  verifyMfaToken(token: string): { sub: string; email: string; companyId: string; rememberMe: boolean } {
     try {
       const payload = jwt.verify(token, config.jwt.mfaSecret) as jwt.JwtPayload & {
         sub: string;
         email: string;
         companyId: string;
+        rememberMe?: boolean;
         type: string;
       };
       if (payload.type !== 'mfa') {
         throw AppError.invalidMfaCode();
       }
-      return { sub: payload.sub, email: payload.email, companyId: payload.companyId };
+      return {
+        sub: payload.sub,
+        email: payload.email,
+        companyId: payload.companyId,
+        rememberMe: payload.rememberMe ?? false,
+      };
     } catch {
       throw AppError.invalidMfaCode();
     }
@@ -117,7 +124,7 @@ export class TokenService {
   async validateRefreshToken(
     rawToken: string,
     userId: string,
-  ): Promise<{ family: string; deviceId: string | null }> {
+  ): Promise<{ family: string; deviceId: string | null; rememberMe: boolean }> {
     const tokenHash = this.hashToken(rawToken);
 
     // Check Redis first (fast path)
@@ -131,7 +138,13 @@ export class TokenService {
       const data = JSON.parse(stored);
       if (data.tokenHash === tokenHash) {
         const family = key.split(':').pop()!;
-        return { family, deviceId: data.deviceId };
+        // Original TTL tells us whether this session was started with "remember me" —
+        // that flag isn't stored anywhere else, so rotation must carry it forward via the token's lifespan.
+        const dbToken = await prisma.refreshToken.findUnique({ where: { tokenHash } });
+        const rememberMe = dbToken
+          ? dbToken.expiresAt.getTime() - dbToken.issuedAt.getTime() > config.jwt.refreshExpiry * 1000
+          : false;
+        return { family, deviceId: data.deviceId, rememberMe };
       }
     }
 

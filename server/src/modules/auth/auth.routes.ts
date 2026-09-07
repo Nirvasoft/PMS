@@ -99,7 +99,7 @@ authRouter.post('/mfa/verify', validateRequest(mfaVerifySchema), asyncHandler(as
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: (result.tokens.rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000,
     path: '/api/v1/auth',
   });
 
@@ -175,7 +175,7 @@ authRouter.post('/refresh', asyncHandler(async (req: Request, res: Response) => 
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: (tokens.rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000,
     path: '/api/v1/auth',
   });
 

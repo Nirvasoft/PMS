@@ -301,15 +301,6 @@ export default function LoginPage() {
             </div>
           </div>
         )}
-
-        <div className="auth-footer">
-          <p className="text-muted">Demo credentials</p>
-          <p className="text-small text-muted">
-            {isSingleCompany
-              ? 'admin@acmeproperty.com / Admin@123'
-              : 'Company: ACME | admin@acmeproperty.com / Admin@123'}
-          </p>
-        </div>
       </div>
     </div>
   );
