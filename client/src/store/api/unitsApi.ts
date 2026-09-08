@@ -1,5 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
+import { propertiesApi } from './propertiesApi';
 
 // ─── Types ─────────────────────────────────────────
 
@@ -306,10 +307,22 @@ export const unitsApi = createApi({
     createUnit: builder.mutation<ApiResponse<UnitDetail>, { propertyId: string; data: CreateUnitDto }>({
       query: ({ propertyId, data }) => ({ url: `/properties/${propertyId}/units`, method: 'POST', body: data }),
       invalidatesTags: ['Units', 'FloorPlan', 'UnitStats'],
+      async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, 'Properties']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
     bulkCreateUnits: builder.mutation<ApiResponse<BulkCreateResult>, { propertyId: string; data: BulkCreateDto }>({
       query: ({ propertyId, data }) => ({ url: `/properties/${propertyId}/units/bulk`, method: 'POST', body: data }),
       invalidatesTags: ['Units', 'FloorPlan', 'UnitStats'],
+      async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, 'Properties']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
     checkBulkConflicts: builder.mutation<ApiResponse<{ conflicts: string[] }>, { propertyId: string; unitNumbers: string[] }>({
       query: ({ propertyId, unitNumbers }) => ({
@@ -323,12 +336,24 @@ export const unitsApi = createApi({
     deleteUnit: builder.mutation<void, { propertyId: string; unitId: string }>({
       query: ({ propertyId, unitId }) => ({ url: `/properties/${propertyId}/units/${unitId}`, method: 'DELETE' }),
       invalidatesTags: ['Units', 'FloorPlan', 'UnitStats'],
+      async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }, 'Properties']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
     updateUnitStatus: builder.mutation<ApiResponse<UnitDetail>, { propertyId: string; unitId: string; status: string; reason?: string }>({
       query: ({ propertyId, unitId, status, reason }) => ({
         url: `/properties/${propertyId}/units/${unitId}/status`, method: 'POST', body: { status, reason },
       }),
       invalidatesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }, 'Units', 'FloorPlan', 'UnitStats'],
+      async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }]));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
     setAmenities: builder.mutation<ApiResponse<UnitAmenity[]>, { propertyId: string; unitId: string; amenities: string[] }>({
       query: ({ propertyId, unitId, amenities }) => ({

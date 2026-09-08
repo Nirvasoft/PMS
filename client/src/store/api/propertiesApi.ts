@@ -179,7 +179,7 @@ interface ApiResponse<T> {
 export const propertiesApi = createApi({
   reducerPath: 'propertiesApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Properties', 'PropertyPhotos', 'PropertyFacilities', 'PropertyContacts', 'PropertyStatus', 'FacilityTypes', 'FloorSetups'],
+  tagTypes: ['Properties', 'PropertyPhotos', 'PropertyFacilities', 'PropertyContacts', 'PropertyStatus', 'PropertyStats', 'FacilityTypes', 'FloorSetups'],
   endpoints: (builder) => ({
     // Catalog
     getPropertyTypes: builder.query<ApiResponse<PropertyType[]>, void>({
@@ -208,6 +208,7 @@ export const propertiesApi = createApi({
     }),
     getPropertyStats: builder.query<ApiResponse<PropertyStats>, string>({
       query: (id) => `/properties/${id}/stats`,
+      providesTags: (_, __, id) => [{ type: 'PropertyStats', id }],
     }),
     getCompanyPropertyStats: builder.query<ApiResponse<unknown>, void>({
       query: () => '/properties/stats',
