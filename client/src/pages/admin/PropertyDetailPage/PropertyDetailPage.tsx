@@ -14,13 +14,14 @@ import { useGetUnitStatsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useGetDocumentsQuery } from '../../../store/api/documentsApi';
 import { useGetInvoicesQuery, useGetBillingSchedulesQuery } from '../../../store/api/billingApi';
+import { usePreviewMeterRecordsMutation, useImportMeterRecordsMutation, type MeterRecordPreviewRow } from '../../../store/api/meterRecordsApi';
 import UnitsTab from './UnitsTab';
 import {
   ArrowLeft, Building2, MapPin, Calendar, Users, Phone, Mail,
   Settings2, Globe, Clock, Star, Trash2, Plus, Upload, CheckCircle,
   AlertCircle, Wrench, ChevronRight, ChevronLeft, X, Camera, Tag, Edit3, GripVertical,
   Waves, Dumbbell, Flame, TreePine, Lock, Zap, Car, Coffee, FileText, DollarSign, Briefcase,
-  Wifi, Shield, ArrowUp, ShoppingBag, UtensilsCrossed, MonitorSmartphone,
+  Wifi, Shield, ArrowUp, ShoppingBag, UtensilsCrossed, MonitorSmartphone, Download, Gauge,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -31,9 +32,9 @@ import { setSelectedProperty } from '../../../store/slices/propertiesSlice';
 import { ALL_PROPERTIES } from '../../../hooks/useSelectedPropertyId';
 import './PropertyDetailPage.css';
 
-type Tab = 'overview' | 'units' | 'leases' | 'documents' | 'facilities' | 'contacts' | 'photos' | 'history' | 'finance' | 'settings';
+type Tab = 'overview' | 'units' | 'leases' | 'documents' | 'facilities' | 'contacts' | 'photos' | 'history' | 'finance' | 'meters' | 'settings';
 
-const TAB_LABELS: Partial<Record<Tab, string>> = { units: 'P-Units' };
+const TAB_LABELS: Partial<Record<Tab, string>> = { units: 'P-Units', meters: 'Meter Records' };
 
 const STATUS_TRANSITIONS: Record<string, Array<{ value: string; label: string }>> = {
   active:           [{ value: 'under_renovation', label: 'Put Under Renovation' }, { value: 'decommissioned', label: 'Decommission' }],
@@ -158,7 +159,7 @@ export default function PropertyDetailPage() {
 
       {/* Tab navigation */}
       <div className="detail-tabs">
-        {(['overview', 'units', 'leases', 'documents', 'facilities', 'contacts', 'photos', 'history', 'finance', 'settings'] as Tab[]).map((tab) => (
+        {(['overview', 'units', 'leases', 'documents', 'facilities', 'contacts', 'photos', 'history', 'finance', 'meters', 'settings'] as Tab[]).map((tab) => (
           <button key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
             {TAB_LABELS[tab] ?? tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
@@ -176,6 +177,7 @@ export default function PropertyDetailPage() {
         {activeTab === 'photos' && <PhotosTab propertyId={id!} />}
         {activeTab === 'history' && <HistoryTab propertyId={id!} />}
         {activeTab === 'finance' && <FinanceTab property={property} />}
+        {activeTab === 'meters' && <MeterRecordsTab propertyId={id!} />}
         {activeTab === 'settings' && <SettingsTab property={property} />}
       </div>
 
@@ -1231,6 +1233,173 @@ function FinanceTab({ property }: { property: any }) {
             ))}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// METER RECORDS TAB
+// ═══════════════════════════════════════════════════
+function MeterRecordsTab({ propertyId }: { propertyId: string }) {
+  const [previewRecords, { isLoading: previewing }] = usePreviewMeterRecordsMutation();
+  const [importRecords, { isLoading: importing }] = useImportMeterRecordsMutation();
+  const [exporting, setExporting] = useState(false);
+  const [billingDate, setBillingDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [previewRows, setPreviewRows] = useState<MeterRecordPreviewRow[] | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const accessToken = useAppSelector((s) => s.auth.accessToken);
+
+  const handleExport = async () => {
+    if (!billingDate) { toast.error('Pick a billing date first'); return; }
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/v1/properties/${propertyId}/meter-records/export?billDate=${billingDate}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'meter-records.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to export meter records');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImportClick = () => fileInputRef.current?.click();
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const result = await previewRecords({ propertyId, formData }).unwrap();
+      setPreviewRows(result.data);
+      setPendingFile(file);
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to read the Excel file');
+    }
+  };
+
+  const handleCancelPreview = () => {
+    setPreviewRows(null);
+    setPendingFile(null);
+  };
+
+  const handleConfirmImport = async () => {
+    if (!pendingFile) return;
+    const formData = new FormData();
+    formData.append('file', pendingFile);
+    try {
+      const result = await importRecords({ propertyId, formData }).unwrap();
+      const { imported, billingSchedulesCreated, skipped } = result.data;
+      let msg = `Imported ${imported} meter record${imported === 1 ? '' : 's'}, created ${billingSchedulesCreated} billing schedule${billingSchedulesCreated === 1 ? '' : 's'}`;
+      if (skipped > 0) msg += ` (${skipped} skipped — no active tenant)`;
+      toast.success(msg);
+      setPreviewRows(null);
+      setPendingFile(null);
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to import meter records');
+    }
+  };
+
+  return (
+    <div className="tab-section">
+      <div className="section-header">
+        <h3><Gauge size={16} /> Meter Records</h3>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handleFileChange} style={{ display: 'none' }} />
+          <button className="btn-secondary" onClick={handleImportClick} disabled={previewing || importing}>
+            <Download size={14} /> {previewing ? 'Reading…' : 'Import'}
+          </button>
+          <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
+            <Upload size={14} /> {exporting ? 'Exporting…' : 'Export'}
+          </button>
+          <input
+            type="date"
+            value={billingDate}
+            onChange={(e) => setBillingDate(e.target.value)}
+            style={{
+              padding: '6px 10px', borderRadius: 8,
+              border: '1px solid var(--border-color)', background: 'var(--card-bg)',
+              color: 'var(--text-primary)', fontSize: 13,
+            }}
+          />
+        </div>
+      </div>
+
+      {previewRows ? (
+        <>
+          <div className="section-header">
+            <h4 className="finance-sub-title" style={{ margin: 0 }}>
+              Preview — {previewRows.length} row{previewRows.length === 1 ? '' : 's'} from "{pendingFile?.name}"
+            </h4>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-ghost" onClick={handleCancelPreview} disabled={importing}>Cancel</button>
+              <button className="btn-primary" onClick={handleConfirmImport} disabled={importing}>
+                {importing ? 'Importing…' : 'Confirm Import'}
+              </button>
+            </div>
+          </div>
+          <div className="leases-table-wrap">
+            <table className="leases-table" style={{ tableLayout: 'auto', minWidth: 1100 }}>
+              <thead>
+                <tr>
+                  <th style={{ whiteSpace: 'nowrap' }}>Tenant</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Meter No</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>P Unit</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Meter Type</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Category</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Rate</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Start Unit</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>End Unit</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Start Date</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>End Date</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Bill Date</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.map((r, i) => (
+                  <tr key={i}>
+                    <td>{r.tenant || '—'}</td>
+                    <td>{r.meterNo}</td>
+                    <td>{r.unitCode}</td>
+                    <td>{r.meterType}</td>
+                    <td className="capitalize">{r.category}</td>
+                    <td>{r.rate.toLocaleString()}</td>
+                    <td>{r.startUnit.toLocaleString()}</td>
+                    <td>{r.endUnit.toLocaleString()}</td>
+                    <td>{r.startDate}</td>
+                    <td>{r.endDate}</td>
+                    <td>{r.billDate}</td>
+                    <td>{r.quantity.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <div className="empty-section">
+          <Gauge size={32} />
+          <p>Export a billing sheet for the meters on this property, fill in the readings, then Import it back.</p>
+          <p style={{ fontSize: 12, opacity: 0.7 }}>
+            You'll see a preview of the parsed rows before anything is saved.
+          </p>
+        </div>
       )}
     </div>
   );

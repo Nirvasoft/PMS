@@ -21,6 +21,7 @@ import { companyRouter, branchesRouter, regionsRouter, businessUnitsRouter } fro
 import { propertiesRouter, facilityTypesRouter, floorSetupRouter } from './modules/properties/properties.routes';
 import { propertiesService, seedPropertyTypes } from './modules/properties/properties.service';
 import { towersRouter, unitsRouter, unitTypesRouter } from './modules/units/units.routes';
+import { meterRecordsRouter } from './modules/meterRecords/meterRecords.routes';
 import { seedUnitTypes } from './modules/units/units.service';
 import { tenantsRouter, kycRequirementsRouter } from './modules/tenants/tenants.routes';
 import { leasesRouter, leaseTemplatesRouter, leaseClausesRouter } from './modules/leases/leases.routes';
@@ -158,6 +159,7 @@ async function bootstrap() {
   app.use('/api/v1/properties/:propertyId/towers', towersRouter);
   app.use('/api/v1/properties/:propertyId/units',  unitsRouter);
   app.use('/api/v1/unit-types', unitTypesRouter);
+  app.use('/api/v1/properties/:propertyId/meter-records', meterRecordsRouter);
 
   // Module 2.3 — Tenant Management (Phase 2)
   app.use('/api/v1/tenants', tenantsRouter);

@@ -79,11 +79,11 @@ const MODULE_SECTIONS: Record<string, string> = {
   'settings-security': 'Settings', 'settings-notifications': 'Settings', 'settings-profile': 'Settings',
 };
 
-// Physical containment hierarchy — a Property has Floors, and each Floor has Units — so
-// these render nested under their parent instead of as flat siblings within Organization.
+// Physical containment hierarchy — a Property has Units — so Unit renders nested under
+// Properties instead of as a flat sibling within Organization. Floor Setup sits at the
+// same level as Properties (it configures floor counts, it doesn't belong to one property).
 const NESTED_MODULES: Record<string, string[]> = {
-  properties: ['floor'],
-  floor: ['unit'],
+  properties: ['unit'],
 };
 const CHILD_MODULES = new Set(Object.values(NESTED_MODULES).flat());
 const CHILD_TO_PARENT: Record<string, string> = Object.fromEntries(
@@ -94,6 +94,7 @@ const CHILD_TO_PARENT: Record<string, string> = Object.fromEntries(
 // when a module's slug doesn't already read naturally, e.g. a hyphenated sub-menu module
 // that should show the same label as its side-menu link ("crm-leads" -> "Lead Pipeline").
 const MODULE_LABELS: Record<string, string> = {
+  floor: 'Floor Setup',
   'crm-leads': 'Lead Pipeline',
   'crm-campaigns': 'Campaigns',
   'parking-overview': 'Parking Overview',
@@ -424,7 +425,19 @@ export default function AssignPermissionPage() {
             onClick={(e) => e.stopPropagation()}
             onChange={() => toggleModuleAll(module)}
           />
-          <span className="perm-module-name">{moduleLabel(module)}</span>
+          <span className="perm-module-name">
+            {moduleLabel(module)}
+            {module === 'unit' && (
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ marginLeft: 8 }}
+                onClick={(e) => { e.stopPropagation(); setFloorModalOpen(true); }}
+              >
+                All Floor{selectedFloorNumbers.size > 0 ? ` (${selectedFloorNumbers.size})` : ''}
+              </button>
+            )}
+          </span>
           <span className="text-muted text-small">{selectedCount}/{perms.length}</span>
         </div>
         {isOpen && (
@@ -435,16 +448,6 @@ export default function AssignPermissionPage() {
                 <span style={{ textTransform: 'none' }}>{permissionLabel(p.code, module)}</span>
               </label>
             ))}
-            {module === 'floor' && (
-              <button
-                type="button"
-                className="btn btn-sm"
-                style={{ marginTop: 8 }}
-                onClick={() => setFloorModalOpen(true)}
-              >
-                All Floor{selectedFloorNumbers.size > 0 ? ` (${selectedFloorNumbers.size})` : ''}
-              </button>
-            )}
           </div>
         )}
         {isOpen && childModules.map((child) => renderModule(child, depth + 1))}

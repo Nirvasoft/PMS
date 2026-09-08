@@ -111,6 +111,7 @@ model Company {
   chargeCategories      ChargeCategory[]
   chargeTypes           ChargeType[]
   meterSetups           MeterSetup[]
+  meterRecordLists      MeterRecordList[]
   billingSchedules      BillingSchedule[]
   invoices              Invoice[]
   penaltyConfigurations PenaltyConfiguration[]
@@ -996,7 +997,8 @@ model Property {
   rfidAccessEvents     RfidAccessEvent[]
 
   // Relations — Billing (Module 3.1)
-  meterSetups      MeterSetup[]
+  meterSetups         MeterSetup[]
+  meterRecordLists    MeterRecordList[]
   billingSchedules BillingSchedule[]      @relation("ScheduleProperty")
   invoices         Invoice[]              @relation("InvoiceProperty")
   penaltyConfigs   PenaltyConfiguration[] @relation("PenaltyProperty")
@@ -1312,8 +1314,9 @@ model Unit {
   visitorParkingPasses VisitorParkingPass[] @relation("PassUnit")
 
   // Relations — Billing (Module 3.1)
-  billingSchedules BillingSchedule[] @relation("ScheduleUnit")
-  invoices         Invoice[]         @relation("InvoiceUnit")
+  billingSchedules    BillingSchedule[]    @relation("ScheduleUnit")
+  invoices            Invoice[]            @relation("InvoiceUnit")
+  meterRecordLists    MeterRecordList[]
 
   // Relations — Maintenance (Module 4.1)
   maintenanceTickets MaintenanceTicket[]
@@ -2819,6 +2822,39 @@ model MeterSetup {
   @@index([floorId])
   @@index([mainMeterId])
   @@map("meter_setups")
+}
+
+/// One row per imported billing cycle for a meter — a backend-only audit log behind the
+/// Property Detail page's "Meter Records" Import (Property, Meter No, P Unit, Meter Type,
+/// Category, Rate, Start/End Unit, Start/End Date, Bill Date). Not surfaced in any UI list;
+/// each importable row also feeds a BillingSchedule (quantity = End Unit - Start Unit) when
+/// the unit has an active tenant.
+model MeterRecordList {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  unitId     String?  @map("unit_id") @db.Uuid
+  meterNo    String   @map("meter_no") @db.VarChar(50)
+  meterType  String   @map("meter_type") @db.VarChar(50)
+  category   String   @db.VarChar(50)
+  rate       Decimal  @db.Decimal(12, 4)
+  startUnit  Decimal  @map("start_unit") @db.Decimal(14, 2)
+  endUnit    Decimal  @map("end_unit") @db.Decimal(14, 2)
+  startDate  DateTime @map("start_date") @db.Date
+  endDate    DateTime @map("end_date") @db.Date
+  billDate   DateTime @map("bill_date") @db.Date
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit     Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@index([propertyId])
+  @@index([companyId])
+  @@index([unitId])
+  @@index([billDate])
+  @@map("meter_record_list")
 }
 
 model FloorSetup {
