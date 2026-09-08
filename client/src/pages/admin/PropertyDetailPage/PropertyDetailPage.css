@@ -247,6 +247,8 @@
   margin-bottom: 16px;
 }
 .section-header h3 { margin: 0; font-size: 1rem; font-weight: 700; }
+.section-header input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.9); cursor: pointer; }
+[data-theme="light"] .section-header input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0); }
 
 .empty-section {
   display: flex;

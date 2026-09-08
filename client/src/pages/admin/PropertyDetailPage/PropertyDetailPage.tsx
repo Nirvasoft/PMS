@@ -1321,12 +1321,6 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
         <h3><Gauge size={16} /> Meter Records</h3>
         <div style={{ display: 'flex', gap: 8 }}>
           <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handleFileChange} style={{ display: 'none' }} />
-          <button className="btn-secondary" onClick={handleImportClick} disabled={previewing || importing}>
-            <Download size={14} /> {previewing ? 'Reading…' : 'Import'}
-          </button>
-          <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
-            <Upload size={14} /> {exporting ? 'Exporting…' : 'Export'}
-          </button>
           <input
             type="date"
             value={billingDate}
@@ -1337,6 +1331,12 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
               color: 'var(--text-primary)', fontSize: 13,
             }}
           />
+          <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
+            <Upload size={14} /> {exporting ? 'Exporting…' : 'Export'}
+          </button>
+          <button className="btn-secondary" onClick={handleImportClick} disabled={previewing || importing}>
+            <Download size={14} /> {previewing ? 'Reading…' : 'Import'}
+          </button>
         </div>
       </div>
 

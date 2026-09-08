@@ -43,7 +43,7 @@ import {
 import { requireFeature } from './common/featureFlags';
 import {
   chargeCategoriesRouter, chargeTypesRouter, billingSchedulesRouter, invoicesRouter,
-  billingRunRouter, penaltyConfigsRouter, taxConfigsRouter, meterSetupRouter,
+  billingRunRouter, penaltyConfigsRouter, taxConfigsRouter, meterSetupRouter, currencyRatesRouter,
 } from './modules/billing/billing.routes';
 import { chargeTypesService } from './modules/billing/chargeTypes.service';
 import { chargeCategoriesService } from './modules/billing/chargeCategories.service';
@@ -207,6 +207,7 @@ async function bootstrap() {
   app.use('/api/v1/billing/charge-categories', chargeCategoriesRouter);
   app.use('/api/v1/billing/charge-types', chargeTypesRouter);
   app.use('/api/v1/billing/meter-setup', meterSetupRouter);
+  app.use('/api/v1/billing/currency-rates', currencyRatesRouter);
   app.use('/api/v1/billing/schedules', billingSchedulesRouter);
   app.use('/api/v1/invoices', invoicesRouter);
   app.use('/api/v1/billing/run', billingRunRouter);

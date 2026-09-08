@@ -120,7 +120,6 @@ export default function DashboardLayout() {
     return saved === '1';
   });
 
-
   const toggleCollapse = useCallback(() => {
     setIsCollapsed(prev => {
       const next = !prev;
@@ -242,12 +241,18 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* Organization Section */}
-          <PermissionGuard hideWhenDenied permission={['company.read', 'properties.read', 'tenants.read', 'leases.read']}>
+          <PermissionGuard hideWhenDenied permission={['company.read', 'properties.read', 'tenants.read', 'leases.read', 'currency-rate.read']}>
             <NavSection label="Organization" storageKey="org" defaultOpen isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="company.read">
                 <NavLink to="/admin/company" className="nav-item" title="Company">
                   <Building2 size={18} />
                   <span>Company</span>
+                </NavLink>
+              </PermissionGuard>
+              <PermissionGuard hideWhenDenied permission="currency-rate.read">
+                <NavLink to="/admin/billing/currency-rates" className="nav-item" title="Currency Setup">
+                  <Coins size={18} />
+                  <span>Currency Setup</span>
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="properties.read">

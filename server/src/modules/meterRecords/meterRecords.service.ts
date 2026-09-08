@@ -202,12 +202,10 @@ class MeterRecordsService {
 
         const lease = await prisma.lease.findFirst({
           where: { unitId: utilityMeter.unitId, status: 'active' },
-          select: { tenant: { select: { firstName: true, lastName: true, companyName: true } } },
+          select: { tenantId: true },
           orderBy: { startDate: 'desc' },
         });
-        if (lease?.tenant) {
-          tenant = lease.tenant.companyName || [lease.tenant.firstName, lease.tenant.lastName].filter(Boolean).join(' ');
-        }
+        tenant = lease?.tenantId ?? '';
       }
 
       sheet.addRow({
@@ -267,11 +265,8 @@ class MeterRecordsService {
       const lease = await prisma.lease.findFirst({
         where: { unitId: r.unitId as string, status: 'active' },
         orderBy: { startDate: 'desc' },
-        select: { tenant: { select: { firstName: true, lastName: true, companyName: true } } },
+        select: { tenantId: true },
       });
-      const tenant = lease?.tenant
-        ? (lease.tenant.companyName || [lease.tenant.firstName, lease.tenant.lastName].filter(Boolean).join(' '))
-        : '';
 
       return {
         meterNo: r.meterNo,
@@ -285,8 +280,8 @@ class MeterRecordsService {
         startDate: toDateOnly(r.startDate as Date),
         endDate: toDateOnly(r.endDate as Date),
         billDate: toDateOnly(r.billDate as Date),
-        tenant,
-        willBill: !!lease?.tenant,
+        tenant: lease?.tenantId ?? '',
+        willBill: !!lease?.tenantId,
       };
     }));
   }

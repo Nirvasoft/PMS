@@ -59,6 +59,7 @@ model Company {
   businessUnits BusinessUnit[]
   properties    Property[]
   floorSetups   FloorSetup[]
+  currencyRates CurrencyRate[]
 
   // Relations — Workflow (Module 1.4)
   workflowDefinitions WorkflowDefinition[]
@@ -2875,6 +2876,31 @@ model FloorSetup {
   @@index([propertyId])
   @@index([companyId])
   @@map("floor_setups")
+}
+
+model CurrencyRate {
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  baseCurrency   String   @default("MMK") @map("base_currency") @db.VarChar(10) // the currency `rate` is expressed in — auto-derived from whichever row has isBaseCurrency
+  currency       String   @db.VarChar(10) // ISO code, e.g. "USD" — see CURRENCIES on the client
+  description    String?  @db.VarChar(100) // full currency name, e.g. "US Dollar"
+  symbol         String?  @db.VarChar(5) // e.g. "$"
+  isBaseCurrency Boolean  @default(false) @map("is_base_currency") // marks `currency` as the company's base/local currency as of effectiveDate
+  operator       String   @default("multiply") @db.VarChar(10) // 'multiply' | 'divide' — how `rate` converts to baseCurrency
+  rate           Decimal  @db.Decimal(18, 6) // units of `baseCurrency` per 1 unit of `currency`, as of effectiveDate
+  effectiveDate  DateTime @default(now()) @map("effective_date") @db.Date
+  remarks        String?  @db.VarChar(255)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // One rate history — multiple dated entries per currency pair are expected.
+  @@unique([companyId, baseCurrency, currency, effectiveDate], name: "uq_currency_rate_company_pair_date")
+  @@index([companyId])
+  @@index([companyId, currency])
+  @@map("currency_rates")
 }
 
 model BillingSchedule {

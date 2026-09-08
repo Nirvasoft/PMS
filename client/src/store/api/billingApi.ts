@@ -25,6 +25,20 @@ export interface ChargeType {
   isActive: boolean;
 }
 
+export interface CurrencyRate {
+  id: string;
+  baseCurrency: string;
+  currency: string;
+  description: string | null;
+  symbol: string | null;
+  isBaseCurrency: boolean;
+  operator: 'multiply' | 'divide';
+  rate: string;
+  effectiveDate: string;
+  remarks: string | null;
+  isActive: boolean;
+}
+
 export interface MeterSetup {
   id: string;
   propertyId: string;
@@ -143,7 +157,7 @@ interface PaginatedResponse<T> {
 export const billingApi = createApi({
   reducerPath: 'billingApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Invoices', 'BillingSchedules', 'ChargeCategories', 'ChargeTypes', 'PenaltyConfigs', 'TaxConfigs', 'MeterSetups'],
+  tagTypes: ['Invoices', 'BillingSchedules', 'ChargeCategories', 'ChargeTypes', 'PenaltyConfigs', 'TaxConfigs', 'MeterSetups', 'CurrencyRates'],
   endpoints: (builder) => ({
 
     // ── Charge Categories ─────────────────
@@ -181,6 +195,27 @@ export const billingApi = createApi({
     updateChargeType: builder.mutation<ApiResponse<ChargeType>, { id: string; data: Record<string, unknown> }>({
       query: ({ id, data }) => ({ url: `/billing/charge-types/${id}`, method: 'PUT', body: data }),
       invalidatesTags: ['ChargeTypes'],
+    }),
+
+    // ── Currency Rates ─────────────────────
+    getCurrencyRates: builder.query<ApiResponse<CurrencyRate[]>, void>({
+      query: () => '/billing/currency-rates',
+      providesTags: ['CurrencyRates'],
+    }),
+
+    createCurrencyRate: builder.mutation<ApiResponse<CurrencyRate>, Record<string, unknown>>({
+      query: (body) => ({ url: '/billing/currency-rates', method: 'POST', body }),
+      invalidatesTags: ['CurrencyRates'],
+    }),
+
+    updateCurrencyRate: builder.mutation<ApiResponse<CurrencyRate>, { id: string; data: Record<string, unknown> }>({
+      query: ({ id, data }) => ({ url: `/billing/currency-rates/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['CurrencyRates'],
+    }),
+
+    deleteCurrencyRate: builder.mutation<void, string>({
+      query: (id) => ({ url: `/billing/currency-rates/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['CurrencyRates'],
     }),
 
     // ── Meter Setup ───────────────────────
@@ -320,6 +355,10 @@ export const {
   useGetChargeTypesQuery,
   useCreateChargeTypeMutation,
   useUpdateChargeTypeMutation,
+  useGetCurrencyRatesQuery,
+  useCreateCurrencyRateMutation,
+  useUpdateCurrencyRateMutation,
+  useDeleteCurrencyRateMutation,
   useGetBillingSchedulesQuery,
   useCreateBillingScheduleMutation,
   usePauseScheduleMutation,

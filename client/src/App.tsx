@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, ToastBar, toast } from 'react-hot-toast';
+import { X } from 'lucide-react';
 import { store } from './store';
 import { ProtectedRoute, PublicRoute, RequirePermission } from './components/RouteGuards';
 import { DialogProvider } from './components/DialogProvider';
@@ -48,6 +49,7 @@ import BillingSchedulesPage from './pages/admin/BillingPage/BillingSchedulesPage
 import BillingDashboardPage from './pages/admin/BillingPage/BillingDashboardPage';
 import ChargeCategoriesPage from './pages/admin/BillingPage/ChargeCategoriesPage';
 import ChargeTypesPage from './pages/admin/BillingPage/ChargeTypesPage';
+import CurrencyRatesPage from './pages/admin/BillingPage/CurrencyRatesPage';
 import MeterSetupPage from './pages/admin/BillingPage/MeterSetupPage';
 import PenaltyConfigPage from './pages/admin/BillingPage/PenaltyConfigPage';
 import TaxConfigPage from './pages/admin/BillingPage/TaxConfigPage';
@@ -288,7 +290,7 @@ function AppRoutes() {
 
           {/* Billing & Finance — requires any billing/AR/AP/finance sub-menu read permission */}
           <Route element={<RequirePermission permission={[
-            'billing-dashboard.read', 'billing-invoices.read', 'billing-schedules.read', 'charge-category.read', 'billing-charge-types.read', 'meter.read', 'billing-settings.read',
+            'billing-dashboard.read', 'billing-invoices.read', 'billing-schedules.read', 'charge-category.read', 'billing-charge-types.read', 'currency-rate.read', 'meter.read', 'billing-settings.read',
             'ar-receipts.read', 'ar-aging.read', 'ar-collections.read', 'ar-refunds.read', 'ar-statements.read', 'ar-credits.read',
             'ap-invoices.read', 'ap-vouchers.read', 'ap-expenses.read',
             'finance-coa.read', 'finance-journal.read', 'finance-fiscal-periods.read', 'finance-trial-balance.read', 'finance-pnl.read', 'finance-balance-sheet.read', 'finance-cash-flow.read', 'finance-budgets.read', 'finance-assets.read', 'finance-banking.read', 'finance-gateway.read',
@@ -300,6 +302,7 @@ function AppRoutes() {
             <Route path="/admin/billing/dashboard" element={<BillingDashboardPage />} />
             <Route path="/admin/billing/charge-categories" element={<ChargeCategoriesPage />} />
             <Route path="/admin/billing/charge-types" element={<ChargeTypesPage />} />
+            <Route path="/admin/billing/currency-rates" element={<CurrencyRatesPage />} />
             <Route path="/admin/billing/meter-setup" element={<MeterSetupPage />} />
             <Route path="/admin/billing/penalty-configs" element={<PenaltyConfigPage />} />
             <Route path="/admin/billing/tax-configs" element={<TaxConfigPage />} />
@@ -502,7 +505,7 @@ export default function App() {
             <Toaster
               position="top-right"
               toastOptions={{
-                duration: 1000,
+                duration: 3000,
                 style: {
                   background: 'var(--surface-elevated)',
                   color: 'var(--text-primary)',
@@ -511,7 +514,36 @@ export default function App() {
                   fontSize: '14px',
                 },
               }}
-            />
+            >
+              {(t) => (
+                <ToastBar toast={t}>
+                  {({ icon, message }) => (
+                    <>
+                      {icon}
+                      {message}
+                      {t.type !== 'loading' && (
+                        <button
+                          onClick={() => toast.dismiss(t.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: 'var(--text-secondary)',
+                            padding: 4,
+                            marginLeft: 4,
+                          }}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </ToastBar>
+              )}
+            </Toaster>
           </BrowserRouter>
         </DialogProvider>
       </Provider>

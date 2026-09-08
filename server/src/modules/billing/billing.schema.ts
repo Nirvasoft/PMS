@@ -92,6 +92,35 @@ export const updateChargeTypeSchema = z.object({
   }),
 });
 
+// ── Currency Rates ─────────────────────────────
+
+export const createCurrencyRateSchema = z.object({
+  body: z.object({
+    currency: z.string().min(1).max(10),
+    description: z.string().max(100).optional(),
+    symbol: z.string().max(5).optional(),
+    isBaseCurrency: z.boolean().optional(),
+    operator: z.enum(['multiply', 'divide']).optional(),
+    rate: z.number().positive().optional(),
+    effectiveDate: dateString.optional(),
+    remarks: z.string().max(255).optional(),
+  }),
+});
+
+export const updateCurrencyRateSchema = z.object({
+  body: z.object({
+    currency: z.string().min(1).max(10).optional(),
+    description: z.string().max(100).optional(),
+    symbol: z.string().max(5).optional(),
+    isBaseCurrency: z.boolean().optional(),
+    operator: z.enum(['multiply', 'divide']).optional(),
+    rate: z.number().positive().optional(),
+    effectiveDate: dateString.optional(),
+    remarks: z.string().max(255).optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
 // ── Billing Schedules ─────────────────────────
 
 export const createBillingScheduleSchema = z.object({

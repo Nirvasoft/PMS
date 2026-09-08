@@ -4,6 +4,7 @@ import { validateRequest } from '../../middleware/validateRequest';
 import { requirePermission } from '../auth/guards/roleGuard';
 import { chargeCategoriesService } from './chargeCategories.service';
 import { chargeTypesService } from './chargeTypes.service';
+import { currencyRatesService } from './currencyRates.service';
 import { meterSetupService } from './meterSetup.service';
 import { billingSchedulesService } from './billingSchedules.service';
 import { invoicesService } from './invoices.service';
@@ -13,7 +14,9 @@ import { invoicePdfService } from './pdf.service';
 import { notificationService } from '../notifications/services/notification.service';
 import {
   createChargeCategorySchema, updateChargeCategorySchema,
-  createChargeTypeSchema, updateChargeTypeSchema, createBillingScheduleSchema, updateBillingScheduleSchema,
+  createChargeTypeSchema, updateChargeTypeSchema,
+  createCurrencyRateSchema, updateCurrencyRateSchema,
+  createBillingScheduleSchema, updateBillingScheduleSchema,
   createInvoiceSchema, voidInvoiceSchema, createCreditNoteSchema,
   createPenaltyConfigSchema, createTaxConfigSchema,
   createMeterSetupSchema, updateMeterSetupSchema,
@@ -64,6 +67,31 @@ chargeTypesRouter.post('/', validateRequest(createChargeTypeSchema), asyncHandle
 chargeTypesRouter.put('/:id', validateRequest(updateChargeTypeSchema), asyncHandler(async (req, res) => {
   const data = await chargeTypesService.update(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
+}));
+
+// ════════════════════════════════════════════════
+// CURRENCY RATES — /api/v1/billing/currency-rates
+// ════════════════════════════════════════════════
+export const currencyRatesRouter = Router();
+
+currencyRatesRouter.get('/', requirePermission('currency-rate.read'), asyncHandler(async (req, res) => {
+  const data = await currencyRatesService.findAll(req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
+currencyRatesRouter.post('/', requirePermission('currency-rate.create'), validateRequest(createCurrencyRateSchema), asyncHandler(async (req, res) => {
+  const data = await currencyRatesService.create(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+currencyRatesRouter.put('/:id', requirePermission('currency-rate.update'), validateRequest(updateCurrencyRateSchema), asyncHandler(async (req, res) => {
+  const data = await currencyRatesService.update(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+currencyRatesRouter.delete('/:id', requirePermission('currency-rate.delete'), asyncHandler(async (req, res) => {
+  await currencyRatesService.delete(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true });
 }));
 
 // ════════════════════════════════════════════════
