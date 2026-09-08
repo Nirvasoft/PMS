@@ -4,7 +4,7 @@ import {
   useGetBillingSchedulesQuery, usePauseScheduleMutation,
   useResumeScheduleMutation, useCancelScheduleMutation,
   useCreateBillingScheduleMutation, useUpdateScheduleMutation,
-  useGetChargeTypesQuery,
+  useGetChargeTypesQuery, useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
 import type { BillingSchedule } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
@@ -15,7 +15,6 @@ import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
-import { CURRENCIES } from '../../../constants/currencies';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -103,6 +102,20 @@ export default function BillingSchedulesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyCurrency, editId]);
+
+  // Currency dropdown lists Codes from Currency Setup; Base Amount is read-only —
+  // it's Amount multiplied (or divided, per the row's own operator) by the Rate from
+  // the Currency Setup row matching the schedule's currency.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(undefined, { refetchOnMountOrArgChange: true });
+  const currencyRates = currencyRatesData?.data ?? [];
+  const currencyCodes = [...new Set(currencyRates.map((r) => r.currency))].sort();
+  const baseCurrencyCode = currencyRates.find((r) => r.isBaseCurrency)?.currency ?? '';
+  const selectedCurrencyRate = currencyRates.find((r) => r.currency === form.currency);
+  const baseAmount = selectedCurrencyRate
+    ? (selectedCurrencyRate.operator === 'divide'
+        ? form.amount / Number(selectedCurrencyRate.rate)
+        : form.amount * Number(selectedCurrencyRate.rate))
+    : null;
 
   // Clears back to "Select property" (or re-locks to the new property) if the sidebar
   // changes while the create form is open.
@@ -467,6 +480,27 @@ export default function BillingSchedulesPage() {
                       onChange={e => setForm({ ...form, quantity: Number(e.target.value) })} />
                   </div>
                   <div className="inv-field">
+                    <label>Currency</label>
+                    <select value={form.currency} onChange={e => {
+                      manualCurrency.current = true;
+                      setForm({ ...form, currency: e.target.value });
+                    }}>
+                      <option value="">Select a currency</option>
+                      {currencyCodes.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="inv-field">
+                    <label>Base Amount</label>
+                    <input
+                      type="text"
+                      readOnly
+                      disabled
+                      value={baseAmount != null ? `${baseAmount.toFixed(2)} ${baseCurrencyCode}` : ''}
+                      placeholder={baseCurrencyCode ? `— no rate set for ${form.currency || 'this currency'} —` : '— not set in Currency Setup —'}
+                      style={{ background: 'var(--bg-tertiary)', color: baseAmount != null ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'not-allowed' }}
+                    />
+                  </div>
+                  <div className="inv-field">
                     <label>Billing Cycle <span className="req">*</span></label>
                     <select required value={form.billingCycle} onChange={e => setForm({ ...form, billingCycle: e.target.value })}>
                       {BILLING_CYCLES.map(c => (
@@ -483,15 +517,6 @@ export default function BillingSchedulesPage() {
                     <label>Payment Due (days after billing)</label>
                     <input type="number" min={0} max={90} value={form.paymentDueDays}
                       onChange={e => setForm({ ...form, paymentDueDays: Number(e.target.value) })} />
-                  </div>
-                  <div className="inv-field">
-                    <label>Currency</label>
-                    <select value={form.currency} onChange={e => {
-                      manualCurrency.current = true;
-                      setForm({ ...form, currency: e.target.value });
-                    }}>
-                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
                   </div>
                   <div className="inv-field">
                     <label>Start Date <span className="req">*</span></label>
