@@ -4,6 +4,7 @@ import {
   useGetLeaseQuery, useSubmitLeaseMutation, useActivateLeaseMutation,
   useCancelLeaseMutation, useUpdateLeaseMutation,
 } from '../../../store/api/leasesApi';
+import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import {
   ArrowLeft, CheckCircle, XCircle, PenLine, AlertTriangle,
   Send, RefreshCw, Scissors, ChevronRight, Edit2, Save, X, FileText,
@@ -11,7 +12,6 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
-import { CURRENCIES } from '../../../constants/currencies';
 import './LeaseDetailPage.css';
 
 // Tabs
@@ -240,6 +240,20 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
   });
 
   const set = (key: string, val: unknown) => setForm((f) => ({ ...f, [key]: val }));
+
+  // Currency dropdown lists Codes from Currency Setup; Base Amount is read-only —
+  // it's Rent Amount multiplied (or divided, per the row's own operator) by the Rate
+  // from the Currency Setup row matching the lease's currency.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(undefined, { refetchOnMountOrArgChange: true });
+  const currencyRates = currencyRatesData?.data ?? [];
+  const currencyCodes = [...new Set(currencyRates.map((r) => r.currency))].sort();
+  const baseCurrencyCode = currencyRates.find((r) => r.isBaseCurrency)?.currency ?? '';
+  const selectedCurrencyRate = currencyRates.find((r) => r.currency === form.currency);
+  const baseAmount = selectedCurrencyRate
+    ? (selectedCurrencyRate.operator === 'divide'
+        ? Number(form.rentAmount) / Number(selectedCurrencyRate.rate)
+        : Number(form.rentAmount) * Number(selectedCurrencyRate.rate))
+    : null;
   const setRA = (key: string, val: string) => setForm((f) => ({ ...f, rentalAgreement: { ...f.rentalAgreement, [key]: val } }));
 
   const handleSave = async () => {
@@ -292,15 +306,26 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
             <div className="edf-section">
               <h4>Financial</h4>
               <div className="edf-row">
+                <label>Rent Amount<input type="number" value={form.rentAmount} onChange={(e) => set('rentAmount', e.target.value)} /></label>
+                <label>Security Deposit<input type="number" value={form.securityDeposit} onChange={(e) => set('securityDeposit', e.target.value)} /></label>
                 <label>Currency
                   <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
-                    {CURRENCIES.map(c => (
+                    <option value="">Select a currency</option>
+                    {currencyCodes.map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </label>
-                <label>Rent Amount<input type="number" value={form.rentAmount} onChange={(e) => set('rentAmount', e.target.value)} /></label>
-                <label>Security Deposit<input type="number" value={form.securityDeposit} onChange={(e) => set('securityDeposit', e.target.value)} /></label>
+                <label>Base Amount
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    value={baseAmount != null ? `${baseAmount.toFixed(2)} ${baseCurrencyCode}` : ''}
+                    placeholder={baseCurrencyCode ? `— no rate set for ${form.currency || 'this currency'} —` : '— not set in Currency Setup —'}
+                    style={{ background: 'var(--bg-tertiary)', color: baseAmount != null ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'not-allowed' }}
+                  />
+                </label>
               </div>
               <div className="edf-row">
                 <label>Billing Cycle
