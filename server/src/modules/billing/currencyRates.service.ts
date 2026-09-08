@@ -110,6 +110,44 @@ export class CurrencyRatesService {
     const currencyRate = await prisma.currencyRate.findFirst({ where: { id, companyId } });
     if (!currencyRate) throw AppError.notFound('Currency rate');
 
+    // Block deleting the base currency while other rows still convert against it.
+    if (currencyRate.isBaseCurrency) {
+      const dependentRates = await prisma.currencyRate.count({
+        where: { companyId, isBaseCurrency: false, isActive: true, id: { not: id } },
+      });
+      if (dependentRates > 0) {
+        throw new AppError(
+          409,
+          'CURRENCY_IN_USE',
+          `Cannot delete ${currencyRate.currency} — ${dependentRates} other currency rate${dependentRates > 1 ? 's' : ''} in Currency Setup still convert against it as the base currency.`,
+        );
+      }
+    }
+
+    // Block deleting a currency that's already in use by actual business records.
+    const { currency } = currencyRate;
+    const usageCounts = await Promise.all([
+      prisma.property.count({ where: { companyId, currency } }),
+      prisma.lease.count({ where: { companyId, currency } }),
+      prisma.billingSchedule.count({ where: { companyId, currency } }),
+      prisma.invoice.count({ where: { companyId, currency } }),
+      prisma.receipt.count({ where: { companyId, currency } }),
+      prisma.refundRequest.count({ where: { companyId, currency } }),
+      prisma.tenantCredit.count({ where: { companyId, currency } }),
+      prisma.bankAccount.count({ where: { companyId, currency } }),
+      prisma.apInvoice.count({ where: { companyId, currency } }),
+      prisma.paymentVoucher.count({ where: { companyId, currency } }),
+      prisma.expense.count({ where: { companyId, currency } }),
+    ]);
+    const totalUsage = usageCounts.reduce((sum, count) => sum + count, 0);
+    if (totalUsage > 0) {
+      throw new AppError(
+        409,
+        'CURRENCY_IN_USE',
+        `Cannot delete ${currency} — it is used by ${totalUsage} existing record${totalUsage > 1 ? 's' : ''} (leases, invoices, or other transactions).`,
+      );
+    }
+
     await prisma.currencyRate.delete({ where: { id } });
   }
 }

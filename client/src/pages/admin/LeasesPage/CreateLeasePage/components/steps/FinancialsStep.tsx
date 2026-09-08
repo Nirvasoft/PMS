@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetUnitQuery, useGetUnitChargesQuery } from '../../../../../../store/api/unitsApi';
-import { useGetChargeTypesQuery } from '../../../../../../store/api/billingApi';
+import { useGetChargeTypesQuery, useGetCurrencyRatesQuery } from '../../../../../../store/api/billingApi';
 import { useGetPropertyQuery } from '../../../../../../store/api/propertiesApi';
-import { CURRENCIES } from '../../../../../../constants/currencies';
 import type { FormState } from '../../types';
 
 // BillingSchedule/Lease amount columns are Decimal(15,2) — 13 integer digits max.
@@ -47,6 +46,21 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
 
   const unitRate = unitData?.data?.rate ?? null;
   const prefilledFromUnit = unitRate != null && form.rentAmount === String(unitRate);
+
+  // Base Amount is read-only here — it's Base Rent multiplied (or divided, per the
+  // row's own operator) by the Rate from the Currency Setup row matching the
+  // lease's currency, not something a lease sets per-lease.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(undefined, { refetchOnMountOrArgChange: true });
+  const currencyRates = currencyRatesData?.data ?? [];
+  const currencyCodes = [...new Set(currencyRates.map((r) => r.currency))].sort();
+  const baseCurrencyCode = currencyRates.find((r) => r.isBaseCurrency)?.currency ?? '';
+  const selectedCurrencyRate = currencyRates.find((r) => r.currency === form.currency);
+  const rentAmountNum = Number(form.rentAmount || 0);
+  const baseAmount = selectedCurrencyRate
+    ? (selectedCurrencyRate.operator === 'divide'
+        ? rentAmountNum / Number(selectedCurrencyRate.rate)
+        : rentAmountNum * Number(selectedCurrencyRate.rate))
+    : null;
 
   // Default the currency to the selected property's own currency, but let the user
   // override it — re-sync only while they haven't picked a currency by hand for this
@@ -136,12 +150,6 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
           )}
         </div>
         <div className="form-field">
-          <label>Currency</label>
-          <select value={form.currency} onChange={(e) => { manualCurrency.current = true; set('currency', e.target.value); }}>
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div className="form-field">
           <label>Security Deposit</label>
           <input
             type="text"
@@ -149,6 +157,24 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
             placeholder="e.g. 7,000"
             value={formatMoneyDisplay(form.securityDeposit)}
             onChange={(e) => set('securityDeposit', sanitizeMoneyInput(e.target.value))}
+          />
+        </div>
+        <div className="form-field">
+          <label>Currency</label>
+          <select value={form.currency} onChange={(e) => { manualCurrency.current = true; set('currency', e.target.value); }}>
+            <option value="">Select a currency</option>
+            {currencyCodes.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="form-field">
+          <label>Base Amount</label>
+          <input
+            type="text"
+            readOnly
+            disabled
+            value={baseAmount != null ? `${formatMoneyDisplay(baseAmount.toFixed(2))} ${baseCurrencyCode}` : ''}
+            placeholder={baseCurrencyCode ? `— no rate set for ${form.currency || 'this currency'} —` : '— not set in Currency Setup —'}
+            style={{ background: 'var(--bg-tertiary)', color: baseAmount != null ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'not-allowed' }}
           />
         </div>
       </div>
