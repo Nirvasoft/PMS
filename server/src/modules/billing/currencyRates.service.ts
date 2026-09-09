@@ -54,7 +54,7 @@ export class CurrencyRatesService {
         description: (dto.description as string) || null,
         symbol: (dto.symbol as string) || null,
         isBaseCurrency,
-        operator: isBaseCurrency ? 'multiply' : ((dto.operator as string) === 'divide' ? 'divide' : 'multiply'),
+        operator: (dto.operator as string) === 'divide' ? 'divide' : 'multiply',
         rate,
         effectiveDate,
         remarks: (dto.remarks as string) || null,
@@ -98,7 +98,7 @@ export class CurrencyRatesService {
     const updateData: Record<string, unknown> = { currency, baseCurrency, isBaseCurrency, rate };
     if (dto.description !== undefined) updateData.description = dto.description || null;
     if (dto.symbol !== undefined) updateData.symbol = dto.symbol || null;
-    updateData.operator = isBaseCurrency ? 'multiply' : (dto.operator !== undefined ? (dto.operator === 'divide' ? 'divide' : 'multiply') : currencyRate.operator);
+    updateData.operator = dto.operator !== undefined ? (dto.operator === 'divide' ? 'divide' : 'multiply') : currencyRate.operator;
     if (dto.effectiveDate !== undefined) updateData.effectiveDate = effectiveDate;
     if (dto.remarks !== undefined) updateData.remarks = dto.remarks || null;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;

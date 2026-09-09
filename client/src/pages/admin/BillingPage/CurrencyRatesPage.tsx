@@ -9,8 +9,6 @@ import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
-const DEFAULT_BASE_CURRENCY = 'MMK';
-
 const formatRate = (rate: string) => {
   const n = Number(rate);
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
@@ -45,7 +43,7 @@ export default function CurrencyRatesPage() {
   // flagged "Base Currency" (mirrors the server's own derivation in currencyRates.service.ts).
   const globalBaseCurrency = useMemo(() => {
     const baseRows = rates.filter((r) => r.isBaseCurrency).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-    return baseRows[0]?.currency || DEFAULT_BASE_CURRENCY;
+    return baseRows[0]?.currency || '';
   }, [rates]);
 
   // ── Search ────────────────────────────────────────────
@@ -92,6 +90,14 @@ export default function CurrencyRatesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Nothing is base yet — the first currency created must be marked Base Currency,
+    // otherwise the system would end up with no base at all.
+    if (rates.length === 0 && !form.isBaseCurrency) {
+      alertDialog('No Base Currency is set up yet. Check "Base Currency" for this entry before saving.');
+      return;
+    }
+
     const payload = {
       currency: form.currency,
       description: form.description.trim(),
@@ -129,6 +135,9 @@ export default function CurrencyRatesPage() {
   const formRateNum = Number(form.rate);
   const forwardValue = computeForward(formRateNum, form.operator);
   const inverseValue = computeInverse(formRateNum, form.operator);
+  // While "Base Currency" is checked, this row is about to become the base, so the
+  // preview should reflect the in-progress selection rather than the still-saved one.
+  const displayBaseCurrency = form.isBaseCurrency ? (form.currency || '—') : globalBaseCurrency;
 
   // Only one currency can be the base at a time — lock the checkbox once another is set.
   const existingBaseCurrency = rates.find((r) => r.isBaseCurrency && r.id !== editing?.id);
@@ -310,7 +319,7 @@ export default function CurrencyRatesPage() {
                   value={formRateNum > 0 ? forwardValue.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '0.0000'} />
               </div>
               <div className="inv-field">
-                <label>{globalBaseCurrency} [Base] 1.00 equals:</label>
+                <label>{displayBaseCurrency} [Base] 1.00 equals: {form.currency || '—'}</label>
                 <input readOnly disabled style={{ cursor: 'not-allowed' }}
                   value={formRateNum > 0 ? inverseValue.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '0.0000'} />
               </div>
