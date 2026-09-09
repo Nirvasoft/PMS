@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   useGetFloorSetupsQuery, useCreateFloorSetupMutation, useUpdateFloorSetupMutation, useDeleteFloorSetupMutation,
-  useGetPropertiesQuery, type FloorSetup,
+  useGetPropertiesQuery, type FloorSetup, type PropertyListItem,
 } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { Layers, Plus, X, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Building2, Plus, X, Pencil, Trash2, Search, Settings2 } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
-import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 import '../BillingPage/BillingPage.css';
+import './FloorSetupPage.css';
 
 // Unicode superscript letters — native <option> text can't render <sup> HTML, so the
 // suffix is composed from real superscript characters instead (1ˢᵗ, 2ⁿᵈ, 3ʳᵈ, 4ᵗʰ...).
@@ -16,14 +17,24 @@ const toSuperscript = (s: string) => s.split('').map((c) => SUPERSCRIPT[c] || c)
 
 /** 1 -> "1ˢᵗ Floor", 2 -> "2ⁿᵈ Floor", 3 -> "3ʳᵈ Floor", 4 -> "4ᵗʰ Floor", 11-13 -> "ᵗʰ" */
 function ordinalFloorLabel(n: number): string {
+  const suffix = plainOrdinalSuffix(n);
+  return `${n}${toSuperscript(suffix)} Floor`;
+}
+
+function plainOrdinalSuffix(n: number): string {
   const j = n % 10;
   const k = n % 100;
-  let suffix: string;
-  if (j === 1 && k !== 11) suffix = 'st';
-  else if (j === 2 && k !== 12) suffix = 'nd';
-  else if (j === 3 && k !== 13) suffix = 'rd';
-  else suffix = 'th';
-  return `${n}${toSuperscript(suffix)} Floor`;
+  if (j === 1 && k !== 11) return 'st';
+  if (j === 2 && k !== 12) return 'nd';
+  if (j === 3 && k !== 13) return 'rd';
+  return 'th';
+}
+
+/** Deterministic hue per property id so each building reads as a distinct "tower" in the skyline. */
+function hueForId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
+  return h;
 }
 
 export default function FloorSetupPage() {
@@ -46,32 +57,43 @@ export default function FloorSetupPage() {
   const [deleteFloorSetup] = useDeleteFloorSetupMutation();
   const alertDialog = useAlertDialog();
   const confirmDialog = useConfirm();
+  const canCreateFloor = usePermission('floor.create');
 
   const floors = floorsData?.data || [];
 
   // Floor filter resets whenever the sidebar's Active Property changes.
   useEffect(() => { setSearchFloorNumber(''); }, [searchPropertyId]);
 
-  const filteredFloors = floors.filter((f) => {
-    const q = searchQuery.toLowerCase().trim();
-    if (searchPropertyId && f.propertyId !== searchPropertyId) return false;
-    if (searchFloorNumber && String(f.floorNumber) !== searchFloorNumber) return false;
-    if (!q) return true;
-    return (
-      f.property.name.toLowerCase().includes(q) ||
-      f.floorLabel.toLowerCase().includes(q) ||
-      String(f.floorNumber).includes(q) ||
-      ordinalFloorLabel(f.floorNumber).toLowerCase().includes(q)
-    );
-  });
+  // ── Skyline grouping ──────────────────────────────────
+  const floorsByProperty = useMemo(() => {
+    const map = new Map<string, Map<number, FloorSetup>>();
+    floors.forEach((f) => {
+      if (!map.has(f.propertyId)) map.set(f.propertyId, new Map());
+      map.get(f.propertyId)!.set(f.floorNumber, f);
+    });
+    return map;
+  }, [floors]);
 
-  // ── Pagination ──────────────────────────────────────
-  const PAGE_SIZE = 10;
-  const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [searchQuery, searchPropertyId, searchFloorNumber]);
-  const totalPages = Math.max(1, Math.ceil(filteredFloors.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedFloors = filteredFloors.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const q = searchQuery.toLowerCase().trim();
+  const propertyMatchesQuery = (p: PropertyListItem) => !q || p.name.toLowerCase().includes(q);
+  const floorMatchesQuery = (n: number, label: string) =>
+    !q || label.toLowerCase().includes(q) || String(n).includes(q) || ordinalFloorLabel(n).toLowerCase().includes(q);
+
+  // Buildings shown: the sidebar's Active Property alone, or the whole portfolio —
+  // a property qualifies if its name matches, or any of its floors do.
+  const buildingProperties = useMemo(() => {
+    const list = searchPropertyId ? properties.filter((p) => p.id === searchPropertyId) : properties;
+    return list.filter((p) => {
+      if (propertyMatchesQuery(p)) return true;
+      const fm = floorsByProperty.get(p.id);
+      const total = p.totalFloors || 0;
+      for (let n = 1; n <= total; n++) {
+        if (floorMatchesQuery(n, fm?.get(n)?.floorLabel || '')) return true;
+      }
+      return false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [properties, searchPropertyId, q, floorsByProperty]);
 
   const emptyForm = { propertyId: '', floorNumber: '', floorLabel: '' };
   const [showForm, setShowForm] = useState(false);
@@ -81,6 +103,12 @@ export default function FloorSetupPage() {
   // New floors bind to the sidebar's Active Property, same convention as Expenses/Payment
   // Vouchers — only when "All Properties" is active can the property be chosen here.
   const openCreate = () => { setEditing(null); setForm({ ...emptyForm, propertyId: searchPropertyId }); setShowForm(true); };
+  // Clicking an empty slot in the skyline pre-fills property + floor number + a sensible label.
+  const openCreateFloor = (propertyId: string, floorNumber: number) => {
+    setEditing(null);
+    setForm({ propertyId, floorNumber: String(floorNumber), floorLabel: `${floorNumber}${plainOrdinalSuffix(floorNumber)} Floor` });
+    setShowForm(true);
+  };
   const openEdit = (f: FloorSetup) => {
     setEditing(f);
     setForm({ propertyId: f.propertyId, floorNumber: String(f.floorNumber), floorLabel: f.floorLabel });
@@ -118,6 +146,7 @@ export default function FloorSetupPage() {
   };
 
   const formTotalFloors = properties.find((p) => p.id === form.propertyId)?.totalFloors || 0;
+  const isFocusView = !!searchPropertyId;
 
   return (
     <div className="billing-page">
@@ -125,7 +154,7 @@ export default function FloorSetupPage() {
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg" style={{ background: 'rgba(245,158,11,0.12)', color: '#fbbf24' }}>
-            <Layers size={22} />
+            <Building2 size={22} />
           </div>
           <div style={{ flex: 1 }}>
             <h1>Floor Setup</h1>
@@ -192,57 +221,92 @@ export default function FloorSetupPage() {
         </div>
       </div>
 
-      {/* Floor Setup Table */}
-      <div className="billing-table-wrap">
-        <table className="billing-table">
-          <thead>
-            <tr>
-              <th>Property Name</th>
-              <th>Floor Number</th>
-              <th>Floor Label</th>
-              <th className="text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isFetching && floors.length === 0 ? (
-              <tr><td colSpan={4} className="billing-empty">Loading…</td></tr>
-            ) : floors.length === 0 ? (
-              <tr><td colSpan={4} className="billing-empty">No floors set up yet</td></tr>
-            ) : filteredFloors.length === 0 ? (
-              <tr><td colSpan={4} className="billing-empty">No floors match your search</td></tr>
-            ) : paginatedFloors.map((f) => (
-              <tr key={f.id}>
-                <td><span className="cell-primary">{f.property.name}</span></td>
-                <td><span className="cell-mono">{ordinalFloorLabel(f.floorNumber)}</span></td>
-                <td>{f.floorLabel}</td>
-                <td className="text-center">
-                  <PermissionGuard permission="floor.update">
-                    <button className="btn-icon" title="Edit" onClick={() => openEdit(f)}>
-                      <Pencil size={14} />
-                    </button>
-                  </PermissionGuard>
-                  <PermissionGuard permission="floor.delete">
-                    <button className="btn-danger" title="Delete" onClick={() => handleDelete(f)}>
-                      <Trash2 size={14} />
-                    </button>
-                  </PermissionGuard>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Floor Skyline */}
+      <div className="floor-skyline-stage">
+        {isFetching && floors.length === 0 ? (
+          <div className="billing-empty">Loading…</div>
+        ) : properties.length === 0 ? (
+          <div className="billing-empty">No properties found</div>
+        ) : buildingProperties.length === 0 ? (
+          <div className="billing-empty">No floors match your search</div>
+        ) : (
+          <div className="floor-skyline">
+            {buildingProperties.map((p) => {
+              const total = p.totalFloors || 0;
+              const fm = floorsByProperty.get(p.id) || new Map<number, FloorSetup>();
+              const configuredCount = fm.size;
+              const hue = hueForId(p.id);
+              const propMatch = propertyMatchesQuery(p);
 
-        {totalPages > 1 && (
-          <div className="billing-pagination">
-            <span className="page-info">Page {currentPage} of {totalPages}</span>
-            <div className="page-btns">
-              <button disabled={currentPage === 1} onClick={() => setPage((p) => p - 1)}>
-                <ChevronLeft size={15} />
-              </button>
-              <button disabled={currentPage === totalPages} onClick={() => setPage((p) => p + 1)}>
-                <ChevronRight size={15} />
-              </button>
-            </div>
+              const rows: number[] = [];
+              for (let n = total; n >= 1; n--) {
+                if (isFocusView && searchFloorNumber && String(n) !== searchFloorNumber) continue;
+                rows.push(n);
+              }
+
+              return (
+                <div key={p.id} className={`building-card ${isFocusView ? 'focus' : ''}`}>
+                  {total === 0 ? (
+                    <div className="building-empty-state">
+                      <Settings2 size={20} />
+                      <span>Set total floors for<br />"{p.name}" in Property settings</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="building-tower" style={{ ['--b-hue' as any]: hue }}>
+                        <span className="building-spire" />
+                        {rows.map((n, idx) => {
+                          const f = fm.get(n);
+                          const visible = propMatch || floorMatchesQuery(n, f?.floorLabel || '');
+                          const isMatch = !!q && !propMatch && visible;
+                          return (
+                            <div
+                              key={n}
+                              className={`floor-slab ${f ? 'filled' : 'empty'}${!visible ? ' dim' : ''}${isMatch ? ' match' : ''}`}
+                              style={{ ['--fi' as any]: rows.length - idx }}
+                              onClick={() => {
+                                if (f) openEdit(f);
+                                else if (canCreateFloor) openCreateFloor(p.id, n);
+                              }}
+                              title={f ? f.floorLabel : canCreateFloor ? `Add ${ordinalFloorLabel(n)}` : ordinalFloorLabel(n)}
+                            >
+                              <span className="fs-num">{ordinalFloorLabel(n)}</span>
+                              {f ? <span className="fs-label">{f.floorLabel}</span> : <Plus size={12} className="fs-plus" />}
+                              {f && (
+                                <div className="fs-actions">
+                                  <PermissionGuard permission="floor.update">
+                                    <button type="button" title="Edit" onClick={(e) => { e.stopPropagation(); openEdit(f); }}>
+                                      <Pencil size={11} />
+                                    </button>
+                                  </PermissionGuard>
+                                  <PermissionGuard permission="floor.delete">
+                                    <button type="button" className="danger" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(f); }}>
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </PermissionGuard>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="building-ground" />
+                    </>
+                  )}
+                  <div className="building-label">
+                    <span className="bl-name" title={p.name}>{p.name}</span>
+                    {total > 0 && (
+                      <>
+                        <div className="bl-progress">
+                          <div className="bl-progress-fill" style={{ width: `${(configuredCount / total) * 100}%`, ['--b-hue' as any]: hue }} />
+                        </div>
+                        <span className="bl-count">{configuredCount}/{total} floors set</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -252,7 +316,7 @@ export default function FloorSetupPage() {
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2><Layers size={18} /> {editing ? 'Edit Floor' : 'New Floor'}</h2>
+              <h2><Building2 size={18} /> {editing ? 'Edit Floor' : 'New Floor'}</h2>
               <button className="modal-close" onClick={closeForm}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit}>

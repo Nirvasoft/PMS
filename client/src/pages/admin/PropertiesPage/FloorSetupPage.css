@@ -1,0 +1,262 @@
+/* ═══════════════════════════════════════════════
+   Floor Setup — 3D Building Skyline
+   ═══════════════════════════════════════════════ */
+
+.floor-skyline-stage {
+  position: relative;
+  border-radius: 20px;
+  padding: 44px 24px 24px;
+  background:
+    radial-gradient(ellipse 60% 100% at 50% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+    var(--surface);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.floor-skyline {
+  display: flex;
+  align-items: flex-end;
+  gap: 28px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 6px 10px;
+  perspective: 1200px;
+}
+
+.floor-skyline::-webkit-scrollbar { height: 8px; }
+.floor-skyline::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ── Building ─────────────────────────────── */
+
+.building-card {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 148px;
+}
+
+.building-card.focus { width: 260px; }
+
+.building-tower {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  transform-style: preserve-3d;
+  transform: rotateX(4deg) rotateY(-9deg);
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  max-height: 520px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  border-radius: 8px 8px 3px 3px;
+}
+.building-tower::-webkit-scrollbar { width: 5px; }
+.building-tower::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.building-card:hover .building-tower {
+  transform: rotateX(2deg) rotateY(-14deg) translateY(-4px);
+}
+
+.building-spire {
+  align-self: center;
+  width: 3px;
+  height: 12px;
+  margin-bottom: 2px;
+  border-radius: 2px;
+  background: linear-gradient(var(--text-muted), transparent);
+  flex-shrink: 0;
+}
+
+.building-ground {
+  width: 72%;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.32), transparent 72%);
+  flex-shrink: 0;
+}
+
+/* ── Floor slab ───────────────────────────── */
+
+.floor-slab {
+  position: relative;
+  height: 32px;
+  margin-bottom: 3px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 9px;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+  transform: translateZ(calc(var(--fi, 0) * 1.1px));
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s, filter 0.2s, border-color 0.2s;
+}
+.building-card.focus .floor-slab { height: 38px; font-size: 12px; }
+
+.floor-slab:hover {
+  transform: translateZ(calc(var(--fi, 0) * 1.1px + 6px)) scale(1.015);
+  z-index: 3;
+}
+
+.floor-slab.filled {
+  background: linear-gradient(155deg, hsl(var(--b-hue) 68% 56% / 0.92), hsl(var(--b-hue) 68% 36% / 0.95));
+  border: 1px solid hsl(var(--b-hue) 70% 68% / 0.5);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.floor-slab.filled::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 5px, transparent 5px 13px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.floor-slab.filled:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 0 0 2px hsl(var(--b-hue) 70% 65% / 0.4);
+}
+
+.floor-slab.empty {
+  background: color-mix(in srgb, var(--surface-elevated) 55%, transparent);
+  border: 1.5px dashed var(--border);
+  color: var(--text-muted);
+}
+.floor-slab.empty:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.floor-slab.dim { opacity: 0.28; filter: saturate(0.5); }
+
+.floor-slab.match {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 12px var(--accent-glow);
+  animation: fs-pulse 1.6s ease-in-out infinite;
+}
+@keyframes fs-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--accent), 0 0 8px var(--accent-glow); }
+  50%      { box-shadow: 0 0 0 2px var(--accent), 0 0 18px var(--accent-glow); }
+}
+
+.fs-num {
+  font-size: 9px;
+  opacity: 0.85;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.building-card.focus .fs-num { font-size: 10.5px; }
+
+.fs-label {
+  flex: 1;
+  margin-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.fs-plus { opacity: 0.7; flex-shrink: 0; }
+
+.fs-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.floor-slab.filled:hover .fs-actions { opacity: 1; }
+
+.fs-actions button {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.fs-actions button:hover { background: rgba(255, 255, 255, 0.32); }
+.fs-actions button.danger:hover { background: rgba(239, 68, 68, 0.55); }
+
+/* ── Building label / progress ───────────── */
+
+.building-label {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+}
+.bl-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bl-progress {
+  width: 80%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-subtle);
+  overflow: hidden;
+}
+.bl-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, hsl(var(--b-hue) 70% 55%), hsl(var(--b-hue) 70% 68%));
+  transition: width 0.3s;
+}
+.bl-count {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+/* ── Property missing totalFloors ────────── */
+
+.building-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 150px;
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+  text-align: center;
+  padding: 14px;
+  background: color-mix(in srgb, var(--surface-elevated) 40%, transparent);
+}
+
+/* ── Responsive ───────────────────────────── */
+
+@media (max-width: 768px) {
+  .floor-skyline-stage { padding: 28px 12px 16px; }
+  .building-card { width: 118px; }
+  .building-card.focus { width: 200px; }
+  .floor-slab { height: 28px; font-size: 9.5px; }
+  .building-card.focus .floor-slab { height: 32px; font-size: 10.5px; }
+}
