@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 const MODULE_ORDER = [
   'dashboard',
   'users', 'roles', 'departments', 'positions',
-  'company', 'properties', 'floor', 'unit', 'tenants', 'leases',
+  'company', 'currency-rate', 'properties', 'floor', 'unit', 'tenants', 'leases',
   'crm-leads', 'crm-campaigns',
   'parking-overview', 'parking-allocations', 'parking-visitors', 'parking-gate-logs', 'parking-vehicles',
   'billing-dashboard', 'billing-invoices', 'billing-schedules', 'charge-category', 'billing-charge-types', 'meter', 'billing-settings',
@@ -55,7 +55,7 @@ function sortByMenuOrder(modules: string[]): string[] {
 // standalone, same as in the side menu.
 const MODULE_SECTIONS: Record<string, string> = {
   users: 'Administration', roles: 'Administration', departments: 'Administration', positions: 'Administration',
-  company: 'Organization', properties: 'Organization', floor: 'Organization', unit: 'Organization', tenants: 'Organization', leases: 'Organization',
+  company: 'Organization', 'currency-rate': 'Organization', properties: 'Organization', floor: 'Organization', unit: 'Organization', tenants: 'Organization', leases: 'Organization',
   'crm-leads': 'CRM', 'crm-campaigns': 'CRM',
   'parking-overview': 'Parking', 'parking-allocations': 'Parking', 'parking-visitors': 'Parking', 'parking-gate-logs': 'Parking', 'parking-vehicles': 'Parking',
   'billing-dashboard': 'Billing', 'billing-invoices': 'Billing', 'billing-schedules': 'Billing', 'charge-category': 'Billing', 'billing-charge-types': 'Billing', meter: 'Billing', 'billing-settings': 'Billing',
@@ -94,6 +94,7 @@ const CHILD_TO_PARENT: Record<string, string> = Object.fromEntries(
 // when a module's slug doesn't already read naturally, e.g. a hyphenated sub-menu module
 // that should show the same label as its side-menu link ("crm-leads" -> "Lead Pipeline").
 const MODULE_LABELS: Record<string, string> = {
+  'currency-rate': 'Currency Setup',
   floor: 'Floor Setup',
   'crm-leads': 'Lead Pipeline',
   'crm-campaigns': 'Campaigns',
