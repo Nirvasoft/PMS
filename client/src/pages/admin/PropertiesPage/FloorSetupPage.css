@@ -2,6 +2,18 @@
    Floor Setup — 3D Building Skyline
    ═══════════════════════════════════════════════ */
 
+/* Read-only "Active Property" display — same look as .meter-search-select but a plain
+   div, so no native <select> chevron/arrow shows on a field with nothing to pick. */
+.meter-search-select--static {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.45;
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .floor-skyline-stage {
   position: relative;
   border-radius: 20px;
@@ -229,6 +241,37 @@
 .bl-count {
   font-size: 10.5px;
   color: var(--text-muted);
+}
+
+.bl-fill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px dashed var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  white-space: nowrap;
+}
+.bl-fill-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  transform: translateY(-1px);
+}
+.bl-fill-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+.bl-fill-spin {
+  animation: bl-fill-spin 0.8s linear infinite;
+}
+@keyframes bl-fill-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ── Property missing totalFloors ────────── */

@@ -4,7 +4,7 @@ import {
   useGetPropertiesQuery, type FloorSetup, type PropertyListItem,
 } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { Building2, Plus, X, Pencil, Trash2, Search, Settings2 } from 'lucide-react';
+import { Building2, Plus, X, Pencil, Trash2, Search, Settings2, Sparkles, Loader2 } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 import '../BillingPage/BillingPage.css';
@@ -37,6 +37,58 @@ function hueForId(id: string): number {
   return h;
 }
 
+/* ── Smart label prediction ──────────────────────────
+   If the user already labeled floor 1 "B2", the next floors should continue
+   that scheme ("B3", "B4"…) instead of resetting to generic "Nth Floor". */
+interface LabelAnchor { floorNumber: number; prefix: string; num: number; suffix: string }
+
+/** Parses a label like "B2" or "Level 12A" into a prefix/number/suffix anchor; null if it has no number to continue from. */
+function parseLabelAnchor(floorNumber: number, label: string): LabelAnchor | null {
+  const m = label.match(/^(\D*?)(\d+)(\D*)$/);
+  if (!m) return null;
+  return { floorNumber, prefix: m[1], num: parseInt(m[2], 10), suffix: m[3] };
+}
+
+/** Groups existing labels by their textual pattern (prefix+suffix) and derives each group's per-floor step. */
+function buildLabelGroups(fm: Map<number, FloorSetup> | undefined): { anchors: LabelAnchor[]; slope: number }[] {
+  if (!fm) return [];
+  const anchors: LabelAnchor[] = [];
+  fm.forEach((f) => {
+    const a = parseLabelAnchor(f.floorNumber, f.floorLabel);
+    if (a) anchors.push(a);
+  });
+  const groups = new Map<string, LabelAnchor[]>();
+  anchors.forEach((a) => {
+    const key = `${a.prefix} ${a.suffix}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(a);
+  });
+  return [...groups.values()].map((list) => {
+    list.sort((x, y) => x.floorNumber - y.floorNumber);
+    let slope = 1;
+    if (list.length >= 2) {
+      const first = list[0], last = list[list.length - 1];
+      const raw = (last.num - first.num) / (last.floorNumber - first.floorNumber);
+      if (Number.isFinite(raw) && raw !== 0) slope = Math.round(raw);
+    }
+    return { anchors: list, slope };
+  });
+}
+
+/** Predicts a label for floor `n` by extending the pattern of whichever existing floor is numerically closest to it. */
+function predictFloorLabel(n: number, groups: { anchors: LabelAnchor[]; slope: number }[]): string {
+  let best: { anchor: LabelAnchor; slope: number; dist: number } | null = null;
+  for (const g of groups) {
+    for (const a of g.anchors) {
+      const dist = Math.abs(a.floorNumber - n);
+      if (!best || dist < best.dist) best = { anchor: a, slope: g.slope, dist };
+    }
+  }
+  if (!best) return `${n}${plainOrdinalSuffix(n)} Floor`;
+  const computedNum = best.anchor.num + best.slope * (n - best.anchor.floorNumber);
+  return `${best.anchor.prefix}${computedNum}${best.anchor.suffix}`;
+}
+
 export default function FloorSetupPage() {
   const { data: propertiesData } = useGetPropertiesQuery({ limit: 100 });
   const properties = propertiesData?.data || [];
@@ -49,7 +101,6 @@ export default function FloorSetupPage() {
   // ── Search ──────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const searchPropertyId = useSelectedPropertyFilter();
-  const [searchFloorNumber, setSearchFloorNumber] = useState('');
 
   const { data: floorsData, isFetching } = useGetFloorSetupsQuery();
   const [createFloorSetup, { isLoading: creating }] = useCreateFloorSetupMutation();
@@ -60,9 +111,6 @@ export default function FloorSetupPage() {
   const canCreateFloor = usePermission('floor.create');
 
   const floors = floorsData?.data || [];
-
-  // Floor filter resets whenever the sidebar's Active Property changes.
-  useEffect(() => { setSearchFloorNumber(''); }, [searchPropertyId]);
 
   // ── Skyline grouping ──────────────────────────────────
   const floorsByProperty = useMemo(() => {
@@ -100,17 +148,25 @@ export default function FloorSetupPage() {
   const [editing, setEditing] = useState<FloorSetup | null>(null);
   const [form, setForm] = useState(emptyForm);
 
+  // Floor Label auto-fills from the detected pattern when a floor number is picked; once the
+  // user edits the label by hand, further floor-number changes stop overwriting it.
+  const [labelTouched, setLabelTouched] = useState(false);
+
   // New floors bind to the sidebar's Active Property, same convention as Expenses/Payment
   // Vouchers — only when "All Properties" is active can the property be chosen here.
-  const openCreate = () => { setEditing(null); setForm({ ...emptyForm, propertyId: searchPropertyId }); setShowForm(true); };
-  // Clicking an empty slot in the skyline pre-fills property + floor number + a sensible label.
+  const openCreate = () => { setEditing(null); setLabelTouched(false); setForm({ ...emptyForm, propertyId: searchPropertyId }); setShowForm(true); };
+  // Clicking an empty slot in the skyline pre-fills property + floor number + a label that
+  // continues whatever naming pattern the property's existing floors already use.
   const openCreateFloor = (propertyId: string, floorNumber: number) => {
     setEditing(null);
-    setForm({ propertyId, floorNumber: String(floorNumber), floorLabel: `${floorNumber}${plainOrdinalSuffix(floorNumber)} Floor` });
+    setLabelTouched(false);
+    const groups = buildLabelGroups(floorsByProperty.get(propertyId));
+    setForm({ propertyId, floorNumber: String(floorNumber), floorLabel: predictFloorLabel(floorNumber, groups) });
     setShowForm(true);
   };
   const openEdit = (f: FloorSetup) => {
     setEditing(f);
+    setLabelTouched(true); // editing an existing label should never be auto-overwritten
     setForm({ propertyId: f.propertyId, floorNumber: String(f.floorNumber), floorLabel: f.floorLabel });
     setShowForm(true);
   };
@@ -142,6 +198,40 @@ export default function FloorSetupPage() {
     } catch (e: any) {
       const msg = e?.data?.errors?.[0]?.message || 'Failed to delete floor';
       alertDialog(msg);
+    }
+  };
+
+  // One click fills every unconfigured floor for a building, continuing whatever label
+  // pattern the property's existing floors already use (e.g. 1st floor "B2" → "B3", "B4"…) —
+  // avoids clicking each empty slot individually on a tall tower.
+  const [fillingPropertyId, setFillingPropertyId] = useState<string | null>(null);
+  const handleFillRemaining = async (property: PropertyListItem, missing: number[]) => {
+    if (missing.length === 0) return;
+    const ok = await confirmDialog(
+      `Create ${missing.length} missing floor${missing.length > 1 ? 's' : ''} for "${property.name}" with auto-generated labels?`,
+      { confirmText: 'Create All' }
+    );
+    if (!ok) return;
+    setFillingPropertyId(property.id);
+    try {
+      // Predicted from the property's floors as they stood when the button was clicked, so
+      // every missing floor extends the same original pattern rather than each other's guesses.
+      const groups = buildLabelGroups(floorsByProperty.get(property.id));
+      const results = await Promise.allSettled(
+        missing.map((n) =>
+          createFloorSetup({
+            propertyId: property.id,
+            floorNumber: n,
+            floorLabel: predictFloorLabel(n, groups),
+          }).unwrap()
+        )
+      );
+      const failed = results.length - results.filter((r) => r.status === 'fulfilled').length;
+      if (failed > 0) {
+        alertDialog(`Created ${results.length - failed} of ${results.length} floors. ${failed} failed — a label or floor number may already be in use.`);
+      }
+    } finally {
+      setFillingPropertyId(null);
     }
   };
 
@@ -191,33 +281,11 @@ export default function FloorSetupPage() {
           )}
         </div>
         <div className="meter-search-filter-wrap">
-          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
-          <select className="meter-search-select" value={searchPropertyId} disabled>
-            {searchPropertyId && (
-              <option value={searchPropertyId}>{properties.find((p) => p.id === searchPropertyId)?.name || ''}</option>
-            )}
-          </select>
-          <select
-            className="meter-search-select"
-            value={searchFloorNumber}
-            onChange={(e) => setSearchFloorNumber(e.target.value)}
-            disabled={!searchPropertyId}
-          >
-            <option value="">{searchPropertyId ? 'All Floors' : 'Select property first'}</option>
-            {floorNumberOptions(searchPropertyId).map((n) => (
-              <option key={n} value={n}>{ordinalFloorLabel(n)}</option>
-            ))}
-          </select>
-          {searchFloorNumber && (
-            <button
-              type="button"
-              className="meter-search-reset-btn"
-              onClick={() => setSearchFloorNumber('')}
-              title="Clear floor filter"
-            >
-              <X size={13} /> Clear
-            </button>
-          )}
+          {/* Follows the sidebar's "Active Property" selector — a read-only display, not a real
+              dropdown, so it's a plain div (no native chevron/arrow like an actual <select>). */}
+          <div className="meter-search-select meter-search-select--static">
+            {searchPropertyId ? properties.find((p) => p.id === searchPropertyId)?.name || '' : 'All Properties'}
+          </div>
         </div>
       </div>
 
@@ -239,10 +307,7 @@ export default function FloorSetupPage() {
               const propMatch = propertyMatchesQuery(p);
 
               const rows: number[] = [];
-              for (let n = total; n >= 1; n--) {
-                if (isFocusView && searchFloorNumber && String(n) !== searchFloorNumber) continue;
-                rows.push(n);
-              }
+              for (let n = total; n >= 1; n--) rows.push(n);
 
               return (
                 <div key={p.id} className={`building-card ${isFocusView ? 'focus' : ''}`}>
@@ -301,6 +366,23 @@ export default function FloorSetupPage() {
                           <div className="bl-progress-fill" style={{ width: `${(configuredCount / total) * 100}%`, ['--b-hue' as any]: hue }} />
                         </div>
                         <span className="bl-count">{configuredCount}/{total} floors set</span>
+                        {configuredCount < total && canCreateFloor && (
+                          <button
+                            type="button"
+                            className="bl-fill-btn"
+                            disabled={fillingPropertyId === p.id}
+                            onClick={() => {
+                              const missing: number[] = [];
+                              for (let n = 1; n <= total; n++) if (!fm.has(n)) missing.push(n);
+                              handleFillRemaining(p, missing);
+                            }}
+                          >
+                            {fillingPropertyId === p.id
+                              ? <Loader2 size={11} className="bl-fill-spin" />
+                              : <Sparkles size={11} />}
+                            {fillingPropertyId === p.id ? 'Filling…' : `Fill ${total - configuredCount} remaining`}
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
@@ -334,7 +416,15 @@ export default function FloorSetupPage() {
                   <div className="inv-field">
                     <label>Floor Number <span className="req">*</span></label>
                     <select required value={form.floorNumber} disabled={!form.propertyId}
-                      onChange={(e) => setForm({ ...form, floorNumber: e.target.value })}>
+                      onChange={(e) => {
+                        const floorNumber = e.target.value;
+                        if (!editing && !labelTouched && floorNumber) {
+                          const groups = buildLabelGroups(floorsByProperty.get(form.propertyId));
+                          setForm({ ...form, floorNumber, floorLabel: predictFloorLabel(Number(floorNumber), groups) });
+                        } else {
+                          setForm({ ...form, floorNumber });
+                        }
+                      }}>
                       <option value="">
                         {!form.propertyId ? 'Select a property first…' : formTotalFloors === 0 ? 'No total floors set for this property' : 'Select floor…'}
                       </option>
@@ -344,7 +434,7 @@ export default function FloorSetupPage() {
                   <div className="inv-field">
                     <label>Floor Label <span className="req">*</span></label>
                     <input required placeholder="e.g. 10th Floor" value={form.floorLabel}
-                      onChange={(e) => setForm({ ...form, floorLabel: e.target.value })} />
+                      onChange={(e) => { setLabelTouched(true); setForm({ ...form, floorLabel: e.target.value }); }} />
                   </div>
                 </div>
               </div>
