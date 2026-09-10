@@ -45,7 +45,7 @@ export default function InvoiceListPage() {
   const { data, isFetching } = useGetInvoicesQuery({
     propertyId: activePropertyFilter || undefined,
     status: status || undefined,
-    tenantName: debouncedSearch || undefined,
+    search: debouncedSearch || undefined,
     page, limit: 15,
   });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
@@ -67,8 +67,8 @@ export default function InvoiceListPage() {
     };
   }, [invoices, meta]);
 
-  // Tenant-name filtering happens server-side (see `tenantName` above), so it covers every
-  // matching invoice — not just whichever page happened to be loaded.
+  // Filtering by invoice # / tenant name happens server-side (see `search` above), so it
+  // covers every matching invoice — not just whichever page happened to be loaded.
   const filteredInvoices = invoices;
 
   // ── Selection Helpers ──────────────────────
@@ -232,7 +232,7 @@ export default function InvoiceListPage() {
       <div className="billing-filters">
         <div className="search-wrap">
           <Search size={15} className="search-icon" />
-          <input type="text" placeholder="Search by tenant name…" value={search} onChange={e => setSearch(e.target.value)} />
+          <input type="text" placeholder="Search invoice or tenant" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className="filter-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); clearSelection(); }}>
           <option value="">All Statuses</option>

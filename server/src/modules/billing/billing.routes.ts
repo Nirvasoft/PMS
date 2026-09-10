@@ -174,7 +174,7 @@ invoicesRouter.get('/', asyncHandler(async (req, res) => {
     leaseId: req.query.leaseId as string,
     propertyId: req.query.propertyId as string,
     status: req.query.status as string,
-    tenantName: req.query.tenantName as string,
+    search: req.query.search as string,
     from: req.query.from as string,
     to: req.query.to as string,
     page: parseInt(req.query.page as string) || 1,
