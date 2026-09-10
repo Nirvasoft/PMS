@@ -65,9 +65,6 @@ export default function RolesPage() {
           </button>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <PermissionGuard permission="roles.manage">
-            <button className="btn" onClick={() => navigate('/admin/roles/assign-permission')}>+ Assign Permission</button>
-          </PermissionGuard>
           <PermissionGuard permission="roles.create">
             <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Role</button>
           </PermissionGuard>
@@ -90,7 +87,7 @@ export default function RolesPage() {
             </thead>
             <tbody>
               {pagedRoles.map((role) => (
-                <tr key={role.id} className="table-row-clickable" onClick={() => setEditingRole(role)}>
+                <tr key={role.id} className="table-row-clickable" onClick={() => navigate(`/admin/roles/assign-permission?roleId=${role.id}`)}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 600 }}>{role.name}</span>
@@ -101,16 +98,28 @@ export default function RolesPage() {
                   <td className="text-muted text-small">{role.userCount}</td>
                   <td className="text-muted text-small">{role.permissionCount ?? 0}</td>
                   <td>
-                    {!role.isSystem && (
-                      <PermissionGuard permission="roles.manage">
-                        <button
-                          className="btn btn-sm btn-danger"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
-                        >
-                          Delete
-                        </button>
-                      </PermissionGuard>
-                    )}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {!role.isSystem && (
+                        <PermissionGuard permission="roles.manage">
+                          <button
+                            className="btn btn-sm"
+                            onClick={(e) => { e.stopPropagation(); setEditingRole(role); }}
+                          >
+                            Edit
+                          </button>
+                        </PermissionGuard>
+                      )}
+                      {!role.isSystem && (
+                        <PermissionGuard permission="roles.manage">
+                          <button
+                            className="btn btn-sm btn-danger"
+                            onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
+                          >
+                            Delete
+                          </button>
+                        </PermissionGuard>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -123,7 +132,7 @@ export default function RolesPage() {
       ) : (
         <div className="roles-grid">
           {pagedRoles.map((role) => (
-            <div key={role.id} className="role-card-full" onClick={() => setEditingRole(role)}>
+            <div key={role.id} className="role-card-full" onClick={() => navigate(`/admin/roles/assign-permission?roleId=${role.id}`)}>
               <div className="role-card-header">
                 <h3>{role.name}</h3>
                 {role.isSystem && <span className="role-chip system">System</span>}
@@ -131,16 +140,28 @@ export default function RolesPage() {
               <p className="text-secondary text-small">{role.description || 'No description'}</p>
               <div className="role-card-footer">
                 <span className="text-muted text-small">{role.userCount} user(s)</span>
-                {!role.isSystem && (
-                  <PermissionGuard permission="roles.manage">
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
-                    >
-                      Delete
-                    </button>
-                  </PermissionGuard>
-                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {!role.isSystem && (
+                    <PermissionGuard permission="roles.manage">
+                      <button
+                        className="btn btn-sm"
+                        onClick={(e) => { e.stopPropagation(); setEditingRole(role); }}
+                      >
+                        Edit
+                      </button>
+                    </PermissionGuard>
+                  )}
+                  {!role.isSystem && (
+                    <PermissionGuard permission="roles.manage">
+                      <button
+                        className="btn btn-sm btn-danger"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
+                      >
+                        Delete
+                      </button>
+                    </PermissionGuard>
+                  )}
+                </div>
               </div>
             </div>
           ))}

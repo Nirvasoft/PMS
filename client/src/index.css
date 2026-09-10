@@ -3109,6 +3109,88 @@ select.input-full:focus {
   height: 12px;
 }
 
+
+/* ─── Permission Tabs Layout ─────────────────── */
+.perm-tabs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.perm-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.perm-tab-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.perm-tab-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.perm-tab-btn.active .perm-tab-badge {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}
+
+.perm-tab-badge {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.perm-tab-badge.none {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+
+.perm-tabs-content {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  min-height: 300px;
+}
+
+.perm-tabs-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.perm-tabs-header h4 {
+  flex: 1;
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin: 0;
+}
+
 /* ─── Department Tree ───────────────────────── */
 .dept-tree {
   border: 1px solid var(--border);
