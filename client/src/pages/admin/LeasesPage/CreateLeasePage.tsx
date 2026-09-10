@@ -24,7 +24,7 @@ const todayISO = () => new Date().toISOString().split('T')[0];
 
 const INITIAL: FormState = {
   propertyId: '', propertyCode: '', unitId: '', unitCode: '', tenantId: '', tenantCode: '', templateId: '',
-  startDate: '', endDate: '', handoverDate: '', predefinedType: '',
+  startDate: todayISO(), endDate: '', handoverDate: '', predefinedType: '',
   billingCycle: 'monthly', billingDay: 1, paymentDueDays: 7,
   rentAmount: '', currency: 'USD', securityDeposit: '',
   escalationType: '', escalationValue: '', escalationFrequency: 'annual',

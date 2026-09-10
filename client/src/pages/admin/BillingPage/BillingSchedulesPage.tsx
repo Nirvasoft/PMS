@@ -158,6 +158,16 @@ export default function BillingSchedulesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId, form.unitId, floors, units, floorId]);
 
+  const quantitySyncedRef = useRef(false);
+  useEffect(() => {
+    if (!showForm) { quantitySyncedRef.current = false; return; }
+    if (!editId || !form.leaseId || quantitySyncedRef.current) return;
+    const lease = leases.find((l) => l.id === form.leaseId);
+    if (!lease) return; // not loaded yet (or the lease is no longer active)
+    quantitySyncedRef.current = true;
+    setForm((f) => ({ ...f, quantity: lease.leaseTermMonths }));
+  }, [showForm, editId, form.leaseId, leases]);
+
   const handleAction = async (id: string, action: 'pause' | 'resume' | 'cancel') => {
     if (action === 'cancel' && !(await confirmDialog('Cancel this billing schedule? No future invoices will be generated.', { danger: true, confirmText: 'Cancel Schedule' }))) return;
     try {
@@ -467,6 +477,7 @@ export default function BillingSchedulesPage() {
                         leaseId: lease?.id || '',
                         tenantId: lease?.tenant.id || '',
                         unitId,
+                        quantity: lease?.leaseTermMonths ?? form.quantity,
                       });
                       if (lease?.unit?.id) setFloorId(deriveFloorId(lease.unit.id));
                     }}>
