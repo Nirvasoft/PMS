@@ -13,6 +13,20 @@ const SYSTEM_CHARGE_CATEGORIES = [
 ];
 
 export class ChargeCategoriesService {
+  // Shared by create()/update() — a code must be unique (case-insensitive) across a
+  // company's own categories plus the system-wide ones, excluding the row being edited.
+  private async assertCodeAvailable(companyId: string, code: string, excludeId?: string) {
+    const duplicate = await prisma.chargeCategory.findFirst({
+      where: {
+        OR: [{ companyId: null }, { companyId }],
+        code: { equals: code, mode: 'insensitive' },
+        isActive: true,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+    });
+    if (duplicate) throw new AppError(409, 'CODE_TAKEN', `Charge category code "${code}" already exists`);
+  }
+
   async seedDefaults() {
     let created = 0;
     for (const cc of SYSTEM_CHARGE_CATEGORIES) {
@@ -62,14 +76,7 @@ export class ChargeCategoriesService {
     const code = (dto.code as string || '').trim();
     if (!code) throw new AppError(400, 'CODE_REQUIRED', 'Code is required');
 
-    const duplicate = await prisma.chargeCategory.findFirst({
-      where: {
-        OR: [{ companyId: null }, { companyId }],
-        code: { equals: code, mode: 'insensitive' },
-        isActive: true,
-      },
-    });
-    if (duplicate) throw new AppError(409, 'CODE_TAKEN', `Charge category code "${code}" already exists`);
+    await this.assertCodeAvailable(companyId, code);
 
     return prisma.chargeCategory.create({
       data: {
@@ -91,15 +98,7 @@ export class ChargeCategoriesService {
     if (dto.code !== undefined) {
       const code = (dto.code as string || '').trim();
       if (!code) throw new AppError(400, 'CODE_REQUIRED', 'Code is required');
-      const duplicate = await prisma.chargeCategory.findFirst({
-        where: {
-          OR: [{ companyId: null }, { companyId }],
-          code: { equals: code, mode: 'insensitive' },
-          isActive: true,
-          id: { not: id },
-        },
-      });
-      if (duplicate) throw new AppError(409, 'CODE_TAKEN', `Charge category code "${code}" already exists`);
+      await this.assertCodeAvailable(companyId, code, id);
       updateData.code = code;
     }
     if (dto.description !== undefined) updateData.description = dto.description || null;

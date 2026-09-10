@@ -5,6 +5,17 @@ import { webhookLeaseCreated } from '../../../common/webhookHooks';
 import { unitsService } from '../../units/units.service';
 
 export class LeasesService {
+  // Looks up the Currency Setup rate matching `currency` as of right now — used to
+  // snapshot a lease's currencyRate server-side so it can't be spoofed via the request
+  // body, and so it stays put even if the Currency Setup row is edited later.
+  private async latestCurrencyRate(companyId: string, currency: string) {
+    const row = await prisma.currencyRate.findFirst({
+      where: { companyId, currency, isActive: true },
+      orderBy: { effectiveDate: 'desc' },
+    });
+    return row?.rate ?? null;
+  }
+
   // ── List ──────────────────────────────────
   async findAll(companyId: string, query: {
     search?: string; propertyId?: string; unitId?: string; tenantId?: string;
@@ -58,7 +69,7 @@ export class LeasesService {
     const lease = await prisma.lease.findFirst({
       where: { id, companyId, deletedAt: null },
       include: {
-        unit:     { select: { id: true, unitNumber: true, unitType: true, areaSqft: true } },
+        unit:     { select: { id: true, unitNumber: true, unitType: true, areaSqft: true, floorNumber: true } },
         property: { select: { id: true, name: true, currency: true } },
         tenant:   { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, email: true, mobile: true } },
         creator:  { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
@@ -86,8 +97,18 @@ export class LeasesService {
     // Prisma client predates the column.
     const raRows = await prisma.$queryRaw<{ rental_agreement: unknown }[]>`SELECT "rental_agreement" FROM "leases" WHERE "id" = ${id}::uuid`;
 
+    // Floor label is sourced live from Floor Setup (not the unit's own copy)
+    // so it stays in sync if the floor is renamed later.
+    const floorSetup = lease.unit.floorNumber != null
+      ? await prisma.floorSetup.findFirst({
+          where: { propertyId: lease.propertyId, floorNumber: lease.unit.floorNumber },
+          select: { floorLabel: true },
+        })
+      : null;
+
     return {
       ...leaseRest,
+      unit: { ...lease.unit, floorLabel: floorSetup?.floorLabel ?? null },
       rentalAgreement: raRows[0]?.rental_agreement ?? null,
       tenant: { ...tenant, displayName: tenant.tenantType === 'company' ? tenant.companyName : `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() },
       daysUntilExpiry: daysUntilExpiry(lease.endDate),
@@ -125,6 +146,8 @@ export class LeasesService {
       if (tmpl) templateClauses = tmpl.clauses as unknown[];
     }
 
+    const currencyRate = rest.currency ? await this.latestCurrencyRate(companyId, rest.currency) : null;
+
     const lease = await prisma.lease.create({
       data: {
         companyId, propertyId, unitId, tenantId,
@@ -134,6 +157,7 @@ export class LeasesService {
         leaseTermMonths: calcLeaseTermMonths(start, end),
         createdBy,
         clauses: rest.clauses ?? templateClauses,
+        currencyRate,
         // Convert handoverDate string → Date so Prisma doesn't reject it
         ...(handoverDate ? { handoverDate: new Date(handoverDate) } : {}),
         ...rest,
@@ -191,10 +215,16 @@ export class LeasesService {
     const end   = endDate   ? new Date(endDate)   : new Date(lease.endDate);
     if (end <= start) throw new AppError(400, 'INVALID_DATES', 'End date must be after start date');
 
+    // Re-snapshot the Currency Setup rate when the currency itself changes.
+    const currencyRate = rest.currency && rest.currency !== lease.currency
+      ? await this.latestCurrencyRate(companyId, rest.currency)
+      : undefined;
+
     const updated = await prisma.lease.update({
       where: { id },
       data: {
         ...rest,
+        ...(currencyRate !== undefined ? { currencyRate } : {}),
         ...(startDate ? { startDate: start } : {}),
         ...(endDate ? { endDate: end } : {}),
         // Convert handoverDate string → Date (or null to clear) so Prisma doesn't reject it

@@ -275,7 +275,7 @@ export const billingApi = createApi({
     // ── Invoices ──────────────────────────
     getInvoices: builder.query<PaginatedResponse<InvoiceListItem>, {
       tenantId?: string; leaseId?: string; propertyId?: string; status?: string;
-      from?: string; to?: string; page?: number; limit?: number;
+      tenantName?: string; from?: string; to?: string; page?: number; limit?: number;
     }>({
       query: (params) => ({ url: '/invoices', params }),
       providesTags: ['Invoices'],

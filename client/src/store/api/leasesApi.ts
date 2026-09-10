@@ -51,7 +51,7 @@ export interface LeaseDetail extends LeaseListItem {
   clauses: unknown[];
   approvedAt: string | null;
   activatedAt: string | null;
-  unit:     { id: string; unitNumber: string; unitType: string; areaSqft: number | null };
+  unit:     { id: string; unitNumber: string; unitType: string; areaSqft: number | null; floorNumber: number | null; floorLabel: string | null };
   property: { id: string; name: string; currency: string };
   tenant:   { id: string; displayName: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string; email: string | null; mobile: string | null };
   creator:  { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;

@@ -19,7 +19,8 @@ const EXPORT_COLUMNS: Partial<ExcelJS.Column>[] = [
   { header: 'Bill Date', key: 'billDate', width: 14, style: { numFmt: 'm/d/yyyy' } },
 ];
 
-// 'Tenant' is informational only (not stored on MeterBillingRecord), so it's not required on import.
+// 'Tenant' (matched by Tenant Code) is optional on import — a blank cell just leaves the
+// row's tenantCode unset — so it's not in the required column list.
 const REQUIRED_IMPORT_COLUMNS = [
   'meter no', 'p unit', 'meter type', 'category', 'rate',
   'start unit', 'end unit', 'start date', 'end date', 'bill date',
@@ -99,7 +100,7 @@ async function resolveChargeTypeId(companyId: string, code: string): Promise<str
 }
 
 /** Parses & validates an uploaded .xlsx into create-ready rows, shared by preview and import. */
-async function parseImportRows(propertyId: string, fileBuffer: Buffer): Promise<Omit<Prisma.MeterRecordListCreateManyInput, 'companyId' | 'propertyId'>[]> {
+async function parseImportRows(propertyId: string, companyId: string, fileBuffer: Buffer): Promise<Omit<Prisma.MeterRecordListCreateManyInput, 'companyId' | 'propertyId'>[]> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(fileBuffer as unknown as ExcelJS.Buffer);
   const sheet = workbook.worksheets[0];
@@ -118,6 +119,17 @@ async function parseImportRows(propertyId: string, fileBuffer: Buffer): Promise<
   const units = await prisma.unit.findMany({ where: { propertyId }, select: { id: true, unitNumber: true } });
   const unitByCode = new Map(units.map((u) => [u.unitNumber.trim().toLowerCase(), u.id]));
 
+  // Validated against real Tenant Codes from the Tenant List, but the row stores the code
+  // text itself (not a tenant id) — keyed here by the lowercase code, valued by its
+  // canonical casing as it appears on the Tenant List.
+  const tenants = await prisma.tenant.findMany({
+    where: { companyId, deletedAt: null, code: { not: null } },
+    select: { code: true },
+  });
+  const knownCodes = new Map(
+    tenants.map((t): [string, string] => [(t.code as string).trim().toLowerCase(), t.code as string]),
+  );
+
   const cell = (row: ExcelJS.Row, name: string) => row.getCell(colIndex[name]).value;
   const rows: Omit<Prisma.MeterRecordListCreateManyInput, 'companyId' | 'propertyId'>[] = [];
 
@@ -132,6 +144,18 @@ async function parseImportRows(propertyId: string, fileBuffer: Buffer): Promise<
       throw AppError.badRequest(`Row ${rowNumber}: unit "${unitCode}" not found in this property`, 'INVALID_FILE');
     }
 
+    let tenantCode: string | null = null;
+    if ('tenant' in colIndex) {
+      const tenantCodeCell = String(cell(row, 'tenant') ?? '').trim();
+      if (tenantCodeCell) {
+        const knownCode = knownCodes.get(tenantCodeCell.toLowerCase());
+        if (!knownCode) {
+          throw AppError.badRequest(`Row ${rowNumber}: tenant "${tenantCodeCell}" not found`, 'INVALID_FILE');
+        }
+        tenantCode = knownCode;
+      }
+    }
+
     const startUnit = parseNumberCell(cell(row, 'start unit'), 'Start Unit', rowNumber);
     const endUnit = parseNumberCell(cell(row, 'end unit'), 'End Unit', rowNumber);
     if (endUnit <= startUnit) {
@@ -140,6 +164,7 @@ async function parseImportRows(propertyId: string, fileBuffer: Buffer): Promise<
 
     rows.push({
       unitId,
+      tenantCode,
       meterNo,
       meterType: String(cell(row, 'meter type') ?? '').trim(),
       category: String(cell(row, 'category') ?? '').trim(),
@@ -202,10 +227,10 @@ class MeterRecordsService {
 
         const lease = await prisma.lease.findFirst({
           where: { unitId: utilityMeter.unitId, status: 'active' },
-          select: { tenantId: true },
+          select: { tenant: { select: { code: true } } },
           orderBy: { startDate: 'desc' },
         });
-        tenant = lease?.tenantId ?? '';
+        tenant = lease?.tenant?.code ?? '';
       }
 
       sheet.addRow({
@@ -257,8 +282,8 @@ class MeterRecordsService {
    * preview before the user confirms the import. Resolves each row's current tenant and
    * whether it's billable, mirroring exactly what importExcel() would do.
    */
-  async previewExcel(propertyId: string, fileBuffer: Buffer) {
-    const rows = await parseImportRows(propertyId, fileBuffer);
+  async previewExcel(propertyId: string, companyId: string, fileBuffer: Buffer) {
+    const rows = await parseImportRows(propertyId, companyId, fileBuffer);
 
     return Promise.all(rows.map(async (r) => {
       const unit = await prisma.unit.findUnique({ where: { id: r.unitId as string }, select: { unitNumber: true } });
@@ -267,6 +292,14 @@ class MeterRecordsService {
         orderBy: { startDate: 'desc' },
         select: { tenantId: true },
       });
+
+      // Show the sheet's own Tenant Code; fall back to the unit's currently active lease's
+      // tenant when the cell was left blank (informational only — not what gets stored).
+      let tenant = (r.tenantCode as string | null) ?? '';
+      if (!tenant && lease?.tenantId) {
+        const t = await prisma.tenant.findUnique({ where: { id: lease.tenantId }, select: { code: true } });
+        tenant = t?.code ?? '';
+      }
 
       return {
         meterNo: r.meterNo,
@@ -280,7 +313,7 @@ class MeterRecordsService {
         startDate: toDateOnly(r.startDate as Date),
         endDate: toDateOnly(r.endDate as Date),
         billDate: toDateOnly(r.billDate as Date),
-        tenant: lease?.tenantId ?? '',
+        tenant,
         willBill: !!lease?.tenantId,
       };
     }));
@@ -294,14 +327,39 @@ class MeterRecordsService {
    * cycle. The schedule's start/end date are both the row's Bill Date, so it self-completes
    * after generating exactly one invoice rather than recurring with stale readings.
    */
-  async importExcel(propertyId: string, companyId: string, userId: string, fileBuffer: Buffer): Promise<{ imported: number; billingSchedulesCreated: number; skipped: number }> {
+  async importExcel(propertyId: string, companyId: string, userId: string, fileBuffer: Buffer): Promise<{ imported: number; billingSchedulesCreated: number; skipped: number; duplicatesSkipped: number }> {
     const property = await prisma.property.findFirst({ where: { id: propertyId, companyId } });
     if (!property) throw AppError.notFound('Property');
 
-    const parsedRows = await parseImportRows(propertyId, fileBuffer);
-    const rows: Prisma.MeterRecordListCreateManyInput[] = parsedRows.map((r) => ({ ...r, companyId, propertyId }));
+    const parsedRows = await parseImportRows(propertyId, companyId, fileBuffer);
 
-    await prisma.meterRecordList.createMany({ data: rows });
+    // A row is a duplicate of one already on record for this property (re-imports of the
+    // same sheet), or of another row in this same sheet, when its Meter No + Start Date +
+    // End Date all match — skip it rather than writing another copy.
+    const existing = await prisma.meterRecordList.findMany({
+      where: { companyId, propertyId },
+      select: { meterNo: true, startDate: true, endDate: true },
+    });
+    const dupeKey = (meterNo: string, startDate: Date, endDate: Date) => `${meterNo}|${toDateOnly(startDate)}|${toDateOnly(endDate)}`;
+    const existingKeys = new Set(existing.map((e) => dupeKey(e.meterNo, e.startDate, e.endDate)));
+
+    const seenInSheet = new Set<string>();
+    let duplicatesSkipped = 0;
+    const dedupedRows = parsedRows.filter((r) => {
+      const key = dupeKey(r.meterNo as string, r.startDate as Date, r.endDate as Date);
+      if (existingKeys.has(key) || seenInSheet.has(key)) {
+        duplicatesSkipped++;
+        return false;
+      }
+      seenInSheet.add(key);
+      return true;
+    });
+
+    const rows: Prisma.MeterRecordListCreateManyInput[] = dedupedRows.map((r) => ({ ...r, companyId, propertyId }));
+
+    if (rows.length > 0) {
+      await prisma.meterRecordList.createMany({ data: rows });
+    }
 
     let billingSchedulesCreated = 0;
     let skipped = 0;
@@ -338,7 +396,7 @@ class MeterRecordsService {
       billingSchedulesCreated++;
     }
 
-    return { imported: rows.length, billingSchedulesCreated, skipped };
+    return { imported: rows.length, billingSchedulesCreated, skipped, duplicatesSkipped };
   }
 }
 

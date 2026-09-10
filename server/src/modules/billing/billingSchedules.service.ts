@@ -2,6 +2,27 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 
 export class BillingSchedulesService {
+  // Fields every schedule spawned from an activated lease shares (RENT, SERVICE_CHARGE,
+  // and any future auto-created charge) — only chargeTypeId/description/amount/proration
+  // differ per charge.
+  private leaseScheduleBase(lease: any, startDate: Date, billingDay: number) {
+    return {
+      companyId: lease.companyId,
+      propertyId: lease.propertyId,
+      unitId: lease.unitId,
+      tenantId: lease.tenantId,
+      leaseId: lease.id,
+      currency: lease.currency || 'USD',
+      currencyRate: lease.currencyRate,
+      billingCycle: lease.billingCycle || 'monthly',
+      billingDay,
+      paymentDueDays: lease.paymentDueDays || 7,
+      startDate,
+      endDate: lease.endDate ? new Date(lease.endDate) : null,
+      nextBillingDate: startDate,
+    };
+  }
+
   async findAll(companyId: string, filters: {
     leaseId?: string; tenantId?: string; propertyId?: string; status?: string; page?: number; limit?: number;
   }) {
@@ -89,21 +110,10 @@ export class BillingSchedulesService {
     // 1. Create RENT schedule
     await prisma.billingSchedule.create({
       data: {
-        companyId: lease.companyId,
-        propertyId: lease.propertyId,
-        unitId: lease.unitId,
-        tenantId: lease.tenantId,
-        leaseId: lease.id,
+        ...this.leaseScheduleBase(lease, startDate, billingDay),
         chargeTypeId: rentChargeType.id,
         description: `Rent — Unit ${lease.unit?.unitNumber || ''}`,
         amount: Number(lease.rentAmount),
-        currency: lease.currency || 'USD',
-        billingCycle: lease.billingCycle || 'monthly',
-        billingDay,
-        paymentDueDays: lease.paymentDueDays || 7,
-        startDate,
-        endDate: lease.endDate ? new Date(lease.endDate) : null,
-        nextBillingDate: startDate,
         isProrated,
         prorateStart: isProrated ? startDate : null,
       },
@@ -118,21 +128,10 @@ export class BillingSchedulesService {
       if (scChargeType) {
         await prisma.billingSchedule.create({
           data: {
-            companyId: lease.companyId,
-            propertyId: lease.propertyId,
-            unitId: lease.unitId,
-            tenantId: lease.tenantId,
-            leaseId: lease.id,
+            ...this.leaseScheduleBase(lease, startDate, billingDay),
             chargeTypeId: scChargeType.id,
             description: `Service Charge — Unit ${lease.unit?.unitNumber || ''}`,
             amount: serviceChargeAmount,
-            currency: lease.currency || 'USD',
-            billingCycle: lease.billingCycle || 'monthly',
-            billingDay,
-            paymentDueDays: lease.paymentDueDays || 7,
-            startDate,
-            endDate: lease.endDate ? new Date(lease.endDate) : null,
-            nextBillingDate: startDate,
             isProrated: false, // service charge not prorated
           },
         });

@@ -17,9 +17,9 @@ export class InvoicesService {
 
   async findAll(companyId: string, filters: {
     tenantId?: string; leaseId?: string; propertyId?: string; status?: string;
-    from?: string; to?: string; page?: number; limit?: number;
+    tenantName?: string; from?: string; to?: string; page?: number; limit?: number;
   }) {
-    const { tenantId, leaseId, propertyId, status, from, to, page = 1, limit = 20 } = filters;
+    const { tenantId, leaseId, propertyId, status, tenantName, from, to, page = 1, limit = 20 } = filters;
     const where: any = { companyId };
     if (tenantId) where.tenantId = tenantId;
     if (leaseId) where.leaseId = leaseId;
@@ -29,6 +29,18 @@ export class InvoicesService {
       where.invoiceDate = {};
       if (from) where.invoiceDate.gte = new Date(from);
       if (to) where.invoiceDate.lte = new Date(to);
+    }
+    // Matches an individual tenant's first/last name or a company tenant's name — searched
+    // server-side so it covers every matching invoice, not just whichever page is loaded.
+    if (tenantName?.trim()) {
+      const q = tenantName.trim();
+      where.tenant = {
+        OR: [
+          { firstName: { contains: q, mode: 'insensitive' } },
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { companyName: { contains: q, mode: 'insensitive' } },
+        ],
+      };
     }
 
     const [data, total] = await Promise.all([

@@ -1304,10 +1304,19 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
     formData.append('file', pendingFile);
     try {
       const result = await importRecords({ propertyId, formData }).unwrap();
-      const { imported, billingSchedulesCreated, skipped } = result.data;
-      let msg = `Imported ${imported} meter record${imported === 1 ? '' : 's'}, created ${billingSchedulesCreated} billing schedule${billingSchedulesCreated === 1 ? '' : 's'}`;
-      if (skipped > 0) msg += ` (${skipped} skipped — no active tenant)`;
-      toast.success(msg);
+      const { imported, billingSchedulesCreated, skipped, duplicatesSkipped } = result.data;
+
+      if (imported === 0 && duplicatesSkipped > 0) {
+        // Every row in the sheet was already on record — nothing new was written.
+        toast.error(`All ${duplicatesSkipped} row${duplicatesSkipped === 1 ? '' : 's'} already exist (same Meter No, Start Date & End Date) — nothing imported`);
+      } else {
+        let msg = `Imported ${imported} meter record${imported === 1 ? '' : 's'}, created ${billingSchedulesCreated} billing schedule${billingSchedulesCreated === 1 ? '' : 's'}`;
+        const notes: string[] = [];
+        if (skipped > 0) notes.push(`${skipped} skipped — no active tenant`);
+        if (duplicatesSkipped > 0) notes.push(`${duplicatesSkipped} duplicate${duplicatesSkipped === 1 ? '' : 's'} skipped`);
+        if (notes.length > 0) msg += ` (${notes.join(', ')})`;
+        toast.success(msg);
+      }
       setPreviewRows(null);
       setPendingFile(null);
     } catch (err: any) {

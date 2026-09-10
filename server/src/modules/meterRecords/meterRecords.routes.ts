@@ -27,7 +27,7 @@ meterRecordsRouter.get('/export', requirePermission('meter.read'), asyncHandler(
 /** POST /properties/:propertyId/meter-records/preview — parses the file, writes nothing. */
 meterRecordsRouter.post('/preview', requirePermission('meter.read'), upload.single('file'), asyncHandler(async (req, res) => {
   if (!req.file) throw AppError.badRequest('No file uploaded', 'NO_FILE');
-  const data = await meterRecordsService.previewExcel(p(req, 'propertyId'), req.file.buffer);
+  const data = await meterRecordsService.previewExcel(p(req, 'propertyId'), req.user!.companyId, req.file.buffer);
   res.json({ success: true, data });
 }));
 

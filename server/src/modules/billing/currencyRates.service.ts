@@ -12,6 +12,15 @@ export class CurrencyRatesService {
     return base?.currency || 'MMK';
   }
 
+  // Shared by create()/update() — a currency/base/effectiveDate combo must be unique,
+  // excluding the row being edited.
+  private async assertRateAvailable(companyId: string, baseCurrency: string, currency: string, effectiveDate: Date, excludeId?: string) {
+    const duplicate = await prisma.currencyRate.findFirst({
+      where: { companyId, baseCurrency, currency, effectiveDate, isActive: true, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    });
+    if (duplicate) throw new AppError(409, 'CURRENCY_RATE_TAKEN', `A rate for ${currency}/${baseCurrency} on this date is already set up`);
+  }
+
   async findAll(companyId: string) {
     return prisma.currencyRate.findMany({
       where: { companyId, isActive: true },
@@ -41,10 +50,7 @@ export class CurrencyRatesService {
       throw new AppError(400, 'CURRENCY_SAME_AS_BASE', 'Currency must be different from the base currency (check "Base Currency" instead)');
     }
 
-    const duplicate = await prisma.currencyRate.findFirst({
-      where: { companyId, baseCurrency, currency, effectiveDate, isActive: true },
-    });
-    if (duplicate) throw new AppError(409, 'CURRENCY_RATE_TAKEN', `A rate for ${currency}/${baseCurrency} on this date is already set up`);
+    await this.assertRateAvailable(companyId, baseCurrency, currency, effectiveDate);
 
     return prisma.currencyRate.create({
       data: {
@@ -89,10 +95,7 @@ export class CurrencyRatesService {
     }
 
     if (dto.currency !== undefined || dto.isBaseCurrency !== undefined || dto.effectiveDate !== undefined) {
-      const duplicate = await prisma.currencyRate.findFirst({
-        where: { companyId, baseCurrency, currency, effectiveDate, isActive: true, id: { not: id } },
-      });
-      if (duplicate) throw new AppError(409, 'CURRENCY_RATE_TAKEN', `A rate for ${currency}/${baseCurrency} on this date is already set up`);
+      await this.assertRateAvailable(companyId, baseCurrency, currency, effectiveDate, id);
     }
 
     const updateData: Record<string, unknown> = { currency, baseCurrency, isBaseCurrency, rate };

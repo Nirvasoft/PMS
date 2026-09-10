@@ -7,6 +7,7 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
         <InfoCard title="Unit">
           <InfoRow label="Unit"       value={lease.unit.unitNumber} />
           <InfoRow label="Type"       value={lease.unit.unitType?.replace(/_/g,' ') || '—'} />
+          <InfoRow label="Floor"      value={lease.unit.floorLabel ?? (lease.unit.floorNumber != null ? `${lease.unit.floorNumber}F` : '—')} />
           <InfoRow label="Total Area" value={lease.unit.areaSqft != null ? `${lease.unit.areaSqft.toLocaleString()} sqft` : '—'} />
         </InfoCard>
 

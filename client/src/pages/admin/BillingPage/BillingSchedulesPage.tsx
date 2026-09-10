@@ -147,6 +147,17 @@ export default function BillingSchedulesPage() {
     return floor?.id || '';
   };
 
+  // Editing a schedule opens with floorId cleared (its floor isn't known yet), so once
+  // the property's floors/units have loaded, auto-bind the Floor field from the
+  // schedule's own unit instead of leaving it on "Select floor".
+  useEffect(() => {
+    if (editId && form.unitId && !floorId && floors.length && units.length) {
+      const fid = deriveFloorId(form.unitId);
+      if (fid) setFloorId(fid);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId, form.unitId, floors, units, floorId]);
+
   const handleAction = async (id: string, action: 'pause' | 'resume' | 'cancel') => {
     if (action === 'cancel' && !(await confirmDialog('Cancel this billing schedule? No future invoices will be generated.', { danger: true, confirmText: 'Cancel Schedule' }))) return;
     try {

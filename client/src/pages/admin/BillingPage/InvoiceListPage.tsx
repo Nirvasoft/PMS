@@ -32,12 +32,20 @@ export default function InvoiceListPage() {
 
   const activePropertyFilter = useSelectedPropertyFilter();
 
-  // Reset pagination whenever the sidebar's Active Property changes.
-  useEffect(() => { setPage(1); }, [activePropertyFilter]);
+  // Debounce the search box so typing doesn't fire a request per keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset pagination whenever the sidebar's Active Property, status, or search changes.
+  useEffect(() => { setPage(1); }, [activePropertyFilter, status, debouncedSearch]);
 
   const { data, isFetching } = useGetInvoicesQuery({
     propertyId: activePropertyFilter || undefined,
     status: status || undefined,
+    tenantName: debouncedSearch || undefined,
     page, limit: 15,
   });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
@@ -59,13 +67,9 @@ export default function InvoiceListPage() {
     };
   }, [invoices, meta]);
 
-  const filteredInvoices = search
-    ? invoices.filter(inv =>
-        inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
-        (inv.tenant?.firstName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (inv.tenant?.lastName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (inv.tenant?.companyName || '').toLowerCase().includes(search.toLowerCase()))
-    : invoices;
+  // Tenant-name filtering happens server-side (see `tenantName` above), so it covers every
+  // matching invoice — not just whichever page happened to be loaded.
+  const filteredInvoices = invoices;
 
   // ── Selection Helpers ──────────────────────
   const toggleSelect = useCallback((id: string, e: React.MouseEvent) => {
@@ -228,7 +232,7 @@ export default function InvoiceListPage() {
       <div className="billing-filters">
         <div className="search-wrap">
           <Search size={15} className="search-icon" />
-          <input type="text" placeholder="Search invoices…" value={search} onChange={e => setSearch(e.target.value)} />
+          <input type="text" placeholder="Search by tenant name…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className="filter-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); clearSelection(); }}>
           <option value="">All Statuses</option>

@@ -10,6 +10,7 @@ export interface ImportMeterRecordsResult {
   imported: number;
   billingSchedulesCreated: number;
   skipped: number;
+  duplicatesSkipped: number;
 }
 
 export interface MeterRecordPreviewRow {
