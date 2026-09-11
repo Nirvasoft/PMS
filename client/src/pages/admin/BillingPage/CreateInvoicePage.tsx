@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGetChargeTypesQuery, useCreateInvoiceMutation } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
@@ -39,9 +40,24 @@ export default function CreateInvoicePage() {
   const propertyLocked = !!activeProperty;
 
   const [form, setForm] = useState({
-    propertyId: '', tenantId: '', invoiceDate: new Date().toISOString().split('T')[0],
+    propertyId: '', tenantId: '', unitId: '', invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: '', notes: '',
   });
+
+  // Fetch active leases for the selected tenant to populate the P Unit dropdown
+  const { data: activeLeasesData } = useGetLeasesQuery(
+    { tenantId: form.tenantId, status: 'active', limit: 100 },
+    { skip: !form.tenantId }
+  );
+
+  // Deduplicate units from the tenant's active leases
+  const unitOptions = (() => {
+    const leases = activeLeasesData?.data || [];
+    const seen = new Set<string>();
+    return leases
+      .filter(l => l.unit && !seen.has(l.unit.id) && seen.add(l.unit.id))
+      .map(l => ({ id: l.unit.id, unitNumber: l.unit.unitNumber }));
+  })();
 
   // Clears back to "Select property" if the sidebar switches to "All Properties" after
   // having been locked to a specific property.
@@ -55,6 +71,15 @@ export default function CreateInvoicePage() {
     prevPropertyLockedRef.current = propertyLocked;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyLocked, activeProperty]);
+
+  // Reset unit selection whenever tenant changes (units are tenant-specific)
+  const prevTenantIdRef = useRef(form.tenantId);
+  useEffect(() => {
+    if (prevTenantIdRef.current !== form.tenantId) {
+      setForm((f) => ({ ...f, unitId: '' }));
+      prevTenantIdRef.current = form.tenantId;
+    }
+  }, [form.tenantId]);
 
   const [lines, setLines] = useState<LineItem[]>([
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
@@ -154,6 +179,25 @@ export default function CreateInvoicePage() {
                   .map(t => (
                     <option key={t.id} value={t.id}>{t.label}</option>
                   ))}
+              </select>
+            </div>
+            <div className="inv-field">
+              <label>P Unit</label>
+              <select
+                value={form.unitId}
+                disabled={!form.tenantId || unitOptions.length === 0}
+                onChange={e => setForm({ ...form, unitId: e.target.value })}
+              >
+                <option value="">
+                  {!form.tenantId
+                    ? 'Select tenant first'
+                    : unitOptions.length === 0
+                    ? 'No active lease units'
+                    : 'Select unit…'}
+                </option>
+                {unitOptions.map(u => (
+                  <option key={u.id} value={u.id}>{u.unitNumber}</option>
+                ))}
               </select>
             </div>
             <div className="inv-field">
