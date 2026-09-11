@@ -61,8 +61,8 @@ export interface UtilityMeter {
   isSmartMeter: boolean;
   isActive: boolean;
   installedAt: string | null;
-  location: string | null;
   smartMeterId: string | null;
+  createdAt: string;
 }
 
 export interface UnitStatusHistory {
@@ -86,6 +86,20 @@ export interface MeterReadingHistoryEntry {
   endDate: string | null;
   recordedByUser: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
   recordedAt: string;
+}
+
+export interface UnitChargeHistoryEntry {
+  id: string;
+  unitId: string;
+  chargeId: string | null;
+  action: 'added' | 'modified';
+  chargeTypeId: string;
+  amount: string;
+  oldChargeTypeId: string | null;
+  oldAmount: string | null;
+  changedAt: string;
+  chargeType: { id: string; name: string };
+  changedByUser: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
 }
 
 export interface UnitLease {
@@ -146,6 +160,7 @@ export interface UnitDetail extends UnitListItem {
   unitTypeRef: UnitType | null;
   statusHistory: UnitStatusHistory[];
   meterReadingHistory: MeterReadingHistoryEntry[];
+  unitChargeHistory: UnitChargeHistoryEntry[];
   meters: UtilityMeter[];
   amenities: UnitAmenity[];
   leases: UnitLease[];
@@ -415,11 +430,11 @@ export const unitsApi = createApi({
     }),
     addUnitCharge: builder.mutation<ApiResponse<UnitCharge>, { propertyId: string; unitId: string; data: { chargeTypeId: string; amount: number } }>({
       query: ({ propertyId, unitId, data }) => ({ url: `/properties/${propertyId}/units/${unitId}/charges`, method: 'POST', body: data }),
-      invalidatesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }],
+      invalidatesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }, { type: 'Units', id: unitId }],
     }),
-    updateUnitCharge: builder.mutation<ApiResponse<UnitCharge>, { propertyId: string; unitId: string; chargeId: string; data: { chargeTypeId?: string; amount?: number } }>({
+    updateUnitCharge: builder.mutation<ApiResponse<UnitCharge>, { propertyId: string; unitId: string; chargeId: string; data: { chargeTypeId?: string; amount?: number; syncSchedules?: boolean } }>({
       query: ({ propertyId, unitId, chargeId, data }) => ({ url: `/properties/${propertyId}/units/${unitId}/charges/${chargeId}`, method: 'PUT', body: data }),
-      invalidatesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }],
+      invalidatesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }, { type: 'Units', id: unitId }],
     }),
     deleteUnitCharge: builder.mutation<void, { propertyId: string; unitId: string; chargeId: string }>({
       query: ({ propertyId, unitId, chargeId }) => ({

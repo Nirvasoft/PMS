@@ -208,13 +208,13 @@ unitsRouter.get('/:unitId/charges', requirePermission('unit.read'), asyncHandler
 
 /** POST /properties/:propertyId/units/:unitId/charges */
 unitsRouter.post('/:unitId/charges', requirePermission('unit.update'), asyncHandler(async (req, res) => {
-  const data = await unitChargesService.create(p(req, 'unitId'), req.body);
+  const data = await unitChargesService.create(p(req, 'unitId'), req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
 
 /** PUT /properties/:propertyId/units/:unitId/charges/:chargeId */
 unitsRouter.put('/:unitId/charges/:chargeId', requirePermission('unit.update'), asyncHandler(async (req, res) => {
-  const data = await unitChargesService.update(p(req, 'unitId'), p(req, 'chargeId'), req.body);
+  const data = await unitChargesService.update(p(req, 'unitId'), p(req, 'chargeId'), req.body, req.user!.sub);
   res.json({ success: true, data });
 }));
 

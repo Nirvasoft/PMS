@@ -854,3 +854,60 @@ textarea.reason-error {
   gap: 6px;
   align-items: center;
 }
+
+/* ── Billing Schedule Sync Confirm Modal ── */
+.sync-schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.sync-schedule-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.sync-schedule-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sync-schedule-lease {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.sync-schedule-tenant {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sync-schedule-amount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+}
+.sync-amount-old {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.sync-amount-arrow {
+  color: var(--text-muted);
+}
+.sync-amount-new {
+  font-weight: 700;
+  color: var(--success);
+}

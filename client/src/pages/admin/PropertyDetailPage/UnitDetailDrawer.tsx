@@ -7,7 +7,7 @@ import {
   useSetAmenitiesMutation, useUploadFloorPlanMutation, useGetUnitTypesQuery,
   useGetUnitChargesQuery, useAddUnitChargeMutation, useUpdateUnitChargeMutation, useDeleteUnitChargeMutation,
 } from '../../../store/api/unitsApi';
-import { useGetMeterSetupsQuery, useGetChargeTypesQuery } from '../../../store/api/billingApi';
+import { useGetMeterSetupsQuery, useGetChargeTypesQuery, useGetBillingSchedulesQuery } from '../../../store/api/billingApi';
 import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { CATEGORIES as METER_CATEGORIES, METER_TYPES } from '../BillingPage/MeterSetupPage';
 import { ZONE_OPTIONS } from './zoneOptions';
@@ -55,7 +55,7 @@ type DrawerTab = 'info' | 'meters' | 'charges' | 'floor_plan' | 'leases' | 'hist
 export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; unitId: string }) {
   const dispatch = useAppDispatch();
   const [activeTab, setActiveTab] = useState<DrawerTab>('info');
-  const [historyFilter, setHistoryFilter] = useState<'status' | 'meter'>('status');
+  const [historyFilter, setHistoryFilter] = useState<'status' | 'meter' | 'charge' | 'new_meter'>('status');
   const [historyFromDate, setHistoryFromDate] = useState('');
   const [historyToDate, setHistoryToDate] = useState('');
   const [historyMeterCategory, setHistoryMeterCategory] = useState('all');
@@ -83,6 +83,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [editingChargeId, setEditingChargeId] = useState<string | null>(null);
   const [chargeEditForm, setChargeEditForm] = useState({ chargeTypeId: '', amount: '' });
   const [savingChargeEdit, setSavingChargeEdit] = useState(false);
+
+  // Billing-schedule sync confirm modal
+  const [syncConfirmPending, setSyncConfirmPending] = useState<{
+    chargeId: string; chargeTypeId: string; amount: number;
+    oldAmount: number; chargeName: string;
+  } | null>(null);
 
   const { data, isLoading, isError, error } = useGetUnitQuery({ propertyId, unitId });
   const unit = data?.data;
@@ -114,7 +120,15 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const { data: unitChargesData, refetch: refetchCharges } = useGetUnitChargesQuery({ propertyId, unitId });
   const unitCharges = unitChargesData?.data || [];
   const [addUnitCharge] = useAddUnitChargeMutation();
+  const [updateUnitCharge] = useUpdateUnitChargeMutation();
   const [deleteUnitCharge] = useDeleteUnitChargeMutation();
+
+  // Fetch billing schedules for this unit so we can detect which ones would be affected
+  const { data: billingSchedulesData } = useGetBillingSchedulesQuery(
+    { unitId, propertyId, limit: 100 },
+    { skip: !unitId },
+  );
+  const unitBillingSchedules = billingSchedulesData?.data || [];
 
   // ── Edit form state ─────────────────────────
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -333,8 +347,6 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   };
 
   // ── Unit Charges ─────────────────────────────
-  const [updateUnitCharge] = useUpdateUnitChargeMutation();
-
   const handleAddCharge = async () => {
     if (!chargeForm.chargeTypeId || !chargeForm.amount) return;
     setSavingCharge(true);
@@ -348,22 +360,57 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     } finally { setSavingCharge(false); }
   };
 
-  const handleChargeEdit = (c: { id: string; amount: string; chargeType: { id: string } }) => {
+  const handleChargeEdit = (c: { id: string; amount: string; chargeType: { id: string; name: string } }) => {
     setEditingChargeId(c.id);
     setChargeEditForm({ chargeTypeId: c.chargeType.id, amount: c.amount });
     setAddingCharge(false);
   };
 
-  const handleChargeEditSave = async () => {
-    if (!editingChargeId || !chargeEditForm.chargeTypeId || !chargeEditForm.amount) return;
+  // Executes the actual charge update (called directly or from confirm modal)
+  const executeChargeUpdate = async (chargeId: string, data: { chargeTypeId: string; amount: number; syncSchedules?: boolean }) => {
     setSavingChargeEdit(true);
     try {
-      await updateUnitCharge({ propertyId, unitId, chargeId: editingChargeId, data: { chargeTypeId: chargeEditForm.chargeTypeId, amount: Number(chargeEditForm.amount) } }).unwrap();
-      toast.success('Charge updated');
+      await updateUnitCharge({ propertyId, unitId, chargeId, data }).unwrap();
+      toast.success(data.syncSchedules ? 'Charge and billing schedules updated' : 'Charge updated');
       setEditingChargeId(null);
+      setSyncConfirmPending(null);
     } catch (e: any) {
       toast.error(e?.data?.errors?.[0]?.message || 'Failed to update charge');
     } finally { setSavingChargeEdit(false); }
+  };
+
+  const handleChargeEditSave = async () => {
+    if (!editingChargeId || !chargeEditForm.chargeTypeId || !chargeEditForm.amount) return;
+
+    const newAmount = Number(chargeEditForm.amount);
+    const newChargeTypeId = chargeEditForm.chargeTypeId;
+
+    // Find original charge to detect if amount actually changed
+    const originalCharge = unitCharges.find((c) => c.id === editingChargeId);
+    const amountChanged = originalCharge ? newAmount !== Number(originalCharge.amount) : false;
+
+    // Check for active billing schedules on this unit with the same charge type
+    const affectedSchedules = amountChanged
+      ? unitBillingSchedules.filter(
+          (s: any) => s.status === 'active' && s.chargeType?.id === newChargeTypeId
+        )
+      : [];
+
+    if (affectedSchedules.length > 0) {
+      // Show confirm modal
+      const chargeName = chargeTypes.find((ct) => ct.id === newChargeTypeId)?.name || 'Charge';
+      setSyncConfirmPending({
+        chargeId: editingChargeId,
+        chargeTypeId: newChargeTypeId,
+        amount: newAmount,
+        oldAmount: Number(originalCharge?.amount ?? newAmount),
+        chargeName,
+      });
+      return; // Wait for user decision in modal
+    }
+
+    // No affected schedules — save directly
+    await executeChargeUpdate(editingChargeId, { chargeTypeId: newChargeTypeId, amount: newAmount });
   };
 
   const handleDeleteCharge = async (chargeId: string) => {
@@ -1030,7 +1077,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                         <div className="charge-inline-fields">
                           <select
                             value={chargeEditForm.chargeTypeId}
-                            onChange={(e) => setChargeEditForm({ ...chargeEditForm, chargeTypeId: e.target.value })}
+                            disabled
+                            style={{ opacity: 0.6, cursor: 'not-allowed' }}
                           >
                             <option value="">Charge type…</option>
                             {chargeTypes.map((ct) => (
@@ -1249,9 +1297,85 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
               };
             });
 
+            // ── Charge History Events ──
+            const chargeHistory = unit.unitChargeHistory || [];
+
+            const chargeEvents: HistoryEvent[] = chargeHistory.map((h) => {
+              const isModified = h.action === 'modified';
+              const amountNew = Number(h.amount).toLocaleString();
+              const amountOld = h.oldAmount ? Number(h.oldAmount).toLocaleString() : null;
+              return {
+                id: `charge-${h.id}`,
+                at: h.changedAt,
+                filterStart: h.changedAt,
+                filterEnd: h.changedAt,
+                node: (
+                  <div key={`charge-${h.id}`} className="history-item-sm">
+                    <div className="history-dot-sm" style={{ background: isModified ? '#f59e0b' : '#10b981' }} />
+                    <div>
+                      <div className="history-change-sm">
+                        <span style={{ color: isModified ? '#f59e0b' : '#10b981', fontWeight: 600, textTransform: 'capitalize' }}>
+                          {isModified ? 'Modified' : 'Added'}
+                        </span>
+                        <span className="history-meter-type">· {h.chargeType.name}</span>
+                      </div>
+                      <div className="history-reason-sm">
+                        {isModified && amountOld
+                          ? <>{amountOld} → <strong>{amountNew}</strong></>
+                          : <strong>{amountNew}</strong>
+                        }
+                      </div>
+                      <div className="history-meta-sm">
+                        {h.changedByUser?.profile
+                          ? `${h.changedByUser.profile.firstName} ${h.changedByUser.profile.lastName}`
+                          : h.changedByUser?.email}
+                        · {new Date(h.changedAt).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ),
+              };
+            });
+
+            // ── Add New Meter Events (from meters[].createdAt) ──
+            const newMeterEvents: HistoryEvent[] = unit.meters.map((m) => {
+              const catLabel = METER_CATEGORIES.find((c) => c.value === m.meterType)?.label || m.meterType.replace(/_/g, ' ');
+              const createdAt = (m as any).createdAt as string;
+              return {
+                id: `new-meter-${m.id}`,
+                at: createdAt,
+                filterStart: createdAt,
+                filterEnd: createdAt,
+                node: (
+                  <div key={`new-meter-${m.id}`} className="history-item-sm">
+                    <div className="history-dot-sm" style={{ background: '#6366f1' }} />
+                    <div>
+                      <div className="history-change-sm">
+                        <Plus size={12} />
+                        <span style={{ color: '#6366f1', fontWeight: 600 }}>Meter Added</span>
+                        <span className="history-meter-type">· {catLabel}</span>
+                      </div>
+                      <div className="history-reason-sm">
+                        {m.meterSerialNo}
+                        {m.installedAt && (
+                          <> · Installed {new Date(m.installedAt).toLocaleDateString()}</>
+                        )}
+                        {m.meterProvider && <> · {m.meterProvider}</>}
+                      </div>
+                      <div className="history-meta-sm">
+                        {createdAt ? new Date(createdAt).toLocaleString() : '—'}
+                      </div>
+                    </div>
+                  </div>
+                ),
+              };
+            });
+
             const sortDesc = (a: HistoryEvent, b: HistoryEvent) => new Date(b.at).getTime() - new Date(a.at).getTime();
             statusEvents.sort(sortDesc);
             meterEvents.sort(sortDesc);
+            chargeEvents.sort(sortDesc);
+            newMeterEvents.sort(sortDesc);
 
             const fromTime = historyFromDate ? new Date(`${historyFromDate}T00:00:00.000Z`).getTime() : null;
             const toTime = historyToDate ? new Date(`${historyToDate}T23:59:59.999Z`).getTime() : null;
@@ -1261,18 +1385,34 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
               return (fromTime === null || endT >= fromTime) && (toTime === null || startT <= toTime);
             };
 
-            const shown = (historyFilter === 'status' ? statusEvents : meterEvents)
+            const allEventsByFilter: Record<string, HistoryEvent[]> = {
+              status:    statusEvents,
+              meter:     meterEvents,
+              charge:    chargeEvents,
+              new_meter: newMeterEvents,
+            };
+
+            const shown = (allEventsByFilter[historyFilter] || [])
               .filter(inRange)
               .filter((e) => historyFilter !== 'meter' || historyMeterCategory === 'all' || e.meterType === historyMeterCategory);
-            const emptyLabel = historyFilter === 'status' ? 'No status history' : 'No meter readings recorded';
+
+            const emptyLabels: Record<string, string> = {
+              status:    'No status history',
+              meter:     'No meter readings recorded',
+              charge:    'No charge history',
+              new_meter: 'No meters added yet',
+            };
+            const emptyLabel = emptyLabels[historyFilter] || 'No history';
 
             return (
               <div>
                 <div className="history-filter-row">
                   <select className="history-type-select" value={historyFilter}
-                    onChange={(e) => setHistoryFilter(e.target.value as 'status' | 'meter')}>
+                    onChange={(e) => setHistoryFilter(e.target.value as 'status' | 'meter' | 'charge' | 'new_meter')}>
                     <option value="status">Status History</option>
                     <option value="meter">Meter Reading History</option>
+                    <option value="charge">Charge History</option>
+                    <option value="new_meter">Add New Meter</option>
                   </select>
                   {historyFilter === 'meter'
                     ? (
@@ -1327,6 +1467,66 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
           })()}
         </div>
       </div>
+
+      {/* ── Billing Schedule Sync Confirm Modal ── */}
+      {syncConfirmPending && (() => {
+        const { chargeId, chargeTypeId, amount, oldAmount, chargeName } = syncConfirmPending;
+        const affectedSchedules = unitBillingSchedules.filter(
+          (s: any) => s.status === 'active' && s.chargeType?.id === chargeTypeId
+        );
+        return (
+          <div className="modal-overlay" onClick={() => setSyncConfirmPending(null)}>
+            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <span>Update Billing Schedules?</span>
+                <button onClick={() => setSyncConfirmPending(null)}><X size={18} /></button>
+              </div>
+              <div className="modal-body">
+                <p style={{ marginBottom: '0.75rem' }}>
+                  <strong>{affectedSchedules.length}</strong> active billing schedule{affectedSchedules.length !== 1 ? 's' : ''} for <strong>{chargeName}</strong> will be affected. Update their amounts too?
+                </p>
+                <div className="sync-schedule-list">
+                  {affectedSchedules.map((s: any) => {
+                    const tenantName = s.tenant
+                      ? (s.tenant.tenantType === 'company' ? s.tenant.companyName : `${s.tenant.firstName || ''} ${s.tenant.lastName || ''}`.trim())
+                      : '—';
+                    return (
+                      <div key={s.id} className="sync-schedule-item">
+                        <div className="sync-schedule-info">
+                          <span className="sync-schedule-lease">{s.lease?.leaseNumber || 'Manual'}</span>
+                          <span className="sync-schedule-tenant">{tenantName}</span>
+                        </div>
+                        <div className="sync-schedule-amount">
+                          <span className="sync-amount-old">{Number(s.amount).toLocaleString()}</span>
+                          <span className="sync-amount-arrow">→</span>
+                          <span className="sync-amount-new">{amount.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-ghost" onClick={() => setSyncConfirmPending(null)}>Cancel</button>
+                <button
+                  className="btn-ghost"
+                  disabled={savingChargeEdit}
+                  onClick={() => executeChargeUpdate(chargeId, { chargeTypeId, amount, syncSchedules: false })}
+                >
+                  Update Charge Only
+                </button>
+                <button
+                  className="btn-primary"
+                  disabled={savingChargeEdit}
+                  onClick={() => executeChargeUpdate(chargeId, { chargeTypeId, amount, syncSchedules: true })}
+                >
+                  {savingChargeEdit ? 'Saving…' : 'Update Billing Schedules Too'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Status change modal */}
       {statusModal && (() => {

@@ -24,13 +24,14 @@ export class BillingSchedulesService {
   }
 
   async findAll(companyId: string, filters: {
-    leaseId?: string; tenantId?: string; propertyId?: string; status?: string; page?: number; limit?: number;
+    leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; page?: number; limit?: number;
   }) {
-    const { leaseId, tenantId, propertyId, status, page = 1, limit = 20 } = filters;
+    const { leaseId, tenantId, propertyId, unitId, status, page = 1, limit = 20 } = filters;
     const where: any = { companyId };
     if (leaseId) where.leaseId = leaseId;
     if (tenantId) where.tenantId = tenantId;
     if (propertyId) where.propertyId = propertyId;
+    if (unitId) where.unitId = unitId;
     if (status) where.status = status;
 
     const [data, total] = await Promise.all([

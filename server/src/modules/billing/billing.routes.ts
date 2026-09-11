@@ -131,6 +131,7 @@ billingSchedulesRouter.get('/', asyncHandler(async (req, res) => {
     leaseId: req.query.leaseId as string,
     tenantId: req.query.tenantId as string,
     propertyId: req.query.propertyId as string,
+    unitId: req.query.unitId as string,
     status: req.query.status as string,
     page: parseInt(req.query.page as string) || 1,
     limit: Math.min(parseInt(req.query.limit as string) || 20, 100),

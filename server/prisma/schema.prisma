@@ -344,6 +344,7 @@ model User {
   // Relations — Units (Module 2.2)
   unitStatusChanges  UnitStatusHistory[]   @relation("UnitStatusChanger")
   meterReadingsTaken MeterReadingHistory[] @relation("MeterReadingRecorder")
+  unitChargeChanges  UnitChargeHistory[]   @relation("UnitChargeChanger")
 
   // Relations — Tenants (Module 2.3)
   kycVerifications    Tenant[]             @relation("KycVerifier")
@@ -1300,6 +1301,7 @@ model Unit {
   meterReadingHistory MeterReadingHistory[]
   amenities           UnitAmenity[]
   unitCharges         UnitCharge[]
+  unitChargeHistory   UnitChargeHistory[]
 
   // Relations — Leases (Module 2.4)
   leases         Lease[]
@@ -1368,6 +1370,26 @@ model UnitCharge {
 
   @@index([unitId])
   @@map("unit_charges")
+}
+
+model UnitChargeHistory {
+  id              String   @id @default(uuid()) @db.Uuid
+  unitId          String   @map("unit_id") @db.Uuid
+  chargeId        String?  @map("charge_id") @db.Uuid
+  action          String   @db.VarChar(20)             // 'added' | 'modified'
+  chargeTypeId    String   @map("charge_type_id") @db.Uuid
+  amount          Decimal  @db.Decimal(15, 2)
+  oldChargeTypeId String?  @map("old_charge_type_id") @db.Uuid
+  oldAmount       Decimal? @map("old_amount") @db.Decimal(15, 2)
+  changedBy       String   @map("changed_by") @db.Uuid
+  changedAt       DateTime @default(now()) @map("changed_at") @db.Timestamptz
+
+  unit          Unit       @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  chargeType    ChargeType @relation("ChargeHistoryNewType", fields: [chargeTypeId], references: [id])
+  changedByUser User       @relation("UnitChargeChanger", fields: [changedBy], references: [id])
+
+  @@index([unitId])
+  @@map("unit_charge_history")
 }
 
 model UnitStatusHistory {
@@ -2794,6 +2816,7 @@ model ChargeType {
   penaltyConfigs   PenaltyConfiguration[] @relation("PenaltyChargeType")
   apInvoiceLines   ApInvoiceLine[]
   unitCharges      UnitCharge[]
+  unitChargeHistory UnitChargeHistory[] @relation("ChargeHistoryNewType")
 
   @@unique([code, companyId], name: "uq_charge_type_code_company")
   @@index([category])

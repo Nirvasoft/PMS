@@ -218,6 +218,14 @@ export class UnitsService {
           orderBy: { recordedAt: 'desc' },
           take: 20,
         },
+        unitChargeHistory: {
+          include: {
+            changedByUser: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
+            chargeType:    { select: { id: true, name: true } },
+          },
+          orderBy: { changedAt: 'desc' },
+          take: 30,
+        },
         leases: {
           select: {
             id: true,
@@ -708,27 +716,85 @@ export class UnitChargesService {
     });
   }
 
-  async create(unitId: string, dto: { chargeTypeId: string; amount: number }) {
+  async create(unitId: string, dto: { chargeTypeId: string; amount: number }, userId: string) {
     const chargeType = await prisma.chargeType.findUnique({ where: { id: dto.chargeTypeId } });
     if (!chargeType) throw new AppError(404, 'NOT_FOUND', 'Charge type not found');
-    return prisma.unitCharge.create({
+
+    const unit = await prisma.unit.findUnique({ where: { id: unitId }, select: { id: true } });
+    if (!unit) throw new AppError(404, 'NOT_FOUND', 'Unit not found');
+
+    const charge = await prisma.unitCharge.create({
       data: { unitId, chargeTypeId: dto.chargeTypeId, amount: dto.amount },
       include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
     });
+
+    // Write audit history
+    await prisma.unitChargeHistory.create({
+      data: {
+        unitId,
+        chargeId: charge.id,
+        action: 'added',
+        chargeTypeId: dto.chargeTypeId,
+        amount: dto.amount,
+        changedBy: userId,
+      },
+    });
+
+    return charge;
   }
 
-  async update(unitId: string, chargeId: string, dto: { chargeTypeId?: string; amount?: number }) {
+  async update(
+    unitId: string,
+    chargeId: string,
+    dto: { chargeTypeId?: string; amount?: number; syncSchedules?: boolean },
+    userId: string,
+  ) {
     const charge = await prisma.unitCharge.findFirst({ where: { id: chargeId, unitId } });
     if (!charge) throw new AppError(404, 'NOT_FOUND', 'Unit charge not found');
     if (dto.chargeTypeId) {
       const ct = await prisma.chargeType.findUnique({ where: { id: dto.chargeTypeId } });
       if (!ct) throw new AppError(404, 'NOT_FOUND', 'Charge type not found');
     }
-    return prisma.unitCharge.update({
+
+    const effectiveChargeTypeId = dto.chargeTypeId ?? charge.chargeTypeId;
+    const effectiveAmount = dto.amount ?? Number(charge.amount);
+
+    const updated = await prisma.unitCharge.update({
       where: { id: chargeId },
-      data: { ...(dto.chargeTypeId && { chargeTypeId: dto.chargeTypeId }), ...(dto.amount !== undefined && { amount: dto.amount }) },
+      data: {
+        ...(dto.chargeTypeId && { chargeTypeId: dto.chargeTypeId }),
+        ...(dto.amount !== undefined && { amount: dto.amount }),
+      },
       include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
     });
+
+    // Write audit history for modification
+    await prisma.unitChargeHistory.create({
+      data: {
+        unitId,
+        chargeId,
+        action: 'modified',
+        chargeTypeId: effectiveChargeTypeId,
+        amount: effectiveAmount,
+        oldChargeTypeId: charge.chargeTypeId,
+        oldAmount: charge.amount,
+        changedBy: userId,
+      },
+    });
+
+    // Sync active billing schedules for this unit + charge type if requested
+    if (dto.syncSchedules && dto.amount !== undefined) {
+      await prisma.billingSchedule.updateMany({
+        where: {
+          unitId,
+          chargeTypeId: effectiveChargeTypeId,
+          status: 'active',
+        },
+        data: { amount: dto.amount },
+      });
+    }
+
+    return updated;
   }
 
   async delete(unitId: string, chargeId: string) {
