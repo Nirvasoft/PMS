@@ -591,7 +591,15 @@ export default function AssignPermissionPage() {
                                   onChange={() => toggleModuleAll(child)}
                                   disabled={isViewOnly}
                                 />
-                                <span className="perm-module-name">{moduleLabel(child)}</span>
+                                <span className="perm-module-name">
+                                  {moduleLabel(child)}
+                                  {child === 'unit' && !isViewOnly && (
+                                    <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }}
+                                      onClick={(e) => { e.stopPropagation(); setFloorModalOpen(true); }}>
+                                      All Floor{selectedFloorNumbers.size > 0 ? ` (${selectedFloorNumbers.size})` : ''}
+                                    </button>
+                                  )}
+                                </span>
                                 <span className="text-muted text-small">{cSelectedCount}/{childPerms.length}</span>
                               </div>
                               {expandedModules.has(child) && (
