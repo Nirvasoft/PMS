@@ -60,6 +60,23 @@ export interface MeterSetup {
   mainMeter: { id: string; meterNo: string; meterType: string } | null;
 }
 
+export interface MeterSetupHistory {
+  id: string;
+  meterSetupId: string;
+  companyId: string;
+  oldRate: string | null;
+  newRate: string | null;
+  action: string; // "update" | "delete" — not rendered in UI
+  changedBy: string;
+  changedAt: string;
+  changedByUser: {
+    id: string;
+    email: string;
+    profile: { firstName: string; lastName: string } | null;
+  };
+}
+
+
 export interface BillingSchedule {
   id: string;
   description: string | null;
@@ -239,6 +256,11 @@ export const billingApi = createApi({
       invalidatesTags: ['MeterSetups'],
     }),
 
+    getMeterSetupHistory: builder.query<ApiResponse<MeterSetupHistory[]>, string>({
+      query: (id) => ({ url: `/billing/meter-setup/${id}/history` }),
+      providesTags: ['MeterSetups'],
+    }),
+
     // ── Billing Schedules ─────────────────
     getBillingSchedules: builder.query<PaginatedResponse<BillingSchedule>, {
       leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; page?: number; limit?: number;
@@ -381,4 +403,5 @@ export const {
   useCreateMeterSetupMutation,
   useUpdateMeterSetupMutation,
   useDeleteMeterSetupMutation,
+  useGetMeterSetupHistoryQuery,
 } = billingApi;

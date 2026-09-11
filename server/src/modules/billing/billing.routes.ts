@@ -112,14 +112,20 @@ meterSetupRouter.post('/', requirePermission('meter.create'), validateRequest(cr
 }));
 
 meterSetupRouter.put('/:id', requirePermission('meter.update'), validateRequest(updateMeterSetupSchema), asyncHandler(async (req, res) => {
-  const data = await meterSetupService.update(p(req, 'id'), req.user!.companyId, req.body);
+  const data = await meterSetupService.update(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub);
   res.json({ success: true, data });
 }));
 
 meterSetupRouter.delete('/:id', requirePermission('meter.delete'), asyncHandler(async (req, res) => {
-  await meterSetupService.delete(p(req, 'id'), req.user!.companyId);
+  await meterSetupService.delete(p(req, 'id'), req.user!.companyId, req.user!.sub);
   res.json({ success: true });
 }));
+
+meterSetupRouter.get('/:id/history', requirePermission('meter.read'), asyncHandler(async (req, res) => {
+  const data = await meterSetupService.getHistory(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
 
 // ════════════════════════════════════════════════
 // BILLING SCHEDULES — /api/v1/billing/schedules

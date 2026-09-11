@@ -345,6 +345,7 @@ model User {
   unitStatusChanges  UnitStatusHistory[]   @relation("UnitStatusChanger")
   meterReadingsTaken MeterReadingHistory[] @relation("MeterReadingRecorder")
   unitChargeChanges  UnitChargeHistory[]   @relation("UnitChargeChanger")
+  meterRateChanges   MeterSetupHistory[]   @relation("MeterRateChanger")
 
   // Relations — Tenants (Module 2.3)
   kycVerifications    Tenant[]             @relation("KycVerifier")
@@ -2846,14 +2847,33 @@ model MeterSetup {
   company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   property  Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   floor     FloorSetup?  @relation(fields: [floorId], references: [id], onDelete: SetNull)
-  mainMeter MeterSetup?  @relation("MainMeter", fields: [mainMeterId], references: [id], onDelete: SetNull)
-  subMeters MeterSetup[] @relation("MainMeter")
+  mainMeter   MeterSetup?       @relation("MainMeter", fields: [mainMeterId], references: [id], onDelete: SetNull)
+  subMeters   MeterSetup[]      @relation("MainMeter")
+  rateHistory MeterSetupHistory[]
 
   @@index([propertyId])
   @@index([companyId])
   @@index([floorId])
   @@index([mainMeterId])
   @@map("meter_setups")
+}
+
+model MeterSetupHistory {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  meterSetupId String   @map("meter_setup_id") @db.Uuid
+  oldRate      Decimal? @map("old_rate") @db.Decimal(10, 4)
+  newRate      Decimal? @map("new_rate") @db.Decimal(10, 4)
+  action       String   @default("update") @db.VarChar(20) // "update" | "delete"
+  changedBy    String   @map("changed_by") @db.Uuid
+  changedAt    DateTime @default(now()) @map("changed_at") @db.Timestamptz
+
+  meterSetup    MeterSetup @relation(fields: [meterSetupId], references: [id], onDelete: Cascade)
+  changedByUser User       @relation("MeterRateChanger", fields: [changedBy], references: [id])
+
+  @@index([meterSetupId])
+  @@index([companyId])
+  @@map("meter_setup_history")
 }
 
 /// One row per imported billing cycle for a meter — a backend-only audit log behind the

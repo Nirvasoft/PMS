@@ -44,7 +44,7 @@ export class MeterSetupService {
     });
   }
 
-  async update(id: string, companyId: string, dto: Record<string, unknown>) {
+  async update(id: string, companyId: string, dto: Record<string, unknown>, userId: string) {
     const meter = await prisma.meterSetup.findFirst({ where: { id, companyId } });
     if (!meter) throw AppError.notFound('Meter setup');
 
@@ -67,7 +67,7 @@ export class MeterSetupService {
     if (dto.calculationType !== undefined) updateData.calculationType = dto.calculationType;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
 
-    return prisma.meterSetup.update({
+    const updated = await prisma.meterSetup.update({
       where: { id },
       data: updateData,
       include: {
@@ -76,9 +76,25 @@ export class MeterSetupService {
         mainMeter: { select: { id: true, meterNo: true, meterType: true } },
       },
     });
+
+    // Record history whenever rate is explicitly included in the payload
+    if (dto.rate !== undefined) {
+      await prisma.meterSetupHistory.create({
+        data: {
+          companyId,
+          meterSetupId: id,
+          oldRate: meter.rate ?? null,
+          newRate: dto.rate != null ? (dto.rate as number) : null,
+          action: 'update',
+          changedBy: userId,
+        },
+      });
+    }
+
+    return updated;
   }
 
-  async delete(id: string, companyId: string) {
+  async delete(id: string, companyId: string, userId: string) {
     const meter = await prisma.meterSetup.findFirst({ where: { id, companyId } });
     if (!meter) throw AppError.notFound('Meter setup');
 
@@ -99,6 +115,35 @@ export class MeterSetupService {
     }
 
     await prisma.meterSetup.update({ where: { id }, data: { isActive: false } });
+
+    // Record delete history
+    await prisma.meterSetupHistory.create({
+      data: {
+        companyId,
+        meterSetupId: id,
+        oldRate: meter.rate ?? null,
+        newRate: null,
+        action: 'delete',
+        changedBy: userId,
+      },
+    });
+  }
+
+  async getHistory(meterSetupId: string, companyId: string) {
+    return prisma.meterSetupHistory.findMany({
+      where: { meterSetupId, companyId },
+      include: {
+        changedByUser: {
+          select: {
+            id: true,
+            email: true,
+            profile: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+      orderBy: { changedAt: 'desc' },
+      take: 100,
+    });
   }
 }
 
