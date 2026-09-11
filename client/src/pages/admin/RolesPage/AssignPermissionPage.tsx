@@ -281,15 +281,22 @@ export default function AssignPermissionPage() {
       setSelectedPerms(new Set(allCodes));
       setSelectedPropertyIds(new Set(properties.map((p) => p.id)));
       setSelectedFloorNumbers(new Set());
+      setExpandedModules(new Set(modules)); // expand all sections in view-only mode
       setInitializedFor(roleId);
     } else {
       const existingPropertyIds = roleDetail.data.propertyIds ?? [];
       if (existingPropertyIds.length > 0 || propertiesData) {
-        setSelectedPerms(new Set(roleDetail.data.permissions?.map((p) => p.code) ?? []));
+        const checkedPerms = new Set(roleDetail.data.permissions?.map((p) => p.code) ?? []);
+        setSelectedPerms(checkedPerms);
         setSelectedPropertyIds(new Set(
           existingPropertyIds.length > 0 ? existingPropertyIds : (properties[0] ? [properties[0].id] : [])
         ));
         setSelectedFloorNumbers(new Set(roleDetail.data.floorNumbers ?? []));
+        // Auto-expand any module that already has at least one permission checked
+        const autoExpanded = new Set<string>(
+          modules.filter((m) => (permsByModule[m] ?? []).some((p) => checkedPerms.has(p.code)))
+        );
+        setExpandedModules(autoExpanded);
         setInitializedFor(roleId);
       }
     }
@@ -336,8 +343,16 @@ export default function AssignPermissionPage() {
 
   const togglePerm = (code: string) => {
     const next = new Set(selectedPerms);
+    const isAdding = !next.has(code);
     if (next.has(code)) next.delete(code); else next.add(code);
     setSelectedPerms(withParentViewCascade(next, permsByModule));
+    // Auto-expand the module that owns this permission when a perm is being added
+    if (isAdding) {
+      const ownerModule = modules.find((m) => (permsByModule[m] ?? []).some((p) => p.code === code));
+      if (ownerModule) {
+        setExpandedModules((prev) => prev.has(ownerModule) ? prev : new Set([...prev, ownerModule]));
+      }
+    }
   };
 
   const toggleExpand = (module: string) => {
@@ -353,6 +368,10 @@ export default function AssignPermissionPage() {
     const next = new Set(selectedPerms);
     codes.forEach((c) => allSelected ? next.delete(c) : next.add(c));
     setSelectedPerms(allSelected ? next : withParentViewCascade(next, permsByModule));
+    // Auto-expand module when any perms are being added
+    if (!allSelected) {
+      setExpandedModules((prev) => prev.has(module) ? prev : new Set([...prev, module]));
+    }
   };
 
   const toggleSectionAll = (sectionModules: string[]) => {
@@ -426,18 +445,23 @@ export default function AssignPermissionPage() {
           const safeActiveTab = allTabKeys.includes(activeTab) ? activeTab : allTabKeys[0];
 
           const renderTabContent = () => {
+            // In view-only mode all properties are always shown as checked
+            const effectivePropertyIds = isViewOnly
+              ? new Set(properties.map((p) => p.id))
+              : selectedPropertyIds;
+
             if (safeActiveTab === 'active-property') {
               return (
                 <>
                   <div className="perm-tabs-header">
                     <input type="checkbox" checked readOnly title="Active Property is always enabled" disabled={isViewOnly} />
                     <h4>Active Property</h4>
-                    <span className="text-muted text-small">{selectedPropertyIds.size}/{properties.length}</span>
+                    <span className="text-muted text-small">{effectivePropertyIds.size}/{properties.length}</span>
                   </div>
                   <div className="perm-actions" style={{ paddingLeft: 0 }}>
                     {properties.map((p) => (
-                      <label key={p.id} className={`perm-item ${selectedPropertyIds.has(p.id) ? 'selected' : ''}`}>
-                        <input type="checkbox" checked={selectedPropertyIds.has(p.id)} onChange={() => toggleProperty(p.id)} disabled={isViewOnly} />
+                      <label key={p.id} className={`perm-item ${effectivePropertyIds.has(p.id) ? 'selected' : ''}`}>
+                        <input type="checkbox" checked={effectivePropertyIds.has(p.id)} onChange={() => toggleProperty(p.id)} disabled={isViewOnly} />
                         <span style={{ textTransform: 'none' }}>{p.name}</span>
                       </label>
                     ))}
@@ -548,7 +572,41 @@ export default function AssignPermissionPage() {
                             ))}
                           </div>
                         )}
-                        {expandedModules.has(module) && childModules.map((child) => renderModule(child, 1))}
+                        {expandedModules.has(module) && childModules.map((child) => {
+                          const childPerms = permsByModule[child] ?? [];
+                          const cSelectedCount = childPerms.filter((p) => selectedPerms.has(p.code)).length;
+                          const cAllChecked = childPerms.length > 0 && cSelectedCount === childPerms.length;
+                          const cSomeChecked = cSelectedCount > 0 && !cAllChecked;
+                          return (
+                            <div key={child} className="perm-tag-group" style={{ marginLeft: 24 }}>
+                              <div className="perm-module-header" onClick={() => toggleExpand(child)}>
+                                <button type="button" className="perm-expand-btn"
+                                  onClick={(e) => { e.stopPropagation(); toggleExpand(child); }}
+                                  aria-label={expandedModules.has(child) ? 'Collapse' : 'Expand'}>
+                                  {expandedModules.has(child) ? '−' : '+'}
+                                </button>
+                                <input type="checkbox" checked={cAllChecked}
+                                  ref={(el) => { if (el) el.indeterminate = cSomeChecked; }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={() => toggleModuleAll(child)}
+                                  disabled={isViewOnly}
+                                />
+                                <span className="perm-module-name">{moduleLabel(child)}</span>
+                                <span className="text-muted text-small">{cSelectedCount}/{childPerms.length}</span>
+                              </div>
+                              {expandedModules.has(child) && (
+                                <div className="perm-actions">
+                                  {childPerms.map((p) => (
+                                    <label key={p.code} className={`perm-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+                                      <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code)} disabled={isViewOnly} />
+                                      <span style={{ textTransform: 'none' }}>{permissionLabel(p.code, child)}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })
@@ -581,8 +639,8 @@ export default function AssignPermissionPage() {
                   onClick={() => setActiveTab('active-property')}
                 >
                   Active Property
-                  <span className={`perm-tab-badge${selectedPropertyIds.size === 0 ? ' none' : ''}`}>
-                    {selectedPropertyIds.size}/{properties.length}
+                  <span className={`perm-tab-badge${!isViewOnly && selectedPropertyIds.size === 0 ? ' none' : ''}`}>
+                    {isViewOnly ? properties.length : selectedPropertyIds.size}/{properties.length}
                   </span>
                 </button>
 
