@@ -14,11 +14,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 export const meterRecordsRouter = Router({ mergeParams: true });
 meterRecordsRouter.use(propertyAccessGuard);
 
-/** GET /properties/:propertyId/meter-records/export?billDate=YYYY-MM-DD */
+/** GET /properties/:propertyId/meter-records/export?billDate=YYYY-MM-DD&occupiedOnly=true */
 meterRecordsRouter.get('/export', requirePermission('meter.read'), asyncHandler(async (req, res) => {
   const billDate = req.query.billDate as string | undefined;
   if (!billDate) throw AppError.badRequest('billDate query param is required', 'BILL_DATE_REQUIRED');
-  const { buffer, filename } = await meterRecordsService.exportTemplate(p(req, 'propertyId'), req.user!.companyId, billDate);
+  const occupiedOnly = req.query.occupiedOnly === 'true';
+  const { buffer, filename } = await meterRecordsService.exportTemplate(p(req, 'propertyId'), req.user!.companyId, billDate, occupiedOnly);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(buffer);

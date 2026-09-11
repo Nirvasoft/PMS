@@ -1245,34 +1245,40 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
   const [previewRecords, { isLoading: previewing }] = usePreviewMeterRecordsMutation();
   const [importRecords, { isLoading: importing }] = useImportMeterRecordsMutation();
   const [exporting, setExporting] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [billingDate, setBillingDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [previewRows, setPreviewRows] = useState<MeterRecordPreviewRow[] | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const accessToken = useAppSelector((s) => s.auth.accessToken);
 
-  const handleExport = async () => {
+  const doExport = async (occupiedOnly: boolean) => {
+    setShowExportModal(false);
     if (!billingDate) { toast.error('Pick a billing date first'); return; }
     setExporting(true);
     try {
-      const res = await fetch(`/api/v1/properties/${propertyId}/meter-records/export?billDate=${billingDate}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const url = `/api/v1/properties/${propertyId}/meter-records/export?billDate=${billingDate}&occupiedOnly=${occupiedOnly}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = objectUrl;
       a.download = res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'meter-records.xlsx';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objectUrl);
     } catch {
       toast.error('Failed to export meter records');
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleExportClick = () => {
+    if (!billingDate) { toast.error('Pick a billing date first'); return; }
+    setShowExportModal(true);
   };
 
   const handleImportClick = () => fileInputRef.current?.click();
@@ -1340,7 +1346,7 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
               color: 'var(--text-primary)', fontSize: 13,
             }}
           />
-          <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
+          <button className="btn-secondary" onClick={handleExportClick} disabled={exporting}>
             <Upload size={14} /> {exporting ? 'Exporting…' : 'Export'}
           </button>
           <button className="btn-secondary" onClick={handleImportClick} disabled={previewing || importing}>
@@ -1348,6 +1354,39 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
           </button>
         </div>
       </div>
+
+      {/* Export-options modal */}
+      {showExportModal && (
+        <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
+          <div className="modal-card" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Export Meter Records</h2>
+              <button type="button" className="btn-icon" onClick={() => setShowExportModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 14 }}>
+                Which rooms would you like to include in the exported sheet?
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button
+                  className="btn-primary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => doExport(true)}
+                >
+                  Occupied Rooms Only
+                </button>
+                <button
+                  className="btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => doExport(false)}
+                >
+                  All Rooms
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {previewRows ? (
         <>
@@ -1367,34 +1406,34 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
               <thead>
                 <tr>
                   <th style={{ whiteSpace: 'nowrap' }}>Tenant</th>
-                  <th style={{ whiteSpace: 'nowrap' }}>Meter No</th>
                   <th style={{ whiteSpace: 'nowrap' }}>P Unit</th>
                   <th style={{ whiteSpace: 'nowrap' }}>Meter Type</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Meter No</th>
                   <th style={{ whiteSpace: 'nowrap' }}>Category</th>
                   <th style={{ whiteSpace: 'nowrap' }}>Rate</th>
                   <th style={{ whiteSpace: 'nowrap' }}>Start Unit</th>
                   <th style={{ whiteSpace: 'nowrap' }}>End Unit</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Total Unit</th>
                   <th style={{ whiteSpace: 'nowrap' }}>Start Date</th>
                   <th style={{ whiteSpace: 'nowrap' }}>End Date</th>
                   <th style={{ whiteSpace: 'nowrap' }}>Bill Date</th>
-                  <th style={{ whiteSpace: 'nowrap' }}>Qty</th>
                 </tr>
               </thead>
               <tbody>
                 {previewRows.map((r, i) => (
                   <tr key={i}>
                     <td>{r.tenant || '—'}</td>
-                    <td>{r.meterNo}</td>
                     <td>{r.unitCode}</td>
                     <td>{r.meterType}</td>
+                    <td>{r.meterNo}</td>
                     <td className="capitalize">{r.category}</td>
                     <td>{r.rate.toLocaleString()}</td>
                     <td>{r.startUnit.toLocaleString()}</td>
                     <td>{r.endUnit.toLocaleString()}</td>
+                    <td>{r.quantity.toLocaleString()}</td>
                     <td>{r.startDate}</td>
                     <td>{r.endDate}</td>
                     <td>{r.billDate}</td>
-                    <td>{r.quantity.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>

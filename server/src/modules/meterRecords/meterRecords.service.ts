@@ -5,18 +5,19 @@ import { billingSchedulesService } from '../billing/billingSchedules.service';
 import type { Prisma } from '@prisma/client';
 
 const EXPORT_COLUMNS: Partial<ExcelJS.Column>[] = [
-  { header: 'Property', key: 'property', width: 20 },
-  { header: 'Tenant', key: 'tenant', width: 20 },
-  { header: 'Meter No', key: 'meterNo', width: 16 },
-  { header: 'P Unit', key: 'unitCode', width: 16 },
-  { header: 'Meter Type', key: 'meterType', width: 16 },
-  { header: 'Category', key: 'category', width: 14 },
-  { header: 'Rate', key: 'rate', width: 10 },
-  { header: 'Start Unit', key: 'startUnit', width: 12 },
-  { header: 'End Unit', key: 'endUnit', width: 12 },
-  { header: 'Start Date', key: 'startDate', width: 14, style: { numFmt: 'm/d/yyyy' } },
-  { header: 'End Date', key: 'endDate', width: 14, style: { numFmt: 'm/d/yyyy' } },
-  { header: 'Bill Date', key: 'billDate', width: 14, style: { numFmt: 'm/d/yyyy' } },
+  { header: 'Property',   key: 'property',   width: 20 },
+  { header: 'Tenant',     key: 'tenant',     width: 20 },
+  { header: 'P Unit',     key: 'unitCode',   width: 16 },
+  { header: 'Meter Type', key: 'meterType',  width: 16 },
+  { header: 'Meter No',   key: 'meterNo',    width: 16 },
+  { header: 'Category',   key: 'category',   width: 14 },
+  { header: 'Rate',       key: 'rate',       width: 10 },
+  { header: 'Start Unit', key: 'startUnit',  width: 12 },
+  { header: 'End Unit',   key: 'endUnit',    width: 12 },
+  { header: 'Total Unit', key: 'totalUnit',  width: 12 },
+  { header: 'Start Date', key: 'startDate',  width: 14, style: { numFmt: 'm/d/yyyy' } },
+  { header: 'End Date',   key: 'endDate',    width: 14, style: { numFmt: 'm/d/yyyy' } },
+  { header: 'Bill Date',  key: 'billDate',   width: 14, style: { numFmt: 'm/d/yyyy' } },
 ];
 
 // 'Tenant' (matched by Tenant Code) is optional on import — a blank cell just leaves the
@@ -192,7 +193,7 @@ class MeterRecordsService {
    * Start/End Date left blank, and Bill Date stamped with the chosen cycle date — ready for
    * the user to fill in readings and dates, then re-import via importExcel().
    */
-  async exportTemplate(propertyId: string, companyId: string, billDate: string): Promise<{ buffer: Buffer; filename: string }> {
+  async exportTemplate(propertyId: string, companyId: string, billDate: string, occupiedOnly = false): Promise<{ buffer: Buffer; filename: string }> {
     const property = await prisma.property.findFirst({
       where: { id: propertyId, companyId },
       select: { code: true, name: true },
@@ -221,6 +222,7 @@ class MeterRecordsService {
 
       let unitCode = '';
       let tenant = '';
+      let hasActiveLease = false;
       if (utilityMeter) {
         const unit = await prisma.unit.findUnique({ where: { id: utilityMeter.unitId }, select: { unitNumber: true } });
         unitCode = unit?.unitNumber ?? '';
@@ -230,19 +232,26 @@ class MeterRecordsService {
           select: { tenant: { select: { code: true } } },
           orderBy: { startDate: 'desc' },
         });
-        tenant = lease?.tenant?.code ?? '';
+        if (lease) {
+          hasActiveLease = true;
+          tenant = lease.tenant?.code ?? '';
+        }
       }
+
+      // Skip meters on unoccupied units when occupiedOnly is requested.
+      if (occupiedOnly && !hasActiveLease) continue;
 
       sheet.addRow({
         property: property.name,
         tenant,
-        meterNo: m.meterNo,
         unitCode,
         meterType: METER_TYPE_LABELS[m.meterType] || m.meterType,
+        meterNo: m.meterNo,
         category: CATEGORY_LABELS[m.category] || m.category,
         rate: m.rate ? m.rate.toNumber() : 0,
         startUnit: 0,
         endUnit: 0,
+        totalUnit: 0,
         startDate: '',
         endDate: '',
         billDate: isoToUtcDate(billDate),
@@ -252,6 +261,8 @@ class MeterRecordsService {
     // Data validation: Start/End Date must be real dates, and End Unit must exceed Start
     // Unit on the same row. Applied a few hundred rows past the generated data too, so
     // rows the user adds manually for extra meters stay validated.
+    // Column layout (1-indexed): A=Property B=Tenant C=P Unit D=Meter Type E=Meter No
+    //   F=Category G=Rate H=Start Unit I=End Unit J=Total Unit K=Start Date L=End Date M=Bill Date
     const lastRow = meterSetups.length + 1 + 200;
     for (let row = 2; row <= lastRow; row++) {
       const dateRule: ExcelJS.DataValidation = {
@@ -260,9 +271,9 @@ class MeterRecordsService {
         errorTitle: 'Invalid Date', error: 'Please enter a valid date.',
         formulae: [new Date(Date.UTC(2000, 0, 1)), new Date(Date.UTC(2099, 11, 31))],
       };
-      sheet.getCell(`J${row}`).dataValidation = dateRule;
-      sheet.getCell(`K${row}`).dataValidation = dateRule;
-      sheet.getCell(`I${row}`).dataValidation = {
+      sheet.getCell(`K${row}`).dataValidation = dateRule; // Start Date
+      sheet.getCell(`L${row}`).dataValidation = dateRule; // End Date
+      sheet.getCell(`I${row}`).dataValidation = {         // End Unit > Start Unit
         type: 'decimal', operator: 'greaterThan', allowBlank: true,
         showErrorMessage: true, errorStyle: 'error',
         errorTitle: 'Invalid End Unit', error: 'End Unit must be greater than Start Unit.',
