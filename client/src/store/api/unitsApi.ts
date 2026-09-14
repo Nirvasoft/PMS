@@ -206,6 +206,11 @@ export interface BulkCreateResult {
   units: Array<{ id: string; unitNumber: string }>;
 }
 
+export interface BulkStatusResult {
+  updated: string[];
+  failed: Array<{ unitId: string; unitNumber: string; reason: string }>;
+}
+
 export interface UnitQueryParams {
   propertyId: string;
   towerId?: string;
@@ -317,6 +322,10 @@ export const unitsApi = createApi({
       query: ({ propertyId, ...params }) => ({ url: `/properties/${propertyId}/units`, params }),
       providesTags: ['Units'],
     }),
+    getUnitIds: builder.query<ApiResponse<string[]>, Omit<UnitQueryParams, 'page' | 'limit'>>({
+      query: ({ propertyId, ...params }) => ({ url: `/properties/${propertyId}/units/ids`, params }),
+      providesTags: ['Units'],
+    }),
     getUnit: builder.query<ApiResponse<UnitDetail>, { propertyId: string; unitId: string }>({
       query: ({ propertyId, unitId }) => `/properties/${propertyId}/units/${unitId}`,
       providesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }],
@@ -365,6 +374,18 @@ export const unitsApi = createApi({
         url: `/properties/${propertyId}/units/${unitId}/status`, method: 'POST', body: { status, reason },
       }),
       invalidatesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }, 'Units', 'FloorPlan', 'UnitStats'],
+      async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(propertiesApi.util.invalidateTags([{ type: 'PropertyStats', id: propertyId }]));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
+    }),
+    bulkUpdateUnitStatus: builder.mutation<ApiResponse<BulkStatusResult>, { propertyId: string; unitIds: string[]; status: string; reason?: string }>({
+      query: ({ propertyId, ...body }) => ({
+        url: `/properties/${propertyId}/units/bulk-status`, method: 'POST', body,
+      }),
+      invalidatesTags: ['Units', 'FloorPlan', 'UnitStats'],
       async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
@@ -457,6 +478,7 @@ export const {
   useUpdateSectionMutation,
   useDeleteSectionMutation,
   useGetUnitsQuery,
+  useLazyGetUnitIdsQuery,
   useGetUnitQuery,
   useCreateUnitMutation,
   useBulkCreateUnitsMutation,
@@ -464,6 +486,7 @@ export const {
   useUpdateUnitMutation,
   useDeleteUnitMutation,
   useUpdateUnitStatusMutation,
+  useBulkUpdateUnitStatusMutation,
   useSetAmenitiesMutation,
   useUploadFloorPlanMutation,
   useGetFloorPlanQuery,

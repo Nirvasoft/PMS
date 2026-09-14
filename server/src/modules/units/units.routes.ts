@@ -100,6 +100,21 @@ unitsRouter.get('/stats', requirePermission('unit.read'), asyncHandler(async (re
   res.json({ success: true, data });
 }));
 
+/** GET /properties/:propertyId/units/ids — all unit ids matching the list filters (for "select all") */
+unitsRouter.get('/ids', requirePermission('unit.read'), asyncHandler(async (req, res) => {
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  const data = await unitsService.findAllIds(p(req, 'propertyId'), {
+    towerId:   req.query.towerId as string,
+    sectionId: req.query.sectionId as string,
+    status:    req.query.status as string,
+    unitType:  req.query.unitType as string,
+    floor:     req.query.floor ? parseInt(req.query.floor as string) : undefined,
+    search:    req.query.search as string,
+    floorScope: floorScope ?? undefined,
+  });
+  res.json({ success: true, data });
+}));
+
 /** POST /properties/:propertyId/units/bulk */
 unitsRouter.post('/bulk', requirePermission('unit.create'), asyncHandler(async (req, res) => {
   const floorScope = await getUserFloorScope(req.user!.sub);
@@ -149,6 +164,12 @@ unitsRouter.delete('/:unitId', requirePermission('unit.delete'), asyncHandler(as
 /** POST /properties/:propertyId/units/:unitId/status */
 unitsRouter.post('/:unitId/status', requirePermission('unit.update'), asyncHandler(async (req, res) => {
   const data = await unitsService.updateStatus(p(req, 'propertyId'), p(req, 'unitId'), req.body, req.user!.sub);
+  res.json({ success: true, data });
+}));
+
+/** POST /properties/:propertyId/units/bulk-status */
+unitsRouter.post('/bulk-status', requirePermission('unit.update'), asyncHandler(async (req, res) => {
+  const data = await unitsService.bulkUpdateStatus(p(req, 'propertyId'), req.body, req.user!.sub);
   res.json({ success: true, data });
 }));
 

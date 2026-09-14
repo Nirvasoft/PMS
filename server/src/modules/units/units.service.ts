@@ -123,12 +123,12 @@ export class UnitsService {
     }
   }
 
-  // ── List ───────────────────────────────────
-  async findAll(propertyId: string, query: {
+  /** Shared filter-to-where builder for the units list and the "select all" id lookup. */
+  private buildListWhere(propertyId: string, query: {
     towerId?: string; sectionId?: string; status?: string; unitType?: string;
-    floor?: number; search?: string; page?: number; limit?: number; floorScope?: number[];
+    floor?: number; search?: string; floorScope?: number[];
   }) {
-    const { towerId, sectionId, status, unitType, floor, search, page = 1, limit = 50, floorScope } = query;
+    const { towerId, sectionId, status, unitType, floor, search, floorScope } = query;
     const where: Record<string, unknown> = { propertyId, deletedAt: null };
 
     if (towerId)   where.towerId   = towerId;
@@ -149,6 +149,17 @@ export class UnitsService {
       { description: { contains: search, mode: 'insensitive' } },
       { ownerName:   { contains: search, mode: 'insensitive' } },
     ];
+
+    return where;
+  }
+
+  // ── List ───────────────────────────────────
+  async findAll(propertyId: string, query: {
+    towerId?: string; sectionId?: string; status?: string; unitType?: string;
+    floor?: number; search?: string; page?: number; limit?: number; floorScope?: number[];
+  }) {
+    const { page = 1, limit = 50 } = query;
+    const where = this.buildListWhere(propertyId, query);
 
     const [data, total] = await Promise.all([
       prisma.unit.findMany({
@@ -171,6 +182,16 @@ export class UnitsService {
       data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
+  }
+
+  /** All unit ids matching the current list filters, unpaginated — backs "select all" in the UI. */
+  async findAllIds(propertyId: string, query: {
+    towerId?: string; sectionId?: string; status?: string; unitType?: string;
+    floor?: number; search?: string; floorScope?: number[];
+  }) {
+    const where = this.buildListWhere(propertyId, query);
+    const rows = await prisma.unit.findMany({ where, select: { id: true } });
+    return rows.map((r) => r.id);
   }
 
   // ── Parking (Module 2.6) ───────────────────
@@ -469,6 +490,44 @@ export class UnitsService {
     await this.invalidateStatsCache(propertyId);
 
     return result;
+  }
+
+  // ── Bulk status change ─────────────────────
+  async bulkUpdateStatus(propertyId: string, dto: { unitIds: string[]; status: string; reason?: string }, userId: string) {
+    const { unitIds, status, reason } = dto;
+    const units = await prisma.unit.findMany({ where: { id: { in: unitIds }, propertyId, deletedAt: null } });
+
+    const reasonRequired = ['maintenance', 'not_for_rent'].includes(status);
+    if (reasonRequired && !reason?.trim()) {
+      throw new AppError(400, 'REASON_REQUIRED', `A reason is required when changing status to '${status.replace(/_/g, ' ')}'`);
+    }
+
+    const updated: string[] = [];
+    const failed: Array<{ unitId: string; unitNumber: string; reason: string }> = [];
+    const foundIds = new Set(units.map((u) => u.id));
+
+    for (const unitId of unitIds) {
+      if (!foundIds.has(unitId)) {
+        failed.push({ unitId, unitNumber: unitId, reason: 'Not found' });
+      }
+    }
+
+    for (const unit of units) {
+      const allowed = UNIT_STATUS_TRANSITIONS[unit.status] || [];
+      if (!allowed.includes(status)) {
+        failed.push({ unitId: unit.id, unitNumber: unit.unitNumber, reason: `Cannot transition from '${unit.status}' to '${status}'` });
+        continue;
+      }
+      await prisma.unitStatusHistory.create({
+        data: { unitId: unit.id, fromStatus: unit.status, toStatus: status, reason, changedBy: userId },
+      });
+      await prisma.unit.update({ where: { id: unit.id }, data: { status } });
+      updated.push(unit.id);
+    }
+
+    if (updated.length > 0) await this.invalidateStatsCache(propertyId);
+
+    return { updated, failed };
   }
 
   // ── Floor plan matrix ──────────────────────

@@ -11,6 +11,7 @@ import {
 import {
   useGetTowersQuery, useGetFloorPlanQuery, useGetUnitsQuery,
   useGetUnitStatsQuery, useDeleteUnitMutation, useCreateUnitMutation, useGetUnitTypesQuery,
+  useBulkUpdateUnitStatusMutation, useLazyGetUnitIdsQuery,
 } from '../../../store/api/unitsApi';
 import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
@@ -124,6 +125,16 @@ export default function UnitsTab() {
     setPage(1);
   }, [propertyId, selectedTowerId, statusParam, floorFilter, searchQuery, viewMode]);
 
+  /* Multi-select (List view) — persists across pages so "select all" can span the whole filtered
+     result set; cleared whenever the filters themselves change (the selection would no longer match). */
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [propertyId, selectedTowerId, statusParam, floorFilter, searchQuery, viewMode]);
+  const toggleSelected = (id: string) =>
+    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id]));
+  const [bulkUpdateStatus, { isLoading: bulkUpdating }] = useBulkUpdateUnitStatusMutation();
+
   const { data: listData, isLoading: listLoading } = useGetUnitsQuery(
     {
       propertyId: propertyId!,
@@ -137,6 +148,29 @@ export default function UnitsTab() {
     { skip: viewMode === 'floor_plan' }
   );
   const meta = listData?.meta;
+
+  /* "Select all" fetches every id matching the current filters (not just the current page) */
+  const [fetchAllUnitIds, { isFetching: selectAllLoading }] = useLazyGetUnitIdsQuery();
+  const totalMatching = meta?.total ?? 0;
+  const allMatchingSelected = totalMatching > 0 && selectedIds.length === totalMatching;
+  const handleToggleSelectAll = async () => {
+    if (allMatchingSelected) {
+      setSelectedIds([]);
+      return;
+    }
+    try {
+      const res = await fetchAllUnitIds({
+        propertyId: propertyId!,
+        towerId: selectedTowerId || undefined,
+        status: statusParam,
+        floor: floorFilter ?? undefined,
+        search: searchQuery || undefined,
+      }).unwrap();
+      setSelectedIds(res.data);
+    } catch {
+      toast.error('Failed to select all units');
+    }
+  };
 
   const [deleteUnit] = useDeleteUnitMutation();
 
@@ -436,7 +470,40 @@ export default function UnitsTab() {
               {listLoading
                 ? <div className="units-loading"><Building2 size={24} /><span>Loading…</span></div>
                 : <>
+                    {selectedIds.length > 0 && (
+                      <BulkStatusBar
+                        count={selectedIds.length}
+                        total={totalMatching}
+                        isLoading={bulkUpdating}
+                        onClear={() => setSelectedIds([])}
+                        onApply={async (status) => {
+                          try {
+                            const res = await bulkUpdateStatus({ propertyId: propertyId!, unitIds: selectedIds, status }).unwrap();
+                            if (res.data.updated.length > 0) {
+                              toast.success(`${res.data.updated.length} unit${res.data.updated.length === 1 ? '' : 's'} updated to ${status.replace(/_/g, ' ')}`);
+                            }
+                            if (res.data.failed.length > 0) {
+                              toast.error(`${res.data.failed.length} unit${res.data.failed.length === 1 ? '' : 's'} could not be updated: ${res.data.failed[0].reason}`);
+                            }
+                            setSelectedIds([]);
+                          } catch (e: any) {
+                            toast.error(e?.data?.errors?.[0]?.message || 'Bulk update failed');
+                          }
+                        }}
+                      />
+                    )}
                     <div className="ul-header">
+                      <input
+                        type="checkbox"
+                        className="ul-checkbox"
+                        checked={allMatchingSelected}
+                        disabled={selectAllLoading}
+                        ref={(el) => {
+                          if (el) el.indeterminate = !allMatchingSelected && selectedIds.length > 0;
+                        }}
+                        onChange={handleToggleSelectAll}
+                        title={allMatchingSelected ? 'Clear selection' : `Select all ${totalMatching} matching units`}
+                      />
                       <span>P-Unit No.</span>
                       <span>Type</span>
                       <span>Floor</span>
@@ -452,6 +519,8 @@ export default function UnitsTab() {
                           <UnitListRow
                             key={unit.id}
                             unit={unit}
+                            selected={selectedIds.includes(unit.id)}
+                            onToggleSelect={() => toggleSelected(unit.id)}
                             onClick={() => dispatch(selectUnit(unit.id))}
                             onDelete={async () => {
                               if (!(await confirmDialog(`Delete unit ${unit.unitNumber}?`, { danger: true, confirmText: 'Delete' }))) return;
@@ -608,12 +677,49 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
+/* Bulk status change is limited to Available / Reserved — the other statuses
+   (Maintenance, Not for Rent) require a per-unit reason and are handled individually. */
+const BULK_STATUS_OPTIONS = STATUSES.filter((s) => s.key === 'available' || s.key === 'reserved');
+
+/* ── Bulk status action bar (List view) ────────── */
+function BulkStatusBar({ count, total, isLoading, onApply, onClear }: {
+  count: number;
+  total: number;
+  isLoading: boolean;
+  onApply: (status: string) => void;
+  onClear: () => void;
+}) {
+  const [status, setStatus] = useState<string>(BULK_STATUS_OPTIONS[0].key);
+
+  return (
+    <div className="ut-bulk-bar" onClick={(e) => e.stopPropagation()}>
+      <span className="ut-bulk-count">
+        {count} selected{count === total && total > 0 ? ' (all)' : ''}
+      </span>
+      <select value={status} onChange={(e) => setStatus(e.target.value)}>
+        {BULK_STATUS_OPTIONS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+      </select>
+      <button className="ut-bulk-apply" disabled={isLoading} onClick={() => onApply(status)}>
+        {isLoading ? 'Applying…' : 'Apply'}
+      </button>
+      <button className="ut-bulk-clear" onClick={onClear}>Clear selection</button>
+    </div>
+  );
+}
+
 /* ── P-Unit List Row ─────────────────────────── */
-function UnitListRow({ unit, onClick, onDelete }: {
-  unit: UnitListItem; onClick: () => void; onDelete: () => void;
+function UnitListRow({ unit, selected, onToggleSelect, onClick, onDelete }: {
+  unit: UnitListItem; selected: boolean; onToggleSelect: () => void; onClick: () => void; onDelete: () => void;
 }) {
   return (
-    <div className="ul-row" onClick={onClick}>
+    <div className={`ul-row ${selected ? 'selected' : ''}`} onClick={onClick}>
+      <input
+        type="checkbox"
+        className="ul-checkbox"
+        checked={selected}
+        onClick={(e) => e.stopPropagation()}
+        onChange={onToggleSelect}
+      />
       <div className="ul-unitno">
         <span className="ul-dot" style={{ background: STATUS_COLOR[unit.status] }} />
         <span>{unit.unitNumber}</span>
