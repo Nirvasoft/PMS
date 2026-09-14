@@ -7,7 +7,7 @@ import {
   useSetAmenitiesMutation, useUploadFloorPlanMutation, useGetUnitTypesQuery,
   useGetUnitChargesQuery, useAddUnitChargeMutation, useUpdateUnitChargeMutation, useDeleteUnitChargeMutation,
 } from '../../../store/api/unitsApi';
-import { useGetMeterSetupsQuery, useGetChargeTypesQuery, useGetBillingSchedulesQuery } from '../../../store/api/billingApi';
+import { useGetMeterSetupsQuery, useGetChargeTypesQuery, useGetBillingSchedulesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
 import { CATEGORIES as METER_CATEGORIES, METER_TYPES } from '../BillingPage/MeterSetupPage';
 import { ZONE_OPTIONS } from './zoneOptions';
@@ -117,6 +117,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const chargeTypes = (chargeTypesData?.data || []).filter((ct) => ct.isActive);
 
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId });
+  const currencyOptions = currencyRatesData?.data || [];
+
   const { data: unitChargesData, refetch: refetchCharges } = useGetUnitChargesQuery({ propertyId, unitId });
   const unitCharges = unitChargesData?.data || [];
   const [addUnitCharge] = useAddUnitChargeMutation();
@@ -157,6 +160,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       rentalPeriodUnit: unit.rentalPeriodUnit ?? 'month',
       calculationOn: unit.calculationOn ?? 'fixed',
       rate: unit.rate ?? '',
+      currency: unit.currency ?? '',
       description: unit.description ?? '',
       notes: unit.notes ?? '',
       commonBillCalculate: unit.commonBillCalculate ?? false,
@@ -192,6 +196,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       if (editForm.rentalPeriodUnit !== (unit!.rentalPeriodUnit ?? 'month')) payload.rentalPeriodUnit = editForm.rentalPeriodUnit;
       if (editForm.calculationOn !== (unit!.calculationOn ?? 'fixed')) payload.calculationOn = editForm.calculationOn;
       if (editForm.rate !== '' && Number(editForm.rate) !== unit!.rate) payload.rate = Number(editForm.rate) || null;
+      // Currency is locked once saved — the field is disabled in the UI when unit.currency
+      // is already set, and the server ignores changes to it anyway (defense in depth).
+      if (!unit!.currency && editForm.currency !== (unit!.currency ?? '')) payload.currency = editForm.currency || null;
       if (editForm.description !== (unit!.description ?? '')) payload.description = editForm.description || null;
       if (editForm.notes !== (unit!.notes ?? '')) payload.notes = editForm.notes || null;
       if (editForm.commonBillCalculate !== (unit!.commonBillCalculate ?? false)) payload.commonBillCalculate = editForm.commonBillCalculate;
@@ -653,6 +660,21 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       </select>
                     </div>
                     <EditField label="Rate" type="number" value={editForm.rate} onChange={(v) => ef('rate', v)} />
+                    <div className="ef-field">
+                      <label>Currency</label>
+                      <select
+                        value={editForm.currency ?? ''}
+                        disabled={!!unit.currency}
+                        title={unit.currency ? 'Currency is locked once saved and cannot be changed' : ''}
+                        style={unit.currency ? { background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}}
+                        onChange={(e) => ef('currency', e.target.value)}
+                      >
+                        <option value="">— Select —</option>
+                        {currencyOptions.map((c) => (
+                          <option key={c.id} value={c.currency}>{c.currency}{c.description ? ` — ${c.description}` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="ef-section-title">Notes</div>
@@ -729,6 +751,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       <InfoItem label="Rental Period"   value={unit.rentalPeriod ? `${unit.rentalPeriod} ${unit.rentalPeriodUnit || 'month'}${unit.rentalPeriod === 1 ? '' : 's'}` : '—'} />
                       <InfoItem label="Calculation on"  value={unit.calculationOn === 'per_sqft' ? 'PerSqFt' : 'Fixed'} />
                       <InfoItem label="Rate"            value={unit.rate ? Number(unit.rate).toLocaleString() : '—'} />
+                      <InfoItem label="Currency"        value={unit.currency || '—'} />
                     </div>
                   </div>
 

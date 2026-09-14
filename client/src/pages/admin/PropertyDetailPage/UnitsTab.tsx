@@ -13,6 +13,7 @@ import {
   useGetUnitStatsQuery, useDeleteUnitMutation, useCreateUnitMutation, useGetUnitTypesQuery,
 } from '../../../store/api/unitsApi';
 import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
+import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import type { UnitListItem, Tower, FloorPlanMatrix } from '../../../store/api/unitsApi';
 import {
   LayoutGrid, List, Layers, Plus, Search, Building2,
@@ -686,7 +687,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
     floorNumber: '', floorLabel: '', areaSqft: '', areaSqm: '',
     bedroomCount: '0', bathroomCount: '0',
     direction: '', furnishing: 'unfurnished', ownershipType: 'company',
-    rentalPeriod: '', rentalPeriodUnit: 'month', calculationOn: 'fixed', rate: '',
+    rentalPeriod: '', rentalPeriodUnit: 'month', calculationOn: 'fixed', rate: '', currency: '',
     description: '',
     commonBillCalculate: false,
   });
@@ -700,9 +701,11 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
   }));
   const { data: typesData } = useGetUnitTypesQuery();
   const { data: floorsData } = useGetFloorSetupsQuery({ propertyId });
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId });
   const [createUnit, { isLoading }] = useCreateUnitMutation();
   const unitTypes = typesData?.data || [];
   const floors = floorsData?.data || [];
+  const currencyOptions = currencyRatesData?.data || [];
   const selectedTower = towers.find((t) => t.id === form.towerId);
   const sections = selectedTower?.sections || [];
   const selectedFloor = floors.find((f) => f.floorNumber === Number(form.floorNumber));
@@ -714,6 +717,10 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
   const handleSubmit = async () => {
     if (!form.unitNumber.trim() || !form.unitType) {
       toast.error('P-Unit number and type are required');
+      return;
+    }
+    if (!form.currency) {
+      toast.error('Currency is required');
       return;
     }
     try {
@@ -738,6 +745,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           rentalPeriodUnit: form.rentalPeriodUnit,
           calculationOn:    form.calculationOn,
           rate:          form.rate ? Number(form.rate) : undefined,
+          currency:      form.currency,
           description:   form.description || undefined,
           commonBillCalculate: form.commonBillCalculate,
         } as any,
@@ -900,6 +908,15 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
               <label>Rate</label>
               <input type="number" min={0} placeholder="e.g. 3500" value={form.rate} onChange={(e) => set('rate', e.target.value)} />
             </div>
+            <div className="cu-field">
+              <label>Currency *</label>
+              <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
+                <option value="">Select currency…</option>
+                {currencyOptions.map((c) => (
+                  <option key={c.id} value={c.currency}>{c.currency}{c.description ? ` — ${c.description}` : ''}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Bed/Bath/Furnishing/Ownership */}
@@ -959,7 +976,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
           <button
             className="cu-btn-submit"
             onClick={handleSubmit}
-            disabled={isLoading || !form.unitNumber.trim() || !form.unitType}
+            disabled={isLoading || !form.unitNumber.trim() || !form.unitType || !form.currency}
           >
             {isLoading ? 'Creating…' : '+ Add P-Unit'}
           </button>

@@ -69,7 +69,7 @@ export class LeasesService {
     const lease = await prisma.lease.findFirst({
       where: { id, companyId, deletedAt: null },
       include: {
-        unit:     { select: { id: true, unitNumber: true, unitType: true, areaSqft: true, floorNumber: true } },
+        unit:     { select: { id: true, unitNumber: true, unitType: true, areaSqft: true, floorNumber: true, currency: true } },
         property: { select: { id: true, name: true, currency: true } },
         tenant:   { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, email: true, mobile: true } },
         creator:  { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
@@ -124,6 +124,10 @@ export class LeasesService {
     const unit   = await prisma.unit.findFirst({ where: { id: unitId, propertyId } });
     if (!unit) throw new AppError(400, 'INVALID_UNIT', 'Unit not found in property');
     if (!['available', 'reserved'].includes(unit.status)) throw new AppError(409, 'UNIT_NOT_AVAILABLE', `Unit status is '${unit.status}' — must be available or reserved`);
+
+    // Currency is bound to the P-Unit's own Currency, not chosen per-lease — the client
+    // disables the field and pre-fills it from the unit, this is the server-side backstop.
+    if (unit.currency) rest.currency = unit.currency;
 
     const tenant = await prisma.tenant.findFirst({ where: { id: tenantId, companyId } });
     if (!tenant) throw new AppError(400, 'INVALID_TENANT', 'Tenant not found');
@@ -215,16 +219,14 @@ export class LeasesService {
     const end   = endDate   ? new Date(endDate)   : new Date(lease.endDate);
     if (end <= start) throw new AppError(400, 'INVALID_DATES', 'End date must be after start date');
 
-    // Re-snapshot the Currency Setup rate when the currency itself changes.
-    const currencyRate = rest.currency && rest.currency !== lease.currency
-      ? await this.latestCurrencyRate(companyId, lease.propertyId, rest.currency)
-      : undefined;
+    // Currency is bound to the P-Unit's own Currency and set once at lease creation —
+    // the client disables the field, this is the server-side backstop.
+    delete rest.currency;
 
     const updated = await prisma.lease.update({
       where: { id },
       data: {
         ...rest,
-        ...(currencyRate !== undefined ? { currencyRate } : {}),
         ...(startDate ? { startDate: start } : {}),
         ...(endDate ? { endDate: end } : {}),
         // Convert handoverDate string → Date (or null to clear) so Prisma doesn't reject it

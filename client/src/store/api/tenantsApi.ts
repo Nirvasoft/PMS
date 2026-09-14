@@ -97,6 +97,7 @@ export interface TenantDetail {
   notes: string | null;
   tags: string[];
   source: string | null;
+  currency: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

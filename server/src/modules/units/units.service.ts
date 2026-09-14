@@ -276,6 +276,8 @@ export class UnitsService {
     this.assertFloorAllowed(floorScope, unitData.floorNumber);
     autoConvertArea(unitData);
 
+    if (!unitData.currency) throw new AppError(400, 'CURRENCY_REQUIRED', 'Currency is required');
+
     // Check unique (case-insensitive)
     const existing = await prisma.unit.findFirst({ where: { unitNumber: { equals: unitData.unitNumber as string, mode: 'insensitive' }, propertyId, deletedAt: null } });
     if (existing) throw new AppError(409, 'UNIT_NUMBER_TAKEN', `Unit number "${unitData.unitNumber}" already exists`);
@@ -428,6 +430,10 @@ export class UnitsService {
     const { amenities, ...unitData } = dto;
     this.assertFloorAllowed(floorScope, unitData.floorNumber);
     autoConvertArea(unitData);
+
+    // Currency is chosen once (at creation, or on the first save after) and then locked —
+    // the client disables the field once set, this is the server-side backstop.
+    if (unit.currency) delete unitData.currency;
 
     if (unitData.unitNumber && unitData.unitNumber !== unit.unitNumber) {
       const conflict = await prisma.unit.findFirst({ where: { unitNumber: { equals: unitData.unitNumber as string, mode: 'insensitive' }, propertyId, id: { not: unitId }, deletedAt: null } });

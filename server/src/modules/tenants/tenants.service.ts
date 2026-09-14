@@ -150,6 +150,8 @@ export class TenantsService {
     const parsedData = createTenantSchema.parse(dto);
     const { tags = [], ...rest } = parsedData;
 
+    if (!rest.currency) throw new AppError(400, 'CURRENCY_REQUIRED', 'Currency is required');
+
     // Duplicate check
     const email = rest.email as string | undefined;
     const idNumber = rest.idNumber as string | undefined;
@@ -205,6 +207,10 @@ export class TenantsService {
 
     const parsedData = updateTenantSchema.parse(dto);
     const { tags, ...rest } = parsedData;
+
+    // Currency is locked once saved — the client disables the field once set, this is the
+    // server-side backstop (mirrors units.service.ts update()).
+    if (tenant.currency) delete rest.currency;
 
     // Duplicate code (firstName) check — exclude self
     if (tenant.tenantType === 'individual' && rest.firstName) {

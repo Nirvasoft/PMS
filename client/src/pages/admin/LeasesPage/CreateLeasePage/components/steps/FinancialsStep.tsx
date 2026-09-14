@@ -62,17 +62,14 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
         : rentAmountNum * Number(selectedCurrencyRate.rate))
     : null;
 
-  // Default the currency to the selected property's own currency, but let the user
-  // override it — re-sync only while they haven't picked a currency by hand for this
-  // property, so switching property doesn't clobber a deliberate manual choice.
+  // Currency is bound to the selected P-Unit's own Currency (falling back to the
+  // property's currency for units created before that field existed) — not something
+  // a lease sets independently, so it's not user-editable here.
   const { data: propertyData } = useGetPropertyQuery(form.propertyId || skipToken);
-  const manualCurrency = useRef(false);
-  useEffect(() => { manualCurrency.current = false; }, [form.propertyId]);
+  const boundCurrency = unitData?.data?.currency || propertyData?.data?.currency || '';
   useEffect(() => {
-    if (propertyData?.data?.currency && !manualCurrency.current) {
-      set('currency', propertyData.data.currency);
-    }
-  }, [propertyData]);
+    if (boundCurrency && form.currency !== boundCurrency) set('currency', boundCurrency);
+  }, [boundCurrency]);
 
   // ── Lease Charges — seeded from whatever charges are already set up on the unit ──
   const { data: unitChargesData } = useGetUnitChargesQuery(
@@ -161,8 +158,14 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
         </div>
         <div className="form-field">
           <label>Currency</label>
-          <select value={form.currency} onChange={(e) => { manualCurrency.current = true; set('currency', e.target.value); }}>
-            <option value="">Select a currency</option>
+          <select
+            value={form.currency}
+            disabled
+            title="Currency is set from the selected P-Unit and cannot be changed here"
+            style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
+            onChange={() => {}}
+          >
+            <option value="">{form.unitId ? 'Select a unit currency…' : 'Select a unit first'}</option>
             {currencyCodes.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>

@@ -211,7 +211,7 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
 
   const [form, setForm] = useState({
     rentAmount: Number(lease.rentAmount),
-    currency: lease.currency || 'USD',
+    currency: lease.unit.currency || lease.currency || 'USD',
     billingCycle: lease.billingCycle,
     billingDay: lease.billingDay,
     paymentDueDays: lease.paymentDueDays,
@@ -309,7 +309,13 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
                 <label>Rent Amount<input type="number" value={form.rentAmount} onChange={(e) => set('rentAmount', e.target.value)} /></label>
                 <label>Security Deposit<input type="number" value={form.securityDeposit} onChange={(e) => set('securityDeposit', e.target.value)} /></label>
                 <label>Currency
-                  <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
+                  <select
+                    value={form.currency}
+                    disabled
+                    title="Currency is set from the P-Unit and cannot be changed here"
+                    style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
+                    onChange={() => {}}
+                  >
                     <option value="">Select a currency</option>
                     {currencyCodes.map(c => (
                       <option key={c} value={c}>{c}</option>

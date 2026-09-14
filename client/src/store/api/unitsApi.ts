@@ -154,6 +154,7 @@ export interface UnitDetail extends UnitListItem {
   rentalPeriodUnit: string;
   calculationOn: string;
   rate: number | null;
+  currency: string | null;
   description: string | null;
   notes: string | null;
   commonBillCalculate: boolean;
@@ -238,6 +239,7 @@ export interface CreateUnitDto {
   rentalPeriodUnit?: string;
   calculationOn?: string;
   rate?: number;
+  currency?: string;
   description?: string;
   notes?: string;
   amenities?: string[];

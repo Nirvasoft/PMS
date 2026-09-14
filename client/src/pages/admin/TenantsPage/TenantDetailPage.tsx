@@ -11,6 +11,8 @@ import {
   useReviewKycDocumentMutation, useSubmitKycDocumentMutation, useGetLeaseHistoryQuery,
   type TenantNote, type EmergencyContact, type KycDocumentItem, type LeaseHistoryItem,
 } from '../../../store/api/tenantsApi';
+import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import {
   ArrowLeft, User, Building2, Shield, ShieldOff, Phone, Mail,
   Plus, Trash2, Pin, PinOff, CheckCircle, XCircle, Clock,
@@ -270,6 +272,9 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
   const history = historyData?.data || [];
   const [editing, setEditing] = useState(false);
   const [updateTenant, { isLoading: saving }] = useUpdateTenantMutation();
+  const activePropertyId = useSelectedPropertyId();
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId: activePropertyId });
+  const currencyOptions = currencyRatesData?.data || [];
   const [form, setForm] = useState<Record<string, string>>({}); // populated on edit start
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -293,6 +298,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
     f.addressLine1 = tenant.addressLine1 || ''; f.addressLine2 = tenant.addressLine2 || '';
     f.city = tenant.city || ''; f.state = tenant.state || ''; f.postalCode = tenant.postalCode || '';
     f.country = tenant.country || ''; f.source = tenant.source || ''; f.notes = tenant.notes || '';
+    f.currency = tenant.currency || '';
     setForm(f);
     setTags([...(tenant.tags || [])]);
     setEditing(true);
@@ -305,6 +311,9 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
     for (const [k, v] of Object.entries(form)) {
       payload[k] = v || null;
     }
+    // Currency is locked once saved — the field is disabled in the UI when tenant.currency
+    // is already set, and the server ignores changes to it anyway (defense in depth).
+    if (tenant.currency) delete payload.currency;
     payload.tags = tags;
     try {
       await updateTenant({ id: tenantId, data: payload }).unwrap();
@@ -376,6 +385,10 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
             <EditField label="Mobile" value={form.mobile} onChange={(v) => set('mobile', v)} />
             <EditSelect label="Source" value={form.source} onChange={(v) => set('source', v)}
               options={[['','—'],['walk_in','Walk-in'],['referral','Referral'],['online','Online'],['agent','Agent']]} />
+            <EditSelect label="Currency" value={form.currency} onChange={(v) => set('currency', v)}
+              disabled={!!tenant.currency}
+              title={tenant.currency ? 'Currency is locked once saved and cannot be changed' : ''}
+              options={[['','— Select —'], ...currencyOptions.map((c) => [c.currency, c.description ? `${c.currency} — ${c.description}` : c.currency] as [string, string])]} />
             {tenant.tenantType === 'individual' && (
               <>
                 <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
@@ -471,14 +484,15 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
       </div>
 
       {/* Contact details */}
-      {(tenant.email || tenant.phone || tenant.mobile || tenant.source) && (
+      {(tenant.email || tenant.phone || tenant.mobile || tenant.source || tenant.currency) && (
         <div className="info-card">
           <h4>Contact Details</h4>
           <div className="info-rows">
-            {tenant.email  && <InfoRow label="Email"  value={tenant.email} />}
-            {tenant.phone  && <InfoRow label="Phone"  value={tenant.phone} />}
-            {tenant.mobile && <InfoRow label="Mobile" value={tenant.mobile} />}
-            {tenant.source && <InfoRow label="Source" value={tenant.source.replace(/_/g, ' ')} />}
+            {tenant.email    && <InfoRow label="Email"    value={tenant.email} />}
+            {tenant.phone    && <InfoRow label="Phone"    value={tenant.phone} />}
+            {tenant.mobile   && <InfoRow label="Mobile"   value={tenant.mobile} />}
+            {tenant.source   && <InfoRow label="Source"   value={tenant.source.replace(/_/g, ' ')} />}
+            {tenant.currency && <InfoRow label="Currency" value={tenant.currency} />}
           </div>
         </div>
       )}
@@ -549,13 +563,20 @@ function EditField({ label, value, onChange, type = 'text', span, maxLen }: {
   );
 }
 
-function EditSelect({ label, value, onChange, options }: {
+function EditSelect({ label, value, onChange, options, disabled, title }: {
   label: string; value: string; onChange: (v: string) => void; options: [string, string][];
+  disabled?: boolean; title?: string;
 }) {
   return (
     <div className="edit-field">
       <label>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <select
+        value={value}
+        disabled={disabled}
+        title={title}
+        style={disabled ? { background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' } : undefined}
+        onChange={(e) => onChange(e.target.value)}
+      >
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
     </div>

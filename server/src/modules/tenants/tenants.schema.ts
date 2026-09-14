@@ -39,6 +39,7 @@ export const createTenantSchema = z.object({
   notes: z.string().optional().nullable(),
   tags: z.array(z.string()).optional(),
   source: z.string().max(50).optional().nullable(),
+  currency: z.string().max(3).optional().nullable(),
 });
 
 export const updateTenantSchema = createTenantSchema.partial();

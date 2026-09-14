@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCreateTenantMutation } from '../../../store/api/tenantsApi';
+import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { ArrowLeft, User, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -13,6 +15,10 @@ export default function CreateTenantPage() {
   const [createTenant, { isLoading }] = useCreateTenantMutation();
   const [tenantType, setTenantType] = useState<TenantType>('individual');
 
+  const activePropertyId = useSelectedPropertyId();
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId: activePropertyId });
+  const currencyOptions = currencyRatesData?.data || [];
+
   const [form, setForm] = useState({
     // individual
     firstName: '', lastName: '', fatherName: '', dateOfBirth: '', gender: '',
@@ -24,7 +30,7 @@ export default function CreateTenantPage() {
     // common
     email: '', phone: '', mobile: '',
     addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '',
-    source: '',
+    source: '', currency: '',
     tags: [] as string[],
     notes: '',
   });
@@ -36,6 +42,7 @@ export default function CreateTenantPage() {
   const handleSubmit = async () => {
     if (tenantType === 'individual' && !form.firstName) { toast.error('Code is required'); return; }
     if (tenantType === 'company'    && !form.companyName) { toast.error('Company name is required'); return; }
+    if (!form.currency) { toast.error('Currency is required'); return; }
 
     const payload: Record<string, unknown> = { tenantType };
     if (tenantType === 'individual') {
@@ -62,6 +69,7 @@ export default function CreateTenantPage() {
       city: form.city || null, state: form.state || null,
       postalCode: form.postalCode || null, country: form.country || null,
       source: form.source || null, tags: form.tags,
+      currency: form.currency,
       notes: form.notes || null,
     });
 
@@ -161,6 +169,8 @@ export default function CreateTenantPage() {
             <Field label="Mobile" value={form.mobile} onChange={(v) => set('mobile', v)} />
             <SelectField label="Source" value={form.source} onChange={(v) => set('source', v)}
               options={[['','Select…'],['walk_in','Walk-in'],['referral','Referral'],['online','Online'],['agent','Agent']]} />
+            <SelectField label="Currency *" value={form.currency} onChange={(v) => set('currency', v)}
+              options={[['','Select currency…'], ...currencyOptions.map((c) => [c.currency, c.description ? `${c.currency} — ${c.description}` : c.currency] as [string, string])]} />
           </div>
         </div>
 
@@ -217,7 +227,7 @@ export default function CreateTenantPage() {
       <div className="ct-footer">
         <button className="btn-ghost" onClick={() => navigate('/admin/tenants')}>Cancel</button>
         <PermissionGuard permission="tenants.create">
-          <button className="btn-primary" onClick={handleSubmit} disabled={isLoading}>
+          <button className="btn-primary" onClick={handleSubmit} disabled={isLoading || !form.currency}>
             {isLoading ? 'Creating…' : 'Create Tenant'}
           </button>
         </PermissionGuard>
