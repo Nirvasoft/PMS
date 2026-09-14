@@ -188,7 +188,7 @@ export default function LoginPage() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password1</label>
+            <label htmlFor="password">Password</label>
             <div className="input-with-icon">
               <Lock size={18} className="input-icon" />
               <input
