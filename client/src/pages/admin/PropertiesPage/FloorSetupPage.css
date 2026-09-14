@@ -118,8 +118,8 @@
 }
 
 .floor-slab.filled {
-  background: linear-gradient(155deg, hsl(var(--b-hue) 68% 56% / 0.92), hsl(var(--b-hue) 68% 36% / 0.95));
-  border: 1px solid hsl(var(--b-hue) 70% 68% / 0.5);
+  background: linear-gradient(155deg, hsl(var(--b-hue) var(--b-sat, 68%) calc(56% + var(--b-light-shift, 0%)) / 0.92), hsl(var(--b-hue) var(--b-sat, 68%) calc(36% + var(--b-light-shift, 0%)) / 0.95));
+  border: 1px solid hsl(var(--b-hue) var(--b-sat, 68%) calc(68% + var(--b-light-shift, 0%)) / 0.5);
   color: #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
@@ -132,7 +132,7 @@
   pointer-events: none;
 }
 .floor-slab.filled:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 0 0 2px hsl(var(--b-hue) 70% 65% / 0.4);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 0 0 2px hsl(var(--b-hue) var(--b-sat, 70%) calc(65% + var(--b-light-shift, 0%)) / 0.4);
 }
 
 .floor-slab.empty {
@@ -235,7 +235,7 @@
 .bl-progress-fill {
   height: 100%;
   border-radius: 2px;
-  background: linear-gradient(90deg, hsl(var(--b-hue) 70% 55%), hsl(var(--b-hue) 70% 68%));
+  background: linear-gradient(90deg, hsl(var(--b-hue) var(--b-sat, 70%) calc(55% + var(--b-light-shift, 0%))), hsl(var(--b-hue) var(--b-sat, 70%) calc(68% + var(--b-light-shift, 0%))));
   transition: width 0.3s;
 }
 .bl-count {

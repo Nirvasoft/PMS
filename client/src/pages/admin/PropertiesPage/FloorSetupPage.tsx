@@ -30,11 +30,31 @@ function plainOrdinalSuffix(n: number): string {
   return 'th';
 }
 
-/** Deterministic hue per property id so each building reads as a distinct "tower" in the skyline. */
-function hueForId(id: string): number {
+/**
+ * Deterministic hue/saturation/lightness per property id so each building reads as a distinct
+ * "tower" in the skyline. Hue is constrained to a band around the app's emerald accent (~158°)
+ * instead of the full 0-360° wheel, so towers stay on-brand (green/teal family) rather than
+ * clashing reds/purples. Saturation and lightness are varied independently (via different hash
+ * multipliers) so two buildings whose hues land close together still read as visibly different
+ * shades instead of near-duplicates.
+ */
+const HUE_BASE = 158;
+const HUE_SPREAD = 42;
+const SAT_MIN = 52;
+const SAT_MAX = 78;
+const LIGHT_SPREAD = 9;
+
+function hashStr(id: string, multiplier: number): number {
   let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
+  for (let i = 0; i < id.length; i++) h = (h * multiplier + id.charCodeAt(i)) % 997;
   return h;
+}
+
+function paletteForId(id: string): { hue: number; sat: number; lightShift: number } {
+  const hue = HUE_BASE - HUE_SPREAD + (hashStr(id, 31) % (HUE_SPREAD * 2 + 1));
+  const sat = SAT_MIN + (hashStr(id, 53) % (SAT_MAX - SAT_MIN + 1));
+  const lightShift = -LIGHT_SPREAD + (hashStr(id, 17) % (LIGHT_SPREAD * 2 + 1));
+  return { hue, sat, lightShift };
 }
 
 /* ── Smart label prediction ──────────────────────────
@@ -303,7 +323,8 @@ export default function FloorSetupPage() {
               const total = p.totalFloors || 0;
               const fm = floorsByProperty.get(p.id) || new Map<number, FloorSetup>();
               const configuredCount = fm.size;
-              const hue = hueForId(p.id);
+              const { hue, sat, lightShift } = paletteForId(p.id);
+              const buildingVars = { ['--b-hue' as any]: hue, ['--b-sat' as any]: `${sat}%`, ['--b-light-shift' as any]: `${lightShift}%` };
               const propMatch = propertyMatchesQuery(p);
 
               const rows: number[] = [];
@@ -318,7 +339,7 @@ export default function FloorSetupPage() {
                     </div>
                   ) : (
                     <>
-                      <div className="building-tower" style={{ ['--b-hue' as any]: hue }}>
+                      <div className="building-tower" style={buildingVars as any}>
                         <span className="building-spire" />
                         {rows.map((n, idx) => {
                           const f = fm.get(n);
@@ -363,7 +384,7 @@ export default function FloorSetupPage() {
                     {total > 0 && (
                       <>
                         <div className="bl-progress">
-                          <div className="bl-progress-fill" style={{ width: `${(configuredCount / total) * 100}%`, ['--b-hue' as any]: hue }} />
+                          <div className="bl-progress-fill" style={{ width: `${(configuredCount / total) * 100}%`, ...buildingVars } as any} />
                         </div>
                         <span className="bl-count">{configuredCount}/{total} floors set</span>
                         {configuredCount < total && canCreateFloor && (
