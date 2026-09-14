@@ -315,7 +315,7 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
             <div className="edit-grid">
               <div className="edit-field">
                 <label>Currency</label>
-                <select value={form.currency} onChange={e => set('currency', e.target.value)}>
+                <select value={form.currency} disabled title="Currency cannot be changed after property creation">
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>

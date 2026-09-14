@@ -896,11 +896,12 @@ function SettingsTab({ property }: { property: any }) {
           <label className="settings-field-label">
             <Globe size={14} /> Currency
           </label>
-          <div className="settings-field-desc">Default currency for rent and billing amounts</div>
+          <div className="settings-field-desc">Default currency for rent and billing amounts (cannot be changed after creation)</div>
           <select
             className="settings-select"
             value={form.currency}
-            onChange={e => set('currency', e.target.value)}
+            disabled
+            title="Currency cannot be changed after property creation"
           >
             {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
