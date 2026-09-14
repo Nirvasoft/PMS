@@ -241,7 +241,7 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* Organization Section */}
-          <PermissionGuard hideWhenDenied permission={['company.read', 'properties.read', 'tenants.read', 'leases.read', 'currency-rate.read']}>
+          <PermissionGuard hideWhenDenied permission={['company.read', 'properties.read', 'floor.read', 'tenants.read', 'leases.read', 'currency-rate.read']}>
             <NavSection label="Organization" storageKey="org" defaultOpen isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="company.read">
                 <NavLink to="/admin/company" className="nav-item" title="Company">
@@ -260,6 +260,8 @@ export default function DashboardLayout() {
                   <Home size={18} />
                   <span>Properties</span>
                 </NavLink>
+              </PermissionGuard>
+              <PermissionGuard hideWhenDenied permission="floor.read">
                 <NavLink to="/admin/properties/floor-setup" className="nav-item" title="Floor Setup">
                   <Layers size={18} />
                   <span>Floor Setup</span>

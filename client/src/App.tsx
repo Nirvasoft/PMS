@@ -247,8 +247,12 @@ function AppRoutes() {
           <Route element={<RequirePermission permission="properties.read" />}>
             <Route path="/admin/properties" element={<PropertiesPage />} />
             <Route path="/admin/properties/create" element={<CreatePropertyPage />} />
-            <Route path="/admin/properties/floor-setup" element={<FloorSetupPage />} />
             <Route path="/admin/properties/:id" element={<PropertyDetailPage />} />
+          </Route>
+
+          {/* Floor Setup — requires floor.read, independent of properties.read */}
+          <Route element={<RequirePermission permission="floor.read" />}>
+            <Route path="/admin/properties/floor-setup" element={<FloorSetupPage />} />
           </Route>
 
           {/* Tenants — requires tenants.read */}
