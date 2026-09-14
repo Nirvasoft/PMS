@@ -8,9 +8,9 @@ export class LeasesService {
   // Looks up the Currency Setup rate matching `currency` as of right now — used to
   // snapshot a lease's currencyRate server-side so it can't be spoofed via the request
   // body, and so it stays put even if the Currency Setup row is edited later.
-  private async latestCurrencyRate(companyId: string, currency: string) {
+  private async latestCurrencyRate(companyId: string, propertyId: string, currency: string) {
     const row = await prisma.currencyRate.findFirst({
-      where: { companyId, currency, isActive: true },
+      where: { companyId, propertyId, currency, isActive: true },
       orderBy: { effectiveDate: 'desc' },
     });
     return row?.rate ?? null;
@@ -146,7 +146,7 @@ export class LeasesService {
       if (tmpl) templateClauses = tmpl.clauses as unknown[];
     }
 
-    const currencyRate = rest.currency ? await this.latestCurrencyRate(companyId, rest.currency) : null;
+    const currencyRate = rest.currency ? await this.latestCurrencyRate(companyId, propertyId, rest.currency) : null;
 
     const lease = await prisma.lease.create({
       data: {
@@ -217,7 +217,7 @@ export class LeasesService {
 
     // Re-snapshot the Currency Setup rate when the currency itself changes.
     const currencyRate = rest.currency && rest.currency !== lease.currency
-      ? await this.latestCurrencyRate(companyId, rest.currency)
+      ? await this.latestCurrencyRate(companyId, lease.propertyId, rest.currency)
       : undefined;
 
     const updated = await prisma.lease.update({

@@ -27,6 +27,7 @@ export interface ChargeType {
 
 export interface CurrencyRate {
   id: string;
+  propertyId: string;
   baseCurrency: string;
   currency: string;
   description: string | null;
@@ -215,8 +216,8 @@ export const billingApi = createApi({
     }),
 
     // ── Currency Rates ─────────────────────
-    getCurrencyRates: builder.query<ApiResponse<CurrencyRate[]>, void>({
-      query: () => '/billing/currency-rates',
+    getCurrencyRates: builder.query<ApiResponse<CurrencyRate[]>, { propertyId?: string } | void>({
+      query: (params) => ({ url: '/billing/currency-rates', params: params || {} }),
       providesTags: ['CurrencyRates'],
     }),
 

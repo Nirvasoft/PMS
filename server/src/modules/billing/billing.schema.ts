@@ -96,6 +96,7 @@ export const updateChargeTypeSchema = z.object({
 
 export const createCurrencyRateSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid(),
     currency: z.string().min(1).max(10),
     description: z.string().max(100).optional(),
     symbol: z.string().max(5).optional(),

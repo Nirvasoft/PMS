@@ -75,7 +75,9 @@ chargeTypesRouter.put('/:id', validateRequest(updateChargeTypeSchema), asyncHand
 export const currencyRatesRouter = Router();
 
 currencyRatesRouter.get('/', requirePermission('currency-rate.read'), asyncHandler(async (req, res) => {
-  const data = await currencyRatesService.findAll(req.user!.companyId);
+  const data = await currencyRatesService.findAll(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+  });
   res.json({ success: true, data });
 }));
 

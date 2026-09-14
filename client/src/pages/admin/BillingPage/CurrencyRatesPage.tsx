@@ -1,8 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetCurrencyRatesQuery, useCreateCurrencyRateMutation, useUpdateCurrencyRateMutation, useDeleteCurrencyRateMutation,
   type CurrencyRate,
 } from '../../../store/api/billingApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { CURRENCIES } from '../../../constants/currencies';
 import { Coins, Plus, X, Trash2, Search, ChevronLeft, ChevronRight, List, Save } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
@@ -31,7 +34,14 @@ const emptyForm = {
 };
 
 export default function CurrencyRatesPage() {
-  const { data: ratesData, isFetching } = useGetCurrencyRatesQuery();
+  const activePropertyId = useSelectedPropertyId();
+  // /properties/my-scope is permission-free — see useSelectedPropertyId.ts — and carries
+  // each property's own currency, which Code/Base Currency below bind to.
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const activeProperty = scopeData?.data.find((p) => p.id === activePropertyId);
+  const propertyCurrency = activeProperty?.currency || '';
+
+  const { data: ratesData, isFetching } = useGetCurrencyRatesQuery(activePropertyId ? { propertyId: activePropertyId } : skipToken);
   const [createCurrencyRate, { isLoading: creating }] = useCreateCurrencyRateMutation();
   const [updateCurrencyRate, { isLoading: updating }] = useUpdateCurrencyRateMutation();
   const [deleteCurrencyRate] = useDeleteCurrencyRateMutation();
@@ -71,7 +81,18 @@ export default function CurrencyRatesPage() {
   const [editing, setEditing] = useState<CurrencyRate | null>(null);
   const [form, setForm] = useState(emptyForm);
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setViewMode('form'); };
+  // No rows yet for this property means no base currency is set — the row about to be
+  // created must be it, so Code/Base Currency below bind to and lock onto the property's
+  // own currency instead of offering a free choice.
+  const mustBeBaseCurrency = !editing && rates.length === 0;
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(propertyCurrency && rates.length === 0
+      ? { ...emptyForm, currency: propertyCurrency, isBaseCurrency: true, rate: '1' }
+      : emptyForm);
+    setViewMode('form');
+  };
   const openEdit = (r: CurrencyRate) => {
     setEditing(r);
     setForm({
@@ -88,17 +109,23 @@ export default function CurrencyRatesPage() {
   };
   const backToList = () => { setViewMode('list'); setEditing(null); setForm(emptyForm); };
 
+  // Switching the sidebar's Active Property changes which property's rates this page shows —
+  // an open create/edit form would otherwise keep referencing the property it was opened for.
+  useEffect(() => { backToList(); }, [activePropertyId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Nothing is base yet — the first currency created must be marked Base Currency,
-    // otherwise the system would end up with no base at all.
+    // otherwise the property would end up with no base at all. Unreachable in practice
+    // since mustBeBaseCurrency already forces the checkbox on — kept as a safety net.
     if (rates.length === 0 && !form.isBaseCurrency) {
       alertDialog('No Base Currency is set up yet. Check "Base Currency" for this entry before saving.');
       return;
     }
 
     const payload = {
+      propertyId: activePropertyId,
       currency: form.currency,
       description: form.description.trim(),
       symbol: form.symbol.trim(),
@@ -142,6 +169,10 @@ export default function CurrencyRatesPage() {
   // Only one currency can be the base at a time — lock the checkbox once another is set.
   const existingBaseCurrency = rates.find((r) => r.isBaseCurrency && r.id !== editing?.id);
   const baseCurrencyLocked = !form.isBaseCurrency && !!existingBaseCurrency;
+
+  // Non-base rows convert against the property's currency, so picking it here would
+  // always be rejected server-side as "same as base" — leave it out of the choices.
+  const selectableCurrencies = CURRENCIES.filter((c) => c !== propertyCurrency);
 
   return (
     <div className="billing-page">
@@ -263,21 +294,31 @@ export default function CurrencyRatesPage() {
               <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end' }}>
                 <div className="inv-field" style={{ flex: 1 }}>
                   <label>Code <span className="req">*</span></label>
-                  <select required value={form.currency} disabled={!!editing}
-                    style={editing ? { cursor: 'not-allowed', opacity: 0.6 } : undefined}
+                  <select required value={form.currency} disabled={!!editing || mustBeBaseCurrency}
+                    style={(editing || mustBeBaseCurrency) ? { cursor: 'not-allowed', opacity: 0.6 } : undefined}
                     onChange={(e) => setForm({ ...form, currency: e.target.value })}>
-                    <option value="">Select currency…</option>
-                    {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {mustBeBaseCurrency ? (
+                      <option value={propertyCurrency}>{propertyCurrency}</option>
+                    ) : editing ? (
+                      // Editing an existing row — its own currency may be the property's base
+                      // currency, which selectableCurrencies below deliberately excludes.
+                      <option value={form.currency}>{form.currency}</option>
+                    ) : (
+                      <>
+                        <option value="">Select currency…</option>
+                        {selectableCurrencies.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </>
+                    )}
                   </select>
                 </div>
                 <label
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, whiteSpace: 'nowrap',
-                    opacity: (baseCurrencyLocked || editing) ? 0.5 : 1,
+                    opacity: (baseCurrencyLocked || editing || mustBeBaseCurrency) ? 0.5 : 1,
                   }}
                 >
-                  <input type="checkbox" checked={form.isBaseCurrency} disabled={baseCurrencyLocked || !!editing}
-                    style={{ cursor: (baseCurrencyLocked || editing) ? 'not-allowed' : 'pointer' }}
+                  <input type="checkbox" checked={form.isBaseCurrency} disabled={baseCurrencyLocked || !!editing || mustBeBaseCurrency}
+                    style={{ cursor: (baseCurrencyLocked || editing || mustBeBaseCurrency) ? 'not-allowed' : 'pointer' }}
                     onChange={(e) => setForm({ ...form, isBaseCurrency: e.target.checked, rate: e.target.checked && !form.rate ? '1' : form.rate })} />
                   Base Currency
                 </label>
@@ -314,14 +355,14 @@ export default function CurrencyRatesPage() {
               </div>
 
               <div className="inv-field">
-                <label>1.00 {form.currency || '—'} equals: {globalBaseCurrency}</label>
+                <label>1.00 {form.currency || '—'} equals:</label>
                 <input readOnly disabled style={{ cursor: 'not-allowed' }}
-                  value={formRateNum > 0 ? forwardValue.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '0.0000'} />
+                  value={formRateNum > 0 ? `${forwardValue.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${displayBaseCurrency}` : '0.0000'} />
               </div>
               <div className="inv-field">
-                <label>{displayBaseCurrency} [Base] 1.00 equals: {form.currency || '—'}</label>
+                <label>{displayBaseCurrency} [Base] 1.00 equals:</label>
                 <input readOnly disabled style={{ cursor: 'not-allowed' }}
-                  value={formRateNum > 0 ? inverseValue.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '0.0000'} />
+                  value={formRateNum > 0 ? `${inverseValue.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${form.currency || '—'}` : '0.0000'} />
               </div>
             </div>
           </div>
