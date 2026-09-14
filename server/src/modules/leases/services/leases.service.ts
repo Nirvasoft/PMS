@@ -34,7 +34,14 @@ export class LeasesService {
       where.status  = { in: ['active', 'approved'] };
     }
     if (search) {
-      where.leaseNumber = { contains: search, mode: 'insensitive' };
+      where.OR = [
+        { leaseNumber: { contains: search, mode: 'insensitive' } },
+        { unit: { unitNumber: { contains: search, mode: 'insensitive' } } },
+        { tenant: { code: { contains: search, mode: 'insensitive' } } },
+        { tenant: { firstName: { contains: search, mode: 'insensitive' } } },
+        { tenant: { lastName: { contains: search, mode: 'insensitive' } } },
+        { tenant: { companyName: { contains: search, mode: 'insensitive' } } },
+      ];
     }
 
     const [raw, total] = await Promise.all([

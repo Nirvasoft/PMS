@@ -104,7 +104,7 @@ export default function LeaseListPage() {
       <div className="lease-filters">
         <div className="search-box">
           <Search size={14} />
-          <input placeholder="Search lease number…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          <input placeholder="Search lease #, unit no, or tenant code/name…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           {search && <button onClick={() => setSearch('')}><X size={13} /></button>}
         </div>
 
