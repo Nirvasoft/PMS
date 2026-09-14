@@ -110,6 +110,7 @@ export const terminateLeaseSchema = z.object({
   body: z.object({
     terminationDate: dateString,
     reason: z.string().min(1, 'Termination reason is required'),
+    terminateSchedules: z.boolean().optional(),
   }),
 });
 

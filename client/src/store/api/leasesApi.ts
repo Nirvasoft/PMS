@@ -213,14 +213,14 @@ export const leasesApi = createApi({
     }),
 
     terminateLease: builder.mutation<ApiResponse<{ earlyTerminationPenalty: number; penaltyBreakdown: string }>, {
-      id: string; terminationDate: string; reason: string;
+      id: string; terminationDate: string; reason: string; terminateSchedules?: boolean;
     }>({
       query: ({ id, ...data }) => ({ url: `/leases/${id}/terminate`, method: 'POST', body: data }),
       invalidatesTags: (_, __, { id }) => [{ type: 'Leases', id }, 'Leases'],
       onQueryStarted: invalidateUnitTagsOnSuccess,
     }),
 
-    createRenewal: builder.mutation<ApiResponse<LeaseDetail>, { id: string; startDate: string; endDate: string; rentAmount?: number; offerExpiresAt?: string }>({
+    createRenewal: builder.mutation<ApiResponse<LeaseDetail>, { id: string; startDate: string; endDate: string; rentAmount?: number; securityDeposit?: number; offerExpiresAt?: string }>({
       query: ({ id, ...data }) => ({ url: `/leases/${id}/renewal`, method: 'POST', body: data }),
       invalidatesTags: ['Leases'],
     }),

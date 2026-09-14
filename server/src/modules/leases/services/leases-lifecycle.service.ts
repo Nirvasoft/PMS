@@ -106,7 +106,7 @@ export class LeasesLifecycleService {
   }
 
   // ── Terminate ────────────────────────────
-  async terminate(id: string, companyId: string, dto: { terminationDate: string; reason: string }, terminatedBy: string) {
+  async terminate(id: string, companyId: string, dto: { terminationDate: string; reason: string; terminateSchedules?: boolean }, terminatedBy: string) {
     const lease = await prisma.lease.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!lease) throw AppError.notFound('Lease');
     if (lease.status !== 'active') throw new AppError(400, 'NOT_ACTIVE', 'Only active leases can be terminated');
@@ -126,6 +126,12 @@ export class LeasesLifecycleService {
     await prisma.$transaction([
       prisma.lease.update({ where: { id }, data: { status: 'terminated', terminationDate: termDate, terminationReason: dto.reason, terminationType: isEarly ? 'early' : 'normal', earlyTerminationPenalty: penalty } }),
       prisma.unit.update({ where: { id: lease.unitId }, data: { status: 'available' } }),
+      ...(dto.terminateSchedules
+        ? [prisma.billingSchedule.updateMany({
+            where: { leaseId: id, status: 'active', billingCycle: { not: 'monthly' } },
+            data: { status: 'cancelled' },
+          })]
+        : []),
     ]);
     await unitsService.invalidateStatsCache(lease.propertyId);
 
@@ -135,7 +141,7 @@ export class LeasesLifecycleService {
   }
 
   // ── Create renewal ───────────────────────
-  async createRenewal(id: string, companyId: string, dto: { startDate: string; endDate: string; rentAmount?: number; offerExpiresAt?: string }, createdBy: string) {
+  async createRenewal(id: string, companyId: string, dto: { startDate: string; endDate: string; rentAmount?: number; securityDeposit?: number; offerExpiresAt?: string }, createdBy: string) {
     const original = await prisma.lease.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!original) throw AppError.notFound('Lease');
     if (original.status !== 'active') throw new AppError(400, 'NOT_ACTIVE', 'Can only renew active leases');
@@ -150,6 +156,7 @@ export class LeasesLifecycleService {
         leaseNumber: nextLeaseNumber(), status: 'draft',
         startDate: start, endDate: end, leaseTermMonths: calcLeaseTermMonths(start, end),
         rentAmount: dto.rentAmount ?? original.rentAmount,
+        securityDeposit: dto.securityDeposit ?? original.securityDeposit,
         currency: original.currency, billingCycle: original.billingCycle,
         billingDay: original.billingDay, paymentDueDays: original.paymentDueDays,
         escalationType: original.escalationType, escalationValue: original.escalationValue,
