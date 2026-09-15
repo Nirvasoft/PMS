@@ -222,7 +222,7 @@ export default function AnalyticsDashboard() {
         <div className="header-left">
           <BarChart3 size={24} className="header-icon" />
           <div>
-            <h1>Analytics Dashboard</h1>
+            <h1>Analytics Dashboard (Remove)</h1>
             <p className="subtitle">Real-time overview of your property portfolio test</p>
           </div>
         </div>
