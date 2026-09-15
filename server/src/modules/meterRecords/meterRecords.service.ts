@@ -229,12 +229,16 @@ class MeterRecordsService {
 
         const lease = await prisma.lease.findFirst({
           where: { unitId: utilityMeter.unitId, status: 'active' },
-          select: { tenant: { select: { code: true } } },
+          select: { tenant: { select: { code: true, firstName: true, tenantType: true } } },
           orderBy: { startDate: 'desc' },
         });
         if (lease) {
           hasActiveLease = true;
-          tenant = lease.tenant?.code ?? '';
+          // Same source as the "Code" shown on the Tenants list/detail page: individual
+          // tenants store it in `firstName` (see CreateTenantPage's Code field); `code` is
+          // a legacy column only backfilled once and left unset for company tenants.
+          const t = lease.tenant;
+          tenant = t ? (t.tenantType === 'company' ? (t.code ?? '') : (t.firstName ?? t.code ?? '')) : '';
         }
       }
 
