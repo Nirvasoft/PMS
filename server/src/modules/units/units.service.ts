@@ -330,13 +330,13 @@ export class UnitsService {
   // ── Bulk create ────────────────────────────
   async bulkCreate(propertyId: string, companyId: string, dto: {
     towerId?: string;
-    floorRange?: { from: number; to: number; unitsPerFloor: number; unitTypeId: string; areaSqft?: number; areaSqm?: number; prefix?: string };
+    floorRange?: { from: number; to: number; unitsPerFloor: number; unitTypeId: string; areaSqft?: number; areaSqm?: number; prefix?: string; useFloorLabelPrefix?: boolean };
     floors?: Array<{ floorNumber: number; units: Array<Record<string, unknown>> }>;
   }, userId: string, floorScope?: number[] | null) {
     const units: Array<Record<string, unknown>> = [];
 
     if (dto.floorRange) {
-      const { from, to, unitsPerFloor, unitTypeId, areaSqft, areaSqm, prefix } = dto.floorRange;
+      const { from, to, unitsPerFloor, unitTypeId, areaSqft, areaSqm, prefix, useFloorLabelPrefix = true } = dto.floorRange;
       if (floorScope) {
         for (let floor = from; floor <= to; floor++) this.assertFloorAllowed(floorScope, floor);
       }
@@ -352,9 +352,10 @@ export class UnitsService {
 
       for (let floor = from; floor <= to; floor++) {
         const floorLabel = floorLabelMap.get(floor) ?? String(floor);
+        const numberPrefix = useFloorLabelPrefix ? floorLabel : String(floor);
         for (let u = 1; u <= unitsPerFloor; u++) {
           const unitNum = u.toString().padStart(2, '0');
-          const unitNumber = `${floorLabel}${prefix ?? ''}${unitNum}`;
+          const unitNumber = `${numberPrefix}${prefix ?? ''}${unitNum}`;
           units.push({
             propertyId, companyId,
             towerId: dto.towerId ?? null,

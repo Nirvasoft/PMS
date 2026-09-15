@@ -27,6 +27,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
     unitsPerFloor: 4,
     unitTypeId: '',
     areaSqft: '' as number | '',
+    useFloorLabelPrefix: true,
   });
 
   // Fixed separator between the floor label and the sequence number (e.g. "8F-01")
@@ -70,12 +71,13 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
     if (!form.unitTypeId) return list;
     for (let floor = form.fromFloor; floor <= form.toFloor; floor++) {
       const floorLabel = floorLabelMap.get(floor) ?? String(floor);
+      const numberPrefix = form.useFloorLabelPrefix ? floorLabel : String(floor);
       for (let u = 1; u <= form.unitsPerFloor; u++) {
-        list.push({ unitNumber: `${floorLabel}${UNIT_NUMBER_SEPARATOR}${u.toString().padStart(2, '0')}`, floor });
+        list.push({ unitNumber: `${numberPrefix}${UNIT_NUMBER_SEPARATOR}${u.toString().padStart(2, '0')}`, floor });
       }
     }
     return list;
-  }, [form.fromFloor, form.toFloor, form.unitsPerFloor, form.unitTypeId, floorLabelMap]);
+  }, [form.fromFloor, form.toFloor, form.unitsPerFloor, form.unitTypeId, form.useFloorLabelPrefix, floorLabelMap]);
 
   const allUnitNumbers = useMemo(() => allUnits.map((u) => u.unitNumber), [allUnits]);
 
@@ -137,6 +139,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
             unitTypeId: form.unitTypeId,
             areaSqft: form.areaSqft ? Number(form.areaSqft) : undefined,
             prefix: UNIT_NUMBER_SEPARATOR,
+            useFloorLabelPrefix: form.useFloorLabelPrefix,
           },
         },
       }).unwrap();
@@ -205,6 +208,15 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
               </div>
             </div>
 
+            <label className="bulk-checkbox-row" title="Prefix each generated unit number with its floor's label (from Floor Setup) instead of the plain floor number">
+              <input
+                type="checkbox"
+                checked={form.useFloorLabelPrefix}
+                onChange={(e) => setForm({ ...form, useFloorLabelPrefix: e.target.checked })}
+              />
+              Use floor label as prefix
+            </label>
+
             <div className="form-row-2">
               <div className="form-field">
                 <label>Units per Floor</label>
@@ -235,7 +247,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
             )}
 
             {/* Missing floor label warning */}
-            {form.unitTypeId && floorsMissingLabel.length > 0 && (
+            {form.useFloorLabelPrefix && form.unitTypeId && floorsMissingLabel.length > 0 && (
               <div className="conflict-warning">
                 <AlertTriangle size={14} />
                 <span>

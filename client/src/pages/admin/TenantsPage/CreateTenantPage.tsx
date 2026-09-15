@@ -170,7 +170,7 @@ export default function CreateTenantPage() {
             <SelectField label="Source" value={form.source} onChange={(v) => set('source', v)}
               options={[['','Select…'],['walk_in','Walk-in'],['referral','Referral'],['online','Online'],['agent','Agent']]} />
             <SelectField label="Currency *" value={form.currency} onChange={(v) => set('currency', v)}
-              options={[['','Select currency…'], ...currencyOptions.map((c) => [c.currency, c.description ? `${c.currency} — ${c.description}` : c.currency] as [string, string])]} />
+              options={[['','Select currency…'], ...currencyOptions.map((c) => [c.currency, c.currency] as [string, string])]} />
           </div>
         </div>
 

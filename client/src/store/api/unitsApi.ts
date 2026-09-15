@@ -261,6 +261,7 @@ export interface BulkCreateDto {
     areaSqft?: number;
     areaSqm?: number;
     prefix?: string;
+    useFloorLabelPrefix?: boolean;
   };
 }
 

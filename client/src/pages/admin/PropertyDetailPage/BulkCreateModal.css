@@ -59,6 +59,17 @@
 
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
+.bulk-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.bulk-checkbox-row input { width: auto; margin: 0; }
+
 .form-field input.field-error {
   border-color: rgba(239,68,68,0.5);
 }

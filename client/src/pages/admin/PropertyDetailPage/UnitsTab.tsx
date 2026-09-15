@@ -796,6 +796,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
     rentalPeriod: '', rentalPeriodUnit: 'month', calculationOn: 'fixed', rate: '', currency: '',
     description: '',
     commonBillCalculate: false,
+    useFloorLabelPrefix: true,
   });
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -817,7 +818,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
   const selectedFloor = floors.find((f) => f.floorNumber === Number(form.floorNumber));
 
   /* Floor label prefixes the P-Unit number and is not itself editable there */
-  const unitNumberPrefix = form.floorLabel ? `${form.floorLabel}-` : '';
+  const unitNumberPrefix = form.useFloorLabelPrefix && form.floorLabel ? `${form.floorLabel}-` : '';
   const fullUnitNumber = `${unitNumberPrefix}${form.unitNumber.trim()}`;
 
   const handleSubmit = async () => {
@@ -951,6 +952,16 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
               ) : (
                 <input placeholder="e.g. A-101" value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)} />
               )}
+              {form.floorLabel && (
+                <label className="cu-checkbox-row" title="Prefix the P-Unit Number with the Floor Label">
+                  <input
+                    type="checkbox"
+                    checked={form.useFloorLabelPrefix}
+                    onChange={(e) => setForm((f) => ({ ...f, useFloorLabelPrefix: e.target.checked }))}
+                  />
+                  Use floor label as prefix
+                </label>
+              )}
             </div>
             <div className="cu-field">
               <label>P-Unit Type *</label>
@@ -1019,7 +1030,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
               <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
                 <option value="">Select currency…</option>
                 {currencyOptions.map((c) => (
-                  <option key={c.id} value={c.currency}>{c.currency}{c.description ? ` — ${c.description}` : ''}</option>
+                  <option key={c.id} value={c.currency}>{c.currency}</option>
                 ))}
               </select>
             </div>

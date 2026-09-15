@@ -388,7 +388,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
             <EditSelect label="Currency" value={form.currency} onChange={(v) => set('currency', v)}
               disabled={!!tenant.currency}
               title={tenant.currency ? 'Currency is locked once saved and cannot be changed' : ''}
-              options={[['','— Select —'], ...currencyOptions.map((c) => [c.currency, c.description ? `${c.currency} — ${c.description}` : c.currency] as [string, string])]} />
+              options={[['','— Select —'], ...currencyOptions.map((c) => [c.currency, c.currency] as [string, string])]} />
             {tenant.tenantType === 'individual' && (
               <>
                 <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />

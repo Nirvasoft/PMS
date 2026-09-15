@@ -671,7 +671,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       >
                         <option value="">— Select —</option>
                         {currencyOptions.map((c) => (
-                          <option key={c.id} value={c.currency}>{c.currency}{c.description ? ` — ${c.description}` : ''}</option>
+                          <option key={c.id} value={c.currency}>{c.currency}</option>
                         ))}
                       </select>
                     </div>

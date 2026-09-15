@@ -1029,6 +1029,15 @@
 .cu-field select option { background: #1a1f2e; }
 .cu-field select optgroup { background: #1a1f2e; font-weight: 700; }
 .cu-field textarea { resize: vertical; min-height: 54px; }
+.cu-checkbox-row {
+  display: flex; align-items: center; gap: 5px;
+  margin-top: 1px;
+  font-size: 0.72rem; font-weight: 500; text-transform: none;
+  letter-spacing: normal;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.cu-checkbox-row input { width: auto; margin: 0; }
 
 .cu-footer {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px;
