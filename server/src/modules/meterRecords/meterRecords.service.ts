@@ -216,7 +216,7 @@ class MeterRecordsService {
       // A meter's assigned unit is looked up the same way meterSetup.service.ts's delete
       // guard does — by matching meterNo/meterSerialNo within the same property.
       const utilityMeter = await prisma.utilityMeter.findFirst({
-        where: { meterSerialNo: m.meterNo, propertyId },
+        where: { meterSerialNo: { equals: m.meterNo.trim(), mode: 'insensitive' }, propertyId },
         select: { unitId: true },
       });
 

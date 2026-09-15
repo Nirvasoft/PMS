@@ -101,7 +101,7 @@ export class MeterSetupService {
     // Block delete if any unit has this meter assigned (matched by meterNo + propertyId)
     const unitCount = await prisma.utilityMeter.count({
       where: {
-        meterSerialNo: meter.meterNo,
+        meterSerialNo: { equals: meter.meterNo.trim(), mode: 'insensitive' },
         propertyId: meter.propertyId,
         isActive: true,
       },
