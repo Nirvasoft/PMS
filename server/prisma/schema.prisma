@@ -2938,7 +2938,7 @@ model FloorSetup {
 model CurrencyRate {
   id             String   @id @default(uuid()) @db.Uuid
   companyId      String   @map("company_id") @db.Uuid
-  propertyId     String   @map("property_id") @db.Uuid // one base currency per property — see isBaseCurrency
+  propertyId     String?  @map("property_id") @db.Uuid // one base currency per property — see isBaseCurrency. Nullable for pre-existing company-scoped rows that predate this column.
   baseCurrency   String   @default("MMK") @map("base_currency") @db.VarChar(10) // the currency `rate` is expressed in — auto-derived from whichever row has isBaseCurrency
   currency       String   @db.VarChar(10) // ISO code, e.g. "USD" — see CURRENCIES on the client
   description    String?  @db.VarChar(100) // full currency name, e.g. "US Dollar"
@@ -2952,8 +2952,8 @@ model CurrencyRate {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   // One rate history — multiple dated entries per currency pair are expected.
   @@unique([propertyId, baseCurrency, currency, effectiveDate], map: "uq_currency_rate_property_pair_date")
