@@ -52,19 +52,21 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
     .sort((a, b) => a.floorNumber - b.floorNumber);
 
   // Units live under a property, so there is nothing to ask for until one is picked.
+  // Status is filtered server-side so the 50-row page isn't crowded out by
+  // occupied/reserved/etc. units that would otherwise push available ones off the list.
   const { data: unitsData, isFetching: unitsLoading } = useGetUnitsQuery(
     form.propertyId
       ? {
           propertyId: form.propertyId,
           floor: floorNumber ? Number(floorNumber) : undefined,
           search: unitDebounced || undefined,
+          status: LEASABLE.join(','),
           limit: 50,
         }
       : skipToken,
   );
 
   const unitOptions = (unitsData?.data || [])
-    .filter((u) => LEASABLE.includes(u.status))
     .map((u) => ({
       id: u.id,
       label: u.unitNumber,
