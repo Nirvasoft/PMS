@@ -13,7 +13,13 @@ export function validateRequest(schema: AnyZodObject) {
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const message = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        const message = error.errors
+          .map((e) => {
+            const [root, ...rest] = e.path;
+            const path = ['body', 'query', 'params'].includes(root as string) ? rest : e.path;
+            return path.length ? `${path.join('.')}: ${e.message}` : e.message;
+          })
+          .join(', ');
         next(new AppError(400, 'VALIDATION_ERROR', message));
       } else {
         next(error);

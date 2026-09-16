@@ -38,7 +38,14 @@ export const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, Fetch
 ) => {
   let result = await rawBaseQuery(args, api, extraOptions);
 
-  if (result.error && result.error.status === 401) {
+  // For these endpoints a 401 means "wrong credentials/code", not "session expired" —
+  // triggering the refresh+clearAuth dance below would reset the API cache mid-request
+  // (see resetApiCachesOnLogout in store/index.ts) and abort this very request, so the
+  // caller only ever sees an AbortError instead of the real error message.
+  const url = typeof args === 'string' ? args : args.url;
+  const isCredentialEndpoint = /\/auth\/(login|mfa\/verify|refresh)(\?|$)/.test(url);
+
+  if (result.error && result.error.status === 401 && !isCredentialEndpoint) {
     // Prevent multiple refresh calls
     if (!isRefreshing) {
       isRefreshing = true;
