@@ -655,6 +655,14 @@
   accent-color: #8b5cf6;
   cursor: pointer;
 }
+.ul-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+.ul-checkbox-spacer {
+  width: 15px; height: 15px;
+  display: inline-block;
+}
 
 /* ─── Bulk action bar (List view multi-select) ──── */
 .ut-bulk-bar {

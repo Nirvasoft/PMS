@@ -135,6 +135,13 @@ export default function UnitsTab() {
     setSelectedIds((ids) => (ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id]));
   const [bulkUpdateStatus, { isLoading: bulkUpdating }] = useBulkUpdateUnitStatusMutation();
 
+  /* Bulk status change only ever moves units to Available/Reserved. Selection (and its
+     checkboxes) only appear once the user has explicitly filtered to one of those two
+     statuses — at the initial, unfiltered view nothing is selectable yet. */
+  const eligibleStatuses = statusFilter.filter((s) => s === 'available' || s === 'reserved');
+  const hasEligibleStatus = eligibleStatuses.length > 0;
+  const selectableStatusParam = eligibleStatuses.join(',') || undefined;
+
   const { data: listData, isLoading: listLoading } = useGetUnitsQuery(
     {
       propertyId: propertyId!,
@@ -158,11 +165,15 @@ export default function UnitsTab() {
       setSelectedIds([]);
       return;
     }
+    if (!hasEligibleStatus) {
+      setSelectedIds([]);
+      return;
+    }
     try {
       const res = await fetchAllUnitIds({
         propertyId: propertyId!,
         towerId: selectedTowerId || undefined,
-        status: statusParam,
+        status: selectableStatusParam,
         floor: floorFilter ?? undefined,
         search: searchQuery || undefined,
       }).unwrap();
@@ -493,17 +504,22 @@ export default function UnitsTab() {
                       />
                     )}
                     <div className="ul-header">
-                      <input
-                        type="checkbox"
-                        className="ul-checkbox"
-                        checked={allMatchingSelected}
-                        disabled={selectAllLoading}
-                        ref={(el) => {
-                          if (el) el.indeterminate = !allMatchingSelected && selectedIds.length > 0;
-                        }}
-                        onChange={handleToggleSelectAll}
-                        title={allMatchingSelected ? 'Clear selection' : `Select all ${totalMatching} matching units`}
-                      />
+                      {hasEligibleStatus
+                        ? (
+                          <input
+                            type="checkbox"
+                            className="ul-checkbox"
+                            checked={allMatchingSelected}
+                            disabled={selectAllLoading}
+                            ref={(el) => {
+                              if (el) el.indeterminate = !allMatchingSelected && selectedIds.length > 0;
+                            }}
+                            onChange={handleToggleSelectAll}
+                            title={allMatchingSelected ? 'Clear selection' : 'Select all matching Available/Reserved units'}
+                          />
+                        )
+                        : <span className="ul-checkbox-spacer" />
+                      }
                       <span>P-Unit No.</span>
                       <span>Type</span>
                       <span>Floor</span>
@@ -519,6 +535,7 @@ export default function UnitsTab() {
                           <UnitListRow
                             key={unit.id}
                             unit={unit}
+                            selectionEnabled={hasEligibleStatus}
                             selected={selectedIds.includes(unit.id)}
                             onToggleSelect={() => toggleSelected(unit.id)}
                             onClick={() => dispatch(selectUnit(unit.id))}
@@ -708,18 +725,26 @@ function BulkStatusBar({ count, total, isLoading, onApply, onClear }: {
 }
 
 /* ── P-Unit List Row ─────────────────────────── */
-function UnitListRow({ unit, selected, onToggleSelect, onClick, onDelete }: {
-  unit: UnitListItem; selected: boolean; onToggleSelect: () => void; onClick: () => void; onDelete: () => void;
+function UnitListRow({ unit, selectionEnabled, selected, onToggleSelect, onClick, onDelete }: {
+  unit: UnitListItem; selectionEnabled: boolean; selected: boolean; onToggleSelect: () => void; onClick: () => void; onDelete: () => void;
 }) {
+  /* Bulk status change only targets Available/Reserved, and only once the user has
+     explicitly filtered to one of those statuses — so no checkbox otherwise. */
+  const selectable = selectionEnabled && (unit.status === 'available' || unit.status === 'reserved');
   return (
     <div className={`ul-row ${selected ? 'selected' : ''}`} onClick={onClick}>
-      <input
-        type="checkbox"
-        className="ul-checkbox"
-        checked={selected}
-        onClick={(e) => e.stopPropagation()}
-        onChange={onToggleSelect}
-      />
+      {selectable
+        ? (
+          <input
+            type="checkbox"
+            className="ul-checkbox"
+            checked={selected}
+            onClick={(e) => e.stopPropagation()}
+            onChange={onToggleSelect}
+          />
+        )
+        : <span className="ul-checkbox-spacer" />
+      }
       <div className="ul-unitno">
         <span className="ul-dot" style={{ background: STATUS_COLOR[unit.status] }} />
         <span>{unit.unitNumber}</span>
