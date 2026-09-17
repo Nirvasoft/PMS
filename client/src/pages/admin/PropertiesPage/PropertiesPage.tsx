@@ -64,6 +64,24 @@ const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Ange
 const COUNTRIES  = ['US','SG','GB','TH','MM','JP','AE','AU','DE','FR','IN','CN'];
 const SQM_TO_SQFT = 10.7639;
 
+/**
+ * Currency-unlock passcode: DD + XX + YYYY + XX + MM, where DD/YYYY/MM must match
+ * today's date and both XX segments must be an identical 2-digit pair chosen by the user.
+ * e.g. for 17/09/2026: "174420264409" or "171220261209" both work (XX = 44 or 12).
+ */
+function isValidCurrencyOverridePasscode(input: string, today: Date = new Date()): boolean {
+  if (!/^\d{12}$/.test(input)) return false;
+  const dd   = String(today.getDate()).padStart(2, '0');
+  const yyyy = String(today.getFullYear());
+  const mm   = String(today.getMonth() + 1).padStart(2, '0');
+  const day    = input.slice(0, 2);
+  const x1     = input.slice(2, 4);
+  const year   = input.slice(4, 8);
+  const x2     = input.slice(8, 10);
+  const month  = input.slice(10, 12);
+  return day === dd && year === yyyy && month === mm && x1 === x2;
+}
+
 interface EditForm {
   name: string; code: string; propertyType: string; legalName: string;
   registrationNo: string; description: string;
@@ -108,8 +126,33 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
   const [updateProperty, { isLoading }] = useUpdatePropertyMutation();
   const { data: typesData } = useGetPropertyTypesQuery();
   const { data: branchesData } = useGetBranchesQuery();
+  const { data: statsData } = useGetPropertyStatsQuery(property.id);
+  const hasActiveLease = (statsData?.data?.activeLeases ?? 0) > 0;
   const types    = typesData?.data || [];
   const branches = branchesData?.data || [];
+
+  // Currency is locked after creation; double-clicking it either explains why
+  // (active lease) or lets an admin unlock editing with today's passcode.
+  const [currencyModal, setCurrencyModal] = useState<'blocked' | 'password' | null>(null);
+  const [currencyUnlocked, setCurrencyUnlocked] = useState(false);
+  const [passcodeInput, setPasscodeInput] = useState('');
+  const [passcodeError, setPasscodeError] = useState('');
+
+  const handleCurrencyDoubleClick = () => {
+    if (currencyUnlocked) return;
+    setPasscodeInput('');
+    setPasscodeError('');
+    setCurrencyModal(hasActiveLease ? 'blocked' : 'password');
+  };
+
+  const handlePasscodeSubmit = () => {
+    if (isValidCurrencyOverridePasscode(passcodeInput)) {
+      setCurrencyUnlocked(true);
+      setCurrencyModal(null);
+    } else {
+      setPasscodeError('Incorrect passcode');
+    }
+  };
 
   // Photos
   const { data: photosData } = useGetPhotosQuery(property.id);
@@ -313,11 +356,20 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
           <div className="edit-section">
             <div className="edit-section-title">Billing &amp; Financial</div>
             <div className="edit-grid">
-              <div className="edit-field">
+              <div className="edit-field" onDoubleClick={handleCurrencyDoubleClick} style={{ position: 'relative' }}>
                 <label>Currency</label>
-                <select value={form.currency} disabled title="Currency cannot be changed after property creation">
+                <select
+                  value={form.currency}
+                  onChange={e => set('currency', e.target.value)}
+                  disabled={!currencyUnlocked}
+                  title={currencyUnlocked ? 'Currency unlocked for editing' : 'Currency cannot be changed after property creation — double-click to override'}
+                >
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                {/* Disabled <select> swallows mouse events, so this overlay catches the double-click instead */}
+                {!currencyUnlocked && (
+                  <div style={{ position: 'absolute', inset: 0, top: 18, cursor: 'not-allowed' }} onDoubleClick={handleCurrencyDoubleClick} />
+                )}
               </div>
               <div className="edit-field">
                 <label>Billing Cycle</label>
@@ -387,6 +439,50 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
           </PermissionGuard>
         </div>
       </div>
+
+      {/* Currency double-click modal */}
+      {currencyModal && (
+        <div className="modal-overlay" onClick={() => setCurrencyModal(null)}>
+          <div className="modal-card" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Currency Locked</h2>
+              <button type="button" className="btn-icon" onClick={() => setCurrencyModal(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {currencyModal === 'blocked' ? (
+                <p style={{ margin: 0 }}>
+                  This property has an active lease, so its currency cannot be changed.
+                  Units, leases, and invoices are already priced in {form.currency}.
+                </p>
+              ) : (
+                <>
+                  <p style={{ margin: '0 0 10px' }}>
+                    This property has no active lease. Enter the override passcode to unlock currency editing.
+                  </p>
+                  <input
+                    type="password"
+                    value={passcodeInput}
+                    onChange={e => { setPasscodeInput(e.target.value); setPasscodeError(''); }}
+                    onKeyDown={e => { if (e.key === 'Enter') handlePasscodeSubmit(); }}
+                    placeholder="Enter passcode"
+                    autoFocus
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', boxSizing: 'border-box' }}
+                  />
+                  {passcodeError && <p style={{ color: '#e74c3c', fontSize: 12, margin: '6px 0 0' }}>{passcodeError}</p>}
+                </>
+              )}
+              <div className="modal-actions" style={{ gap: 12 }}>
+                <button type="button" className="btn" onClick={() => setCurrencyModal(null)}>
+                  {currencyModal === 'blocked' ? 'Close' : 'Cancel'}
+                </button>
+                {currencyModal === 'password' && (
+                  <button type="button" className="btn btn-primary" onClick={handlePasscodeSubmit}>Unlock</button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -432,7 +528,9 @@ export default function PropertiesPage() {
     try {
       await deleteProperty(id).unwrap();
       toast.success(`"${name}" deleted`);
-    } catch { toast.error('Failed to delete'); }
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || 'Failed to delete');
+    }
   };
 
   return (

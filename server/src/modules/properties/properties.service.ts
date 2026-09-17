@@ -202,8 +202,12 @@ export class PropertiesService {
     const existing = await prisma.property.findFirst({ where: { id: propertyId, companyId, deletedAt: null } });
     if (!existing) throw AppError.notFound('Property');
 
-    // Currency cannot be changed after creation — units, leases, and invoices are already priced in it
-    delete dto.currency;
+    // Currency is locked while an active lease exists — units and invoices are already priced in it.
+    // With no active lease, the client's currency-unlock override (edit-mode passcode) may change it.
+    if (dto.currency) {
+      const activeLeases = await prisma.lease.count({ where: { propertyId, status: 'active' } });
+      if (activeLeases > 0) delete dto.currency;
+    }
 
     // Auto-geocode if address changed but no coordinates provided
     const addressChanged = dto.addressLine1 || dto.city || dto.state || dto.country || dto.postalCode;
@@ -319,6 +323,12 @@ export class PropertiesService {
   async delete(propertyId: string, companyId: string) {
     const property = await prisma.property.findFirst({ where: { id: propertyId, companyId, deletedAt: null } });
     if (!property) throw AppError.notFound('Property');
+
+    const activeLeases = await prisma.lease.count({ where: { propertyId, status: 'active' } });
+    if (activeLeases > 0) {
+      throw AppError.conflict('This property has an active lease and cannot be deleted', 'PROPERTY_HAS_ACTIVE_LEASE');
+    }
+
     return prisma.property.update({
       where: { id: propertyId },
       data: { deletedAt: new Date(), isActive: false },
