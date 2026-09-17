@@ -34,9 +34,12 @@ dashboardRouter.get('/widget-data/:code/drilldown', asyncHandler(async (req: Req
   const data = await getDrillDownData(req.params.code as string, {
     companyId: req.user!.companyId,
     userId: req.user!.sub,
+    propertyId: req.query.propertyId as string,
     drillKey: req.query.drillKey as string,
     dateFrom: req.query.dateFrom as string,
     dateTo: req.query.dateTo as string,
+    page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
+    limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
   });
   res.json({ success: true, data });
 }));

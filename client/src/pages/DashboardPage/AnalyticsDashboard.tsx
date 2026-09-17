@@ -323,6 +323,7 @@ export default function AnalyticsDashboard() {
         <DrillDownModal
           widgetCode={drillDownData.widgetCode}
           drillKey={drillDownData.drillKey}
+          propertyId={selectedPropertyId}
           onClose={() => setDrillDownData(null)}
         />
       )}
@@ -345,6 +346,13 @@ function WidgetContainer({ item, dateRange, propertyId, editMode, onRemove, onDr
     code: item.widgetCode,
     dateRange: `${dateRange.from},${dateRange.to}`,
     propertyId,
+  }, {
+    // Widgets summarize data that changes elsewhere in the app (leases, tickets, invoices, …)
+    // with no cross-module cache invalidation wired up, so poll and refetch on focus/reconnect
+    // instead of requiring a full page reload to see updates.
+    pollingInterval: 30000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
   });
 
   const widgetData = data?.data;

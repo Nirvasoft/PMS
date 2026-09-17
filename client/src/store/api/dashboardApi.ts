@@ -115,6 +115,9 @@ export interface DrillDownResult {
   columns: DrillDownColumn[];
   rows: Record<string, unknown>[];
   total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
   navigateTo?: string;
 }
 
@@ -191,10 +194,10 @@ export const dashboardApi = createApi({
       invalidatesTags: ['Layout'],
     }),
 
-    getDrillDown: builder.query<ApiResponse<DrillDownResult>, { code: string; drillKey?: string }>({
-      query: ({ code, drillKey }) => ({
+    getDrillDown: builder.query<ApiResponse<DrillDownResult>, { code: string; drillKey?: string; propertyId?: string; page?: number }>({
+      query: ({ code, drillKey, propertyId, page }) => ({
         url: `/dashboard/widget-data/${code}/drilldown`,
-        params: { ...(drillKey && { drillKey }) },
+        params: { ...(drillKey && { drillKey }), ...(propertyId && { propertyId }), ...(page && { page }) },
       }),
     }),
 

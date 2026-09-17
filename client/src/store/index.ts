@@ -1,4 +1,5 @@
 import { configureStore, type Middleware } from '@reduxjs/toolkit';
+import { setupListeners } from '@reduxjs/toolkit/query';
 import { useDispatch, useSelector } from 'react-redux';
 import type { TypedUseSelectorHook } from 'react-redux';
 import authReducer, { clearAuth } from './slices/authSlice';
@@ -135,6 +136,9 @@ export const store = configureStore({
       resetApiCachesOnLogout,
     ),
 });
+
+// Enables refetchOnFocus / refetchOnReconnect for any query hook that opts in.
+setupListeners(store.dispatch);
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

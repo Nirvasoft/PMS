@@ -16,6 +16,7 @@ import {
   useGetDocumentAccessLogsQuery,
 } from '../../store/api/documentsApi';
 import type { DocumentItem, FolderItem, AccessLogItem } from '../../store/api/documentsApi';
+import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import {
   Upload, Search, Filter, FolderPlus, FileText, Image, FileSpreadsheet,
   File, Trash2, Download, Eye, Share2, Clock, ChevronRight, X, Plus, Tag,
@@ -555,12 +556,15 @@ function DetailPanel({ doc, onClose, onEdit, onPreview }: {
 // ═══════════════════════════════════════════════════
 function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: string }) {
   const [uploadDoc, { isLoading }] = useUploadDocumentMutation();
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
+  const properties = propertiesData?.data ?? [];
   const [files, setFiles] = useState<File[]>([]);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
+  const [propertyId, setPropertyId] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -590,6 +594,7 @@ function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: st
       if (description) formData.append('description', description);
       if (tags) formData.append('tags', JSON.stringify(tags.split(',').map((t) => t.trim()).filter(Boolean)));
       if (expiryDate) formData.append('expiryDate', expiryDate);
+      if (propertyId) formData.append('propertyId', propertyId);
       if (folderId) formData.append('folderId', folderId);
 
       try {
@@ -659,6 +664,16 @@ function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: st
                 <option value="invoice">Invoice</option>
                 <option value="photo">Photo</option>
                 <option value="report">Report</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Property</label>
+              <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
+                <option value="">Unassigned</option>
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+                ))}
               </select>
             </div>
 
@@ -820,11 +835,14 @@ function EditDocumentModal({ doc, onClose, onUpdated }: {
   onUpdated: (doc: DocumentItem) => void;
 }) {
   const [updateDocument, { isLoading }] = useUpdateDocumentMutation();
+  const { data: propertiesData } = useGetMyPropertyScopeQuery();
+  const properties = propertiesData?.data ?? [];
   const [name, setName] = useState(doc.name);
   const [description, setDescription] = useState(doc.description || '');
   const [category, setCategory] = useState(doc.category || '');
   const [tagsStr, setTagsStr] = useState((doc.tags || []).join(', '));
   const [expiryDate, setExpiryDate] = useState(doc.expiryDate ? doc.expiryDate.split('T')[0] : '');
+  const [propertyId, setPropertyId] = useState(doc.propertyId || '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -838,6 +856,7 @@ function EditDocumentModal({ doc, onClose, onUpdated }: {
           category: category || undefined,
           tags,
           expiryDate: expiryDate || null,
+          propertyId: propertyId || null,
         },
       }).unwrap();
       toast.success('Document updated');
@@ -887,6 +906,16 @@ function EditDocumentModal({ doc, onClose, onUpdated }: {
                 <option value="invoice">Invoice</option>
                 <option value="photo">Photo</option>
                 <option value="report">Report</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Property</label>
+              <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
+                <option value="">Unassigned</option>
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+                ))}
               </select>
             </div>
 

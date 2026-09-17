@@ -111,6 +111,10 @@ export default function DashboardLayout() {
   const isPropertyDetailPage = !!matchPath('/admin/properties/:id', location.pathname)
     && location.pathname !== '/admin/properties/create'
     && location.pathname !== '/admin/properties/floor-setup';
+  // Currency Setup is configured per property (rates, base currency) — "All Properties"
+  // has no meaningful data to show there, so hide it from the switcher too.
+  const isCurrencySetupPage = !!matchPath('/admin/billing/currency-rates', location.pathname);
+  const hideAllPropertiesOption = isPropertyDetailPage || isCurrencySetupPage;
   const [logout] = useLogoutMutation();
   useRealtimeNotifications(); // Real-time WS notifications
 
@@ -166,7 +170,7 @@ export default function DashboardLayout() {
         {/* Property Selector */}
         {properties.length > 0 && (() => {
           const hasMultipleProperties = properties.length > 1;
-          const currentPropertyValue = selectedPropertyId === ALL_PROPERTIES && hasMultipleProperties && !isPropertyDetailPage
+          const currentPropertyValue = selectedPropertyId === ALL_PROPERTIES && hasMultipleProperties && !hideAllPropertiesOption
             ? ALL_PROPERTIES
             : (selectedPropertyId && selectedPropertyId !== ALL_PROPERTIES ? selectedPropertyId : properties[0]?.id || '');
           const currentPropertyLabel = currentPropertyValue === ALL_PROPERTIES
@@ -186,7 +190,7 @@ export default function DashboardLayout() {
                   onChange={(e) => dispatch(setSelectedProperty(e.target.value))}
                   className="sidebar-property-dropdown"
                 >
-                  {!isPropertyDetailPage && <option value={ALL_PROPERTIES}>All Properties</option>}
+                  {!hideAllPropertiesOption && <option value={ALL_PROPERTIES}>All Properties</option>}
                   {properties.map((p: any) => (
                     <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
                   ))}

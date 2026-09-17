@@ -1,5 +1,19 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
+import { dashboardApi } from './dashboardApi';
+
+/**
+ * Dashboard KPI cards (My Pending Tasks, Active Workflows) summarize this data but live in a
+ * separate API slice with its own cache — RTK Query only auto-invalidates within one slice, so
+ * without this the dashboard would just sit stale until its next poll. Called after a mutation
+ * here changes task/instance state, to make the dashboard reflect it immediately instead.
+ */
+function invalidateWorkflowWidgets(dispatch: (action: unknown) => void) {
+  dispatch(dashboardApi.util.invalidateTags([
+    { type: 'WidgetData', id: 'pending_tasks' },
+    { type: 'WidgetData', id: 'active_workflows' },
+  ]));
+}
 
 interface ApiResponse<T> { success: boolean; data: T; }
 interface PaginatedResponse<T> {
@@ -131,10 +145,18 @@ export const workflowApi = createApi({
     startInstance: builder.mutation<ApiResponse<WorkflowInstance>, Record<string, unknown>>({
       query: (body) => ({ url: '/workflow-instances', method: 'POST', body }),
       invalidatesTags: ['Instances', 'Tasks', 'Definitions'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        await queryFulfilled;
+        invalidateWorkflowWidgets(dispatch);
+      },
     }),
     cancelInstance: builder.mutation<void, { id: string; reason: string }>({
       query: ({ id, reason }) => ({ url: `/workflow-instances/${id}/cancel`, method: 'POST', body: { reason } }),
       invalidatesTags: ['Instances', 'Tasks'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        await queryFulfilled;
+        invalidateWorkflowWidgets(dispatch);
+      },
     }),
 
     // Tasks
@@ -145,14 +167,26 @@ export const workflowApi = createApi({
     approveTask: builder.mutation<ApiResponse<WorkflowInstance>, { taskId: string; comments: string }>({
       query: ({ taskId, comments }) => ({ url: `/workflow-tasks/${taskId}/approve`, method: 'POST', body: { comments } }),
       invalidatesTags: ['Tasks', 'Instances'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        await queryFulfilled;
+        invalidateWorkflowWidgets(dispatch);
+      },
     }),
     rejectTask: builder.mutation<ApiResponse<WorkflowInstance>, { taskId: string; comments: string }>({
       query: ({ taskId, comments }) => ({ url: `/workflow-tasks/${taskId}/reject`, method: 'POST', body: { comments } }),
       invalidatesTags: ['Tasks', 'Instances'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        await queryFulfilled;
+        invalidateWorkflowWidgets(dispatch);
+      },
     }),
     delegateTask: builder.mutation<void, { taskId: string; delegateTo: string; reason: string }>({
       query: ({ taskId, ...body }) => ({ url: `/workflow-tasks/${taskId}/delegate`, method: 'POST', body }),
       invalidatesTags: ['Tasks'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        await queryFulfilled;
+        invalidateWorkflowWidgets(dispatch);
+      },
     }),
     uploadTaskAttachment: builder.mutation<ApiResponse<TaskAttachment[]>, { taskId: string; files: FormData }>({
       query: ({ taskId, files }) => ({ url: `/workflow-tasks/${taskId}/attachments`, method: 'POST', body: files }),

@@ -5,6 +5,12 @@ import { WIDGET_DEFINITIONS, DEFAULT_LAYOUT, getDefaultLayoutForRole } from './w
 import type { WidgetDef } from './widgets/widgetDefinitions';
 import { getRealWidgetData } from './widgets/realProvider';
 import { redis } from '../../common/redis';
+import { config } from '../../common/config';
+
+// redis.keys() does NOT auto-prefix like get/set/del, so the prefix must be prepended
+// to the pattern manually, and stripped again from whatever keys() returns before
+// passing them to del() (which re-adds the prefix itself). See token.service.ts.
+const KEY_PREFIX = config.redis.prefix || '';
 
 /** Cache TTL (seconds) per widget category */
 const CACHE_TTL: Record<string, number> = {
@@ -378,6 +384,24 @@ export class DashboardService {
     const report = await prisma.savedReport.findFirst({ where: { id, companyId } });
     if (!report) throw new AppError(404, 'REPORT_NOT_FOUND', 'Report not found');
     await prisma.savedReport.delete({ where: { id } });
+  }
+
+  /**
+   * Busts the cached widget-data entries for the given widget codes (all properties/date
+   * ranges), so the next fetch recomputes instead of serving a stale value for up to the
+   * category's TTL (as long as 15 minutes for finance widgets). Call this from wherever a
+   * mutation changes data a dashboard widget summarizes — e.g. after a task is approved.
+   */
+  async invalidateWidgetCache(companyId: string, codes: string[]): Promise<void> {
+    for (const code of codes) {
+      try {
+        const rawKeys = await redis.keys(`${KEY_PREFIX}widget:${companyId}:${code}:*`);
+        const keys = rawKeys.map((k) => (k.startsWith(KEY_PREFIX) ? k.slice(KEY_PREFIX.length) : k));
+        if (keys.length) await redis.del(...keys);
+      } catch (err) {
+        logger.debug(`Widget cache invalidation failed for ${code}: ${(err as Error).message}`);
+      }
+    }
   }
 }
 

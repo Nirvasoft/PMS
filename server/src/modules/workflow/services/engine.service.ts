@@ -2,7 +2,11 @@ import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { logger } from '../../../common/logger';
 import { notificationService } from '../../notifications/services/notification.service';
+import { dashboardService } from '../../dashboard/dashboard.service';
 import type { WorkflowGraph, GraphNode } from './definitions.service';
+
+/** Widget codes the dashboard derives from workflow task/instance state. */
+const WORKFLOW_WIDGET_CODES = ['pending_tasks', 'active_workflows'];
 
 /**
  * Core workflow engine — starts instances, processes nodes, advances tokens.
@@ -42,6 +46,8 @@ export class WorkflowEngine {
 
     // Advance from start node
     await this.advance(instance.id, graph, 'start', entitySnapshot);
+
+    await dashboardService.invalidateWidgetCache(def.companyId, WORKFLOW_WIDGET_CODES);
 
     // Return with tasks
     return this.getInstanceDetail(instance.id);
@@ -85,6 +91,7 @@ export class WorkflowEngine {
     });
 
     await this.recordHistory(task.instanceId, taskId, task.nodeId, task.nodeId, decision, completedBy, comments);
+    await dashboardService.invalidateWidgetCache(task.instance.companyId, WORKFLOW_WIDGET_CODES);
 
     if (decision === 'rejected') {
       await this.completeInstance(task.instanceId, 'rejected');
@@ -108,7 +115,10 @@ export class WorkflowEngine {
 
   /** Delegate a task to another user */
   async delegateTask(taskId: string, delegateTo: string, reason: string, delegatedBy: string) {
-    const task = await prisma.workflowTask.findUnique({ where: { id: taskId } });
+    const task = await prisma.workflowTask.findUnique({
+      where: { id: taskId },
+      include: { instance: { select: { companyId: true } } },
+    });
     if (!task) throw AppError.notFound('Task');
     if (task.status !== 'pending') throw AppError.validation('Task is not pending');
 
@@ -118,6 +128,7 @@ export class WorkflowEngine {
     });
 
     await this.recordHistory(task.instanceId, taskId, task.nodeId, task.nodeId, 'delegated', delegatedBy, reason);
+    await dashboardService.invalidateWidgetCache(task.instance.companyId, WORKFLOW_WIDGET_CODES);
   }
 
   /** Cancel a running instance */
@@ -138,6 +149,7 @@ export class WorkflowEngine {
     });
 
     await this.recordHistory(instanceId, null, null, null, 'cancelled', cancelledBy, reason);
+    await dashboardService.invalidateWidgetCache(instance.companyId, WORKFLOW_WIDGET_CODES);
   }
 
   // ─── Internal Methods ─────────────────────

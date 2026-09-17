@@ -2,6 +2,7 @@ import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { logger } from '../../../common/logger';
 import { storageService } from './storage.service';
+import { dashboardService } from '../../dashboard/dashboard.service';
 import crypto from 'crypto';
 
 // Allowed MIME types
@@ -88,6 +89,7 @@ export class DocumentsService {
     });
 
     logger.info(`Document uploaded: ${doc.id} (${file.originalname})`);
+    await dashboardService.invalidateWidgetCache(dto.companyId, ['documents_expiring']);
     return this.serializeDocument(doc);
   }
 
@@ -186,6 +188,7 @@ export class DocumentsService {
     category?: string;
     expiryDate?: string | null;
     folderId?: string | null;
+    propertyId?: string | null;
   }) {
     const doc = await prisma.document.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!doc) throw new AppError(404, 'DOCUMENT_NOT_FOUND', 'Document not found');
@@ -199,9 +202,13 @@ export class DocumentsService {
         ...(data.category !== undefined && { category: data.category }),
         ...(data.expiryDate !== undefined && { expiryDate: data.expiryDate ? new Date(data.expiryDate) : null }),
         ...(data.folderId !== undefined && { folderId: data.folderId }),
+        ...(data.propertyId !== undefined && { propertyId: data.propertyId }),
       },
     });
 
+    if (data.expiryDate !== undefined || data.propertyId !== undefined) {
+      await dashboardService.invalidateWidgetCache(companyId, ['documents_expiring']);
+    }
     return this.serializeDocument(updated);
   }
 
@@ -216,6 +223,7 @@ export class DocumentsService {
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await dashboardService.invalidateWidgetCache(companyId, ['documents_expiring']);
   }
 
   /**

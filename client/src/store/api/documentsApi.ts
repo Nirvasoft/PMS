@@ -20,6 +20,7 @@ export interface DocumentItem {
   extension: string | null;
   fileSize: number;
   fileSizeFormatted: string;
+  propertyId: string | null;
   category: string | null;
   description: string | null;
   tags: string[];

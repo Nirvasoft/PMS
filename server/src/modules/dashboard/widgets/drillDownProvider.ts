@@ -4,13 +4,17 @@
  * and returns a table of detailed records.
  */
 import { prisma } from '../../../common/database';
+import type { Prisma } from '@prisma/client';
 
 interface DrillDownParams {
   companyId: string;
   userId?: string;
+  propertyId?: string;
   drillKey?: string;     // clicked segment: pie slice name, bar label, breakdown key
   dateFrom?: string;
   dateTo?: string;
+  page?: number;
+  limit?: number;
 }
 
 export interface DrillDownResult {
@@ -18,12 +22,43 @@ export interface DrillDownResult {
   columns: { key: string; label: string; link?: string }[];
   rows: Record<string, unknown>[];
   total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
   navigateTo?: string;   // optional: page to link to
+}
+
+const DEFAULT_PAGE_SIZE = 10;
+
+/** Normalizes page/limit query params into a Prisma skip/take pair, capped to sane bounds. */
+function paginate(params: DrillDownParams): { skip: number; take: number; page: number } {
+  const take = params.limit && params.limit > 0 ? Math.min(params.limit, 100) : DEFAULT_PAGE_SIZE;
+  const page = params.page && params.page > 0 ? Math.floor(params.page) : 1;
+  return { skip: (page - 1) * take, take, page };
 }
 
 // ──────────────────────────────────────────────
 // DRILL-DOWN PROVIDERS
 // ──────────────────────────────────────────────
+
+/** Fetches a page of units matching `where`, ordered by property then unit number. */
+async function paginatedUnits<S extends Prisma.UnitSelect>(
+  where: Prisma.UnitWhereInput,
+  select: S,
+  pag: { skip: number; take: number },
+): Promise<{ rows: Prisma.UnitGetPayload<{ select: S }>[]; total: number }> {
+  const [rows, total] = await Promise.all([
+    prisma.unit.findMany({
+      where,
+      select,
+      orderBy: [{ property: { name: 'asc' } }, { unitNumber: 'asc' }],
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.unit.count({ where }),
+  ]);
+  return { rows, total };
+}
 
 async function drillOccupancyRate(params: DrillDownParams): Promise<DrillDownResult> {
   const key = params.drillKey || 'occupied'; // occupied | vacant | total
@@ -34,12 +69,15 @@ async function drillOccupancyRate(params: DrillDownParams): Promise<DrillDownRes
   };
 
   const statuses = statusMap[key] || statusMap.total;
-  const units = await prisma.unit.findMany({
-    where: {
-      property: { companyId: params.companyId },
-      status: { in: statuses },
-    },
-    select: {
+  const pag = paginate(params);
+  const where: Prisma.UnitWhereInput = {
+    property: { companyId: params.companyId },
+    ...(params.propertyId && { propertyId: params.propertyId }),
+    status: { in: statuses },
+  };
+  const { rows: units, total } = await paginatedUnits(
+    where,
+    {
       id: true,
       unitNumber: true,
       status: true,
@@ -48,9 +86,8 @@ async function drillOccupancyRate(params: DrillDownParams): Promise<DrillDownRes
       property: { select: { id: true, name: true } },
       tower: { select: { name: true } },
     },
-    orderBy: [{ property: { name: 'asc' } }, { unitNumber: 'asc' }],
-    take: 50,
-  });
+    pag,
+  );
 
   return {
     title: `Units — ${key.charAt(0).toUpperCase() + key.slice(1)}`,
@@ -70,29 +107,38 @@ async function drillOccupancyRate(params: DrillDownParams): Promise<DrillDownRes
       area: u.areaSqft?.toString() || '—',
       status: u.status.replace(/_/g, ' '),
     })),
-    total: units.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/properties',
   };
 }
 
 async function drillRevenueMtd(params: DrillDownParams): Promise<DrillDownResult> {
-  const leases = await prisma.lease.findMany({
-    where: { companyId: params.companyId, status: 'active' },
-    select: {
-      id: true,
-      leaseNumber: true,
-      rentAmount: true,
-      currency: true,
-      billingCycle: true,
-      startDate: true,
-      endDate: true,
-      tenant: { select: { firstName: true, lastName: true, companyName: true } },
-      property: { select: { name: true } },
-      unit: { select: { unitNumber: true } },
-    },
-    orderBy: { rentAmount: 'desc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = { companyId: params.companyId, status: 'active' };
+  const [leases, total] = await Promise.all([
+    prisma.lease.findMany({
+      where,
+      select: {
+        id: true,
+        leaseNumber: true,
+        rentAmount: true,
+        currency: true,
+        billingCycle: true,
+        startDate: true,
+        endDate: true,
+        tenant: { select: { firstName: true, lastName: true, companyName: true } },
+        property: { select: { name: true } },
+        unit: { select: { unitNumber: true } },
+      },
+      orderBy: { rentAmount: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.lease.count({ where }),
+  ]);
 
   return {
     title: 'Active Leases — Revenue Breakdown',
@@ -114,35 +160,44 @@ async function drillRevenueMtd(params: DrillDownParams): Promise<DrillDownResult
       cycle: l.billingCycle,
       endDate: new Date(l.endDate).toISOString().split('T')[0],
     })),
-    total: leases.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/leases',
   };
 }
 
 async function drillPendingTasks(params: DrillDownParams): Promise<DrillDownResult> {
-  const tasks = await prisma.workflowTask.findMany({
-    where: {
-      status: 'pending',
-      ...(params.userId ? { assignedTo: params.userId } : {}),
-    },
-    select: {
-      id: true,
-      title: true,
-      taskType: true,
-      status: true,
-      slaDueAt: true,
-      slaBreached: true,
-      createdAt: true,
-      instance: {
-        select: {
-          entityType: true,
-          definition: { select: { name: true } },
+  const pag = paginate(params);
+  const where = {
+    status: 'pending',
+    ...(params.userId ? { assignedTo: params.userId } : {}),
+  };
+  const [tasks, total] = await Promise.all([
+    prisma.workflowTask.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        taskType: true,
+        status: true,
+        slaDueAt: true,
+        slaBreached: true,
+        createdAt: true,
+        instance: {
+          select: {
+            entityType: true,
+            definition: { select: { name: true } },
+          },
         },
       },
-    },
-    orderBy: { slaDueAt: 'asc' },
-    take: 50,
-  });
+      orderBy: { slaDueAt: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.workflowTask.count({ where }),
+  ]);
 
   return {
     title: 'My Pending Tasks',
@@ -162,26 +217,35 @@ async function drillPendingTasks(params: DrillDownParams): Promise<DrillDownResu
       breached: t.slaBreached ? '⚠️ Breached' : '✅ OK',
       created: new Date(t.createdAt).toISOString().split('T')[0],
     })),
-    total: tasks.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/tasks',
   };
 }
 
 async function drillActiveWorkflows(params: DrillDownParams): Promise<DrillDownResult> {
-  const instances = await prisma.workflowInstance.findMany({
-    where: { companyId: params.companyId, status: 'running' },
-    select: {
-      id: true,
-      entityType: true,
-      status: true,
-      currentNodeIds: true,
-      startedAt: true,
-      definition: { select: { name: true } },
-      initiator: { select: { profile: { select: { firstName: true, lastName: true } } } },
-    },
-    orderBy: { startedAt: 'desc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = { companyId: params.companyId, status: 'running' };
+  const [instances, total] = await Promise.all([
+    prisma.workflowInstance.findMany({
+      where,
+      select: {
+        id: true,
+        entityType: true,
+        status: true,
+        currentNodeIds: true,
+        startedAt: true,
+        definition: { select: { name: true } },
+        initiator: { select: { profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: { startedAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.workflowInstance.count({ where }),
+  ]);
 
   return {
     title: 'Active Workflow Instances',
@@ -199,23 +263,31 @@ async function drillActiveWorkflows(params: DrillDownParams): Promise<DrillDownR
       initiator: i.initiator?.profile ? `${i.initiator.profile.firstName} ${i.initiator.profile.lastName}` : '—',
       started: new Date(i.startedAt).toISOString().split('T')[0],
     })),
-    total: instances.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/workflows',
   };
 }
 
 async function drillUnitStatus(params: DrillDownParams): Promise<DrillDownResult> {
   const statusFilter = params.drillKey?.toLowerCase().replace(/ /g, '_');
-  const where: Record<string, unknown> = {
+  const baseWhere: Prisma.UnitWhereInput = {
     property: { companyId: params.companyId },
   };
   if (statusFilter && statusFilter !== 'all') {
-    where.status = statusFilter;
+    baseWhere.status = statusFilter;
   }
 
-  const units = await prisma.unit.findMany({
+  const pag = paginate(params);
+  const where: Prisma.UnitWhereInput = {
+    ...baseWhere,
+    ...(params.propertyId && { propertyId: params.propertyId }),
+  };
+  const { rows: units, total } = await paginatedUnits(
     where,
-    select: {
+    {
       unitNumber: true,
       status: true,
       floorNumber: true,
@@ -224,9 +296,8 @@ async function drillUnitStatus(params: DrillDownParams): Promise<DrillDownResult
       property: { select: { name: true } },
       tower: { select: { name: true } },
     },
-    orderBy: [{ property: { name: 'asc' } }, { unitNumber: 'asc' }],
-    take: 50,
-  });
+    pag,
+  );
 
   return {
     title: `Units — ${params.drillKey || 'All Statuses'}`,
@@ -248,32 +319,41 @@ async function drillUnitStatus(params: DrillDownParams): Promise<DrillDownResult
       type: (u.unitType || '—').replace(/_/g, ' '),
       status: u.status.replace(/_/g, ' '),
     })),
-    total: units.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/properties',
   };
 }
 
 async function drillRevenueByProperty(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   // drillKey is the property name from the bar
   const propertyName = params.drillKey?.replace(/…$/, '') || '';
 
-  const leases = await prisma.lease.findMany({
-    where: {
-      companyId: params.companyId,
-      status: 'active',
-      ...(propertyName ? { property: { name: { startsWith: propertyName } } } : {}),
-    },
-    select: {
-      leaseNumber: true,
-      rentAmount: true,
-      tenant: { select: { firstName: true, lastName: true, companyName: true } },
-      property: { select: { name: true } },
-      unit: { select: { unitNumber: true } },
-      endDate: true,
-    },
-    orderBy: { rentAmount: 'desc' },
-    take: 50,
-  });
+  const where = {
+    companyId: params.companyId,
+    status: 'active',
+    ...(propertyName ? { property: { name: { startsWith: propertyName } } } : {}),
+  };
+  const [leases, total] = await Promise.all([
+    prisma.lease.findMany({
+      where,
+      select: {
+        leaseNumber: true,
+        rentAmount: true,
+        tenant: { select: { firstName: true, lastName: true, companyName: true } },
+        property: { select: { name: true } },
+        unit: { select: { unitNumber: true } },
+        endDate: true,
+      },
+      orderBy: { rentAmount: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.lease.count({ where }),
+  ]);
 
   return {
     title: propertyName ? `Leases — ${params.drillKey}` : 'All Active Leases',
@@ -293,31 +373,40 @@ async function drillRevenueByProperty(params: DrillDownParams): Promise<DrillDow
       rent: `$${(l.rentAmount?.toNumber() ?? 0).toLocaleString()}`,
       endDate: new Date(l.endDate).toISOString().split('T')[0],
     })),
-    total: leases.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/leases',
   };
 }
 
 async function drillDocumentsExpiring(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const thirtyDays = new Date();
   thirtyDays.setDate(thirtyDays.getDate() + 30);
 
-  const docs = await prisma.document.findMany({
-    where: {
-      companyId: params.companyId,
-      expiryDate: { lte: thirtyDays, gte: new Date() },
-      deletedAt: null,
-    },
-    select: {
-      name: true,
-      category: true,
-      expiryDate: true,
-      status: true,
-      uploader: { select: { profile: { select: { firstName: true, lastName: true } } } },
-    },
-    orderBy: { expiryDate: 'asc' },
-    take: 50,
-  });
+  const where = {
+    companyId: params.companyId,
+    expiryDate: { lte: thirtyDays, gte: new Date() },
+    deletedAt: null,
+  };
+  const [docs, total] = await Promise.all([
+    prisma.document.findMany({
+      where,
+      select: {
+        name: true,
+        category: true,
+        expiryDate: true,
+        status: true,
+        uploader: { select: { profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: { expiryDate: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.document.count({ where }),
+  ]);
 
   return {
     title: 'Documents Expiring Within 30 Days',
@@ -335,7 +424,10 @@ async function drillDocumentsExpiring(params: DrillDownParams): Promise<DrillDow
       daysLeft: d.expiryDate ? String(Math.ceil((new Date(d.expiryDate).getTime() - Date.now()) / 86400000)) : '—',
       uploadedBy: d.uploader?.profile ? `${d.uploader.profile.firstName} ${d.uploader.profile.lastName}` : '—',
     })),
-    total: docs.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/documents',
   };
 }
@@ -349,27 +441,33 @@ async function drillVacancyTrend(params: DrillDownParams): Promise<DrillDownResu
 }
 
 async function drillLeaseExpiring(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const ninetyDays = new Date();
   ninetyDays.setDate(ninetyDays.getDate() + 90);
 
-  const leases = await prisma.lease.findMany({
-    where: {
-      companyId: params.companyId,
-      status: 'active',
-      endDate: { lte: ninetyDays, gte: new Date() },
-    },
-    select: {
-      leaseNumber: true,
-      rentAmount: true,
-      startDate: true,
-      endDate: true,
-      tenant: { select: { firstName: true, lastName: true, companyName: true } },
-      property: { select: { name: true } },
-      unit: { select: { unitNumber: true } },
-    },
-    orderBy: { endDate: 'asc' },
-    take: 50,
-  });
+  const where = {
+    companyId: params.companyId,
+    status: 'active',
+    endDate: { lte: ninetyDays, gte: new Date() },
+  };
+  const [leases, total] = await Promise.all([
+    prisma.lease.findMany({
+      where,
+      select: {
+        leaseNumber: true,
+        rentAmount: true,
+        startDate: true,
+        endDate: true,
+        tenant: { select: { firstName: true, lastName: true, companyName: true } },
+        property: { select: { name: true } },
+        unit: { select: { unitNumber: true } },
+      },
+      orderBy: { endDate: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.lease.count({ where }),
+  ]);
 
   return {
     title: 'Leases Expiring Within 90 Days',
@@ -391,25 +489,34 @@ async function drillLeaseExpiring(params: DrillDownParams): Promise<DrillDownRes
       endDate: new Date(l.endDate).toISOString().split('T')[0],
       daysLeft: String(Math.ceil((new Date(l.endDate).getTime() - Date.now()) / 86400000)),
     })),
-    total: leases.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/leases',
   };
 }
 
 async function drillRecentActivity(params: DrillDownParams): Promise<DrillDownResult> {
-  const logs = await prisma.notificationLog.findMany({
-    where: { companyId: params.companyId },
-    select: {
-      subject: true,
-      body: true,
-      channel: true,
-      status: true,
-      createdAt: true,
-      recipient: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = { companyId: params.companyId };
+  const [logs, total] = await Promise.all([
+    prisma.notificationLog.findMany({
+      where,
+      select: {
+        subject: true,
+        body: true,
+        channel: true,
+        status: true,
+        createdAt: true,
+        recipient: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.notificationLog.count({ where }),
+  ]);
 
   return {
     title: 'Recent Activity Log',
@@ -427,33 +534,42 @@ async function drillRecentActivity(params: DrillDownParams): Promise<DrillDownRe
       status: l.status,
       time: new Date(l.createdAt).toISOString().replace('T', ' ').slice(0, 16),
     })),
-    total: logs.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/notifications',
   };
 }
 
 async function drillOverdueInvoices(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const now = new Date();
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      companyId: params.companyId,
-      status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
-      dueDate: { lt: now },
-    },
-    select: {
-      invoiceNumber: true,
-      totalAmount: true,
-      paidAmount: true,
-      dueDate: true,
-      invoiceDate: true,
-      status: true,
-      tenant: { select: { firstName: true, lastName: true, companyName: true } },
-      property: { select: { name: true } },
-      unit: { select: { unitNumber: true } },
-    },
-    orderBy: { dueDate: 'asc' },
-    take: 50,
-  });
+  const where = {
+    companyId: params.companyId,
+    status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
+    dueDate: { lt: now },
+  };
+  const [invoices, total] = await Promise.all([
+    prisma.invoice.findMany({
+      where,
+      select: {
+        invoiceNumber: true,
+        totalAmount: true,
+        paidAmount: true,
+        dueDate: true,
+        invoiceDate: true,
+        status: true,
+        tenant: { select: { firstName: true, lastName: true, companyName: true } },
+        property: { select: { name: true } },
+        unit: { select: { unitNumber: true } },
+      },
+      orderBy: { dueDate: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.invoice.count({ where }),
+  ]);
 
   return {
     title: 'Overdue Invoices',
@@ -485,34 +601,43 @@ async function drillOverdueInvoices(params: DrillDownParams): Promise<DrillDownR
         status: inv.status.replace(/_/g, ' '),
       };
     }),
-    total: invoices.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/billing/invoices',
   };
 }
 
 async function drillMaintenanceTrend(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   // Show tickets from the last 6 months
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-  const tickets = await prisma.maintenanceTicket.findMany({
-    where: {
-      companyId: params.companyId,
-      createdAt: { gte: sixMonthsAgo },
-    },
-    select: {
-      ticketNumber: true,
-      title: true,
-      status: true,
-      priority: true,
-      createdAt: true,
-      resolvedAt: true,
-      category: { select: { name: true } },
-      property: { select: { name: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  const where = {
+    companyId: params.companyId,
+    createdAt: { gte: sixMonthsAgo },
+  };
+  const [tickets, total] = await Promise.all([
+    prisma.maintenanceTicket.findMany({
+      where,
+      select: {
+        ticketNumber: true,
+        title: true,
+        status: true,
+        priority: true,
+        createdAt: true,
+        resolvedAt: true,
+        category: { select: { name: true } },
+        property: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.maintenanceTicket.count({ where }),
+  ]);
 
   return {
     title: 'Maintenance Trend — Last 6 Months',
@@ -536,35 +661,43 @@ async function drillMaintenanceTrend(params: DrillDownParams): Promise<DrillDown
       created: new Date(t.createdAt).toISOString().split('T')[0],
       resolved: t.resolvedAt ? new Date(t.resolvedAt).toISOString().split('T')[0] : '—',
     })),
-    total: tickets.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/maintenance/tickets',
   };
 }
 
 async function drillMaintenanceOpen(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const where: Record<string, unknown> = {
     companyId: params.companyId,
     status: { in: ['open', 'assigned', 'in_progress'] },
   };
 
-  const tickets = await prisma.maintenanceTicket.findMany({
-    where,
-    select: {
-      id: true,
-      ticketNumber: true,
-      title: true,
-      category: { select: { name: true } },
-      priority: true,
-      status: true,
-      createdAt: true,
-      slaResolveDueAt: true,
-      property: { select: { name: true } },
-      unit: { select: { unitNumber: true } },
-      assignedTo: { select: { profile: { select: { firstName: true, lastName: true } } } },
-    },
-    orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-    take: 50,
-  });
+  const [tickets, total] = await Promise.all([
+    prisma.maintenanceTicket.findMany({
+      where,
+      select: {
+        id: true,
+        ticketNumber: true,
+        title: true,
+        category: { select: { name: true } },
+        priority: true,
+        status: true,
+        createdAt: true,
+        slaResolveDueAt: true,
+        property: { select: { name: true } },
+        unit: { select: { unitNumber: true } },
+        assignedTo: { select: { profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.maintenanceTicket.count({ where }),
+  ]);
 
   return {
     title: 'Open Maintenance Tickets',
@@ -594,12 +727,16 @@ async function drillMaintenanceOpen(params: DrillDownParams): Promise<DrillDownR
       created: new Date(t.createdAt).toISOString().split('T')[0],
       slaDue: t.slaResolveDueAt ? new Date(t.slaResolveDueAt).toISOString().split('T')[0] : '—',
     })),
-    total: tickets.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/maintenance/tickets',
   };
 }
 
 async function drillTicketsByCategory(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const categoryName = params.drillKey; // drillKey is the category name from the pie slice
   const where: Record<string, unknown> = {
     companyId: params.companyId,
@@ -608,23 +745,27 @@ async function drillTicketsByCategory(params: DrillDownParams): Promise<DrillDow
     where.category = { name: { equals: categoryName, mode: 'insensitive' } };
   }
 
-  const tickets = await prisma.maintenanceTicket.findMany({
-    where,
-    select: {
-      id: true,
-      ticketNumber: true,
-      title: true,
-      category: { select: { name: true } },
-      priority: true,
-      status: true,
-      createdAt: true,
-      property: { select: { name: true } },
-      unit: { select: { unitNumber: true } },
-      assignedTo: { select: { profile: { select: { firstName: true, lastName: true } } } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  const [tickets, total] = await Promise.all([
+    prisma.maintenanceTicket.findMany({
+      where,
+      select: {
+        id: true,
+        ticketNumber: true,
+        title: true,
+        category: { select: { name: true } },
+        priority: true,
+        status: true,
+        createdAt: true,
+        property: { select: { name: true } },
+        unit: { select: { unitNumber: true } },
+        assignedTo: { select: { profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.maintenanceTicket.count({ where }),
+  ]);
 
   return {
     title: `Tickets — ${params.drillKey || 'All Categories'}`,
@@ -652,32 +793,41 @@ async function drillTicketsByCategory(params: DrillDownParams): Promise<DrillDow
         : 'Unassigned',
       created: new Date(t.createdAt).toISOString().split('T')[0],
     })),
-    total: tickets.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/maintenance/tickets',
   };
 }
 
 async function drillMaintenanceSla(params: DrillDownParams): Promise<DrillDownResult> {
-  const tickets = await prisma.maintenanceTicket.findMany({
-    where: {
-      companyId: params.companyId,
-      slaResolveMet: false,
-      status: { notIn: ['closed', 'cancelled'] },
-    },
-    select: {
-      ticketNumber: true,
-      title: true,
-      category: { select: { name: true } },
-      priority: true,
-      status: true,
-      slaResolveDueAt: true,
-      createdAt: true,
-      property: { select: { name: true } },
-      assignedTo: { select: { profile: { select: { firstName: true, lastName: true } } } },
-    },
-    orderBy: { slaResolveDueAt: 'asc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = {
+    companyId: params.companyId,
+    slaResolveMet: false,
+    status: { notIn: ['closed', 'cancelled'] },
+  };
+  const [tickets, total] = await Promise.all([
+    prisma.maintenanceTicket.findMany({
+      where,
+      select: {
+        ticketNumber: true,
+        title: true,
+        category: { select: { name: true } },
+        priority: true,
+        status: true,
+        slaResolveDueAt: true,
+        createdAt: true,
+        property: { select: { name: true } },
+        assignedTo: { select: { profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: { slaResolveDueAt: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.maintenanceTicket.count({ where }),
+  ]);
 
   return {
     title: 'SLA Breached Tickets',
@@ -703,7 +853,10 @@ async function drillMaintenanceSla(params: DrillDownParams): Promise<DrillDownRe
         : 'Unassigned',
       slaDue: t.slaResolveDueAt ? new Date(t.slaResolveDueAt).toISOString().split('T')[0] : '—',
     })),
-    total: tickets.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/maintenance/tickets',
   };
 }
@@ -713,19 +866,25 @@ async function drillMaintenanceSla(params: DrillDownParams): Promise<DrillDownRe
 // ──────────────────────────────────────────────
 
 async function drillCrmActiveLeads(params: DrillDownParams): Promise<DrillDownResult> {
-  const leads = await prisma.lead.findMany({
-    where: {
-      companyId: params.companyId,
-      stage: { in: ['new', 'contacted', 'viewing', 'negotiating', 'proposal_sent'] },
-    },
-    select: {
-      leadNumber: true, firstName: true, lastName: true, companyName: true,
-      email: true, stage: true, source: true, createdAt: true,
-      property: { select: { name: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = {
+    companyId: params.companyId,
+    stage: { in: ['new', 'contacted', 'viewing', 'negotiating', 'proposal_sent'] },
+  };
+  const [leads, total] = await Promise.all([
+    prisma.lead.findMany({
+      where,
+      select: {
+        leadNumber: true, firstName: true, lastName: true, companyName: true,
+        email: true, stage: true, source: true, createdAt: true,
+        property: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.lead.count({ where }),
+  ]);
 
   return {
     title: 'Active Leads',
@@ -744,25 +903,33 @@ async function drillCrmActiveLeads(params: DrillDownParams): Promise<DrillDownRe
       property: l.property?.name || '—',
       created: new Date(l.createdAt).toISOString().split('T')[0],
     })),
-    total: leads.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/crm/leads',
   };
 }
 
 async function drillCrmPipeline(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const stageFilter = params.drillKey?.toLowerCase().replace(/ /g, '_');
   const where: Record<string, unknown> = { companyId: params.companyId };
   if (stageFilter && stageFilter !== 'all') where.stage = stageFilter;
 
-  const leads = await prisma.lead.findMany({
-    where,
-    select: {
-      leadNumber: true, firstName: true, lastName: true, companyName: true,
-      stage: true, source: true, createdAt: true,
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  const [leads, total] = await Promise.all([
+    prisma.lead.findMany({
+      where,
+      select: {
+        leadNumber: true, firstName: true, lastName: true, companyName: true,
+        stage: true, source: true, createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.lead.count({ where }),
+  ]);
 
   return {
     title: `Lead Pipeline — ${params.drillKey || 'All Stages'}`,
@@ -779,21 +946,30 @@ async function drillCrmPipeline(params: DrillDownParams): Promise<DrillDownResul
       source: l.source || '—',
       created: new Date(l.createdAt).toISOString().split('T')[0],
     })),
-    total: leads.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/crm/leads',
   };
 }
 
 async function drillCrmConversion(params: DrillDownParams): Promise<DrillDownResult> {
-  const leads = await prisma.lead.findMany({
-    where: { companyId: params.companyId, stage: 'won' },
-    select: {
-      leadNumber: true, firstName: true, lastName: true, companyName: true,
-      source: true, createdAt: true, updatedAt: true,
-    },
-    orderBy: { updatedAt: 'desc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = { companyId: params.companyId, stage: 'lease_signed' };
+  const [leads, total] = await Promise.all([
+    prisma.lead.findMany({
+      where,
+      select: {
+        leadNumber: true, firstName: true, lastName: true, companyName: true,
+        source: true, createdAt: true, updatedAt: true, convertedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.lead.count({ where }),
+  ]);
 
   return {
     title: 'Converted Leads (Won)',
@@ -808,9 +984,12 @@ async function drillCrmConversion(params: DrillDownParams): Promise<DrillDownRes
       company: l.companyName || '—',
       source: l.source || '—',
       created: new Date(l.createdAt).toISOString().split('T')[0],
-      won: new Date(l.updatedAt).toISOString().split('T')[0],
+      won: new Date(l.convertedAt || l.updatedAt).toISOString().split('T')[0],
     })),
-    total: leads.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/crm/leads',
   };
 }
@@ -820,25 +999,31 @@ async function drillCrmConversion(params: DrillDownParams): Promise<DrillDownRes
 // ──────────────────────────────────────────────
 
 async function drillFacilityBookingsToday(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const bookings = await prisma.facilityBooking.findMany({
-    where: {
-      companyId: params.companyId,
-      bookingDate: { gte: today, lt: tomorrow },
-      status: { notIn: ['cancelled'] },
-    },
-    select: {
-      facility: { select: { name: true } },
-      startTime: true, endTime: true, paxCount: true, status: true, purpose: true,
-      unit: { select: { unitNumber: true } },
-    },
-    orderBy: { startTime: 'asc' },
-    take: 50,
-  });
+  const where = {
+    companyId: params.companyId,
+    bookingDate: { gte: today, lt: tomorrow },
+    status: { notIn: ['cancelled'] },
+  };
+  const [bookings, total] = await Promise.all([
+    prisma.facilityBooking.findMany({
+      where,
+      select: {
+        facility: { select: { name: true } },
+        startTime: true, endTime: true, paxCount: true, status: true, purpose: true,
+        unit: { select: { unitNumber: true } },
+      },
+      orderBy: { startTime: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.facilityBooking.count({ where }),
+  ]);
 
   return {
     title: "Today's Facility Bookings",
@@ -855,7 +1040,10 @@ async function drillFacilityBookingsToday(params: DrillDownParams): Promise<Dril
       purpose: b.purpose || '—',
       status: b.status.replace(/_/g, ' '),
     })),
-    total: bookings.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/facility-bookings',
   };
 }
@@ -869,19 +1057,24 @@ async function drillFacilityUtilization(params: DrillDownParams): Promise<DrillD
 // ──────────────────────────────────────────────
 
 async function drillParkingOccupancy(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const statusFilter = params.drillKey?.toLowerCase().replace(/ /g, '_');
   const where: Record<string, unknown> = { companyId: params.companyId };
   if (statusFilter && statusFilter !== 'all') where.status = statusFilter;
 
-  const slots = await prisma.parkingSlot.findMany({
-    where,
-    select: {
-      slotNumber: true, slotType: true, status: true, monthlyRate: true,
-      zone: { select: { name: true } },
-    },
-    orderBy: { slotNumber: 'asc' },
-    take: 50,
-  });
+  const [slots, total] = await Promise.all([
+    prisma.parkingSlot.findMany({
+      where,
+      select: {
+        slotNumber: true, slotType: true, status: true, monthlyRate: true,
+        zone: { select: { name: true } },
+      },
+      orderBy: { slotNumber: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.parkingSlot.count({ where }),
+  ]);
 
   return {
     title: `Parking Slots — ${params.drillKey || 'All'}`,
@@ -897,7 +1090,10 @@ async function drillParkingOccupancy(params: DrillDownParams): Promise<DrillDown
       rate: s.monthlyRate ? `$${s.monthlyRate.toNumber().toLocaleString()}` : '—',
       status: s.status.replace(/_/g, ' '),
     })),
-    total: slots.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/parking',
   };
 }
@@ -911,19 +1107,25 @@ async function drillParkingRevenue(params: DrillDownParams): Promise<DrillDownRe
 // ──────────────────────────────────────────────
 
 async function drillSecurityIncidents(params: DrillDownParams): Promise<DrillDownResult> {
-  const incidents = await prisma.securityIncident.findMany({
-    where: {
-      companyId: params.companyId,
-      status: { in: ['open', 'investigating'] },
-    },
-    select: {
-      incidentNumber: true, title: true, incidentType: true, severity: true,
-      status: true, incidentAt: true, locationDetail: true,
-      property: { select: { name: true } },
-    },
-    orderBy: { incidentAt: 'desc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = {
+    companyId: params.companyId,
+    status: { in: ['open', 'investigating'] },
+  };
+  const [incidents, total] = await Promise.all([
+    prisma.securityIncident.findMany({
+      where,
+      select: {
+        incidentNumber: true, title: true, incidentType: true, severity: true,
+        status: true, incidentAt: true, locationDetail: true,
+        property: { select: { name: true } },
+      },
+      orderBy: { incidentAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.securityIncident.count({ where }),
+  ]);
 
   return {
     title: 'Open Security Incidents',
@@ -943,24 +1145,33 @@ async function drillSecurityIncidents(params: DrillDownParams): Promise<DrillDow
       date: new Date(i.incidentAt).toISOString().split('T')[0],
       status: i.status.replace(/_/g, ' '),
     })),
-    total: incidents.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/security/incidents',
   };
 }
 
 async function drillSecurityTrend(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-  const incidents = await prisma.securityIncident.findMany({
-    where: { companyId: params.companyId, incidentAt: { gte: sixMonthsAgo } },
-    select: {
-      incidentNumber: true, title: true, incidentType: true, severity: true,
-      status: true, incidentAt: true,
-    },
-    orderBy: { incidentAt: 'desc' },
-    take: 50,
-  });
+  const where = { companyId: params.companyId, incidentAt: { gte: sixMonthsAgo } };
+  const [incidents, total] = await Promise.all([
+    prisma.securityIncident.findMany({
+      where,
+      select: {
+        incidentNumber: true, title: true, incidentType: true, severity: true,
+        status: true, incidentAt: true,
+      },
+      orderBy: { incidentAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.securityIncident.count({ where }),
+  ]);
 
   return {
     title: 'Incidents — Last 6 Months',
@@ -977,7 +1188,10 @@ async function drillSecurityTrend(params: DrillDownParams): Promise<DrillDownRes
       date: new Date(i.incidentAt).toISOString().split('T')[0],
       status: i.status.replace(/_/g, ' '),
     })),
-    total: incidents.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/security/incidents',
   };
 }
@@ -987,24 +1201,30 @@ async function drillSecurityTrend(params: DrillDownParams): Promise<DrillDownRes
 // ──────────────────────────────────────────────
 
 async function drillVisitorsToday(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const visitors = await prisma.visitor.findMany({
-    where: {
-      companyId: params.companyId,
-      checkedInAt: { gte: today, lt: tomorrow },
-    },
-    select: {
-      visitorName: true, visitorCompany: true, visitPurpose: true,
-      checkedInAt: true, checkedOutAt: true, status: true,
-      hostUnit: { select: { unitNumber: true } },
-    },
-    orderBy: { checkedInAt: 'desc' },
-    take: 50,
-  });
+  const where = {
+    companyId: params.companyId,
+    checkedInAt: { gte: today, lt: tomorrow },
+  };
+  const [visitors, total] = await Promise.all([
+    prisma.visitor.findMany({
+      where,
+      select: {
+        visitorName: true, visitorCompany: true, visitPurpose: true,
+        checkedInAt: true, checkedOutAt: true, status: true,
+        hostUnit: { select: { unitNumber: true } },
+      },
+      orderBy: { checkedInAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.visitor.count({ where }),
+  ]);
 
   return {
     title: "Today's Visitors",
@@ -1023,7 +1243,10 @@ async function drillVisitorsToday(params: DrillDownParams): Promise<DrillDownRes
       checkOut: v.checkedOutAt ? new Date(v.checkedOutAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—',
       status: v.status.replace(/_/g, ' '),
     })),
-    total: visitors.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/visitors',
   };
 }
@@ -1037,16 +1260,22 @@ async function drillVisitorsTrend(params: DrillDownParams): Promise<DrillDownRes
 // ──────────────────────────────────────────────
 
 async function drillCleaningSchedules(params: DrillDownParams): Promise<DrillDownResult> {
-  const schedules = await prisma.cleaningSchedule.findMany({
-    where: { companyId: params.companyId, status: 'active' },
-    select: {
-      name: true, frequencyType: true, scheduledTime: true, cleaningType: true,
-      staffCount: true, status: true,
-      zone: { select: { name: true } },
-    },
-    orderBy: { name: 'asc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = { companyId: params.companyId, status: 'active' };
+  const [schedules, total] = await Promise.all([
+    prisma.cleaningSchedule.findMany({
+      where,
+      select: {
+        name: true, frequencyType: true, scheduledTime: true, cleaningType: true,
+        staffCount: true, status: true,
+        zone: { select: { name: true } },
+      },
+      orderBy: { name: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.cleaningSchedule.count({ where }),
+  ]);
 
   return {
     title: 'Active Cleaning Schedules',
@@ -1063,7 +1292,10 @@ async function drillCleaningSchedules(params: DrillDownParams): Promise<DrillDow
       time: s.scheduledTime || '—',
       staff: String(s.staffCount),
     })),
-    total: schedules.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/housekeeping',
   };
 }
@@ -1073,22 +1305,28 @@ async function drillCleaningSchedules(params: DrillDownParams): Promise<DrillDow
 // ──────────────────────────────────────────────
 
 async function drillPmUpcoming(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
   const sevenDays = new Date();
   sevenDays.setDate(sevenDays.getDate() + 7);
 
-  const workOrders = await prisma.pmWorkOrder.findMany({
-    where: {
-      companyId: params.companyId,
-      status: 'scheduled',
-      dueDate: { lte: sevenDays, gte: new Date() },
-    },
-    select: {
-      dueDate: true, status: true,
-      schedule: { select: { name: true, property: { select: { name: true } } } },
-    },
-    orderBy: { dueDate: 'asc' },
-    take: 50,
-  });
+  const where = {
+    companyId: params.companyId,
+    status: 'scheduled',
+    dueDate: { lte: sevenDays, gte: new Date() },
+  };
+  const [workOrders, total] = await Promise.all([
+    prisma.pmWorkOrder.findMany({
+      where,
+      select: {
+        dueDate: true, status: true,
+        schedule: { select: { name: true, property: { select: { name: true } } } },
+      },
+      orderBy: { dueDate: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.pmWorkOrder.count({ where }),
+  ]);
 
   return {
     title: 'PM Work Orders Due (7 Days)',
@@ -1102,21 +1340,30 @@ async function drillPmUpcoming(params: DrillDownParams): Promise<DrillDownResult
       dueDate: new Date(wo.dueDate).toISOString().split('T')[0],
       status: wo.status.replace(/_/g, ' '),
     })),
-    total: workOrders.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/preventive-maintenance',
   };
 }
 
 async function drillPmCompliance(params: DrillDownParams): Promise<DrillDownResult> {
-  const workOrders = await prisma.pmWorkOrder.findMany({
-    where: { companyId: params.companyId, status: { in: ['overdue', 'completed'] } },
-    select: {
-      dueDate: true, status: true, completedAt: true,
-      schedule: { select: { name: true } },
-    },
-    orderBy: { dueDate: 'desc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = { companyId: params.companyId, status: { in: ['overdue', 'completed'] } };
+  const [workOrders, total] = await Promise.all([
+    prisma.pmWorkOrder.findMany({
+      where,
+      select: {
+        dueDate: true, status: true, completedAt: true,
+        schedule: { select: { name: true } },
+      },
+      orderBy: { dueDate: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.pmWorkOrder.count({ where }),
+  ]);
 
   return {
     title: 'PM Compliance Details',
@@ -1130,7 +1377,10 @@ async function drillPmCompliance(params: DrillDownParams): Promise<DrillDownResu
       completed: wo.completedAt ? new Date(wo.completedAt).toISOString().split('T')[0] : '—',
       status: wo.status.replace(/_/g, ' '),
     })),
-    total: workOrders.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/preventive-maintenance',
   };
 }
@@ -1140,15 +1390,21 @@ async function drillPmCompliance(params: DrillDownParams): Promise<DrillDownResu
 // ──────────────────────────────────────────────
 
 async function drillGlNetIncome(params: DrillDownParams): Promise<DrillDownResult> {
-  const entries = await prisma.journalEntry.findMany({
-    where: { companyId: params.companyId, status: 'posted' },
-    select: {
-      journalNumber: true, entryDate: true, description: true,
-      totalDebit: true, totalCredit: true, status: true,
-    },
-    orderBy: { entryDate: 'desc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = { companyId: params.companyId, status: 'posted' };
+  const [entries, total] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where,
+      select: {
+        journalNumber: true, entryDate: true, description: true,
+        totalDebit: true, totalCredit: true, status: true,
+      },
+      orderBy: { entryDate: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.journalEntry.count({ where }),
+  ]);
 
   return {
     title: 'Posted Journal Entries',
@@ -1164,18 +1420,27 @@ async function drillGlNetIncome(params: DrillDownParams): Promise<DrillDownResul
       debit: `$${(e.totalDebit?.toNumber() ?? 0).toLocaleString()}`,
       credit: `$${(e.totalCredit?.toNumber() ?? 0).toLocaleString()}`,
     })),
-    total: entries.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/gl/journal-entries',
   };
 }
 
 async function drillBankBalances(params: DrillDownParams): Promise<DrillDownResult> {
-  const accounts = await prisma.bankAccount.findMany({
-    where: { companyId: params.companyId },
-    select: { bankName: true, accountName: true, currency: true, accountNumber: true },
-    orderBy: { bankName: 'asc' },
-    take: 20,
-  });
+  const pag = paginate(params);
+  const where = { companyId: params.companyId };
+  const [accounts, total] = await Promise.all([
+    prisma.bankAccount.findMany({
+      where,
+      select: { bankName: true, accountName: true, currency: true, accountNumber: true },
+      orderBy: { bankName: 'asc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.bankAccount.count({ where }),
+  ]);
 
   return {
     title: 'Bank Accounts',
@@ -1189,7 +1454,10 @@ async function drillBankBalances(params: DrillDownParams): Promise<DrillDownResu
       number: a.accountNumber ? `***${a.accountNumber.slice(-4)}` : '—',
       currency: a.currency,
     })),
-    total: accounts.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/banking',
   };
 }
@@ -1199,20 +1467,23 @@ async function drillBankBalances(params: DrillDownParams): Promise<DrillDownResu
 // ──────────────────────────────────────────────
 
 async function drillInventoryLowStock(params: DrillDownParams): Promise<DrillDownResult> {
+  const pag = paginate(params);
+  // The low-stock condition (on-hand vs. reorder point) is computed across each item's stock
+  // levels in JS, so pagination is applied to the filtered result rather than the raw query.
   const items = await prisma.inventoryItem.findMany({
     where: { companyId: params.companyId },
     include: {
       stockLevels: { select: { qtyOnHand: true } },
     },
-    take: 100,
   });
 
-  const lowItems = items
+  const allLowItems = items
     .map((item) => {
       const totalOnHand = item.stockLevels.reduce((s: number, sl: { qtyOnHand: { toNumber(): number } | null }) => s + (sl.qtyOnHand?.toNumber() ?? 0), 0);
       return { ...item, totalOnHand };
     })
     .filter((item) => item.totalOnHand <= (item.reorderPoint?.toNumber() ?? 0));
+  const lowItems = allLowItems.slice(pag.skip, pag.skip + pag.take);
 
   return {
     title: 'Low Stock Items',
@@ -1228,21 +1499,30 @@ async function drillInventoryLowStock(params: DrillDownParams): Promise<DrillDow
       reorder: String(i.reorderPoint?.toNumber() ?? 0),
       unit: i.unitOfMeasure || '—',
     })),
-    total: lowItems.length,
+    total: allLowItems.length,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(allLowItems.length / pag.take)),
     navigateTo: '/admin/inventory',
   };
 }
 
 async function drillInventoryMovement(params: DrillDownParams): Promise<DrillDownResult> {
-  const movements = await prisma.stockMovement.findMany({
-    where: { companyId: params.companyId },
-    select: {
-      movementType: true, quantity: true, totalCost: true, notes: true, createdAt: true,
-      item: { select: { itemCode: true, name: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  const pag = paginate(params);
+  const where = { companyId: params.companyId };
+  const [movements, total] = await Promise.all([
+    prisma.stockMovement.findMany({
+      where,
+      select: {
+        movementType: true, quantity: true, totalCost: true, notes: true, createdAt: true,
+        item: { select: { itemCode: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: pag.skip,
+      take: pag.take,
+    }),
+    prisma.stockMovement.count({ where }),
+  ]);
 
   return {
     title: 'Stock Movements',
@@ -1259,7 +1539,10 @@ async function drillInventoryMovement(params: DrillDownParams): Promise<DrillDow
       cost: m.totalCost ? `$${m.totalCost.toNumber().toLocaleString()}` : '—',
       notes: (m.notes || '—').substring(0, 40),
     })),
-    total: movements.length,
+    total,
+    page: pag.page,
+    pageSize: pag.take,
+    totalPages: Math.max(1, Math.ceil(total / pag.take)),
     navigateTo: '/admin/inventory',
   };
 }
@@ -1322,7 +1605,7 @@ const DRILL_PROVIDERS: Record<string, (params: DrillDownParams) => Promise<Drill
 export async function getDrillDownData(code: string, params: DrillDownParams): Promise<DrillDownResult> {
   const provider = DRILL_PROVIDERS[code];
   if (!provider) {
-    return { title: 'No Details', columns: [], rows: [], total: 0 };
+    return { title: 'No Details', columns: [], rows: [], total: 0, page: 1, pageSize: 10, totalPages: 1 };
   }
   return provider(params);
 }

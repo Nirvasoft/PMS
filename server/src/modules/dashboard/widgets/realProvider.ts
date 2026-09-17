@@ -46,51 +46,61 @@ async function occupancyRate(params: WidgetDataParams) {
   };
 }
 
-async function revenueMtd(params: WidgetDataParams) {
-  const where: Record<string, unknown> = { status: 'active' };
+/** Resolves the effective [from, to] window: the dashboard's selected date preset when
+ *  provided, otherwise the given fallback (so callers outside the dashboard still work). */
+function resolvePeriod(params: WidgetDataParams, fallbackFrom: Date, fallbackTo: Date): { from: Date; to: Date } {
+  const from = params.dateFrom ? new Date(params.dateFrom) : fallbackFrom;
+  const to = params.dateTo ? new Date(params.dateTo) : fallbackTo;
+  // dateTo is a calendar day (e.g. "2026-09-17") — include the whole day.
+  const toEndOfDay = new Date(to);
+  toEndOfDay.setHours(23, 59, 59, 999);
+  return { from, to: toEndOfDay };
+}
+
+/** Revenue billed within the selected period, from issued invoices. */
+async function revenueForPeriod(params: WidgetDataParams, fallbackFrom: Date, fallbackTo: Date, label: string) {
+  const { from, to } = resolvePeriod(params, fallbackFrom, fallbackTo);
+
+  const where: Record<string, unknown> = {
+    status: { notIn: ['draft', 'void'] },
+    invoiceDate: { gte: from, lte: to },
+  };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const leases = await prisma.lease.findMany({
+  const invoices = await prisma.invoice.findMany({
     where,
-    select: { rentAmount: true },
+    select: { totalAmount: true },
   });
 
-  const totalRent = leases.reduce((sum, l) => sum + (l.rentAmount?.toNumber() ?? 0), 0);
+  const totalRevenue = invoices.reduce((sum, i) => sum + (i.totalAmount?.toNumber() ?? 0), 0);
 
   return {
-    type: 'kpi_card', label: 'Revenue MTD', value: Math.round(totalRent), unit: 'USD',
-    trend: { direction: 'up', changePercent: 0, label: `${leases.length} active leases` },
+    type: 'kpi_card', label, value: Math.round(totalRevenue), unit: 'USD',
+    trend: { direction: 'up', changePercent: 0, label: `${invoices.length} invoices billed` },
   };
+}
+
+async function revenueMtd(params: WidgetDataParams) {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  return revenueForPeriod(params, monthStart, now, 'Revenue MTD');
 }
 
 async function revenueYtd(params: WidgetDataParams) {
-  const where: Record<string, unknown> = {};
-  if (params.companyId) where.companyId = params.companyId;
-  if (params.propertyId) where.propertyId = params.propertyId;
-
-  const leases = await prisma.lease.findMany({
-    where: { ...where, status: { in: ['active', 'expired'] } },
-    select: { rentAmount: true, startDate: true, endDate: true, status: true },
-  });
-
-  // Estimate YTD: active leases × months elapsed in current year
   const now = new Date();
-  const monthsElapsed = now.getMonth() + 1;
-  const totalYtd = leases.reduce((sum, l) => {
-    const monthly = l.rentAmount?.toNumber() ?? 0;
-    return sum + (monthly * monthsElapsed);
-  }, 0);
-
-  return {
-    type: 'kpi_card', label: 'Revenue YTD', value: Math.round(totalYtd), unit: 'USD',
-    trend: { direction: 'up', changePercent: 0, label: `${monthsElapsed} months × ${leases.length} leases` },
-  };
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  return revenueForPeriod(params, yearStart, now, 'Revenue YTD');
 }
 
 async function collectionRate(params: WidgetDataParams) {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const { from, to } = resolvePeriod(params, monthStart, now);
+
   const where: Record<string, unknown> = {
     status: { notIn: ['draft', 'void'] },
+    invoiceDate: { gte: from, lte: to },
   };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
@@ -152,6 +162,10 @@ async function maintenanceOpen(params: WidgetDataParams) {
   };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.createdAt = { gte: from, lte: to };
+  }
 
   const [total, priorities] = await Promise.all([
     prisma.maintenanceTicket.count({ where }),
@@ -201,6 +215,10 @@ async function maintenanceSla(params: WidgetDataParams) {
 async function pendingTasks(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: 'pending' };
   if (params.userId) where.assignedTo = params.userId;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.createdAt = { gte: from, lte: to };
+  }
 
   const count = await prisma.workflowTask.count({ where });
 
@@ -213,6 +231,10 @@ async function pendingTasks(params: WidgetDataParams) {
 async function activeWorkflows(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: 'running' };
   if (params.companyId) where.companyId = params.companyId;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.startedAt = { gte: from, lte: to };
+  }
 
   const count = await prisma.workflowInstance.count({ where });
 
@@ -303,23 +325,30 @@ async function maintenanceTrend(params: WidgetDataParams) {
 }
 
 async function revenueByProperty(params: WidgetDataParams) {
-  const where: Record<string, unknown> = { status: 'active' };
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const { from, to } = resolvePeriod(params, monthStart, now);
+
+  const where: Record<string, unknown> = {
+    status: { notIn: ['draft', 'void'] },
+    invoiceDate: { gte: from, lte: to },
+  };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const leases = await prisma.lease.findMany({
+  const invoices = await prisma.invoice.findMany({
     where,
     select: {
-      rentAmount: true,
+      totalAmount: true,
       property: { select: { name: true } },
     },
   });
 
   // Group revenue by property
   const byProp: Record<string, number> = {};
-  for (const l of leases) {
-    const name = l.property?.name || 'Unknown';
-    byProp[name] = (byProp[name] || 0) + (l.rentAmount?.toNumber() ?? 0);
+  for (const inv of invoices) {
+    const name = inv.property?.name || 'Unknown';
+    byProp[name] = (byProp[name] || 0) + (inv.totalAmount?.toNumber() ?? 0);
   }
 
   const data = Object.entries(byProp)
@@ -328,7 +357,7 @@ async function revenueByProperty(params: WidgetDataParams) {
 
   return {
     type: 'bar_chart', label: 'Revenue by Property',
-    series: [{ name: 'Monthly Revenue', data }],
+    series: [{ name: 'Revenue', data }],
     yAxis: { label: 'Revenue (USD)', unit: 'USD' },
   };
 }
@@ -369,6 +398,10 @@ async function ticketsByCategory(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.createdAt = { gte: from, lte: to };
+  }
 
   const tickets = await prisma.maintenanceTicket.findMany({
     where,
@@ -511,6 +544,10 @@ async function crmActiveLeads(params: WidgetDataParams) {
   const where: Record<string, unknown> = { stage: { in: activeStages } };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.createdAt = { gte: from, lte: to };
+  }
 
   const [total, stages] = await Promise.all([
     prisma.lead.count({ where }),
@@ -531,10 +568,14 @@ async function crmLeadPipeline(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.createdAt = { gte: from, lte: to };
+  }
 
   const stages = await prisma.lead.groupBy({ by: ['stage'], where, _count: true });
 
-  const stageOrder = ['new', 'contacted', 'viewing', 'negotiating', 'proposal_sent', 'won', 'lost'];
+  const stageOrder = ['new', 'contacted', 'viewing_scheduled', 'viewed', 'offer_sent', 'negotiating', 'lease_signed', 'lost'];
   const data = stageOrder.map((s) => {
     const found = stages.find((st) => st.stage === s);
     return { x: s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), y: found?._count || 0 };
@@ -551,10 +592,14 @@ async function crmConversionRate(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.createdAt = { gte: from, lte: to };
+  }
 
   const [total, won] = await Promise.all([
     prisma.lead.count({ where }),
-    prisma.lead.count({ where: { ...where, stage: 'won' } }),
+    prisma.lead.count({ where: { ...where, stage: 'lease_signed' } }),
   ]);
 
   const rate = total > 0 ? +((won / total) * 100).toFixed(1) : 0;
@@ -674,6 +719,10 @@ async function securityOpenIncidents(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: { in: ['open', 'investigating'] } };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.incidentAt = { gte: from, lte: to };
+  }
 
   const [total, severities] = await Promise.all([
     prisma.securityIncident.count({ where }),
@@ -858,7 +907,11 @@ async function pmComplianceRate(params: WidgetDataParams) {
 // ──────────────────────────────────────────────
 
 async function glNetIncome(params: WidgetDataParams) {
-  const where: Record<string, unknown> = { status: 'posted' };
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const { from, to } = resolvePeriod(params, monthStart, now);
+
+  const where: Record<string, unknown> = { status: 'posted', entryDate: { gte: from, lte: to } };
   if (params.companyId) where.companyId = params.companyId;
 
   const entries = await prisma.journalEntry.findMany({
