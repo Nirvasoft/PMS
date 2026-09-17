@@ -1,11 +1,9 @@
 import { Router, Request, Response } from 'express';
-import multer from 'multer';
 import { asyncHandler, propertyAccessGuard, getUserPropertyScope } from '../../middleware';
 import { requirePermission } from '../auth/guards/roleGuard';
 import { propertiesService } from './properties.service';
 import { floorSetupService } from './floorSetup.service';
-
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 20 } });
+import { memoryUpload } from '../../common/upload';
 
 const p = (req: Request, key: string) => req.params[key] as string;
 
@@ -125,7 +123,7 @@ propertiesRouter.get('/:id/photos', requirePermission('properties.read'), proper
 }));
 
 /** POST /properties/:id/photos — multipart upload */
-propertiesRouter.post('/:id/photos', requirePermission('properties.update'), propertyAccessGuard, upload.array('photos', 20), asyncHandler(async (req: Request, res: Response) => {
+propertiesRouter.post('/:id/photos', requirePermission('properties.update'), propertyAccessGuard, memoryUpload.array('photos', 20), asyncHandler(async (req: Request, res: Response) => {
   const files = req.files as Express.Multer.File[];
   if (!files?.length) throw new Error('No photos uploaded');
   const data = await propertiesService.uploadPhotos(p(req, 'id'), files, req.user!.sub);

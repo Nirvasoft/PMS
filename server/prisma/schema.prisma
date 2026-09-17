@@ -1113,7 +1113,6 @@ model PropertyPhoto {
   propertyId   String   @map("property_id") @db.Uuid
   storageKey   String   @map("storage_key") @db.VarChar(1000)
   url          String   @db.VarChar(500)
-  thumbnailUrl String?  @map("thumbnail_url") @db.VarChar(500)
   caption      String?  @db.VarChar(255)
   isCover      Boolean  @default(false) @map("is_cover")
   sortOrder    Int      @default(0) @map("sort_order") @db.SmallInt

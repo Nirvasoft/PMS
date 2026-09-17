@@ -23,7 +23,6 @@ export interface PropertyPhoto {
   id: string;
   propertyId: string;
   url: string;
-  thumbnailUrl: string | null;
   caption: string | null;
   isCover: boolean;
   sortOrder: number;

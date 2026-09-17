@@ -425,28 +425,12 @@ export class PropertiesService {
       await storageService.saveFile(mainKey, mainBuffer, 'image/jpeg');
       const mainUrl = storageService.getFileUrl(mainKey);
 
-      // ── Generate thumbnail (300px wide, JPEG 70%) ──
-      let thumbUrl: string | null = null;
-      try {
-        const thumbBuffer = await sharp(file.buffer)
-          .resize({ width: 300, withoutEnlargement: true })
-          .jpeg({ quality: 70 })
-          .toBuffer();
-        const thumbKey = `photos/${propertyId}/${ts}_${i}_${baseName}_thumb.jpg`;
-        await storageService.saveFile(thumbKey, thumbBuffer, 'image/jpeg');
-        thumbUrl = storageService.getFileUrl(thumbKey);
-      } catch {
-        // Thumbnail generation failed — proceed without it
-        logger.warn(`Thumbnail generation failed for ${file.originalname}`);
-      }
-
       const isCover = hasNoCover && i === 0 && existing === 0;
       const photo = await prisma.propertyPhoto.create({
         data: {
           propertyId,
           storageKey: mainKey,
           url: mainUrl,
-          thumbnailUrl: thumbUrl,
           isCover,
           sortOrder: existing + i,
           uploadedBy,
