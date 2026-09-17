@@ -168,17 +168,7 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
   console.error('Unhandled error:', err);
   res.status(500).json({
     success: false,
-    errors: [{
-      code: 'INTERNAL_ERROR',
-      message: (err as any).message || 'An unexpected error occurred',
-      // TEMP DEBUG — remove after diagnosing the Spaces upload 500.
-      debug: {
-        name: (err as any).name,
-        awsCode: (err as any).Code || (err as any).code,
-        httpStatusCode: (err as any).$metadata?.httpStatusCode,
-        stack: (err as any).stack?.split('\n').slice(0, 5),
-      },
-    }],
+    errors: [{ code: 'INTERNAL_ERROR', message: (err as any).message || 'An unexpected error occurred' }],
   });
 }
 
