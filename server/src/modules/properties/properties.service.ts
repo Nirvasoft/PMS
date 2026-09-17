@@ -422,7 +422,7 @@ export class PropertiesService {
       }
 
       const mainKey = `photos/${propertyId}/${ts}_${i}_${baseName}.jpg`;
-      await storageService.saveFile(mainKey, mainBuffer, 'image/jpeg');
+      await storageService.saveFile(mainKey, mainBuffer, 'image/jpeg', { isPublic: true });
       const mainUrl = storageService.getFileUrl(mainKey);
 
       const isCover = hasNoCover && i === 0 && existing === 0;

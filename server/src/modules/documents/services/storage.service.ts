@@ -40,12 +40,14 @@ export class StorageService {
     storageKey: string,
     buffer: Buffer,
     contentType?: string,
+    options?: { isPublic?: boolean },
   ): Promise<{ path: string; checksum: string }> {
     if (isSpacesEnabled()) {
       const result = await uploadToSpaces(
         `documents/${storageKey}`,
         buffer,
         contentType || 'application/octet-stream',
+        options,
       );
       return { path: `documents/${storageKey}`, checksum: result.checksum };
     }
