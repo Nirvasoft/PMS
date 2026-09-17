@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowUpDown } from 'lucide-react';
 import {
   useGetRolesQuery, useGetRoleQuery, useGetPermissionsQuery, useUpdateRoleMutation,
   type PermissionsByModule,
@@ -213,6 +214,10 @@ type ModuleBlock =
   | { type: 'standalone'; module: string }
   | { type: 'section'; label: string; modules: string[] };
 
+function blockKey(block: ModuleBlock): string {
+  return block.type === 'standalone' ? block.module : block.label;
+}
+
 // Walks the (already menu-ordered) module list and groups consecutive modules that
 // belong to the same side-menu section into one collapsible block.
 function groupModulesBySection(modules: string[]): ModuleBlock[] {
@@ -233,12 +238,95 @@ function groupModulesBySection(modules: string[]): ModuleBlock[] {
   return blocks;
 }
 
+type SortMode = 'menu' | 'az' | 'group';
+
+function sortModulesAlphabetically(modules: string[]): string[] {
+  return [...modules].sort((a, b) => moduleLabel(a).localeCompare(moduleLabel(b)));
+}
+
+// Same section grouping as groupModulesBySection, but merges a section's modules
+// wherever they appear (not just when contiguous) and orders both the group tabs
+// and the modules within each group alphabetically instead of by menu position.
+function groupModulesByGroupName(modules: string[]): ModuleBlock[] {
+  const sectionMap = new Map<string, string[]>();
+  const blocks: ModuleBlock[] = [];
+  for (const module of modules) {
+    const section = MODULE_SECTIONS[module];
+    if (!section) {
+      blocks.push({ type: 'standalone', module });
+      continue;
+    }
+    if (!sectionMap.has(section)) sectionMap.set(section, []);
+    sectionMap.get(section)!.push(module);
+  }
+  for (const [label, sectionModules] of sectionMap) {
+    blocks.push({ type: 'section', label, modules: sortModulesAlphabetically(sectionModules) });
+  }
+  return blocks.sort((a, b) => {
+    const labelA = a.type === 'standalone' ? moduleLabel(a.module) : a.label;
+    const labelB = b.type === 'standalone' ? moduleLabel(b.module) : b.label;
+    return labelA.localeCompare(labelB);
+  });
+}
+
+// Curated top-level categories for "Sort by Group" — clusters the menu sections (plus
+// the standalone Dashboard tab and the special Active Property tab) into broader business
+// areas. Keys reference a section label (as produced by groupModulesByGroupName), a
+// standalone module name, or the literal 'active-property'.
+const SUPER_GROUPS: { label: string; keys: string[] }[] = [
+  { label: 'Finance & Accounting', keys: ['Finance', 'Billing', 'Accounts Receivable', 'Accounts Payable'] },
+  { label: 'Property & Operations', keys: ['active-property', 'Condo', 'Facility', 'Maintenance', 'Housekeeping', 'Inventory', 'Parking', 'Shopping Mall'] },
+  { label: 'Administration & Management', keys: ['Administration', 'Organization', 'CRM', 'dashboard'] },
+  { label: 'Resident & Community', keys: ['Tenant Portal', 'Community'] },
+  { label: 'Security & Compliance', keys: ['Security', 'Documents'] },
+  { label: 'System, Tools & Analytics', keys: ['Analytics', 'Workflows', 'Notifications', 'Developer', 'Settings'] },
+];
+
+type TabEntry = 'active-property' | ModuleBlock;
+type SuperGroupCluster = { label: string; entries: TabEntry[] };
+
+// Arranges the Active Property tab and every block into the curated SUPER_GROUPS clusters.
+// Anything not covered by the curated list (e.g. a newly added section with no mapping yet)
+// still needs a home, so it lands in a catch-all "Other" cluster instead of disappearing.
+function buildSuperGroupClusters(blocks: ModuleBlock[]): SuperGroupCluster[] {
+  const byKey = new Map(blocks.map((b) => [blockKey(b), b]));
+  const used = new Set<string>();
+  const clusters = SUPER_GROUPS.map(({ label, keys }) => {
+    const entries: TabEntry[] = [];
+    for (const key of keys) {
+      if (key === 'active-property') {
+        entries.push('active-property');
+        used.add(key);
+        continue;
+      }
+      const block = byKey.get(key);
+      if (block) {
+        entries.push(block);
+        used.add(key);
+      }
+    }
+    return { label, entries };
+  }).filter((cluster) => cluster.entries.length > 0);
+
+  const leftover = blocks.filter((b) => !used.has(blockKey(b)));
+  if (leftover.length > 0) {
+    clusters.push({ label: 'Other', entries: leftover });
+  }
+  return clusters;
+}
+
 // "leases.create" (module "leases") -> "Create"; "users.manage-roles" -> "Manage roles".
 // "read" actions display as "view" (e.g. "billing.read" -> "View").
 function permissionLabel(code: string, module: string): string {
   const suffix = code.startsWith(`${module}.`) ? code.slice(module.length + 1) : code;
   const display = (suffix === 'read' ? 'view' : suffix).replace(/-/g, ' ');
   return display.charAt(0).toUpperCase() + display.slice(1);
+}
+
+type Permission = { code: string; name: string; action: string; description: string | null };
+
+function sortPermsAlphabetically(perms: Permission[], module: string): Permission[] {
+  return [...perms].sort((a, b) => permissionLabel(a.code, module).localeCompare(permissionLabel(b.code, module)));
 }
 
 export default function AssignPermissionPage() {
@@ -256,6 +344,8 @@ export default function AssignPermissionPage() {
   const [initializedFor, setInitializedFor] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<string>('active-property');
+  const [sortMode, setSortMode] = useState<SortMode>('menu');
+  const [activeSuperGroup, setActiveSuperGroup] = useState<string | null>(null);
   const [floorModalOpen, setFloorModalOpen] = useState(false);
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
   const properties = propertiesData?.data ?? [];
@@ -267,8 +357,14 @@ export default function AssignPermissionPage() {
 
   const permsByModule: PermissionsByModule = permsData?.data ?? {};
   const modules = sortByMenuOrder(Object.keys(permsByModule).filter((m) => permsByModule[m]?.length > 0));
-  const blocks = groupModulesBySection(modules);
+  // "az" and "group" both alphabetize the tabs and the modules within them — "az" additionally
+  // alphabetizes the permission items inside each module (see modulePerms below).
+  const blocks = sortMode === 'menu' ? groupModulesBySection(modules) : groupModulesByGroupName(modules);
   const allCodes = modules.flatMap((m) => permsByModule[m]?.map((p) => p.code) ?? []);
+  const modulePerms = (module: string) => {
+    const perms = permsByModule[module] ?? [];
+    return sortMode === 'az' ? sortPermsAlphabetically(perms, module) : perms;
+  };
 
   const { data: roleDetail } = useGetRoleQuery(roleId, { skip: !roleId });
 
@@ -439,9 +535,17 @@ export default function AssignPermissionPage() {
         </div>
 
         {roleId && (() => {
-          // Build the tab list: Active Property first, then blocks
+          // Build the tab list: Active Property first, then blocks — except in "group" sort
+          // mode, where Active Property and every block are clustered into curated super-groups,
+          // picked via a top-level super-group tab and shown one cluster at a time.
           type TabKey = 'active-property' | string;
-          const allTabKeys: TabKey[] = ['active-property', ...blocks.map((b) => b.type === 'standalone' ? b.module : b.label)];
+          const groupClusters = sortMode === 'group' ? buildSuperGroupClusters(blocks) : null;
+          const safeSuperGroup = groupClusters
+            ? (groupClusters.find((c) => c.label === activeSuperGroup) ?? groupClusters[0])
+            : null;
+          const allTabKeys: TabKey[] = safeSuperGroup
+            ? safeSuperGroup.entries.map((e) => e === 'active-property' ? e : blockKey(e))
+            : ['active-property', ...blocks.map((b) => blockKey(b))];
           const safeActiveTab = allTabKeys.includes(activeTab) ? activeTab : allTabKeys[0];
 
           const renderTabContent = () => {
@@ -475,7 +579,7 @@ export default function AssignPermissionPage() {
             if (!block) return null;
 
             if (block.type === 'standalone') {
-              const perms = permsByModule[block.module] ?? [];
+              const perms = modulePerms(block.module);
               const selectedCount = perms.filter((p) => selectedPerms.has(p.code)).length;
               const allChecked = perms.length > 0 && selectedCount === perms.length;
               const someChecked = selectedCount > 0 && !allChecked;
@@ -523,7 +627,7 @@ export default function AssignPermissionPage() {
                 </div>
                 {block.modules.length === 1 && !NESTED_MODULES[block.modules[0]] ? (
                   <div className="perm-actions" style={{ paddingLeft: 0 }}>
-                    {(permsByModule[block.modules[0]] ?? []).map((p) => (
+                    {modulePerms(block.modules[0]).map((p) => (
                       <label key={p.code} className={`perm-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
                         <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code)} disabled={isViewOnly} />
                         <span style={{ textTransform: 'none' }}>{permissionLabel(p.code, block.modules[0])}</span>
@@ -532,7 +636,7 @@ export default function AssignPermissionPage() {
                   </div>
                 ) : (
                   block.modules.filter((m) => !CHILD_MODULES.has(m)).map((module) => {
-                    const perms = permsByModule[module] ?? [];
+                    const perms = modulePerms(module);
                     const mSelectedCount = perms.filter((p) => selectedPerms.has(p.code)).length;
                     const mAllChecked = perms.length > 0 && mSelectedCount === perms.length;
                     const mSomeChecked = mSelectedCount > 0 && !mAllChecked;
@@ -573,7 +677,7 @@ export default function AssignPermissionPage() {
                           </div>
                         )}
                         {expandedModules.has(module) && childModules.map((child) => {
-                          const childPerms = permsByModule[child] ?? [];
+                          const childPerms = modulePerms(child);
                           const cSelectedCount = childPerms.filter((p) => selectedPerms.has(p.code)).length;
                           const cAllChecked = childPerms.length > 0 && cSelectedCount === childPerms.length;
                           const cSomeChecked = cSelectedCount > 0 && !cAllChecked;
@@ -623,6 +727,42 @@ export default function AssignPermissionPage() {
             );
           };
 
+          const renderActivePropertyButton = () => (
+            <button
+              key="active-property"
+              type="button"
+              className={`perm-tab-btn${safeActiveTab === 'active-property' ? ' active' : ''}`}
+              onClick={() => setActiveTab('active-property')}
+            >
+              Active Property
+              <span className={`perm-tab-badge${!isViewOnly && selectedPropertyIds.size === 0 ? ' none' : ''}`}>
+                {isViewOnly ? properties.length : selectedPropertyIds.size}/{properties.length}
+              </span>
+            </button>
+          );
+
+          const renderBlockButton = (block: ModuleBlock) => {
+            const key = blockKey(block);
+            const label = block.type === 'standalone' ? moduleLabel(block.module) : block.label;
+            const codes = block.type === 'standalone'
+              ? (permsByModule[block.module]?.map((p) => p.code) ?? [])
+              : block.modules.flatMap((m) => permsByModule[m]?.map((p) => p.code) ?? []);
+            const selCount = codes.filter((c) => selectedPerms.has(c)).length;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`perm-tab-btn${safeActiveTab === key ? ' active' : ''}`}
+                onClick={() => setActiveTab(key)}
+              >
+                {label}
+                <span className={`perm-tab-badge${selCount === 0 ? ' none' : ''}`}>
+                  {selCount}/{codes.length}
+                </span>
+              </button>
+            );
+          };
+
           return (
             <div>
               {/* Select-all header */}
@@ -637,43 +777,52 @@ export default function AssignPermissionPage() {
                 <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Permissions</span>
                 <span className="perm-count">{selectedPerms.size} selected</span>
                 {isViewOnly && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400 }}>— view only</span>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                  <ArrowUpDown size={13} style={{ color: 'var(--text-tertiary)' }} />
+                  <select
+                    className="filter-select"
+                    value={sortMode}
+                    onChange={(e) => setSortMode(e.target.value as SortMode)}
+                    style={{ borderRadius: 10, fontSize: 12, padding: '7px 28px 7px 10px' }}
+                  >
+                    <option value="menu">Sort by Menu</option>
+                    <option value="az">Sort A-Z</option>
+                    <option value="group">Sort by Group</option>
+                  </select>
+                </div>
               </div>
 
-              {/* Horizontal tab buttons */}
-              <div className="perm-tabs-bar">
-                <button
-                  type="button"
-                  className={`perm-tab-btn${safeActiveTab === 'active-property' ? ' active' : ''}`}
-                  onClick={() => setActiveTab('active-property')}
-                >
-                  Active Property
-                  <span className={`perm-tab-badge${!isViewOnly && selectedPropertyIds.size === 0 ? ' none' : ''}`}>
-                    {isViewOnly ? properties.length : selectedPropertyIds.size}/{properties.length}
-                  </span>
-                </button>
-
-                {blocks.map((block) => {
-                  const key = block.type === 'standalone' ? block.module : block.label;
-                  const label = block.type === 'standalone' ? moduleLabel(block.module) : block.label;
-                  const codes = block.type === 'standalone'
-                    ? (permsByModule[block.module]?.map((p) => p.code) ?? [])
-                    : block.modules.flatMap((m) => permsByModule[m]?.map((p) => p.code) ?? []);
-                  const selCount = codes.filter((c) => selectedPerms.has(c)).length;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      className={`perm-tab-btn${safeActiveTab === key ? ' active' : ''}`}
-                      onClick={() => setActiveTab(key)}
-                    >
-                      {label}
-                      <span className={`perm-tab-badge${selCount === 0 ? ' none' : ''}`}>
-                        {selCount}/{codes.length}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              {/* Super-group picker (small cards) + module tabs for "Sort by Group" */}
+              {groupClusters && safeSuperGroup ? (
+                <>
+                  <div className="perm-supergroup-grid">
+                    {groupClusters.map((cluster) => {
+                      const isActive = cluster.label === safeSuperGroup.label;
+                      return (
+                        <button
+                          key={cluster.label}
+                          type="button"
+                          className={`perm-supergroup-card${isActive ? ' active' : ''}`}
+                          onClick={() => setActiveSuperGroup(cluster.label)}
+                        >
+                          {cluster.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="perm-subgroup-label">{safeSuperGroup.label}</div>
+                  <div className="perm-tabs-bar">
+                    {safeSuperGroup.entries.map((entry) => entry === 'active-property'
+                      ? renderActivePropertyButton()
+                      : renderBlockButton(entry))}
+                  </div>
+                </>
+              ) : (
+                <div className="perm-tabs-bar">
+                  {renderActivePropertyButton()}
+                  {blocks.map((block) => renderBlockButton(block))}
+                </div>
+              )}
 
               {/* Tab content panel */}
               <div className="perm-tabs-content">
