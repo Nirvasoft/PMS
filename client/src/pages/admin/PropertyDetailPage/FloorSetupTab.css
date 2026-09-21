@@ -13,7 +13,17 @@
   overflow: hidden;
 }
 
+/* ── Two-column split layout ─────────────── */
+
+.floor-layout-split {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+  width: 100%;
+}
+
 .floor-skyline {
+  flex: 0 0 auto;
   display: flex;
   align-items: flex-end;
   gap: 28px;
@@ -22,6 +32,104 @@
   padding: 8px 6px 10px;
   perspective: 1200px;
 }
+
+/* ── Info panel (right side) ─────────────── */
+
+.floor-info-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 12px 4px 4px;
+  min-width: 0;
+}
+
+.fip-stat-group {
+  display: flex;
+  gap: 12px;
+}
+
+.fip-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+}
+
+.fip-stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.fip-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+.fip-progress-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.fip-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.fip-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fip-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.fip-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.fip-legend-dot.filled {
+  background: var(--accent);
+}
+
+.fip-legend-dot.empty {
+  background: transparent;
+  border: 1.5px dashed var(--border);
+}
+
+.fip-fill-btn {
+  width: fit-content;
+  justify-content: center;
+  border-radius: 10px;
+  padding: 7px 14px;
+  font-size: 11px;
+}
+
 
 .floor-skyline::-webkit-scrollbar { height: 8px; }
 .floor-skyline::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -106,8 +214,8 @@
 }
 
 .floor-slab.filled {
-  background: linear-gradient(155deg, hsl(var(--b-hue) var(--b-sat, 68%) calc(56% + var(--b-light-shift, 0%)) / 0.92), hsl(var(--b-hue) var(--b-sat, 68%) calc(36% + var(--b-light-shift, 0%)) / 0.95));
-  border: 1px solid hsl(var(--b-hue) var(--b-sat, 68%) calc(68% + var(--b-light-shift, 0%)) / 0.5);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--accent) 90%, transparent), color-mix(in srgb, var(--accent) 70%, #000));
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
   color: #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
@@ -120,7 +228,7 @@
   pointer-events: none;
 }
 .floor-slab.filled:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 0 0 2px hsl(var(--b-hue) var(--b-sat, 70%) calc(65% + var(--b-light-shift, 0%)) / 0.4);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .floor-slab.empty {
@@ -212,7 +320,7 @@
 .bl-progress-fill {
   height: 100%;
   border-radius: 2px;
-  background: linear-gradient(90deg, hsl(var(--b-hue) var(--b-sat, 70%) calc(55% + var(--b-light-shift, 0%))), hsl(var(--b-hue) var(--b-sat, 70%) calc(68% + var(--b-light-shift, 0%))));
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #fff));
   transition: width 0.3s;
 }
 .bl-count {

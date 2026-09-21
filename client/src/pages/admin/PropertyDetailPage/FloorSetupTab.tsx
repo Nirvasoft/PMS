@@ -3,7 +3,7 @@ import {
   useGetFloorSetupsQuery, useCreateFloorSetupMutation, useUpdateFloorSetupMutation, useDeleteFloorSetupMutation,
   type FloorSetup,
 } from '../../../store/api/propertiesApi';
-import { Building2, Plus, X, Pencil, Trash2, Settings2, Sparkles, Loader2 } from 'lucide-react';
+import { Building2, Plus, X, Pencil, Trash2, Settings2 } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 import './FloorSetupTab.css';
@@ -138,7 +138,8 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
   // user edits the label by hand, further floor-number changes stop overwriting it.
   const [labelTouched, setLabelTouched] = useState(false);
 
-  const openCreate = () => { setEditing(null); setLabelTouched(false); setForm(emptyForm); setShowForm(true); };
+
+
   // Clicking an empty slot in the skyline pre-fills the floor number and a label that
   // continues whatever naming pattern this property's existing floors already use.
   const openCreateFloor = (floorNumber: number) => {
@@ -217,8 +218,8 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
   };
 
   const configuredCount = floorMap.size;
-  const { hue, sat, lightShift } = paletteForId(propertyId);
-  const buildingVars = { ['--b-hue' as any]: hue, ['--b-sat' as any]: `${sat}%`, ['--b-light-shift' as any]: `${lightShift}%` };
+
+
   const rows: number[] = [];
   for (let n = total; n >= 1; n--) rows.push(n);
 
@@ -226,11 +227,6 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
     <div className="tab-section">
       <div className="section-header">
         <h3><Building2 size={16} /> Floor Setup</h3>
-        <PermissionGuard permission="floor.create">
-          <button className="btn-secondary" onClick={openCreate} disabled={total === 0}>
-            <Plus size={14} /> New Floor
-          </button>
-        </PermissionGuard>
       </div>
 
       <div className="floor-skyline-stage">
@@ -240,54 +236,94 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
             <span>Set Total Floors for this property in the Overview tab to start configuring floors</span>
           </div>
         ) : (
-          <div className="floor-skyline">
-            <div className="building-card focus">
-              <div className="building-tower" style={buildingVars as any}>
-                <span className="building-spire" />
-                {rows.map((n, idx) => {
-                  const f = floorMap.get(n);
-                  return (
-                    <div
-                      key={n}
-                      className={`floor-slab ${f ? 'filled' : 'empty'}`}
-                      style={{ ['--fi' as any]: rows.length - idx }}
-                      onClick={() => { if (f) openEdit(f); else if (canCreateFloor) openCreateFloor(n); }}
-                      title={f ? f.floorLabel : canCreateFloor ? `Add ${ordinalFloorLabel(n)}` : ordinalFloorLabel(n)}
-                    >
-                      <span className="fs-num">{ordinalFloorLabel(n)}</span>
-                      {f ? <span className="fs-label">{f.floorLabel}</span> : <Plus size={12} className="fs-plus" />}
-                      {f && (
-                        <div className="fs-actions">
-                          <PermissionGuard permission="floor.update">
-                            <button type="button" title="Edit" onClick={(e) => { e.stopPropagation(); openEdit(f); }}>
-                              <Pencil size={11} />
-                            </button>
-                          </PermissionGuard>
-                          <PermissionGuard permission="floor.delete">
-                            <button type="button" className="danger" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(f); }}>
-                              <Trash2 size={11} />
-                            </button>
-                          </PermissionGuard>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="building-ground" />
-              <div className="building-label">
-                <span className="bl-name" title={property.name}>{property.name}</span>
-                <div className="bl-progress">
-                  <div className="bl-progress-fill" style={{ width: `${(configuredCount / total) * 100}%`, ...buildingVars } as any} />
+          <div className="floor-layout-split">
+            {/* Left — building tower */}
+            <div className="floor-skyline">
+              <div className="building-card focus">
+                <div className="building-tower">
+                  <span className="building-spire" />
+                  {rows.map((n, idx) => {
+                    const f = floorMap.get(n);
+                    return (
+                      <div
+                        key={n}
+                        className={`floor-slab ${f ? 'filled' : 'empty'}`}
+                        style={{ ['--fi' as any]: rows.length - idx }}
+                        onClick={() => { if (f) openEdit(f); else if (canCreateFloor) openCreateFloor(n); }}
+                        title={f ? f.floorLabel : canCreateFloor ? `Add ${ordinalFloorLabel(n)}` : ordinalFloorLabel(n)}
+                      >
+                        <span className="fs-num">{ordinalFloorLabel(n)}</span>
+                        {f ? <span className="fs-label">{f.floorLabel}</span> : <Plus size={12} className="fs-plus" />}
+                        {f && (
+                          <div className="fs-actions">
+                            <PermissionGuard permission="floor.update">
+                              <button type="button" title="Edit" onClick={(e) => { e.stopPropagation(); openEdit(f); }}>
+                                <Pencil size={11} />
+                              </button>
+                            </PermissionGuard>
+                            <PermissionGuard permission="floor.delete">
+                              <button type="button" className="danger" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(f); }}>
+                                <Trash2 size={11} />
+                              </button>
+                            </PermissionGuard>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <span className="bl-count">{configuredCount}/{total} floors set</span>
-                {configuredCount < total && canCreateFloor && (
-                  <button type="button" className="bl-fill-btn" disabled={filling} onClick={handleFillRemaining}>
-                    {filling ? <Loader2 size={11} className="bl-fill-spin" /> : <Sparkles size={11} />}
-                    {filling ? 'Filling…' : `Fill ${total - configuredCount} remaining`}
-                  </button>
-                )}
+                <div className="building-ground" />
+                <div className="building-label">
+                  <span className="bl-name" title={property.name}>{property.name}</span>
+                </div>
               </div>
+            </div>
+
+            {/* Right — info panel */}
+            <div className="floor-info-panel">
+              <div className="fip-stat-group">
+                <div className="fip-stat">
+                  <span className="fip-stat-value">{total}</span>
+                  <span className="fip-stat-label">Total Floors</span>
+                </div>
+                <div className="fip-stat">
+                  <span className="fip-stat-value" style={{ color: 'var(--accent)' }}>{configuredCount}</span>
+                  <span className="fip-stat-label">Configured</span>
+                </div>
+                <div className="fip-stat">
+                  <span className="fip-stat-value" style={{ color: total - configuredCount > 0 ? 'var(--text-muted)' : 'var(--accent)' }}>
+                    {total - configuredCount}
+                  </span>
+                  <span className="fip-stat-label">Remaining</span>
+                </div>
+              </div>
+
+              <div className="fip-progress-block">
+                <div className="fip-progress-header">
+                  <span>Configuration Progress</span>
+                  <span>{Math.round((configuredCount / total) * 100)}%</span>
+                </div>
+                <div className="bl-progress" style={{ width: '100%' }}>
+                  <div className="bl-progress-fill" style={{ width: `${(configuredCount / total) * 100}%` }} />
+                </div>
+              </div>
+
+              <div className="fip-legend">
+                <div className="fip-legend-item">
+                  <span className="fip-legend-dot filled" />
+                  <span>Configured floor — click to edit</span>
+                </div>
+                <div className="fip-legend-item">
+                  <span className="fip-legend-dot empty" />
+                  <span>Empty slot — click to add</span>
+                </div>
+              </div>
+
+              {configuredCount < total && canCreateFloor && (
+                <button type="button" className="bl-fill-btn fip-fill-btn" disabled={filling} onClick={handleFillRemaining}>
+                  {filling ? 'Filling…' : `Auto-fill ${total - configuredCount} remaining`}
+                </button>
+              )}
             </div>
           </div>
         )}
