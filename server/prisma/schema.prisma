@@ -2151,8 +2151,8 @@ model NotificationPreference {
   smsEnabled      Boolean  @default(false) @map("sms_enabled")
   pushEnabled     Boolean  @default(true) @map("push_enabled")
   inAppEnabled    Boolean  @default(true) @map("in_app_enabled")
-  quietHoursStart String?  @map("quiet_hours_start") @db.VarChar(5)
-  quietHoursEnd   String?  @map("quiet_hours_end") @db.VarChar(5)
+  quietHoursStart String?  @map("quiet_hours_start") @db.VarChar(20)
+  quietHoursEnd   String?  @map("quiet_hours_end") @db.VarChar(20)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   user User @relation("NotificationPreferences", fields: [userId], references: [id], onDelete: Cascade)
@@ -2941,7 +2941,7 @@ model CurrencyRate {
   baseCurrency   String   @default("MMK") @map("base_currency") @db.VarChar(10) // the currency `rate` is expressed in — auto-derived from whichever row has isBaseCurrency
   currency       String   @db.VarChar(10) // ISO code, e.g. "USD" — see CURRENCIES on the client
   description    String?  @db.VarChar(100) // full currency name, e.g. "US Dollar"
-  symbol         String?  @db.VarChar(5) // e.g. "$"
+  symbol         String?  @db.VarChar(20) // e.g. "$"
   isBaseCurrency Boolean  @default(false) @map("is_base_currency") // marks `currency` as the property's base/local currency as of effectiveDate — must equal the property's own `currency`
   operator       String   @default("multiply") @db.VarChar(10) // 'multiply' | 'divide' — how `rate` converts to baseCurrency
   rate           Decimal  @db.Decimal(18, 6) // units of `baseCurrency` per 1 unit of `currency`, as of effectiveDate
@@ -4621,8 +4621,8 @@ model FacilityBooking {
   unitId             String    @map("unit_id") @db.Uuid
   residentId         String    @map("resident_id") @db.Uuid
   bookingDate        DateTime  @map("booking_date") @db.Date
-  startTime          String    @map("start_time") @db.VarChar(5)
-  endTime            String    @map("end_time") @db.VarChar(5)
+  startTime          String    @map("start_time") @db.VarChar(20)
+  endTime            String    @map("end_time") @db.VarChar(20)
   startAt            DateTime  @map("start_at") @db.Timestamptz
   endAt              DateTime  @map("end_at") @db.Timestamptz
   durationMinutes    Int       @map("duration_minutes") @db.SmallInt
@@ -4670,8 +4670,8 @@ model BookingBlackoutDate {
   propertyId   String   @map("property_id") @db.Uuid
   companyId    String   @map("company_id") @db.Uuid
   blackoutDate DateTime @map("blackout_date") @db.Date
-  fromTime     String?  @map("from_time") @db.VarChar(5)
-  toTime       String?  @map("to_time") @db.VarChar(5)
+  fromTime     String?  @map("from_time") @db.VarChar(20)
+  toTime       String?  @map("to_time") @db.VarChar(20)
   reason       String?  @db.VarChar(255)
   createdBy    String?  @map("created_by") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -4828,7 +4828,7 @@ model MoveRequest {
   requestType         String    @map("request_type") @db.VarChar(10)
   // 'move_in'|'move_out'
   requestedDate       DateTime  @map("requested_date") @db.Date
-  preferredTime       String?   @map("preferred_time") @db.VarChar(5)
+  preferredTime       String?   @map("preferred_time") @db.VarChar(20)
   elevatorBookingId   String?   @map("elevator_booking_id") @db.Uuid
   depositAmount       Decimal?  @map("deposit_amount") @db.Decimal(15, 2)
   depositPaid         Boolean   @default(false) @map("deposit_paid")
