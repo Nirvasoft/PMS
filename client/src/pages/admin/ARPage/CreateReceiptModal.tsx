@@ -1,10 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useCreateReceiptMutation } from '../../../store/api/arApi';
-import { useGetInvoicesQuery } from '../../../store/api/billingApi';
-import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import { useGetInvoicesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useGetTenantsQuery, useGetTenantQuery } from '../../../store/api/tenantsApi';
 import { Banknote, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { CURRENCIES } from '../../../constants/currencies';
 
 const formatCurrency = (amount: number, currency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
@@ -17,13 +16,32 @@ export default function CreateReceiptModal({ onClose }: Props) {
   const [paymentReference, setPaymentReference] = useState('');
   const [amount, setAmount] = useState('');
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split('T')[0]);
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('');
   const [notes, setNotes] = useState('');
   const [allocations, setAllocations] = useState<Record<string, number>>({});
   const [tenantSearch, setTenantSearch] = useState('');
 
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 50, search: tenantSearch || undefined });
   const tenants = tenantsData?.data || [];
+
+  // Fetch full tenant details to get the tenant's currency field
+  const { data: tenantDetail } = useGetTenantQuery(tenantId, { skip: !tenantId });
+  const tenantCurrency = tenantDetail?.data?.currency || '';
+
+  // Fetch Currency Setup list — dropdown is populated from these configured currencies
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery();
+  const currencyOptions = useMemo(() => {
+    const rates = currencyRatesData?.data || [];
+    // Deduplicate by currency code and preserve insertion order
+    const seen = new Set<string>();
+    return rates.reduce<{ code: string; description: string | null }[]>((acc, r) => {
+      if (!seen.has(r.currency)) {
+        seen.add(r.currency);
+        acc.push({ code: r.currency, description: r.description });
+      }
+      return acc;
+    }, []);
+  }, [currencyRatesData]);
 
   const { data: invoicesData } = useGetInvoicesQuery(
     { tenantId: tenantId || undefined, page: 1, limit: 50 },
@@ -37,15 +55,16 @@ export default function CreateReceiptModal({ onClose }: Props) {
 
   const [createReceipt, { isLoading }] = useCreateReceiptMutation();
 
-  // Default the currency to the tenant's own outstanding invoices, but let the user
-  // override it — re-sync only while they haven't picked a currency by hand.
+  // Auto-bind currency from the selected tenant's currency field.
+  // Allow manual override — re-sync only when the tenant changes.
   const manualCurrency = useRef(false);
   useEffect(() => { manualCurrency.current = false; }, [tenantId]);
   useEffect(() => {
-    if (outstandingInvoices[0]?.currency && !manualCurrency.current) {
-      setCurrency(outstandingInvoices[0].currency);
+    if (tenantCurrency && !manualCurrency.current) {
+      setCurrency(tenantCurrency);
     }
-  }, [outstandingInvoices]);
+  }, [tenantCurrency]);
+
 
   const totalAllocated = Object.values(allocations).reduce((s, v) => s + (v || 0), 0);
   const amountNum = parseFloat(amount) || 0;
@@ -144,7 +163,12 @@ export default function CreateReceiptModal({ onClose }: Props) {
           <div className="ar-field">
             <label>Currency</label>
             <select value={currency} onChange={e => { manualCurrency.current = true; setCurrency(e.target.value); }}>
-              {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {!currency && <option value="">Select currency…</option>}
+              {currencyOptions.map(c => (
+                <option key={c.code} value={c.code}>
+                  {c.description ? `${c.code} – ${c.description}` : c.code}
+                </option>
+              ))}
             </select>
           </div>
         </div>
