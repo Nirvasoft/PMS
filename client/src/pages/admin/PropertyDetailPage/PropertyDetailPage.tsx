@@ -16,6 +16,7 @@ import { useGetDocumentsQuery } from '../../../store/api/documentsApi';
 import { useGetInvoicesQuery, useGetBillingSchedulesQuery } from '../../../store/api/billingApi';
 import { usePreviewMeterRecordsMutation, useImportMeterRecordsMutation, type MeterRecordPreviewRow } from '../../../store/api/meterRecordsApi';
 import UnitsTab from './UnitsTab';
+import FloorSetupTab from './FloorSetupTab';
 import {
   ArrowLeft, Building2, MapPin, Calendar, Users, Phone, Mail,
   Settings2, Globe, Clock, Star, Trash2, Plus, Upload, CheckCircle,
@@ -25,16 +26,16 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
-import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 import { CURRENCIES } from '../../../constants/currencies';
 import { useAppDispatch, useAppSelector } from '../../../store';
 import { setSelectedProperty } from '../../../store/slices/propertiesSlice';
 import { ALL_PROPERTIES } from '../../../hooks/useSelectedPropertyId';
 import './PropertyDetailPage.css';
 
-type Tab = 'overview' | 'units' | 'leases' | 'documents' | 'facilities' | 'contacts' | 'photos' | 'history' | 'finance' | 'meters' | 'settings';
+type Tab = 'overview' | 'floorSetup' | 'units' | 'leases' | 'documents' | 'photos' | 'finance' | 'meters' | 'history' | 'settings';
 
-const TAB_LABELS: Partial<Record<Tab, string>> = { units: 'P-Units', meters: 'Meter Records' };
+const TAB_LABELS: Partial<Record<Tab, string>> = { units: 'P-Units', floorSetup: 'Floor Setup', meters: 'Meter Records' };
 
 const STATUS_TRANSITIONS: Record<string, Array<{ value: string; label: string }>> = {
   active:           [{ value: 'under_renovation', label: 'Put Under Renovation' }, { value: 'decommissioned', label: 'Decommission' }],
@@ -53,6 +54,7 @@ export default function PropertyDetailPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const canViewFloorSetup = usePermission('floor.read');
   const [statusModal, setStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [statusReason, setStatusReason] = useState('');
@@ -159,25 +161,26 @@ export default function PropertyDetailPage() {
 
       {/* Tab navigation */}
       <div className="detail-tabs">
-        {(['overview', 'units', 'leases', 'documents', 'facilities', 'contacts', 'photos', 'history', 'finance', 'meters', 'settings'] as Tab[]).map((tab) => (
-          <button key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
-            {TAB_LABELS[tab] ?? tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
+        {(['overview', 'floorSetup', 'units', 'leases', 'documents', 'photos', 'finance', 'meters', 'history', 'settings'] as Tab[])
+          .filter((tab) => tab !== 'floorSetup' || canViewFloorSetup)
+          .map((tab) => (
+            <button key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
+              {TAB_LABELS[tab] ?? tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
       </div>
 
       {/* Tab content */}
       <div className={`detail-content${activeTab === 'units' ? ' units-content' : ''}`}>
-        {activeTab === 'overview' && <OverviewTab property={property} />}
+        {activeTab === 'overview' && <OverviewSection property={property} propertyId={id!} />}
+        {activeTab === 'floorSetup' && canViewFloorSetup && <FloorSetupTab propertyId={id!} property={property} />}
         {activeTab === 'units' && <UnitsTab />}
         {activeTab === 'leases' && <LeasesTab propertyId={id!} />}
         {activeTab === 'documents' && <DocumentsTab propertyId={id!} />}
-        {activeTab === 'facilities' && <FacilitiesTab propertyId={id!} />}
-        {activeTab === 'contacts' && <ContactsTab propertyId={id!} />}
         {activeTab === 'photos' && <PhotosTab propertyId={id!} />}
-        {activeTab === 'history' && <HistoryTab propertyId={id!} />}
         {activeTab === 'finance' && <FinanceTab property={property} />}
         {activeTab === 'meters' && <MeterRecordsTab propertyId={id!} />}
+        {activeTab === 'history' && <HistoryTab propertyId={id!} />}
         {activeTab === 'settings' && <SettingsTab property={property} />}
       </div>
 
@@ -207,6 +210,25 @@ export default function PropertyDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Overview Section (Details + Facilities + Contacts) ──
+function OverviewSection({ property, propertyId }: { property: any; propertyId: string }) {
+  const [sub, setSub] = useState<'details' | 'facilities' | 'contacts'>('details');
+  return (
+    <>
+      <div className="subtab-row">
+        <div className="subtab-toggle">
+          <button className={sub === 'details' ? 'active' : ''} onClick={() => setSub('details')}>Details</button>
+          <button className={sub === 'facilities' ? 'active' : ''} onClick={() => setSub('facilities')}>Facilities</button>
+          <button className={sub === 'contacts' ? 'active' : ''} onClick={() => setSub('contacts')}>Contacts</button>
+        </div>
+      </div>
+      {sub === 'details' && <OverviewTab property={property} />}
+      {sub === 'facilities' && <FacilitiesTab propertyId={propertyId} />}
+      {sub === 'contacts' && <ContactsTab propertyId={propertyId} />}
+    </>
   );
 }
 

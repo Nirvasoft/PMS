@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 const MODULE_ORDER = [
   'dashboard',
   'users', 'roles', 'departments', 'positions',
-  'company', 'currency-rate', 'properties', 'floor', 'unit', 'tenants', 'leases',
+  'company', 'currency-rate', 'properties', 'unit', 'floor', 'tenants', 'leases',
   'crm-leads', 'crm-campaigns',
   'parking-overview', 'parking-allocations', 'parking-visitors', 'parking-gate-logs', 'parking-vehicles',
   'billing-dashboard', 'billing-invoices', 'billing-schedules', 'charge-category', 'billing-charge-types', 'meter', 'billing-settings',
@@ -80,11 +80,11 @@ const MODULE_SECTIONS: Record<string, string> = {
   'settings-security': 'Settings', 'settings-notifications': 'Settings', 'settings-profile': 'Settings',
 };
 
-// Physical containment hierarchy — a Property has Units — so Unit renders nested under
-// Properties instead of as a flat sibling within Organization. Floor Setup sits at the
-// same level as Properties (it configures floor counts, it doesn't belong to one property).
+// Physical containment hierarchy — a Property has Units and Floors, both configured from
+// tabs on a single property's detail page — so Unit and Floor render nested under
+// Properties instead of as flat siblings within Organization.
 const NESTED_MODULES: Record<string, string[]> = {
-  properties: ['unit'],
+  properties: ['unit', 'floor'],
 };
 const CHILD_MODULES = new Set(Object.values(NESTED_MODULES).flat());
 const CHILD_TO_PARENT: Record<string, string> = Object.fromEntries(

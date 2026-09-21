@@ -109,8 +109,7 @@ export default function DashboardLayout() {
   // The Property Detail page always shows one specific property, so "All Properties"
   // isn't a meaningful choice there — hide it from the switcher while it's open.
   const isPropertyDetailPage = !!matchPath('/admin/properties/:id', location.pathname)
-    && location.pathname !== '/admin/properties/create'
-    && location.pathname !== '/admin/properties/floor-setup';
+    && location.pathname !== '/admin/properties/create';
   // Currency Setup is configured per property (rates, base currency) — "All Properties"
   // has no meaningful data to show there, so hide it from the switcher too.
   const isCurrencySetupPage = !!matchPath('/admin/billing/currency-rates', location.pathname);
@@ -245,7 +244,7 @@ export default function DashboardLayout() {
           </PermissionGuard>
 
           {/* Organization Section */}
-          <PermissionGuard hideWhenDenied permission={['company.read', 'properties.read', 'floor.read', 'tenants.read', 'leases.read', 'currency-rate.read']}>
+          <PermissionGuard hideWhenDenied permission={['company.read', 'properties.read', 'tenants.read', 'leases.read', 'currency-rate.read']}>
             <NavSection label="Organization" storageKey="org" defaultOpen isCollapsed={isCollapsed}>
               <PermissionGuard hideWhenDenied permission="company.read">
                 <NavLink to="/admin/company" className="nav-item" title="Company">
@@ -263,12 +262,6 @@ export default function DashboardLayout() {
                 <NavLink to="/admin/properties" end className="nav-item" title="Properties">
                   <Home size={18} />
                   <span>Properties</span>
-                </NavLink>
-              </PermissionGuard>
-              <PermissionGuard hideWhenDenied permission="floor.read">
-                <NavLink to="/admin/properties/floor-setup" className="nav-item" title="Floor Setup">
-                  <Layers size={18} />
-                  <span>Floor Setup</span>
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="tenants.read">

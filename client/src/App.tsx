@@ -21,7 +21,6 @@ import DepartmentsPage from './pages/admin/DepartmentsPage/DepartmentsPage';
 import CompanyPage from './pages/admin/CompanyPage/CompanyPage';
 import PropertiesPage from './pages/admin/PropertiesPage/PropertiesPage';
 import CreatePropertyPage from './pages/admin/PropertiesPage/CreatePropertyPage';
-import FloorSetupPage from './pages/admin/PropertiesPage/FloorSetupPage';
 import PropertyDetailPage from './pages/admin/PropertyDetailPage/PropertyDetailPage';
 import TenantListPage from './pages/admin/TenantsPage/TenantListPage';
 import TenantDetailPage from './pages/admin/TenantsPage/TenantDetailPage';
@@ -248,11 +247,6 @@ function AppRoutes() {
             <Route path="/admin/properties" element={<PropertiesPage />} />
             <Route path="/admin/properties/create" element={<CreatePropertyPage />} />
             <Route path="/admin/properties/:id" element={<PropertyDetailPage />} />
-          </Route>
-
-          {/* Floor Setup — requires floor.read, independent of properties.read */}
-          <Route element={<RequirePermission permission="floor.read" />}>
-            <Route path="/admin/properties/floor-setup" element={<FloorSetupPage />} />
           </Route>
 
           {/* Tenants — requires tenants.read */}

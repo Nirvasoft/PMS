@@ -1,18 +1,6 @@
 /* ═══════════════════════════════════════════════
-   Floor Setup — 3D Building Skyline
+   Floor Setup Tab — 3D Building Skyline
    ═══════════════════════════════════════════════ */
-
-/* Read-only "Active Property" display — same look as .meter-search-select but a plain
-   div, so no native <select> chevron/arrow shows on a field with nothing to pick. */
-.meter-search-select--static {
-  display: inline-flex;
-  align-items: center;
-  opacity: 0.45;
-  cursor: default;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .floor-skyline-stage {
   position: relative;
@@ -144,17 +132,6 @@
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-subtle);
-}
-
-.floor-slab.dim { opacity: 0.28; filter: saturate(0.5); }
-
-.floor-slab.match {
-  box-shadow: 0 0 0 2px var(--accent), 0 0 12px var(--accent-glow);
-  animation: fs-pulse 1.6s ease-in-out infinite;
-}
-@keyframes fs-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px var(--accent), 0 0 8px var(--accent-glow); }
-  50%      { box-shadow: 0 0 0 2px var(--accent), 0 0 18px var(--accent-glow); }
 }
 
 .fs-num {
@@ -292,6 +269,7 @@
   text-align: center;
   padding: 14px;
   background: color-mix(in srgb, var(--surface-elevated) 40%, transparent);
+  margin: 0 auto;
 }
 
 /* ── Responsive ───────────────────────────── */
