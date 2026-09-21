@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useCreateReceiptMutation } from '../../../store/api/arApi';
 import { useGetInvoicesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
-import { useGetTenantsQuery, useGetTenantQuery } from '../../../store/api/tenantsApi';
+import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { Banknote, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,23 +24,15 @@ export default function CreateReceiptModal({ onClose }: Props) {
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 50, search: tenantSearch || undefined });
   const tenants = tenantsData?.data || [];
 
-  // Fetch full tenant details to get the tenant's currency field
-  const { data: tenantDetail } = useGetTenantQuery(tenantId, { skip: !tenantId });
-  const tenantCurrency = tenantDetail?.data?.currency || '';
+  // Derive currency directly from the selected tenant's list item — no extra API call needed
+  // since currency is now included in the tenant list response.
+  const tenantCurrency = tenants.find(t => t.id === tenantId)?.currency || '';
 
   // Fetch Currency Setup list — dropdown is populated from these configured currencies
   const { data: currencyRatesData } = useGetCurrencyRatesQuery();
   const currencyOptions = useMemo(() => {
     const rates = currencyRatesData?.data || [];
-    // Deduplicate by currency code and preserve insertion order
-    const seen = new Set<string>();
-    return rates.reduce<{ code: string; description: string | null }[]>((acc, r) => {
-      if (!seen.has(r.currency)) {
-        seen.add(r.currency);
-        acc.push({ code: r.currency, description: r.description });
-      }
-      return acc;
-    }, []);
+    return [...new Set(rates.map(r => r.currency))].sort();
   }, [currencyRatesData]);
 
   const { data: invoicesData } = useGetInvoicesQuery(
@@ -165,9 +157,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
             <select value={currency} onChange={e => { manualCurrency.current = true; setCurrency(e.target.value); }}>
               {!currency && <option value="">Select currency…</option>}
               {currencyOptions.map(c => (
-                <option key={c.code} value={c.code}>
-                  {c.description ? `${c.code} – ${c.description}` : c.code}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>

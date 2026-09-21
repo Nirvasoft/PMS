@@ -17,6 +17,7 @@ export interface TenantListItem {
   avatarUrl: string | null;
   tags: string[];
   source: string | null;
+  currency: string | null;
   activeLeases: number;
   createdAt: string;
 }

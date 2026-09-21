@@ -1,5 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useGetReceiptsQuery } from '../../../store/api/arApi';
+import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
   Banknote, Plus, Search, ChevronLeft, ChevronRight,
   DollarSign, CheckCircle, RotateCcw, Clock,
@@ -12,7 +15,7 @@ import './ARPage.css';
 
 const STATUS_OPTIONS = ['', 'pending', 'confirmed', 'reversed', 'refunded'];
 const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
+  new Intl.NumberFormat('en-US', { style: 'currency', currency, currencyDisplay: 'code' }).format(Number(amount));
 
 export default function ReceiptsPage() {
   const [page, setPage] = useState(1);
@@ -21,18 +24,47 @@ export default function ReceiptsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const propertyId = useSelectedPropertyId();
   const { data, isFetching } = useGetReceiptsQuery({ status: status || undefined, page, limit: 15 });
   const receipts = data?.data || [];
   const meta = data?.meta;
 
+  // Fetch currency rates scoped to the active property so we can convert all
+  // receipt amounts into the property's base currency for the summary card.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    propertyId ? { propertyId } : skipToken,
+  );
+  const currencyRates = currencyRatesData?.data ?? [];
+  const baseCurrencyCode = currencyRates.find((r) => r.isBaseCurrency)?.currency ?? '';
+
+  // Build a lookup: receipt currency → rate record (used for conversion)
+  const rateMap = useMemo(() => {
+    const map = new Map<string, { operator: 'multiply' | 'divide'; rate: number }>();
+    for (const r of currencyRates) {
+      map.set(r.currency, { operator: r.operator, rate: Number(r.rate) });
+    }
+    return map;
+  }, [currencyRates]);
+
+  // Convert an amount in `currency` → base currency amount
+  const toBase = (amount: number, currency: string): number => {
+    if (!baseCurrencyCode || currency === baseCurrencyCode) return amount;
+    const entry = rateMap.get(currency);
+    if (!entry) return amount; // unknown currency — include as-is
+    return entry.operator === 'divide' ? amount / entry.rate : amount * entry.rate;
+  };
+
   const stats = useMemo(() => {
+    const totalAmount = receipts.reduce((s, r) => s + toBase(Number(r.amount), r.currency), 0);
     return {
       total: meta?.total || 0,
-      totalAmount: receipts.reduce((s, r) => s + Number(r.amount), 0),
+      totalAmount,
       confirmed: receipts.filter(r => r.status === 'confirmed').length,
       reversed: receipts.filter(r => r.status === 'reversed').length,
     };
-  }, [receipts, meta]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receipts, meta, rateMap, baseCurrencyCode]);
+
 
   const filtered = search
     ? receipts.filter(r =>
@@ -85,7 +117,7 @@ export default function ReceiptsPage() {
             <DollarSign size={18} />
           </div>
           <span className="asc-label">Page Collections</span>
-          <span className="asc-value">{formatCurrency(stats.totalAmount)}</span>
+          <span className="asc-value">{formatCurrency(stats.totalAmount, baseCurrencyCode || 'USD')}</span>
         </div>
         <div className="ar-stat-card">
           <div className="asc-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>

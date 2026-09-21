@@ -1,8 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetInvoicesQuery, useRunBillingMutation, useGetBillingSchedulesQuery,
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
+  useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
@@ -57,15 +59,44 @@ export default function InvoiceListPage() {
   const invoices = data?.data || [];
   const meta = data?.meta;
 
+  // Fetch currency rates scoped to the active property so Page Revenue is expressed
+  // in that property's base currency. When "All Properties" is selected (no propertyId),
+  // rates are skipped and amounts are grouped by their own currency instead.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    activePropertyFilter ? { propertyId: activePropertyFilter } : skipToken,
+  );
+  const currencyRates = currencyRatesData?.data ?? [];
+  const baseCurrencyCode = currencyRates.find(r => r.isBaseCurrency)?.currency ?? '';
+
+  // Convert an amount from `fromCurrency` to the property's base currency using the
+  // same two-hop method used across the rest of the app (currency → base via rate/operator).
+  const toBase = (amount: number, fromCurrency: string): number => {
+    if (!fromCurrency || fromCurrency === baseCurrencyCode) return amount;
+    const row = currencyRates.find(r => r.currency === fromCurrency);
+    if (!row) return amount;
+    return row.operator === 'divide' ? amount / Number(row.rate) : amount * Number(row.rate);
+  };
+
   const stats = useMemo(() => {
     const all = invoices;
+    // Group raw totals by currency for the "All Properties" multi-currency display
+    const byCurrency: Record<string, number> = {};
+    let totalInBase = 0;
+    for (const inv of all) {
+      const cur = inv.currency || 'USD';
+      byCurrency[cur] = (byCurrency[cur] || 0) + Number(inv.totalAmount);
+      totalInBase += toBase(Number(inv.totalAmount), cur);
+    }
     return {
       total: meta?.total || 0,
-      totalAmount: all.reduce((s, i) => s + Number(i.totalAmount), 0),
+      totalInBase,
+      byCurrency,
       overdue: all.filter(i => i.status === 'overdue').length,
       paid: all.filter(i => i.status === 'paid').length,
     };
-  }, [invoices, meta]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoices, meta, currencyRates, baseCurrencyCode]);
+
 
   // Filtering by invoice # / tenant name happens server-side (see `search` above), so it
   // covers every matching invoice — not just whichever page happened to be loaded.
@@ -210,7 +241,21 @@ export default function InvoiceListPage() {
             <DollarSign size={18} />
           </div>
           <span className="bsc-label">Page Revenue</span>
-          <span className="bsc-value">{formatCurrency(stats.totalAmount)}</span>
+          {/* Property selected → show total converted to base currency.
+              All Properties  → list each currency's raw total separately. */}
+          {baseCurrencyCode ? (
+            <span className="bsc-value">{formatCurrency(stats.totalInBase, baseCurrencyCode)}</span>
+          ) : Object.keys(stats.byCurrency).length <= 1 ? (
+            <span className="bsc-value">
+              {formatCurrency(stats.totalInBase, Object.keys(stats.byCurrency)[0] || 'USD')}
+            </span>
+          ) : (
+            <span className="bsc-value" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, fontSize: 13 }}>
+              {Object.entries(stats.byCurrency).map(([cur, amt]) => (
+                <span key={cur}>{formatCurrency(amt, cur)}</span>
+              ))}
+            </span>
+          )}
         </div>
         <div className="billing-stat-card">
           <div className="bsc-icon" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }}>

@@ -100,6 +100,7 @@ export class TenantsService {
           id: true, tenantType: true, firstName: true, lastName: true,
           companyName: true, email: true, mobile: true, kycStatus: true,
           isBlacklisted: true, avatarUrl: true, tags: true, source: true,
+          currency: true,
           createdAt: true,
           _count: { select: { leases: { where: { status: 'active' } } } },
         },
