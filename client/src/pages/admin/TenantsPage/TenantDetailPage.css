@@ -102,6 +102,7 @@
 .info-label { width: 120px; flex-shrink: 0; color: var(--text-muted); font-size: 0.78rem; }
 .info-value { flex: 1; }
 .capitalize { text-transform: capitalize; }
+.no-transform { text-transform: none !important; }
 
 .address-block { font-size: 0.83rem; line-height: 1.6; }
 .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }

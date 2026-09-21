@@ -477,7 +477,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
               {tenant.contactPersonName   && <InfoRow label="Contact Person" value={tenant.contactPersonName} />}
               {tenant.contactPersonRole   && <InfoRow label="Role"           value={tenant.contactPersonRole} />}
               {tenant.contactPersonPhone  && <InfoRow label="Contact Phone"  value={tenant.contactPersonPhone} />}
-              {tenant.contactPersonEmail  && <InfoRow label="Contact Email"  value={tenant.contactPersonEmail} />}
+              {tenant.contactPersonEmail  && <InfoRow label="Contact Email"  value={tenant.contactPersonEmail} noTransform />}
             </>
           )}
         </div>
@@ -488,7 +488,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
         <div className="info-card">
           <h4>Contact Details</h4>
           <div className="info-rows">
-            {tenant.email    && <InfoRow label="Email"    value={tenant.email} />}
+            {tenant.email    && <InfoRow label="Email"    value={tenant.email} noTransform />}
             {tenant.phone    && <InfoRow label="Phone"    value={tenant.phone} />}
             {tenant.mobile   && <InfoRow label="Mobile"   value={tenant.mobile} />}
             {tenant.source   && <InfoRow label="Source"   value={tenant.source.replace(/_/g, ' ')} />}
@@ -583,11 +583,11 @@ function EditSelect({ label, value, onChange, options, disabled, title }: {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, noTransform }: { label: string; value: string; noTransform?: boolean }) {
   return (
     <div className="info-row">
       <span className="info-label">{label}</span>
-      <span className="info-value capitalize">{value}</span>
+      <span className={`info-value ${noTransform ? 'no-transform' : 'capitalize'}`}>{value}</span>
     </div>
   );
 }
