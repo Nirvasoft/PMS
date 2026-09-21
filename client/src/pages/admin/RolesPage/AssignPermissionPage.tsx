@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, MinusSquare, PlusSquare } from 'lucide-react';
 import {
   useGetRolesQuery, useGetRoleQuery, useGetPermissionsQuery, useUpdateRoleMutation,
   type PermissionsByModule,
@@ -342,11 +342,26 @@ export default function AssignPermissionPage() {
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<Set<string>>(new Set());
   const [selectedFloorNumbers, setSelectedFloorNumbers] = useState<Set<number>>(new Set());
   const [initializedFor, setInitializedFor] = useState<string | null>(null);
-  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<string>('active-property');
   const [sortMode, setSortMode] = useState<SortMode>('menu');
   const [activeSuperGroup, setActiveSuperGroup] = useState<string | null>(null);
   const [floorModalOpen, setFloorModalOpen] = useState(false);
+  // Tracks which modules have their permission list expanded. Empty by default = all collapsed.
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  const toggleModuleCollapse = (module: string) => {
+    setExpandedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(module)) next.delete(module); else next.add(module);
+      return next;
+    });
+  };
+  // Auto-expand a module (e.g. when a perm inside it becomes checked).
+  const autoExpandModules = (modulesToExpand: string[]) => {
+    setExpandedModules((prev) => {
+      if (modulesToExpand.every((m) => prev.has(m))) return prev;
+      return new Set([...prev, ...modulesToExpand]);
+    });
+  };
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
   const properties = propertiesData?.data ?? [];
 
@@ -373,11 +388,11 @@ export default function AssignPermissionPage() {
   // one must always stay checked, so wait for properties to load before initializing.
   if (roleId && roleDetail && initializedFor !== roleId) {
     if (isViewOnly) {
-      // System role: show all permissions checked but disabled
+      // System role: show all permissions checked but disabled — expand all modules
       setSelectedPerms(new Set(allCodes));
       setSelectedPropertyIds(new Set(properties.map((p) => p.id)));
       setSelectedFloorNumbers(new Set());
-      setExpandedModules(new Set(modules)); // expand all sections in view-only mode
+      setExpandedModules(new Set(modules));
       setInitializedFor(roleId);
     } else {
       const existingPropertyIds = roleDetail.data.propertyIds ?? [];
@@ -388,11 +403,11 @@ export default function AssignPermissionPage() {
           existingPropertyIds.length > 0 ? existingPropertyIds : (properties[0] ? [properties[0].id] : [])
         ));
         setSelectedFloorNumbers(new Set(roleDetail.data.floorNumbers ?? []));
-        // Auto-expand any module that already has at least one permission checked
-        const autoExpanded = new Set<string>(
-          modules.filter((m) => (permsByModule[m] ?? []).some((p) => checkedPerms.has(p.code)))
+        // Auto-expand modules that already have at least one checked permission.
+        const modulesWithPerms = modules.filter((m) =>
+          (permsByModule[m] ?? []).some((p) => checkedPerms.has(p.code))
         );
-        setExpandedModules(autoExpanded);
+        setExpandedModules(new Set(modulesWithPerms));
         setInitializedFor(roleId);
       }
     }
@@ -437,26 +452,21 @@ export default function AssignPermissionPage() {
     setSelectedFloorNumbers(allFloorsChecked ? new Set() : new Set(floorOptions));
   };
 
-  const togglePerm = (code: string) => {
+  // module is the key of the module this perm belongs to (used for auto-expand).
+  const togglePerm = (code: string, module: string) => {
     const next = new Set(selectedPerms);
-    const isAdding = !next.has(code);
-    if (next.has(code)) next.delete(code); else next.add(code);
-    setSelectedPerms(withParentViewCascade(next, permsByModule));
-    // Auto-expand the module that owns this permission when a perm is being added
-    if (isAdding) {
-      const ownerModule = modules.find((m) => (permsByModule[m] ?? []).some((p) => p.code === code));
-      if (ownerModule) {
-        setExpandedModules((prev) => prev.has(ownerModule) ? prev : new Set([...prev, ownerModule]));
-      }
+    const adding = !next.has(code);
+    if (adding) next.add(code); else next.delete(code);
+    const cascaded = withParentViewCascade(next, permsByModule);
+    setSelectedPerms(cascaded);
+    if (adding) {
+      // Expand this module and any parents that got auto-cascade-checked.
+      const toExpand = [module];
+      let parent = CHILD_TO_PARENT[module];
+      while (parent) { toExpand.push(parent); parent = CHILD_TO_PARENT[parent]; }
+      autoExpandModules(toExpand);
     }
   };
-
-  const toggleExpand = (module: string) => {
-    const next = new Set(expandedModules);
-    if (next.has(module)) next.delete(module); else next.add(module);
-    setExpandedModules(next);
-  };
-
 
   const toggleModuleAll = (module: string) => {
     const codes = (permsByModule[module] ?? []).map((p) => p.code);
@@ -464,10 +474,7 @@ export default function AssignPermissionPage() {
     const next = new Set(selectedPerms);
     codes.forEach((c) => allSelected ? next.delete(c) : next.add(c));
     setSelectedPerms(allSelected ? next : withParentViewCascade(next, permsByModule));
-    // Auto-expand module when any perms are being added
-    if (!allSelected) {
-      setExpandedModules((prev) => prev.has(module) ? prev : new Set([...prev, module]));
-    }
+    if (!allSelected) autoExpandModules([module]);
   };
 
   const toggleSectionAll = (sectionModules: string[]) => {
@@ -476,6 +483,7 @@ export default function AssignPermissionPage() {
     const next = new Set(selectedPerms);
     codes.forEach((c) => allSelected ? next.delete(c) : next.add(c));
     setSelectedPerms(allSelected ? next : withParentViewCascade(next, permsByModule));
+    if (!allSelected) autoExpandModules(sectionModules);
   };
 
   const allPermsChecked = allCodes.length > 0 && allCodes.every((c) => selectedPerms.has(c));
@@ -483,6 +491,7 @@ export default function AssignPermissionPage() {
 
   const toggleAllPerms = () => {
     setSelectedPerms(allPermsChecked ? new Set() : new Set(allCodes));
+    if (!allPermsChecked) setExpandedModules(new Set(modules));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -595,11 +604,11 @@ export default function AssignPermissionPage() {
                     <h4>{moduleLabel(block.module)}</h4>
                     <span className="text-muted text-small">{selectedCount}/{perms.length}</span>
                   </div>
-                  <div className="perm-actions" style={{ paddingLeft: 0 }}>
+                  <div className="perm-tree-list" style={{ marginLeft: 0, paddingLeft: 0, borderLeft: 'none' }}>
                     {perms.map((p) => (
-                      <label key={p.code} className={`perm-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
-                        <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code)} disabled={isViewOnly} />
-                        <span style={{ textTransform: 'none' }}>{permissionLabel(p.code, block.module)}</span>
+                      <label key={p.code} className={`perm-tree-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+                        <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code, block.module)} disabled={isViewOnly} />
+                        <span>{permissionLabel(p.code, block.module)}</span>
                       </label>
                     ))}
                   </div>
@@ -626,102 +635,108 @@ export default function AssignPermissionPage() {
                   <span className="text-muted text-small">{selectedCount}/{sectionCodes.length}</span>
                 </div>
                 {block.modules.length === 1 && !NESTED_MODULES[block.modules[0]] ? (
-                  <div className="perm-actions" style={{ paddingLeft: 0 }}>
+                  <div className="perm-tree-list" style={{ marginLeft: 0, paddingLeft: 0, borderLeft: 'none' }}>
                     {modulePerms(block.modules[0]).map((p) => (
-                      <label key={p.code} className={`perm-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
-                        <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code)} disabled={isViewOnly} />
-                        <span style={{ textTransform: 'none' }}>{permissionLabel(p.code, block.modules[0])}</span>
+                      <label key={p.code} className={`perm-tree-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+                        <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code, block.modules[0])} disabled={isViewOnly} />
+                        <span>{permissionLabel(p.code, block.modules[0])}</span>
                       </label>
                     ))}
                   </div>
                 ) : (
-                  block.modules.filter((m) => !CHILD_MODULES.has(m)).map((module) => {
-                    const perms = modulePerms(module);
-                    const mSelectedCount = perms.filter((p) => selectedPerms.has(p.code)).length;
-                    const mAllChecked = perms.length > 0 && mSelectedCount === perms.length;
-                    const mSomeChecked = mSelectedCount > 0 && !mAllChecked;
-                    const childModules = (NESTED_MODULES[module] ?? []).filter((m) => permsByModule[m]?.length > 0);
-                    return (
-                      <div key={module} className="perm-tag-group">
-                        <div className="perm-module-header" onClick={() => toggleExpand(module)}>
-                          <button type="button" className="perm-expand-btn"
-                            onClick={(e) => { e.stopPropagation(); toggleExpand(module); }}
-                            aria-label={expandedModules.has(module) ? 'Collapse' : 'Expand'}>
-                            {expandedModules.has(module) ? '−' : '+'}
-                          </button>
-                          <input type="checkbox" checked={mAllChecked}
-                            ref={(el) => { if (el) el.indeterminate = mSomeChecked; }}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={() => toggleModuleAll(module)}
-                            disabled={isViewOnly}
-                          />
-                          <span className="perm-module-name">
-                            {moduleLabel(module)}
-                            {module === 'unit' && !isViewOnly && (
-                              <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }}
-                                onClick={(e) => { e.stopPropagation(); setFloorModalOpen(true); }}>
-                                All Floor{selectedFloorNumbers.size > 0 ? ` (${selectedFloorNumbers.size})` : ''}
-                              </button>
-                            )}
-                          </span>
-                          <span className="text-muted text-small">{mSelectedCount}/{perms.length}</span>
-                        </div>
-                        {expandedModules.has(module) && (
-                          <div className="perm-actions">
-                            {perms.map((p) => (
-                              <label key={p.code} className={`perm-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
-                                <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code)} disabled={isViewOnly} />
-                                <span style={{ textTransform: 'none' }}>{permissionLabel(p.code, module)}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                        {expandedModules.has(module) && childModules.map((child) => {
-                          const childPerms = modulePerms(child);
-                          const cSelectedCount = childPerms.filter((p) => selectedPerms.has(p.code)).length;
-                          const cAllChecked = childPerms.length > 0 && cSelectedCount === childPerms.length;
-                          const cSomeChecked = cSelectedCount > 0 && !cAllChecked;
-                          return (
-                            <div key={child} className="perm-tag-group" style={{ marginLeft: 24 }}>
-                              <div className="perm-module-header" onClick={() => toggleExpand(child)}>
-                                <button type="button" className="perm-expand-btn"
-                                  onClick={(e) => { e.stopPropagation(); toggleExpand(child); }}
-                                  aria-label={expandedModules.has(child) ? 'Collapse' : 'Expand'}>
-                                  {expandedModules.has(child) ? '−' : '+'}
+                  <div className="perm-module-grid">
+                    {block.modules.filter((m) => !CHILD_MODULES.has(m)).map((module) => {
+                      const perms = modulePerms(module);
+                      const mSelectedCount = perms.filter((p) => selectedPerms.has(p.code)).length;
+                      const mAllChecked = perms.length > 0 && mSelectedCount === perms.length;
+                      const mSomeChecked = mSelectedCount > 0 && !mAllChecked;
+                      const childModules = (NESTED_MODULES[module] ?? []).filter((m) => permsByModule[m]?.length > 0);
+                      return (
+                        <div key={module} className="perm-tag-group">
+                          <div className="perm-module-header" style={{ cursor: 'pointer' }} onClick={() => toggleModuleCollapse(module)}>
+                            <span className="perm-collapse-btn">
+                              {expandedModules.has(module) ? <MinusSquare size={14} /> : <PlusSquare size={14} />}
+                            </span>
+                            <span className="perm-h-line" aria-hidden="true" />
+                            <input type="checkbox" checked={mAllChecked}
+                              ref={(el) => { if (el) el.indeterminate = mSomeChecked; }}
+                              onChange={() => toggleModuleAll(module)}
+                              onClick={(e) => e.stopPropagation()}
+                              disabled={isViewOnly}
+                            />
+                            <span className="perm-module-name">
+                              {moduleLabel(module)}
+                              {module === 'unit' && !isViewOnly && (
+                                <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }}
+                                  onClick={(e) => { e.stopPropagation(); setFloorModalOpen(true); }}>
+                                  All Floor{selectedFloorNumbers.size > 0 ? ` (${selectedFloorNumbers.size})` : ''}
                                 </button>
-                                <input type="checkbox" checked={cAllChecked}
-                                  ref={(el) => { if (el) el.indeterminate = cSomeChecked; }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={() => toggleModuleAll(child)}
-                                  disabled={isViewOnly}
-                                />
-                                <span className="perm-module-name">
-                                  {moduleLabel(child)}
-                                  {child === 'unit' && !isViewOnly && (
-                                    <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }}
-                                      onClick={(e) => { e.stopPropagation(); setFloorModalOpen(true); }}>
-                                      All Floor{selectedFloorNumbers.size > 0 ? ` (${selectedFloorNumbers.size})` : ''}
-                                    </button>
-                                  )}
-                                </span>
-                                <span className="text-muted text-small">{cSelectedCount}/{childPerms.length}</span>
-                              </div>
-                              {expandedModules.has(child) && (
-                                <div className="perm-actions">
-                                  {childPerms.map((p) => (
-                                    <label key={p.code} className={`perm-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
-                                      <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code)} disabled={isViewOnly} />
-                                      <span style={{ textTransform: 'none' }}>{permissionLabel(p.code, child)}</span>
-                                    </label>
-                                  ))}
-                                </div>
                               )}
+                            </span>
+                            <span className="text-muted text-small">{mSelectedCount}/{perms.length}</span>
+                          </div>
+                          {expandedModules.has(module) && (
+                            <div className="perm-tree-list">
+                              {perms.map((p) => (
+                                <label key={p.code} className={`perm-tree-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+                                  <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code, module)} disabled={isViewOnly} />
+                                  <span>{permissionLabel(p.code, module)}</span>
+                                </label>
+                              ))}
                             </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })
+                          )}
+                          {childModules.length > 0 && (
+                            <div className="perm-submodule-list">
+                              {childModules.map((child) => {
+                                const childPerms = modulePerms(child);
+                                const cSelectedCount = childPerms.filter((p) => selectedPerms.has(p.code)).length;
+                                const cAllChecked = childPerms.length > 0 && cSelectedCount === childPerms.length;
+                                const cSomeChecked = cSelectedCount > 0 && !cAllChecked;
+                                return (
+                                  <div key={child} className="perm-submodule-entry">
+                                    <div className="perm-tag-group">
+                                      <div className="perm-module-header" style={{ cursor: 'pointer' }} onClick={() => toggleModuleCollapse(child)}>
+                                        <span className="perm-collapse-btn">
+                                          {expandedModules.has(child) ? <MinusSquare size={14} /> : <PlusSquare size={14} />}
+                                        </span>
+                                        <span className="perm-h-line" aria-hidden="true" />
+                                        <input type="checkbox" checked={cAllChecked}
+                                          ref={(el) => { if (el) el.indeterminate = cSomeChecked; }}
+                                          onChange={() => toggleModuleAll(child)}
+                                          onClick={(e) => e.stopPropagation()}
+                                          disabled={isViewOnly}
+                                        />
+                                        <span className="perm-module-name">
+                                          {moduleLabel(child)}
+                                          {child === 'unit' && !isViewOnly && (
+                                            <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }}
+                                              onClick={(e) => { e.stopPropagation(); setFloorModalOpen(true); }}>
+                                              All Floor{selectedFloorNumbers.size > 0 ? ` (${selectedFloorNumbers.size})` : ''}
+                                            </button>
+                                          )}
+                                        </span>
+                                        <span className="text-muted text-small">{cSelectedCount}/{childPerms.length}</span>
+                                      </div>
+                                      {expandedModules.has(child) && (
+                                        <div className="perm-tree-list">
+                                          {childPerms.map((p) => (
+                                            <label key={p.code} className={`perm-tree-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+                                              <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code, child)} disabled={isViewOnly} />
+                                              <span>{permissionLabel(p.code, child)}</span>
+                                            </label>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </>
             );
@@ -792,42 +807,203 @@ export default function AssignPermissionPage() {
                 </div>
               </div>
 
-              {/* Super-group picker (small cards) + module tabs for "Sort by Group" */}
+              {/* GROUP MODE: group pill-tab buttons → show all modules of active group at once */}
               {groupClusters && safeSuperGroup ? (
                 <>
-                  <div className="perm-supergroup-grid">
+                  {/* Group tab bar — same pill-button style as Sort by Menu / A-Z tabs */}
+                  <div className="perm-tabs-bar">
                     {groupClusters.map((cluster) => {
                       const isActive = cluster.label === safeSuperGroup.label;
+                      const allCodes = cluster.entries.flatMap((e) =>
+                        e === 'active-property' ? [] :
+                        (e.type === 'standalone'
+                          ? (permsByModule[e.module]?.map((p) => p.code) ?? [])
+                          : e.modules.flatMap((m) => permsByModule[m]?.map((p) => p.code) ?? []))
+                      );
+                      const selCount = allCodes.filter((c) => selectedPerms.has(c)).length;
                       return (
                         <button
                           key={cluster.label}
                           type="button"
-                          className={`perm-supergroup-card${isActive ? ' active' : ''}`}
+                          className={`perm-tab-btn${isActive ? ' active' : ''}`}
                           onClick={() => setActiveSuperGroup(cluster.label)}
                         >
                           {cluster.label}
+                          <span className={`perm-tab-badge${selCount === 0 ? ' none' : ''}`}>
+                            {selCount}/{allCodes.length}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
-                  <div className="perm-subgroup-label">{safeSuperGroup.label}</div>
-                  <div className="perm-tabs-bar">
-                    {safeSuperGroup.entries.map((entry) => entry === 'active-property'
-                      ? renderActivePropertyButton()
-                      : renderBlockButton(entry))}
+
+                  {/* Content: render ALL blocks/modules of the active group as a full grid */}
+                  <div className="perm-tabs-content">
+                    {safeSuperGroup.entries.map((entry) => {
+                      if (entry === 'active-property') {
+                        const effectivePropertyIds = isViewOnly
+                          ? new Set(properties.map((p) => p.id))
+                          : selectedPropertyIds;
+                        return (
+                          <div key="active-property" style={{ marginBottom: 20 }}>
+                            <div className="perm-tabs-header">
+                              <input type="checkbox" checked readOnly disabled={isViewOnly} />
+                              <h4>Active Property</h4>
+                              <span className="text-muted text-small">{effectivePropertyIds.size}/{properties.length}</span>
+                            </div>
+                            <div className="perm-actions" style={{ paddingLeft: 0 }}>
+                              {properties.map((p) => (
+                                <label key={p.id} className={`perm-item ${effectivePropertyIds.has(p.id) ? 'selected' : ''}`}>
+                                  <input type="checkbox" checked={effectivePropertyIds.has(p.id)} onChange={() => toggleProperty(p.id)} disabled={isViewOnly} />
+                                  <span style={{ textTransform: 'none' }}>{p.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      const block = entry;
+                      if (block.type === 'standalone') {
+                        const perms = modulePerms(block.module);
+                        const selectedCount = perms.filter((p) => selectedPerms.has(p.code)).length;
+                        const allChecked = perms.length > 0 && selectedCount === perms.length;
+                        const someChecked = selectedCount > 0 && !allChecked;
+                        return (
+                          <div key={blockKey(block)} style={{ marginBottom: 20 }}>
+                            <div className="perm-tabs-header">
+                              <input type="checkbox" checked={allChecked}
+                                ref={(el) => { if (el) el.indeterminate = someChecked; }}
+                                onChange={() => toggleModuleAll(block.module)} disabled={isViewOnly} />
+                              <h4>{moduleLabel(block.module)}</h4>
+                              <span className="text-muted text-small">{selectedCount}/{perms.length}</span>
+                            </div>
+                            <div className="perm-tree-list" style={{ marginLeft: 0, paddingLeft: 0, borderLeft: 'none' }}>
+                              {perms.map((p) => (
+                                <label key={p.code} className={`perm-tree-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+                                  <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code, block.module)} disabled={isViewOnly} />
+                                  <span>{permissionLabel(p.code, block.module)}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      // Section block — render full module grid
+                      const sectionCodes = block.modules.flatMap((m) => permsByModule[m]?.map((p) => p.code) ?? []);
+                      const selectedCount = sectionCodes.filter((c) => selectedPerms.has(c)).length;
+                      const sectionAllChecked = sectionCodes.length > 0 && selectedCount === sectionCodes.length;
+                      const sectionSomeChecked = selectedCount > 0 && !sectionAllChecked;
+                      return (
+                        <div key={blockKey(block)} style={{ marginBottom: 24 }}>
+                          <div className="perm-group-section-header">
+                            <input type="checkbox" checked={sectionAllChecked}
+                              ref={(el) => { if (el) el.indeterminate = sectionSomeChecked; }}
+                              onChange={() => toggleSectionAll(block.modules)} disabled={isViewOnly} />
+                            <span>{block.label}</span>
+                            <span className="text-muted text-small">{selectedCount}/{sectionCodes.length}</span>
+                          </div>
+                          <div className="perm-module-grid">
+                            {block.modules.filter((m) => !CHILD_MODULES.has(m)).map((module) => {
+                              const perms = modulePerms(module);
+                              const mSelectedCount = perms.filter((p) => selectedPerms.has(p.code)).length;
+                              const mAllChecked = perms.length > 0 && mSelectedCount === perms.length;
+                              const mSomeChecked = mSelectedCount > 0 && !mAllChecked;
+                              const childModules = (NESTED_MODULES[module] ?? []).filter((m) => permsByModule[m]?.length > 0);
+                              return (
+                                <div key={module} className="perm-tag-group">
+                                  <div className="perm-module-header" style={{ cursor: 'pointer' }} onClick={() => toggleModuleCollapse(module)}>
+                                    <span className="perm-collapse-btn">
+                                      {expandedModules.has(module) ? <MinusSquare size={14} /> : <PlusSquare size={14} />}
+                                    </span>
+                                    <span className="perm-h-line" aria-hidden="true" />
+                                    <input type="checkbox" checked={mAllChecked}
+                                      ref={(el) => { if (el) el.indeterminate = mSomeChecked; }}
+                                      onChange={() => toggleModuleAll(module)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      disabled={isViewOnly}
+                                    />
+                                    <span className="perm-module-name">
+                                      {moduleLabel(module)}
+                                      {module === 'unit' && !isViewOnly && (
+                                        <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }}
+                                          onClick={(e) => { e.stopPropagation(); setFloorModalOpen(true); }}>
+                                          All Floor{selectedFloorNumbers.size > 0 ? ` (${selectedFloorNumbers.size})` : ''}
+                                        </button>
+                                      )}
+                                    </span>
+                                    <span className="text-muted text-small">{mSelectedCount}/{perms.length}</span>
+                                  </div>
+                                  {expandedModules.has(module) && (
+                                    <div className="perm-tree-list">
+                                      {perms.map((p) => (
+                                        <label key={p.code} className={`perm-tree-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+                                          <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code, module)} disabled={isViewOnly} />
+                                          <span>{permissionLabel(p.code, module)}</span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {childModules.length > 0 && (
+                                    <div className="perm-submodule-list">
+                                      {childModules.map((child) => {
+                                        const childPerms = modulePerms(child);
+                                        const cSelectedCount = childPerms.filter((p) => selectedPerms.has(p.code)).length;
+                                        const cAllChecked = childPerms.length > 0 && cSelectedCount === childPerms.length;
+                                        const cSomeChecked = cSelectedCount > 0 && !cAllChecked;
+                                        return (
+                                          <div key={child} className="perm-submodule-entry">
+                                            <div className="perm-tag-group">
+                                              <div className="perm-module-header" style={{ cursor: 'pointer' }} onClick={() => toggleModuleCollapse(child)}>
+                                                <span className="perm-collapse-btn">
+                                                  {expandedModules.has(child) ? <MinusSquare size={14} /> : <PlusSquare size={14} />}
+                                                </span>
+                                                <span className="perm-h-line" aria-hidden="true" />
+                                                <input type="checkbox" checked={cAllChecked}
+                                                  ref={(el) => { if (el) el.indeterminate = cSomeChecked; }}
+                                                  onChange={() => toggleModuleAll(child)}
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  disabled={isViewOnly}
+                                                />
+                                                <span className="perm-module-name">{moduleLabel(child)}</span>
+                                                <span className="text-muted text-small">{cSelectedCount}/{childPerms.length}</span>
+                                              </div>
+                                              {expandedModules.has(child) && (
+                                                <div className="perm-tree-list">
+                                                  {childPerms.map((p) => (
+                                                    <label key={p.code} className={`perm-tree-item ${selectedPerms.has(p.code) ? 'selected' : ''}`}>
+                                                      <input type="checkbox" checked={selectedPerms.has(p.code)} onChange={() => togglePerm(p.code, child)} disabled={isViewOnly} />
+                                                      <span>{permissionLabel(p.code, child)}</span>
+                                                    </label>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               ) : (
-                <div className="perm-tabs-bar">
-                  {renderActivePropertyButton()}
-                  {blocks.map((block) => renderBlockButton(block))}
-                </div>
+                /* MENU / A-Z MODE: tab bar + single-block content panel */
+                <>
+                  <div className="perm-tabs-bar">
+                    {renderActivePropertyButton()}
+                    {blocks.map((block) => renderBlockButton(block))}
+                  </div>
+                  <div className="perm-tabs-content">
+                    {renderTabContent()}
+                  </div>
+                </>
               )}
-
-              {/* Tab content panel */}
-              <div className="perm-tabs-content">
-                {renderTabContent()}
-              </div>
             </div>
           );
         })()}

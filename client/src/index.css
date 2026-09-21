@@ -3026,15 +3026,9 @@ select.input-full:focus {
 .perm-module-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
+  gap: 0;
+  padding: 4px 6px;
   border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.perm-module-header:hover {
-  background: var(--surface-hover);
 }
 
 .perm-module-name {
@@ -3042,35 +3036,157 @@ select.input-full:focus {
   font-size: 0.9rem;
   text-transform: capitalize;
   flex: 1;
+  margin-left: 6px;
 }
 
 .perm-module-header input[type="checkbox"] {
   accent-color: var(--accent);
   width: 14px;
   height: 14px;
+  flex-shrink: 0;
 }
 
-.perm-expand-btn {
+/* Grid of module cards (Read/Create/Update/Delete tree under each), laid out in
+   columns like the reference permission-matrix design instead of a stacked list. */
+.perm-module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 4px 28px;
+  align-items: start;
+}
+
+.perm-module-grid .perm-tag-group {
+  margin-bottom: 0;
+}
+
+/* ⊟/⊞ style tree-toggle icon (MinusSquare / PlusSquare) */
+.perm-collapse-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   width: 16px;
   height: 16px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  background: var(--bg-secondary);
   color: var(--text-secondary);
-  font-size: 0.75rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast);
 }
 
-.perm-expand-btn:hover {
-  border-color: var(--accent);
+.perm-module-header:hover .perm-collapse-btn {
   color: var(--accent);
+}
+
+/* Horizontal connector line: ⊟── between the toggle icon and the module checkbox */
+.perm-h-line {
+  display: block;
+  width: 10px;
+  height: 2px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Vertical tree line for the action checkboxes nested under the module.
+   margin-left: 38px → centers the 2px border at 39px = parent checkbox center
+   (header padding 6px + toggle 16px + h-line 10px + half checkbox 7px = 39px). */
+.perm-tree-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-left: 38px;
+  padding-left: 16px;
+  /* No border-left here — drawn per-item below so it stops at the last child's center */
+}
+
+.perm-tree-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0 3px 12px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* Vertical line segment: runs full height for every item, but only to center for the last */
+.perm-tree-item::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--border);
+}
+
+.perm-tree-item:last-child::before {
+  bottom: 50%; /* stop at center — line does not extend below the last item */
+}
+
+/* Horizontal connector: branches from the vertical line to the checkbox */
+.perm-tree-item::after {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: calc(50% - 1px);
+  width: 28px;
+  border-top: 2px solid var(--border);
+}
+
+/* Container for nested sub-modules (e.g. Unit and Floor under Properties).
+   Mirrors perm-tree-list alignment so sub-module headers connect with tree lines. */
+.perm-submodule-list {
+  margin-left: 38px;
+  padding-left: 16px;
+  margin-top: 4px;
+}
+
+/* Each sub-module entry draws a vertical connector segment like perm-tree-item */
+.perm-submodule-entry {
+  position: relative;
+  padding: 3px 0;
+}
+
+/* Vertical segment through each sub-module row */
+.perm-submodule-entry::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--border);
+}
+
+/* Last sub-module: vertical line stops at header center (≈12px = padding-top 4px + half icon 8px) */
+.perm-submodule-entry:last-child::before {
+  bottom: calc(100% - 12px);
+  top: 0;
+  bottom: unset;
+  height: 12px;
+}
+
+/* Horizontal connector from vertical line to sub-module toggle icon */
+.perm-submodule-entry::after {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 11px;
+  width: 16px;
+  border-top: 2px solid var(--border);
+}
+
+.perm-tree-item:hover {
+  color: var(--accent);
+}
+
+.perm-tree-item.selected {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.perm-tree-item input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
 }
 
 .perm-actions {
@@ -3116,6 +3232,59 @@ select.input-full:focus {
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 16px;
+}
+
+/* Group mode: flat tab bar across the top — styled like classic bordered tabs */
+.perm-group-tabbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 0;
+  border-bottom: 2px solid var(--border);
+}
+
+.perm-group-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  margin-bottom: -2px;
+}
+
+.perm-group-tab:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.perm-group-tab.active {
+  background: var(--surface);
+  border-color: var(--border);
+  border-bottom-color: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Section label inside group content area */
+.perm-group-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 8px 0;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text-primary);
 }
 
 .perm-supergroup-grid {
@@ -5861,9 +6030,6 @@ select.input-full:focus {
 [data-theme="light"] .perm-matrix {
   border-color: rgba(0,0,0,0.08);
   background: var(--surface);
-}
-[data-theme="light"] .perm-module-header:hover {
-  background: rgba(0,0,0,0.04);
 }
 [data-theme="light"] .perm-section-header:hover {
   background: rgba(0,0,0,0.04);
