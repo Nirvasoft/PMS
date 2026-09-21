@@ -136,6 +136,7 @@ export interface UnitListItem {
   direction: string | null;
   status: string;
   furnishing: string;
+  currency: string | null;
   tower: { id: string; name: string; code: string | null } | null;
   section: { id: string; name: string } | null;
   meters: Array<{ meterType: string; meterSerialNo: string }>;

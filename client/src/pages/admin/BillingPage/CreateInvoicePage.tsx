@@ -19,7 +19,7 @@ interface LineItem {
 }
 
 const formatCurrency = (amount: number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(amount);
 
 export default function CreateInvoicePage() {
   const navigate = useNavigate();

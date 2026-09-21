@@ -87,26 +87,31 @@ export default function BillingSchedulesPage() {
   const propertyLocked = !editId && !!selectedProperty;
   const lockedPropertyName = scopeProperties.find((p) => p.id === selectedProperty)?.name;
 
-  // Default the currency to the selected property's own currency, but let the user
-  // override it — re-sync only while they haven't picked a currency by hand for this
-  // property, so switching property doesn't clobber a deliberate manual choice.
+  // Currency is bound to the selected Unit's own Currency Code (falling back to the
+  // property's currency when no unit is picked, or for units created before that field
+  // existed) — not something a schedule sets independently, so it's not user-editable here.
   const propertyCurrency = properties.find((p: any) => p.id === form.propertyId)?.currency
     || scopeProperties.find((p) => p.id === form.propertyId)?.currency;
-  const manualCurrency = useRef(false);
-  useEffect(() => { manualCurrency.current = false; }, [form.propertyId]);
+  const boundCurrency = units.find((u) => u.id === form.unitId)?.currency || propertyCurrency || '';
   useEffect(() => {
-    // Only auto-default for new schedules — editing an existing one keeps its saved
-    // currency untouched even though changing its property re-runs this effect.
-    if (!editId && propertyCurrency && !manualCurrency.current) {
-      setForm((f) => ({ ...f, currency: propertyCurrency }));
+    // Only auto-bind for new schedules — editing an existing one keeps its saved
+    // currency untouched even though changing property/unit re-runs this effect.
+    if (!editId && boundCurrency && form.currency !== boundCurrency) {
+      setForm((f) => ({ ...f, currency: boundCurrency }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyCurrency, editId]);
+  }, [boundCurrency, editId]);
 
   // Currency dropdown lists Codes from Currency Setup; Base Amount is read-only —
   // it's Amount multiplied (or divided, per the row's own operator) by the Rate from
-  // the Currency Setup row matching the schedule's currency.
-  const { data: currencyRatesData } = useGetCurrencyRatesQuery(undefined, { refetchOnMountOrArgChange: true });
+  // the Currency Setup row matching the schedule's currency. Currency Setup rates (and
+  // which one is the Base Currency) are configured per property, so this must be scoped
+  // to the schedule's own property — otherwise another property's base currency could
+  // leak in when the company has more than one.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    form.propertyId ? { propertyId: form.propertyId } : skipToken,
+    { refetchOnMountOrArgChange: true },
+  );
   const currencyRates = currencyRatesData?.data ?? [];
   const currencyCodes = [...new Set(currencyRates.map((r) => r.currency))].sort();
   const baseCurrencyCode = currencyRates.find((r) => r.isBaseCurrency)?.currency ?? '';
@@ -181,7 +186,6 @@ export default function BillingSchedulesPage() {
 
   const openCreate = () => {
     setEditId(null);
-    manualCurrency.current = false;
     setForm({ ...emptyForm, propertyId: selectedProperty });
     setFloorId('');
     setShowForm(true);
@@ -492,22 +496,25 @@ export default function BillingSchedulesPage() {
                     </select>
                   </div>
                   <div className="inv-field">
-                    <label>Amount <span className="req">*</span></label>
-                    <input type="number" required min={0} step={0.01} value={form.amount}
-                      onChange={e => setForm({ ...form, amount: Number(e.target.value) })} />
-                  </div>
-                  <div className="inv-field">
                     <label>Qty</label>
                     <input type="number" min={0} step={1} value={form.quantity}
                       onChange={e => setForm({ ...form, quantity: Number(e.target.value) })} />
                   </div>
                   <div className="inv-field">
+                    <label>Amount <span className="req">*</span></label>
+                    <input type="number" required min={0} step={0.01} value={form.amount}
+                      onChange={e => setForm({ ...form, amount: Number(e.target.value) })} />
+                  </div>
+                  <div className="inv-field">
                     <label>Currency</label>
-                    <select value={form.currency} onChange={e => {
-                      manualCurrency.current = true;
-                      setForm({ ...form, currency: e.target.value });
-                    }}>
-                      <option value="">Select a currency</option>
+                    <select
+                      value={form.currency}
+                      disabled
+                      title="Currency is set from the selected Unit and cannot be changed here"
+                      style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
+                      onChange={() => {}}
+                    >
+                      <option value="">{form.unitId ? 'Select a unit currency…' : 'Select a unit first'}</option>
                       {currencyCodes.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>

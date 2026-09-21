@@ -6,7 +6,7 @@ import { Banknote, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const formatCurrency = (amount: number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(amount);
 
 interface Props { onClose: () => void; }
 

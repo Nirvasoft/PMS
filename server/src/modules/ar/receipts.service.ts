@@ -5,6 +5,38 @@ import { glService } from '../gl/gl.service';
 import { webhookPaymentReceived, webhookRefundProcessed } from '../../common/webhookHooks';
 
 export class ReceiptsService {
+  // ── Currency Conversion ─────────────────────
+
+  // A receipt is recorded in its own currency, but what it pays off (invoice.paidAmount,
+  // and thus Outstanding) must stay in that invoice's own currency — otherwise a USD
+  // payment gets added straight onto an MMK balance as if 1 USD == 1 MMK. Converts via
+  // the property's own Currency Setup rates (each rate is that currency vs the property's
+  // base currency), the same two-hop method the client uses to derive "Base Amount".
+  private async convertToInvoiceCurrency(
+    client: Pick<typeof prisma, 'currencyRate'>,
+    companyId: string,
+    propertyId: string | null,
+    amount: number,
+    fromCurrency: string,
+    toCurrency: string,
+  ): Promise<number> {
+    if (!propertyId || fromCurrency === toCurrency) return amount;
+
+    const rows = await client.currencyRate.findMany({
+      where: { companyId, propertyId, currency: { in: [fromCurrency, toCurrency] }, isActive: true },
+      orderBy: { effectiveDate: 'desc' },
+    });
+    const fromRow = rows.find((r) => r.currency === fromCurrency);
+    const toRow = rows.find((r) => r.currency === toCurrency);
+
+    const toBase = (amt: number, row?: typeof fromRow) =>
+      !row || row.isBaseCurrency ? amt : (row.operator === 'divide' ? amt / Number(row.rate) : amt * Number(row.rate));
+    const fromBase = (amt: number, row?: typeof toRow) =>
+      !row || row.isBaseCurrency ? amt : (row.operator === 'divide' ? amt * Number(row.rate) : amt / Number(row.rate));
+
+    return fromBase(toBase(amount, fromRow), toRow);
+  }
+
   // ── Receipt Number ──────────────────────────
 
   async generateReceiptNumber(companyId: string): Promise<string> {
@@ -94,13 +126,20 @@ export class ReceiptsService {
 
       // Apply allocations
       for (const alloc of allocations) {
+        // The user entered/allocated this amount in the receipt's own currency — convert
+        // it into the invoice's currency before it touches paidAmount, so a payment in a
+        // different currency doesn't get added to the balance 1:1.
+        const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: alloc.invoiceId } });
+        const convertedAmount = await this.convertToInvoiceCurrency(
+          tx, companyId, invoice.propertyId, alloc.amount, rct.currency, invoice.currency,
+        );
+
         await tx.receiptAllocation.create({
-          data: { receiptId: rct.id, invoiceId: alloc.invoiceId, amount: alloc.amount },
+          data: { receiptId: rct.id, invoiceId: alloc.invoiceId, amount: convertedAmount },
         });
 
         // Update invoice paidAmount and status
-        const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: alloc.invoiceId } });
-        const newPaidAmount = Number(invoice.paidAmount) + alloc.amount;
+        const newPaidAmount = Number(invoice.paidAmount) + convertedAmount;
         const newStatus = newPaidAmount >= Number(invoice.totalAmount) ? 'paid'
           : newPaidAmount > 0 ? 'partially_paid'
           : invoice.status;
@@ -198,7 +237,7 @@ export class ReceiptsService {
         property: { select: { id: true, name: true } },
         allocations: {
           include: {
-            invoice: { select: { id: true, invoiceNumber: true, totalAmount: true, paidAmount: true, status: true } },
+            invoice: { select: { id: true, invoiceNumber: true, totalAmount: true, paidAmount: true, status: true, currency: true } },
           },
         },
       },

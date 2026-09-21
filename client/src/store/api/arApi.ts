@@ -22,7 +22,7 @@ export interface ReceiptListItem {
 export interface ReceiptAllocationDetail {
   id: string;
   amount: string;
-  invoice: { id: string; invoiceNumber: string; totalAmount: string; paidAmount: string; status: string };
+  invoice: { id: string; invoiceNumber: string; totalAmount: string; paidAmount: string; status: string; currency: string };
 }
 
 export interface ReceiptDetail extends Omit<ReceiptListItem, '_count'> {

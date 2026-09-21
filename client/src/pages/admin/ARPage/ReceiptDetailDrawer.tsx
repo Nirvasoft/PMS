@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(Number(amount));
 
 interface Props { receiptId: string; onClose: () => void; }
 
@@ -104,8 +104,8 @@ export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
                     {receipt.allocations.map((a: any) => (
                       <tr key={a.id}>
                         <td><span className="cell-primary">{a.invoice.invoiceNumber}</span></td>
-                        <td style={{ textAlign: 'right' }}>{formatCurrency(a.invoice.totalAmount)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(a.amount)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(a.invoice.totalAmount, a.invoice.currency)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(a.amount, a.invoice.currency)}</td>
                         <td>
                           <span className={`inv-status inv-status--${a.invoice.status}`}>{a.invoice.status.replace('_', ' ')}</span>
                         </td>

@@ -243,8 +243,14 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
 
   // Currency dropdown lists Codes from Currency Setup; Base Amount is read-only —
   // it's Rent Amount multiplied (or divided, per the row's own operator) by the Rate
-  // from the Currency Setup row matching the lease's currency.
-  const { data: currencyRatesData } = useGetCurrencyRatesQuery(undefined, { refetchOnMountOrArgChange: true });
+  // from the Currency Setup row matching the lease's currency. Currency Setup rates
+  // (and which one is the Base Currency) are configured per property, so this must be
+  // scoped to the lease's own property — otherwise another property's base currency
+  // could leak in when the company has more than one.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    { propertyId: lease.property.id },
+    { refetchOnMountOrArgChange: true },
+  );
   const currencyRates = currencyRatesData?.data ?? [];
   const currencyCodes = [...new Set(currencyRates.map((r) => r.currency))].sort();
   const baseCurrencyCode = currencyRates.find((r) => r.isBaseCurrency)?.currency ?? '';

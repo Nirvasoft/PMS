@@ -11,7 +11,7 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(Number(amount));
 
 interface CreditLine { chargeTypeId: string; description: string; quantity: number; unitPrice: number; taxRate: number; }
 
@@ -371,7 +371,32 @@ export default function InvoiceDetailPage() {
         </div>
         <div className="invoice-total-row">
           <span className="label">Paid</span>
-          <span className="amount" style={{ color: '#10b981' }}>{formatCurrency(inv.paidAmount, inv.currency)}</span>
+          <span className="amount" style={{ color: '#10b981' }}>
+            {(() => {
+              const allocs = inv.receiptAllocations || [];
+              if (allocs.length === 0) return formatCurrency(inv.paidAmount, inv.currency);
+              // Group totals by receipt currency (No. 1 — use payment currency code)
+              const byCurrency: Record<string, number> = {};
+              for (const a of allocs) {
+                const rc = a.receipt.currency || inv.currency;
+                byCurrency[rc] = (byCurrency[rc] || 0) + Number(a.receipt.amount);
+              }
+              const entries = Object.entries(byCurrency);
+              if (entries.length === 1 && entries[0][0] === inv.currency) {
+                return formatCurrency(inv.paidAmount, inv.currency);
+              }
+              return (
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                  {entries.map(([cur, amt]) => (
+                    <span key={cur}>{formatCurrency(amt, cur)}</span>
+                  ))}
+                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400 }}>
+                    ≈ {formatCurrency(inv.paidAmount, inv.currency)}
+                  </span>
+                </span>
+              );
+            })()}
+          </span>
         </div>
         <div className="invoice-total-row" style={{ fontWeight: 600, fontSize: 16 }}>
           <span className="label">Outstanding</span>
@@ -425,7 +450,13 @@ export default function InvoiceDetailPage() {
                   </td>
                   <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{alloc.receipt.paymentReference || '—'}</td>
                   <td className="text-right" style={{ fontWeight: 700, color: '#10b981' }}>
-                    {formatCurrency(alloc.amount, alloc.receipt.currency)}
+                    {/* No. 2 — show amount in receipt's own currency */}
+                    {formatCurrency(alloc.receipt.amount, alloc.receipt.currency || inv.currency)}
+                    {(alloc.receipt.currency && alloc.receipt.currency !== inv.currency) && (
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 2 }}>
+                        ≈ {formatCurrency(alloc.amount, inv.currency)}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <span className={`inv-status inv-status--${alloc.receipt.status === 'applied' ? 'paid' : alloc.receipt.status}`}

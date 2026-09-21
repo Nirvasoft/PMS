@@ -49,8 +49,14 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
 
   // Base Amount is read-only here — it's Base Rent multiplied (or divided, per the
   // row's own operator) by the Rate from the Currency Setup row matching the
-  // lease's currency, not something a lease sets per-lease.
-  const { data: currencyRatesData } = useGetCurrencyRatesQuery(undefined, { refetchOnMountOrArgChange: true });
+  // lease's currency, not something a lease sets per-lease. Currency Setup rates (and
+  // which one is the Base Currency) are configured per property, so this must be scoped
+  // to the lease's own property — otherwise another property's base currency could leak
+  // in when the company has more than one.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    form.propertyId ? { propertyId: form.propertyId } : skipToken,
+    { refetchOnMountOrArgChange: true },
+  );
   const currencyRates = currencyRatesData?.data ?? [];
   const currencyCodes = [...new Set(currencyRates.map((r) => r.currency))].sort();
   const baseCurrencyCode = currencyRates.find((r) => r.isBaseCurrency)?.currency ?? '';
