@@ -129,7 +129,7 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
 
   const floorNumberOptions = Array.from({ length: total }, (_, i) => i + 1);
 
-  const emptyForm = { floorNumber: '', floorLabel: '' };
+  const emptyForm = { floorNumber: '', floorLabel: '', prefix: '' };
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<FloorSetup | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -146,13 +146,13 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
     setEditing(null);
     setLabelTouched(false);
     const groups = buildLabelGroups(floorMap);
-    setForm({ floorNumber: String(floorNumber), floorLabel: predictFloorLabel(floorNumber, groups) });
+    setForm({ floorNumber: String(floorNumber), floorLabel: predictFloorLabel(floorNumber, groups), prefix: '' });
     setShowForm(true);
   };
   const openEdit = (f: FloorSetup) => {
     setEditing(f);
     setLabelTouched(true); // editing an existing label should never be auto-overwritten
-    setForm({ floorNumber: String(f.floorNumber), floorLabel: f.floorLabel });
+    setForm({ floorNumber: String(f.floorNumber), floorLabel: f.floorLabel, prefix: f.prefix ?? '' });
     setShowForm(true);
   };
   const closeForm = () => { setShowForm(false); setEditing(null); setForm(emptyForm); };
@@ -163,6 +163,7 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
       propertyId,
       floorNumber: Number(form.floorNumber),
       floorLabel: form.floorLabel.trim(),
+      prefix: form.prefix.trim() || null,
     };
     try {
       if (editing) {
@@ -250,9 +251,9 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
                         className={`floor-slab ${f ? 'filled' : 'empty'}`}
                         style={{ ['--fi' as any]: rows.length - idx }}
                         onClick={() => { if (f) openEdit(f); else if (canCreateFloor) openCreateFloor(n); }}
-                        title={f ? f.floorLabel : canCreateFloor ? `Add ${ordinalFloorLabel(n)}` : ordinalFloorLabel(n)}
+                        title={f ? f.floorLabel : ''}
                       >
-                        <span className="fs-num">{ordinalFloorLabel(n)}</span>
+                        <span className="fs-num">{n}</span>
                         {f ? <span className="fs-label">{f.floorLabel}</span> : <Plus size={12} className="fs-plus" />}
                         {f && (
                           <div className="fs-actions">
@@ -311,11 +312,11 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
               <div className="fip-legend">
                 <div className="fip-legend-item">
                   <span className="fip-legend-dot filled" />
-                  <span>Configured floor — click to edit</span>
+                  <span>Configured floor</span>
                 </div>
                 <div className="fip-legend-item">
                   <span className="fip-legend-dot empty" />
-                  <span>Empty slot — click to add</span>
+                  <span>Empty slot</span>
                 </div>
               </div>
 
@@ -347,7 +348,7 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
                         const floorNumber = e.target.value;
                         if (!editing && !labelTouched && floorNumber) {
                           const groups = buildLabelGroups(floorMap);
-                          setForm({ floorNumber, floorLabel: predictFloorLabel(Number(floorNumber), groups) });
+                          setForm({ ...form, floorNumber, floorLabel: predictFloorLabel(Number(floorNumber), groups) });
                         } else {
                           setForm({ ...form, floorNumber });
                         }
@@ -360,6 +361,17 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
                     <label>Floor Label *</label>
                     <input required placeholder="e.g. 10th Floor" value={form.floorLabel}
                       onChange={(e) => { setLabelTouched(true); setForm({ ...form, floorLabel: e.target.value }); }} />
+                  </div>
+                </div>
+                <div className="rff-row">
+                  <div className="rff-field rff-grow">
+                    <label>Prefix <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+                    <input
+                      placeholder="e.g. FL, GF, B"
+                      value={form.prefix}
+                      maxLength={20}
+                      onChange={(e) => setForm({ ...form, prefix: e.target.value })}
+                    />
                   </div>
                 </div>
               </div>

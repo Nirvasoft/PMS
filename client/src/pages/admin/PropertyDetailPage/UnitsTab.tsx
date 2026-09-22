@@ -613,7 +613,7 @@ export default function UnitsTab() {
         <UnitDetailDrawer propertyId={propertyId!} unitId={selectedUnitId} />
       )}
       {drawerOpen && selectedUnitId === 'new' && (
-        <CreateUnitModal propertyId={propertyId!} towers={towers} />
+        <CreateUnitModal propertyId={propertyId!} towers={towers} selectedTowerId={selectedTowerId || ''} />
       )}
       {bulkCreateOpen && (
         <BulkCreateModal propertyId={propertyId!} towers={towers} />
@@ -809,12 +809,12 @@ function UnitGridCard({ unit, onClick }: { unit: UnitListItem; onClick: () => vo
 }
 
 /* ── Create P-Unit Modal ────────────────────── */
-function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: Tower[] }) {
+function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: string; towers: Tower[]; selectedTowerId: string }) {
   const dispatch = useAppDispatch();
   const close = () => dispatch(selectUnit(null as any));
 
   const [form, setForm] = useState({
-    unitNumber: '', unitType: '', zone: '', towerId: '', sectionId: '',
+    unitNumber: '', unitType: '', zone: '', towerId: selectedTowerId, sectionId: '',
     floorNumber: '', floorLabel: '', areaSqft: '', areaSqm: '',
     bedroomCount: '0', bathroomCount: '0',
     direction: '', furnishing: 'unfurnished', ownershipType: 'company',
@@ -842,8 +842,9 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
   const sections = selectedTower?.sections || [];
   const selectedFloor = floors.find((f) => f.floorNumber === Number(form.floorNumber));
 
-  /* Floor label prefixes the P-Unit number and is not itself editable there */
-  const unitNumberPrefix = form.useFloorLabelPrefix && form.floorLabel ? `${form.floorLabel}-` : '';
+  /* Prefix from Floor Setup's prefix field (not the floor label) */
+  const floorPrefix = selectedFloor?.prefix ?? '';
+  const unitNumberPrefix = form.useFloorLabelPrefix && floorPrefix ? `${floorPrefix}-` : '';
   const fullUnitNumber = `${unitNumberPrefix}${form.unitNumber.trim()}`;
 
   const handleSubmit = async () => {
@@ -906,10 +907,24 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
         </div>
 
         <div className="cu-body">
-          {/* Tower & Section — largest scope first */}
+
+          {/* Row 1: Section only (tower is auto-set from context), or full picker if browsing all */}
           {towers.length > 0 && (
-            <>
-              <div className="cu-section-title">Location</div>
+            selectedTowerId ? (
+              /* Tower already set from context — only show Section if the tower has sections */
+              sections.length > 0 && (
+                <div className="cu-grid">
+                  <div className="cu-field">
+                    <label>Section</label>
+                    <select value={form.sectionId} onChange={(e) => set('sectionId', e.target.value)}>
+                      <option value="">No section</option>
+                      {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )
+            ) : (
+              /* Viewing all units — let user pick tower + section manually */
               <div className="cu-grid">
                 <div className="cu-field">
                   <label>Tower <span className="cu-opt">(optional)</span></label>
@@ -928,11 +943,10 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
                   </div>
                 )}
               </div>
-            </>
+            )
           )}
 
-          {/* Floor */}
-          <div className="cu-section-title">Floor</div>
+          {/* Row 2: Floor Number + Floor Label */}
           <div className="cu-grid">
             <div className="cu-field">
               <label>Floor Number</label>
@@ -962,30 +976,31 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
             </div>
           </div>
 
-          {/* P-Unit Number + Type — smallest scope last */}
-          <div className="cu-section-title">P-Unit Identity</div>
+          {/* Row 3: P-Unit Number + Type */}
           <div className="cu-grid">
             <div className="cu-field">
-              <label>P-Unit Number *</label>
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>P-Unit Number *</span>
+                {floorPrefix && (
+                  <label className="cu-prefix-toggle" title={`Prefix the P-Unit Number with "${floorPrefix}" from Floor Setup`}>
+                    <input
+                      type="checkbox"
+                      checked={form.useFloorLabelPrefix}
+                      onChange={(e) => setForm((f) => ({ ...f, useFloorLabelPrefix: e.target.checked }))}
+                    />
+                    <span>Prefix: <strong>{floorPrefix}</strong></span>
+                  </label>
+                )}
+              </label>
               {unitNumberPrefix ? (
                 <div className="cu-unitno-combo">
-                  <span className="cu-unitno-prefix" title="Floor label — set from the selected floor, not editable here">
+                  <span className="cu-unitno-prefix" title="Prefix — set from Floor Setup">
                     {unitNumberPrefix}
                   </span>
                   <input placeholder="e.g. 101" value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)} />
                 </div>
               ) : (
                 <input placeholder="e.g. A-101" value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)} />
-              )}
-              {form.floorLabel && (
-                <label className="cu-checkbox-row" title="Prefix the P-Unit Number with the Floor Label">
-                  <input
-                    type="checkbox"
-                    checked={form.useFloorLabelPrefix}
-                    onChange={(e) => setForm((f) => ({ ...f, useFloorLabelPrefix: e.target.checked }))}
-                  />
-                  Use floor label as prefix
-                </label>
               )}
             </div>
             <div className="cu-field">
@@ -1002,6 +1017,19 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
                       <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Row 4: Currency + Zone */}
+          <div className="cu-grid">
+            <div className="cu-field">
+              <label>Currency *</label>
+              <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
+                <option value="">Select currency…</option>
+                {currencyOptions.map((c) => (
+                  <option key={c.id} value={c.currency}>{c.currency}</option>
+                ))}
+              </select>
+            </div>
             <div className="cu-field">
               <label>Zone <span className="cu-opt">(optional)</span></label>
               <select value={form.zone} onChange={(e) => set('zone', e.target.value)}>
@@ -1011,8 +1039,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
             </div>
           </div>
 
-          {/* Area */}
-          <div className="cu-section-title">Size</div>
+          {/* Row 5: Area (sqft) + Area (sqm) */}
           <div className="cu-grid">
             <div className="cu-field">
               <label>Area (sqft)</label>
@@ -1024,8 +1051,7 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
             </div>
           </div>
 
-          {/* Rental Period / Calculation / Rate */}
-          <div className="cu-section-title">Rental</div>
+          {/* Row 6: Rental Period + Unit + Calculation + Rate */}
           <div className="cu-grid cu-grid-4">
             <div className="cu-field">
               <label>Rental Period</label>
@@ -1040,29 +1066,19 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
               </select>
             </div>
             <div className="cu-field">
-              <label>Calculation on:</label>
+              <label>Calculation</label>
               <select value={form.calculationOn} onChange={(e) => set('calculationOn', e.target.value)}>
                 <option value="fixed">Fixed</option>
-                <option value="per_sqft">PerSqFt</option>
+                <option value="per_sqft">Per SqFt</option>
               </select>
             </div>
             <div className="cu-field">
               <label>Rate</label>
               <input type="number" min={0} placeholder="e.g. 3500" value={form.rate} onChange={(e) => set('rate', e.target.value)} />
             </div>
-            <div className="cu-field">
-              <label>Currency *</label>
-              <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
-                <option value="">Select currency…</option>
-                {currencyOptions.map((c) => (
-                  <option key={c.id} value={c.currency}>{c.currency}</option>
-                ))}
-              </select>
-            </div>
           </div>
 
-          {/* Bed/Bath/Furnishing/Ownership */}
-          <div className="cu-section-title">Details</div>
+          {/* Row 7: Bedrooms + Bathrooms + Furnishing + Ownership */}
           <div className="cu-grid cu-grid-4">
             <div className="cu-field">
               <label>Bedrooms</label>
@@ -1090,13 +1106,13 @@ function CreateUnitModal({ propertyId, towers }: { propertyId: string; towers: T
             </div>
           </div>
 
-          {/* Description */}
+          {/* Row 8: Notes */}
           <div className="cu-field">
             <label>Notes <span className="cu-opt">(optional)</span></label>
             <textarea rows={2} placeholder="Any notes about this unit…" value={form.description} onChange={(e) => set('description', e.target.value)} />
           </div>
 
-          {/* Common Bill Calculate */}
+          {/* Row 9: Common Bill */}
           <div className="cu-field">
             <label
               style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', userSelect: 'none' }}

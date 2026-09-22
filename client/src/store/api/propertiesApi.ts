@@ -130,6 +130,7 @@ export interface FloorSetup {
   propertyId: string;
   floorNumber: number;
   floorLabel: string;
+  prefix: string | null;
   isActive: boolean;
   property: { id: string; name: string; code: string | null };
 }

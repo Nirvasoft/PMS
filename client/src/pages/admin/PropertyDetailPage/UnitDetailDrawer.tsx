@@ -539,33 +539,6 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
               {editing ? (
                 /* ── EDIT MODE ── */
                 <div className="edit-form">
-                  <div className="ef-section-title">Identity</div>
-                  <div className="ef-grid">
-                    <EditField label="Unit Number" value={editForm.unitNumber} onChange={(v) => ef('unitNumber', v)} />
-                    <div className="ef-field">
-                      <label>Unit Type</label>
-                      <select value={editForm.unitType} onChange={(e) => ef('unitType', e.target.value)}>
-                        {unitTypes.length > 0
-                          ? ['residential', 'commercial', 'storage', 'parking'].map((cat) => (
-                              <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
-                                {unitTypes.filter((t) => t.category === cat).sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
-                                  <option key={t.id} value={t.code}>{t.name}</option>
-                                ))}
-                              </optgroup>
-                            ))
-                          : <option value={editForm.unitType}>{editForm.unitType}</option>}
-                      </select>
-                    </div>
-                    <div className="ef-field">
-                      <label>Zone</label>
-                      <select value={editForm.zone ?? ''} onChange={(e) => ef('zone', e.target.value)}>
-                        <option value="">-</option>
-                        {ZONE_OPTIONS.map((z) => <option key={z} value={z}>{z}</option>)}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="ef-section-title">Floor &amp; Location</div>
                   <div className="ef-grid">
                     <div className="ef-field">
                       <label>Floor Number</label>
@@ -599,7 +572,46 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     </div>
                   </div>
 
-                  <div className="ef-section-title">Dimensions</div>
+                  <div className="ef-grid">
+                    <EditField label="Unit Number" value={editForm.unitNumber} onChange={(v) => ef('unitNumber', v)} />
+                    <div className="ef-field">
+                      <label>Unit Type</label>
+                      <select value={editForm.unitType} onChange={(e) => ef('unitType', e.target.value)}>
+                        {unitTypes.length > 0
+                          ? ['residential', 'commercial', 'storage', 'parking'].map((cat) => (
+                              <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                                {unitTypes.filter((t) => t.category === cat).sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
+                                  <option key={t.id} value={t.code}>{t.name}</option>
+                                ))}
+                              </optgroup>
+                            ))
+                          : <option value={editForm.unitType}>{editForm.unitType}</option>}
+                      </select>
+                    </div>
+                    <div className="ef-field">
+                      <label>Currency</label>
+                      <select
+                        value={editForm.currency ?? ''}
+                        disabled={!!unit.currency}
+                        title={unit.currency ? 'Currency is locked once saved and cannot be changed' : ''}
+                        style={unit.currency ? { background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}}
+                        onChange={(e) => ef('currency', e.target.value)}
+                      >
+                        <option value="">— Select —</option>
+                        {currencyOptions.map((c) => (
+                          <option key={c.id} value={c.currency}>{c.currency}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="ef-field">
+                      <label>Zone</label>
+                      <select value={editForm.zone ?? ''} onChange={(e) => ef('zone', e.target.value)}>
+                        <option value="">-</option>
+                        {ZONE_OPTIONS.map((z) => <option key={z} value={z}>{z}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="ef-grid">
                     <EditField label="Area (sqft)" type="number" value={editForm.areaSqft} onChange={efAreaSqft} />
                     <EditField label="Area (sqm)" type="number" value={editForm.areaSqm} onChange={efAreaSqm} />
@@ -622,24 +634,6 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     </div>
                   </div>
 
-                  <div className="ef-section-title">Ownership</div>
-                  <div className="ef-grid">
-                    <div className="ef-field">
-                      <label>Type</label>
-                      <select value={editForm.ownershipType} onChange={(e) => ef('ownershipType', e.target.value)}>
-                        {OWNERSHIP_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </div>
-                    <EditField label="Owner" value={editForm.ownerName} onChange={(v) => ef('ownerName', v)} />
-                    <EditField label="Contact" value={editForm.ownerContact} onChange={(v) => ef('ownerContact', v)} />
-                  </div>
-                  <div className="ef-grid">
-                    <EditField label="Purchase Date" type="date" value={editForm.purchaseDate} onChange={(v) => ef('purchaseDate', v)} />
-                    <EditField label="Purchase Price" type="number" value={editForm.purchasePrice} onChange={(v) => ef('purchasePrice', v)} />
-                    <EditField label="Market Value" type="number" value={editForm.currentMarketValue} onChange={(v) => ef('currentMarketValue', v)} />
-                  </div>
-
-                  <div className="ef-section-title">Rental</div>
                   <div className="ef-grid">
                     <div className="ef-field">
                       <label>Rental Period</label>
@@ -660,24 +654,24 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       </select>
                     </div>
                     <EditField label="Rate" type="number" value={editForm.rate} onChange={(v) => ef('rate', v)} />
-                    <div className="ef-field">
-                      <label>Currency</label>
-                      <select
-                        value={editForm.currency ?? ''}
-                        disabled={!!unit.currency}
-                        title={unit.currency ? 'Currency is locked once saved and cannot be changed' : ''}
-                        style={unit.currency ? { background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}}
-                        onChange={(e) => ef('currency', e.target.value)}
-                      >
-                        <option value="">— Select —</option>
-                        {currencyOptions.map((c) => (
-                          <option key={c.id} value={c.currency}>{c.currency}</option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
 
-                  <div className="ef-section-title">Notes</div>
+                  <div className="ef-grid">
+                    <div className="ef-field">
+                      <label>Type</label>
+                      <select value={editForm.ownershipType} onChange={(e) => ef('ownershipType', e.target.value)}>
+                        {OWNERSHIP_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <EditField label="Owner" value={editForm.ownerName} onChange={(v) => ef('ownerName', v)} />
+                    <EditField label="Contact" value={editForm.ownerContact} onChange={(v) => ef('ownerContact', v)} />
+                  </div>
+                  <div className="ef-grid">
+                    <EditField label="Purchase Date" type="date" value={editForm.purchaseDate} onChange={(v) => ef('purchaseDate', v)} />
+                    <EditField label="Purchase Price" type="number" value={editForm.purchasePrice} onChange={(v) => ef('purchasePrice', v)} />
+                    <EditField label="Market Value" type="number" value={editForm.currentMarketValue} onChange={(v) => ef('currentMarketValue', v)} />
+                  </div>
+
                   <div className="ef-field full-width">
                     <label>Description</label>
                     <textarea rows={2} value={editForm.description} onChange={(e) => ef('description', e.target.value)} />
@@ -705,27 +699,20 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                 /* ── VIEW MODE ── */
                 <>
                   <div className="info-section">
-                    <h5>Identity</h5>
-                    <div className="info-grid">
-                      <InfoItem label="Unit Number" value={unit.unitNumber} />
-                      <InfoItem label="Unit Type"   value={unit.unitType.replace(/_/g, ' ')} />
-                      <InfoItem label="Zone"        value={unit.zone || '—'} />
-                    </div>
-                  </div>
-
-                  <div className="info-section">
-                    <h5>Floor &amp; Location</h5>
                     <div className="info-grid">
                       <InfoItem label="Floor Number" value={unit.floorNumber != null ? `Floor ${unit.floorNumber}` : '—'} />
                       <InfoItem label="Floor Label"  value={unit.floorLabel || '—'} />
+                      <InfoItem label="Unit Number" value={unit.unitNumber} />
+                      <InfoItem label="Unit Type"   value={unit.unitType.replace(/_/g, ' ')} />
+                      <InfoItem label="Currency"    value={unit.currency || '—'} />
+                      <InfoItem label="Zone"        value={unit.zone || '—'} />
+                      <InfoItem label="Area (sqft)" value={unit.areaSqft ? `${unit.areaSqft}` : '—'} />
+                      <InfoItem label="Area (sqm)"  value={unit.areaSqm  ? `${unit.areaSqm}` : '—'} />
                     </div>
                   </div>
 
                   <div className="info-section">
-                    <h5>Dimensions</h5>
                     <div className="info-grid">
-                      <InfoItem label="Area (sqft)" value={unit.areaSqft ? `${unit.areaSqft}` : '—'} />
-                      <InfoItem label="Area (sqm)"  value={unit.areaSqm  ? `${unit.areaSqm}` : '—'} />
                       <InfoItem label="Bedrooms"    value={String(unit.bedroomCount)} />
                       <InfoItem label="Bathrooms"   value={String(unit.bathroomCount)} />
                       <InfoItem label="Direction"   value={unit.direction || '—'} />
@@ -734,7 +721,14 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   </div>
 
                   <div className="info-section">
-                    <h5>Ownership</h5>
+                    <div className="info-grid">
+                      <InfoItem label="Rental Period"   value={unit.rentalPeriod ? `${unit.rentalPeriod} ${unit.rentalPeriodUnit || 'month'}${unit.rentalPeriod === 1 ? '' : 's'}` : '—'} />
+                      <InfoItem label="Calculation on"  value={unit.calculationOn === 'per_sqft' ? 'PerSqFt' : 'Fixed'} />
+                      <InfoItem label="Rate"            value={unit.rate ? Number(unit.rate).toLocaleString() : '—'} />
+                    </div>
+                  </div>
+
+                  <div className="info-section">
                     <div className="info-grid">
                       <InfoItem label="Type"           value={unit.ownershipType} />
                       <InfoItem label="Owner"          value={unit.ownerName || '—'} />
@@ -746,17 +740,6 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   </div>
 
                   <div className="info-section">
-                    <h5>Rental</h5>
-                    <div className="info-grid">
-                      <InfoItem label="Rental Period"   value={unit.rentalPeriod ? `${unit.rentalPeriod} ${unit.rentalPeriodUnit || 'month'}${unit.rentalPeriod === 1 ? '' : 's'}` : '—'} />
-                      <InfoItem label="Calculation on"  value={unit.calculationOn === 'per_sqft' ? 'PerSqFt' : 'Fixed'} />
-                      <InfoItem label="Rate"            value={unit.rate ? Number(unit.rate).toLocaleString() : '—'} />
-                      <InfoItem label="Currency"        value={unit.currency || '—'} />
-                    </div>
-                  </div>
-
-                  <div className="info-section">
-                    <h5>Notes</h5>
                     <div className="info-grid">
                       <InfoItem label="Description"    value={unit.description || '—'} />
                       <InfoItem label="Internal Notes" value={unit.notes || '—'} />
@@ -768,17 +751,19 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   </div>
 
                   <div className="info-section">
-                    <h5>Amenities</h5>
-                    <div className="amenity-toggles">
-                      {AMENITY_OPTIONS.map((a) => (
-                        <button
-                          key={a}
-                          className={`amenity-toggle ${amenitySet.has(a) ? 'active' : ''}`}
-                          onClick={() => handleToggleAmenity(a)}
-                        >
-                          {a.replace(/_/g, ' ')}
-                        </button>
-                      ))}
+                    <div className="info-item" style={{ gridColumn: '1 / -1' }}>
+                      <span className="info-label">Amenities</span>
+                      <div className="amenity-toggles" style={{ marginTop: '6px' }}>
+                        {AMENITY_OPTIONS.map((a) => (
+                          <button
+                            key={a}
+                            className={`amenity-toggle ${amenitySet.has(a) ? 'active' : ''}`}
+                            onClick={() => handleToggleAmenity(a)}
+                          >
+                            {a.replace(/_/g, ' ')}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </>

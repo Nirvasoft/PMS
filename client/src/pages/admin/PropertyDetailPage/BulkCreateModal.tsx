@@ -36,10 +36,19 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
   const unitTypes = typesData?.data || [];
   const invalidFloorRange = form.toFloor < form.fromFloor;
 
-  // ── Floor labels (from Floor Setup) ─────────
+  // ── Floor labels and prefixes (from Floor Setup) ─────────
   const floorLabelMap = useMemo(() => {
     const map = new Map<number, string>();
     for (const f of floorSetupsData?.data || []) map.set(f.floorNumber, f.floorLabel);
+    return map;
+  }, [floorSetupsData]);
+
+  // prefix field from Floor Setup (independent of label)
+  const floorPrefixMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const f of floorSetupsData?.data || []) {
+      if (f.prefix) map.set(f.floorNumber, f.prefix);
+    }
     return map;
   }, [floorSetupsData]);
 
@@ -49,13 +58,13 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
     return nums.length ? Math.max(...nums) : undefined;
   }, [floorSetupsData]);
 
-  const floorsMissingLabel = useMemo(() => {
+  const floorsMissingPrefix = useMemo(() => {
     const missing: number[] = [];
     for (let floor = form.fromFloor; floor <= form.toFloor; floor++) {
-      if (!floorLabelMap.has(floor)) missing.push(floor);
+      if (!floorPrefixMap.has(floor)) missing.push(floor);
     }
     return missing;
-  }, [form.fromFloor, form.toFloor, floorLabelMap]);
+  }, [form.fromFloor, form.toFloor, floorPrefixMap]);
 
   // ── Conflict pre-check state ────────────────
   const [conflicts, setConflicts] = useState<Set<string>>(new Set());
@@ -63,21 +72,20 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Generate ALL units (not limited) ────────
-  // Unit numbers are prefixed by each floor's label (from Floor Setup), not the raw
-  // floor index — matching the "Add New P-Unit" form, where the floor label is fixed
-  // and only the sequence number is user-controlled (via the separator).
+  // Unit numbers use the prefix from Floor Setup. Falls back to plain floor number
+  // when no prefix is set for that floor.
   const allUnits = useMemo(() => {
     const list: Array<{ unitNumber: string; floor: number }> = [];
     if (!form.unitTypeId) return list;
     for (let floor = form.fromFloor; floor <= form.toFloor; floor++) {
-      const floorLabel = floorLabelMap.get(floor) ?? String(floor);
-      const numberPrefix = form.useFloorLabelPrefix ? floorLabel : String(floor);
+      const floorPrefix = floorPrefixMap.get(floor) ?? String(floor);
+      const numberPrefix = form.useFloorLabelPrefix ? floorPrefix : String(floor);
       for (let u = 1; u <= form.unitsPerFloor; u++) {
         list.push({ unitNumber: `${numberPrefix}${UNIT_NUMBER_SEPARATOR}${u.toString().padStart(2, '0')}`, floor });
       }
     }
     return list;
-  }, [form.fromFloor, form.toFloor, form.unitsPerFloor, form.unitTypeId, form.useFloorLabelPrefix, floorLabelMap]);
+  }, [form.fromFloor, form.toFloor, form.unitsPerFloor, form.unitTypeId, form.useFloorLabelPrefix, floorPrefixMap]);
 
   const allUnitNumbers = useMemo(() => allUnits.map((u) => u.unitNumber), [allUnits]);
 
@@ -208,13 +216,13 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
               </div>
             </div>
 
-            <label className="bulk-checkbox-row" title="Prefix each generated unit number with its floor's label (from Floor Setup) instead of the plain floor number">
+            <label className="bulk-checkbox-row" title="Prefix each generated unit number with its floor's prefix (from Floor Setup) instead of the plain floor number">
               <input
                 type="checkbox"
                 checked={form.useFloorLabelPrefix}
                 onChange={(e) => setForm({ ...form, useFloorLabelPrefix: e.target.checked })}
               />
-              Use floor label as prefix
+              Use prefix from Floor Setup
             </label>
 
             <div className="form-row-2">
@@ -246,12 +254,12 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
               </div>
             )}
 
-            {/* Missing floor label warning */}
-            {form.useFloorLabelPrefix && form.unitTypeId && floorsMissingLabel.length > 0 && (
+            {/* Missing floor prefix warning */}
+            {form.useFloorLabelPrefix && form.unitTypeId && floorsMissingPrefix.length > 0 && (
               <div className="conflict-warning">
                 <AlertTriangle size={14} />
                 <span>
-                  Floor{floorsMissingLabel.length !== 1 ? 's' : ''} {floorsMissingLabel.join(', ')} {floorsMissingLabel.length !== 1 ? "aren't" : "isn't"} set up in Floor Setup — they'll use the plain floor number as the label
+                  Floor{floorsMissingPrefix.length !== 1 ? 's' : ''} {floorsMissingPrefix.join(', ')} {floorsMissingPrefix.length !== 1 ? "don't" : "doesn't"} have a prefix in Floor Setup — they'll use the plain floor number
                 </span>
               </div>
             )}

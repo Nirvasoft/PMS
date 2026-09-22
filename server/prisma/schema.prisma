@@ -2920,6 +2920,7 @@ model FloorSetup {
   propertyId  String   @map("property_id") @db.Uuid
   floorNumber Int      @map("floor_number")
   floorLabel  String   @map("floor_label") @db.VarChar(50)
+  prefix      String?  @map("prefix") @db.VarChar(20)
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
