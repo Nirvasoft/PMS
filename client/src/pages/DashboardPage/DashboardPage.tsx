@@ -1,4 +1,4 @@
-﻿import { useNavigate, NavLink, Outlet, useLocation, matchPath } from 'react-router-dom';
+import { useNavigate, NavLink, Outlet, useLocation, matchPath } from 'react-router-dom';
 import { useLogoutMutation } from '../../store/api/authApi';
 import { useGetPropertyStatsQuery } from '../../store/api/organizationApi';
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
@@ -191,7 +191,7 @@ export default function DashboardLayout() {
                 >
                   {!hideAllPropertiesOption && <option value={ALL_PROPERTIES}>All Properties</option>}
                   {properties.map((p: any) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+                    <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
               ) : (
