@@ -1,5 +1,49 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
+import { logger } from '../../common/logger';
+
+/** ISO currency reference — used to auto-fill description & symbol on seed */
+const ISO_META: Record<string, { description: string; symbol: string }> = {
+  AED: { description: 'UAE Dirham',          symbol: 'د.إ'  },
+  AUD: { description: 'Australian Dollar',   symbol: 'A$'   },
+  BDT: { description: 'Bangladeshi Taka',    symbol: '৳'    },
+  BHD: { description: 'Bahraini Dinar',      symbol: '.د.ب' },
+  BRL: { description: 'Brazilian Real',      symbol: 'R$'   },
+  CAD: { description: 'Canadian Dollar',     symbol: 'CA$'  },
+  CHF: { description: 'Swiss Franc',         symbol: 'Fr'   },
+  CNY: { description: 'Chinese Yuan',        symbol: '¥'    },
+  DKK: { description: 'Danish Krone',        symbol: 'kr'   },
+  EUR: { description: 'Euro',                symbol: '€'    },
+  GBP: { description: 'British Pound',       symbol: '£'    },
+  HKD: { description: 'Hong Kong Dollar',    symbol: 'HK$'  },
+  IDR: { description: 'Indonesian Rupiah',   symbol: 'Rp'   },
+  INR: { description: 'Indian Rupee',        symbol: '₹'    },
+  JPY: { description: 'Japanese Yen',        symbol: '¥'    },
+  KHR: { description: 'Cambodian Riel',      symbol: '៛'    },
+  KRW: { description: 'South Korean Won',    symbol: '₩'    },
+  KWD: { description: 'Kuwaiti Dinar',       symbol: 'د.ك'  },
+  LAK: { description: 'Lao Kip',             symbol: '₭'    },
+  LKR: { description: 'Sri Lankan Rupee',    symbol: 'Rs'   },
+  MMK: { description: 'Myanmar Kyat',        symbol: 'K'    },
+  MYR: { description: 'Malaysian Ringgit',   symbol: 'RM'   },
+  NOK: { description: 'Norwegian Krone',     symbol: 'kr'   },
+  NPR: { description: 'Nepalese Rupee',      symbol: 'Rs'   },
+  NZD: { description: 'New Zealand Dollar',  symbol: 'NZ$'  },
+  OMR: { description: 'Omani Rial',          symbol: 'ر.ع.' },
+  PHP: { description: 'Philippine Peso',     symbol: '₱'    },
+  PKR: { description: 'Pakistani Rupee',     symbol: 'Rs'   },
+  QAR: { description: 'Qatari Riyal',        symbol: 'ر.ق'  },
+  SAR: { description: 'Saudi Riyal',         symbol: 'ر.س'  },
+  SEK: { description: 'Swedish Krona',       symbol: 'kr'   },
+  SGD: { description: 'Singapore Dollar',    symbol: 'S$'   },
+  THB: { description: 'Thai Baht',           symbol: '฿'    },
+  TRY: { description: 'Turkish Lira',        symbol: '₺'    },
+  TWD: { description: 'Taiwan Dollar',       symbol: 'NT$'  },
+  USD: { description: 'US Dollar',           symbol: '$'    },
+  VND: { description: 'Vietnamese Dong',     symbol: '₫'    },
+  XAF: { description: 'CFA Franc BEAC',      symbol: 'Fr'   },
+  ZAR: { description: 'South African Rand',  symbol: 'R'    },
+};
 
 export class CurrencyRatesService {
   // The base currency isn't chosen per rate row — it's whichever currency was most
@@ -85,7 +129,8 @@ export class CurrencyRatesService {
     const currencyRate = await prisma.currencyRate.findFirst({ where: { id, companyId } });
     if (!currencyRate) throw AppError.notFound('Currency rate');
 
-    const { propertyId } = currencyRate;
+    const { propertyId: rawPropertyId } = currencyRate;
+    const propertyId = rawPropertyId as string; // safe: propertyId is set for all created rates
     const currency = dto.currency !== undefined ? (dto.currency as string).trim().toUpperCase() : currencyRate.currency;
     const isBaseCurrency = dto.isBaseCurrency !== undefined ? Boolean(dto.isBaseCurrency) : currencyRate.isBaseCurrency;
     const effectiveDate = dto.effectiveDate !== undefined ? new Date(dto.effectiveDate as string) : currencyRate.effectiveDate;
@@ -100,7 +145,7 @@ export class CurrencyRatesService {
     }
 
     const baseCurrencyChanged = dto.currency !== undefined || dto.isBaseCurrency !== undefined;
-    const baseCurrency = isBaseCurrency ? currency : (baseCurrencyChanged ? await this.getBaseCurrency(propertyId) : currencyRate.baseCurrency);
+    const baseCurrency: string = isBaseCurrency ? currency : (baseCurrencyChanged ? await this.getBaseCurrency(propertyId) : (currencyRate.baseCurrency ?? await this.getBaseCurrency(propertyId)));
     const rate = dto.rate !== undefined ? Number(dto.rate) : Number(currencyRate.rate);
 
     if (!rate || rate <= 0) throw new AppError(400, 'RATE_REQUIRED', 'Rate must be a positive number');
@@ -166,6 +211,103 @@ export class CurrencyRatesService {
     }
 
     await prisma.currencyRate.delete({ where: { id } });
+  }
+
+  /**
+   * Called automatically when a property is created or its currency changes.
+   *
+   * - If no Base Currency record exists yet for the property → creates one
+   *   (rate = 1, isBaseCurrency = true, operator = multiply).
+   * - If a Base Currency record already exists with a DIFFERENT currency code
+   *   (only possible when the property currency was just changed and there are
+   *   no active leases) AND no other rates depend on it → renames it in-place.
+   * - If the existing Base Currency already matches → no-op.
+   *
+   * Failures are swallowed with a warning so that property creation is never
+   * blocked by a currency-seed error.
+   */
+  async seedBaseCurrency(
+    companyId: string,
+    propertyId: string,
+    currency: string,
+    meta: { description?: string; symbol?: string } = {},
+  ): Promise<void> {
+    try {
+      const code = currency.trim().toUpperCase();
+      if (!code) return;
+
+      const existingBase = await prisma.currencyRate.findFirst({
+        where: { propertyId, isBaseCurrency: true, isActive: true },
+      });
+
+      if (!existingBase) {
+        // No base currency yet — seed it.
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+
+        // Check for an exact duplicate (idempotent if called twice).
+        const duplicate = await prisma.currencyRate.findFirst({
+          where: { propertyId, baseCurrency: code, currency: code, isActive: true },
+        });
+        if (duplicate) return; // Already seeded.
+
+        await prisma.currencyRate.create({
+          data: {
+            companyId,
+            propertyId,
+            baseCurrency: code,
+            currency: code,
+            description: meta.description || ISO_META[code]?.description || null,
+            symbol:      meta.symbol      || ISO_META[code]?.symbol      || null,
+            isBaseCurrency: true,
+            operator: 'divide',
+            rate: 1,
+            effectiveDate: today,
+            remarks: 'Auto-seeded from property currency',
+          },
+        });
+
+        logger.info(`[CurrencyRates] Seeded base currency ${code} for property ${propertyId}`);
+        return;
+      }
+
+      if (existingBase.currency === code) return; // Already correct — nothing to do.
+
+      // Base currency exists but with a different code (property currency changed).
+      // Only rename if no other rates still reference the old base.
+      const dependentRates = await prisma.currencyRate.count({
+        where: { propertyId, isBaseCurrency: false, isActive: true, id: { not: existingBase.id } },
+      });
+
+      if (dependentRates > 0) {
+        // Other rates exist that convert against the old base — cannot rename silently;
+        // log a warning and leave Currency Setup for the admin to fix manually.
+        logger.warn(
+          `[CurrencyRates] Property ${propertyId} currency changed to ${code} but the existing ` +
+          `base rate (${existingBase.currency}) has ${dependentRates} dependent rate(s). ` +
+          `Manual update in Currency Setup required.`,
+        );
+        return;
+      }
+
+      // Safe to rename in-place.
+      await prisma.currencyRate.update({
+        where: { id: existingBase.id },
+        data: {
+          currency: code,
+          baseCurrency: code,
+          description: meta.description ?? ISO_META[code]?.description ?? existingBase.description ?? null,
+          symbol:      meta.symbol      ?? ISO_META[code]?.symbol      ?? existingBase.symbol      ?? null,
+          remarks: `Auto-updated from property currency (was ${existingBase.currency})`,
+        },
+      });
+
+      logger.info(
+        `[CurrencyRates] Updated base currency from ${existingBase.currency} → ${code} for property ${propertyId}`,
+      );
+    } catch (err) {
+      logger.warn(`[CurrencyRates] seedBaseCurrency failed for property ${propertyId}:`, err);
+    }
   }
 }
 

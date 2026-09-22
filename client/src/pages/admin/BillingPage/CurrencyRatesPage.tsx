@@ -72,7 +72,7 @@ const emptyForm = {
   description: '',
   symbol: '',
   isBaseCurrency: false,
-  operator: 'multiply' as 'multiply' | 'divide',
+  operator: 'divide' as 'multiply' | 'divide',
   rate: '',
   effectiveDate: new Date().toISOString().slice(0, 10),
   remarks: '',
@@ -320,7 +320,7 @@ export default function CurrencyRatesPage() {
                         ? <span className="cr-symbol-chip">{r.symbol}</span>
                         : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                     </td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.operator === 'divide' ? '÷' : '×'}</td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.operator === 'divide' ? '/' : '*'}</td>
                     <td><span className="cell-mono">{formatRate(r.rate)}</span></td>
                   </tr>
                 ))}

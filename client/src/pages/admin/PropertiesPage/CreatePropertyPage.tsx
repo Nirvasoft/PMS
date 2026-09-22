@@ -5,20 +5,64 @@ import {
   useGetFacilityTypesQuery, useAddFacilityMutation, useUploadPhotosMutation,
 } from '../../../store/api/propertiesApi';
 import { useGetBranchesQuery } from '../../../store/api/organizationApi';
+import { useAppDispatch } from '../../../store';
+import { setSelectedProperty } from '../../../store/slices/propertiesSlice';
 import {
   ArrowLeft, Building2, MapPin, DollarSign, Info, Check,
   Waves, Dumbbell, Flame, TreePine, Leaf, CircleDot, Activity,
   UserCheck, Users, Monitor, Mail, Wind, UtensilsCrossed, ShoppingBag,
-  Camera, Key, Shield, Car, Zap, ArrowUp, Lock, Battery, ImagePlus, X, Upload,
+  Camera, Key, Shield, Car, Zap, ArrowUp, Lock, Battery, ImagePlus, X, Upload, Search,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
-import { CURRENCIES } from '../../../constants/currencies';
 import './CreatePropertyPage.css';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 const SQM_TO_SQFT = 10.7639;
+
+/** ISO currency reference — mirrors CurrencyRatesPage, shows code only in property form */
+const ISO_CURRENCY_LIST: { country: string; name: string; code: string }[] = [
+  { country: 'UAE',           name: 'UAE Dirham',          code: 'AED' },
+  { country: 'Australia',     name: 'Australian Dollar',   code: 'AUD' },
+  { country: 'Bangladesh',    name: 'Bangladeshi Taka',    code: 'BDT' },
+  { country: 'Bahrain',       name: 'Bahraini Dinar',      code: 'BHD' },
+  { country: 'Brazil',        name: 'Brazilian Real',      code: 'BRL' },
+  { country: 'Canada',        name: 'Canadian Dollar',     code: 'CAD' },
+  { country: 'Switzerland',   name: 'Swiss Franc',         code: 'CHF' },
+  { country: 'China',         name: 'Chinese Yuan',        code: 'CNY' },
+  { country: 'Denmark',       name: 'Danish Krone',        code: 'DKK' },
+  { country: 'Euro Zone',     name: 'Euro',                code: 'EUR' },
+  { country: 'UK',            name: 'British Pound',       code: 'GBP' },
+  { country: 'Hong Kong',     name: 'Hong Kong Dollar',    code: 'HKD' },
+  { country: 'Indonesia',     name: 'Indonesian Rupiah',   code: 'IDR' },
+  { country: 'India',         name: 'Indian Rupee',        code: 'INR' },
+  { country: 'Japan',         name: 'Japanese Yen',        code: 'JPY' },
+  { country: 'Cambodia',      name: 'Cambodian Riel',      code: 'KHR' },
+  { country: 'South Korea',   name: 'South Korean Won',    code: 'KRW' },
+  { country: 'Kuwait',        name: 'Kuwaiti Dinar',       code: 'KWD' },
+  { country: 'Laos',          name: 'Lao Kip',             code: 'LAK' },
+  { country: 'Sri Lanka',     name: 'Sri Lankan Rupee',    code: 'LKR' },
+  { country: 'Myanmar',       name: 'Myanmar Kyat',        code: 'MMK' },
+  { country: 'Malaysia',      name: 'Malaysian Ringgit',   code: 'MYR' },
+  { country: 'Norway',        name: 'Norwegian Krone',     code: 'NOK' },
+  { country: 'Nepal',         name: 'Nepalese Rupee',      code: 'NPR' },
+  { country: 'New Zealand',   name: 'New Zealand Dollar',  code: 'NZD' },
+  { country: 'Oman',          name: 'Omani Rial',          code: 'OMR' },
+  { country: 'Philippines',   name: 'Philippine Peso',     code: 'PHP' },
+  { country: 'Pakistan',      name: 'Pakistani Rupee',     code: 'PKR' },
+  { country: 'Qatar',         name: 'Qatari Riyal',        code: 'QAR' },
+  { country: 'Saudi Arabia',  name: 'Saudi Riyal',         code: 'SAR' },
+  { country: 'Sweden',        name: 'Swedish Krona',       code: 'SEK' },
+  { country: 'Singapore',     name: 'Singapore Dollar',    code: 'SGD' },
+  { country: 'Thailand',      name: 'Thai Baht',           code: 'THB' },
+  { country: 'Turkey',        name: 'Turkish Lira',        code: 'TRY' },
+  { country: 'Taiwan',        name: 'Taiwan Dollar',       code: 'TWD' },
+  { country: 'USA',           name: 'US Dollar',           code: 'USD' },
+  { country: 'Vietnam',       name: 'Vietnamese Dong',     code: 'VND' },
+  { country: 'Central Africa',name: 'CFA Franc BEAC',      code: 'XAF' },
+  { country: 'South Africa',  name: 'South African Rand',  code: 'ZAR' },
+];
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   waves: <Waves size={18}/>, dumbbell: <Dumbbell size={18}/>, flame: <Flame size={18}/>,
@@ -48,7 +92,7 @@ const INITIAL: FormState = {
   addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '',
   geoLat: '', geoLng: '', branchId: '',
   yearBuilt: '', totalFloors: '', totalAreaSqm: '', totalAreaSqft: '',
-  billingCycle: 'monthly', billingDay: '1', currency: 'USD', timezone: 'UTC',
+  billingCycle: 'monthly', billingDay: '1', currency: '', timezone: 'UTC',
 };
 
 const STEPS = [
@@ -65,6 +109,7 @@ const COUNTRIES  = ['US','SG','GB','TH','MM','JP','AE','AU','DE','FR','IN','CN']
 
 export default function CreatePropertyPage() {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormState>(INITIAL);
   const [createProperty, { isLoading }] = useCreatePropertyMutation();
@@ -79,6 +124,8 @@ export default function CreatePropertyPage() {
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [currencySearch, setCurrencySearch] = useState('');
 
   const toggleFacility = (id: string) => {
     setSelectedFacilities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -109,6 +156,7 @@ export default function CreatePropertyPage() {
   const canNext = (): boolean => {
     if (step === 1) return !!(form.name.trim() && form.propertyType);
     if (step === 3) return !!(form.totalFloors && Number(form.totalFloors) >= 1);
+    if (step === 6) return !!form.currency;
     return true;
   };
 
@@ -156,6 +204,7 @@ export default function CreatePropertyPage() {
       }
 
       toast.success(`Property "${res.data.name}" created`);
+      dispatch(setSelectedProperty(pid));
       navigate(`/admin/properties/${pid}`);
     } catch (e: any) {
       console.error('Create property error:', e);
@@ -396,13 +445,21 @@ export default function CreatePropertyPage() {
 
         {step === 6 && (
           <div className="cp-section">
-            <h3>Financial & Review</h3>
+            <h3>Financial &amp; Review</h3>
             <div className="cp-grid">
               <div className="cp-field">
-                <label>Currency</label>
-                <select value={form.currency} onChange={e => set('currency', e.target.value)}>
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <label>Currency *</label>
+                <button
+                  type="button"
+                  className="cp-currency-btn"
+                  onClick={() => { setCurrencySearch(''); setShowCurrencyPicker(true); }}
+                >
+                  {form.currency
+                    ? <span className="cp-currency-code">{form.currency}</span>
+                    : <span className="cp-currency-placeholder">Select currency…</span>
+                  }
+                  <Search size={14} className="cp-currency-search-icon" />
+                </button>
               </div>
               <div className="cp-field">
                 <label>Billing Cycle</label>
@@ -458,13 +515,81 @@ export default function CreatePropertyPage() {
             </button>
           ) : (
             <PermissionGuard permission="properties.create">
-              <button className="cp-btn-submit" onClick={handleSubmit} disabled={isLoading || !form.name.trim() || !form.propertyType}>
+              <button className="cp-btn-submit" onClick={handleSubmit} disabled={isLoading || !form.name.trim() || !form.propertyType || !form.currency}>
                 {isLoading ? 'Creating…' : '+ Create Property'}
               </button>
             </PermissionGuard>
           )}
         </div>
       </div>
+
+      {/* ISO Currency Picker Modal */}
+      {showCurrencyPicker && (
+        <div className="cp-iso-overlay" onClick={() => setShowCurrencyPicker(false)}>
+          <div className="cp-iso-modal" onClick={e => e.stopPropagation()}>
+            <div className="cp-iso-header">
+              <span className="cp-iso-title">Select Currency</span>
+              <button type="button" className="cp-iso-close" onClick={() => setShowCurrencyPicker(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="cp-iso-search-wrap">
+              <Search size={14} className="cp-iso-search-icon" />
+              <input
+                autoFocus
+                type="text"
+                className="cp-iso-search"
+                placeholder="Search country, currency or code…"
+                value={currencySearch}
+                onChange={e => setCurrencySearch(e.target.value)}
+              />
+              {currencySearch && (
+                <button type="button" className="cp-iso-search-clear" onClick={() => setCurrencySearch('')}>
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <div className="cp-iso-table-wrap">
+              <table className="cp-iso-table">
+                <thead>
+                  <tr>
+                    <th>Country / Region</th>
+                    <th>Currency</th>
+                    <th>ISO Code</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const q = currencySearch.toLowerCase();
+                    const filtered = ISO_CURRENCY_LIST.filter(c =>
+                      !q || c.country.toLowerCase().includes(q) ||
+                      c.name.toLowerCase().includes(q) ||
+                      c.code.toLowerCase().includes(q)
+                    );
+                    if (filtered.length === 0) return (
+                      <tr><td colSpan={3} className="cp-iso-empty">No currencies match "{currencySearch}"</td></tr>
+                    );
+                    return filtered.map(c => (
+                      <tr
+                        key={c.code}
+                        className={`cp-iso-row${form.currency === c.code ? ' cp-iso-row--selected' : ''}`}
+                        onClick={() => {
+                          set('currency', c.code);
+                          setShowCurrencyPicker(false);
+                        }}
+                      >
+                        <td className="cp-iso-cell-country">{c.country}</td>
+                        <td className="cp-iso-cell-name">{c.name}</td>
+                        <td><span className="cp-iso-code-badge">{c.code}</span></td>
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

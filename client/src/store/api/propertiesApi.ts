@@ -1,6 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 import { organizationApi } from './organizationApi';
+import { billingApi } from './billingApi';
 
 // ─── Types ────────────────────────────────────
 
@@ -219,16 +220,25 @@ export const propertiesApi = createApi({
       query: (body) => ({ url: '/properties', method: 'POST', body }),
       invalidatesTags: ['Properties'],
       // Keep the Organization Summary property count live without a page reload.
+      // Also invalidate CurrencyRates so currency dropdowns show the auto-seeded base currency.
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
           dispatch(organizationApi.util.invalidateTags(['Company']));
+          dispatch(billingApi.util.invalidateTags(['CurrencyRates']));
         } catch { /* mutation failed — nothing to invalidate */ }
       },
     }),
     updateProperty: builder.mutation<ApiResponse<PropertyDetail>, { id: string; data: Partial<CreatePropertyDto> }>({
       query: ({ id, data }) => ({ url: `/properties/${id}`, method: 'PUT', body: data }),
       invalidatesTags: (_, __, { id }) => [{ type: 'Properties', id }, 'Properties'],
+      // Invalidate CurrencyRates in case the property currency changed.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(billingApi.util.invalidateTags(['CurrencyRates']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
     deleteProperty: builder.mutation<void, string>({
       query: (id) => ({ url: `/properties/${id}`, method: 'DELETE' }),

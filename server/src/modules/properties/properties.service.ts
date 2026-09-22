@@ -4,6 +4,7 @@ import { logger } from '../../common/logger';
 import { geocodingService } from '../../common/geocoding.service';
 import { storageService } from '../documents/services/storage.service';
 import { PROPERTY_TYPES, FACILITY_TYPES } from './seeds/seedData';
+import { currencyRatesService } from '../billing/currencyRates.service';
 
 // ── Allowed status transitions ────────────────
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -194,6 +195,12 @@ export class PropertiesService {
       data: { propertyId: property.id, toStatus: 'active', changedBy: userId },
     });
 
+    // Auto-seed the property's currency as the Base Currency in Currency Setup
+    // so that all currency dropdowns immediately show it without manual setup.
+    if (property.currency) {
+      await currencyRatesService.seedBaseCurrency(companyId, property.id, property.currency);
+    }
+
     return property;
   }
 
@@ -227,7 +234,14 @@ export class PropertiesService {
       }
     }
 
-    return prisma.property.update({ where: { id: propertyId }, data: dto as any });
+    const updated = await prisma.property.update({ where: { id: propertyId }, data: dto as any });
+
+    // If the property currency changed, keep Currency Setup in sync.
+    if (dto.currency && typeof dto.currency === 'string' && dto.currency !== existing.currency) {
+      await currencyRatesService.seedBaseCurrency(companyId, propertyId, dto.currency as string);
+    }
+
+    return updated;
   }
 
   // ── Status change ─────────────────────────────

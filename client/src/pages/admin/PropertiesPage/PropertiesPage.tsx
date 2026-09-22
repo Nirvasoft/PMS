@@ -17,8 +17,51 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
-import { CURRENCIES } from '../../../constants/currencies';
 import './PropertiesPage.css';
+
+/** ISO currency reference — same list as CurrencyRatesPage, code only */
+const ISO_CURRENCY_LIST: { country: string; name: string; code: string }[] = [
+  { country: 'UAE',           name: 'UAE Dirham',          code: 'AED' },
+  { country: 'Australia',     name: 'Australian Dollar',   code: 'AUD' },
+  { country: 'Bangladesh',    name: 'Bangladeshi Taka',    code: 'BDT' },
+  { country: 'Bahrain',       name: 'Bahraini Dinar',      code: 'BHD' },
+  { country: 'Brazil',        name: 'Brazilian Real',      code: 'BRL' },
+  { country: 'Canada',        name: 'Canadian Dollar',     code: 'CAD' },
+  { country: 'Switzerland',   name: 'Swiss Franc',         code: 'CHF' },
+  { country: 'China',         name: 'Chinese Yuan',        code: 'CNY' },
+  { country: 'Denmark',       name: 'Danish Krone',        code: 'DKK' },
+  { country: 'Euro Zone',     name: 'Euro',                code: 'EUR' },
+  { country: 'UK',            name: 'British Pound',       code: 'GBP' },
+  { country: 'Hong Kong',     name: 'Hong Kong Dollar',    code: 'HKD' },
+  { country: 'Indonesia',     name: 'Indonesian Rupiah',   code: 'IDR' },
+  { country: 'India',         name: 'Indian Rupee',        code: 'INR' },
+  { country: 'Japan',         name: 'Japanese Yen',        code: 'JPY' },
+  { country: 'Cambodia',      name: 'Cambodian Riel',      code: 'KHR' },
+  { country: 'South Korea',   name: 'South Korean Won',    code: 'KRW' },
+  { country: 'Kuwait',        name: 'Kuwaiti Dinar',       code: 'KWD' },
+  { country: 'Laos',          name: 'Lao Kip',             code: 'LAK' },
+  { country: 'Sri Lanka',     name: 'Sri Lankan Rupee',    code: 'LKR' },
+  { country: 'Myanmar',       name: 'Myanmar Kyat',        code: 'MMK' },
+  { country: 'Malaysia',      name: 'Malaysian Ringgit',   code: 'MYR' },
+  { country: 'Norway',        name: 'Norwegian Krone',     code: 'NOK' },
+  { country: 'Nepal',         name: 'Nepalese Rupee',      code: 'NPR' },
+  { country: 'New Zealand',   name: 'New Zealand Dollar',  code: 'NZD' },
+  { country: 'Oman',          name: 'Omani Rial',          code: 'OMR' },
+  { country: 'Philippines',   name: 'Philippine Peso',     code: 'PHP' },
+  { country: 'Pakistan',      name: 'Pakistani Rupee',     code: 'PKR' },
+  { country: 'Qatar',         name: 'Qatari Riyal',        code: 'QAR' },
+  { country: 'Saudi Arabia',  name: 'Saudi Riyal',         code: 'SAR' },
+  { country: 'Sweden',        name: 'Swedish Krona',       code: 'SEK' },
+  { country: 'Singapore',     name: 'Singapore Dollar',    code: 'SGD' },
+  { country: 'Thailand',      name: 'Thai Baht',           code: 'THB' },
+  { country: 'Turkey',        name: 'Turkish Lira',        code: 'TRY' },
+  { country: 'Taiwan',        name: 'Taiwan Dollar',       code: 'TWD' },
+  { country: 'USA',           name: 'US Dollar',           code: 'USD' },
+  { country: 'Vietnam',       name: 'Vietnamese Dong',     code: 'VND' },
+  { country: 'Central Africa',name: 'CFA Franc BEAC',      code: 'XAF' },
+  { country: 'South Africa',  name: 'South African Rand',  code: 'ZAR' },
+];
+
 
 const STATUS_COLORS: Record<string, string> = {
   active: '#2ecc71',
@@ -137,6 +180,8 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
   const [currencyUnlocked, setCurrencyUnlocked] = useState(false);
   const [passcodeInput, setPasscodeInput] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [currencySearch, setCurrencySearch] = useState('');
 
   const handleCurrencyDoubleClick = () => {
     if (currencyUnlocked) return;
@@ -149,6 +194,8 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
     if (isValidCurrencyOverridePasscode(passcodeInput)) {
       setCurrencyUnlocked(true);
       setCurrencyModal(null);
+      setCurrencySearch('');
+      setShowCurrencyPicker(true);
     } else {
       setPasscodeError('Incorrect passcode');
     }
@@ -358,18 +405,22 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
             <div className="edit-grid">
               <div className="edit-field" onDoubleClick={handleCurrencyDoubleClick} style={{ position: 'relative' }}>
                 <label>Currency</label>
-                <select
-                  value={form.currency}
-                  onChange={e => set('currency', e.target.value)}
-                  disabled={!currencyUnlocked}
-                  title={currencyUnlocked ? 'Currency unlocked for editing' : 'Currency cannot be changed after property creation — double-click to override'}
+                <button
+                  type="button"
+                  className={`cp-currency-btn${!currencyUnlocked ? ' cp-currency-btn--locked' : ''}`}
+                  onClick={() => {
+                    if (!currencyUnlocked) return;
+                    setCurrencySearch(''); setShowCurrencyPicker(true);
+                  }}
+                  onDoubleClick={e => { e.stopPropagation(); handleCurrencyDoubleClick(); }}
+                  title={currencyUnlocked ? 'Click to change currency' : 'Currency locked — double-click to override'}
                 >
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                {/* Disabled <select> swallows mouse events, so this overlay catches the double-click instead */}
-                {!currencyUnlocked && (
-                  <div style={{ position: 'absolute', inset: 0, top: 18, cursor: 'not-allowed' }} onDoubleClick={handleCurrencyDoubleClick} />
-                )}
+                  <span className="cp-currency-code">{form.currency || '—'}</span>
+                  {currencyUnlocked
+                    ? <Search size={14} className="cp-currency-search-icon" />
+                    : <span className="cp-currency-lock-icon">🔒</span>
+                  }
+                </button>
               </div>
               <div className="edit-field">
                 <label>Billing Cycle</label>
@@ -479,6 +530,71 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
                   <button type="button" className="btn btn-primary" onClick={handlePasscodeSubmit}>Unlock</button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ISO Currency Picker Modal */}
+      {showCurrencyPicker && (
+        <div className="cp-iso-overlay" onClick={() => setShowCurrencyPicker(false)}>
+          <div className="cp-iso-modal" onClick={e => e.stopPropagation()}>
+            <div className="cp-iso-header">
+              <span className="cp-iso-title">Select Currency</span>
+              <button type="button" className="cp-iso-close" onClick={() => setShowCurrencyPicker(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="cp-iso-search-wrap">
+              <Search size={14} className="cp-iso-search-icon" />
+              <input
+                autoFocus
+                type="text"
+                className="cp-iso-search"
+                placeholder="Search country, currency or code…"
+                value={currencySearch}
+                onChange={e => setCurrencySearch(e.target.value)}
+              />
+              {currencySearch && (
+                <button type="button" className="cp-iso-search-clear" onClick={() => setCurrencySearch('')}>
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <div className="cp-iso-table-wrap">
+              <table className="cp-iso-table">
+                <thead>
+                  <tr>
+                    <th>Country / Region</th>
+                    <th>Currency</th>
+                    <th>ISO Code</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const q = currencySearch.toLowerCase();
+                    const filtered = ISO_CURRENCY_LIST.filter(c =>
+                      !q || c.country.toLowerCase().includes(q) ||
+                      c.name.toLowerCase().includes(q) ||
+                      c.code.toLowerCase().includes(q)
+                    );
+                    if (filtered.length === 0) return (
+                      <tr><td colSpan={3} className="cp-iso-empty">No currencies match "{currencySearch}"</td></tr>
+                    );
+                    return filtered.map(c => (
+                      <tr
+                        key={c.code}
+                        className={`cp-iso-row${form.currency === c.code ? ' cp-iso-row--selected' : ''}`}
+                        onClick={() => { set('currency', c.code); setShowCurrencyPicker(false); }}
+                      >
+                        <td className="cp-iso-cell-country">{c.country}</td>
+                        <td className="cp-iso-cell-name">{c.name}</td>
+                        <td><span className="cp-iso-code-badge">{c.code}</span></td>
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
