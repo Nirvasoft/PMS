@@ -9,15 +9,25 @@ import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
-const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
-  rent:    { bg: 'rgba(99,102,241,0.12)', color: '#a5b4fc' },
-  utility: { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
-  service: { bg: 'rgba(6,182,212,0.12)',  color: '#22d3ee' },
-  parking: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-  penalty: { bg: 'rgba(239,68,68,0.12)',  color: '#f87171' },
-  deposit: { bg: 'rgba(139,92,246,0.12)', color: '#a78bfa' },
-  misc:    { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af' },
-};
+// const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
+//   rent:    { bg: 'rgba(99,102,241,0.12)', color: '#a5b4fc' },
+//   utility: { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
+//   service: { bg: 'rgba(6,182,212,0.12)',  color: '#22d3ee' },
+//   parking: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
+//   penalty: { bg: 'rgba(239,68,68,0.12)',  color: '#f87171' },
+//   deposit: { bg: 'rgba(139,92,246,0.12)', color: '#a78bfa' },
+//   misc:    { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af' },
+// };
+const PALETTE: { bg: string; color: string }[] = [
+  { bg: 'rgba(99,102,241,0.12)',  color: '#a5b4fc' },
+  { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
+  { bg: 'rgba(6,182,212,0.12)',  color: '#22d3ee' },
+  { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
+  { bg: 'rgba(239,68,68,0.12)',  color: '#f87171' },
+  { bg: 'rgba(139,92,246,0.12)', color: '#a78bfa' },
+  { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af' },
+  { bg: 'rgba(236,72,153,0.12)', color: '#f472b6' },
+];
 
 export default function ChargeTypesPage() {
   const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery();
@@ -97,9 +107,9 @@ export default function ChargeTypesPage() {
 
       {/* Stats */}
       <div className="billing-summary-cards" style={{ gridTemplateColumns: `repeat(${categories.length || 1}, 1fr)` }}>
-        {categories.map(cat => {
+        {categories.map((cat, idx) => {
           const count = grouped[cat.code]?.length || 0;
-          const c = CATEGORY_COLORS[cat.code.toLowerCase()] || CATEGORY_COLORS.misc;
+          const c = PALETTE[idx % PALETTE.length];
           return (
             <div key={cat.id} className="billing-stat-card" style={{ padding: '14px 16px' }}>
               <div className="bsc-label" style={{ fontSize: 10 }}>{cat.code}</div>
@@ -130,7 +140,8 @@ export default function ChargeTypesPage() {
             ) : chargeTypes.length === 0 ? (
               <tr><td colSpan={8} className="billing-empty">No charge types found</td></tr>
             ) : chargeTypes.map(ct => {
-              const c = CATEGORY_COLORS[ct.category] || CATEGORY_COLORS.misc;
+              const catIdx = categories.findIndex(cat => cat.code === ct.category);
+              const c = PALETTE[(catIdx >= 0 ? catIdx : 0) % PALETTE.length];
               return (
                 <tr key={ct.id}>
                   <td><span className="cell-mono">{ct.code}</span></td>

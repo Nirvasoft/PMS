@@ -45,8 +45,9 @@ import {
   chargeCategoriesRouter, chargeTypesRouter, billingSchedulesRouter, invoicesRouter,
   billingRunRouter, penaltyConfigsRouter, taxConfigsRouter, meterSetupRouter, currencyRatesRouter,
 } from './modules/billing/billing.routes';
-import { chargeTypesService } from './modules/billing/chargeTypes.service';
-import { chargeCategoriesService } from './modules/billing/chargeCategories.service';
+// import { chargeTypesService } from './modules/billing/chargeTypes.service';
+// import { chargeCategoriesService } from './modules/billing/chargeCategories.service';
+
 import { startDailyBillingJob } from './modules/billing/cron/dailyBilling.job';
 import { startPenaltyCheckJob } from './modules/billing/cron/penaltyCheck.job';
 import { startOverdueTransitionJob } from './modules/billing/cron/overdueTransition.job';
@@ -327,8 +328,8 @@ async function bootstrap() {
   await dashboardService.seedWidgetDefinitions();
   await seedPropertyTypes();
   await seedUnitTypes();
-  await chargeTypesService.seedDefaults();
-  await chargeCategoriesService.seedDefaults();
+  // await chargeTypesService.seedDefaults();
+  // await chargeCategoriesService.seedDefaults();
   try { await maintenanceCategoriesService.seedDefaults(); } catch (e) { logger.warn('Maintenance tables not ready — skipping seed'); }
   const { seedBillingNotificationTemplates } = await import('./modules/billing/billingNotifications.service');
   await seedBillingNotificationTemplates();
