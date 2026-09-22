@@ -71,6 +71,8 @@ export default function CreateTenantPage() {
       source: form.source || null, tags: form.tags,
       currency: form.currency,
       notes: form.notes || null,
+      // Stamp the home property so the tenant appears in the correct property's list immediately
+      propertyId: activePropertyId || null,
     });
 
     try {

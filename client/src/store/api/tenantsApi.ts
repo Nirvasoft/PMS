@@ -181,7 +181,8 @@ export const tenantsApi = createApi({
     // ── Tenants CRUD ──
     getTenants: builder.query<PaginatedResponse<TenantListItem>, {
       search?: string; tenantType?: string; kycStatus?: string;
-      isBlacklisted?: boolean; tags?: string; page?: number; limit?: number;
+      isBlacklisted?: boolean; tags?: string; propertyId?: string;
+      page?: number; limit?: number;
     }>({
       query: (params) => ({ url: '/tenants', params }),
       providesTags: ['Tenants'],

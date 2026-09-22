@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetTenantsQuery, useDeleteTenantMutation,
@@ -11,6 +11,7 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import './TenantListPage.css';
 
 const KYC_COLORS: Record<string, string> = {
@@ -32,6 +33,7 @@ const KYC_LABELS: Record<string, string> = {
 export default function TenantListPage() {
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
+  const propertyId = useSelectedPropertyFilter(); // '' when "All Properties", else active property id
   const [search, setSearch]           = useState('');
   const [tenantType, setTenantType]   = useState('');
   const [kycStatus, setKycStatus]     = useState('');
@@ -39,12 +41,16 @@ export default function TenantListPage() {
   const [showBlacklisted, setShowBlacklisted] = useState<boolean | undefined>(undefined);
   const [page, setPage]               = useState(1);
 
+  // Reset to page 1 whenever the active property changes
+  useEffect(() => { setPage(1); }, [propertyId]);
+
   const { data, isLoading, isFetching } = useGetTenantsQuery({
     search: search || undefined,
     tenantType: tenantType || undefined,
     kycStatus: kycStatus || undefined,
     tags: tags || undefined,
     isBlacklisted: showBlacklisted,
+    propertyId: propertyId || undefined,
     page,
     limit: 20,
   });

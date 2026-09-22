@@ -72,18 +72,28 @@ export class TenantsService {
   // ── List ───────────────────────────────────
   async findAll(companyId: string, query: {
     search?: string; tenantType?: string; kycStatus?: string;
-    isBlacklisted?: boolean; tags?: string[];
+    isBlacklisted?: boolean; tags?: string[]; propertyId?: string;
     page?: number; limit?: number; sort?: string; order?: 'asc' | 'desc';
   }) {
-    const { search, tenantType, kycStatus, isBlacklisted, tags, page = 1, limit = 20 } = query;
+    const { search, tenantType, kycStatus, isBlacklisted, tags, propertyId, page = 1, limit = 20 } = query;
     const where: Record<string, unknown> = { companyId, deletedAt: null };
 
     if (tenantType) where.tenantType = tenantType === 'company' ? { in: ['company', 'corporate'] } : tenantType;
     if (kycStatus)                     where.kycStatus = kycStatus;
     if (isBlacklisted !== undefined)   where.isBlacklisted = isBlacklisted;
     if (tags?.length)                  where.tags = { hasSome: tags };
-    if (search) {
+    // Show tenants whose home property matches OR who have a lease at that property.
+    // The home-property check covers newly created tenants (no leases yet).
+    // The lease check covers existing tenants created before this field was added.
+    if (propertyId) {
       where.OR = [
+        { propertyId },
+        { leases: { some: { propertyId, deletedAt: null } } },
+      ];
+    }
+    if (search) {
+      // When propertyId is also active, combine both filters without overwriting OR
+      const searchOr = [
         { firstName:   { contains: search, mode: 'insensitive' } },
         { lastName:    { contains: search, mode: 'insensitive' } },
         { companyName: { contains: search, mode: 'insensitive' } },
@@ -91,7 +101,17 @@ export class TenantsService {
         { mobile:      { contains: search, mode: 'insensitive' } },
         { idNumber:    { contains: search, mode: 'insensitive' } },
       ];
+      if (propertyId) {
+        // Must match the property filter AND the search
+        where.AND = [{ OR: where.OR }, { OR: searchOr }];
+        delete where.OR;
+      } else {
+        where.OR = searchOr;
+      }
     }
+
+    // Scope the "active leases" count to the selected property when one is active
+    const activeLeasesWhere = { status: 'active', ...(propertyId ? { propertyId } : {}) };
 
     const [rawData, total] = await Promise.all([
       prisma.tenant.findMany({
@@ -102,7 +122,7 @@ export class TenantsService {
           isBlacklisted: true, avatarUrl: true, tags: true, source: true,
           currency: true,
           createdAt: true,
-          _count: { select: { leases: { where: { status: 'active' } } } },
+          _count: { select: { leases: { where: activeLeasesWhere } } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -148,6 +168,8 @@ export class TenantsService {
 
   // ── Create ─────────────────────────────────
   async create(companyId: string, dto: Record<string, unknown>) {
+    // propertyId is not part of the createTenantSchema (it's infrastructure, not user input)
+    const propertyId = typeof dto.propertyId === 'string' ? dto.propertyId : undefined;
     const parsedData = createTenantSchema.parse(dto);
     const { tags = [], ...rest } = parsedData;
 
@@ -191,7 +213,7 @@ export class TenantsService {
     }
 
     const tenant = await prisma.tenant.create({
-      data: { companyId, tags, ...rest },
+      data: { companyId, tags, ...(propertyId ? { propertyId } : {}), ...rest },
     });
 
     // Initialize KYC checklist

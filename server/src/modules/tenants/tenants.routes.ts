@@ -40,6 +40,7 @@ tenantsRouter.get('/', asyncHandler(async (req, res) => {
     kycStatus:    req.query.kycStatus as string,
     isBlacklisted: req.query.isBlacklisted !== undefined ? req.query.isBlacklisted === 'true' : undefined,
     tags:         req.query.tags ? (req.query.tags as string).split(',') : undefined,
+    propertyId:   req.query.propertyId as string | undefined,
     page:         parseInt(req.query.page as string) || 1,
     limit:        Math.min(parseInt(req.query.limit as string) || 20, 100),
   });

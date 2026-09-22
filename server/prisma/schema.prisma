@@ -984,6 +984,7 @@ model Property {
 
   // Relations — Tenants (Module 2.3)
   blacklistScoped TenantBlacklistLog[]
+  homeTenants     Tenant[]            @relation("TenantHomeProperty")
 
   // Relations — Leases (Module 2.4)
   leases Lease[]
@@ -1484,6 +1485,9 @@ model UnitAmenity {
 model Tenant {
   id         String  @id @default(uuid()) @db.Uuid
   companyId  String  @map("company_id") @db.Uuid
+  // Home property — the property under which this tenant was first created.
+  // Nullable: existing tenants (pre-migration) have no home property.
+  propertyId String? @map("property_id") @db.Uuid
   tenantType String  @default("individual") @map("tenant_type") @db.VarChar(50) // 'individual' | 'company'
   // The "Code" shown on the Tenants list/detail page — previously stored in `firstName`
   // for individual tenants only, with no equivalent for company tenants. Backfilled from
@@ -1549,6 +1553,7 @@ model Tenant {
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz
 
   company           Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property          Property?                @relation("TenantHomeProperty", fields: [propertyId], references: [id])
   kycVerifier       User?                    @relation("KycVerifier", fields: [kycVerifiedBy], references: [id])
   blacklister       User?                    @relation("TenantBlacklister", fields: [blacklistedBy], references: [id])
   kycDocuments      TenantKycDocument[]
@@ -1593,6 +1598,7 @@ model Tenant {
 
   @@unique([companyId, code], name: "uq_tenant_code_company")
   @@index([companyId])
+  @@index([propertyId])
   @@index([email])
   @@index([kycStatus])
   @@index([isBlacklisted])
