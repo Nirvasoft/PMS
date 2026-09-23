@@ -13,7 +13,7 @@ import {
   useGetUnitStatsQuery, useDeleteUnitMutation, useCreateUnitMutation, useGetUnitTypesQuery,
   useBulkUpdateUnitStatusMutation, useLazyGetUnitIdsQuery,
 } from '../../../store/api/unitsApi';
-import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
+import { useGetFloorSetupsQuery, useGetPropertyQuery } from '../../../store/api/propertiesApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import type { UnitListItem, Tower, FloorPlanMatrix } from '../../../store/api/unitsApi';
 import {
@@ -833,14 +833,22 @@ function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: 
   }));
   const { data: typesData } = useGetUnitTypesQuery();
   const { data: floorsData } = useGetFloorSetupsQuery({ propertyId });
+  const { data: propertyData } = useGetPropertyQuery(propertyId);
   const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId });
   const [createUnit, { isLoading }] = useCreateUnitMutation();
   const unitTypes = typesData?.data || [];
   const floors = floorsData?.data || [];
   const currencyOptions = currencyRatesData?.data || [];
+  const totalFloors = propertyData?.data?.totalFloors ?? 0;
+  // All floor numbers 1..totalFloors — shown regardless of whether floor setup exists
+  const allFloorNumbers = totalFloors > 0
+    ? Array.from({ length: totalFloors }, (_, i) => i + 1)
+    : [];
   const selectedTower = towers.find((t) => t.id === form.towerId);
   const sections = selectedTower?.sections || [];
   const selectedFloor = floors.find((f) => f.floorNumber === Number(form.floorNumber));
+  // True when user has chosen a floor number that hasn't been configured in Floor Setup
+  const floorHasNoSetup = !!form.floorNumber && !selectedFloor;
 
   /* Prefix from Floor Setup's prefix field (not the floor label) */
   const floorPrefix = selectedFloor?.prefix ?? '';
@@ -850,6 +858,10 @@ function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: 
   const handleSubmit = async () => {
     if (!form.unitNumber.trim() || !form.unitType) {
       toast.error('P-Unit number and type are required');
+      return;
+    }
+    if (!form.floorLabel.trim()) {
+      toast.error('Floor label is required');
       return;
     }
     if (!form.currency) {
@@ -961,16 +973,21 @@ function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: 
                 }
               }}>
                 <option value="">Select floor number…</option>
-                {floors.map((f) => <option key={f.id} value={f.floorNumber}>{f.floorNumber}</option>)}
+                {allFloorNumbers.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
+              {floorHasNoSetup && (
+                <span style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: 4, display: 'block' }}>
+                  Floor label hasn't been configured
+                </span>
+              )}
             </div>
             <div className="cu-field">
-              <label>Floor Label {selectedFloor ? '' : <span className="cu-opt">(optional)</span>}</label>
+              <label>Floor Label *</label>
               <input
                 placeholder="e.g. 10F, Mezzanine"
                 value={form.floorLabel}
                 onChange={(e) => set('floorLabel', e.target.value)}
-                disabled={!!selectedFloor}
+                readOnly
                 title={selectedFloor ? 'Floor label is automatically set from floor setup' : ''}
               />
             </div>
@@ -1134,7 +1151,7 @@ function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: 
           <button
             className="cu-btn-submit"
             onClick={handleSubmit}
-            disabled={isLoading || !form.unitNumber.trim() || !form.unitType || !form.currency}
+            disabled={isLoading || !form.unitNumber.trim() || !form.unitType || !form.currency || !form.floorLabel.trim()}
           >
             {isLoading ? 'Creating…' : '+ Add P-Unit'}
           </button>

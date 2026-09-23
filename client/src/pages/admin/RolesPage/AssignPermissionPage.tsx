@@ -343,7 +343,7 @@ export default function AssignPermissionPage() {
   const [selectedFloorNumbers, setSelectedFloorNumbers] = useState<Set<number>>(new Set());
   const [initializedFor, setInitializedFor] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('active-property');
-  const [sortMode, setSortMode] = useState<SortMode>('menu');
+  const [sortMode, setSortMode] = useState<SortMode>('group');
   const [activeSuperGroup, setActiveSuperGroup] = useState<string | null>(null);
   const [floorModalOpen, setFloorModalOpen] = useState(false);
   // Tracks which modules have their permission list expanded. Empty by default = all collapsed.

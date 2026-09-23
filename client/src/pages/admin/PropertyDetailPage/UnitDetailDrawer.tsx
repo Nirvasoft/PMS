@@ -8,7 +8,7 @@ import {
   useGetUnitChargesQuery, useAddUnitChargeMutation, useUpdateUnitChargeMutation, useDeleteUnitChargeMutation,
 } from '../../../store/api/unitsApi';
 import { useGetMeterSetupsQuery, useGetChargeTypesQuery, useGetBillingSchedulesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
-import { useGetFloorSetupsQuery } from '../../../store/api/propertiesApi';
+import { useGetFloorSetupsQuery, useGetPropertyQuery } from '../../../store/api/propertiesApi';
 import { CATEGORIES as METER_CATEGORIES, METER_TYPES } from '../BillingPage/MeterSetupPage';
 import { ZONE_OPTIONS } from './zoneOptions';
 import {
@@ -114,6 +114,13 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const { data: floorSetupsData } = useGetFloorSetupsQuery({ propertyId });
   const floorSetups = [...(floorSetupsData?.data || [])].sort((a, b) => a.floorNumber - b.floorNumber);
 
+  const { data: propertyData } = useGetPropertyQuery(propertyId);
+  const totalFloors = propertyData?.data?.totalFloors ?? 0;
+  // All floor numbers 1..totalFloors regardless of floor setup configuration
+  const allFloorNumbers = totalFloors > 0
+    ? Array.from({ length: totalFloors }, (_, i) => i + 1)
+    : [];
+
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const chargeTypes = (chargeTypesData?.data || []).filter((ct) => ct.isActive);
 
@@ -135,6 +142,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
   // ── Edit form state ─────────────────────────
   const [editForm, setEditForm] = useState<Record<string, any>>({});
+  // True when a floor number is selected in edit mode but has no floor setup entry
+  const editFloorHasNoSetup = !!editForm.floorNumber && !floorSetups.find((f) => f.floorNumber === Number(editForm.floorNumber));
 
   const startEditing = useCallback(() => {
     if (!unit) return;
@@ -171,6 +180,10 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const cancelEditing = () => { setEditing(false); setEditForm({}); };
 
   const handleSave = async () => {
+    if (!String(editForm.floorLabel ?? '').trim()) {
+      toast.error('Floor label is required');
+      return;
+    }
     try {
       const payload: Record<string, any> = {};
       // Only send changed fields
@@ -522,7 +535,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
               <div className="edit-toggle-bar">
                 {editing ? (
                   <>
-                    <button className="btn-save-edit" onClick={handleSave} disabled={saving}>
+                    <button className="btn-save-edit" onClick={handleSave} disabled={saving || !String(editForm.floorLabel ?? '').trim()}>
                       <Check size={13} /> {saving ? 'Saving…' : 'Save'}
                     </button>
                     <button className="btn-cancel-edit" onClick={cancelEditing}>Cancel</button>
@@ -542,31 +555,32 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   <div className="ef-grid">
                     <div className="ef-field">
                       <label>Floor Number</label>
-                      {floorSetups.length > 0 ? (
-                        <select
-                          value={editForm.floorNumber ?? ''}
-                          onChange={(e) => {
-                            const selected = floorSetups.find((f) => f.floorNumber === Number(e.target.value));
-                            ef('floorNumber', e.target.value);
-                            ef('floorLabel', selected ? selected.floorLabel : '');
-                          }}
-                        >
-                          <option value="">— Select —</option>
-                          {floorSetups.map((f) => (
-                            <option key={f.id} value={f.floorNumber}>Floor {f.floorNumber}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <EditField label="" value={editForm.floorNumber} type="number" onChange={(v) => ef('floorNumber', v)} placeholder="Floor number" />
+                      <select
+                        value={editForm.floorNumber ?? ''}
+                        onChange={(e) => {
+                          const selected = floorSetups.find((f) => f.floorNumber === Number(e.target.value));
+                          ef('floorNumber', e.target.value);
+                          ef('floorLabel', selected ? selected.floorLabel : '');
+                        }}
+                      >
+                        <option value="">— Select —</option>
+                        {allFloorNumbers.map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                      {editFloorHasNoSetup && (
+                        <span style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: 4, display: 'block' }}>
+                          Floor label hasn't been configured
+                        </span>
                       )}
                     </div>
                     <div className="ef-field">
-                      <label>Floor Label</label>
+                      <label>Floor Label *</label>
                       <input
                         value={editForm.floorLabel ?? ''}
-                        readOnly={floorSetups.length > 0}
-                        placeholder={floorSetups.length > 0 ? 'Auto-filled' : 'e.g. G, M, B1'}
-                        style={floorSetups.length > 0 ? { background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}}
+                        readOnly
+                        placeholder=""
+                        style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
                         onChange={(e) => ef('floorLabel', e.target.value)}
                       />
                     </div>
