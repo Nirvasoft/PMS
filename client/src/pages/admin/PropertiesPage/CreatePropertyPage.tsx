@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useCreatePropertyMutation, useGetPropertyTypesQuery,
@@ -11,11 +11,64 @@ import {
   ArrowLeft, Building2, MapPin, DollarSign, Info, Check,
   Waves, Dumbbell, Flame, TreePine, Leaf, CircleDot, Activity,
   UserCheck, Users, Monitor, Mail, Wind, UtensilsCrossed, ShoppingBag,
-  Camera, Key, Shield, Car, Zap, ArrowUp, Lock, Battery, ImagePlus, X, Upload, Search,
+  Camera, Key, Shield, Car, Zap, ArrowUp, Lock, Battery, ImagePlus, X, Upload, Search, Navigation,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CreatePropertyPage.css';
+
+/** Build a self-contained Leaflet map HTML for use in an srcdoc iframe */
+function buildMapSrcdoc(lat: number, lng: number): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  html,body,#map { margin:0; padding:0; width:100%; height:100%; }
+  body { background: #1a1f2e; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  var lat = ${lat}, lng = ${lng};
+  var map = L.map('map', { attributionControl: false }).setView([lat, lng], 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  var marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+  marker.bindPopup('Drag to set location').openPopup();
+
+  function sendCoords(la, ln) {
+    window.parent.postMessage({ type: 'MAP_COORDS', lat: la, lng: ln }, '*');
+  }
+
+  marker.on('dragend', function(e) {
+    var pos = e.target.getLatLng();
+    sendCoords(pos.lat, pos.lng);
+  });
+
+  map.on('click', function(e) {
+    marker.setLatLng(e.latlng);
+    sendCoords(e.latlng.lat, e.latlng.lng);
+  });
+
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'SET_COORDS') {
+      var ll = [e.data.lat, e.data.lng];
+      marker.setLatLng(ll);
+      map.setView(ll, 15);
+    }
+  });
+</script>
+</body>
+</html>`;
+}
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -124,8 +177,62 @@ export default function CreatePropertyPage() {
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mapIframeRef = useRef<HTMLIFrameElement>(null);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [currencySearch, setCurrencySearch] = useState('');
+  const [locating, setLocating] = useState(false);
+  // Snapshot of coords at the moment step 2 is entered — keeps iframe stable on coord changes
+  const mapInitRef = useRef({ lat: 1.3521, lng: 103.8198 });
+  const mapSrcdoc = useMemo(() => {
+    if (step === 2) {
+      // Update snapshot only when step becomes 2
+      mapInitRef.current = {
+        lat: parseFloat(form.geoLat) || 1.3521,
+        lng: parseFloat(form.geoLng) || 103.8198,
+      };
+    }
+    return buildMapSrcdoc(mapInitRef.current.lat, mapInitRef.current.lng);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]); // intentionally only re-run when step changes
+
+  // Listen for draggable marker / map-click coords from the iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'MAP_COORDS') {
+        const lat = String(parseFloat(e.data.lat).toFixed(6));
+        const lng = String(parseFloat(e.data.lng).toFixed(6));
+        setForm(f => ({ ...f, geoLat: lat, geoLng: lng }));
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  // Sync typed coordinates back into the iframe marker
+  const syncMapMarker = useCallback((lat: string, lng: string) => {
+    const la = parseFloat(lat);
+    const ln = parseFloat(lng);
+    if (!isNaN(la) && !isNaN(ln)) {
+      mapIframeRef.current?.contentWindow?.postMessage(
+        { type: 'SET_COORDS', lat: la, lng: ln }, '*'
+      );
+    }
+  }, []);
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) return toast.error('Geolocation not supported');
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = String(pos.coords.latitude.toFixed(6));
+        const lng = String(pos.coords.longitude.toFixed(6));
+        setForm(f => ({ ...f, geoLat: lat, geoLng: lng }));
+        syncMapMarker(lat, lng);
+        setLocating(false);
+      },
+      () => { toast.error('Could not get location'); setLocating(false); }
+    );
+  };
 
   const toggleFacility = (id: string) => {
     setSelectedFacilities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -314,40 +421,39 @@ export default function CreatePropertyPage() {
               </div>
             </div>
             <div className="cp-geo-section">
-              <label className="cp-geo-label">
-                <MapPin size={14} /> Location on Map <span className="opt">(click map or enter coordinates)</span>
-              </label>
+              <div className="cp-geo-label-row">
+                <label className="cp-geo-label">
+                  <MapPin size={14} /> Location on Map <span className="opt">(drag the marker or click the map)</span>
+                </label>
+                <button type="button" className="cp-btn-locate" onClick={detectLocation} disabled={locating}>
+                  <Navigation size={13} /> {locating ? 'Locating…' : 'Use My Location'}
+                </button>
+              </div>
               <div className="cp-map-container">
-                {form.geoLat && form.geoLng ? (
-                  <iframe
-                    className="cp-map-embed"
-                    title="Property Map"
-                    src={`https://maps.google.com/maps?q=${form.geoLat},${form.geoLng}&z=16&output=embed`}
-                    loading="lazy"
-                    allowFullScreen
-                  />
-                ) : (
-                  <div className="cp-map-placeholder" onClick={() => {
-                    /* Default to Singapore if empty */
-                    set('geoLat', '1.3521');
-                    set('geoLng', '103.8198');
-                  }}>
-                    <MapPin size={32} />
-                    <span>Click to set location on map</span>
-                    <span className="hint">Or enter coordinates below</span>
-                  </div>
-                )}
+                <iframe
+                  ref={mapIframeRef}
+                  className="cp-map-embed"
+                  title="Property Location Map"
+                  sandbox="allow-scripts allow-same-origin"
+                  srcDoc={mapSrcdoc}
+                />
               </div>
               <div className="cp-geo-inputs">
                 <div className="cp-field">
                   <label>Latitude</label>
                   <input type="number" step="any" placeholder="e.g. 1.2839" value={form.geoLat}
-                    onChange={e => set('geoLat', e.target.value)} />
+                    onChange={e => {
+                      set('geoLat', e.target.value);
+                      syncMapMarker(e.target.value, form.geoLng);
+                    }} />
                 </div>
                 <div className="cp-field">
                   <label>Longitude</label>
                   <input type="number" step="any" placeholder="e.g. 103.8607" value={form.geoLng}
-                    onChange={e => set('geoLng', e.target.value)} />
+                    onChange={e => {
+                      set('geoLng', e.target.value);
+                      syncMapMarker(form.geoLat, e.target.value);
+                    }} />
                 </div>
                 {form.geoLat && form.geoLng && (
                   <button type="button" className="btn-text-danger" onClick={() => {
