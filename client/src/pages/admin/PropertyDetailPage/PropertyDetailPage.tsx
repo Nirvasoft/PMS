@@ -67,21 +67,25 @@ export default function PropertyDetailPage() {
   const [updateStatus] = useUpdatePropertyStatusMutation();
 
   // Keep the sidebar's "Active Property" switcher pointed at whichever property this
-  // page is showing, so viewing a property also makes it the active context elsewhere.
+  // page is showing — but only when a *different specific* property is already active.
+  // If the sidebar is on "All Properties", leave it alone so the user can navigate
+  // back to the full property list without it being filtered to just this property.
   const selectedPropertyId = useAppSelector((s) => s.properties.selectedPropertyId);
   useEffect(() => {
-    if (id && selectedPropertyId !== id) dispatch(setSelectedProperty(id));
+    if (id && selectedPropertyId !== null && selectedPropertyId !== ALL_PROPERTIES && selectedPropertyId !== id) {
+      dispatch(setSelectedProperty(id));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // If the Active Property is switched elsewhere (e.g. the sidebar) while this page is
-  // open, follow it: jump to that property's detail page, or back to the list for
-  // "All Properties", which has no single detail view.
+  // If the Active Property is switched to a *different specific* property while this page
+  // is open, follow it to that property's detail page.
+  // When the sidebar is on "All Properties" we simply stay on this detail page — the user
+  // may have arrived here by clicking a card from the full list, so we must not bounce them back.
   useEffect(() => {
     if (!id || selectedPropertyId === null || selectedPropertyId === id) return;
-    navigate(selectedPropertyId !== ALL_PROPERTIES
-      ? `/admin/properties/${selectedPropertyId}`
-      : '/admin/properties');
+    if (selectedPropertyId === ALL_PROPERTIES) return;
+    navigate(`/admin/properties/${selectedPropertyId}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPropertyId]);
 

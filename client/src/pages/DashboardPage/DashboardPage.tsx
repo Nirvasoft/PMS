@@ -108,8 +108,12 @@ export default function DashboardLayout() {
   const location = useLocation();
   // The Property Detail page always shows one specific property, so "All Properties"
   // isn't a meaningful choice there — hide it from the switcher while it's open.
-  const isPropertyDetailPage = !!matchPath('/admin/properties/:id', location.pathname)
-    && location.pathname !== '/admin/properties/create';
+  const propertyDetailMatch = matchPath('/admin/properties/:id', location.pathname);
+  const isPropertyDetailPage = !!propertyDetailMatch && location.pathname !== '/admin/properties/create';
+  // The property ID from the URL — used to display the correct property in the sidebar
+  // when the user arrived at the detail page from the "All Properties" view (Redux stays
+  // on ALL_PROPERTIES so browser-back still shows the full list).
+  const urlPropertyId = isPropertyDetailPage ? (propertyDetailMatch?.params?.id ?? null) : null;
   // Currency Setup is configured per property (rates, base currency) — "All Properties"
   // has no meaningful data to show there, so hide it from the switcher too.
   const isCurrencySetupPage = !!matchPath('/admin/billing/currency-rates', location.pathname);
@@ -171,7 +175,7 @@ export default function DashboardLayout() {
           const hasMultipleProperties = properties.length > 1;
           const currentPropertyValue = selectedPropertyId === ALL_PROPERTIES && hasMultipleProperties && !hideAllPropertiesOption
             ? ALL_PROPERTIES
-            : (selectedPropertyId && selectedPropertyId !== ALL_PROPERTIES ? selectedPropertyId : properties[0]?.id || '');
+            : (selectedPropertyId && selectedPropertyId !== ALL_PROPERTIES ? selectedPropertyId : urlPropertyId || properties[0]?.id || '');
           const currentPropertyLabel = currentPropertyValue === ALL_PROPERTIES
             ? 'All Properties'
             : properties.find((p: any) => p.id === currentPropertyValue)?.name || 'Property';
