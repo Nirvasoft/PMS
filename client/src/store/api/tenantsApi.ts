@@ -19,6 +19,7 @@ export interface TenantListItem {
   source: string | null;
   currency: string | null;
   activeLeases: number;
+  propertyName: string | null;
   createdAt: string;
 }
 

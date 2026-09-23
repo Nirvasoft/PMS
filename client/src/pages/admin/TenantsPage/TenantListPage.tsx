@@ -161,8 +161,8 @@ export default function TenantListPage() {
             ? <span style={{ gridColumn: 'span 2' }}>Company</span>
             : <><span>Code</span><span>Name</span></>
           }
-          <span>Type</span><span>Contact</span>
-          <span>KYC Status</span><span>Active Leases</span><span></span>
+          <span>Type</span><span>Property</span>
+          <span>KYC Status</span><span>Lease</span><span>Actions</span>
         </div>
 
         {isLoading ? (
@@ -248,8 +248,8 @@ function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
         </span>
       </div>
 
-      {/* Contact */}
-      <div className="tenant-contact">{tenant.mobile || '—'}</div>
+      {/* Property Name */}
+      <div className="tenant-property-name">{tenant.propertyName || '—'}</div>
 
       {/* KYC */}
       <div>

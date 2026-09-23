@@ -122,6 +122,7 @@ export class TenantsService {
           isBlacklisted: true, avatarUrl: true, tags: true, source: true,
           currency: true,
           createdAt: true,
+          property: { select: { name: true } },
           _count: { select: { leases: { where: activeLeasesWhere } } },
         },
         orderBy: { createdAt: 'desc' },
@@ -132,8 +133,8 @@ export class TenantsService {
     ]);
 
     const data = rawData.map((t) => {
-      const { _count, ...rest } = t;
-      return { ...rest, displayName: displayName(t as any), activeLeases: _count?.leases || 0 };
+      const { _count, property, ...rest } = t;
+      return { ...rest, displayName: displayName(t as any), activeLeases: _count?.leases || 0, propertyName: property?.name ?? null };
     });
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
