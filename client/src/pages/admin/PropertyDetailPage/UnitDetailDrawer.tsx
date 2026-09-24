@@ -142,11 +142,15 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
   // ── Edit form state ─────────────────────────
   const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [editUsePrefix, setEditUsePrefix] = useState(false);
   // True when a floor number is selected in edit mode but has no floor setup entry
   const editFloorHasNoSetup = !!editForm.floorNumber && !floorSetups.find((f) => f.floorNumber === Number(editForm.floorNumber));
 
   const startEditing = useCallback(() => {
     if (!unit) return;
+    const initFloorSetup = floorSetups.find((f) => f.floorNumber === (unit.floorNumber ?? 0));
+    const initPrefix = initFloorSetup?.prefix ?? '';
+    setEditUsePrefix(!!(initPrefix && unit.unitNumber?.startsWith(initPrefix)));
     setEditForm({
       unitNumber: unit.unitNumber,
       unitType: unit.unitType,
@@ -175,7 +179,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       commonBillCalculate: unit.commonBillCalculate ?? false,
     });
     setEditing(true);
-  }, [unit]);
+  }, [unit, floorSetups]);
 
   const cancelEditing = () => { setEditing(false); setEditForm({}); };
 
@@ -587,7 +591,60 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   </div>
 
                   <div className="ef-grid">
-                    <EditField label="Unit Number" value={editForm.unitNumber} onChange={(v) => ef('unitNumber', v)} />
+                    <div className="ef-field">
+                      {(() => {
+                        const editFloorPrefix = floorSetups.find((f) => f.floorNumber === Number(editForm.floorNumber))?.prefix ?? '';
+                        const fullNum = String(editForm.unitNumber ?? '');
+                        const suffix = editUsePrefix && editFloorPrefix ? fullNum.slice(editFloorPrefix.length) : fullNum;
+                        const maxSuffix = editUsePrefix && editFloorPrefix ? Math.max(0, 15 - editFloorPrefix.length) : 15;
+                        return (
+                          <>
+                            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span>Unit Number</span>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 400, color: fullNum.length >= 15 ? '#ef4444' : '#9ca3af', marginLeft: 'auto', paddingLeft: 8 }}>{fullNum.length}/15</span>
+                              {editFloorPrefix && (
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8, cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
+                                    style={{ width: 'auto', margin: 0, accentColor: 'var(--accent)', cursor: 'pointer' }}
+                                    checked={editUsePrefix}
+                                    onChange={(e) => {
+                                      const enabling = e.target.checked;
+                                      setEditUsePrefix(enabling);
+                                      if (enabling) {
+                                        const trimmed = fullNum.slice(0, Math.max(0, 15 - editFloorPrefix.length));
+                                        ef('unitNumber', editFloorPrefix + trimmed);
+                                      } else {
+                                        ef('unitNumber', fullNum.startsWith(editFloorPrefix) ? fullNum.slice(editFloorPrefix.length) : fullNum);
+                                      }
+                                    }}
+                                  />
+                                  <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Prefix</span>
+                                </label>
+                              )}
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                              {editUsePrefix && editFloorPrefix && (
+                                <span style={{
+                                  position: 'absolute', left: 10, top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  pointerEvents: 'none', userSelect: 'none',
+                                  color: 'var(--text-primary)', fontSize: '0.82rem', zIndex: 1,
+                                }}>
+                                  {editFloorPrefix}
+                                </span>
+                              )}
+                              <input
+                                value={editUsePrefix && editFloorPrefix ? suffix : fullNum}
+                                maxLength={editUsePrefix && editFloorPrefix ? maxSuffix : 15}
+                                onChange={(e) => ef('unitNumber', editUsePrefix && editFloorPrefix ? editFloorPrefix + e.target.value : e.target.value)}
+                                style={editUsePrefix && editFloorPrefix ? { paddingLeft: `calc(10px + ${editFloorPrefix.length}ch)` } : {}}
+                              />
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                     <div className="ef-field">
                       <label>Unit Type</label>
                       <select value={editForm.unitType} onChange={(e) => ef('unitType', e.target.value)}>
@@ -649,17 +706,18 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   </div>
 
                   <div className="ef-grid">
+                    <EditField label="Rental Period" type="number" value={editForm.rentalPeriod} onChange={(v) => ef('rentalPeriod', v)} />
                     <div className="ef-field">
-                      <label>Rental Period</label>
-                      <div className="ef-field-combo">
-                        <input type="number" min={0} value={editForm.rentalPeriod} onChange={(e) => ef('rentalPeriod', e.target.value)} />
-                        <select value={editForm.rentalPeriodUnit} onChange={(e) => ef('rentalPeriodUnit', e.target.value)}>
-                          <option value="day">Day</option>
-                          <option value="month">Month</option>
-                          <option value="year">Year</option>
-                        </select>
-                      </div>
+                      <label>Period Unit</label>
+                      <select value={editForm.rentalPeriodUnit} onChange={(e) => ef('rentalPeriodUnit', e.target.value)}>
+                        <option value="day">Day</option>
+                        <option value="month">Month</option>
+                        <option value="year">Year</option>
+                      </select>
                     </div>
+                  </div>
+
+                  <div className="ef-grid">
                     <div className="ef-field">
                       <label>Calculation on</label>
                       <select value={editForm.calculationOn} onChange={(e) => ef('calculationOn', e.target.value)}>
@@ -671,17 +729,19 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   </div>
 
                   <div className="ef-grid">
+                    <EditField label="Owner" value={editForm.ownerName} onChange={(v) => ef('ownerName', v)} />
+                    <EditField label="Contact" value={editForm.ownerContact} onChange={(v) => ef('ownerContact', v)} />
+                  </div>
+                  <div className="ef-grid">
                     <div className="ef-field">
                       <label>Type</label>
                       <select value={editForm.ownershipType} onChange={(e) => ef('ownershipType', e.target.value)}>
                         {OWNERSHIP_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
-                    <EditField label="Owner" value={editForm.ownerName} onChange={(v) => ef('ownerName', v)} />
-                    <EditField label="Contact" value={editForm.ownerContact} onChange={(v) => ef('ownerContact', v)} />
+                    <EditField label="Purchase Date" type="date" value={editForm.purchaseDate} onChange={(v) => ef('purchaseDate', v)} />
                   </div>
                   <div className="ef-grid">
-                    <EditField label="Purchase Date" type="date" value={editForm.purchaseDate} onChange={(v) => ef('purchaseDate', v)} />
                     <EditField label="Purchase Price" type="number" value={editForm.purchasePrice} onChange={(v) => ef('purchasePrice', v)} />
                     <EditField label="Market Value" type="number" value={editForm.currentMarketValue} onChange={(v) => ef('currentMarketValue', v)} />
                   </div>
@@ -1611,8 +1671,8 @@ function InfoItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function EditField({ label, value, onChange, type = 'text', placeholder }: {
-  label: string; value: string | number; onChange: (v: string) => void; type?: string; placeholder?: string;
+function EditField({ label, value, onChange, type = 'text', placeholder, maxLength }: {
+  label: string; value: string | number; onChange: (v: string) => void; type?: string; placeholder?: string; maxLength?: number;
 }) {
   return (
     <div className="ef-field">
@@ -1621,6 +1681,7 @@ function EditField({ label, value, onChange, type = 'text', placeholder }: {
         type={type}
         value={value}
         placeholder={placeholder}
+        maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>

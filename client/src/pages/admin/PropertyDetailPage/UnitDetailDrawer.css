@@ -545,7 +545,7 @@
 .btn-cancel-edit:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
 
 /* Edit form */
-.edit-form { display: flex; flex-direction: column; gap: 6px; }
+.edit-form { display: flex; flex-direction: column; gap: 12px; }
 
 .ef-section-title {
   font-size: 0.6rem; font-weight: 700;
@@ -556,13 +556,13 @@
   margin-top: 4px;
 }
 
-.ef-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ef-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-.ef-field-combo { display: flex; gap: 6px; }
+.ef-field-combo { display: flex; gap: 8px; }
 .ef-field-combo input { flex: 1; min-width: 0; }
-.ef-field-combo select { width: 76px; flex: none; }
+.ef-field-combo select { width: 84px; flex: none; }
 
-.ef-field { display: flex; flex-direction: column; gap: 3px; }
+.ef-field { display: flex; flex-direction: column; gap: 5px; }
 .ef-field.full-width { grid-column: 1 / -1; }
 .ef-field label {
   font-size: 0.62rem; font-weight: 700;
@@ -572,14 +572,14 @@
 .ef-field input,
 .ef-field select,
 .ef-field textarea {
-  padding: 6px 8px;
+  padding: 8px 10px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 7px;
-  color: var(--text-primary); font-size: 0.8rem;
+  border-radius: 8px;
+  color: var(--text-primary); font-size: 0.82rem;
   outline: none; transition: border-color 0.15s;
   font-family: inherit;
-  max-width: 160px;
+  width: 100%; box-sizing: border-box;
 }
 .ef-field.full-width input,
 .ef-field.full-width select,
@@ -594,7 +594,30 @@
 }
 .ef-field select option { background: #1a1f2e; }
 .ef-field select optgroup { background: #1a1f2e; font-weight: 700; }
-.ef-field textarea { resize: vertical; min-height: 42px; }
+.ef-field textarea { resize: vertical; min-height: 48px; }
+
+/* Prefix combo inside edit form — make it look identical to a plain input */
+.ef-field .cu-unitno-combo {
+  display: flex; align-items: center;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  transition: border-color 0.15s;
+  width: 100%; box-sizing: border-box;
+}
+.ef-field .cu-unitno-combo:focus-within {
+  border-color: rgba(108,92,231,0.5);
+  box-shadow: 0 0 0 2px rgba(108,92,231,0.1);
+}
+.ef-field .cu-unitno-combo input {
+  flex: 1; min-width: 0;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 8px 10px 8px 4px;
+  width: 100%; box-sizing: border-box;
+  font-size: 0.82rem;
+}
 
 /* Amenity toggles */
 .amenity-toggles { display: flex; flex-wrap: wrap; gap: 5px; }

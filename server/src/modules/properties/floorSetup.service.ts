@@ -21,7 +21,7 @@ export class FloorSetupService {
     const propertyId = dto.propertyId as string;
     const floorNumber = Number(dto.floorNumber);
     const floorLabel = (dto.floorLabel as string || '').trim();
-    const prefix = dto.prefix !== undefined ? (dto.prefix as string).trim() || null : null;
+    const prefix = (dto.prefix != null) ? (dto.prefix as string).trim() || null : null;
 
     if (!propertyId) throw new AppError(400, 'PROPERTY_REQUIRED', 'Property is required');
     if (!floorNumber || floorNumber < 1) throw new AppError(400, 'FLOOR_NUMBER_REQUIRED', 'Floor number is required');
@@ -75,7 +75,7 @@ export class FloorSetupService {
     if (dto.propertyId !== undefined) updateData.propertyId = dto.propertyId;
     if (dto.floorNumber !== undefined) updateData.floorNumber = floorNumber;
     if (dto.floorLabel !== undefined) updateData.floorLabel = floorLabel;
-    if (dto.prefix !== undefined) updateData.prefix = (dto.prefix as string).trim() || null;
+    if (dto.prefix !== undefined) updateData.prefix = (dto.prefix != null) ? (dto.prefix as string).trim() || null : null;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
 
     return prisma.floorSetup.update({

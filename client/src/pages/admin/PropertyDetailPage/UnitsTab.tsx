@@ -30,7 +30,7 @@ import { BulkCreateModal } from './BulkCreateModal';
 import { TowerSidebar } from './TowerSidebar';
 import { TowerFormModal } from './TowerFormModal';
 import { useConfirm } from '../../../components/DialogProvider';
-import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 import { ZONE_OPTIONS } from './zoneOptions';
 import './UnitsTab.css';
 
@@ -48,9 +48,9 @@ const STATUS_COLOR: Record<string, string> = Object.fromEntries(
 );
 
 const ZOOM_CELL: Record<string, { w: number; h: number }> = {
-  compact: { w: 36, h: 30 },
-  normal:  { w: 54, h: 46 },
-  large:   { w: 78, h: 66 },
+  compact: { w: 58, h: 36 },
+  normal:  { w: 68, h: 52 },
+  large:   { w: 96, h: 76 },
 };
 
 /* ── Parking unit helpers ────────────────────────── */
@@ -93,6 +93,10 @@ export default function UnitsTab() {
 
   /* Tower modal: null = closed, 'new' = create, Tower = edit */
   const [towerModal, setTowerModal] = useState<Tower | 'new' | null>(null);
+  const canCreateUnit = usePermission('unit.create');
+  /* Floor number to pre-fill when opening Add P-Unit from an empty floor slot */
+  const [newUnitFloor, setNewUnitFloor] = useState<number | null>(null);
+
 
   /* Reset filters when switching to a different property */
   const prevPropertyId = useRef(propertyId);
@@ -198,8 +202,42 @@ export default function UnitsTab() {
      scrollable/transformed cell and positioned to actually fit the viewport. */
   const [hoveredUnit, setHoveredUnit] = useState<{ unit: FloorPlanUnit; rect: DOMRect } | null>(null);
 
-  /* Distinct floors from floor plan data */
-  const distinctFloors = [...new Set(floors.map((f) => f.floorNumber))].sort((a, b) => b - a);
+  /* Floor Setup labels + total floors — used to show ALL levels in the floor plan view
+     even when a level has no units yet, and to display the configured label (or just
+     the number "1", "2", "3" when no label has been configured). */
+  const { data: fpFloorSetupsData } = useGetFloorSetupsQuery({ propertyId: propertyId! });
+  const { data: fpPropertyData } = useGetPropertyQuery(propertyId!);
+  const fpFloorSetups = fpFloorSetupsData?.data || [];
+  const fpTotalFloors = fpPropertyData?.data?.totalFloors ?? 0;
+
+  /* Map floorNumber → configured label (only for floors that have a FloorSetup record) */
+  const floorSetupLabelMap = useMemo(() => {
+    const map = new Map<number, string>();
+    fpFloorSetups.forEach((fs) => map.set(fs.floorNumber, fs.floorLabel));
+    return map;
+  }, [fpFloorSetups]);
+
+  /* All levels 1..totalFloors merged with any unit data from the floor plan query.
+     Floors with no units are still included so the building layout is always complete. */
+  const allFloors = useMemo(() => {
+    const unitFloorMap = new Map(floors.map((f) => [f.floorNumber, f]));
+    const maxLevel = Math.max(fpTotalFloors, ...floors.map((f) => f.floorNumber), 0);
+    const levels: Array<{ floorNumber: number; floorLabel: string; units: typeof floors[number]['units'] }> = [];
+    for (let n = maxLevel; n >= 1; n--) {
+      const existing = unitFloorMap.get(n);
+      const label = floorSetupLabelMap.get(n) ?? String(n);
+      levels.push(existing ? { ...existing, floorLabel: label } : { floorNumber: n, floorLabel: label, units: [] });
+    }
+    return levels;
+  }, [floors, fpTotalFloors, floorSetupLabelMap]);
+
+  /* Distinct floors for the filter dropdown — includes ALL configured levels */
+  const distinctFloors = useMemo(() => {
+    if (fpTotalFloors > 0) {
+      return Array.from({ length: fpTotalFloors }, (_, i) => fpTotalFloors - i);
+    }
+    return [...new Set(floors.map((f) => f.floorNumber))].sort((a, b) => b - a);
+  }, [fpTotalFloors, floors]);
 
   /* P-Unit types for filter dropdown */
   const { data: unitTypesData } = useGetUnitTypesQuery();
@@ -211,8 +249,9 @@ export default function UnitsTab() {
     [unitTypes]
   );
 
-  /* Apply floor + unit type filters to floor plan */
-  const filteredFloors = floors
+  /* Apply floor + unit type filters to the full building layout (allFloors), so every
+     level always appears; empty floors are hidden only when a unit-level filter is active. */
+  const filteredFloors = allFloors
     .map((floor) => ({
       ...floor,
       units: floor.units.filter((u) => {
@@ -223,6 +262,7 @@ export default function UnitsTab() {
     }))
     .filter((f) => {
       if (floorFilter !== null && f.floorNumber !== floorFilter) return false;
+      // Hide empty floors only when a unit-level filter (status/type) is active
       return f.units.length > 0 || (statusFilter.length === 0 && !unitTypeFilter);
     });
 
@@ -310,7 +350,7 @@ export default function UnitsTab() {
                 >
                   <option value="">All Floors</option>
                   {distinctFloors.map((f) => (
-                    <option key={f} value={f}>Floor {f}</option>
+                    <option key={f} value={f}>{floorSetupLabelMap.get(f) ?? String(f)}</option>
                   ))}
                 </select>
               </div>
@@ -395,9 +435,21 @@ export default function UnitsTab() {
                       ? <EmptyState message={hasFilters ? 'No units match the current filters' : 'No units yet — click Add P-Unit to get started'} />
                       : filteredFloors.map((floor) => (
                           <div key={floor.floorNumber} className="floor-row">
-                            <div className="floor-label">{floor.floorLabel ?? `Floor ${floor.floorNumber}`}</div>
+                            <div
+                              className="floor-label"
+                              style={{ fontSize: zoomLevel === 'compact' ? 8 : zoomLevel === 'large' ? 12 : 10 }}
+                            >{floor.floorLabel ?? `Floor ${floor.floorNumber}`}</div>
                             <div className="floor-cells">
-                              {floor.units.map((unit) => (
+                              {floor.units.length === 0 ? (
+                                <div
+                                  className={`floor-empty-placeholder${canCreateUnit ? ' clickable' : ''}`}
+                                  style={{ width: cellSize.w, height: cellSize.h }}
+                                  onClick={canCreateUnit ? () => { setNewUnitFloor(floor.floorNumber); dispatch(selectUnit('new')); } : undefined}
+                                  title={canCreateUnit ? 'Add P-Unit' : undefined}
+                                >
+                                  <Plus size={zoomLevel === 'compact' ? 12 : zoomLevel === 'large' ? 18 : 15} />
+                                </div>
+                              ) : floor.units.map((unit) => (
                                 <div
                                   key={unit.id}
                                   className={`unit-cell ${selectedUnitId === unit.id ? 'selected' : ''}`}
@@ -598,7 +650,14 @@ export default function UnitsTab() {
         <UnitDetailDrawer propertyId={propertyId!} unitId={selectedUnitId} />
       )}
       {drawerOpen && selectedUnitId === 'new' && (
-        <CreateUnitModal propertyId={propertyId!} towers={towers} selectedTowerId={selectedTowerId || ''} />
+        <CreateUnitModal
+          key={newUnitFloor ?? 'new'}
+          propertyId={propertyId!}
+          towers={towers}
+          selectedTowerId={selectedTowerId || ''}
+          defaultFloorNumber={newUnitFloor ?? undefined}
+          onClose={() => setNewUnitFloor(null)}
+        />
       )}
       {bulkCreateOpen && (
         <BulkCreateModal propertyId={propertyId!} towers={towers} />
@@ -794,13 +853,38 @@ function UnitGridCard({ unit, onClick }: { unit: UnitListItem; onClick: () => vo
 }
 
 /* ── Create P-Unit Modal ────────────────────── */
-function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: string; towers: Tower[]; selectedTowerId: string }) {
+function CreateUnitModal({
+  propertyId, towers, selectedTowerId, defaultFloorNumber, onClose,
+}: {
+  propertyId: string;
+  towers: Tower[];
+  selectedTowerId: string;
+  defaultFloorNumber?: number;
+  onClose?: () => void;
+}) {
   const dispatch = useAppDispatch();
-  const close = () => dispatch(selectUnit(null as any));
+  const close = () => { dispatch(selectUnit(null as any)); onClose?.(); };
+
+  // Queries are already warm (same args used in the main tab), so the cached
+  // data is available synchronously for the initial state calculation below.
+  const { data: typesData } = useGetUnitTypesQuery();
+  const { data: floorsData } = useGetFloorSetupsQuery({ propertyId });
+  const { data: propertyData } = useGetPropertyQuery(propertyId);
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId });
+
+  const floors = floorsData?.data || [];
+
+  // Resolve the label for the default floor immediately (cache is already warm)
+  const defaultFloorSetup = defaultFloorNumber != null
+    ? floors.find((f) => f.floorNumber === defaultFloorNumber)
+    : undefined;
+  const defaultFloorLabel = defaultFloorSetup?.floorLabel ?? '';
 
   const [form, setForm] = useState({
     unitNumber: '', unitType: '', zone: '', towerId: selectedTowerId, sectionId: '',
-    floorNumber: '', floorLabel: '', areaSqft: '', areaSqm: '',
+    floorNumber: defaultFloorNumber != null ? String(defaultFloorNumber) : '',
+    floorLabel: defaultFloorLabel,
+    areaSqft: '', areaSqm: '',
     bedroomCount: '0', bathroomCount: '0',
     direction: '', furnishing: 'unfurnished', ownershipType: 'company',
     rentalPeriod: '', rentalPeriodUnit: 'month', calculationOn: 'fixed', rate: '', currency: '',
@@ -816,13 +900,8 @@ function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: 
   const setAreaSqm = (v: string) => setForm((f) => ({
     ...f, areaSqm: v, areaSqft: v ? (Number(v) * SQM_TO_SQFT).toFixed(2) : '',
   }));
-  const { data: typesData } = useGetUnitTypesQuery();
-  const { data: floorsData } = useGetFloorSetupsQuery({ propertyId });
-  const { data: propertyData } = useGetPropertyQuery(propertyId);
-  const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId });
   const [createUnit, { isLoading }] = useCreateUnitMutation();
   const unitTypes = typesData?.data || [];
-  const floors = floorsData?.data || [];
   const currencyOptions = currencyRatesData?.data || [];
   const totalFloors = propertyData?.data?.totalFloors ?? 0;
   // All floor numbers 1..totalFloors — shown regardless of whether floor setup exists
@@ -837,7 +916,7 @@ function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: 
 
   /* Prefix from Floor Setup's prefix field (not the floor label) */
   const floorPrefix = selectedFloor?.prefix ?? '';
-  const unitNumberPrefix = form.useFloorLabelPrefix && floorPrefix ? `${floorPrefix}-` : '';
+  const unitNumberPrefix = form.useFloorLabelPrefix && floorPrefix ? `${floorPrefix}` : '';
   const fullUnitNumber = `${unitNumberPrefix}${form.unitNumber.trim()}`;
 
   const handleSubmit = async () => {
@@ -969,7 +1048,6 @@ function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: 
             <div className="cu-field">
               <label>Floor Label *</label>
               <input
-                placeholder="e.g. 10F, Mezzanine"
                 value={form.floorLabel}
                 onChange={(e) => set('floorLabel', e.target.value)}
                 readOnly
@@ -979,31 +1057,52 @@ function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: 
           </div>
 
           {/* Row 3: P-Unit Number + Type */}
-          <div className="cu-grid">
+          <div className="cu-grid" style={{ alignItems: 'start' }}>
             <div className="cu-field">
               <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>P-Unit Number *</span>
+                <span style={{ fontSize: '0.7rem', fontWeight: 400, color: fullUnitNumber.length >= 15 ? '#ef4444' : '#9ca3af', marginLeft: 'auto', paddingLeft: 8 }}>{fullUnitNumber.length}/15</span>
                 {floorPrefix && (
-                  <label className="cu-prefix-toggle" title={`Prefix the P-Unit Number with "${floorPrefix}" from Floor Setup`}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', marginLeft: 8 }}>
                     <input
                       type="checkbox"
+                      style={{ width: 'auto', margin: 0, accentColor: 'var(--accent)', cursor: 'pointer' }}
                       checked={form.useFloorLabelPrefix}
-                      onChange={(e) => setForm((f) => ({ ...f, useFloorLabelPrefix: e.target.checked }))}
+                      onChange={(e) => {
+                      const enabling = e.target.checked;
+                      setForm((f) => {
+                        const maxInput = enabling ? Math.max(0, 15 - floorPrefix.length) : 15;
+                        return {
+                          ...f,
+                          useFloorLabelPrefix: enabling,
+                          unitNumber: f.unitNumber.slice(0, maxInput),
+                        };
+                      });
+                    }}
                     />
-                    <span>Prefix: <strong>{floorPrefix}</strong></span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Prefix</span>
                   </label>
                 )}
               </label>
-              {unitNumberPrefix ? (
-                <div className="cu-unitno-combo">
-                  <span className="cu-unitno-prefix" title="Prefix — set from Floor Setup">
+              <div style={{ position: 'relative', width: '100%' }}>
+                {unitNumberPrefix && (
+                  <span style={{
+                    position: 'absolute', left: 11, bottom: 9,
+                    pointerEvents: 'none', userSelect: 'none',
+                    color: 'var(--text-primary)', fontSize: '0.85rem', zIndex: 1,
+                    lineHeight: 1,
+                  }}>
                     {unitNumberPrefix}
                   </span>
-                  <input placeholder="e.g. 101" value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)} />
-                </div>
-              ) : (
-                <input placeholder="e.g. A-101" value={form.unitNumber} onChange={(e) => set('unitNumber', e.target.value)} />
-              )}
+                )}
+                <input
+                  placeholder={unitNumberPrefix ? '' : 'e.g. A-101'}
+                  value={form.unitNumber}
+                  onChange={(e) => set('unitNumber', e.target.value)}
+                  maxLength={unitNumberPrefix ? Math.max(0, 15 - unitNumberPrefix.length) : 15}
+                  style={unitNumberPrefix ? { paddingLeft: `calc(11px + ${unitNumberPrefix.length}ch + 2px)` } : {}}
+                />
+              </div>
             </div>
             <div className="cu-field">
               <label>P-Unit Type *</label>

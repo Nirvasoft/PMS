@@ -163,7 +163,7 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
       propertyId,
       floorNumber: Number(form.floorNumber),
       floorLabel: form.floorLabel.trim(),
-      prefix: form.prefix.trim() || null,
+      prefix: (form.prefix ?? '').trim() || null,
     };
     try {
       if (editing) {
@@ -354,22 +354,32 @@ export default function FloorSetupTab({ propertyId, property }: FloorSetupTabPro
                         }
                       }}>
                       <option value="">{total === 0 ? 'No total floors set for this property' : 'Select floor…'}</option>
-                      {floorNumberOptions.map((n) => <option key={n} value={n}>{ordinalFloorLabel(n)}</option>)}
+                      {floorNumberOptions.map((n) => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </div>
                   <div className="rff-field rff-grow">
-                    <label>Floor Label *</label>
-                    <input required placeholder="e.g. 10th Floor" value={form.floorLabel}
+                    <label>
+                      Floor Label *
+                      <span style={{ float: 'right', fontSize: 10, fontWeight: 400, color: form.floorLabel.length >= 12 ? '#ef4444' : 'var(--text-muted)' }}>
+                        {form.floorLabel.length}/12
+                      </span>
+                    </label>
+                    <input required placeholder="e.g. 10th Floor" value={form.floorLabel} maxLength={12}
                       onChange={(e) => { setLabelTouched(true); setForm({ ...form, floorLabel: e.target.value }); }} />
                   </div>
                 </div>
                 <div className="rff-row">
                   <div className="rff-field rff-grow">
-                    <label>Prefix <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+                    <label>
+                      Prefix <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span>
+                      <span style={{ float: 'right', fontSize: 10, fontWeight: 400, color: (form.prefix ?? '').length >= 4 ? '#ef4444' : 'var(--text-muted)' }}>
+                        {(form.prefix ?? '').length}/4
+                      </span>
+                    </label>
                     <input
-                      placeholder="e.g. FL, GF, B"
+                      placeholder="e.g. FL, B"
                       value={form.prefix}
-                      maxLength={20}
+                      maxLength={4}
                       onChange={(e) => setForm({ ...form, prefix: e.target.value })}
                     />
                   </div>

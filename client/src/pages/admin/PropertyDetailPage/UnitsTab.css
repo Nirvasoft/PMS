@@ -438,6 +438,37 @@
   flex-wrap: wrap;
   gap: 3px;
 }
+
+/* ── Empty floor placeholder ── */
+.floor-empty-placeholder {
+  border-radius: 5px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.22);
+  user-select: none;
+  pointer-events: none;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.floor-empty-placeholder.clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.floor-empty-placeholder.clickable:hover {
+  border-color: rgba(108, 92, 231, 0.7);
+  color: rgba(108, 92, 231, 0.9);
+  background: rgba(108, 92, 231, 0.08);
+}
+[data-theme="light"] .floor-empty-placeholder {
+  border-color: rgba(0, 0, 0, 0.14);
+  color: rgba(0, 0, 0, 0.28);
+}
+[data-theme="light"] .floor-empty-placeholder.clickable:hover {
+  border-color: rgba(108, 92, 231, 0.6);
+  color: rgba(108, 92, 231, 0.85);
+  background: rgba(108, 92, 231, 0.07);
+}
 .unit-cell {
   border-radius: 5px;
   border: 1px solid;
@@ -470,6 +501,8 @@
   color: var(--text-primary);
   line-height: 1;
   font-family: 'SF Mono', 'Fira Code', monospace;
+  text-align: center;
+  width: 100%;
 }
 .cell-type {
   font-size: 7px;
@@ -477,6 +510,8 @@
   line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  text-align: center;
+  width: 100%;
 }
 
 /* ─── Parking type badge inside floor-plan cell ─── */
@@ -935,7 +970,7 @@
   background: var(--surface);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 18px;
-  width: 100%; max-width: 580px;
+  width: 100%; max-width: 660px;
   box-shadow: 0 28px 64px rgba(0,0,0,0.5);
   display: flex; flex-direction: column;
   max-height: 90vh;
@@ -1004,9 +1039,9 @@
 .cu-unitno-prefix {
   display: flex; align-items: center;
   padding: 8px 0 8px 11px;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 400;
   white-space: nowrap;
   user-select: none;
 }
@@ -1014,7 +1049,9 @@
   flex: 1; min-width: 0;
   border: none !important;
   background: transparent !important;
-  padding-left: 4px;
+  padding: 8px 11px 8px 4px;
+  width: 100% !important;
+  box-sizing: border-box;
 }
 .cu-unitno-combo input:focus { box-shadow: none !important; }
 .cu-field input,
@@ -1027,6 +1064,7 @@
   color: var(--text-primary); font-size: 0.82rem;
   outline: none; transition: border-color 0.18s, box-shadow 0.18s;
   font-family: inherit;
+  width: 100%; box-sizing: border-box;
 }
 .cu-field input:focus,
 .cu-field select:focus,
