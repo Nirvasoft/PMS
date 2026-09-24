@@ -17,9 +17,9 @@ import { useGetFloorSetupsQuery, useGetPropertyQuery } from '../../../store/api/
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import type { UnitListItem, Tower, FloorPlanMatrix } from '../../../store/api/unitsApi';
 import {
-  LayoutGrid, List, Layers, Plus, Search, Building2,
+  List, Layers, Plus, Search, Building2,
   Zap, Droplets, Wind, X, Grid3x3, ChevronRight, ChevronLeft,
-  Filter, Calendar, Trash2,
+  Filter, Trash2,
   Car, Bike,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -150,7 +150,7 @@ export default function UnitsTab() {
       floor: floorFilter ?? undefined,
       search: searchQuery || undefined,
       page,
-      limit: viewMode === 'calendar' ? 1000 : PAGE_SIZE,
+      limit: PAGE_SIZE,
     },
     { skip: viewMode === 'floor_plan' }
   );
@@ -352,11 +352,6 @@ export default function UnitsTab() {
                 className={viewMode === 'grid' ? 'active' : ''}
                 onClick={() => dispatch(setViewMode('grid'))}
               ><Grid3x3 size={14} /></button>
-              <button
-                title="Calendar"
-                className={viewMode === 'calendar' ? 'active' : ''}
-                onClick={() => dispatch(setViewMode('calendar'))}
-              ><Calendar size={14} /></button>
             </div>
 
             <PermissionGuard permission="unit.create">
@@ -586,16 +581,6 @@ export default function UnitsTab() {
                 </button>
               </div>
             </div>
-          )}
-
-          {/* ── Calendar View ── */}
-          {viewMode === 'calendar' && (
-            <CalendarView
-              units={listData?.data || []}
-              loading={listLoading}
-              hasFilters={hasFilters}
-              onSelectUnit={(id) => dispatch(selectUnit(id))}
-            />
           )}
 
         </div>
@@ -1155,130 +1140,6 @@ function CreateUnitModal({ propertyId, towers, selectedTowerId }: { propertyId: 
           >
             {isLoading ? 'Creating…' : '+ Add P-Unit'}
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Calendar View ── */
-function CalendarView({
-  units,
-  loading,
-  hasFilters,
-  onSelectUnit,
-}: {
-  units: UnitListItem[];
-  loading: boolean;
-  hasFilters: boolean;
-  onSelectUnit: (id: string) => void;
-}) {
-  const [month, setMonth] = useState(() => {
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() };
-  });
-
-  const calendarDays = useMemo(() => {
-    const firstDay = new Date(month.year, month.month, 1);
-    const lastDay = new Date(month.year, month.month + 1, 0);
-    const startDow = firstDay.getDay(); // 0=Sun
-    const totalDays = lastDay.getDate();
-    const today = new Date();
-
-    const days: Array<{ date: number; isToday: boolean } | null> = [];
-    // Padding for start of week
-    for (let i = 0; i < startDow; i++) days.push(null);
-    for (let d = 1; d <= totalDays; d++) {
-      days.push({
-        date: d,
-        isToday: d === today.getDate() && month.month === today.getMonth() && month.year === today.getFullYear(),
-      });
-    }
-    return days;
-  }, [month]);
-
-  const monthLabel = new Date(month.year, month.month).toLocaleString('default', { month: 'long', year: 'numeric' });
-
-  // Status summary for the current snapshot
-  const statusSummary = useMemo(() => {
-    const summary: Record<string, number> = {};
-    for (const u of units) {
-      summary[u.status] = (summary[u.status] || 0) + 1;
-    }
-    return summary;
-  }, [units]);
-
-  const prevMonth = () => setMonth((m) => m.month === 0 ? { year: m.year - 1, month: 11 } : { ...m, month: m.month - 1 });
-  const nextMonth = () => setMonth((m) => m.month === 11 ? { year: m.year + 1, month: 0 } : { ...m, month: m.month + 1 });
-
-  if (loading) return <div className="units-loading"><Building2 size={24} /><span>Loading…</span></div>;
-  if (units.length === 0) return <EmptyState message={hasFilters ? 'No units match the current filters' : 'No units yet'} />;
-
-  return (
-    <div className="calendar-view">
-      {/* Month header */}
-      <div className="cal-header">
-        <button className="cal-nav" onClick={prevMonth}>‹</button>
-        <span className="cal-month">{monthLabel}</span>
-        <button className="cal-nav" onClick={nextMonth}>›</button>
-      </div>
-
-      {/* Status summary bar */}
-      <div className="cal-summary">
-        {STATUSES.map((s) => (
-          <div key={s.key} className="cal-sum-item">
-            <span className="cal-sum-dot" style={{ background: s.color }} />
-            <span className="cal-sum-count">{statusSummary[s.key] || 0}</span>
-            <span className="cal-sum-label">{s.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar grid */}
-      <div className="cal-grid">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-          <div key={d} className="cal-dow">{d}</div>
-        ))}
-        {calendarDays.map((day, i) => (
-          <div key={i} className={`cal-day ${!day ? 'empty' : ''} ${day?.isToday ? 'today' : ''}`}>
-            {day && (
-              <>
-                <span className="cal-date">{day.date}</span>
-                <div className="cal-day-dots">
-                  {STATUSES.map((s) => {
-                    const count = statusSummary[s.key] || 0;
-                    if (count === 0) return null;
-                    return (
-                      <div
-                        key={s.key}
-                        className="cal-dot-bar"
-                        style={{ background: s.color + '55', borderColor: s.color }}
-                        title={`${count} ${s.label}`}
-                      >
-                        <span style={{ color: s.color }}>{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* P-Unit list below calendar */}
-      <div className="cal-unit-list">
-        <div className="cal-list-header">Property Units ({units.length})</div>
-        <div className="cal-list-scroll">
-          {units.slice(0, 50).map((u) => (
-            <button key={u.id} className="cal-unit-row" onClick={() => onSelectUnit(u.id)}>
-              <span className="cal-u-dot" style={{ background: STATUS_COLOR[u.status] }} />
-              <span className="cal-u-num">{u.unitNumber}</span>
-              <span className="cal-u-type">{u.unitType.replace(/_/g, ' ')}</span>
-              <span className="cal-u-status" style={{ color: STATUS_COLOR[u.status] }}>{u.status.replace(/_/g, ' ')}</span>
-              <ChevronRight size={12} />
-            </button>
-          ))}
         </div>
       </div>
     </div>

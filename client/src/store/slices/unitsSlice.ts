@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
-type ViewMode = 'floor_plan' | 'list' | 'grid' | 'calendar';
+type ViewMode = 'floor_plan' | 'list' | 'grid';
 
 interface UnitsState {
   selectedUnitId: string | null;
