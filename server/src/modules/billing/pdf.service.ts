@@ -263,7 +263,7 @@ const INVOICE_TEMPLATE = `
     </tbody>
     <tfoot>
       <tr class="row-grand">
-        <td colspan="6" class="ta-right" style="padding-right:10px;">Grand Total</td>
+        <td colspan="6" class="ta-right" style="padding-right:10px;">Grand Total ({{displayCurrency}})</td>
         <td class="col-amt ta-right">{{mmk grandTotal}}</td>
       </tr>
     </tfoot>
@@ -287,9 +287,69 @@ const INVOICE_TEMPLATE = `
 </html>
 `;
 
+// ─── Singleton Browser Pool ────────────────────────────────────────────────────
+// Launching Puppeteer for every PDF adds 1–3 s of cold-start overhead.
+// We keep one browser process alive and reuse it across requests.
+let _browser: import('puppeteer').Browser | null = null;
+let _launching = false;
+const _launchQueue: Array<(b: import('puppeteer').Browser) => void> = [];
+
+async function getBrowser(): Promise<import('puppeteer').Browser> {
+  if (_browser) {
+    try { await _browser.version(); return _browser; }
+    catch { logger.warn('Puppeteer browser disconnected — reconnecting…'); _browser = null; }
+  }
+  if (_launching) {
+    return new Promise<import('puppeteer').Browser>((resolve) => { _launchQueue.push(resolve); });
+  }
+  _launching = true;
+  try {
+    logger.info('Launching Puppeteer browser (singleton)…');
+    _browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    });
+    _browser.on('disconnected', () => { logger.warn('Puppeteer browser disconnected'); _browser = null; });
+    for (const resolve of _launchQueue.splice(0)) resolve(_browser);
+    return _browser;
+  } finally {
+    _launching = false;
+  }
+}
+
 // ─── Service Class ─────────────────────────────────────────────────────────────
 export class InvoicePdfService {
   private compiledTemplate = Handlebars.compile(INVOICE_TEMPLATE);
+
+  /** Convert amount from one currency to another via the property's rate table. */
+  private convertAmount(
+    amount: number,
+    fromCurrency: string,
+    toCurrency: string,
+    rates: Array<{ currency: string; operator: string; rate: any; isBaseCurrency: boolean }>,
+  ): number {
+    if (!fromCurrency || !toCurrency || fromCurrency === toCurrency) return amount;
+    const baseCurrency = rates.find(r => r.isBaseCurrency)?.currency;
+    if (!baseCurrency) return amount;
+
+    // Step 1: fromCurrency → base
+    let baseAmount = amount;
+    if (fromCurrency !== baseCurrency) {
+      const fromRow = rates.find(r => r.currency === fromCurrency);
+      if (!fromRow) return amount;
+      baseAmount = fromRow.operator === 'divide'
+        ? amount / Number(fromRow.rate)
+        : amount * Number(fromRow.rate);
+    }
+
+    // Step 2: base → toCurrency
+    if (toCurrency === baseCurrency) return baseAmount;
+    const toRow = rates.find(r => r.currency === toCurrency);
+    if (!toRow) return baseAmount;
+    return toRow.operator === 'divide'
+      ? baseAmount * Number(toRow.rate)
+      : baseAmount / Number(toRow.rate);
+  }
 
   async generatePdfBuffer(invoiceId: string): Promise<Buffer> {
     const invoice = await prisma.invoice.findUnique({
@@ -305,6 +365,7 @@ export class InvoicePdfService {
           select: {
             id: true, firstName: true, lastName: true,
             companyName: true, tenantType: true, email: true,
+            currency: true,
           },
         },
         unit:     { select: { id: true, unitNumber: true } },
@@ -313,6 +374,24 @@ export class InvoicePdfService {
       },
     });
     if (!invoice) throw AppError.notFound('Invoice');
+
+    // ── Fetch currency rates for the invoice's property ──────────────────────
+    const tenantCurrency = (invoice.tenant as any).currency as string | null;
+    const invCurrency    = invoice.currency || 'USD';
+    const displayCurrency = tenantCurrency || invCurrency;
+
+    let rates: Array<{ currency: string; operator: string; rate: any; isBaseCurrency: boolean }> = [];
+    if (tenantCurrency && tenantCurrency !== invCurrency && invoice.propertyId) {
+      rates = await prisma.currencyRate.findMany({
+        where: { propertyId: invoice.propertyId, isActive: true },
+        select: { currency: true, operator: true, rate: true, isBaseCurrency: true },
+      });
+    }
+
+    const convert = (amount: number) =>
+      tenantCurrency && tenantCurrency !== invCurrency && rates.length > 0
+        ? this.convertAmount(amount, invCurrency, tenantCurrency, rates)
+        : amount;
 
     const tenantName = invoice.tenant.tenantType === 'company'
       ? invoice.tenant.companyName || ''
@@ -333,19 +412,16 @@ export class InvoicePdfService {
       items: items.map((item, iIdx) => ({
         ...item,
         subNo:     `${idx + 1}.${iIdx + 1}`,
-        lineTotal: Number(item.lineTotal),
+        lineTotal: convert(Number(item.lineTotal)),
         quantity:  Number(item.quantity),
-        unitPrice: Number(item.unitPrice),
+        unitPrice: convert(Number(item.unitPrice)),
       })),
-      total: items.reduce((s, l) => s + Number(l.lineTotal), 0),
+      total: convert(items.reduce((s, l) => s + Number(l.lineTotal), 0)),
     }));
 
-    const grandTotal = Number(invoice.totalAmount);
+    const grandTotal = convert(Number(invoice.totalAmount));
 
     // ── Resolve property logo URL for Puppeteer ──────────────────────────────
-    // Puppeteer needs an absolute URL to load images when using setContent().
-    // If the stored URL is a relative path (e.g. /uploads/...) we prefix it
-    // with the local server base so headless Chrome can fetch it.
     const rawLogoUrl = (invoice.property as any).coverImageUrl
       || (invoice.property as any).imageUrl
       || null;
@@ -353,10 +429,8 @@ export class InvoicePdfService {
     let propertyLogoUrl: string | null = null;
     if (rawLogoUrl) {
       if (rawLogoUrl.startsWith('http://') || rawLogoUrl.startsWith('https://')) {
-        // Already absolute (CDN / Spaces URL)
         propertyLogoUrl = rawLogoUrl;
       } else {
-        // Relative path — prefix with local server base
         const port = process.env.PORT || 3000;
         propertyLogoUrl = `http://localhost:${port}${rawLogoUrl}`;
       }
@@ -368,17 +442,16 @@ export class InvoicePdfService {
       groups,
       grandTotal,
       propertyLogoUrl,
+      displayCurrency,
     });
 
-    // ── Generate PDF in memory — no disk write ───────────────────────────────
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-
+    // ── Render PDF using the shared persistent browser ────────────────────────
+    const browser = await getBrowser();
+    const page = await browser.newPage();
     try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'load' });
+      page.setDefaultTimeout(30_000);
+      // domcontentloaded is sufficient — HTML is fully self-contained
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
 
       const pdfBuffer = await page.pdf({
         format: 'A4',
@@ -386,12 +459,14 @@ export class InvoicePdfService {
         margin: { top: '12mm', right: '12mm', bottom: '12mm', left: '12mm' },
       });
 
-      logger.info(`PDF generated (stream) for invoice ${invoice.invoiceNumber}`);
+      logger.info(`PDF generated for invoice ${invoice.invoiceNumber}`);
       return Buffer.from(pdfBuffer);
     } finally {
-      await browser.close();
+      // Close only the page — browser stays alive for the next request
+      await page.close().catch(() => {});
     }
   }
 }
 
 export const invoicePdfService = new InvoicePdfService();
+

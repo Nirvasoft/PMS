@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetInvoiceQuery, useVoidInvoiceMutation, useLazyGetInvoicePdfQuery,
   useSendInvoiceMutation, useCreateCreditNoteMutation, useGetChargeTypesQuery,
+  useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
 import { ArrowLeft, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, AlertTriangle, Clock, Banknote, History, ShieldAlert, Timer, Eye, ExternalLink } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
@@ -29,6 +31,36 @@ export default function InvoiceDetailPage() {
 
   const chargeTypes = chargeTypesData?.data || [];
   const inv = data?.data;
+
+  // Fetch currency rates for this invoice's property so we can convert to tenant currency.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    inv?.property?.id ? { propertyId: inv.property.id } : skipToken,
+  );
+  const currencyRates = currencyRatesData?.data ?? [];
+
+  /**
+   * Convert `amount` (expressed in `fromCurrency`) into `toCurrency` using the
+   * property's currency-rate table.  If either currency is unknown or the same,
+   * the amount is returned as-is.
+   *
+   * Strategy: treat every rate as "<currency> <operator> rate = base". We first
+   * convert fromCurrency → base, then base → toCurrency.
+   */
+  const convertCurrency = (amount: number, fromCurrency: string, toCurrency: string): number => {
+    if (!fromCurrency || !toCurrency || fromCurrency === toCurrency) return amount;
+    const fromRow = currencyRates.find(r => r.currency === fromCurrency);
+    const toRow   = currencyRates.find(r => r.currency === toCurrency);
+    // Convert fromCurrency → base
+    let baseAmount = amount;
+    if (fromRow && !fromRow.isBaseCurrency) {
+      baseAmount = fromRow.operator === 'divide' ? amount / Number(fromRow.rate) : amount * Number(fromRow.rate);
+    }
+    // Convert base → toCurrency
+    if (toRow && !toRow.isBaseCurrency) {
+      return toRow.operator === 'divide' ? baseAmount * Number(toRow.rate) : baseAmount / Number(toRow.rate);
+    }
+    return baseAmount;
+  };
 
   // Credit Note modal state
   const [showCreditModal, setShowCreditModal] = useState(false);
@@ -151,11 +183,40 @@ export default function InvoiceDetailPage() {
 
   const outstanding = Number(inv.totalAmount) - Number(inv.paidAmount);
 
+  // ── Tenant-currency conversion ──────────────────────────────────────────────
+  // The invoice is stored in `inv.currency` (property/base currency).
+  // The tenant may have a different preferred currency (`inv.tenant.currency`).
+  // When they differ we show the tenant-currency amount as the primary value and
+  // the invoice-currency amount as a small secondary label (like the payment rows).
+  const tenantCurrency = inv.tenant.currency || inv.currency;
+  const hasTenantCurrency = tenantCurrency && tenantCurrency !== inv.currency;
+
+  /**
+   * Returns a JSX element (or plain string) showing `amount` in the tenant's
+   * currency.  When the tenant currency equals the invoice currency the result
+   * is just the plain formatted string.  Otherwise it adds a small footnote
+   * showing the original invoice-currency value.
+   */
+  const fmtTenant = (amount: number | string, invCurrency = inv.currency): React.ReactNode => {
+    const num = Number(amount);
+    if (!hasTenantCurrency) return formatCurrency(num, invCurrency);
+    const converted = convertCurrency(num, invCurrency, tenantCurrency);
+    return (
+      <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+        <span>{formatCurrency(converted, tenantCurrency)}</span>
+        <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>
+          {formatCurrency(num, invCurrency)}
+        </span>
+      </span>
+    );
+  };
+
   // Penalty info
   const hasPenalty = Number(inv.penaltyAmount) > 0;
   const daysOverdue = inv.status === 'overdue' || hasPenalty
     ? Math.max(0, differenceInDays(new Date(), new Date(inv.dueDate)) - (inv.gracePeriodDays || 0))
     : 0;
+
 
   return (
     <div className="billing-page">
@@ -225,6 +286,20 @@ export default function InvoiceDetailPage() {
           <div className="imi-label">Due Date</div>
           <div className="imi-value">{format(new Date(inv.dueDate), 'MMM d, yyyy')}</div>
         </div>
+        <div className="invoice-meta-item">
+          <div className="imi-label">Currency</div>
+          <div className="imi-value" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600 }}>{inv.currency}</span>
+            {hasTenantCurrency && (
+              <span style={{
+                fontSize: 10, padding: '2px 7px', borderRadius: 6, fontWeight: 700,
+                background: 'rgba(99,102,241,0.1)', color: '#818cf8', letterSpacing: '0.04em',
+              }}>
+                → {tenantCurrency} (tenant)
+              </span>
+            )}
+          </div>
+        </div>
         {inv.periodFrom && inv.periodTo && (
           <div className="invoice-meta-item">
             <div className="imi-label">Billing Period</div>
@@ -260,7 +335,7 @@ export default function InvoiceDetailPage() {
             {hasPenalty && (
               <div style={{ background: 'rgba(239,68,68,0.06)', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Penalty Amount</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>{formatCurrency(inv.penaltyAmount, inv.currency)}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>{fmtTenant(inv.penaltyAmount)}</div>
               </div>
             )}
             {daysOverdue > 0 && (
@@ -299,15 +374,15 @@ export default function InvoiceDetailPage() {
             <div style={{ marginTop: 14, padding: '10px 14px', background: 'rgba(239,68,68,0.03)', borderRadius: 8, border: '1px dashed rgba(239,68,68,0.15)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}>
                 <span>Original Total</span>
-                <span>{formatCurrency(Number(inv.totalAmount) - Number(inv.penaltyAmount), inv.currency)}</span>
+                <span>{fmtTenant(Number(inv.totalAmount) - Number(inv.penaltyAmount))}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#ef4444', fontWeight: 600, marginTop: 4 }}>
                 <span>+ Late Penalty</span>
-                <span>{formatCurrency(inv.penaltyAmount, inv.currency)}</span>
+                <span>{fmtTenant(inv.penaltyAmount)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(239,68,68,0.1)' }}>
                 <span>Revised Total</span>
-                <span>{formatCurrency(inv.totalAmount, inv.currency)}</span>
+                <span>{fmtTenant(inv.totalAmount)}</span>
               </div>
             </div>
           )}
@@ -336,11 +411,11 @@ export default function InvoiceDetailPage() {
                 <td style={{ fontWeight: 500 }}>{line.description}</td>
                 <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{line.chargeType.name}</td>
                 <td className="text-right">{Number(line.quantity)}</td>
-                <td className="text-right">{formatCurrency(line.unitPrice, inv.currency)}</td>
+                <td className="text-right">{fmtTenant(line.unitPrice)}</td>
                 <td className="text-right" style={{ color: 'var(--text-tertiary)' }}>
                   {Number(line.taxRate) > 0 ? `${(Number(line.taxRate) * 100).toFixed(1)}%` : '—'}
                 </td>
-                <td className="text-right" style={{ fontWeight: 600 }}>{formatCurrency(line.lineTotal, inv.currency)}</td>
+                <td className="text-right" style={{ fontWeight: 600 }}>{fmtTenant(line.lineTotal)}</td>
               </tr>
             ))}
           </tbody>
@@ -351,57 +426,42 @@ export default function InvoiceDetailPage() {
       <div className="invoice-totals-panel">
         <div className="invoice-total-row">
           <span className="label">Subtotal</span>
-          <span className="amount">{formatCurrency(inv.subtotal, inv.currency)}</span>
+          <span className="amount">{fmtTenant(inv.subtotal)}</span>
         </div>
         {Number(inv.taxAmount) > 0 && (
           <div className="invoice-total-row">
             <span className="label">Tax</span>
-            <span className="amount">{formatCurrency(inv.taxAmount, inv.currency)}</span>
+            <span className="amount">{fmtTenant(inv.taxAmount)}</span>
           </div>
         )}
         {Number(inv.penaltyAmount) > 0 && (
           <div className="invoice-total-row" style={{ color: '#ef4444' }}>
             <span className="label">Late Payment Penalty</span>
-            <span className="amount">{formatCurrency(inv.penaltyAmount, inv.currency)}</span>
+            <span className="amount">{fmtTenant(inv.penaltyAmount)}</span>
           </div>
         )}
         <div className="invoice-total-row total-main">
           <span className="label">Total Amount</span>
-          <span className="amount">{formatCurrency(inv.totalAmount, inv.currency)}</span>
+          <span className="amount">{fmtTenant(inv.totalAmount)}</span>
         </div>
         <div className="invoice-total-row">
           <span className="label">Paid</span>
           <span className="amount" style={{ color: '#10b981' }}>
-            {(() => {
-              const allocs = inv.receiptAllocations || [];
-              if (allocs.length === 0) return formatCurrency(inv.paidAmount, inv.currency);
-              // Group totals by receipt currency (No. 1 — use payment currency code)
-              const byCurrency: Record<string, number> = {};
-              for (const a of allocs) {
-                const rc = a.receipt.currency || inv.currency;
-                byCurrency[rc] = (byCurrency[rc] || 0) + Number(a.receipt.amount);
-              }
-              const entries = Object.entries(byCurrency);
-              if (entries.length === 1 && entries[0][0] === inv.currency) {
-                return formatCurrency(inv.paidAmount, inv.currency);
-              }
-              return (
-                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                  {entries.map(([cur, amt]) => (
-                    <span key={cur}>{formatCurrency(amt, cur)}</span>
-                  ))}
-                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400 }}>
-                    ≈ {formatCurrency(inv.paidAmount, inv.currency)}
-                  </span>
-                </span>
-              );
-            })()}
+            {hasTenantCurrency
+              ? <>
+                  {formatCurrency(convertCurrency(Number(inv.paidAmount), inv.currency, tenantCurrency), tenantCurrency)}
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 1 }}>
+                    {formatCurrency(inv.paidAmount, inv.currency)}
+                  </div>
+                </>
+              : formatCurrency(inv.paidAmount, inv.currency)
+            }
           </span>
         </div>
         <div className="invoice-total-row" style={{ fontWeight: 600, fontSize: 16 }}>
           <span className="label">Outstanding</span>
           <span className="amount" style={{ color: outstanding > 0 ? '#ef4444' : '#10b981' }}>
-            {formatCurrency(outstanding, inv.currency)}
+            {fmtTenant(outstanding)}
           </span>
         </div>
       </div>
@@ -450,13 +510,24 @@ export default function InvoiceDetailPage() {
                   </td>
                   <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{alloc.receipt.paymentReference || '—'}</td>
                   <td className="text-right" style={{ fontWeight: 700, color: '#10b981' }}>
-                    {/* No. 2 — show amount in receipt's own currency */}
-                    {formatCurrency(alloc.receipt.amount, alloc.receipt.currency || inv.currency)}
-                    {(alloc.receipt.currency && alloc.receipt.currency !== inv.currency) && (
-                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 2 }}>
-                        ≈ {formatCurrency(alloc.amount, inv.currency)}
-                      </div>
-                    )}
+                    {hasTenantCurrency
+                      ? <>
+                          {formatCurrency(convertCurrency(Number(alloc.amount), inv.currency, tenantCurrency), tenantCurrency)}
+                          {tenantCurrency !== (alloc.receipt.currency || inv.currency) && (
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 1 }}>
+                              {formatCurrency(alloc.receipt.amount, alloc.receipt.currency || inv.currency)}
+                            </div>
+                          )}
+                        </>
+                      : <>
+                          {formatCurrency(alloc.receipt.amount, alloc.receipt.currency || inv.currency)}
+                          {alloc.receipt.currency && alloc.receipt.currency !== inv.currency && (
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 1 }}>
+                              {formatCurrency(alloc.amount, inv.currency)}
+                            </div>
+                          )}
+                        </>
+                    }
                   </td>
                   <td>
                     <span className={`inv-status inv-status--${alloc.receipt.status === 'applied' ? 'paid' : alloc.receipt.status}`}
@@ -471,7 +542,18 @@ export default function InvoiceDetailPage() {
               <tr>
                 <td colSpan={4} style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--text-secondary)' }}>Total Payments</td>
                 <td className="text-right" style={{ fontWeight: 700, fontSize: 15, color: '#10b981' }}>
-                  {formatCurrency(inv.receiptAllocations.reduce((s: number, a: any) => s + Number(a.amount), 0), inv.currency)}
+                  {(() => {
+                    const total = inv.receiptAllocations.reduce((s: number, a: any) => s + Number(a.amount), 0);
+                    if (!hasTenantCurrency) return formatCurrency(total, inv.currency);
+                    return (
+                      <>
+                        {formatCurrency(convertCurrency(total, inv.currency, tenantCurrency), tenantCurrency)}
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 1 }}>
+                          {formatCurrency(total, inv.currency)}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </td>
                 <td></td>
               </tr>
@@ -498,7 +580,7 @@ export default function InvoiceDetailPage() {
             <div key={cn.id} onClick={() => navigate(`/admin/billing/invoices/${cn.id}`)}
               style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)' }}>
               <span>{cn.invoiceNumber}</span>
-              <span style={{ color: '#10b981', fontWeight: 600 }}>-{formatCurrency(cn.totalAmount, inv.currency)}</span>
+              <span style={{ color: '#10b981', fontWeight: 600 }}>-{fmtTenant(cn.totalAmount)}</span>
             </div>
           ))}
         </div>
@@ -523,7 +605,7 @@ export default function InvoiceDetailPage() {
             <form onSubmit={handleCreateCreditNote}>
               <div className="modal-body">
                 <div style={{ marginBottom: 16, padding: 12, background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 10, fontSize: 12, color: '#34d399' }}>
-                  Creating credit note against <strong>{inv.invoiceNumber}</strong> — Total: {formatCurrency(inv.totalAmount, inv.currency)}
+                  Creating credit note against <strong>{inv.invoiceNumber}</strong> — Total: {fmtTenant(inv.totalAmount)}
                 </div>
 
                 <div className="inv-field" style={{ marginBottom: 16 }}>
@@ -593,7 +675,7 @@ export default function InvoiceDetailPage() {
                 </table>
 
                 <div style={{ marginTop: 16, textAlign: 'right', fontSize: 16, fontWeight: 700, color: '#34d399' }}>
-                  Credit Total: {formatCurrency(creditTotal, inv.currency)}
+                  Credit Total: {fmtTenant(creditTotal)}
                 </div>
               </div>
               <div className="modal-footer">

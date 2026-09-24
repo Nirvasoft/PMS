@@ -5,7 +5,7 @@ import {
   type TenantListItem,
 } from '../../../store/api/tenantsApi';
 import {
-  Users, Plus, Search, X, Building2, User, Shield, ShieldOff,
+  Users, Plus, Search, X, Building2, User, Shield, ShieldOff, ShieldCheck,
   Trash2, Filter, GitMerge, Tag,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -106,6 +106,76 @@ export default function TenantListPage() {
         </div>
       </div>
 
+      {/* KYC status quick-stat chips */}
+      {meta && (() => {
+        const verifiedCount = tenants.filter(t => t.kycStatus === 'verified').length;
+        const pendingCount  = tenants.filter(t => t.kycStatus === 'pending').length;
+        const inReviewCount = tenants.filter(t => t.kycStatus === 'in_review').length;
+        const rejectedCount = tenants.filter(t => t.kycStatus === 'rejected').length;
+        return (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <button
+              onClick={() => { setKycStatus(kycStatus === 'verified' ? '' : 'verified'); setPage(1); }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', border: '1px solid',
+                borderColor: kycStatus === 'verified' ? '#2ecc71' : 'rgba(46,204,113,0.35)',
+                background: kycStatus === 'verified' ? 'rgba(46,204,113,0.12)' : 'rgba(46,204,113,0.06)',
+                color: '#2ecc71',
+              }}
+            >
+              <ShieldCheck size={13} /> {verifiedCount} Verified
+            </button>
+            {inReviewCount > 0 && (
+              <button
+                onClick={() => { setKycStatus(kycStatus === 'in_review' ? '' : 'in_review'); setPage(1); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', border: '1px solid',
+                  borderColor: kycStatus === 'in_review' ? '#f39c12' : 'rgba(243,156,18,0.35)',
+                  background: kycStatus === 'in_review' ? 'rgba(243,156,18,0.12)' : 'rgba(243,156,18,0.06)',
+                  color: '#f39c12',
+                }}
+              >
+                <Shield size={13} /> {inReviewCount} In Review
+              </button>
+            )}
+            {pendingCount > 0 && (
+              <button
+                onClick={() => { setKycStatus(kycStatus === 'pending' ? '' : 'pending'); setPage(1); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', border: '1px solid',
+                  borderColor: kycStatus === 'pending' ? '#95a5a6' : 'rgba(149,165,166,0.35)',
+                  background: kycStatus === 'pending' ? 'rgba(149,165,166,0.12)' : 'rgba(149,165,166,0.06)',
+                  color: '#95a5a6',
+                }}
+              >
+                <Shield size={13} /> {pendingCount} Pending
+              </button>
+            )}
+            {rejectedCount > 0 && (
+              <button
+                onClick={() => { setKycStatus(kycStatus === 'rejected' ? '' : 'rejected'); setPage(1); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', border: '1px solid',
+                  borderColor: kycStatus === 'rejected' ? '#e74c3c' : 'rgba(231,76,60,0.35)',
+                  background: kycStatus === 'rejected' ? 'rgba(231,76,60,0.12)' : 'rgba(231,76,60,0.06)',
+                  color: '#e74c3c',
+                }}
+              >
+                <ShieldOff size={13} /> {rejectedCount} Rejected
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Filters */}
       <div className="tenant-filters">
         <div className="search-box">
@@ -132,6 +202,14 @@ export default function TenantListPage() {
           <option value="">All KYC Statuses</option>
           {Object.entries(KYC_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
+
+        <button
+          className={`filter-btn-bl ${kycStatus === 'verified' ? 'active' : ''}`}
+          style={kycStatus === 'verified' ? { borderColor: '#2ecc71', color: '#2ecc71', background: 'rgba(46,204,113,0.08)' } : {}}
+          onClick={() => { setKycStatus(kycStatus === 'verified' ? '' : 'verified'); setPage(1); }}
+        >
+          <ShieldCheck size={13} /> KYC Verified
+        </button>
 
         <div className="search-box">
           <Tag size={14} />
@@ -253,7 +331,13 @@ function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
 
       {/* KYC */}
       <div>
-        <span className="kyc-badge" style={{ color: kycColor, background: kycColor + '18', borderColor: kycColor + '40' }}>
+        <span className="kyc-badge" style={{ color: kycColor, background: kycColor + '18', borderColor: kycColor + '40', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {tenant.kycStatus === 'verified'
+            ? <ShieldCheck size={11} />
+            : tenant.kycStatus === 'rejected' || tenant.kycStatus === 'expired'
+              ? <ShieldOff size={11} />
+              : <Shield size={11} />
+          }
           {KYC_LABELS[tenant.kycStatus] || tenant.kycStatus}
         </span>
       </div>

@@ -77,6 +77,16 @@ export default function InvoiceListPage() {
     return row.operator === 'divide' ? amount / Number(row.rate) : amount * Number(row.rate);
   };
 
+  // Two-hop conversion: fromCurrency → base → toCurrency
+  const convertCurrency = (amount: number, fromCurrency: string, toCurrency: string): number => {
+    if (!fromCurrency || !toCurrency || fromCurrency === toCurrency) return amount;
+    const baseAmount = toBase(amount, fromCurrency);
+    if (toCurrency === baseCurrencyCode) return baseAmount;
+    const toRow = currencyRates.find(r => r.currency === toCurrency);
+    if (!toRow) return baseAmount;
+    return toRow.operator === 'divide' ? baseAmount * Number(toRow.rate) : baseAmount / Number(toRow.rate);
+  };
+
   const stats = useMemo(() => {
     const all = invoices;
     // Group raw totals by currency for the "All Properties" multi-currency display
@@ -371,11 +381,23 @@ export default function InvoiceListPage() {
                       )}
                     </td>
                     <td className="text-right">
-                      <span className="cell-amount">{formatCurrency(inv.totalAmount, inv.currency)}</span>
+                      <span className="cell-amount">
+                        {inv.tenant?.currency && inv.tenant.currency !== inv.currency ? (
+                          <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                            <span>{formatCurrency(convertCurrency(Number(inv.totalAmount), inv.currency, inv.tenant.currency), inv.tenant.currency)}</span>
+                            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>{formatCurrency(inv.totalAmount, inv.currency)}</span>
+                          </span>
+                        ) : formatCurrency(inv.totalAmount, inv.currency)}
+                      </span>
                     </td>
                     <td className="text-right">
                       <span className={`cell-amount ${paidNum > 0 ? (paidNum >= totalNum ? 'paid' : '') : 'zero'}`}>
-                        {formatCurrency(inv.paidAmount, inv.currency)}
+                        {inv.tenant?.currency && inv.tenant.currency !== inv.currency ? (
+                          <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                            <span>{formatCurrency(convertCurrency(Number(inv.paidAmount), inv.currency, inv.tenant.currency), inv.tenant.currency)}</span>
+                            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>{formatCurrency(inv.paidAmount, inv.currency)}</span>
+                          </span>
+                        ) : formatCurrency(inv.paidAmount, inv.currency)}
                       </span>
                     </td>
                     <td>

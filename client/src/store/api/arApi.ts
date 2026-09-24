@@ -1,5 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
+import { billingApi } from './billingApi';
 
 // ─── Types ───────────────────────────────────
 
@@ -163,11 +164,26 @@ export const arApi = createApi({
     createReceipt: builder.mutation<ApiResponse<ReceiptDetail>, Record<string, unknown>>({
       query: (body) => ({ url: '/receipts', method: 'POST', body }),
       invalidatesTags: ['Receipts', 'CollectionSummary', 'AgingReport'],
+      // Invalidate the invoice cache so paidAmount / status / outstanding
+      // reflect the server's recalculation immediately after payment is recorded.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(billingApi.util.invalidateTags(['Invoices']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
 
     reverseReceipt: builder.mutation<ApiResponse<{ id: string; status: string }>, { id: string; reason: string }>({
       query: ({ id, reason }) => ({ url: `/receipts/${id}/reverse`, method: 'POST', body: { reason } }),
       invalidatesTags: ['Receipts', 'CollectionSummary', 'AgingReport'],
+      // Reversal also restores invoice paidAmount / status — invalidate invoice cache.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(billingApi.util.invalidateTags(['Invoices']));
+        } catch { /* mutation failed — nothing to invalidate */ }
+      },
     }),
 
     // ── AR Reports ────────────────────────

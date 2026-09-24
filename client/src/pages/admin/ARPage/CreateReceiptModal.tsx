@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useCreateReceiptMutation } from '../../../store/api/arApi';
 import { useGetInvoicesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { Banknote, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,24 +20,32 @@ export default function CreateReceiptModal({ onClose }: Props) {
   const [currency, setCurrency] = useState('');
   const [notes, setNotes] = useState('');
   const [allocations, setAllocations] = useState<Record<string, number>>({});
-  const [tenantSearch, setTenantSearch] = useState('');
 
-  const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 50, search: tenantSearch || undefined });
+  // Active property — tenants are scoped to this property and must be KYC-verified.
+  const activePropertyId = useSelectedPropertyId();
+
+  const { data: tenantsData } = useGetTenantsQuery({
+    page: 1,
+    limit: 200,
+    propertyId: activePropertyId || undefined,
+    kycStatus: 'verified',
+  });
   const tenants = tenantsData?.data || [];
 
-  // Derive currency directly from the selected tenant's list item — no extra API call needed
-  // since currency is now included in the tenant list response.
+  // Derive currency from the selected tenant's record.
   const tenantCurrency = tenants.find(t => t.id === tenantId)?.currency || '';
 
-  // Fetch Currency Setup list — dropdown is populated from these configured currencies
-  const { data: currencyRatesData } = useGetCurrencyRatesQuery();
+  // Fetch currency rates scoped to the active property.
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    activePropertyId ? { propertyId: activePropertyId } : undefined,
+  );
   const currencyOptions = useMemo(() => {
     const rates = currencyRatesData?.data || [];
     return [...new Set(rates.map(r => r.currency))].sort();
   }, [currencyRatesData]);
 
   const { data: invoicesData } = useGetInvoicesQuery(
-    { tenantId: tenantId || undefined, page: 1, limit: 50 },
+    { tenantId: tenantId || undefined, propertyId: activePropertyId || undefined, page: 1, limit: 50 },
     { skip: !tenantId },
   );
   const outstandingInvoices = useMemo(() => {
@@ -56,6 +65,12 @@ export default function CreateReceiptModal({ onClose }: Props) {
       setCurrency(tenantCurrency);
     }
   }, [tenantCurrency]);
+
+  // Reset tenant selection whenever the active property changes.
+  useEffect(() => {
+    setTenantId('');
+    setAllocations({});
+  }, [activePropertyId]);
 
 
   const totalAllocated = Object.values(allocations).reduce((s, v) => s + (v || 0), 0);
@@ -84,6 +99,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
 
       await createReceipt({
         tenantId,
+        propertyId: activePropertyId || undefined,
         receiptDate,
         paymentMethod,
         paymentReference: paymentReference || undefined,
@@ -127,6 +143,12 @@ export default function CreateReceiptModal({ onClose }: Props) {
                 <option key={t.id} value={t.id}>{getTenantName(t)}</option>
               ))}
             </select>
+            {tenants.length === 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#f59e0b' }}>
+                <AlertTriangle size={13} />
+                No KYC-verified tenants found for this property.
+              </div>
+            )}
           </div>
         </div>
 

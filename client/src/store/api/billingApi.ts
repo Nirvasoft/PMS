@@ -128,7 +128,7 @@ export interface InvoiceListItem {
   paidAmount: string;
   penaltyAmount: string;
   currency: string;
-  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
+  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string; currency: string | null };
   unit: { id: string; unitNumber: string } | null;
   property: { id: string; name: string };
   outstandingAmount: number;

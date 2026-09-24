@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useGetReceiptsQuery } from '../../../store/api/arApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
-import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useSelectedPropertyId, useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
   Banknote, Plus, Search, ChevronLeft, ChevronRight,
@@ -24,8 +24,18 @@ export default function ReceiptsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const propertyId = useSelectedPropertyId();
-  const { data, isFetching } = useGetReceiptsQuery({ status: status || undefined, page, limit: 15 });
+  const propertyId = useSelectedPropertyId();         // for currency rates (always a real id)
+  const propertyFilter = useSelectedPropertyFilter(); // '' = All Properties, else specific id
+
+  // Reset to page 1 whenever the active property changes
+  useEffect(() => { setPage(1); }, [propertyFilter]);
+
+  const { data, isFetching } = useGetReceiptsQuery({
+    status: status || undefined,
+    propertyId: propertyFilter || undefined,
+    page,
+    limit: 15,
+  });
   const receipts = data?.data || [];
   const meta = data?.meta;
 
