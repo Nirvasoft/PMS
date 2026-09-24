@@ -125,7 +125,7 @@ export class TenantsService {
           property: { select: { name: true } },
           _count: { select: { leases: { where: activeLeasesWhere } } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ firstName: 'asc' }, { companyName: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
