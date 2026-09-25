@@ -334,7 +334,7 @@ export const unitsApi = createApi({
     }),
     createUnit: builder.mutation<ApiResponse<UnitDetail>, { propertyId: string; data: CreateUnitDto }>({
       query: ({ propertyId, data }) => ({ url: `/properties/${propertyId}/units`, method: 'POST', body: data }),
-      invalidatesTags: ['Units', 'FloorPlan', 'UnitStats'],
+      invalidatesTags: ['Units', 'FloorPlan', 'UnitStats', 'Towers'],
       async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
@@ -344,7 +344,7 @@ export const unitsApi = createApi({
     }),
     bulkCreateUnits: builder.mutation<ApiResponse<BulkCreateResult>, { propertyId: string; data: BulkCreateDto }>({
       query: ({ propertyId, data }) => ({ url: `/properties/${propertyId}/units/bulk`, method: 'POST', body: data }),
-      invalidatesTags: ['Units', 'FloorPlan', 'UnitStats'],
+      invalidatesTags: ['Units', 'FloorPlan', 'UnitStats', 'Towers'],
       async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
@@ -363,7 +363,7 @@ export const unitsApi = createApi({
     }),
     deleteUnit: builder.mutation<void, { propertyId: string; unitId: string }>({
       query: ({ propertyId, unitId }) => ({ url: `/properties/${propertyId}/units/${unitId}`, method: 'DELETE' }),
-      invalidatesTags: ['Units', 'FloorPlan', 'UnitStats'],
+      invalidatesTags: ['Units', 'FloorPlan', 'UnitStats', 'Towers'],
       async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
@@ -387,7 +387,7 @@ export const unitsApi = createApi({
       query: ({ propertyId, ...body }) => ({
         url: `/properties/${propertyId}/units/bulk-status`, method: 'POST', body,
       }),
-      invalidatesTags: ['Units', 'FloorPlan', 'UnitStats'],
+      invalidatesTags: ['Units', 'FloorPlan', 'UnitStats', 'Towers'],
       async onQueryStarted({ propertyId }, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;

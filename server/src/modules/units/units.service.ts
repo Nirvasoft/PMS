@@ -39,7 +39,6 @@ export class TowersService {
       where: { propertyId, isActive: true },
       include: {
         sections: { orderBy: { sortOrder: 'asc' } },
-        _count: { select: { units: true } },
       },
       orderBy: { sortOrder: 'asc' },
     });
@@ -51,7 +50,8 @@ export class TowersService {
         where: { towerId: t.id, deletedAt: null },
         _count: true,
       });
-      const unitStats = { total: t._count.units, available: 0, occupied: 0, reserved: 0, maintenance: 0, not_for_rent: 0 };
+      const activeTotal = statusCounts.reduce((sum, s) => sum + s._count, 0);
+      const unitStats = { total: activeTotal, available: 0, occupied: 0, reserved: 0, maintenance: 0, not_for_rent: 0 };
       for (const s of statusCounts) {
         (unitStats as any)[s.status] = s._count;
       }
