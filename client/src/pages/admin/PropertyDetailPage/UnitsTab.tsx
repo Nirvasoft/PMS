@@ -1126,8 +1126,10 @@ function CreateUnitModal({
               <label>Currency *</label>
               <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
                 <option value="">Select currency…</option>
-                {currencyOptions.map((c) => (
-                  <option key={c.id} value={c.currency}>{c.currency}</option>
+                {[...currencyOptions].sort((a, b) => (b.isBaseCurrency ? 1 : 0) - (a.isBaseCurrency ? 1 : 0)).map((c) => (
+                  <option key={c.id} value={c.currency}>
+                    {c.currency}{c.isBaseCurrency ? ' (Base)' : ''}
+                  </option>
                 ))}
               </select>
             </div>

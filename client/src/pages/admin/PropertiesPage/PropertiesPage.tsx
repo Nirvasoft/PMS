@@ -361,7 +361,7 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
               <div className="edit-field">
                 <label>Branch</label>
                 <select value={form.branchId} onChange={e => set('branchId', e.target.value)}>
-                  <option value="">— No Branch —</option>
+                  <option value="">No Branch</option>
                   {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
@@ -382,11 +382,40 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
             <div className="edit-grid">
               <div className="edit-field">
                 <label>Year Built</label>
-                <input type="number" min={1800} max={new Date().getFullYear() + 5} value={form.yearBuilt} onChange={e => set('yearBuilt', e.target.value)} placeholder="e.g. 2018" />
+                <input
+                  type="number"
+                  min={1800}
+                  max={new Date().getFullYear() + 5}
+                  value={form.yearBuilt}
+                  onChange={e => set('yearBuilt', e.target.value)}
+                  placeholder="e.g. 2018"
+                />
+                {form.yearBuilt !== '' && Number(form.yearBuilt) < 1800 && (
+                  <span style={{ color: 'var(--danger, #ef4444)', fontSize: '0.75rem', marginTop: 4, display: 'block' }}>
+                    Year Built cannot be before 1800.
+                  </span>
+                )}
+                {form.yearBuilt !== '' && Number(form.yearBuilt) > new Date().getFullYear() + 5 && (
+                  <span style={{ color: 'var(--danger, #ef4444)', fontSize: '0.75rem', marginTop: 4, display: 'block' }}>
+                    Year Built cannot exceed {new Date().getFullYear() + 5}.
+                  </span>
+                )}
               </div>
               <div className="edit-field">
                 <label>Total Floors</label>
-                <input type="number" min={1} value={form.totalFloors} onChange={e => set('totalFloors', e.target.value)} placeholder="e.g. 32" />
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={form.totalFloors}
+                  onChange={e => set('totalFloors', e.target.value)}
+                  placeholder="e.g. 32"
+                />
+                {form.totalFloors !== '' && Number(form.totalFloors) > 100 && (
+                  <span style={{ color: 'var(--danger, #ef4444)', fontSize: '0.75rem', marginTop: 4, display: 'block' }}>
+                    Maximum allowed is 100 floors.
+                  </span>
+                )}
               </div>
               <div className="edit-field">
                 <label>Total Area (sqm)</label>

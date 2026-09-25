@@ -672,8 +672,10 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                         onChange={(e) => ef('currency', e.target.value)}
                       >
                         <option value="">— Select —</option>
-                        {currencyOptions.map((c) => (
-                          <option key={c.id} value={c.currency}>{c.currency}</option>
+                        {[...currencyOptions].sort((a, b) => (b.isBaseCurrency ? 1 : 0) - (a.isBaseCurrency ? 1 : 0)).map((c) => (
+                          <option key={c.id} value={c.currency}>
+                            {c.currency}{c.isBaseCurrency ? ' (Base)' : ''}
+                          </option>
                         ))}
                       </select>
                     </div>

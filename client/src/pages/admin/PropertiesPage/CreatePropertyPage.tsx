@@ -160,6 +160,34 @@ const STEPS = [
 const TIMEZONES  = ['UTC','America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Paris','Asia/Singapore','Asia/Tokyo','Asia/Bangkok','Asia/Yangon','Asia/Dubai'];
 const COUNTRIES  = ['US','SG','GB','TH','MM','JP','AE','AU','DE','FR','IN','CN'];
 
+/** ISO-2 → currency code — used to auto-select currency when location is detected */
+const COUNTRY_CURRENCY_MAP: Record<string, string> = {
+  AE: 'AED', AU: 'AUD', BD: 'BDT', BH: 'BHD', BR: 'BRL', CA: 'CAD',
+  CH: 'CHF', CN: 'CNY', DE: 'EUR', DK: 'DKK', FR: 'EUR', GB: 'GBP',
+  HK: 'HKD', ID: 'IDR', IN: 'INR', JP: 'JPY', KH: 'KHR', KR: 'KRW',
+  KW: 'KWD', LA: 'LAK', LK: 'LKR', MM: 'MMK', MY: 'MYR', NO: 'NOK',
+  NP: 'NPR', NZ: 'NZD', OM: 'OMR', PH: 'PHP', PK: 'PKR', QA: 'QAR',
+  SA: 'SAR', SE: 'SEK', SG: 'SGD', TH: 'THB', TR: 'TRY', TW: 'TWD',
+  US: 'USD', VN: 'VND', ZA: 'ZAR',
+};
+
+/** ISO-2 → IANA timezone — values must exist in the TIMEZONES list */
+const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
+  AE: 'Asia/Dubai',       AU: 'UTC',               BD: 'UTC',
+  BH: 'Asia/Dubai',       BR: 'UTC',               CA: 'America/New_York',
+  CH: 'Europe/Paris',     CN: 'Asia/Singapore',    DE: 'Europe/Paris',
+  DK: 'Europe/Paris',     FR: 'Europe/Paris',      GB: 'Europe/London',
+  HK: 'Asia/Singapore',   ID: 'Asia/Singapore',    IN: 'UTC',
+  JP: 'Asia/Tokyo',       KH: 'Asia/Bangkok',      KR: 'Asia/Tokyo',
+  KW: 'Asia/Dubai',       LA: 'Asia/Bangkok',      LK: 'UTC',
+  MM: 'Asia/Yangon',      MY: 'Asia/Singapore',    NO: 'Europe/Paris',
+  NP: 'UTC',              NZ: 'UTC',               OM: 'Asia/Dubai',
+  PH: 'Asia/Singapore',   PK: 'UTC',               QA: 'Asia/Dubai',
+  SA: 'Asia/Dubai',       SE: 'Europe/Paris',      SG: 'Asia/Singapore',
+  TH: 'Asia/Bangkok',     TR: 'Europe/Paris',      TW: 'Asia/Tokyo',
+  US: 'America/New_York', VN: 'Asia/Bangkok',      ZA: 'UTC',
+};
+
 export default function CreatePropertyPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -223,11 +251,59 @@ export default function CreatePropertyPage() {
     if (!navigator.geolocation) return toast.error('Geolocation not supported');
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      pos => {
+      async pos => {
         const lat = String(pos.coords.latitude.toFixed(6));
         const lng = String(pos.coords.longitude.toFixed(6));
         setForm(f => ({ ...f, geoLat: lat, geoLng: lng }));
         syncMapMarker(lat, lng);
+
+        // Reverse geocode via Nominatim to auto-fill all address fields
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          const data = await res.json();
+          const addr = data.address || {};
+
+          // Address Line 1: building/amenity name + house number + road
+          const roadParts = [
+            addr.building || addr.amenity || '',
+            [addr.house_number, addr.road].filter(Boolean).join(' '),
+          ].filter(Boolean);
+          const addressLine1 = roadParts.join(', ');
+
+          // Address Line 2: neighbourhood / suburb / quarter / district
+          const addressLine2 = [
+            addr.neighbourhood || addr.suburb || addr.quarter || '',
+            addr.district || addr.city_district || '',
+          ].filter(Boolean).join(', ');
+
+          const countryCode    = (addr.country_code || '').toUpperCase();
+          const matchedCountry = COUNTRIES.includes(countryCode) ? countryCode : '';
+          const city           = addr.city || addr.town || addr.village || addr.county || '';
+          const state          = addr.state || addr.region || '';
+          const postalCode     = addr.postcode || '';
+          const currency       = COUNTRY_CURRENCY_MAP[countryCode] || '';
+          const timezone       = COUNTRY_TIMEZONE_MAP[countryCode] || '';
+
+          setForm(f => ({
+            ...f,
+            geoLat: lat,
+            geoLng: lng,
+            ...(addressLine1    && { addressLine1 }),
+            ...(addressLine2    && { addressLine2 }),
+            ...(matchedCountry  && { country: matchedCountry }),
+            ...(state           && { state }),
+            ...(city            && { city }),
+            ...(postalCode      && { postalCode }),
+            ...(currency        && { currency }),
+            ...(timezone        && { timezone }),
+          }));
+          toast.success('Address & location filled from your position');
+        } catch {
+          // Geocoding failed — coords still set, address fields unchanged
+        }
         setLocating(false);
       },
       () => { toast.error('Could not get location'); setLocating(false); }
@@ -262,7 +338,12 @@ export default function CreatePropertyPage() {
 
   const canNext = (): boolean => {
     if (step === 1) return !!(form.name.trim() && form.propertyType);
-    if (step === 3) return !!(form.totalFloors && Number(form.totalFloors) >= 1);
+    if (step === 3) {
+      const floorsOk = !!(form.totalFloors && Number(form.totalFloors) >= 1 && Number(form.totalFloors) <= 100);
+      const maxYear = new Date().getFullYear() + 5;
+      const yearOk = form.yearBuilt === '' || (Number(form.yearBuilt) >= 1800 && Number(form.yearBuilt) <= maxYear);
+      return floorsOk && yearOk;
+    }
     if (step === 6) return !!form.currency;
     return true;
   };
@@ -383,7 +464,12 @@ export default function CreatePropertyPage() {
 
         {step === 2 && (
           <div className="cp-section">
-            <h3>Address & Location</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Address &amp; Location</h3>
+              <button type="button" className="cp-btn-locate" onClick={detectLocation} disabled={locating}>
+                <Navigation size={13} /> {locating ? 'Locating…' : 'Use My Address & Location'}
+              </button>
+            </div>
             <div className="cp-grid">
               <div className="cp-field full">
                 <label>Address Line 1</label>
@@ -393,18 +479,7 @@ export default function CreatePropertyPage() {
                 <label>Address Line 2</label>
                 <input placeholder="Floor, unit number, block" value={form.addressLine2} onChange={e => set('addressLine2', e.target.value)} />
               </div>
-              <div className="cp-field">
-                <label>City</label>
-                <input placeholder="e.g. Singapore" value={form.city} onChange={e => set('city', e.target.value)} />
-              </div>
-              <div className="cp-field">
-                <label>State / Province</label>
-                <input placeholder="e.g. Central Region" value={form.state} onChange={e => set('state', e.target.value)} />
-              </div>
-              <div className="cp-field">
-                <label>Postal Code</label>
-                <input placeholder="e.g. 018956" value={form.postalCode} onChange={e => set('postalCode', e.target.value)} />
-              </div>
+              {/* Row 1: Country | State / Province */}
               <div className="cp-field">
                 <label>Country</label>
                 <select value={form.country} onChange={e => set('country', e.target.value)}>
@@ -413,22 +488,30 @@ export default function CreatePropertyPage() {
                 </select>
               </div>
               <div className="cp-field">
+                <label>State / Province</label>
+                <input placeholder="e.g. Central Region" value={form.state} onChange={e => set('state', e.target.value)} />
+              </div>
+              {/* Row 2: City | Postal Code */}
+              <div className="cp-field">
+                <label>City</label>
+                <input placeholder="e.g. Singapore" value={form.city} onChange={e => set('city', e.target.value)} />
+              </div>
+              <div className="cp-field">
+                <label>Postal Code</label>
+                <input placeholder="e.g. 018956" value={form.postalCode} onChange={e => set('postalCode', e.target.value)} />
+              </div>
+              <div className="cp-field">
                 <label>Branch <span className="opt">(optional)</span></label>
                 <select value={form.branchId} onChange={e => set('branchId', e.target.value)}>
-                  <option value="">— No Branch —</option>
+                  <option value="">No Branch</option>
                   {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
             </div>
             <div className="cp-geo-section">
-              <div className="cp-geo-label-row">
-                <label className="cp-geo-label">
-                  <MapPin size={14} /> Location on Map <span className="opt">(drag the marker or click the map)</span>
-                </label>
-                <button type="button" className="cp-btn-locate" onClick={detectLocation} disabled={locating}>
-                  <Navigation size={13} /> {locating ? 'Locating…' : 'Use My Location'}
-                </button>
-              </div>
+              <label className="cp-geo-label">
+                <MapPin size={14} /> Location on Map <span className="opt">(drag the marker or click the map)</span>
+              </label>
               <div className="cp-map-container">
                 <iframe
                   ref={mapIframeRef}
@@ -474,11 +557,40 @@ export default function CreatePropertyPage() {
             <div className="cp-grid">
               <div className="cp-field">
                 <label>Year Built</label>
-                <input type="number" min={1800} max={new Date().getFullYear()} placeholder="e.g. 2018" value={form.yearBuilt} onChange={e => set('yearBuilt', e.target.value)} />
+                <input
+                  type="number"
+                  min={1800}
+                  max={new Date().getFullYear() + 5}
+                  placeholder="e.g. 2018"
+                  value={form.yearBuilt}
+                  onChange={e => set('yearBuilt', e.target.value)}
+                />
+                {form.yearBuilt !== '' && Number(form.yearBuilt) < 1800 && (
+                  <span style={{ color: 'var(--danger, #ef4444)', fontSize: '0.75rem', marginTop: 4, display: 'block' }}>
+                    Year Built cannot be before 1800.
+                  </span>
+                )}
+                {form.yearBuilt !== '' && Number(form.yearBuilt) > new Date().getFullYear() + 5 && (
+                  <span style={{ color: 'var(--danger, #ef4444)', fontSize: '0.75rem', marginTop: 4, display: 'block' }}>
+                    Year Built cannot exceed {new Date().getFullYear() + 5}.
+                  </span>
+                )}
               </div>
               <div className="cp-field">
                 <label>Total Floors *</label>
-                <input type="number" min={1} placeholder="e.g. 32" value={form.totalFloors} onChange={e => set('totalFloors', e.target.value)} />
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  placeholder="e.g. 32"
+                  value={form.totalFloors}
+                  onChange={e => set('totalFloors', e.target.value)}
+                />
+                {form.totalFloors !== '' && Number(form.totalFloors) > 100 && (
+                  <span style={{ color: 'var(--danger, #ef4444)', fontSize: '0.75rem', marginTop: 4, display: 'block' }}>
+                    Maximum allowed is 100 floors.
+                  </span>
+                )}
               </div>
               <div className="cp-field">
                 <label>Total Area (sqm)</label>
