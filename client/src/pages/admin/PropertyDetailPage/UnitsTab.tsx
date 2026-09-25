@@ -437,7 +437,7 @@ export default function UnitsTab() {
                           <div key={floor.floorNumber} className="floor-row">
                             <div
                               className="floor-label"
-                              style={{ fontSize: zoomLevel === 'compact' ? 8 : zoomLevel === 'large' ? 12 : 10 }}
+                              style={{ fontSize: zoomLevel === 'compact' ? 9 : zoomLevel === 'large' ? 11 : 10 }}
                             >{floor.floorLabel ?? `Floor ${floor.floorNumber}`}</div>
                             <div className="floor-cells">
                               {floor.units.length === 0 ? (
