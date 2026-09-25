@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetChargeTypesQuery, useCreateInvoiceMutation } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
@@ -25,13 +26,11 @@ export default function CreateInvoicePage() {
   const navigate = useNavigate();
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 200 });
   const [createInvoice, { isLoading }] = useCreateInvoiceMutation();
   const alertDialog = useAlertDialog();
 
   const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
-  const tenants = tenantsData?.data || [];
 
   // Locked to the sidebar's Active Property, same convention as Expenses/Payment
   // Vouchers/New Lease/New Floor/New Lead — only when "All Properties" is active
@@ -43,6 +42,16 @@ export default function CreateInvoicePage() {
     propertyId: '', tenantId: '', unitId: '', invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: '', notes: '',
   });
+
+  // Tenants scoped to the selected property — only fetched once a property is chosen.
+  // The server's propertyId filter matches tenants whose propertyId field equals it
+  // OR who have an active lease against that property.
+  const { data: tenantsData } = useGetTenantsQuery(
+    form.propertyId
+      ? { propertyId: form.propertyId, page: 1, limit: 200 }
+      : skipToken,
+  );
+  const tenants = tenantsData?.data || [];
 
   // Fetch active leases for the selected tenant to populate the P Unit dropdown
   const { data: activeLeasesData } = useGetLeasesQuery(
@@ -59,18 +68,35 @@ export default function CreateInvoicePage() {
       .map(l => ({ id: l.unit.id, unitNumber: l.unit.unitNumber }));
   })();
 
+  // Tenant's preferred currency — used directly for all amounts, no conversion.
+  const selectedTenant = tenants.find(t => t.id === form.tenantId) as any;
+  const tenantCurrency = (selectedTenant?.currency || 'USD') as string;
+
+
   // Clears back to "Select property" if the sidebar switches to "All Properties" after
-  // having been locked to a specific property.
+  // having been locked to a specific property. Also resets tenant + unit since they are
+  // property-scoped.
   const prevPropertyLockedRef = useRef(propertyLocked);
   useEffect(() => {
     if (propertyLocked) {
-      if (form.propertyId !== activeProperty) setForm((f) => ({ ...f, propertyId: activeProperty }));
+      if (form.propertyId !== activeProperty) {
+        setForm((f) => ({ ...f, propertyId: activeProperty, tenantId: '', unitId: '' }));
+      }
     } else if (prevPropertyLockedRef.current) {
-      setForm((f) => ({ ...f, propertyId: '' }));
+      setForm((f) => ({ ...f, propertyId: '', tenantId: '', unitId: '' }));
     }
     prevPropertyLockedRef.current = propertyLocked;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyLocked, activeProperty]);
+
+  // Reset tenant + unit selection whenever property changes (tenants are property-scoped)
+  const prevPropertyIdRef = useRef(form.propertyId);
+  useEffect(() => {
+    if (prevPropertyIdRef.current !== form.propertyId) {
+      setForm((f) => ({ ...f, tenantId: '', unitId: '' }));
+      prevPropertyIdRef.current = form.propertyId;
+    }
+  }, [form.propertyId]);
 
   // Reset unit selection whenever tenant changes (units are tenant-specific)
   const prevTenantIdRef = useRef(form.tenantId);
@@ -124,6 +150,7 @@ export default function CreateInvoicePage() {
     }
   };
 
+
   return (
     <div className="billing-page">
       <button className="inv-back-btn" onClick={() => navigate('/admin/billing/invoices')}>
@@ -159,15 +186,27 @@ export default function CreateInvoicePage() {
             <div className="inv-field">
               <label>Property <span className="req">*</span></label>
               {/* Locked to the sidebar's Active Property; not independently choosable then. */}
-              <select required value={form.propertyId} disabled={propertyLocked} onChange={e => setForm({ ...form, propertyId: e.target.value })}>
+              <select
+                required
+                value={form.propertyId}
+                disabled={propertyLocked}
+                onChange={e => setForm({ ...form, propertyId: e.target.value, tenantId: '', unitId: '' })}
+              >
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div className="inv-field">
               <label>Tenant <span className="req">*</span></label>
-              <select required value={form.tenantId} onChange={e => setForm({ ...form, tenantId: e.target.value })}>
-                <option value="">Select tenant</option>
+              <select
+                required
+                value={form.tenantId}
+                disabled={!form.propertyId}
+                onChange={e => setForm({ ...form, tenantId: e.target.value })}
+              >
+                <option value="">
+                  {!form.propertyId ? 'Select property first' : 'Select tenant'}
+                </option>
                 {tenants
                   .map((t: any) => ({
                     id: t.id,
@@ -243,7 +282,9 @@ export default function CreateInvoicePage() {
                 <th style={{ width: '10%', textAlign: 'right' }}>Qty</th>
                 <th style={{ width: '15%', textAlign: 'right' }}>Unit Price</th>
                 <th style={{ width: '10%', textAlign: 'right' }}>Tax %</th>
-                <th style={{ width: '14%', textAlign: 'right' }}>Total</th>
+                <th style={{ width: '14%', textAlign: 'right' }}>
+                  Total{tenantCurrency ? ` (${tenantCurrency})` : ''}
+                </th>
                 <th style={{ width: '5%' }}></th>
               </tr>
             </thead>
@@ -274,7 +315,7 @@ export default function CreateInvoicePage() {
                         onChange={e => updateLine(idx, 'taxRate', Number(e.target.value) / 100)} />
                     </td>
                     <td>
-                      <div className="line-total">{formatCurrency(lineTotal)}</div>
+                      <div className="line-total">{formatCurrency(lineTotal, tenantCurrency)}</div>
                     </td>
                     <td>
                       {lines.length > 1 && (
@@ -295,15 +336,15 @@ export default function CreateInvoicePage() {
           <div className="inv-totals-card">
             <div className="inv-totals-row">
               <span className="t-label">Subtotal</span>
-              <span className="t-value">{formatCurrency(subtotal)}</span>
+              <span className="t-value">{formatCurrency(subtotal, tenantCurrency)}</span>
             </div>
             <div className="inv-totals-row">
               <span className="t-label">Tax</span>
-              <span className="t-value">{formatCurrency(tax)}</span>
+              <span className="t-value">{formatCurrency(tax, tenantCurrency)}</span>
             </div>
             <div className="inv-totals-row total-grand">
               <span className="t-label">Total</span>
-              <span className="t-value">{formatCurrency(total)}</span>
+              <span className="t-value">{formatCurrency(total, tenantCurrency)}</span>
             </div>
           </div>
           <PermissionGuard permission="billing-invoices.write">

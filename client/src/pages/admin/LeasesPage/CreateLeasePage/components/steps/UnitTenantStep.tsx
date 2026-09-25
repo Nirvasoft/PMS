@@ -7,6 +7,7 @@ import { useSelectedPropertyFilter } from '../../../../../../hooks/useSelectedPr
 import ComboBox from '../../../../../../components/ComboBox';
 import type { FormState } from '../../types';
 
+
 /** The lease API also accepts 'reserved' units, but the dropdown only offers truly free ones. */
 const LEASABLE = ['available'];
 
@@ -32,6 +33,7 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
     set('propertyId', activeProperty);
     set('propertyCode', lockedProperty?.code || lockedProperty?.name || '');
     if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
+    if (form.tenantId) { set('tenantId', ''); set('tenantCode', ''); }
     setFloorNumber('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyLocked, activeProperty, lockedProperty]);
@@ -83,12 +85,19 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
 
   // Blacklisted tenants are rejected outright by the lease API; the verified
   // filter matches the rule stated on the field label.
-  const { data: tenantsData, isFetching: tenantsLoading } = useGetTenantsQuery({
-    search: tenantDebounced || undefined,
-    kycStatus: 'verified',
-    isBlacklisted: false,
-    limit: 20,
-  });
+  // propertyId scopes the list to tenants who belong to (or have a lease in)
+  // the currently selected property — mirrors the server-side OR filter.
+  const { data: tenantsData, isFetching: tenantsLoading } = useGetTenantsQuery(
+    form.propertyId
+      ? {
+          search: tenantDebounced || undefined,
+          kycStatus: 'verified',
+          isBlacklisted: false,
+          propertyId: form.propertyId,
+          limit: 20,
+        }
+      : skipToken,
+  );
 
   const tenantOptions = (tenantsData?.data || []).map((t) => ({
     id: t.id,
@@ -124,6 +133,7 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
               set('propertyId', v);
               set('propertyCode', opt?.label || '');
               if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
+              if (form.tenantId) { set('tenantId', ''); set('tenantCode', ''); }
               setFloorNumber('');
             }}
             options={propertyOptions}
@@ -192,8 +202,9 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             options={tenantOptions}
             onSearch={setTenantSearch}
             loading={tenantsLoading}
-            placeholder="Search name, email or phone…"
-            emptyText="No KYC-verified tenants found"
+            disabled={!form.propertyId}
+            placeholder={!form.propertyId ? 'Select a property first' : 'Search name, email or phone…'}
+            emptyText="No KYC-verified tenants found for this property"
           />
         </div>
         {templates.length > 0 && (
@@ -208,7 +219,7 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
       </div>
 
       <div className="step-info">
-        <p>💡 Only available units and KYC-verified, non-blacklisted tenants are listed.</p>
+        <p>💡 Only available units and KYC-verified, non-blacklisted tenants linked to the selected property are listed.</p>
       </div>
     </div>
   );

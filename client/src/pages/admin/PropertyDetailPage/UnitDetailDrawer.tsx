@@ -445,9 +445,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   };
 
   if (isLoading) return (
-    <div className="unit-drawer loading">
-      <div className="drawer-spinner" />
-    </div>
+    <>
+      <div className="drawer-overlay" />
+      <div className="unit-drawer loading">
+        <div className="drawer-spinner" />
+      </div>
+    </>
   );
 
   if (isError || !unit) {
