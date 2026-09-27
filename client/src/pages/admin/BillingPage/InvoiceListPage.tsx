@@ -6,12 +6,13 @@ import {
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
+import { usePushInvoicesToV6ErpMutation } from '../../../store/api/integrationsApi';
 import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   FileText, Plus, Play, Search, ChevronLeft, ChevronRight,
   DollarSign, AlertTriangle, CheckCircle, Receipt,
-  Send, Ban, Download, XCircle, X, Building2,
+  Send, Ban, Download, XCircle, X, Building2, UploadCloud,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -44,7 +45,7 @@ export default function InvoiceListPage() {
   // Reset pagination whenever the sidebar's Active Property, status, or search changes.
   useEffect(() => { setPage(1); }, [activePropertyFilter, status, debouncedSearch]);
 
-  const { data, isFetching } = useGetInvoicesQuery({
+  const { data, isFetching, refetch } = useGetInvoicesQuery({
     propertyId: activePropertyFilter || undefined,
     status: status || undefined,
     search: debouncedSearch || undefined,
@@ -54,10 +55,19 @@ export default function InvoiceListPage() {
   const [voidInvoice] = useVoidInvoiceMutation();
   const [sendInvoice] = useSendInvoiceMutation();
   const [triggerPdf] = useLazyGetInvoicePdfQuery();
+  const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
   const confirmDialog = useConfirm();
 
   const invoices = data?.data || [];
   const meta = data?.meta;
+
+  // V6 ERP result modal state
+  const [v6ErpResult, setV6ErpResult] = useState<null | {
+    sent: number; failed: number; skipped: number;
+    results: Array<{ invoiceId: string; invoiceNumber: string; customerCode: string; status: string; error?: string }>;
+    message: string;
+  }>(null);
+
 
   // Fetch currency rates scoped to the active property so Page Revenue is expressed
   // in that property's base currency. When "All Properties" is selected (no propertyId),
@@ -207,6 +217,54 @@ export default function InvoiceListPage() {
       : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
   };
 
+  // ── V6 ERP Handlers ────────────────────────────────────────────────────────
+
+  /** Send ALL issued invoices to V6 ERP (header button) */
+  const handleSendAllToV6Erp = async () => {
+    const issuedCount = invoices.filter(i => i.status === 'issued').length;
+    if (issuedCount === 0) {
+      return toast.error('No "issued" invoices on this page. Filter by Status = Issued first.');
+    }
+    if (!(await confirmDialog(
+      `Send ${issuedCount} issued invoice(s) to V6 ERP?\n\nOnly invoices with status "issued" will be sent. Status will change to "sent" upon completion.`,
+    ))) return;
+    try {
+      const result = await pushInvoicesToV6Erp().unwrap();
+      setV6ErpResult(result.data);
+      refetch();
+      if (result.data.sent > 0) toast.success(`${result.data.sent} invoice(s) sent to V6 ERP (status changed to sent).`);
+      if (result.data.failed > 0) toast.error(`${result.data.failed} invoice(s) failed.`);
+    } catch (err: any) {
+      const msg = err?.data?.errors?.[0]?.message
+        || err?.data?.message
+        || err?.error
+        || 'Failed to connect to V6 ERP. Check Developer → Integrations → V6 ERP config.';
+      toast.error(msg);
+      console.error('[V6 ERP] push error:', err);
+    }
+  };
+
+  /** Send only SELECTED issued invoices to V6 ERP (bulk action bar) */
+  const handleBulkSendToV6Erp = async () => {
+    const issuedSelected = selectedInvoices.filter(i => i.status === 'issued');
+    if (issuedSelected.length === 0) {
+      return toast.error('None of the selected invoices have status "issued".');
+    }
+    if (!(await confirmDialog(
+      `Send ${issuedSelected.length} selected issued invoice(s) to V6 ERP?\n\nStatus will change to "sent" upon completion.`,
+    ))) return;
+    try {
+      const result = await pushInvoicesToV6Erp({ invoiceIds: issuedSelected.map(i => i.id) }).unwrap();
+      setV6ErpResult(result.data);
+      clearSelection();
+      refetch();
+      if (result.data.sent > 0) toast.success(`${result.data.sent} invoice(s) sent to V6 ERP (status changed to sent).`);
+      if (result.data.failed > 0) toast.error(`${result.data.failed} invoice(s) failed.`);
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to connect to V6 ERP.');
+    }
+  };
+
   const allSelected = filteredInvoices.length > 0 && selectedIds.size === filteredInvoices.length;
   const someSelected = selectedIds.size > 0;
 
@@ -225,6 +283,16 @@ export default function InvoiceListPage() {
         </div>
         <PermissionGuard permission="billing-invoices.write">
           <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn btn-secondary"
+              onClick={handleSendAllToV6Erp}
+              disabled={pushingToV6}
+              title="Send all issued invoices to V6 ERP"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+            >
+              <UploadCloud size={14} />
+              {pushingToV6 ? 'Sending…' : 'Send to V6 ERP'}
+            </button>
             <button className="btn btn-secondary" onClick={() => setRunBillingModalOpen(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Play size={14} /> Run Billing
@@ -450,6 +518,16 @@ export default function InvoiceListPage() {
               <Download size={14} /> Download PDFs
             </button>
             <PermissionGuard permission="billing-invoices.write">
+              {/* V6 ERP Bulk Push — only issued invoices will be forwarded */}
+              <button
+                className="bulk-btn"
+                onClick={handleBulkSendToV6Erp}
+                disabled={bulkProcessing || pushingToV6}
+                title="Send selected issued invoices to V6 ERP"
+                style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+              >
+                <UploadCloud size={14} /> Send to V6 ERP
+              </button>
               <button className="bulk-btn void" onClick={handleBulkVoid} disabled={bulkProcessing}
                 title="Void selected invoices">
                 <Ban size={14} /> Void
@@ -469,6 +547,75 @@ export default function InvoiceListPage() {
           onSubmit={handleRunBilling}
           isLoading={runningBilling}
         />
+      )}
+
+      {/* ═══ V6 ERP Result Modal ═══ */}
+      {v6ErpResult && (
+        <div className="mall-modal-overlay" onClick={() => setV6ErpResult(null)}>
+          <div className="mall-modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <div className="mall-modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <UploadCloud size={18} /> V6 ERP — Push Result
+              </h3>
+              <button className="mall-modal-close" onClick={() => setV6ErpResult(null)}>✕</button>
+            </div>
+            <div className="mall-modal-body">
+              {/* Summary */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                <div style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981' }}>{v6ErpResult.sent}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Sent ✅</div>
+                </div>
+                <div style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#ef4444' }}>{v6ErpResult.failed}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Failed ❌</div>
+                </div>
+                <div style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#f59e0b' }}>{v6ErpResult.skipped}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Skipped ⚠️</div>
+                </div>
+              </div>
+
+              {/* Per-invoice results */}
+              {v6ErpResult.results.length > 0 && (
+                <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {v6ErpResult.results.map(r => (
+                    <div key={r.invoiceId} style={{
+                      padding: '8px 12px', borderRadius: 8,
+                      border: `1px solid ${r.status === 'sent' ? 'rgba(16,185,129,0.2)' : r.status === 'failed' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'}`,
+                      background: r.status === 'sent' ? 'rgba(16,185,129,0.05)' : r.status === 'failed' ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{r.invoiceNumber}</span>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                          color: r.status === 'sent' ? '#10b981' : r.status === 'failed' ? '#ef4444' : '#f59e0b',
+                        }}>
+                          {r.status === 'sent' ? '✅ Sent' : r.status === 'failed' ? '❌ Failed' : '⚠️ Skipped'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                        CustomerCode: <strong>{r.customerCode || '—'}</strong>
+                      </div>
+                      {r.error && (
+                        <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{r.error}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {v6ErpResult.results.length === 0 && (
+                <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' }}>
+                  No issued invoices were found to send.
+                </p>
+              )}
+            </div>
+            <div className="mall-modal-footer">
+              <button className="btn btn-primary" onClick={() => setV6ErpResult(null)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

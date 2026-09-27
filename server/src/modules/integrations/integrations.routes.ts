@@ -139,3 +139,23 @@ developerRouter.post('/api-keys/:id/revoke', asyncHandler(async (req, res) => {
   const data = await integrationsService.revokeApiKey(String(req.params.id), getCompanyId(req));
   res.json({ success: true, data });
 }));
+
+// ═══════════════════════════════════════
+// V6 ERP PUSH ROUTE
+// ═══════════════════════════════════════
+
+/**
+ * POST /api/v1/developer/v6erp/push-invoices
+ *
+ * Pushes "issued" invoices from PMS to V6 ERP.
+ * Body (optional): { invoiceIds: string[] }  — omit to send ALL issued invoices.
+ *
+ * The integration config must have:
+ *   config.baseUrl         e.g.  "http://localhost:8080"
+ *   config.domain          e.g.  "demo" (optional, default: "demo")
+ */
+developerRouter.post('/v6erp/push-invoices', asyncHandler(async (req, res) => {
+  const { invoiceIds } = req.body as { invoiceIds?: string[] };
+  const data = await integrationsService.pushInvoicesToV6Erp(getCompanyId(req), invoiceIds);
+  res.json({ success: true, data });
+}));

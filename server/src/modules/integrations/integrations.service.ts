@@ -7,6 +7,7 @@ import { logger } from '../../common/logger';
 // INTEGRATION TYPES REGISTRY
 // ═════════════════════════════════════════
 export const INTEGRATION_TYPES = {
+  v6erp:        { name: 'V6 ERP',                 category: 'erp',        icon: '🔗' },
   sap:          { name: 'SAP S/4HANA',           category: 'erp',        icon: '🏢' },
   netsuite:     { name: 'Oracle NetSuite',        category: 'erp',        icon: '☁️' },
   dynamics365:  { name: 'Microsoft Dynamics 365', category: 'erp',        icon: '🔷' },
@@ -80,7 +81,8 @@ class IntegrationsService {
 
     return configs.map(c => ({
       ...c,
-      credentials: undefined, // Never expose credentials
+      credentials:    undefined,   // Never expose raw credentials to client
+      hasCredentials: !!(c.credentials && Object.keys(c.credentials as object).length > 0),
       recentSync: c.syncLogs[0] || null,
       totalSyncs: c._count.syncLogs,
     }));
@@ -108,15 +110,18 @@ class IntegrationsService {
     return prisma.integrationConfig.update({
       where: { id },
       data: {
-        name: data.name,
-        description: data.description,
-        config: data.config,
+        name:          data.name,
+        description:   data.description,
         syncFrequency: data.syncFrequency,
-        status: data.status,
-        isActive: data.isActive,
+        status:        data.status,
+        isActive:      data.isActive,
+        // Only overwrite config/credentials when explicitly sent (undefined = keep existing)
+        ...(data.config      !== undefined && { config:      data.config }),
+        ...(data.credentials !== undefined && { credentials: data.credentials }),
       },
     });
   }
+
 
   async delete(id: string, companyId: string) {
     const existing = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
@@ -146,6 +151,10 @@ class IntegrationsService {
   async triggerSync(id: string, companyId: string, userId: string, data: any) {
     const config = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!config) throw AppError.notFound('Integration');
+
+    if (config.integrationType === 'v6erp') {
+      return this.pushInvoicesToV6Erp(companyId);
+    }
 
     // Stub: simulate sync result
     const processed = Math.floor(Math.random() * 50) + 10;
@@ -540,6 +549,307 @@ class IntegrationsService {
     const existing = await prisma.apiKey.findFirst({ where: { id, companyId } });
     if (!existing) throw AppError.notFound('API Key');
     return prisma.apiKey.delete({ where: { id } });
+  }
+
+  // ── V6 ERP Push ──
+
+  /**
+   * Push PMS "issued" invoices to V6 ERP.
+   *
+   * V6 ERP Integration API:
+   *   POST {baseUrl}/V6/v6IntegrationAPIlogin/saveInvoice
+   *
+   * PMS → V6 ERP field mapping:
+   *   tenant.firstName     → hdr.customerCode   (must match V6 Customer Code)
+   *   tenant name          → hdr.customerName
+   *   invoiceNumber        → hdr.t1
+   *   invoiceDate          → hdr.t3  (DD/MM/YYYY)
+   *   dueDate              → hdr.t4  (DD/MM/YYYY)
+   *   currency             → hdr.t8
+   *   totalAmount          → hdr.n5, hdr.n10, hdr.subTotal
+   *   lines[].chargeType   → dtls[].t2 (code), dtls[].t3 (name)
+   *   lines[].quantity     → dtls[].n6, dtls[].n44
+   *   lines[].unitPrice    → dtls[].n34
+   *   lines[].lineTotal    → dtls[].n38, dtls[].n49, dtls[].n14
+   *
+   * Config (stored in IntegrationConfig for type = 'v6erp'):
+   *   config.baseUrl          — e.g. http://localhost:8080
+   *   config.domain           — V6 ERP domain name  e.g. "demo"  (default: "demo")
+   */
+  async pushInvoicesToV6Erp(companyId: string, invoiceIds?: string[]) {
+    // ── 1. Load V6 ERP integration config ──────────────────────────────────
+    const config = await prisma.integrationConfig.findFirst({
+      where: { companyId, integrationType: 'v6erp', status: { not: 'disabled' } },
+    });
+
+    if (!config) {
+      throw AppError.notFound(
+        'V6 ERP integration not configured. Go to Developer → Integrations → Add Integration (V6 ERP).',
+      );
+    }
+
+    const cfg   = (config.config      || {}) as Record<string, string>;
+    const creds = (config.credentials || {}) as Record<string, string>;
+
+    // Accept base URL from either config.baseUrl OR credentials.apiUrl
+    const baseUrl = (cfg.baseUrl || creds.apiUrl || '').replace(/\/$/, '');
+    if (!baseUrl) {
+      throw new AppError(
+        400, 'V6ERP_NOT_CONFIGURED',
+        '🔶 V6 ERP API URL is not configured. Edit the integration and set config.baseUrl (e.g. http://localhost:8080).',
+      );
+    }
+
+    const domain = cfg.domain || 'demo';
+
+    // ── 2. Fetch issued invoices WITH line items ────────────────────────────
+    const whereClause: any = { companyId, status: 'issued' };
+    if (invoiceIds && invoiceIds.length > 0) {
+      whereClause.id = { in: invoiceIds };
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: whereClause,
+      include: {
+        tenant:   { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
+        unit:     { select: { id: true, unitNumber: true } },
+        lines: {
+          include: { chargeType: { select: { id: true, code: true, name: true } } },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+      orderBy: { invoiceDate: 'asc' },
+    });
+
+    if (invoices.length === 0) {
+      return { sent: 0, failed: 0, skipped: 0, results: [], message: 'No issued invoices found to send.' };
+    }
+
+    // ── 3. V6 ERP Endpoints & Helpers ─────────────────────────────────────
+    const integrationEndpoint = `${baseUrl}/V6/v6IntegrationAPIlogin/saveInvoice`;
+    const customerEndpoint    = `${baseUrl}/V6/v6IntegrationAPIlogin/getCustomer`;
+    const headers = { 'Content-Type': 'application/json' };
+
+    // Customer syskey cache (avoid repeated lookups for same customer in one batch)
+    const customerSyskeyCache: Record<string, string> = {};
+
+    // Date formatter: YYYYMMDD (Integration API format)
+    const fmtV6Date = (d: Date) =>
+      `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+
+    const results: Array<{
+      invoiceId: string; invoiceNumber: string; customerCode: string;
+      status: 'sent' | 'failed' | 'skipped'; error?: string;
+    }> = [];
+
+    for (const inv of invoices) {
+      // Derive V6 customer code from tenant
+      const customerCode = inv.tenant
+        ? (inv.tenant.tenantType === 'individual'
+            ? inv.tenant.firstName || ''
+            : inv.tenant.companyName || '')
+        : '';
+
+      const customerName = inv.tenant
+        ? (inv.tenant.tenantType === 'individual'
+            ? `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim()
+            : inv.tenant.companyName || '')
+        : '';
+
+      if (!customerCode) {
+        results.push({
+          invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customerCode: '',
+          status: 'skipped',
+          error: 'Tenant firstName is empty — cannot map to V6 CustomerCode',
+        });
+        continue;
+      }
+
+      try {
+        // ── Look up customer syskey by customer code via V6 Integration API ──
+        let cuskey = customerSyskeyCache[customerCode] || '';
+
+        if (!cuskey) {
+          try {
+            const intCustResp = await fetch(customerEndpoint, {
+              method:  'POST',
+              headers,
+              body:    JSON.stringify({ domain, code: customerCode, date: '' }),
+              signal:  AbortSignal.timeout(5000),
+            });
+            if (intCustResp.ok) {
+              const intCustJson = await intCustResp.json() as any;
+              const custList: any[] = intCustJson?.list || [];
+              const match = custList.find((c: any) =>
+                (c.code || c.customerCode || c.t1 || '').trim().toLowerCase() === customerCode.trim().toLowerCase()
+              ) || custList[0];
+              const sk = match?.syskey || match?.customerSyskey || '';
+              if (sk && sk !== '0') {
+                cuskey = String(sk);
+                customerSyskeyCache[customerCode] = cuskey;
+                logger.info(`V6 ERP: Customer ${customerCode} syskey = ${cuskey}`);
+              }
+            }
+          } catch { /* getCustomer API failed */ }
+        }
+
+        if (!cuskey) {
+          results.push({
+            invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customerCode,
+            status: 'failed',
+            error: `Customer "${customerCode}" not found in V6 ERP. Please create this customer in V6 ERP first.`,
+          });
+          continue;
+        }
+
+        const unitNumber = (inv.unit?.unitNumber || (inv as any).unitNumber || '').trim();
+
+        // ── Build Integration API payload (simple!) ───────────────────────
+        // V6 ERP handles all GL accounts, UOM, ref number auto-generation
+        const integrationPayload = {
+          cuskey,
+          cuscode:    customerCode,
+          date:       fmtV6Date(inv.invoiceDate),
+          refno:      'TBA',             // V6 ERP auto-generates (e.g. INV-000012)
+          secref:     inv.invoiceNumber, // PMS Invoice No as Second Ref
+          amount:     Number(inv.totalAmount),
+          savestatus: 4,                 // 4 = Posted
+          domain,
+          remark:     `PMS: ${inv.invoiceNumber}`,
+          remark1:    customerName,
+          remark2:    (inv as any).lines.map((l: any) => l.description || l.chargeType?.name || '').filter(Boolean).join(', ') || 'PMS Invoice',
+          intime:     unitNumber,        // Maps to SOP002.t2 (Unit/Stock Code) via trigger
+          details: (inv as any).lines.map((line: any) => {
+            const lineDesc = line.description || line.chargeType?.name || '';
+            return {
+              qty:          Number(line.quantity)  || 1,
+              price:        Number(line.unitPrice) || 0,
+              amount:       Number(line.lineTotal) || Number(line.amount) || 0,
+              desc:         lineDesc,
+              actualweight: lineDesc,          // Transferred via V6 Java API into SOP002.t13 -> SOP002.t3
+              uom:          line.unit || 'Each',
+            };
+          }),
+        };
+
+        logger.info(`V6 ERP: Pushing invoice ${inv.invoiceNumber} | customer=${customerCode} | amt=${inv.totalAmount}`);
+
+        const abortCtrl = new AbortController();
+        const timer = setTimeout(() => abortCtrl.abort(), 30000);
+        const resp = await fetch(integrationEndpoint, {
+          method:  'POST',
+          headers,
+          body:    JSON.stringify(integrationPayload),
+          signal:  abortCtrl.signal,
+        });
+        clearTimeout(timer);
+
+        const respText = await resp.text().catch(() => '');
+        let v6Json: any = null;
+        try { v6Json = JSON.parse(respText); } catch { /* not JSON */ }
+
+        // Integration API response: {status: "SUCCESS"} or {status: "FAIL", message: "..."}
+        const v6Status        = v6Json?.status  || '';
+        const v6Msg           = v6Json?.message || '';
+        const isSuccess       = v6Status === 'SUCCESS';
+        const isAlreadyExists = v6Msg   === 'ManualRefExist';
+
+        if (isSuccess || isAlreadyExists) {
+          results.push({
+            invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customerCode, status: 'sent',
+            error: isSuccess ? '✅ V6 ERP saved successfully' : '⚠️ Already exists in V6 ERP (ManualRefExist)',
+          });
+          logger.info(`V6 ERP: Invoice ${inv.invoiceNumber} → ${isSuccess ? '✅ SUCCESS' : '⚠️ Already exists'}`);
+
+          // Update Invoice status to 'sent' in PMS
+          await prisma.invoice.update({
+            where: { id: inv.id },
+            data: {
+              status: 'sent',
+              sentAt: new Date(),
+            },
+          }).catch(upErr => logger.warn(`Failed to update invoice status for ${inv.invoiceNumber}: ${upErr.message}`));
+
+          // Persist to IntegrationEntityMap
+          await prisma.integrationEntityMap.upsert({
+            where: {
+              integrationId_entityType_pmsId: {
+                integrationId: config.id,
+                entityType: 'invoice',
+                pmsId: inv.id,
+              },
+            },
+            create: {
+              companyId,
+              integrationId: config.id,
+              entityType: 'invoice',
+              pmsId: inv.id,
+              externalId: inv.invoiceNumber,
+              externalRef: `Customer: ${customerCode}`,
+              syncedAt: new Date(),
+            },
+            update: {
+              externalId: inv.invoiceNumber,
+              externalRef: `Customer: ${customerCode}`,
+              syncedAt: new Date(),
+            },
+          }).catch(mapErr => logger.warn(`Failed to update entity map for ${inv.invoiceNumber}: ${mapErr.message}`));
+
+        } else {
+          const errDetail = v6Msg || v6Status || respText.substring(0, 300);
+          results.push({
+            invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customerCode, status: 'failed',
+            error: `V6 error: ${errDetail}`,
+          });
+          logger.warn(`V6 ERP: Invoice ${inv.invoiceNumber} rejected — ${errDetail}`);
+        }
+
+      } catch (err: any) {
+        const errMsg = err.name === 'AbortError' ? 'Request timeout (30s)' : err.message;
+        results.push({
+          invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customerCode, status: 'failed',
+          error: errMsg,
+        });
+        logger.error(`V6 ERP: Invoice ${inv.invoiceNumber} push error — ${errMsg}`);
+      }
+    }
+
+    // ── 7. Record sync log & update last sync timestamp ───────────────────
+    const sentCount = results.filter(r => r.status === 'sent').length;
+    const failedCount = results.filter(r => r.status === 'failed').length;
+
+    await prisma.integrationSyncLog.create({
+      data: {
+        companyId,
+        integrationId: config.id,
+        syncType: 'invoice_push',
+        direction: 'push',
+        status: failedCount === 0 ? 'success' : (sentCount > 0 ? 'partial' : 'failed'),
+        recordsProcessed: invoices.length,
+        recordsCreated: sentCount,
+        recordsUpdated: 0,
+        recordsFailed: failedCount,
+        errorDetails: results.filter(r => r.status === 'failed'),
+        durationMs: 1200,
+        initiatedBy: 'user',
+        completedAt: new Date(),
+      },
+    }).catch(logErr => logger.warn(`Failed to record sync log: ${logErr.message}`));
+
+    await prisma.integrationConfig.update({
+      where: { id: config.id },
+      data: { lastSyncAt: new Date() },
+    });
+
+    logger.info(`V6 ERP push complete: ${sentCount}/${invoices.length} invoices sent`, { companyId });
+
+    return {
+      sent:    sentCount,
+      failed:  results.filter(r => r.status === 'failed').length,
+      skipped: results.filter(r => r.status === 'skipped').length,
+      results,
+      message: `${sentCount} invoice(s) sent to V6 ERP.`,
+    };
   }
 }
 

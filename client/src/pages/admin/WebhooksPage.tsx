@@ -244,8 +244,8 @@ export default function WebhooksPage() {
 
       {/* Deliveries Drawer */}
       {showDeliveries && createPortal(
-        <div className="shop-detail-overlay">
-          <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 560 }}>
+        <div className="shop-detail-overlay" onClick={() => setShowDeliveries(null)}>
+          <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 560, padding: 0, display: 'flex', flexDirection: 'column' }}>
             <DeliveriesDrawer endpointId={showDeliveries} onClose={() => setShowDeliveries(null)} />
           </div>
         </div>
@@ -318,10 +318,10 @@ function DeliveriesDrawer({ endpointId, onClose }: { endpointId: string; onClose
   return (
     <>
       <div className="shop-detail-drawer-header">
-        <h2>Delivery Log</h2>
-        <button className="mall-modal-close" onClick={onClose}>✕</button>
+        <h2 style={{ margin: 0 }}>Delivery Log</h2>
+        <button className="mall-modal-close" onClick={onClose} title="Close" style={{ marginLeft: 'auto' }}>✕</button>
       </div>
-      <div style={{ padding: '16px 24px', overflowY: 'auto', flex: 1 }}>
+      <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
         {deliveries.length === 0 ? (
           <div className="mall-empty-state" style={{ padding: '40px 0' }}>
             <Send size={36} strokeWidth={1} />

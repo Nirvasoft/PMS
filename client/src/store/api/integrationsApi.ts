@@ -101,6 +101,15 @@ export const integrationsApi = createApi({
       invalidatesTags: ['ApiKeys'],
     }),
 
+    // ── V6 ERP Push ──
+    pushInvoicesToV6Erp: builder.mutation<any, { invoiceIds?: string[] } | void>({
+      query: (body) => ({
+        url: '/developer/v6erp/push-invoices',
+        method: 'POST',
+        body: body ?? {},
+      }),
+    }),
+
     // ── BMS (Building Management System) ──
     getBmsSummary: builder.query<any, void>({
       query: () => '/bms/summary',
@@ -177,6 +186,8 @@ export const {
   useCreateApiKeyMutation,
   useDeleteApiKeyMutation,
   useRevokeApiKeyMutation,
+  // V6 ERP
+  usePushInvoicesToV6ErpMutation,
   // BMS
   useGetBmsSummaryQuery,
   useGetBmsMetaQuery,
