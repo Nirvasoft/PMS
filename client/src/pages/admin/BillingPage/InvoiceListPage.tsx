@@ -450,22 +450,16 @@ export default function InvoiceListPage() {
                     </td>
                     <td className="text-right">
                       <span className="cell-amount">
-                        {inv.tenant?.currency && inv.tenant.currency !== inv.currency ? (
-                          <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-                            <span>{formatCurrency(convertCurrency(Number(inv.totalAmount), inv.currency, inv.tenant.currency), inv.tenant.currency)}</span>
-                            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>{formatCurrency(inv.totalAmount, inv.currency)}</span>
-                          </span>
-                        ) : formatCurrency(inv.totalAmount, inv.currency)}
+                        {inv.tenant?.currency && inv.tenant.currency !== inv.currency
+                          ? formatCurrency(convertCurrency(Number(inv.totalAmount), inv.currency, inv.tenant.currency), inv.tenant.currency)
+                          : formatCurrency(inv.totalAmount, inv.currency)}
                       </span>
                     </td>
                     <td className="text-right">
                       <span className={`cell-amount ${paidNum > 0 ? (paidNum >= totalNum ? 'paid' : '') : 'zero'}`}>
-                        {inv.tenant?.currency && inv.tenant.currency !== inv.currency ? (
-                          <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-                            <span>{formatCurrency(convertCurrency(Number(inv.paidAmount), inv.currency, inv.tenant.currency), inv.tenant.currency)}</span>
-                            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>{formatCurrency(inv.paidAmount, inv.currency)}</span>
-                          </span>
-                        ) : formatCurrency(inv.paidAmount, inv.currency)}
+                        {inv.tenant?.currency && inv.tenant.currency !== inv.currency
+                          ? formatCurrency(convertCurrency(Number(inv.paidAmount), inv.currency, inv.tenant.currency), inv.tenant.currency)
+                          : formatCurrency(inv.paidAmount, inv.currency)}
                       </span>
                     </td>
                     <td>

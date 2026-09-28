@@ -136,6 +136,7 @@ export default function CreateInvoicePage() {
     try {
       const result = await createInvoice({
         ...form,
+        currency: tenantCurrency,
         lines: lines.map(l => ({
           chargeTypeId: l.chargeTypeId,
           description: l.description,

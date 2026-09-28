@@ -12,8 +12,14 @@ import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
-const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(Number(amount));
+const formatCurrency = (amount: string | number, _currency = 'USD') =>
+  new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount));
+
+const formatRate = (rate: string | number) => {
+  const n = Number(rate);
+  if (isNaN(n)) return String(rate);
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+};
 
 interface CreditLine { chargeTypeId: string; description: string; quantity: number; unitPrice: number; taxRate: number; }
 
@@ -188,8 +194,18 @@ export default function InvoiceDetailPage() {
   // The tenant may have a different preferred currency (`inv.tenant.currency`).
   // When they differ we show the tenant-currency amount as the primary value and
   // the invoice-currency amount as a small secondary label (like the payment rows).
-  const tenantCurrency = inv.tenant.currency || inv.currency;
+  const tenantCurrency = inv.tenant?.currency || inv.currency || 'USD';
   const hasTenantCurrency = tenantCurrency && tenantCurrency !== inv.currency;
+
+  const tenantRateRow = currencyRates.find(r => r.currency === tenantCurrency);
+  const baseCurrencyRow = currencyRates.find(r => r.isBaseCurrency);
+  const effectiveRate = inv.currencyRate != null && Number(inv.currencyRate) > 0
+    ? Number(inv.currencyRate)
+    : tenantRateRow?.rate != null && Number(tenantRateRow.rate) > 0
+    ? Number(tenantRateRow.rate)
+    : (tenantCurrency === (baseCurrencyRow?.currency || inv.currency)
+      ? 1
+      : (currencyRates.length > 0 ? convertCurrency(1, inv.currency, tenantCurrency) : null));
 
   /**
    * Returns a JSX element (or plain string) showing `amount` in the tenant's
@@ -197,18 +213,11 @@ export default function InvoiceDetailPage() {
    * is just the plain formatted string.  Otherwise it adds a small footnote
    * showing the original invoice-currency value.
    */
-  const fmtTenant = (amount: number | string, invCurrency = inv.currency): React.ReactNode => {
+  const fmtTenant = (amount: number | string, invCurrency = inv.currency): string => {
     const num = Number(amount);
     if (!hasTenantCurrency) return formatCurrency(num, invCurrency);
     const converted = convertCurrency(num, invCurrency, tenantCurrency);
-    return (
-      <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-        <span>{formatCurrency(converted, tenantCurrency)}</span>
-        <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>
-          {formatCurrency(num, invCurrency)}
-        </span>
-      </span>
-    );
+    return formatCurrency(converted, tenantCurrency);
   };
 
   // Penalty info
@@ -276,7 +285,7 @@ export default function InvoiceDetailPage() {
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Property</div>
-          <div className="imi-value">{inv.property?.name}{inv.unit ? ` — Unit ${inv.unit.unitNumber}` : ''}</div>
+          <div className="imi-value">{inv.property?.name}{inv.unit ? ` | ${inv.unit.unitNumber}` : ''}</div>
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Invoice Date</div>
@@ -288,14 +297,11 @@ export default function InvoiceDetailPage() {
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Currency</div>
-          <div className="imi-value" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 600 }}>{inv.currency}</span>
-            {hasTenantCurrency && (
-              <span style={{
-                fontSize: 10, padding: '2px 7px', borderRadius: 6, fontWeight: 700,
-                background: 'rgba(99,102,241,0.1)', color: '#818cf8', letterSpacing: '0.04em',
-              }}>
-                → {tenantCurrency} (tenant)
+          <div className="imi-value" style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600 }}>{tenantCurrency}</span>
+            {effectiveRate != null && (
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 400 }}>
+                (Rate: {formatRate(effectiveRate)})
               </span>
             )}
           </div>
@@ -447,15 +453,7 @@ export default function InvoiceDetailPage() {
         <div className="invoice-total-row">
           <span className="label">Paid</span>
           <span className="amount" style={{ color: '#10b981' }}>
-            {hasTenantCurrency
-              ? <>
-                  {formatCurrency(convertCurrency(Number(inv.paidAmount), inv.currency, tenantCurrency), tenantCurrency)}
-                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 1 }}>
-                    {formatCurrency(inv.paidAmount, inv.currency)}
-                  </div>
-                </>
-              : formatCurrency(inv.paidAmount, inv.currency)
-            }
+            {fmtTenant(inv.paidAmount)}
           </span>
         </div>
         <div className="invoice-total-row" style={{ fontWeight: 600, fontSize: 16 }}>
@@ -511,22 +509,8 @@ export default function InvoiceDetailPage() {
                   <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{alloc.receipt.paymentReference || '—'}</td>
                   <td className="text-right" style={{ fontWeight: 700, color: '#10b981' }}>
                     {hasTenantCurrency
-                      ? <>
-                          {formatCurrency(convertCurrency(Number(alloc.amount), inv.currency, tenantCurrency), tenantCurrency)}
-                          {tenantCurrency !== (alloc.receipt.currency || inv.currency) && (
-                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 1 }}>
-                              {formatCurrency(alloc.receipt.amount, alloc.receipt.currency || inv.currency)}
-                            </div>
-                          )}
-                        </>
-                      : <>
-                          {formatCurrency(alloc.receipt.amount, alloc.receipt.currency || inv.currency)}
-                          {alloc.receipt.currency && alloc.receipt.currency !== inv.currency && (
-                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 1 }}>
-                              {formatCurrency(alloc.amount, inv.currency)}
-                            </div>
-                          )}
-                        </>
+                      ? formatCurrency(convertCurrency(Number(alloc.amount), inv.currency, tenantCurrency), tenantCurrency)
+                      : formatCurrency(alloc.receipt.amount, alloc.receipt.currency || inv.currency)
                     }
                   </td>
                   <td>
@@ -544,15 +528,7 @@ export default function InvoiceDetailPage() {
                 <td className="text-right" style={{ fontWeight: 700, fontSize: 15, color: '#10b981' }}>
                   {(() => {
                     const total = inv.receiptAllocations.reduce((s: number, a: any) => s + Number(a.amount), 0);
-                    if (!hasTenantCurrency) return formatCurrency(total, inv.currency);
-                    return (
-                      <>
-                        {formatCurrency(convertCurrency(total, inv.currency, tenantCurrency), tenantCurrency)}
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginTop: 1 }}>
-                          {formatCurrency(total, inv.currency)}
-                        </div>
-                      </>
-                    );
+                    return fmtTenant(total);
                   })()}
                 </td>
                 <td></td>
