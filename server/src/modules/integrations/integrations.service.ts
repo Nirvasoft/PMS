@@ -133,7 +133,62 @@ class IntegrationsService {
     const config = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!config) throw AppError.notFound('Integration');
 
-    // Stub: simulate connection test
+    if (config.integrationType === 'v6erp') {
+      const cfg = (config.config || {}) as Record<string, string>;
+      const creds = (config.credentials || {}) as Record<string, string>;
+      const rawBase = (cfg.baseUrl || creds.apiUrl || '').replace(/\/+$/, '');
+      if (!rawBase) {
+        throw new AppError(400, 'V6ERP_NOT_CONFIGURED', 'baseUrl is required in configuration (e.g. https://v6gold.mitcloud.com/v6_addon)');
+      }
+      let cleanRoot = rawBase;
+      if (!/\/V6$/i.test(cleanRoot) && !/\/v6_addon$/i.test(cleanRoot)) {
+        cleanRoot = `${cleanRoot}/V6`;
+      }
+      const customerEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCustomer`;
+      const domain = cfg.domain || 'demo';
+      const t0 = Date.now();
+      try {
+        const resp = await fetch(customerEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain, code: '', date: '' }),
+          signal: AbortSignal.timeout(10000),
+        });
+        const elapsed = Date.now() - t0;
+        const text = await resp.text().catch(() => '');
+        let json: any = null;
+        try { json = JSON.parse(text); } catch { /* not JSON */ }
+        if (resp.ok && json?.status === 'SUCCESS') {
+          await prisma.integrationConfig.update({
+            where: { id },
+            data: { status: 'active', lastError: null },
+          });
+          return {
+            connected: true,
+            version: 'V6 ERP Integration API',
+            organisationName: `Domain: ${domain}`,
+            responseTimeMs: elapsed,
+          };
+        } else {
+          const errMsg = json?.message || `HTTP ${resp.status}: ${text.substring(0, 150)}`;
+          await prisma.integrationConfig.update({
+            where: { id },
+            data: { status: 'error', lastError: errMsg },
+          });
+          throw new AppError(400, 'V6ERP_CONNECTION_FAILED', `V6 ERP error: ${errMsg}`);
+        }
+      } catch (err: any) {
+        if (err instanceof AppError) throw err;
+        const errMsg = err.name === 'AbortError' ? 'Timeout (10s)' : err.message;
+        await prisma.integrationConfig.update({
+          where: { id },
+          data: { status: 'error', lastError: errMsg },
+        });
+        throw new AppError(400, 'V6ERP_CONNECTION_FAILED', `Cannot reach V6 ERP: ${errMsg}`);
+      }
+    }
+
+    // Default stub: simulate connection test
     const typeMeta = INTEGRATION_TYPES[config.integrationType as keyof typeof INTEGRATION_TYPES];
     await prisma.integrationConfig.update({
       where: { id },
@@ -626,8 +681,12 @@ class IntegrationsService {
     }
 
     // ── 3. V6 ERP Endpoints & Helpers ─────────────────────────────────────
-    const integrationEndpoint = `${baseUrl}/V6/v6IntegrationAPIlogin/saveInvoice`;
-    const customerEndpoint    = `${baseUrl}/V6/v6IntegrationAPIlogin/getCustomer`;
+    let cleanRoot = baseUrl.replace(/\/+$/, '');
+    if (!/\/V6$/i.test(cleanRoot) && !/\/v6_addon$/i.test(cleanRoot)) {
+      cleanRoot = `${cleanRoot}/V6`;
+    }
+    const integrationEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/saveInvoice`;
+    const customerEndpoint    = `${cleanRoot}/v6IntegrationAPIlogin/getCustomer`;
     const headers = { 'Content-Type': 'application/json' };
 
     // Customer syskey cache (avoid repeated lookups for same customer in one batch)
