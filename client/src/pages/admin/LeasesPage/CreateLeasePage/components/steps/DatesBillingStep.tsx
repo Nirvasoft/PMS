@@ -1,6 +1,9 @@
-import type { FormState } from '../../types';
+import { calcLeaseTermMonths, type FormState } from '../../types';
 
 export function DatesBillingStep({ form, set }: { form: FormState; set: Function }) {
+  const termMonths = form.startDate && form.endDate && form.endDate >= form.startDate
+    ? calcLeaseTermMonths(form.startDate, form.endDate)
+    : 0;
   return (
     <div className="step-content">
       <h3>Lease Dates & Billing</h3>
@@ -43,9 +46,9 @@ export function DatesBillingStep({ form, set }: { form: FormState; set: Function
           <input type="number" min={1} max={30} value={form.paymentDueDays} onChange={(e) => set('paymentDueDays', parseInt(e.target.value))} />
         </div>
       </div>
-      {form.startDate && form.endDate && form.endDate > form.startDate && (
+      {termMonths > 0 && (
         <div className="dates-summary">
-          Lease term: <strong>{Math.max(1, (new Date(form.endDate).getFullYear() - new Date(form.startDate).getFullYear()) * 12 + new Date(form.endDate).getMonth() - new Date(form.startDate).getMonth())} months</strong>
+          Lease term: <strong>{termMonths} {termMonths === 1 ? 'month' : 'months'}</strong>
         </div>
       )}
     </div>

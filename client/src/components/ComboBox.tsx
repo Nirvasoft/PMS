@@ -11,6 +11,7 @@ interface Props {
   value: string;
   onChange: (id: string) => void;
   options: ComboBoxOption[];
+  selectedLabel?: string;
   /** Called as the user types, for server-side search. Omit for local filtering. */
   onSearch?: (term: string) => void;
   placeholder?: string;
@@ -23,7 +24,7 @@ interface Props {
 export default function ComboBox({
   value, onChange, options, onSearch,
   placeholder = 'Search…', loading = false, disabled = false,
-  emptyText = 'No matches', id,
+  emptyText = 'No matches', id, selectedLabel,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
@@ -36,8 +37,8 @@ export default function ComboBox({
   const listId = `${id || 'combo'}-list`;
 
   const selected = useMemo(
-    () => options.find((o) => o.id === value) || (picked?.id === value ? picked : null),
-    [options, value, picked],
+    () => options.find((o) => o.id === value) || (picked?.id === value ? picked : null) || (value && selectedLabel ? { id: value, label: selectedLabel } : null),
+    [options, value, picked, selectedLabel],
   );
 
   // With onSearch the server already filtered; otherwise filter locally.

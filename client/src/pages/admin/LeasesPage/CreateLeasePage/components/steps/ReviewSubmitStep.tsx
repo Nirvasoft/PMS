@@ -1,18 +1,7 @@
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetUnitQuery } from '../../../../../../store/api/unitsApi';
 import { useGetChargeTypesQuery } from '../../../../../../store/api/billingApi';
-import { PREDEFINED_TYPE_LABELS, type FormState } from '../../types';
-
-/** Mirror of server-side calcLeaseTermMonths */
-function calcTermMonths(startDate: string, endDate: string): number {
-  if (!startDate || !endDate || endDate <= startDate) return 0;
-  const start = new Date(startDate);
-  const end   = new Date(endDate);
-  const months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    (end.getMonth()   - start.getMonth());
-  return Math.max(1, months);
-}
+import { PREDEFINED_TYPE_LABELS, calcLeaseTermMonths, type FormState } from '../../types';
 
 /** Format raw billingCycle values to human-readable */
 function formatBillingCycle(cycle: string): string {
@@ -20,7 +9,7 @@ function formatBillingCycle(cycle: string): string {
 }
 
 export function ReviewSubmitStep({ form }: { form: FormState }) {
-  const termMonths = calcTermMonths(form.startDate, form.endDate);
+  const termMonths = calcLeaseTermMonths(form.startDate, form.endDate);
 
   const { data: unitData } = useGetUnitQuery(
     form.propertyId && form.unitId ? { propertyId: form.propertyId, unitId: form.unitId } : skipToken,

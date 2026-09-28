@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../../../../store/api/propertiesApi';
 import { useGetUnitsQuery, useGetUnitQuery } from '../../../../../../store/api/unitsApi';
@@ -13,7 +13,6 @@ const LEASABLE = ['available'];
 
 export function UnitTenantStep({ form, set, templates }: { form: FormState; set: Function; templates: any[] }) {
   const [propertySearch, setPropertySearch] = useState('');
-  const [floorNumber, setFloorNumber] = useState('');
   const [unitSearch, setUnitSearch] = useState('');
   const [tenantSearch, setTenantSearch] = useState('');
   const debounced = useDebounced(propertySearch);
@@ -29,12 +28,15 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
 
   useEffect(() => {
     if (!propertyLocked) return;
-    if (form.propertyId === activeProperty) return;
-    set('propertyId', activeProperty);
-    set('propertyCode', lockedProperty?.code || lockedProperty?.name || '');
-    if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
-    if (form.tenantId) { set('tenantId', ''); set('tenantCode', ''); }
-    setFloorNumber('');
+    if (form.propertyId !== activeProperty) {
+      set('propertyId', activeProperty);
+      set('propertyCode', lockedProperty?.code || lockedProperty?.name || '');
+      if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
+      if (form.tenantId) { set('tenantId', ''); set('tenantCode', ''); }
+      set('floorNumber', '');
+    } else if (!form.propertyCode && lockedProperty) {
+      set('propertyCode', lockedProperty.code || lockedProperty.name || '');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyLocked, activeProperty, lockedProperty]);
 
@@ -60,20 +62,13 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
     form.propertyId
       ? {
           propertyId: form.propertyId,
-          floor: floorNumber ? Number(floorNumber) : undefined,
+          floor: form.floorNumber !== '' ? Number(form.floorNumber) : undefined,
           search: unitDebounced || undefined,
           status: LEASABLE.join(','),
           limit: 50,
         }
       : skipToken,
   );
-
-  const unitOptions = (unitsData?.data || [])
-    .map((u) => ({
-      id: u.id,
-      label: u.unitNumber,
-      sublabel: [u.tower?.name, u.floorLabel, u.status].filter(Boolean).join(' · ') || undefined,
-    }));
 
   // Once a unit is picked, pull its detail so we can surface its total area.
   const { data: selectedUnitData } = useGetUnitQuery(
@@ -82,6 +77,36 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
       : skipToken,
   );
   const selectedUnitArea = selectedUnitData?.data?.areaSqft ?? null;
+
+  // Auto-fill floorNumber and unitCode from unit detail if not yet set
+  useEffect(() => {
+    if (!form.floorNumber && selectedUnitData?.data?.floorNumber != null) {
+      set('floorNumber', String(selectedUnitData.data.floorNumber));
+    }
+    if (form.unitId && !form.unitCode && selectedUnitData?.data?.unitNumber) {
+      set('unitCode', selectedUnitData.data.unitNumber);
+    }
+  }, [form.floorNumber, form.unitId, form.unitCode, selectedUnitData?.data, set]);
+
+  const unitOptions = useMemo(() => {
+    const list = (unitsData?.data || []).map((u) => ({
+      id: u.id,
+      label: u.unitNumber,
+      sublabel: [u.tower?.name, u.floorLabel, u.status].filter(Boolean).join(' · ') || undefined,
+    }));
+    if (form.unitId && !list.some((u) => u.id === form.unitId)) {
+      list.unshift({
+        id: form.unitId,
+        label: form.unitCode || selectedUnitData?.data?.unitNumber || 'Selected unit',
+        sublabel: [
+          selectedUnitData?.data?.tower?.name,
+          selectedUnitData?.data?.floorLabel,
+          selectedUnitData?.data?.status,
+        ].filter(Boolean).join(' · ') || undefined,
+      });
+    }
+    return list;
+  }, [unitsData?.data, form.unitId, form.unitCode, selectedUnitData?.data]);
 
   // Blacklisted tenants are rejected outright by the lease API; the verified
   // filter matches the rule stated on the field label.
@@ -99,22 +124,43 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
       : skipToken,
   );
 
-  const tenantOptions = (tenantsData?.data || []).map((t) => ({
-    id: t.id,
-    label: t.displayName,
-    sublabel: [t.email, t.mobile].filter(Boolean).join(' · ') || undefined,
-  }));
+  const tenantOptions = useMemo(() => {
+    const list = (tenantsData?.data || []).map((t) => ({
+      id: t.id,
+      label: t.displayName,
+      sublabel: [t.email, t.mobile].filter(Boolean).join(' · ') || undefined,
+    }));
+    if (form.tenantId && !list.some((t) => t.id === form.tenantId)) {
+      list.unshift({
+        id: form.tenantId,
+        label: form.tenantCode || 'Selected tenant',
+        sublabel: undefined,
+      });
+    }
+    return list;
+  }, [tenantsData?.data, form.tenantId, form.tenantCode]);
 
   // Code is what staff know a property by, so it leads; the name disambiguates.
-  const propertyOptions = propertyLocked
-    ? (lockedProperty
+  const propertyOptions = useMemo(() => {
+    if (propertyLocked) {
+      return lockedProperty
         ? [{ id: lockedProperty.id, label: lockedProperty.code || lockedProperty.name, sublabel: lockedProperty.code ? lockedProperty.name : undefined }]
-        : [])
-    : (propertiesData?.data || []).map((p) => ({
-        id: p.id,
-        label: p.code || p.name,
-        sublabel: [p.code ? p.name : null, p.city].filter(Boolean).join(' · ') || undefined,
-      }));
+        : [];
+    }
+    const list = (propertiesData?.data || []).map((p) => ({
+      id: p.id,
+      label: p.code || p.name,
+      sublabel: [p.code ? p.name : null, p.city].filter(Boolean).join(' · ') || undefined,
+    }));
+    if (form.propertyId && !list.some((p) => p.id === form.propertyId)) {
+      list.unshift({
+        id: form.propertyId,
+        label: form.propertyCode || 'Selected property',
+        sublabel: undefined,
+      });
+    }
+    return list;
+  }, [propertyLocked, lockedProperty, propertiesData?.data, form.propertyId, form.propertyCode]);
 
   return (
     <div className="step-content">
@@ -128,13 +174,14 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
           <ComboBox
             id="lease-property"
             value={form.propertyId}
+            selectedLabel={form.propertyCode}
             onChange={(v) => {
               const opt = propertyOptions.find(p => p.id === v);
               set('propertyId', v);
               set('propertyCode', opt?.label || '');
               if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
               if (form.tenantId) { set('tenantId', ''); set('tenantCode', ''); }
-              setFloorNumber('');
+              set('floorNumber', '');
             }}
             options={propertyOptions}
             onSearch={propertyLocked ? undefined : setPropertySearch}
@@ -148,17 +195,22 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
           <label htmlFor="lease-floor">Floor *</label>
           <select
             id="lease-floor"
-            value={floorNumber}
+            value={form.floorNumber}
             disabled={!form.propertyId}
             onChange={(e) => {
-              setFloorNumber(e.target.value);
+              set('floorNumber', e.target.value);
               if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
             }}
           >
             <option value="">{form.propertyId ? 'Select a floor' : 'Select a property first'}</option>
             {floorOptions.map((f) => (
-              <option key={f.id} value={f.floorNumber}>{f.floorLabel}</option>
+              <option key={f.id} value={String(f.floorNumber)}>{f.floorLabel}</option>
             ))}
+            {form.floorNumber !== '' && !floorOptions.some(f => String(f.floorNumber) === form.floorNumber) && (
+              <option value={form.floorNumber}>
+                {selectedUnitData?.data?.floorLabel || `Floor ${form.floorNumber}`}
+              </option>
+            )}
           </select>
         </div>
         <div className="form-field">
@@ -166,6 +218,7 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
           <ComboBox
             id="lease-unit"
             value={form.unitId}
+            selectedLabel={form.unitCode}
             onChange={(v) => {
               const opt = unitOptions.find(u => u.id === v);
               set('unitId', v);
@@ -174,8 +227,8 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             options={unitOptions}
             onSearch={setUnitSearch}
             loading={unitsLoading}
-            disabled={!form.propertyId || !floorNumber}
-            placeholder={!form.propertyId ? 'Select a property first' : !floorNumber ? 'Select a floor first' : 'Search unit number…'}
+            disabled={!form.propertyId || form.floorNumber === ''}
+            placeholder={!form.propertyId ? 'Select a property first' : form.floorNumber === '' ? 'Select a floor first' : 'Search unit number…'}
             emptyText="No available units"
           />
         </div>
@@ -194,6 +247,7 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
           <ComboBox
             id="lease-tenant"
             value={form.tenantId}
+            selectedLabel={form.tenantCode}
             onChange={(v) => {
               const opt = tenantOptions.find(t => t.id === v);
               set('tenantId', v);

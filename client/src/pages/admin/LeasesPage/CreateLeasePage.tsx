@@ -23,7 +23,7 @@ import { ReviewSubmitStep } from './CreateLeasePage/components/steps/ReviewSubmi
 const todayISO = () => new Date().toISOString().split('T')[0];
 
 const INITIAL: FormState = {
-  propertyId: '', propertyCode: '', unitId: '', unitCode: '', tenantId: '', tenantCode: '', templateId: '',
+  propertyId: '', propertyCode: '', floorNumber: '', unitId: '', unitCode: '', tenantId: '', tenantCode: '', templateId: '',
   startDate: todayISO(), endDate: '', handoverDate: '', predefinedType: '',
   billingCycle: 'monthly', billingDay: 1, paymentDueDays: 7,
   rentAmount: '', currency: 'USD', securityDeposit: '',
