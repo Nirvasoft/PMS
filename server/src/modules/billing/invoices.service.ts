@@ -149,10 +149,31 @@ export class InvoicesService {
 
     const totalAmount = subtotal + totalTax;
 
+    const propertyId = dto.propertyId as string;
+    const currency = (dto.currency as string) || 'USD';
+
+    let currencyRate: number | null = dto.currencyRate != null ? Number(dto.currencyRate) : null;
+    if (currencyRate == null && propertyId && currency) {
+      const rateRow = await prisma.currencyRate.findFirst({
+        where: { companyId, propertyId, currency, isActive: true },
+        orderBy: { effectiveDate: 'desc' },
+      });
+      if (rateRow) {
+        currencyRate = Number(rateRow.rate);
+      } else {
+        const baseRow = await prisma.currencyRate.findFirst({
+          where: { companyId, propertyId, isBaseCurrency: true, isActive: true },
+        });
+        if (baseRow && baseRow.currency === currency) {
+          currencyRate = 1;
+        }
+      }
+    }
+
     const invoice = await prisma.invoice.create({
       data: {
         companyId,
-        propertyId: dto.propertyId as string,
+        propertyId,
         unitId: (dto.unitId as string) || null,
         tenantId: dto.tenantId as string,
         leaseId: (dto.leaseId as string) || null,
@@ -167,7 +188,8 @@ export class InvoicesService {
         taxAmount: totalTax,
         totalAmount,
         paidAmount: 0,
-        currency: (dto.currency as string) || 'USD',
+        currency,
+        currencyRate,
         notes: (dto.notes as string) || null,
         createdBy: userId,
         lines: { create: lineData },
@@ -264,7 +286,9 @@ export class InvoicesService {
         continue;
       }
 
-      let amount = Number(schedule.amount);
+      // schedule.amount is the unit price; effective billing total = unit price × qty
+      const scheduleQty = Number(schedule.quantity) || 1;
+      let amount = Number(schedule.amount) * scheduleQty;
 
       // Prorate first invoice if needed
       if (schedule.isProrated && schedule.invoiceCount === 0 && schedule.prorateStart) {

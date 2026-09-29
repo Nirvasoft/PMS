@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
+import { List, LayoutGrid, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import {
   useGetRolesQuery, useCreateRoleMutation, useUpdateRoleMutation, useDeleteRoleMutation, type RoleItem,
 } from '../../../store/api/usersApi';
@@ -102,20 +102,25 @@ export default function RolesPage() {
                       {!role.isSystem && (
                         <PermissionGuard permission="roles.manage">
                           <button
-                            className="btn btn-sm"
+                            className="btn-icon"
+                            title="Edit"
                             onClick={(e) => { e.stopPropagation(); setEditingRole(role); }}
                           >
-                            Edit
+                            <Pencil size={14} />
                           </button>
                         </PermissionGuard>
                       )}
                       {!role.isSystem && (
                         <PermissionGuard permission="roles.manage">
                           <button
-                            className="btn btn-sm btn-danger"
+                            className="btn-icon"
+                            title="Delete"
+                            style={{ color: 'var(--text-muted)' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                             onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
                           >
-                            Delete
+                            <Trash2 size={14} />
                           </button>
                         </PermissionGuard>
                       )}
@@ -144,20 +149,25 @@ export default function RolesPage() {
                   {!role.isSystem && (
                     <PermissionGuard permission="roles.manage">
                       <button
-                        className="btn btn-sm"
+                        className="btn-icon"
+                        title="Edit"
                         onClick={(e) => { e.stopPropagation(); setEditingRole(role); }}
                       >
-                        Edit
+                        <Pencil size={14} />
                       </button>
                     </PermissionGuard>
                   )}
                   {!role.isSystem && (
                     <PermissionGuard permission="roles.manage">
                       <button
-                        className="btn btn-sm btn-danger"
+                        className="btn-icon"
+                        title="Delete"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                         onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
                       >
-                        Delete
+                        <Trash2 size={14} />
                       </button>
                     </PermissionGuard>
                   )}

@@ -47,7 +47,8 @@ export default function BillingSchedulesPage() {
   useEffect(() => { setPage(1); }, [selectedProperty]);
 
   const { data, isFetching } = useGetBillingSchedulesQuery({
-    status: statusFilter || undefined, propertyId: selectedProperty || undefined, page, limit: 5,
+    ...(statusFilter ? { status: statusFilter } : {}),
+    propertyId: selectedProperty || undefined, page, limit: 5,
   });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
@@ -194,6 +195,9 @@ export default function BillingSchedulesPage() {
   const openEdit = (s: BillingSchedule) => {
     setEditId(s.id);
     setFloorId('');
+    // Mark as already synced so the lease-load effect doesn't overwrite the
+    // saved quantity with leaseTermMonths after leases finish loading.
+    quantitySyncedRef.current = true;
     setForm({
       chargeTypeId: s.chargeType.id,
       propertyId: s.property.id,

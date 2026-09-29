@@ -348,7 +348,14 @@ function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
       {/* Actions */}
       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
         <PermissionGuard permission="tenants.delete">
-          <button className="row-btn-delete" onClick={onDelete}><Trash2 size={13} /></button>
+          <button
+            className="btn-icon"
+            title="Delete"
+            style={{ color: 'var(--text-muted)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+            onClick={onDelete}
+          ><Trash2 size={13} /></button>
         </PermissionGuard>
       </div>
     </div>

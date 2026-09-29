@@ -1022,7 +1022,14 @@ function DocumentsTab({ tenantId }: { tenantId: string }) {
                   <Download size={14} />
                 </a>
                 <PermissionGuard permission="documents.write">
-                  <button onClick={() => handleDelete(doc.id)} className="btn-danger-ghost" title="Delete">
+                  <button
+                    className="btn-icon"
+                    title="Delete"
+                    style={{ color: 'var(--text-muted)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                    onClick={() => handleDelete(doc.id)}
+                  >
                     <Trash2 size={14} />
                   </button>
                 </PermissionGuard>

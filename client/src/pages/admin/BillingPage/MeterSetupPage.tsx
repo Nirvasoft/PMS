@@ -306,7 +306,11 @@ export default function MeterSetupPage() {
                     </button>
                   </PermissionGuard>
                   <PermissionGuard permission="meter.delete">
-                    <button className="btn-danger" title="Delete" onClick={() => handleDelete(m)}>
+                    <button className="btn-icon" title="Delete" onClick={() => handleDelete(m)}
+                      style={{ color: 'var(--text-muted)' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                    >
                       <Trash2 size={14} />
                     </button>
                   </PermissionGuard>

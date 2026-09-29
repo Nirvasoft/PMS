@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
-import { useGetChargeTypesQuery, useCreateInvoiceMutation } from '../../../store/api/billingApi';
+import { useGetChargeTypesQuery, useCreateInvoiceMutation, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
@@ -21,6 +21,12 @@ interface LineItem {
 
 const formatCurrency = (amount: number, currency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(amount);
+
+const formatRate = (rate: string | number) => {
+  const n = Number(rate);
+  if (isNaN(n)) return String(rate);
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+};
 
 export default function CreateInvoicePage() {
   const navigate = useNavigate();
@@ -68,9 +74,39 @@ export default function CreateInvoicePage() {
       .map(l => ({ id: l.unit.id, unitNumber: l.unit.unitNumber }));
   })();
 
+  // Fetch currency rates for the selected property to determine currency exchange rates.
+  const { data: currencyRatesData, isFetching: isRatesLoading } = useGetCurrencyRatesQuery(
+    form.propertyId ? { propertyId: form.propertyId } : skipToken,
+  );
+  const currencyRates = currencyRatesData?.data ?? [];
+
   // Tenant's preferred currency — used directly for all amounts, no conversion.
-  const selectedTenant = tenants.find(t => t.id === form.tenantId) as any;
-  const tenantCurrency = (selectedTenant?.currency || 'USD') as string;
+  const selectedTenant = tenants.find(t => t.id === form.tenantId);
+  const tenantCurrency = selectedTenant?.currency || '';
+  const effectiveCurrency = tenantCurrency || 'USD';
+
+  // Currency rate matching the selected tenant's currency
+  const tenantRateRow = currencyRates.find(r => r.currency === tenantCurrency);
+  const baseCurrencyRow = currencyRates.find(r => r.isBaseCurrency);
+  const baseCurrencyCode = baseCurrencyRow?.currency || '';
+  const effectiveRate = tenantRateRow?.rate != null && Number(tenantRateRow.rate) > 0
+    ? Number(tenantRateRow.rate)
+    : (tenantCurrency && baseCurrencyCode && tenantCurrency === baseCurrencyCode ? 1 : null);
+
+  const rateHint = (() => {
+    if (!form.tenantId) return '';
+    if (!tenantCurrency) return 'No currency assigned to tenant';
+    if (isRatesLoading) return 'Loading rate…';
+    if (tenantRateRow?.isBaseCurrency || tenantCurrency === baseCurrencyCode) {
+      return `Base currency (${baseCurrencyCode || tenantCurrency})`;
+    }
+    if (tenantRateRow) {
+      return tenantRateRow.operator === 'divide'
+        ? `1 ${baseCurrencyCode} = ${formatRate(tenantRateRow.rate)} ${tenantCurrency}`
+        : `1 ${tenantCurrency} = ${formatRate(tenantRateRow.rate)} ${baseCurrencyCode}`;
+    }
+    return 'No exchange rate configured';
+  })();
 
 
   // Clears back to "Select property" if the sidebar switches to "All Properties" after
@@ -136,7 +172,8 @@ export default function CreateInvoicePage() {
     try {
       const result = await createInvoice({
         ...form,
-        currency: tenantCurrency,
+        currency: effectiveCurrency,
+        currencyRate: effectiveRate,
         lines: lines.map(l => ({
           chargeTypeId: l.chargeTypeId,
           description: l.description,
@@ -222,6 +259,46 @@ export default function CreateInvoicePage() {
               </select>
             </div>
             <div className="inv-field">
+              <label>Currency</label>
+              <input
+                type="text"
+                readOnly
+                disabled
+                value={form.tenantId ? (tenantCurrency || 'Not set') : ''}
+                placeholder={form.tenantId ? 'Not set' : 'Select tenant first'}
+                style={{
+                  background: 'var(--bg-tertiary)',
+                  color: form.tenantId && tenantCurrency ? 'var(--text-primary)' : 'var(--text-muted)',
+                  cursor: 'not-allowed',
+                  fontWeight: form.tenantId && tenantCurrency ? 600 : 400,
+                }}
+              />
+            </div>
+            <div className="inv-field">
+              <label>Rate</label>
+              <input
+                type="text"
+                readOnly
+                disabled
+                value={
+                  form.tenantId
+                    ? (effectiveRate != null
+                        ? formatRate(effectiveRate)
+                        : (isRatesLoading ? 'Loading…' : (tenantCurrency ? '—' : '—')))
+                    : ''
+                }
+                placeholder={form.tenantId ? (isRatesLoading ? 'Loading…' : '—') : 'Select tenant first'}
+                title={rateHint || undefined}
+                style={{
+                  background: 'var(--bg-tertiary)',
+                  color: form.tenantId && effectiveRate != null ? 'var(--text-primary)' : 'var(--text-muted)',
+                  cursor: 'not-allowed',
+                  fontWeight: form.tenantId && effectiveRate != null ? 600 : 400,
+                }}
+              />
+
+            </div>
+            <div className="inv-field">
               <label>P Unit</label>
               <select
                 value={form.unitId}
@@ -284,7 +361,7 @@ export default function CreateInvoicePage() {
                 <th style={{ width: '15%', textAlign: 'right' }}>Unit Price</th>
                 <th style={{ width: '10%', textAlign: 'right' }}>Tax %</th>
                 <th style={{ width: '14%', textAlign: 'right' }}>
-                  Total{tenantCurrency ? ` (${tenantCurrency})` : ''}
+                  Total{form.tenantId && tenantCurrency ? ` (${tenantCurrency})` : ''}
                 </th>
                 <th style={{ width: '5%' }}></th>
               </tr>
@@ -316,7 +393,7 @@ export default function CreateInvoicePage() {
                         onChange={e => updateLine(idx, 'taxRate', Number(e.target.value) / 100)} />
                     </td>
                     <td>
-                      <div className="line-total">{formatCurrency(lineTotal, tenantCurrency)}</div>
+                      <div className="line-total">{formatCurrency(lineTotal, effectiveCurrency)}</div>
                     </td>
                     <td>
                       {lines.length > 1 && (
@@ -337,15 +414,15 @@ export default function CreateInvoicePage() {
           <div className="inv-totals-card">
             <div className="inv-totals-row">
               <span className="t-label">Subtotal</span>
-              <span className="t-value">{formatCurrency(subtotal, tenantCurrency)}</span>
+              <span className="t-value">{formatCurrency(subtotal, effectiveCurrency)}</span>
             </div>
             <div className="inv-totals-row">
               <span className="t-label">Tax</span>
-              <span className="t-value">{formatCurrency(tax, tenantCurrency)}</span>
+              <span className="t-value">{formatCurrency(tax, effectiveCurrency)}</span>
             </div>
             <div className="inv-totals-row total-grand">
               <span className="t-label">Total</span>
-              <span className="t-value">{formatCurrency(total, tenantCurrency)}</span>
+              <span className="t-value">{formatCurrency(total, effectiveCurrency)}</span>
             </div>
           </div>
           <PermissionGuard permission="billing-invoices.write">

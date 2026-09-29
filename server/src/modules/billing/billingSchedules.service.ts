@@ -108,19 +108,56 @@ export class BillingSchedulesService {
     });
     if (existing) return;
 
-    // 1. Create RENT schedule
+    const deposit = Number(lease.securityDeposit ?? 0);
+    const rentAmount = Number(lease.rentAmount);
+
+    // 1. Create RENT schedule — always the full rent amount (deposit is a separate schedule)
     await prisma.billingSchedule.create({
       data: {
         ...this.leaseScheduleBase(lease, startDate, billingDay),
         chargeTypeId: rentChargeType.id,
         description: `Rent — Unit ${lease.unit?.unitNumber || ''}`,
-        amount: Number(lease.rentAmount),
+        amount: rentAmount,
         isProrated,
         prorateStart: isProrated ? startDate : null,
       },
     });
 
-    // 2. Create SERVICE_CHARGE schedule if property has a default service charge
+    // 2. Create SECURITY_DEPOSIT schedule if deposit > 0
+    if (deposit > 0) {
+      let depositChargeType = await prisma.chargeType.findFirst({
+        where: { code: 'SECURITY_DEPOSIT', OR: [{ companyId: null }, { companyId: lease.companyId }] },
+      });
+      if (!depositChargeType) {
+        depositChargeType = await prisma.chargeType.create({
+          data: {
+            code: 'SECURITY_DEPOSIT',
+            name: 'Security Deposit',
+            category: 'other',
+            isActive: true,
+            isSystem: true,
+          },
+        });
+      }
+
+      // Only create if not already scheduled
+      const existingDeposit = await prisma.billingSchedule.findFirst({
+        where: { leaseId: lease.id, chargeTypeId: depositChargeType.id, status: { not: 'cancelled' } },
+      });
+      if (!existingDeposit) {
+        await prisma.billingSchedule.create({
+          data: {
+            ...this.leaseScheduleBase(lease, startDate, billingDay),
+            chargeTypeId: depositChargeType.id,
+            description: `Security Deposit — Unit ${lease.unit?.unitNumber || ''}`,
+            amount: deposit,
+            isProrated: false,
+          },
+        });
+      }
+    }
+
+    // 3. Create SERVICE_CHARGE schedule if property has a default service charge
     const serviceChargeAmount = lease.unit?.property?.settings?.defaultServiceCharge as number | undefined;
     if (serviceChargeAmount && serviceChargeAmount > 0) {
       const scChargeType = await prisma.chargeType.findFirst({

@@ -42,6 +42,33 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
         <ReviewRow label="Clauses"         value={`${form.clauses.length} clause${form.clauses.length !== 1 ? 's' : ''}`} />
       </div>
 
+      {/* ── Scheduled billing preview ── */}
+      {(() => {
+        const rent = Number(form.rentAmount || 0);
+        const dep  = Number(form.securityDeposit || 0);
+        if (!rent) return null;
+        return (
+          <>
+            <div className="review-subhead">Billing Schedules <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-muted)' }}>(created on activation)</span></div>
+            <table className="charges-table">
+              <thead><tr><th>Schedule</th><th className="text-right">Amount</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>Rent</td>
+                  <td className="text-right">{form.currency} {rent.toLocaleString()}</td>
+                </tr>
+                {dep > 0 && (
+                  <tr>
+                    <td>Security Deposit</td>
+                    <td className="text-right">{form.currency} {dep.toLocaleString()}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </>
+        );
+      })()}
+
       <div className="review-subhead">Lease Charges</div>
       {form.leaseCharges.length === 0 ? (
         <p className="unit-charges-empty">No charges added</p>

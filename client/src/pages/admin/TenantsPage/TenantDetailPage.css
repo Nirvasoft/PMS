@@ -186,10 +186,10 @@
 .ec-name { font-size: 0.83rem; font-weight: 600; }
 .ec-rel  { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; text-transform: capitalize; }
 .ec-contact { font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
-.ec-del { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; }
-.ec-del:hover { color: #e74c3c; }
-.ec-edit { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; }
-.ec-edit:hover { color: #6c5ce7; }
+.ec-del { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 5px; transition: color 0.15s, background 0.15s; }
+.ec-del:hover { color: #f87171; background: rgba(239,68,68,0.1); }
+.ec-edit { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 5px; transition: color 0.15s, background 0.15s; }
+.ec-edit:hover { color: var(--text-primary); background: var(--surface-hover); }
 .ec-actions { display: flex; flex-direction: column; gap: 2px; margin-left: auto; opacity: 0; transition: opacity 0.15s; }
 .ec-card:hover .ec-actions { opacity: 1; }
 .ec-edit-inline { width: 100%; display: flex; flex-direction: column; gap: 6px; }
@@ -198,8 +198,30 @@
   border: 1px solid rgba(255,255,255,0.1);
   background: rgba(255,255,255,0.04);
   color: var(--text-primary); font-size: .78rem;
+  color-scheme: dark;
 }
+.form-row-2 select { color-scheme: dark; }
+.form-row-2 select option,
+.ec-edit-inline select option { background: #1a1f2e; color: var(--text-primary); }
+
 .empty-sm { font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 12px 0; }
+
+/* Light theme overrides for EC dropdowns */
+[data-theme="light"] .form-row-2 select,
+[data-theme="light"] .ec-edit-inline select {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.12);
+  color: var(--text-primary);
+  color-scheme: light;
+}
+[data-theme="light"] .form-row-2 select option,
+[data-theme="light"] .ec-edit-inline select option { background: #ffffff; color: var(--text-primary); }
+[data-theme="light"] .form-row-2 input,
+[data-theme="light"] .ec-edit-inline input {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.12);
+  color: var(--text-primary);
+}
 
 /* ── KYC Expiry Badge ── */
 .kyc-expiry-badge {

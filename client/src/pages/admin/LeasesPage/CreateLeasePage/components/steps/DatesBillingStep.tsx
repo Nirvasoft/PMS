@@ -10,7 +10,10 @@ export function DatesBillingStep({ form, set }: { form: FormState; set: Function
       <div className="form-grid-2">
         <div className="form-field">
           <label>Start Date *</label>
-          <input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} />
+          <input type="date" value={form.startDate} onChange={(e) => {
+            set('startDate', e.target.value);
+            set('handoverDate', e.target.value);
+          }} />
         </div>
         <div className="form-field">
           <label>End Date *</label>

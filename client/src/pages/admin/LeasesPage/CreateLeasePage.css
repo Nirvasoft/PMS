@@ -8,6 +8,21 @@
   font-style: italic;
 }
 
+.deposit-schedule-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-style: normal;
+  background: color-mix(in srgb, var(--accent, #a29bfe) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #a29bfe) 25%, transparent);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+.deposit-schedule-hint span { display: flex; align-items: center; gap: 6px; }
+.deposit-schedule-hint strong { color: var(--text-primary); }
+
 /* Read-only Total Area field (auto-filled from the selected unit) */
 .form-field input[readonly] {
   background: var(--surface-base, rgba(255, 255, 255, 0.03));

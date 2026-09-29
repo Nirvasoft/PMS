@@ -166,7 +166,14 @@ export default function PositionsPage() {
                   </td>
                   <td>
                     <PermissionGuard permission="positions.delete">
-                      <button className="btn-danger" onClick={() => handleDelete(p.id, p.name)} title="Delete">
+                      <button
+                        className="btn-icon"
+                        title="Delete"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                        onClick={() => handleDelete(p.id, p.name)}
+                      >
                         <Trash2 size={14} />
                       </button>
                     </PermissionGuard>
