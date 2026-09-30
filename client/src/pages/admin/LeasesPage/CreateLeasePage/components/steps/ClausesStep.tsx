@@ -53,13 +53,13 @@ export function ClausesStep({ form, set, libraryClauseList }: { form: FormState;
       <div className="custom-clause-form">
         <div className="cl-label">Add Custom Clause</div>
         <input placeholder="Clause title" value={customTitle} onChange={(e) => setCustomTitle(e.target.value)} />
-        <textarea placeholder="Clause content…" rows={3} value={customContent} onChange={(e) => setCustomContent(e.target.value)} />
+        <textarea placeholder="Clause content…" rows={2} value={customContent} onChange={(e) => setCustomContent(e.target.value)} />
         <button className="btn-primary-sm" disabled={!customTitle || !customContent} onClick={addCustom}>Add Clause</button>
       </div>
 
       <div className="form-field" style={{ marginTop: 16 }}>
         <label>Special Conditions</label>
-        <textarea placeholder="Any special conditions not covered by clauses…" rows={3} value={form.specialConditions} onChange={(e) => set('specialConditions', e.target.value)} />
+        <textarea placeholder="Any special conditions not covered by clauses…" rows={2} value={form.specialConditions} onChange={(e) => set('specialConditions', e.target.value)} />
       </div>
     </div>
   );

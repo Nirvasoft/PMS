@@ -129,15 +129,15 @@
 .charge-remove-btn:hover { background: rgba(231,76,60,0.2); }
 
 /* ── Rental Agreement step ─────────────────── */
-.ra-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 40px; }
-.ra-col { display: flex; flex-direction: column; gap: 14px; }
-.ra-field { display: flex; flex-direction: column; gap: 5px; }
-.ra-field label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.ra-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 32px; }
+.ra-col { display: flex; flex-direction: column; gap: 8px; }
+.ra-field { display: flex; flex-direction: column; gap: 3px; }
+.ra-field label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
 .ra-req { color: #f87171; margin-right: 3px; }
 .ra-field input, .ra-field textarea {
   width: 100%; padding: 9px 12px; box-sizing: border-box;
   background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 8px; color: var(--text-primary); font-size: 0.86rem; outline: none;
+  border-radius: 8px; color: var(--text-primary); font-size: 0.84rem; outline: none;
   font-family: inherit; resize: vertical;
 }
 .ra-field input:focus, .ra-field textarea:focus { border-color: var(--accent, #34d399); }

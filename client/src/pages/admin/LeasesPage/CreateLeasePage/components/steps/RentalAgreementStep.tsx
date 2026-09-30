@@ -17,7 +17,7 @@ export function RentalAgreementStep({ form, set }: { form: FormState; set: Funct
             <input value={ra.renterName || ''} onChange={(e) => setRA('renterName', e.target.value)} />
           </RAField>
           <RAField label="Address (Renter)">
-            <textarea rows={3} value={ra.renterAddress || ''} onChange={(e) => setRA('renterAddress', e.target.value)} />
+            <textarea rows={2} value={ra.renterAddress || ''} onChange={(e) => setRA('renterAddress', e.target.value)} />
           </RAField>
           <RAField label="Signed Name (Renter)" required>
             <input value={ra.renterSignedName || ''} onChange={(e) => setRA('renterSignedName', e.target.value)} />
@@ -36,7 +36,7 @@ export function RentalAgreementStep({ form, set }: { form: FormState; set: Funct
             <input value={ra.companyName || ''} onChange={(e) => setRA('companyName', e.target.value)} />
           </RAField>
           <RAField label="Address (Customer)">
-            <textarea rows={3} value={ra.customerAddress || ''} onChange={(e) => setRA('customerAddress', e.target.value)} />
+            <textarea rows={2} value={ra.customerAddress || ''} onChange={(e) => setRA('customerAddress', e.target.value)} />
           </RAField>
           <RAField label="Signed Name (Customer)" required>
             <input value={ra.customerSignedName || ''} onChange={(e) => setRA('customerSignedName', e.target.value)} />

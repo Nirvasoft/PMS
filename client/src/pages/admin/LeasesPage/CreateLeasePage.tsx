@@ -42,7 +42,7 @@ const STEPS = [
   { n: 2, label: 'Lease Dates',      icon: <FileText size={15} /> },
   { n: 3, label: 'Financial Terms',  icon: <DollarSign size={15} /> },
   { n: 4, label: 'Rental Agreement', icon: <FileSignature size={15} /> },
-  { n: 5, label: 'Clauses',          icon: <List size={15} /> },
+  { n: 5, label: 'Clauses',           icon: <List size={15} /> },
   { n: 6, label: 'Review',           icon: <Check size={15} /> },
 ];
 
@@ -155,11 +155,13 @@ export default function CreateLeasePage() {
       {/* Steps */}
       <div className="cl-steps">
         {STEPS.map((s) => (
-          <div key={s.n} className={`cl-step ${step === s.n ? 'active' : step > s.n ? 'done' : ''}`}>
-            <div className="step-dot">{step > s.n ? <Check size={13} /> : s.icon}</div>
-            <span className="step-label">{s.label}</span>
+          <>
+            <div key={s.n} className={`cl-step ${step === s.n ? 'active' : step > s.n ? 'done' : ''}`}>
+              <div className="step-dot">{step > s.n ? <Check size={13} /> : s.icon}</div>
+              <span className="step-label">{s.label}</span>
+            </div>
             {s.n < 6 && <div className="step-line" />}
-          </div>
+          </>
         ))}
       </div>
 

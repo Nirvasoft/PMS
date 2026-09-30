@@ -138,7 +138,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
   return (
     <div className="step-content">
       <h3>Financial Terms</h3>
-      <div className="form-grid-2">
+      <div style={{ display: 'grid', gridTemplateColumns: (form.unitId && form.leaseCharges.length > 0) ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12 }}>
         <div className="form-field">
           <label>Base Rent *</label>
           <input
@@ -163,12 +163,12 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
           />
         </div>
         <div className="form-field">
-          <label>Currency</label>
+          <label style={{ color: 'var(--text-muted)' }}>Currency</label>
           <select
             value={form.currency}
             disabled
-            title="Currency is set from the selected P-Unit and cannot be changed here"
-            style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
+            title="Disabled"
+            style={{ cursor: 'not-allowed', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)' }}
             onChange={() => {}}
           >
             <option value="">{form.unitId ? 'Select a unit currency…' : 'Select a unit first'}</option>
@@ -176,54 +176,20 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
           </select>
         </div>
         <div className="form-field">
-          <label>Base Amount</label>
+          <label style={{ color: 'var(--text-muted)' }}>Base Amount</label>
           <input
             type="text"
             readOnly
-            disabled
+            title="Disabled"
             value={baseAmount != null ? `${formatMoneyDisplay(baseAmount.toFixed(2))} ${baseCurrencyCode}` : ''}
             placeholder={baseCurrencyCode ? `— no rate set for ${form.currency || 'this currency'} —` : '— not set in Currency Setup —'}
-            style={{ background: 'var(--bg-tertiary)', color: baseAmount != null ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'not-allowed' }}
+            style={{ cursor: 'not-allowed', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)' }}
           />
         </div>
       </div>
 
-      {/* ── Lease Charges ── */}
-      <div className="unit-charges-panel">
-        <div className="unit-charges-panel-head">Charges <span className="optional">(optional)</span></div>
-        {!form.unitId ? (
-          <p className="unit-charges-empty">Select a unit to see its configured charges.</p>
-        ) : form.leaseCharges.length === 0 ? (
-          <p className="unit-charges-empty">No charges assigned to this unit.</p>
-        ) : (
-          <table className="charges-table">
-            <thead>
-              <tr><th>Charge</th><th className="text-right">Amount</th></tr>
-            </thead>
-            <tbody>
-              {form.leaseCharges.map((c) => (
-                <tr key={c.chargeTypeId}>
-                  <td>{chargeTypeName(c.chargeTypeId)}</td>
-                  <td className="text-right">
-                    <input
-                      className="charge-amount-input"
-                      type="text"
-                      inputMode="decimal"
-                      value={formatMoneyDisplay(c.amount)}
-                      onChange={(e) => editChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
-                      onBlur={(e) => commitChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
       {/* ── Rent Escalation ── */}
-      <div className="section-divider">Rent Escalation <span className="optional">(optional)</span></div>
-      <div className="form-grid-2">
+      <div style={{ display: 'grid', gridTemplateColumns: (form.unitId && form.leaseCharges.length > 0) ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12, marginTop: 12 }}>
         <div className="form-field">
           <label>Escalation Type</label>
           <select value={form.escalationType} onChange={(e) => set('escalationType', e.target.value)}>
@@ -247,7 +213,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
             </div>
             <div className="form-field">
               <label>Escalation Month (1–12)</label>
-              <input type="number" min={1} max={12} placeholder="e.g. 2 = February" value={form.escalationMonth} onChange={(e) => set('escalationMonth', e.target.value)} />
+              <input type="number" min={1} max={12} placeholder="e.g. 2 = Feb" value={form.escalationMonth} onChange={(e) => set('escalationMonth', e.target.value)} />
             </div>
           </>
         )}
@@ -261,6 +227,35 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
               <tr key={i}><td>{e.date}</td><td>{form.currency} {e.rent.toLocaleString()}</td></tr>
             ))}
           </tbody></table>
+        </div>
+      )}
+
+      {/* ── Lease Charges ── */}
+      {form.unitId && form.leaseCharges.length > 0 && (
+        <div className="unit-charges-panel" style={{ marginTop: 12, maxHeight: 160, overflowY: 'auto' }}>
+          <div className="unit-charges-panel-head" style={{ display: 'none' }}>Charges <span className="optional">(optional)</span></div>
+          <table className="charges-table">
+            <thead>
+              <tr><th>Charge</th><th className="text-right">Amount</th></tr>
+            </thead>
+            <tbody>
+              {form.leaseCharges.map((c) => (
+                <tr key={c.chargeTypeId}>
+                  <td>{chargeTypeName(c.chargeTypeId)}</td>
+                  <td className="text-right">
+                    <input
+                      className="charge-amount-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={formatMoneyDisplay(c.amount)}
+                      onChange={(e) => editChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
+                      onBlur={(e) => commitChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
