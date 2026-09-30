@@ -27,8 +27,20 @@ export class AmendmentsService {
     if (dto.newRentAmount) { oldValues.rentAmount = lease.rentAmount; newValues.rentAmount = dto.newRentAmount; }
     if (dto.newEndDate)    { oldValues.endDate = lease.endDate;       newValues.endDate = dto.newEndDate; }
 
+    const { effectiveDate, newEndDate, newRentAmount, ...restDto } = dto as Record<string, any>;
+
     return prisma.leaseAmendment.create({
-      data: { leaseId, amendmentNumber, createdBy, oldValues, newValues, ...dto as any },
+      data: {
+        leaseId,
+        amendmentNumber,
+        createdBy,
+        oldValues,
+        newValues,
+        ...restDto,
+        ...(effectiveDate ? { effectiveDate: new Date(effectiveDate) } : {}),
+        ...(newEndDate     ? { newEndDate:     new Date(newEndDate)   } : {}),
+        ...(newRentAmount  ? { newRentAmount }                          : {}),
+      },
     });
   }
 

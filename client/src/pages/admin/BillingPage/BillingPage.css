@@ -60,10 +60,12 @@
   font-weight: 700;
 }
 .billing-stat-card .bsc-value {
-  font-size: 26px;
+  font-size: 18px;
   font-weight: 800;
   color: var(--text-primary);
   letter-spacing: -0.5px;
+  word-break: break-all;
+  max-width: 100%;
 }
 .billing-stat-card .bsc-sub {
   font-size: 12px;

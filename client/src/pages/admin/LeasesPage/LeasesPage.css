@@ -34,8 +34,8 @@
 
 /* Table */
 .lease-table-wrap { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; overflow: hidden; }
-.lease-table-header { display: grid; grid-template-columns: 160px 1fr 1fr 180px 120px 130px 60px 50px; gap: 12px; padding: 10px 16px; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,.04); }
-.lease-row { display: grid; grid-template-columns: 160px 1fr 1fr 180px 120px 130px 60px 50px; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,.03); cursor: pointer; font-size: .82rem; transition: background .12s; }
+.lease-table-header { display: grid; grid-template-columns: 140px 140px 1fr 160px 110px 120px 44px; gap: 0; padding: 10px 16px; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,.04); }
+.lease-row { display: grid; grid-template-columns: 140px 140px 1fr 160px 110px 120px 44px; gap: 0; align-items: center; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,.03); cursor: pointer; font-size: .82rem; transition: background .12s; }
 .lease-row:last-child { border-bottom: none; }
 .lease-row:hover { background: rgba(255,255,255,.025); }
 .lease-row.expiring { background: rgba(243,156,18,.04); }
@@ -43,19 +43,16 @@
 .exp-warn { display: flex; align-items: center; gap: 3px; font-size: .65rem; color: #f39c12; margin-top: 3px; }
 .lu-number { font-weight: 700; font-size: .84rem; }
 .lu-property { font-size: .72rem; color: var(--text-muted); }
-.lease-tenant { font-size: .82rem; }
-.lease-dates { font-size: .72rem; color: var(--text-muted); }
+.lease-tenant { font-size: .82rem; padding-left: 8px; padding-right: 8px; }
+.lease-dates { font-size: .72rem; color: var(--text-muted); padding-left: 20px; }
+.lease-dates-header { padding-left: 20px; }
 .date-sep { color: rgba(255,255,255,.2); }
+.lease-rent { display: flex; align-items: baseline; gap: 3px; margin-left: -60px; }
+.lease-rent-header { margin-left: -60px; }
 .rent-val { font-weight: 700; font-size: .88rem; }
-.rent-cur { font-size: .7rem; color: var(--text-muted); margin-left: 3px; }
-.status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .7rem; font-weight: 700; border: 1px solid; }
-.esign-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #95a5a6; }
-.esign-dot.completed { background: #2ecc71; }
-.esign-dot.sent, .esign-dot.partial { background: #f39c12; }
-.esign-dot.voided { background: #e74c3c; }
-.row-actions { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
-.row-btn-delete { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 5px; display: flex; }
-.row-btn-delete:hover { color: #e74c3c; }
+.rent-cur { font-size: .7rem; color: var(--text-muted); }
+.status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .7rem; font-weight: 700; border: 1px solid; white-space: nowrap; }
+.row-actions { display: flex; align-items: center; justify-content: center; }
 .row-chevron { color: var(--text-muted); }
 .table-loading { padding: 24px 16px; display: flex; flex-direction: column; gap: 8px; }
 .lp { height: 40px; background: rgba(255,255,255,.03); border-radius: 8px; animation: pulse 1.4s ease infinite; }

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGetLeasesQuery, useDeleteLeaseMutation, type LeaseListItem } from '../../../store/api/leasesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  FileText, Plus, Search, X, AlertTriangle, ChevronRight, Trash2,
+  FileText, Plus, Search, X, AlertTriangle, Trash2,
   Clock, CheckCircle, XCircle, PenLine, Archive, Import,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -41,7 +41,7 @@ export default function LeaseListPage() {
     status: status || undefined,
     expiringWithinDays: expiring,
     propertyId: activePropertyFilter || undefined,
-    page, limit: 20,
+    page, limit: 10,
   });
 
   // Count expiring soon for alert banner
@@ -51,8 +51,8 @@ export default function LeaseListPage() {
     limit: 100,
   });
   const expiringCount = expiringData?.meta?.total ?? 0;
-
   const [deleteLease] = useDeleteLeaseMutation();
+
   const leases = data?.data || [];
   const meta   = data?.meta;
   const hasFilters = !!(search || status || expiring);
@@ -127,8 +127,8 @@ export default function LeaseListPage() {
       {/* Table */}
       <div className="lease-table-wrap">
         <div className="lease-table-header">
-          <span>Lease #</span><span>Unit / Property</span><span>Tenant</span>
-          <span>Dates</span><span>Rent</span><span>Status</span><span>E-Sign</span><span></span>
+          <span>Lease #</span><span>Unit</span><span className="lease-tenant">Tenant</span>
+          <span className="lease-dates-header">Dates</span><span className="lease-rent-header">Rent</span><span>Status</span><span>Action</span>
         </div>
 
         {isLoading ? (
@@ -170,9 +170,8 @@ function LeaseRow({ lease, onOpen, onDelete }: {
       </div>
       <div className="lease-unit">
         <div className="lu-number">{lease.unit.unitNumber}</div>
-        <div className="lu-property">{lease.property.name}</div>
       </div>
-      <div className="lease-tenant">{lease.tenant.displayName}</div>
+      <div className="lease-tenant" title={lease.tenant.firstName || undefined}>{lease.tenant.lastName || lease.tenant.companyName || lease.tenant.displayName}</div>
       <div className="lease-dates">
         <div>{new Date(lease.startDate).toLocaleDateString()}</div>
         <div className="date-sep">→</div>
@@ -187,9 +186,6 @@ function LeaseRow({ lease, onOpen, onDelete }: {
           {s.icon}{s.label}
         </span>
       </div>
-      <div>
-        <span className={`esign-dot ${lease.esignStatus}`} title={lease.esignStatus.replace(/_/g, ' ')} />
-      </div>
       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
         {['draft', 'cancelled', 'expired', 'terminated'].includes(lease.status) && (
           <PermissionGuard permission="leases.terminate">
@@ -203,7 +199,6 @@ function LeaseRow({ lease, onOpen, onDelete }: {
             ><Trash2 size={13} /></button>
           </PermissionGuard>
         )}
-        <ChevronRight size={14} className="row-chevron" />
       </div>
     </div>
   );

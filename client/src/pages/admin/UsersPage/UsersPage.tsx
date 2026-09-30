@@ -104,8 +104,6 @@ export default function UsersPage() {
               <thead>
                 <tr>
                   <SortableTh label="User" sortKey="fullName" active={sort} order={order} onSort={applySort} />
-                  <SortableTh label="Job Title" sortKey="jobTitle" active={sort} order={order} onSort={applySort} />
-                  <SortableTh label="Department" sortKey="department" active={sort} order={order} onSort={applySort} />
                   {/* Roles is many-to-many — no meaningful column to sort on. */}
                   <th>Roles</th>
                   <SortableTh label="Status" sortKey="isActive" active={sort} order={order} onSort={applySort} />
@@ -119,14 +117,9 @@ export default function UsersPage() {
                     <td>
                       <div className="user-cell">
                         <UserAvatar url={user.avatarUrl} name={user.fullName} />
-                        <div>
-                          <div className="user-cell-name">{user.fullName}</div>
-                          <div className="text-muted text-small">{user.email}</div>
-                        </div>
+                        <div className="user-cell-name">{user.fullName}</div>
                       </div>
                     </td>
-                    <td>{user.jobTitle || '—'}</td>
-                    <td>{user.department?.name || '—'}</td>
                     <td>
                       <div className="role-chips">
                         {user.roles.map((r) => (
@@ -143,8 +136,8 @@ export default function UsersPage() {
                       {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
                     </td>
                     <td>
-                      <Link to={`/admin/users/${user.id}`} className="btn-view-user">
-                        <Eye size={14} /> View
+                      <Link to={`/admin/users/${user.id}`} className="btn-icon" title="View">
+                        <Eye size={16} />
                       </Link>
                     </td>
                   </tr>

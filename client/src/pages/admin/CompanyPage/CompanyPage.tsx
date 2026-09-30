@@ -293,7 +293,7 @@ function BranchesTab() {
 
       <div className="org-cards-grid">
         {branches.map((b) => (
-          <div key={b.id} className="org-card">
+          <div key={b.id} className="org-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="org-card-top">
               <div className="org-card-icon">📍</div>
               <div className="org-card-title">
@@ -311,7 +311,7 @@ function BranchesTab() {
               )}
             </div>
             <PermissionGuard permission="company.manage">
-              <div className="org-card-actions">
+              <div className="org-card-actions" style={{ marginTop: 'auto' }}>
                 <button className="btn btn-sm" onClick={() => setShowModal(b.id)}>Edit</button>
                 <button className="btn btn-sm btn-danger" onClick={() => handleDelete(b.id, b.name)}>Delete</button>
               </div>
@@ -393,7 +393,7 @@ function RegionsTab() {
 
       <div className="org-cards-grid">
         {regions.map((r) => (
-          <div key={r.id} className="org-card">
+          <div key={r.id} className="org-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="org-card-top">
               <div className="org-card-icon">🌍</div>
               <div className="org-card-title">
@@ -408,7 +408,7 @@ function RegionsTab() {
                 <span>👤 {r.manager.profile ? `${r.manager.profile.firstName} ${r.manager.profile.lastName}` : 'Manager'}</span>
               )}
             </div>
-            <div className="org-card-actions">
+            <div className="org-card-actions" style={{ marginTop: 'auto' }}>
               <button className="btn btn-sm" onClick={() => setPickerRegionId(r.id)}>🏠 Properties</button>
               <PermissionGuard permission="company.manage">
                 <button className="btn btn-sm" onClick={() => setShowModal(r.id)}>Edit</button>
@@ -573,7 +573,7 @@ function BusinessUnitsTab() {
 
       <div className="org-cards-grid">
         {units.map((bu) => (
-          <div key={bu.id} className="org-card">
+        <div key={bu.id} className="org-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="org-card-top">
               <div className="org-card-icon">💼</div>
               <div className="org-card-title">
@@ -589,7 +589,7 @@ function BusinessUnitsTab() {
               )}
             </div>
             <PermissionGuard permission="company.manage">
-              <div className="org-card-actions">
+              <div className="org-card-actions" style={{ marginTop: 'auto' }}>
                 <button className="btn btn-sm" onClick={() => setShowModal(bu.id)}>Edit</button>
                 <button className="btn btn-sm btn-danger" onClick={async () => {
                   if (!(await confirmDialog(`Delete "${bu.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
