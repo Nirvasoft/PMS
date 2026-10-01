@@ -199,11 +199,13 @@ export default function InvoiceDetailPage() {
 
   const tenantRateRow = currencyRates.find(r => r.currency === tenantCurrency);
   const baseCurrencyRow = currencyRates.find(r => r.isBaseCurrency);
-  const effectiveRate = inv.currencyRate != null && Number(inv.currencyRate) > 0
-    ? Number(inv.currencyRate)
-    : tenantRateRow?.rate != null && Number(tenantRateRow.rate) > 0
+
+  // effectiveRate = the current rate for the tenant's currency from Currency Setup.
+  // Always look up from the live rate table — inv.currencyRate is the invoice's
+  // internal rate (e.g. MMK) and is NOT the tenant's currency rate.
+  const effectiveRate = tenantRateRow?.rate != null && Number(tenantRateRow.rate) > 0
     ? Number(tenantRateRow.rate)
-    : (tenantCurrency === (baseCurrencyRow?.currency || inv.currency)
+    : (baseCurrencyRow?.currency === tenantCurrency
       ? 1
       : (currencyRates.length > 0 ? convertCurrency(1, inv.currency, tenantCurrency) : null));
 
@@ -310,12 +312,6 @@ export default function InvoiceDetailPage() {
           <div className="invoice-meta-item">
             <div className="imi-label">Billing Period</div>
             <div className="imi-value">{format(new Date(inv.periodFrom), 'MMM d')} — {format(new Date(inv.periodTo), 'MMM d, yyyy')}</div>
-          </div>
-        )}
-        {inv.notes && (
-          <div className="invoice-meta-item" style={{ gridColumn: 'span 2' }}>
-            <div className="imi-label">Notes</div>
-            <div className="imi-value">{inv.notes}</div>
           </div>
         )}
       </div>

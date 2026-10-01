@@ -143,7 +143,26 @@ export default function CreateLeadPage() {
             <Field label="Shop Name" value={loi.shopName} onChange={(v) => setLoiField('shopName', v)} />
 
             <SelectField label="Business Type" value={loi.businessType} onChange={(v) => setLoiField('businessType', v)}
-              options={[['', 'Select…'], ['private', 'Private'], ['share', 'Share'], ['company', 'Company']]} />
+              options={[
+                ['', '-'],
+                ['fashion', 'Fashion'],
+                ['shoes', 'Shoes'],
+                ['bags', 'Bags'],
+                ['cosmetics', 'Cosmetics'],
+                ['accessories', 'Accessories'],
+                ['jewellery', 'Jewellery'],
+                ['inner_wear', 'Inner Wear'],
+                ['specility', 'Specility'],
+                ['kids', 'Kids'],
+                ['sport', 'Sport'],
+                ['it_mobile_electronics', 'IT/Mobile/Electronics'],
+                ['life_style', 'Life Style'],
+                ['furniture_home_decoration', 'Furniture and Home Decoration'],
+                ['food', 'Food'],
+                ['edutainment', 'Edutainment'],
+                ['health_and_wellness', 'Health and Wellness'],
+                ['services', 'Services'],
+              ]} />
             <SelectField label="Door Type" value={loi.doorType} onChange={(v) => setLoiField('doorType', v)}
               options={[['', 'Select…'], ['glass_door', 'Glass Door'], ['other', 'Other'], ['roller_shutter', 'Roller Shutter']]} />
             <SelectField label="Product Plan" value={loi.productPlan} onChange={(v) => setLoiField('productPlan', v)}

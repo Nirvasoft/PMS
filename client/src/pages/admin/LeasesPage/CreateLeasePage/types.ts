@@ -60,4 +60,6 @@ export interface FormState {
   clauses: { title: string; content: string }[];
   specialConditions: string; notes: string;
   rentalAgreement: RentalAgreement;
+  paymentType: string;        // 'fully' | 'partially'
+  partialPaymentPercent: string; // partial payment amount (used when paymentType === 'partially')
 }

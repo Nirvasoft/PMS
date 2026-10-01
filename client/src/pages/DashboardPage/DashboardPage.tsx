@@ -117,7 +117,8 @@ export default function DashboardLayout() {
   // Currency Setup is configured per property (rates, base currency) — "All Properties"
   // has no meaningful data to show there, so hide it from the switcher too.
   const isCurrencySetupPage = !!matchPath('/admin/billing/currency-rates', location.pathname);
-  const hideAllPropertiesOption = isPropertyDetailPage || isCurrencySetupPage;
+  const isMeterSetupPage = !!matchPath('/admin/billing/meter-setup', location.pathname);
+  const hideAllPropertiesOption = isPropertyDetailPage || isCurrencySetupPage || isMeterSetupPage;
   const [logout] = useLogoutMutation();
   useRealtimeNotifications(); // Real-time WS notifications
 

@@ -234,6 +234,80 @@ export class InvoicesService {
     return invoice;
   }
 
+  // ── Direct Invoice from Lease (fully paid, no charges) ──
+
+  /**
+   * Creates a direct invoice immediately on lease activation.
+   * Used when paymentType = 'fully' and the lease has no extra charges.
+   * Bypasses the BillingSchedule system entirely.
+   */
+  async createFromLease(lease: any, userId: string) {
+    const rentChargeType = await prisma.chargeType.findFirst({
+      where: { code: 'RENT', OR: [{ companyId: null }, { companyId: lease.companyId }] },
+    });
+    if (!rentChargeType) {
+      logger.warn(`createFromLease: RENT charge type not found for lease ${lease.leaseNumber}`);
+      return null;
+    }
+
+    const startDate = new Date(lease.startDate);
+    const dueDate = new Date(startDate);
+    dueDate.setDate(dueDate.getDate() + (lease.paymentDueDays || 7));
+
+    const rentAmount = Number(lease.rentAmount);
+    const invoiceNumber = await this.generateInvoiceNumber(lease.companyId);
+
+    // Resolve currency rate
+    let currencyRate: number | null = lease.currencyRate ? Number(lease.currencyRate) : null;
+
+    const lineData = [{
+      chargeTypeId: rentChargeType.id,
+      description: `Rent — Unit ${lease.unit?.unitNumber || ''}`,
+      quantity: 1,
+      unitPrice: rentAmount,
+      discountPct: 0,
+      amount: rentAmount,
+      taxRate: 0,
+      taxAmount: 0,
+      lineTotal: rentAmount,
+      sortOrder: 0,
+    }];
+
+    const invoice = await prisma.invoice.create({
+      data: {
+        companyId: lease.companyId,
+        propertyId: lease.propertyId,
+        unitId: lease.unitId || null,
+        tenantId: lease.tenantId,
+        leaseId: lease.id,
+        invoiceNumber,
+        invoiceType: 'invoice',
+        status: 'issued',
+        invoiceDate: startDate,
+        dueDate,
+        periodFrom: startDate,
+        periodTo: lease.endDate ? new Date(lease.endDate) : null,
+        subtotal: rentAmount,
+        taxAmount: 0,
+        totalAmount: rentAmount,
+        paidAmount: 0,
+        currency: lease.currency || 'USD',
+        currencyRate,
+        notes: `Direct invoice — fully paid lease ${lease.leaseNumber}`,
+        createdBy: userId,
+        lines: { create: lineData },
+      },
+      include: {
+        lines: { include: { chargeType: { select: { code: true, name: true } } } },
+        tenant: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    logger.info(`Direct invoice ${invoiceNumber} created for lease ${lease.leaseNumber}`);
+    webhookInvoiceIssued(invoice);
+    return invoice;
+  }
+
   // ── Auto-Generate from Billing Schedule(s) ──
 
   /** Single-schedule convenience wrapper around {@link generateFromSchedules}. */

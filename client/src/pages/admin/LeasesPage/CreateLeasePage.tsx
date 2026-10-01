@@ -31,6 +31,7 @@ const INITIAL: FormState = {
   escalationMonth: '', escalationDay: '',
   leaseCharges: [],
   clauses: [], specialConditions: '', notes: '',
+  paymentType: 'fully', partialPaymentPercent: '',
   rentalAgreement: {
     renterName: '', renterAddress: '', renterSignedName: '', renterNirc: '', renterDate: todayISO(),
     companyName: '', customerAddress: '', customerSignedName: '', customerNirc: '', customerDate: todayISO(),
@@ -77,7 +78,8 @@ export default function CreateLeasePage() {
   const canProceed = (): boolean => {
     if (step === 1) return !!(form.propertyId && form.unitId && form.tenantId);
     if (step === 2) return !!(form.startDate && form.endDate && form.startDate < form.endDate);
-    if (step === 3) return !!(form.rentAmount && Number(form.rentAmount) > 0);
+    if (step === 3) return !!(form.rentAmount && Number(form.rentAmount) > 0)
+      && !(form.paymentType === 'partially' && Number(form.partialPaymentPercent) > Number(form.rentAmount));
     if (step === 4) {
       const ra = form.rentalAgreement;
       return !!(ra.renterName && ra.renterSignedName && ra.renterNirc && ra.renterDate
@@ -96,6 +98,9 @@ export default function CreateLeasePage() {
       billingCycle: form.billingCycle, billingDay: form.billingDay, paymentDueDays: form.paymentDueDays,
       rentAmount: Number(form.rentAmount), currency: form.currency,
       securityDeposit: form.securityDeposit ? Number(form.securityDeposit) : 0,
+      paymentType: form.paymentType || 'fully',
+      partialAmount: form.paymentType === 'partially' && form.partialPaymentPercent
+        ? Number(form.partialPaymentPercent) : undefined,
       escalationType:   form.escalationType   || undefined,
       escalationValue:  form.escalationValue  ? Number(form.escalationValue) : undefined,
       escalationFrequency: form.escalationFrequency,
@@ -140,7 +145,7 @@ export default function CreateLeasePage() {
 
       navigate(`/admin/leases/${result.data.id}`);
     } catch (e: any) {
-      const msg = e?.data?.errors?.[0]?.message || e?.data?.message || 'Failed to create lease';
+      const msg = e?.data?.errors?.[0]?.message || e?.data?.message || e?.message || 'Failed to create lease';
       toast.error(msg);
     }
   };

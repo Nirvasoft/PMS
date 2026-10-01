@@ -236,7 +236,12 @@ export default function MeterSetupPage() {
         </div>
         <div className="meter-search-filter-wrap">
           {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
-          <select className="meter-search-select" value={searchPropertyId} disabled>
+          <select
+            className="meter-search-select"
+            value={searchPropertyId}
+            disabled
+            style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', pointerEvents: 'none' }}
+          >
             {!searchPropertyId && <option value="">All Properties</option>}
             {searchPropertyId && (
               <option value={searchPropertyId}>{properties.find((p) => p.id === searchPropertyId)?.name || ''}</option>
@@ -271,7 +276,6 @@ export default function MeterSetupPage() {
         <table className="billing-table">
           <thead>
             <tr>
-              <th>Property</th>
               <th>Floor Label</th>
               <th>Meter Type</th>
               <th>Meter No</th>
@@ -284,14 +288,13 @@ export default function MeterSetupPage() {
           </thead>
           <tbody>
             {isFetching && meters.length === 0 ? (
-              <tr><td colSpan={9} className="billing-empty">Loading…</td></tr>
+              <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
             ) : meters.length === 0 ? (
-              <tr><td colSpan={9} className="billing-empty">No meters set up yet</td></tr>
+              <tr><td colSpan={8} className="billing-empty">No meters set up yet</td></tr>
             ) : filteredMeters.length === 0 ? (
-              <tr><td colSpan={9} className="billing-empty">No meters match your search</td></tr>
+              <tr><td colSpan={8} className="billing-empty">No meters match your search</td></tr>
             ) : filteredMeters.map((m) => (
               <tr key={m.id}>
-                <td><span className="cell-primary">{m.property.name}</span></td>
                 <td>{m.floor?.floorLabel ?? '—'}</td>
                 <td>{labelFor(METER_TYPES, m.meterType)}</td>
                 <td><span className="cell-mono">{m.meterNo}</span></td>

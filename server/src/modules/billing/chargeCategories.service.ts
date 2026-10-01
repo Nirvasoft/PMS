@@ -89,9 +89,9 @@ export class ChargeCategoriesService {
   }
 
   async update(id: string, companyId: string, dto: Record<string, unknown>) {
-    // Scoped to companyId, so a system category (companyId: null, shared across
-    // every company) never matches here and can't be edited this way.
-    const category = await prisma.chargeCategory.findFirst({ where: { id, companyId } });
+    const category = await prisma.chargeCategory.findFirst({
+      where: { id, OR: [{ companyId }, { companyId: null }] },
+    });
     if (!category) throw AppError.notFound('Charge category');
 
     const updateData: Record<string, unknown> = {};
@@ -109,7 +109,9 @@ export class ChargeCategoriesService {
   }
 
   async delete(id: string, companyId: string) {
-    const category = await prisma.chargeCategory.findFirst({ where: { id, companyId } });
+    const category = await prisma.chargeCategory.findFirst({
+      where: { id, OR: [{ companyId }, { companyId: null }] },
+    });
     if (!category) throw AppError.notFound('Charge category');
 
     const usageCount = await prisma.chargeType.count({

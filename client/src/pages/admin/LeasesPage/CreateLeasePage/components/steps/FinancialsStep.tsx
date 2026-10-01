@@ -138,57 +138,94 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
   return (
     <div className="step-content">
       <h3>Financial Terms</h3>
+
+      {/* ── Row 1: Amounts + Payment Type ─── */}
       <div style={{ display: 'grid', gridTemplateColumns: (form.unitId && form.leaseCharges.length > 0) ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12 }}>
+        {/* Base Rent */}
         <div className="form-field">
           <label>Base Rent *</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            placeholder="e.g. 3,500"
-            value={formatMoneyDisplay(form.rentAmount)}
-            onChange={(e) => set('rentAmount', sanitizeMoneyInput(e.target.value))}
-          />
-          {prefilledFromUnit && (
-            <span className="field-hint">Pre-filled from unit rate</span>
-          )}
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
+            {form.currency && (
+              <span title="Unit's Currency" style={{ display: 'flex', alignItems: 'center', padding: '0 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)', borderRight: 'none', borderRadius: '8px 0 0 8px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', letterSpacing: '0.03em', cursor: 'help' }}>
+                {form.currency}
+              </span>
+            )}
+            <input type="text" inputMode="decimal" placeholder="e.g. 3,500"
+              value={formatMoneyDisplay(form.rentAmount)}
+              onChange={(e) => set('rentAmount', sanitizeMoneyInput(e.target.value))}
+              style={form.currency ? { borderRadius: '0 8px 8px 0', flex: 1 } : {}} />
+          </div>
+          {prefilledFromUnit && <span className="field-hint">Pre-filled from unit rate</span>}
         </div>
+
+        {/* Security Deposit */}
         <div className="form-field">
           <label>Security Deposit</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            placeholder="e.g. 7,000"
-            value={formatMoneyDisplay(form.securityDeposit)}
-            onChange={(e) => set('securityDeposit', sanitizeMoneyInput(e.target.value))}
-          />
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
+            {form.currency && (
+              <span title="Unit's Currency" style={{ display: 'flex', alignItems: 'center', padding: '0 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)', borderRight: 'none', borderRadius: '8px 0 0 8px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', letterSpacing: '0.03em', cursor: 'help' }}>
+                {form.currency}
+              </span>
+            )}
+            <input type="text" inputMode="decimal" placeholder="e.g. 7,000"
+              value={formatMoneyDisplay(form.securityDeposit)}
+              onChange={(e) => set('securityDeposit', sanitizeMoneyInput(e.target.value))}
+              style={form.currency ? { borderRadius: '0 8px 8px 0', flex: 1 } : {}} />
+          </div>
         </div>
-        <div className="form-field">
-          <label style={{ color: 'var(--text-muted)' }}>Currency</label>
-          <select
-            value={form.currency}
-            disabled
-            title="Disabled"
-            style={{ cursor: 'not-allowed', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)' }}
-            onChange={() => {}}
-          >
-            <option value="">{form.unitId ? 'Select a unit currency…' : 'Select a unit first'}</option>
-            {currencyCodes.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+
+        {/* Base Amount (read-only) */}
         <div className="form-field">
           <label style={{ color: 'var(--text-muted)' }}>Base Amount</label>
-          <input
-            type="text"
-            readOnly
-            title="Disabled"
-            value={baseAmount != null ? `${formatMoneyDisplay(baseAmount.toFixed(2))} ${baseCurrencyCode}` : ''}
-            placeholder={baseCurrencyCode ? `— no rate set for ${form.currency || 'this currency'} —` : '— not set in Currency Setup —'}
-            style={{ cursor: 'not-allowed', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)' }}
-          />
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
+            {baseCurrencyCode && (
+              <span title="Base Currency" style={{ display: 'flex', alignItems: 'center', padding: '0 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRight: 'none', borderRadius: '8px 0 0 8px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', letterSpacing: '0.03em', cursor: 'help' }}>
+                {baseCurrencyCode}
+              </span>
+            )}
+            <input type="text" readOnly title="Calculated from currency rate"
+              value={baseAmount != null ? formatMoneyDisplay(baseAmount.toFixed(2)) : ''}
+              placeholder={baseCurrencyCode ? `— no rate set for ${form.currency || 'this currency'} —` : '— not set in Currency Setup —'}
+              style={{ cursor: 'not-allowed', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', ...(baseCurrencyCode ? { borderRadius: '0 8px 8px 0', flex: 1 } : {}) }} />
+          </div>
+        </div>
+
+        {/* Payment Type */}
+        <div className="form-field">
+          <label>Payment Type</label>
+          <select value={form.paymentType} onChange={(e) => { set('paymentType', e.target.value); if (e.target.value === 'fully') set('partialPaymentPercent', ''); }}>
+            <option value="fully">Fully</option>
+            <option value="partially">Partially</option>
+          </select>
         </div>
       </div>
 
-      {/* ── Rent Escalation ── */}
+      {/* ── Row 2: Partial Amount (only when Partially) ── */}
+      {form.paymentType === 'partially' && (
+        <div style={{ display: 'grid', gridTemplateColumns: (form.unitId && form.leaseCharges.length > 0) ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12, marginTop: 12 }}>
+          <div className="form-field">
+            <label>Partial Amount</label>
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
+              {form.currency && (
+                <span title="Unit's Currency" style={{ display: 'flex', alignItems: 'center', padding: '0 10px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${Number(form.partialPaymentPercent) > Number(form.rentAmount) ? '#f87171' : 'rgba(255,255,255,0.10)'}`, borderRight: 'none', borderRadius: '8px 0 0 8px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', letterSpacing: '0.03em', cursor: 'help' }}>
+                  {form.currency}
+                </span>
+              )}
+              <input type="text" inputMode="decimal" placeholder="e.g. 1,500"
+                value={formatMoneyDisplay(form.partialPaymentPercent)}
+                onChange={(e) => set('partialPaymentPercent', sanitizeMoneyInput(e.target.value))}
+                style={{ ...(form.currency ? { borderRadius: '0 8px 8px 0', flex: 1 } : {}), ...(Number(form.partialPaymentPercent) > Number(form.rentAmount) ? { borderColor: '#f87171' } : {}) }} />
+            </div>
+            {Number(form.partialPaymentPercent) > 0 && Number(form.rentAmount) > 0 && Number(form.partialPaymentPercent) > Number(form.rentAmount) && (
+              <span style={{ fontSize: '0.72rem', color: '#f87171', marginTop: 3 }}>
+                Partial amount cannot exceed Base Rent ({form.currency} {formatMoneyDisplay(form.rentAmount)})
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 3. Rent Escalation ──────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: (form.unitId && form.leaseCharges.length > 0) ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12, marginTop: 12 }}>
         <div className="form-field">
           <label>Escalation Type</label>
@@ -229,6 +266,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
           </tbody></table>
         </div>
       )}
+
 
       {/* ── Lease Charges ── */}
       {form.unitId && form.leaseCharges.length > 0 && (

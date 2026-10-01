@@ -1769,6 +1769,10 @@ model Lease {
   escalationDay       Int?     @map("escalation_day") @db.SmallInt
   escalationMonth     Int?     @map("escalation_month") @db.SmallInt
 
+  // Payment Terms
+  paymentType    String  @default("fully") @map("payment_type") @db.VarChar(20)
+  partialAmount  Decimal? @map("partial_amount") @db.Decimal(15, 2)
+
   // Renewal
   isRenewed             Boolean   @default(false) @map("is_renewed")
   parentLeaseId         String?   @map("parent_lease_id") @db.Uuid

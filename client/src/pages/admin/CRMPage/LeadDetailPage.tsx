@@ -539,10 +539,24 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
           <div className="form-group">
             <label>Business Type</label>
             <select className="form-input" value={form.businessType} onChange={e => set('businessType', e.target.value)}>
-              <option value="">Select…</option>
-              <option value="private">Private</option>
-              <option value="share">Share</option>
-              <option value="company">Company</option>
+              <option value="">-</option>
+              <option value="fashion">Fashion</option>
+              <option value="shoes">Shoes</option>
+              <option value="bags">Bags</option>
+              <option value="cosmetics">Cosmetics</option>
+              <option value="accessories">Accessories</option>
+              <option value="jewellery">Jewellery</option>
+              <option value="inner_wear">Inner Wear</option>
+              <option value="specility">Specility</option>
+              <option value="kids">Kids</option>
+              <option value="sport">Sport</option>
+              <option value="it_mobile_electronics">IT/Mobile/Electronics</option>
+              <option value="life_style">Life Style</option>
+              <option value="furniture_home_decoration">Furniture and Home Decoration</option>
+              <option value="food">Food</option>
+              <option value="edutainment">Edutainment</option>
+              <option value="health_and_wellness">Health and Wellness</option>
+              <option value="services">Services</option>
             </select>
           </div>
           <div className="form-group">

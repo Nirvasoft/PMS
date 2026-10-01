@@ -33,6 +33,8 @@ export const createLeaseSchema = z.object({
     billingDay: z.number().min(1).max(31).optional(),
     paymentDueDays: z.number().min(0).max(90).optional(),
     securityDeposit: z.number().min(0).optional(),
+    paymentType: z.enum(['fully', 'partially']).optional(),
+    partialAmount: z.number().positive().optional(),
     escalationType: z.enum(['fixed_percent', 'fixed_amount', 'cpi', 'stepped']).nullable().optional(),
     escalationValue: z.number().optional(),
     escalationFrequency: z.enum(['annual', 'biennial']).optional(),

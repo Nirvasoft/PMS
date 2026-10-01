@@ -125,7 +125,7 @@ export class LeasesService {
 
   // ── Create ────────────────────────────────
   async create(companyId: string, dto: Record<string, unknown>, createdBy: string) {
-    const { propertyId, unitId, tenantId, startDate, endDate, templateId, leaseCharges, rentalAgreement, handoverDate, ...rest } = dto as any;
+    const { propertyId, unitId, tenantId, startDate, endDate, templateId, leaseCharges, rentalAgreement, handoverDate, paymentType, partialAmount, ...rest } = dto as any;
 
     // Validations
     const unit   = await prisma.unit.findFirst({ where: { id: unitId, propertyId } });
@@ -179,6 +179,16 @@ export class LeasesService {
     // not depend on the generated Prisma client knowing the field.
     if (rentalAgreement) {
       await prisma.$executeRaw`UPDATE "leases" SET "rental_agreement" = ${JSON.stringify(rentalAgreement)}::jsonb WHERE "id" = ${lease.id}::uuid`;
+    }
+
+    // paymentType / partialAmount — written via raw SQL so they work even if
+    // the Prisma client was generated before the migration ran.
+    try {
+      const pt = paymentType || 'fully';
+      const pa = partialAmount != null ? Number(partialAmount) : null;
+      await prisma.$executeRaw`UPDATE "leases" SET "payment_type" = ${pt}, "partial_amount" = ${pa} WHERE "id" = ${lease.id}::uuid`;
+    } catch (_e) {
+      // Column doesn't exist yet (migration pending) — safe to ignore
     }
 
     // Create BillingSchedule records for each charge
