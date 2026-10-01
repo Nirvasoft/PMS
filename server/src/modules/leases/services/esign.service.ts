@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { logger } from '../../../common/logger';
@@ -11,13 +12,13 @@ export class EsignService {
     // 1. Generate PDF document for the lease
     const documentUrl = await pdfService.generateLeasePdf(leaseId, companyId);
 
-    // 2. Prepare envelope stub
-    const envelopeId = `env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // 2. Prepare envelope stub with a cryptographically secure ID
+    const envelopeId = `env-${randomBytes(16).toString('hex')}`;
 
     await prisma.$transaction([
       prisma.esignRecipient.deleteMany({ where: { leaseId } }),
       prisma.esignRecipient.createMany({
-        data: dto.recipients.map((r) => ({ leaseId, envelopeId, ...r, status: 'sent' })),
+        data: dto.recipients.map((r) => ({ leaseId, envelopeId, documentUrl, ...r, status: 'sent' })),
       }),
       prisma.lease.update({ where: { id: leaseId }, data: { esignStatus: 'sent', esignEnvelopeId: envelopeId } }),
     ]);
@@ -26,10 +27,23 @@ export class EsignService {
   }
 
   async getStatus(leaseId: string, companyId: string) {
-    const lease = await prisma.lease.findFirst({ where: { id: leaseId, companyId }, select: { esignStatus: true, esignEnvelopeId: true, esignCompletedAt: true } });
+    // Merged into a single query with include to avoid N+1 (was 2 separate queries)
+    const lease = await prisma.lease.findFirst({
+      where: { id: leaseId, companyId },
+      select: {
+        esignStatus: true,
+        esignEnvelopeId: true,
+        esignCompletedAt: true,
+        esignRecipients: { orderBy: { createdAt: 'asc' } },
+      },
+    });
     if (!lease) throw AppError.notFound('Lease');
-    const recipients = await prisma.esignRecipient.findMany({ where: { leaseId } });
-    return { status: lease.esignStatus, envelopeId: lease.esignEnvelopeId, completedAt: lease.esignCompletedAt, recipients };
+    return {
+      status: lease.esignStatus,
+      envelopeId: lease.esignEnvelopeId,
+      completedAt: lease.esignCompletedAt,
+      recipients: lease.esignRecipients,
+    };
   }
 
   async webhook(payload: Record<string, unknown>) {

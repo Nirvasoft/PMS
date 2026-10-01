@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request } from 'express';
 import { asyncHandler } from '../../middleware';
 import { leasesService } from './services/leases.service';
 import { leasesLifecycleService } from './services/leases-lifecycle.service';

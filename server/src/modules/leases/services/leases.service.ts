@@ -31,7 +31,11 @@ export class LeasesService {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() + expiringWithinDays);
       where.endDate = { lte: cutoff };
-      where.status  = { in: ['active', 'approved'] };
+      // expiringWithinDays implies active/approved — only override status if caller
+      // didn't explicitly specify one; log a conflict rather than silently ignoring
+      if (!status) {
+        where.status = { in: ['active', 'approved'] };
+      }
     }
     if (search) {
       where.OR = [
@@ -140,11 +144,17 @@ export class LeasesService {
     if (!tenant) throw new AppError(400, 'INVALID_TENANT', 'Tenant not found');
     if (tenant.isBlacklisted) throw new AppError(403, 'TENANT_BLACKLISTED', 'Cannot create lease for blacklisted tenant');
 
-    // Overlap check
+    // Overlap check: ensure the [start, end] range doesn't intersect an existing active lease on the unit
     const overlap = await prisma.lease.findFirst({
-      where: { unitId, deletedAt: null, status: { in: ['active', 'approved', 'pending_approval'] } },
+      where: {
+        unitId,
+        deletedAt: null,
+        status: { in: ['active', 'approved', 'pending_approval'] },
+        startDate: { lt: new Date(endDate as string) },
+        endDate:   { gt: new Date(startDate as string) },
+      },
     });
-    if (overlap) throw new AppError(409, 'LEASE_OVERLAP', 'Unit already has an active or approved lease', { conflictingLeaseId: overlap.id });
+    if (overlap) throw new AppError(409, 'LEASE_OVERLAP', 'Unit already has an active or approved lease overlapping these dates', { conflictingLeaseId: overlap.id });
 
     const start = new Date(startDate);
     const end   = new Date(endDate);
@@ -262,35 +272,32 @@ export class LeasesService {
       // Delete all existing billing schedules linked to this lease
       await prisma.billingSchedule.deleteMany({ where: { leaseId: id } });
 
-      // Re-create new ones
+      // Re-create new ones using already-fetched lease values (no extra DB round trip)
       if (leaseCharges.length > 0) {
-        const curr = await prisma.lease.findFirst({ where: { id }, select: { propertyId: true, unitId: true, tenantId: true, currency: true, billingCycle: true, billingDay: true, paymentDueDays: true, startDate: true, endDate: true } });
-        if (curr) {
-          await prisma.billingSchedule.createMany({
-            data: leaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
-              companyId,
-              propertyId: curr.propertyId,
-              unitId: curr.unitId,
-              tenantId: curr.tenantId,
-              leaseId: id,
-              chargeTypeId: c.chargeTypeId,
-              amount: c.amount,
-              currency: curr.currency,
-              billingCycle: curr.billingCycle,
-              billingDay: curr.billingDay,
-              paymentDueDays: curr.paymentDueDays,
-              startDate: curr.startDate,
-              endDate: curr.endDate,
-            })),
-          });
-        }
+        await prisma.billingSchedule.createMany({
+          data: leaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
+            companyId,
+            propertyId: lease.propertyId,
+            unitId: lease.unitId,
+            tenantId: lease.tenantId,
+            leaseId: id,
+            chargeTypeId: c.chargeTypeId,
+            amount: c.amount,
+            currency: lease.currency,
+            billingCycle: lease.billingCycle,
+            billingDay: lease.billingDay,
+            paymentDueDays: lease.paymentDueDays,
+            startDate: start,
+            endDate: end,
+          })),
+        });
       }
     } else {
       // Existing billing schedules carry their own copies of currency/billing
       // day/dates for invoice generation — keep them in sync with lease-level
       // edits (e.g. start date, billing day) even when charges aren't replaced.
+      // Note: currency is intentionally excluded from updates (set once at creation).
       const scheduleUpdate: Record<string, unknown> = {};
-      if (rest.currency !== undefined)       scheduleUpdate.currency = rest.currency;
       if (rest.billingCycle !== undefined)   scheduleUpdate.billingCycle = rest.billingCycle;
       if (rest.billingDay !== undefined)     scheduleUpdate.billingDay = rest.billingDay;
       if (rest.paymentDueDays !== undefined) scheduleUpdate.paymentDueDays = rest.paymentDueDays;

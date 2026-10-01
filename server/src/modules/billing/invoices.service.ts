@@ -6,6 +6,7 @@ import { billingNotifications } from './billingNotifications.service';
 import { workflowEngine } from '../workflow/services/engine.service';
 import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
+import { formatTenantName } from './billing.utils';
 
 /** Adds computed `outstandingAmount` to an invoice object */
 function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T): T & { outstandingAmount: number } {
@@ -336,6 +337,28 @@ export class InvoicesService {
     };
     const lineInputs: LineInput[] = [];
 
+    // Pre-fetch all active tax configs for this company once before the loop
+    // so getApplicableRate() is resolved in-memory instead of hitting the DB per schedule
+    const allTaxConfigs = await prisma.taxConfiguration.findMany({
+      where: { companyId: schedules[0].companyId, isActive: true },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+
+    const resolveRate = (chargeTypeCode: string, invoiceDate: Date): number => {
+      const specific = allTaxConfigs.find(c =>
+        c.effectiveFrom <= invoiceDate &&
+        (!c.effectiveTo || c.effectiveTo >= invoiceDate) &&
+        c.appliesTo.length > 0 && c.appliesTo.includes(chargeTypeCode)
+      );
+      if (specific) return Number(specific.taxRate);
+      const general = allTaxConfigs.find(c =>
+        c.effectiveFrom <= invoiceDate &&
+        (!c.effectiveTo || c.effectiveTo >= invoiceDate) &&
+        c.appliesTo.length === 0
+      );
+      return general ? Number(general.taxRate) : 0;
+    };
+
     for (const schedule of schedules) {
       const periodFrom = schedule.nextBillingDate!;
       const periodTo = this.computePeriodEnd(periodFrom, schedule.billingCycle);
@@ -360,19 +383,15 @@ export class InvoicesService {
         continue;
       }
 
-      // schedule.amount is the unit price; effective billing total = unit price × qty
       const scheduleQty = Number(schedule.quantity) || 1;
       let amount = Number(schedule.amount) * scheduleQty;
 
-      // Prorate first invoice if needed
       if (schedule.isProrated && schedule.invoiceCount === 0 && schedule.prorateStart) {
         amount = this.calculateProratedAmount(amount, schedule.prorateStart, periodTo, schedule.billingCycle);
       }
 
-      // Tax calculation
-      const taxRate = await taxService.getApplicableRate(
-        schedule.companyId, schedule.chargeType.code, periodFrom,
-      );
+      // Resolve tax rate from pre-fetched configs (no DB call)
+      const taxRate = resolveRate(schedule.chargeType.code, periodFrom);
       const taxAmount = Math.round(amount * taxRate * 100) / 100;
       lineInputs.push({ schedule, periodFrom, periodTo, amount, taxRate, taxAmount, lineTotal: amount + taxAmount });
     }
@@ -449,23 +468,24 @@ export class InvoicesService {
       },
     });
 
-    // Advance each included schedule independently.
-    for (const l of lineInputs) {
-      const nextDate = this.computeNextBillingDate(l.periodTo, l.schedule.billingDay, l.schedule.billingCycle);
-      const scheduleEndDate = l.schedule.endDate;
-      const isCompleted = scheduleEndDate && nextDate > scheduleEndDate;
-
-      await prisma.billingSchedule.update({
-        where: { id: l.schedule.id },
-        data: {
-          nextBillingDate: isCompleted ? null : nextDate,
-          lastInvoicedAt: new Date(),
-          invoiceCount: { increment: 1 },
-          isProrated: false,
-          status: isCompleted ? 'completed' : 'active',
-        },
-      });
-    }
+    // Advance all included schedules in a single transaction (was one await per schedule)
+    await prisma.$transaction(
+      lineInputs.map((l) => {
+        const nextDate = this.computeNextBillingDate(l.periodTo, l.schedule.billingDay, l.schedule.billingCycle);
+        const scheduleEndDate = l.schedule.endDate;
+        const isCompleted = scheduleEndDate && nextDate > scheduleEndDate;
+        return prisma.billingSchedule.update({
+          where: { id: l.schedule.id },
+          data: {
+            nextBillingDate: isCompleted ? null : nextDate,
+            lastInvoicedAt: new Date(),
+            invoiceCount: { increment: 1 },
+            isProrated: false,
+            status: isCompleted ? 'completed' : 'active',
+          },
+        });
+      })
+    );
 
     // GL auto-posting: Dr AR / Cr Revenue / Cr Tax Payable
     const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [

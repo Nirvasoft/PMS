@@ -9,14 +9,21 @@ export class TaxService {
   }
 
   async create(companyId: string, dto: Record<string, unknown>) {
+    const effectiveFrom = new Date(dto.effectiveFrom as string);
+    const effectiveTo   = dto.effectiveTo ? new Date(dto.effectiveTo as string) : null;
+
+    if (effectiveTo && effectiveTo < effectiveFrom) {
+      throw new Error('effectiveTo must be on or after effectiveFrom');
+    }
+
     return prisma.taxConfiguration.create({
       data: {
         companyId,
-        taxName: dto.taxName as string,
-        taxRate: dto.taxRate as number,
-        appliesTo: (dto.appliesTo as string[]) || [],
-        effectiveFrom: new Date(dto.effectiveFrom as string),
-        effectiveTo: dto.effectiveTo ? new Date(dto.effectiveTo as string) : null,
+        taxName:       dto.taxName as string,
+        taxRate:       dto.taxRate as number,
+        appliesTo:     (dto.appliesTo as string[]) || [],
+        effectiveFrom,
+        effectiveTo,
       },
     });
   }

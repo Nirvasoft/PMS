@@ -5,6 +5,7 @@ import { calcLeaseTermMonths, nextLeaseNumber, calcEarlyTermPenalty } from './he
 import { escalationService } from './escalation.service';
 import { workflowEngine } from '../../workflow/services/engine.service';
 import { billingSchedulesService } from '../../billing/billingSchedules.service';
+import { invoicesService } from '../../billing/invoices.service';
 import { webhookLeaseActivated, webhookLeaseTerminated, webhookLeaseRenewed } from '../../../common/webhookHooks';
 import { unitsService } from '../../units/units.service';
 
@@ -60,7 +61,13 @@ export class LeasesLifecycleService {
   async activate(id: string, companyId: string, activatedBy: string) {
     const lease = await prisma.lease.findFirst({
       where: { id, companyId, deletedAt: null },
-      include: { unit: { include: { property: true } } },
+      include: {
+        unit: { include: { property: true } },
+        // Load existing lease charges with their category so we can branch on 'monthly'
+        billingSchedules: {
+          select: { id: true, chargeType: { select: { category: true } } },
+        },
+      },
     });
     if (!lease) throw AppError.notFound('Lease');
     if (!['approved', 'pending_approval'].includes(lease.status)) throw new AppError(400, 'INVALID_STATUS', 'Only approved leases can be activated');
@@ -76,13 +83,26 @@ export class LeasesLifecycleService {
 
     await escalationService.generateEscalationSchedule(id);
 
-    // Create billing schedules (RENT + SERVICE_CHARGE) for the activated lease
+    // Billing branch:
+    // • Any charge with category='monthly' → must go through billing schedule
+    // • paymentType='fully' + no monthly charges → direct invoice immediately
+    const paymentType   = (lease as any).paymentType || 'fully';
+    const hasMonthlyCharge = lease.billingSchedules.some(
+      (s: any) => s.chargeType?.category === 'monthly'
+    );
+    const useDirectInvoice = paymentType === 'fully' && !hasMonthlyCharge;
+
     try {
-      await billingSchedulesService.createFromLease(lease);
-      logger.info(`Billing schedules created for lease ${lease.leaseNumber}`);
+      if (useDirectInvoice) {
+        await invoicesService.createFromLease(lease, activatedBy);
+        logger.info(`Direct invoice created for lease ${lease.leaseNumber} (fully paid, no monthly charges)`);
+      } else {
+        await billingSchedulesService.createFromLease(lease);
+        logger.info(`Billing schedules created for lease ${lease.leaseNumber} (paymentType=${paymentType}, hasMonthlyCharge=${hasMonthlyCharge})`);
+      }
     } catch (err: any) {
-      // Don't fail activation if billing schedule creation fails — log and continue
-      logger.error(`Failed to create billing schedules for lease ${lease.leaseNumber}: ${err.message}`);
+      // Don't fail activation if billing setup fails — log and continue
+      logger.error(`Billing setup failed for lease ${lease.leaseNumber}: ${err.message}`);
     }
 
     logger.info(`Lease ${lease.leaseNumber} activated, unit → ${unitStatus}`);
@@ -146,7 +166,8 @@ export class LeasesLifecycleService {
     if (!original) throw AppError.notFound('Lease');
     if (original.status !== 'active') throw new AppError(400, 'NOT_ACTIVE', 'Can only renew active leases');
 
-    const start = new Date(dto.startDate);
+    // If startDate is omitted, default to original lease end date + 1 day (natural renewal start)
+    const start = dto.startDate ? new Date(dto.startDate) : new Date(original.endDate.getTime() + 86_400_000);
     const end   = new Date(dto.endDate);
 
     const renewal = await prisma.lease.create({
@@ -197,6 +218,12 @@ export class LeasesLifecycleService {
     const updated = await prisma.lease.update({
       where: { id },
       data: { status: 'cancelled' },
+    });
+
+    // Mark the parent lease so the audit trail reflects the offer was declined
+    await prisma.lease.update({
+      where: { id: renewal.parentLeaseId },
+      data: { renewalDeclinedAt: new Date() },
     });
 
     return updated;

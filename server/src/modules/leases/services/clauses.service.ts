@@ -7,7 +7,17 @@ export class ClausesService {
   }
 
   async createClause(companyId: string, dto: Record<string, unknown>, createdBy: string) {
-    return prisma.leaseClause.create({ data: { companyId, createdBy, ...dto as any } });
+    // Explicit whitelist — never allow isStandard to be set by the client
+    return prisma.leaseClause.create({
+      data: {
+        companyId,
+        createdBy,
+        title:    dto.title as string,
+        content:  dto.content as string,
+        category: (dto.category as string | undefined) ?? null,
+        isStandard: false, // only admins can set standard clauses via a separate admin flow
+      },
+    });
   }
 
   async deleteClause(id: string, companyId: string) {

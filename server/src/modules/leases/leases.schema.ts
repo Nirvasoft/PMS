@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
-const dateString = z.string().refine((val) => !isNaN(Date.parse(val)), {
-  message: 'Invalid date format',
-});
+// Strict date string — rejects rolled-over dates like '2024-02-30'
+const dateString = z.string().regex(
+  /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/,
+  'Invalid date format (expected YYYY-MM-DD)'
+);
 
 const rentalAgreementObject = z.object({
   renterName:          z.string().max(255).optional(),
@@ -15,6 +17,22 @@ const rentalAgreementObject = z.object({
   customerSignedName:  z.string().max(255).optional(),
   customerNirc:        z.string().max(100).optional(),
   customerDate:        z.string().optional(),
+});
+
+// Shared sub-schemas — defined once, reused in create/update to avoid copy-paste drift
+const clauseItemSchema = z.object({
+  title:   z.string(),
+  content: z.string(),
+});
+
+const leaseChargeItemSchema = z.object({
+  chargeTypeId: z.string().uuid('Invalid charge type ID'),
+  amount:       z.number().positive('Charge amount must be positive'),
+});
+
+const templateClauseItemSchema = z.object({
+  title:   z.string(),
+  content: z.string(),
 });
 
 export const createLeaseSchema = z.object({
@@ -42,14 +60,8 @@ export const createLeaseSchema = z.object({
     escalationDay: z.number().min(1).max(31).optional(),
     specialConditions: z.string().optional(),
     notes: z.string().optional(),
-    clauses: z.array(z.object({
-      title: z.string(),
-      content: z.string(),
-    })).optional(),
-    leaseCharges: z.array(z.object({
-      chargeTypeId: z.string().uuid('Invalid charge type ID'),
-      amount: z.number().positive('Charge amount must be positive'),
-    })).optional(),
+    clauses: z.array(clauseItemSchema).optional(),
+    leaseCharges: z.array(leaseChargeItemSchema).optional(),
     rentalAgreement: rentalAgreementObject.optional(),
   }),
 });
@@ -73,14 +85,8 @@ export const updateLeaseSchema = z.object({
     escalationDay: z.number().min(1).max(31).optional(),
     specialConditions: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
-    clauses: z.array(z.object({
-      title: z.string(),
-      content: z.string(),
-    })).optional(),
-    leaseCharges: z.array(z.object({
-      chargeTypeId: z.string().uuid('Invalid charge type ID'),
-      amount: z.number().positive('Charge amount must be positive'),
-    })).optional(),
+    clauses: z.array(clauseItemSchema).optional(),
+    leaseCharges: z.array(leaseChargeItemSchema).optional(),
     rentalAgreement: rentalAgreementObject.optional(),
   }),
 });
@@ -134,8 +140,8 @@ export const createLeaseTemplateSchema = z.object({
     name: z.string().min(1, 'Template name is required'),
     propertyType: z.string().optional(),
     description: z.string().optional(),
-    defaultTerms: z.record(z.any()).optional(),
-    clauses: z.array(z.any()).optional(),
+    defaultTerms: z.record(z.unknown()).optional(),
+    clauses: z.array(templateClauseItemSchema).optional(),
   }),
 });
 
@@ -144,8 +150,8 @@ export const updateLeaseTemplateSchema = z.object({
     name: z.string().optional(),
     propertyType: z.string().optional(),
     description: z.string().optional(),
-    defaultTerms: z.record(z.any()).optional(),
-    clauses: z.array(z.any()).optional(),
+    defaultTerms: z.record(z.unknown()).optional(),
+    clauses: z.array(templateClauseItemSchema).optional(),
     isActive: z.boolean().optional(),
   }),
 });

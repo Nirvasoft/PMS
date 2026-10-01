@@ -4,7 +4,8 @@ import { escalationService } from './escalation.service';
 
 export class AmendmentsService {
   async findAll(leaseId: string, companyId: string) {
-    const lease = await prisma.lease.findFirst({ where: { id: leaseId, companyId } });
+    // Include deletedAt:null so soft-deleted leases are not treated as valid auth gates
+    const lease = await prisma.lease.findFirst({ where: { id: leaseId, companyId, deletedAt: null } });
     if (!lease) throw AppError.notFound('Lease');
     return prisma.leaseAmendment.findMany({
       where: { leaseId },
@@ -14,7 +15,7 @@ export class AmendmentsService {
   }
 
   async create(leaseId: string, companyId: string, dto: Record<string, unknown>, createdBy: string) {
-    const lease = await prisma.lease.findFirst({ where: { id: leaseId, companyId } });
+    const lease = await prisma.lease.findFirst({ where: { id: leaseId, companyId, deletedAt: null } });
     if (!lease) throw AppError.notFound('Lease');
     if (lease.status !== 'active') throw new AppError(400, 'NOT_ACTIVE', 'Can only amend active leases');
 
@@ -27,8 +28,9 @@ export class AmendmentsService {
     if (dto.newRentAmount) { oldValues.rentAmount = lease.rentAmount; newValues.rentAmount = dto.newRentAmount; }
     if (dto.newEndDate)    { oldValues.endDate = lease.endDate;       newValues.endDate = dto.newEndDate; }
 
-    const { effectiveDate, newEndDate, newRentAmount, ...restDto } = dto as Record<string, any>;
+    const { effectiveDate, newEndDate, newRentAmount, amendmentType, description, newUnitId } = dto as Record<string, any>;
 
+    // Explicit field whitelist — never spread raw dto into DB write
     return prisma.leaseAmendment.create({
       data: {
         leaseId,
@@ -36,20 +38,27 @@ export class AmendmentsService {
         createdBy,
         oldValues,
         newValues,
-        ...restDto,
+        ...(amendmentType !== undefined ? { amendmentType } : {}),
+        ...(description   !== undefined ? { description }   : {}),
+        ...(newUnitId     !== undefined ? { newUnitId }     : {}),
         ...(effectiveDate ? { effectiveDate: new Date(effectiveDate) } : {}),
-        ...(newEndDate     ? { newEndDate:     new Date(newEndDate)   } : {}),
-        ...(newRentAmount  ? { newRentAmount }                          : {}),
+        ...(newEndDate    ? { newEndDate:    new Date(newEndDate)    } : {}),
+        ...(newRentAmount ? { newRentAmount }                          : {}),
       },
     });
   }
 
   async approve(leaseId: string, amendmentId: string, companyId: string, approvedBy: string) {
-    const lease = await prisma.lease.findFirst({ where: { id: leaseId, companyId } });
+    const lease = await prisma.lease.findFirst({ where: { id: leaseId, companyId, deletedAt: null } });
     if (!lease) throw AppError.notFound('Lease');
 
     const amendment = await prisma.leaseAmendment.findFirst({ where: { id: amendmentId, leaseId } });
     if (!amendment) throw AppError.notFound('Amendment');
+
+    // Guard: only pending amendments can be approved to prevent double-approval
+    if (amendment.status !== 'pending') {
+      throw new AppError(400, 'ALREADY_PROCESSED', 'Amendment has already been approved or rejected');
+    }
 
     const updates: Record<string, unknown> = {};
     if (amendment.newRentAmount) updates.rentAmount = amendment.newRentAmount;

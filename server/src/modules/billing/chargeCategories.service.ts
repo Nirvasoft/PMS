@@ -1,16 +1,5 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
-import { logger } from '../../common/logger';
-
-// const SYSTEM_CHARGE_CATEGORIES = [
-//   { code: 'rent',    description: 'Rent charges' },
-//   { code: 'utility', description: 'Utility charges (electricity, water, gas, etc.)' },
-//   { code: 'service', description: 'Service charges' },
-//   { code: 'parking', description: 'Parking charges' },
-//   { code: 'penalty', description: 'Penalty and late payment charges' },
-//   { code: 'deposit', description: 'Security and other deposits' },
-//   { code: 'misc',    description: 'Miscellaneous charges' },
-// ];
 
 export class ChargeCategoriesService {
   // Shared by create()/update() — a code must be unique (case-insensitive) across a
@@ -26,24 +15,6 @@ export class ChargeCategoriesService {
     });
     if (duplicate) throw new AppError(409, 'CODE_TAKEN', `Charge category code "${code}" already exists`);
   }
-
-  // async seedDefaults() {
-  //   let created = 0;
-  //   for (const cc of SYSTEM_CHARGE_CATEGORIES) {
-  //     const exists = await prisma.chargeCategory.findFirst({
-  //       where: { code: cc.code, companyId: null },
-  //     });
-  //     if (!exists) {
-  //       await prisma.chargeCategory.create({
-  //         data: { ...cc, isSystem: true, companyId: null },
-  //       });
-  //       created++;
-  //     }
-  //   }
-  //   if (created > 0) {
-  //     logger.info(`Seeded ${created} system charge categories`);
-  //   }
-  // }
 
   async findAll(companyId: string) {
     const categories = await prisma.chargeCategory.findMany({
@@ -94,6 +65,11 @@ export class ChargeCategoriesService {
     });
     if (!category) throw AppError.notFound('Charge category');
 
+    // Prevent company users from modifying system-wide categories
+    if (!category.companyId) {
+      throw new AppError(403, 'FORBIDDEN', 'System charge categories cannot be modified');
+    }
+
     const updateData: Record<string, unknown> = {};
     if (dto.code !== undefined) {
       const code = (dto.code as string || '').trim();
@@ -102,8 +78,8 @@ export class ChargeCategoriesService {
       updateData.code = code;
     }
     if (dto.description !== undefined) updateData.description = dto.description || null;
-    if (dto.monthly !== undefined) updateData.monthly = dto.monthly;
-    if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+    if (dto.monthly     !== undefined) updateData.monthly     = dto.monthly;
+    if (dto.isActive    !== undefined) updateData.isActive    = dto.isActive;
 
     return prisma.chargeCategory.update({ where: { id }, data: updateData });
   }
@@ -113,6 +89,11 @@ export class ChargeCategoriesService {
       where: { id, OR: [{ companyId }, { companyId: null }] },
     });
     if (!category) throw AppError.notFound('Charge category');
+
+    // Prevent deleting system-wide categories
+    if (!category.companyId) {
+      throw new AppError(403, 'FORBIDDEN', 'System charge categories cannot be deleted');
+    }
 
     const usageCount = await prisma.chargeType.count({
       where: { category: { equals: category.code, mode: 'insensitive' } },

@@ -6,6 +6,10 @@ import { prisma } from '../../../common/database';
 import { AppError } from '../../../common/errors';
 import { logger } from '../../../common/logger';
 
+// Ensure uploads directory exists once at module load (avoids blocking existsSync on every request)
+const uploadsDir = path.join(process.cwd(), 'uploads', 'leases');
+fs.mkdirSync(uploadsDir, { recursive: true });
+
 export class PdfService {
   private templateCache: HandlebarsTemplateDelegate | null = null;
 
@@ -31,7 +35,6 @@ export class PdfService {
 
     if (!lease) throw AppError.notFound('Lease');
 
-    // Prepare data for template
     const templateData = {
       leaseNumber: lease.leaseNumber,
       generatedDate: new Date().toLocaleDateString(),
@@ -57,44 +60,39 @@ export class PdfService {
     const template = this.getTemplate();
     const htmlContent = template(templateData);
 
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'leases');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const fileName = `${lease.leaseNumber}_${Date.now()}.pdf`;
     const filePath = path.join(uploadsDir, fileName);
-    const fileUrl = `/uploads/leases/${fileName}`; // Assuming a static express route for /uploads
+    const fileUrl = `/uploads/leases/${fileName}`;
+
+    // Launch browser outside try so finally can always close it
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
 
     try {
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      });
       const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'load' });
-      
+      // networkidle0 ensures fonts/images are fully rendered before printing
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
       await page.pdf({
         path: filePath,
         format: 'A4',
         printBackground: true,
         margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
       });
-
+    } finally {
+      // Always close — prevents Chrome process leaks on error
       await browser.close();
-      
-      // Save document URL to DB
-      await prisma.lease.update({
-        where: { id: leaseId },
-        data: { leaseDocumentUrl: fileUrl },
-      });
-
-      logger.info(`Lease PDF generated at ${filePath}`);
-      return fileUrl;
-    } catch (error) {
-      logger.error('Failed to generate PDF', { error });
-      throw new AppError(500, 'PDF_ERROR', 'Failed to generate lease PDF document');
     }
+
+    // Save document URL to DB (outside try/finally — if this fails the PDF exists on disk)
+    await prisma.lease.update({
+      where: { id: leaseId },
+      data: { leaseDocumentUrl: fileUrl },
+    });
+
+    logger.info(`Lease PDF generated at ${filePath}`);
+    return fileUrl;
   }
 }
 

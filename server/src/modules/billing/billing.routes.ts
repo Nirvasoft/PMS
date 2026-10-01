@@ -2,6 +2,8 @@ import { Router, Request } from 'express';
 import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { requirePermission } from '../auth/guards/roleGuard';
+import { prisma } from '../../common/database';
+import { AppError } from '../../common/errors';
 import { chargeCategoriesService } from './chargeCategories.service';
 import { chargeTypesService } from './chargeTypes.service';
 import { currencyRatesService } from './currencyRates.service';
@@ -231,7 +233,7 @@ invoicesRouter.post('/:id/send', asyncHandler(async (req, res) => {
   // Get tenant email
   const tenantEmail = (invoice as any).tenant?.email;
   if (!tenantEmail) {
-    throw new Error('Tenant has no email address configured');
+    throw new AppError(422, 'NO_TENANT_EMAIL', 'Tenant has no email address configured');
   }
 
   // Send notification
@@ -253,8 +255,8 @@ invoicesRouter.post('/:id/send', asyncHandler(async (req, res) => {
     entityId: invoice.id,
   });
 
-  // Update invoice status to 'sent'
-  const updated = await (await import('../../common/database')).prisma.invoice.update({
+  // Update invoice status to 'sent' — using statically imported prisma (no dynamic import)
+  const updated = await prisma.invoice.update({
     where: { id: invoice.id },
     data: { status: invoice.status === 'draft' || invoice.status === 'issued' ? 'sent' : invoice.status, sentAt: new Date() },
   });

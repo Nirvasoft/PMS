@@ -5,24 +5,29 @@ import puppeteer from 'puppeteer';
 import Handlebars from 'handlebars';
 
 // ─── Handlebars Helpers ────────────────────────────────────────────────────────
-Handlebars.registerHelper('mmk', (v: any) => {
-  const n = Number(v);
-  return isNaN(n) ? '0.00' : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-});
-Handlebars.registerHelper('n2', (v: any) => {
-  const n = Number(v);
-  if (!n || isNaN(n)) return '';
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-});
-Handlebars.registerHelper('dmy', (d: any) => {
-  if (!d) return '';
-  const dt = new Date(d);
-  return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
-});
-Handlebars.registerHelper('monthYr', (d: any) => {
-  if (!d) return '';
-  return new Date(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-});
+// Guard prevents duplicate registration on hot-reload or multiple imports
+let _helpersRegistered = false;
+if (!_helpersRegistered) {
+  _helpersRegistered = true;
+  Handlebars.registerHelper('mmk', (v: any) => {
+    const n = Number(v);
+    return isNaN(n) ? '0.00' : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  });
+  Handlebars.registerHelper('n2', (v: any) => {
+    const n = Number(v);
+    if (!n || isNaN(n)) return '';
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  });
+  Handlebars.registerHelper('dmy', (d: any) => {
+    if (!d) return '';
+    const dt = new Date(d);
+    return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+  });
+  Handlebars.registerHelper('monthYr', (d: any) => {
+    if (!d) return '';
+    return new Date(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  });
+}
 
 // ─── Myanmar-Style Invoice Template ───────────────────────────────────────────
 const INVOICE_TEMPLATE = `
@@ -292,7 +297,7 @@ const INVOICE_TEMPLATE = `
 // We keep one browser process alive and reuse it across requests.
 let _browser: import('puppeteer').Browser | null = null;
 let _launching = false;
-const _launchQueue: Array<(b: import('puppeteer').Browser) => void> = [];
+const _launchQueue: Array<{ resolve: (b: import('puppeteer').Browser) => void; reject: (e: unknown) => void }> = [];
 
 async function getBrowser(): Promise<import('puppeteer').Browser> {
   if (_browser) {
@@ -300,18 +305,24 @@ async function getBrowser(): Promise<import('puppeteer').Browser> {
     catch { logger.warn('Puppeteer browser disconnected — reconnecting…'); _browser = null; }
   }
   if (_launching) {
-    return new Promise<import('puppeteer').Browser>((resolve) => { _launchQueue.push(resolve); });
+    return new Promise<import('puppeteer').Browser>((resolve, reject) => {
+      _launchQueue.push({ resolve, reject });
+    });
   }
   _launching = true;
   try {
     logger.info('Launching Puppeteer browser (singleton)…');
     _browser = await puppeteer.launch({
-      headless: true,
+      headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     });
     _browser.on('disconnected', () => { logger.warn('Puppeteer browser disconnected'); _browser = null; });
-    for (const resolve of _launchQueue.splice(0)) resolve(_browser);
+    for (const waiter of _launchQueue.splice(0)) waiter.resolve(_browser);
     return _browser;
+  } catch (err) {
+    // Reject all queued waiters so they don't hang indefinitely
+    for (const waiter of _launchQueue.splice(0)) waiter.reject(err);
+    throw err;
   } finally {
     _launching = false;
   }
