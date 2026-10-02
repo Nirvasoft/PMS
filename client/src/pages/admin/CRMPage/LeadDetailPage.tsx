@@ -16,6 +16,7 @@ import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   ArrowLeft, User, Calendar, Mail, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
@@ -634,12 +635,22 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
 
 function ConvertLeadModal({ leadId, leadName, propertyId, onClose }: { leadId: string; leadName: string; propertyId?: string; onClose: () => void }) {
   const navigate = useNavigate();
+  const activeProperty = useSelectedPropertyFilter();
+  const effectivePropertyId = activeProperty || propertyId || undefined;
   const [tenantSearch, setTenantSearch] = useState('');
   const [selectedTenantId, setSelectedTenantId] = useState('');
 
   // Only KYC-verified, non-blacklisted tenants can be put on a lease.
+  // Scoped to active property (or lead's assigned property) if selected.
   const { data: tenantsData, isFetching: isFetchingTenants } = useGetTenantsQuery(
-    { search: tenantSearch || undefined, kycStatus: 'verified', isBlacklisted: false, page: 1, limit: 20 },
+    {
+      search: tenantSearch || undefined,
+      kycStatus: 'verified',
+      isBlacklisted: false,
+      propertyId: effectivePropertyId,
+      page: 1,
+      limit: 20,
+    },
     { skip: false }
   );
   const tenants = tenantsData?.data || [];
@@ -652,7 +663,7 @@ function ConvertLeadModal({ leadId, leadName, propertyId, onClose }: { leadId: s
       return;
     }
     const params = new URLSearchParams({ leadId, tenantId: selectedTenantId });
-    if (propertyId) params.set('propertyId', propertyId);
+    if (effectivePropertyId) params.set('propertyId', effectivePropertyId);
     onClose();
     navigate(`/admin/leases/new?${params.toString()}`);
   };
