@@ -67,6 +67,21 @@ export default function TicketDetailPage() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+      toast.error('Only image files are allowed');
+      return;
+    }
+    setPendingFiles((prev) => [...prev, ...imageFiles].slice(0, 10));
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+  }, [addFiles]);
+
   if (isLoading) return <div className="loading-state"><Loader2 size={24} className="spinner" /> Loading...</div>;
   if (!ticket) return <div className="empty-state">Ticket not found</div>;
 
@@ -112,21 +127,6 @@ export default function TicketDetailPage() {
   };
 
   // ── Photo upload handlers ──────────────────
-
-  const addFiles = useCallback((files: FileList | File[]) => {
-    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    if (imageFiles.length === 0) {
-      toast.error('Only image files are allowed');
-      return;
-    }
-    setPendingFiles((prev) => [...prev, ...imageFiles].slice(0, 10));
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
-  }, [addFiles]);
 
   const handleUploadPhotos = async () => {
     if (pendingFiles.length === 0 || !ticket) return;

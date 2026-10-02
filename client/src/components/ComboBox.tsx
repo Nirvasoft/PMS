@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 
 export interface ComboBoxOption {
@@ -52,6 +52,12 @@ export default function ComboBox({
 
   useEffect(() => { setActive(0); }, [visible.length]);
 
+  const close = useCallback(() => {
+    setOpen(false);
+    setTerm('');
+    onSearch?.('');
+  }, [onSearch]);
+
   useEffect(() => {
     if (!open) return;
     const onDocDown = (e: MouseEvent) => {
@@ -59,13 +65,7 @@ export default function ComboBox({
     };
     document.addEventListener('mousedown', onDocDown);
     return () => document.removeEventListener('mousedown', onDocDown);
-  }, [open]);
-
-  const close = () => {
-    setOpen(false);
-    setTerm('');
-    onSearch?.('');
-  };
+  }, [open, close]);
 
   const pick = (o: ComboBoxOption) => {
     setPicked(o);

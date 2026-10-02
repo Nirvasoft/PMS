@@ -36,7 +36,7 @@ export default function PenaltyConfigPage() {
     const base = 10000;
     const days = [7, 14, 30, 60];
     return days.map(d => {
-      let amount = 0;
+      let amount: number;
       switch (form.penaltyType) {
         case 'fixed_amount': amount = form.penaltyValue; break;
         case 'percentage': amount = base * (form.penaltyValue / 100); break;

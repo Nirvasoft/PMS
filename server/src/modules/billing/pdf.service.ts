@@ -313,7 +313,7 @@ async function getBrowser(): Promise<import('puppeteer').Browser> {
   try {
     logger.info('Launching Puppeteer browser (singleton)…');
     _browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     });
     _browser.on('disconnected', () => { logger.warn('Puppeteer browser disconnected'); _browser = null; });

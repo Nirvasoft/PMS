@@ -78,7 +78,7 @@ export default function WorkflowEditor({ definition, onClose }: Props) {
     const incoming = edges.filter(e => e.target === nodeId);
     const outgoing = edges.filter(e => e.source === nodeId);
     // Remove edges connected to this node
-    let newEdges = edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+    const newEdges = edges.filter(e => e.source !== nodeId && e.target !== nodeId);
     // Re-wire: connect each incoming source to each outgoing target
     for (const inc of incoming) {
       for (const out of outgoing) {

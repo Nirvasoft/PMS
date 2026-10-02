@@ -21,8 +21,8 @@ export class TemplatesService {
         ...(dto.name          !== undefined ? { name:          dto.name as string }          : {}),
         ...(dto.propertyType  !== undefined ? { propertyType:  dto.propertyType as string }  : {}),
         ...(dto.description   !== undefined ? { description:   dto.description as string }   : {}),
-        ...(dto.defaultTerms  !== undefined ? { defaultTerms:  dto.defaultTerms }            : {}),
-        ...(dto.clauses       !== undefined ? { clauses:       dto.clauses }                 : {}),
+        ...(dto.defaultTerms  !== undefined ? { defaultTerms:  dto.defaultTerms as any }     : {}),
+        ...(dto.clauses       !== undefined ? { clauses:       dto.clauses as any }          : {}),
         ...(dto.isActive      !== undefined ? { isActive:      dto.isActive as boolean }     : {}),
       },
     });

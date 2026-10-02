@@ -186,7 +186,7 @@ function OccupancyOverview({ propertyId, unitId }: { propertyId: string; unitId:
   ];
 
   // Build conic-gradient
-  let gradientParts: string[] = [];
+  const gradientParts: string[] = [];
   let cumulative = 0;
   segments.forEach(s => {
     if (s.value > 0 && occ.total > 0) {
@@ -280,7 +280,7 @@ function OccupancyOverviewAll() {
     { key: 'available', color: STATUS_COLORS.available, value: occ.available },
   ];
 
-  let gradientParts: string[] = [];
+  const gradientParts: string[] = [];
   let cumulative = 0;
   segments.forEach(s => {
     if (s.value > 0 && occ.total > 0) {

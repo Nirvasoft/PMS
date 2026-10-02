@@ -871,11 +871,54 @@ textarea.reason-error {
   font-size: 0.76rem;
   outline: none;
 }
-.charge-inline-fields select option { background: #1a1f2e; }
+.charge-inline-fields select:focus,
+.charge-inline-fields input[type="number"]:focus {
+  border-color: rgba(108,92,231,0.5);
+}
+.charge-inline-fields select option {
+  background: #1a1f2e;
+  color: #ffffff;
+}
 .charge-inline-actions {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+/* ── Charges Tab — Light Mode ── */
+[data-theme="light"] .charge-card {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.07);
+}
+[data-theme="light"] .charge-card:hover {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .charge-card-amount {
+  color: #6c5ce7;
+}
+
+[data-theme="light"] .charge-inline-form {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .charge-inline-fields select,
+[data-theme="light"] .charge-inline-fields input[type="number"] {
+  background: #ffffff;
+  border-color: #d1e6d9;
+  color: var(--text-primary);
+}
+[data-theme="light"] .charge-inline-fields select:focus,
+[data-theme="light"] .charge-inline-fields input[type="number"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] .charge-inline-fields select option {
+  background: #ffffff;
+  color: var(--text-primary);
+}
+[data-theme="light"] .charge-inline-fields select:disabled {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-muted);
 }
 
 /* ── Billing Schedule Sync Confirm Modal ── */

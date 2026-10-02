@@ -481,6 +481,8 @@
 .edf-charge-select:focus, .edf-charge-amount:focus { border-color: rgba(108,92,231,.5); }
 .edf-charge-select option { background: #1e1d2e; color: #e2e0ef; }
 .edf-charge-select optgroup { background: #161525; color: #8b8aae; font-weight: 700; }
+[data-theme="light"] .edf-charge-select option { background: #ffffff; color: var(--text-primary); }
+[data-theme="light"] .edf-charge-select optgroup { background: #f8fafc; color: var(--text-muted); }
 .edf-charge-add-btn {
   padding: 7px 14px; border-radius: 7px;
   border: 1px solid rgba(108,92,231,.3);
@@ -490,3 +492,57 @@
 }
 .edf-charge-add-btn:disabled { opacity: .4; cursor: not-allowed; }
 .edf-charge-add-btn:not(:disabled):hover { background: rgba(108,92,231,.25); }
+
+/* ── Light Mode Overrides for Lease Detail & Edit Draft Modal ── */
+[data-theme="light"] .ra-divider {
+  background: var(--border);
+}
+[data-theme="light"] .ra-col-head {
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .ld-modal-box {
+  background: #ffffff;
+  border-color: var(--border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] .ld-modal-header {
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .ld-modal-footer {
+  border-top-color: var(--border);
+}
+[data-theme="light"] .edf-ra-colhead {
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .ld-modal-body input[type="text"],
+[data-theme="light"] .ld-modal-body input[type="number"],
+[data-theme="light"] .ld-modal-body input[type="date"],
+[data-theme="light"] .ld-modal-body input:not([type]),
+[data-theme="light"] .ld-modal-body select,
+[data-theme="light"] .ld-modal-body textarea,
+[data-theme="light"] .edf-charge-select,
+[data-theme="light"] .edf-charge-amount {
+  background: #ffffff;
+  border: 1px solid #b8d5c8;
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .ld-modal-body input:hover,
+[data-theme="light"] .ld-modal-body select:hover,
+[data-theme="light"] .ld-modal-body textarea:hover {
+  border-color: #78a892;
+}
+[data-theme="light"] .ld-modal-body input:focus,
+[data-theme="light"] .ld-modal-body select:focus,
+[data-theme="light"] .ld-modal-body textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="light"] .ld-modal-body input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.65;
+}
+[data-theme="light"] .ld-modal-body select option {
+  background: #ffffff;
+  color: var(--text-primary);
+}

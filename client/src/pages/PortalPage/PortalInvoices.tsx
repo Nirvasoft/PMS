@@ -45,7 +45,7 @@ export default function PortalInvoices() {
       const returnUrl = `${window.location.origin}/portal/payments/success`;
       const result = await payInvoice({ invoiceId, returnUrl }).unwrap();
       // Redirect to Stripe Checkout (or mock URL in dev)
-      window.location.href = result.checkoutUrl;
+      window.location.assign(result.checkoutUrl);
     } catch (err: any) {
       toast.error(err?.data?.errors?.[0]?.message || 'Failed to initiate payment');
       setPayingId(null);

@@ -244,7 +244,7 @@ export class LeasesLifecycleService {
     // Mark the parent lease so the audit trail reflects the offer was declined
     await prisma.lease.update({
       where: { id: renewal.parentLeaseId },
-      data: { renewalDeclinedAt: new Date() },
+      data: { isRenewed: false },
     });
 
     return updated;

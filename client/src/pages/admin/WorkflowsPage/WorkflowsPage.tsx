@@ -520,7 +520,7 @@ function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefin
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    let context: Record<string, unknown> = {};
+    let context: Record<string, unknown>;
     try {
       context = JSON.parse(form.contextJson);
     } catch {

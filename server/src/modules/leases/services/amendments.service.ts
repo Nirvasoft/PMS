@@ -23,8 +23,8 @@ export class AmendmentsService {
     const amendmentNumber = (lastAmendment?.amendmentNumber ?? 0) + 1;
 
     // Snapshot old values
-    const oldValues: Record<string, unknown> = {};
-    const newValues: Record<string, unknown> = {};
+    const oldValues: Record<string, any> = {};
+    const newValues: Record<string, any> = {};
     if (dto.newRentAmount) { oldValues.rentAmount = lease.rentAmount; newValues.rentAmount = dto.newRentAmount; }
     if (dto.newEndDate)    { oldValues.endDate = lease.endDate;       newValues.endDate = dto.newEndDate; }
 
@@ -38,10 +38,10 @@ export class AmendmentsService {
         createdBy,
         oldValues,
         newValues,
-        ...(amendmentType !== undefined ? { amendmentType } : {}),
-        ...(description   !== undefined ? { description }   : {}),
+        amendmentType: (amendmentType as string) || 'other',
+        description: (description as string) || '',
+        effectiveDate: new Date(effectiveDate),
         ...(newUnitId     !== undefined ? { newUnitId }     : {}),
-        ...(effectiveDate ? { effectiveDate: new Date(effectiveDate) } : {}),
         ...(newEndDate    ? { newEndDate:    new Date(newEndDate)    } : {}),
         ...(newRentAmount ? { newRentAmount }                          : {}),
       },

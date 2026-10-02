@@ -146,7 +146,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
           <label>Base Rent *</label>
           <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
             {form.currency && (
-              <span title="Unit's Currency" style={{ display: 'flex', alignItems: 'center', padding: '0 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)', borderRight: 'none', borderRadius: '8px 0 0 8px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', letterSpacing: '0.03em', cursor: 'help' }}>
+              <span title="Unit's Currency" className="currency-addon">
                 {form.currency}
               </span>
             )}
@@ -163,7 +163,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
           <label>Security Deposit</label>
           <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
             {form.currency && (
-              <span title="Unit's Currency" style={{ display: 'flex', alignItems: 'center', padding: '0 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)', borderRight: 'none', borderRadius: '8px 0 0 8px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', letterSpacing: '0.03em', cursor: 'help' }}>
+              <span title="Unit's Currency" className="currency-addon">
                 {form.currency}
               </span>
             )}
@@ -179,7 +179,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
           <label style={{ color: 'var(--text-muted)' }}>Base Amount</label>
           <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
             {baseCurrencyCode && (
-              <span title="Base Currency" style={{ display: 'flex', alignItems: 'center', padding: '0 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRight: 'none', borderRadius: '8px 0 0 8px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', letterSpacing: '0.03em', cursor: 'help' }}>
+              <span title="Base Currency" className="currency-addon">
                 {baseCurrencyCode}
               </span>
             )}
@@ -207,7 +207,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
             <label>Partial Amount</label>
             <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
               {form.currency && (
-                <span title="Unit's Currency" style={{ display: 'flex', alignItems: 'center', padding: '0 10px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${Number(form.partialPaymentPercent) > Number(form.rentAmount) ? '#f87171' : 'rgba(255,255,255,0.10)'}`, borderRight: 'none', borderRadius: '8px 0 0 8px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', letterSpacing: '0.03em', cursor: 'help' }}>
+                <span title="Unit's Currency" className={`currency-addon ${Number(form.partialPaymentPercent) > Number(form.rentAmount) ? 'currency-addon-error' : ''}`}>
                   {form.currency}
                 </span>
               )}

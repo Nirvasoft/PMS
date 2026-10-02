@@ -66,14 +66,13 @@ export class PdfService {
 
     // Launch browser outside try so finally can always close it
     const browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
     try {
       const page = await browser.newPage();
-      // networkidle0 ensures fonts/images are fully rendered before printing
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      await page.setContent(htmlContent, { waitUntil: 'domcontentloaded' });
       await page.pdf({
         path: filePath,
         format: 'A4',
