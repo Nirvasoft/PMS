@@ -201,7 +201,9 @@ export class LeasesService {
       // Column doesn't exist yet (migration pending) — safe to ignore
     }
 
-    // Create BillingSchedule records for each charge
+    // Create BillingSchedule records for each charge as 'draft'.
+    // They stay hidden from the Billing Schedules list until the lease is activated,
+    // at which point updateChargeSchedulesFromLease promotes them to 'active'.
     if (Array.isArray(leaseCharges) && leaseCharges.length > 0) {
       await prisma.billingSchedule.createMany({
         data: leaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
@@ -219,6 +221,7 @@ export class LeasesService {
           startDate: start,
           endDate: end,
           createdBy,
+          status: 'draft',   // hidden until lease activates
         })),
       });
     }
@@ -289,6 +292,7 @@ export class LeasesService {
             paymentDueDays: lease.paymentDueDays,
             startDate: start,
             endDate: end,
+            status: 'draft',   // hidden until lease activates
           })),
         });
       }

@@ -108,11 +108,12 @@ export default function LeaseDetailPage() {
                 <button className="btn-action-submit" onClick={handleSubmit}  disabled={submitting}><Send size={14}/> Submit</button>
               </PermissionGuard>
             )}
-            {(isApproved || isPending) && (
+            {(isApproved || isPending || isDraft) && (
               <PermissionGuard permission="leases.approve">
                 <button className="btn-action-activate" onClick={handleActivate} disabled={activating}><CheckCircle size={14}/> Activate</button>
               </PermissionGuard>
             )}
+
             {isActive  && (
               <PermissionGuard permission="leases.update">
                 <button className="btn-action-amend"     onClick={() => setShowAmendModal(true)}><PenLine size={14}/> Amend</button>

@@ -63,14 +63,24 @@ export class LeasesLifecycleService {
       where: { id, companyId, deletedAt: null },
       include: {
         unit: { include: { property: true } },
-        // Load existing lease charges with their category so we can branch on 'monthly'
+        // Load charge schedules (created at lease-creation time, promoted to active on activation).
+        // These are what invoicesService.createFromLease iterates to issue per-charge invoices.
         billingSchedules: {
-          select: { id: true, chargeType: { select: { category: true } } },
+          where: { status: { in: ['draft', 'active'] } },
+          select: {
+            id: true,
+            chargeTypeId: true,
+            amount: true,
+            description: true,
+            billingCycle: true,
+            chargeType: { select: { id: true, code: true, name: true, category: true } },
+          },
         },
       },
     });
     if (!lease) throw AppError.notFound('Lease');
-    if (!['approved', 'pending_approval'].includes(lease.status)) throw new AppError(400, 'INVALID_STATUS', 'Only approved leases can be activated');
+    if (!['approved', 'pending_approval', 'draft'].includes(lease.status)) throw new AppError(400, 'INVALID_STATUS', 'Only approved or draft leases can be activated');
+
 
     const handoverDate = lease.handoverDate ? new Date(lease.handoverDate) : new Date(lease.startDate);
     const unitStatus   = handoverDate <= new Date() ? 'occupied' : 'reserved';
@@ -83,22 +93,33 @@ export class LeasesLifecycleService {
 
     await escalationService.generateEscalationSchedule(id);
 
-    // Billing branch:
-    // • Any charge with category='monthly' → must go through billing schedule
-    // • paymentType='fully' + no monthly charges → direct invoice immediately
-    const paymentType   = (lease as any).paymentType || 'fully';
-    const hasMonthlyCharge = lease.billingSchedules.some(
-      (s: any) => s.chargeType?.category === 'monthly'
-    );
-    const useDirectInvoice = paymentType === 'fully' && !hasMonthlyCharge;
+    // ── Billing branch ────────────────────────────────────────────────────────
+    // paymentType = 'fully':
+    //   • Create one direct invoice per charge (Rent, Deposit, each lease charge)
+    //   • Update existing billing schedule records: correct billingCycle + nextBillingDate
+    //     advanced by 1 period so recurring runs don't re-invoice the first period.
+    //
+    // paymentType = 'partially' (or any other):
+    //   • Create billing schedules (Rent, Deposit, SERVICE_CHARGE) as before.
+    const paymentType = (lease as any).paymentType || 'fully';
 
     try {
-      if (useDirectInvoice) {
-        await invoicesService.createFromLease(lease, activatedBy);
-        logger.info(`Direct invoice created for lease ${lease.leaseNumber} (fully paid, no monthly charges)`);
+      if (paymentType === 'fully') {
+        // 1. Direct invoices — one combined (Rent+Deposit) + one per leaseCharge
+        const invoices = await invoicesService.createFromLease(lease, activatedBy);
+        logger.info(`Direct invoices created for lease ${lease.leaseNumber}: ${invoices.length} invoice(s) — ${invoices.map((i: any) => i.invoiceNumber).join(', ')}`);
+
+        // 2. Promote draft charge schedules → active, set correct cycle + nextBillingDate
+        await billingSchedulesService.updateChargeSchedulesFromLease(lease);
+        logger.info(`Billing schedules activated for lease ${lease.leaseNumber} (fully paid, nextBillingDate advanced by 1 period)`);
       } else {
+        // Partial payment — create Rent/Deposit/SERVICE_CHARGE billing schedules
         await billingSchedulesService.createFromLease(lease);
-        logger.info(`Billing schedules created for lease ${lease.leaseNumber} (paymentType=${paymentType}, hasMonthlyCharge=${hasMonthlyCharge})`);
+        logger.info(`Billing schedules created for lease ${lease.leaseNumber} (paymentType=${paymentType})`);
+
+        // Also promote the draft leaseCharge schedules (created at lease-creation time) → active
+        await billingSchedulesService.updateChargeSchedulesFromLease(lease);
+        logger.info(`Charge schedules activated for lease ${lease.leaseNumber} (partial payment)`);
       }
     } catch (err: any) {
       // Don't fail activation if billing setup fails — log and continue

@@ -36,7 +36,7 @@ const emptyForm: ScheduleForm = {
 
 export default function BillingSchedulesPage() {
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
   const selectedProperty = useSelectedPropertyFilter();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);

@@ -89,8 +89,9 @@ export class BillingSchedulesService {
   }
 
   /**
-   * Auto-create billing schedules when a lease is activated.
-   * Creates RENT + SERVICE_CHARGE (if property has one) per spec.
+   * Auto-create billing schedules when a partially-paid lease is activated.
+   * Creates RENT + SECURITY_DEPOSIT (if deposit > 0) + SERVICE_CHARGE (if configured).
+   * Used only when paymentType ≠ 'fully'.
    */
   async createFromLease(lease: any) {
     const rentChargeType = await prisma.chargeType.findFirst({
@@ -98,20 +99,20 @@ export class BillingSchedulesService {
     });
     if (!rentChargeType) return;
 
-    const startDate = new Date(lease.startDate);
+    const startDate  = new Date(lease.startDate);
     const billingDay = lease.billingDay || 1;
     const isProrated = startDate.getDate() !== billingDay;
 
-    // Check if schedule already exists for this lease
+    // Idempotency: skip if a RENT schedule already exists for this lease
     const existing = await prisma.billingSchedule.findFirst({
       where: { leaseId: lease.id, chargeTypeId: rentChargeType.id, status: { not: 'cancelled' } },
     });
     if (existing) return;
 
-    const deposit = Number(lease.securityDeposit ?? 0);
+    const deposit    = Number(lease.securityDeposit ?? 0);
     const rentAmount = Number(lease.rentAmount);
 
-    // 1. Create RENT schedule — always the full rent amount (deposit is a separate schedule)
+    // 1. RENT schedule
     await prisma.billingSchedule.create({
       data: {
         ...this.leaseScheduleBase(lease, startDate, billingDay),
@@ -123,24 +124,16 @@ export class BillingSchedulesService {
       },
     });
 
-    // 2. Create SECURITY_DEPOSIT schedule if deposit > 0
+    // 2. SECURITY_DEPOSIT schedule (if applicable)
     if (deposit > 0) {
       let depositChargeType = await prisma.chargeType.findFirst({
         where: { code: 'SECURITY_DEPOSIT', OR: [{ companyId: null }, { companyId: lease.companyId }] },
       });
       if (!depositChargeType) {
         depositChargeType = await prisma.chargeType.create({
-          data: {
-            code: 'SECURITY_DEPOSIT',
-            name: 'Security Deposit',
-            category: 'other',
-            isActive: true,
-            isSystem: true,
-          },
+          data: { code: 'SECURITY_DEPOSIT', name: 'Security Deposit', category: 'other', isActive: true, isSystem: true },
         });
       }
-
-      // Only create if not already scheduled
       const existingDeposit = await prisma.billingSchedule.findFirst({
         where: { leaseId: lease.id, chargeTypeId: depositChargeType.id, status: { not: 'cancelled' } },
       });
@@ -157,7 +150,7 @@ export class BillingSchedulesService {
       }
     }
 
-    // 3. Create SERVICE_CHARGE schedule if property has a default service charge
+    // 3. SERVICE_CHARGE schedule (if property has a default)
     const serviceChargeAmount = lease.unit?.property?.settings?.defaultServiceCharge as number | undefined;
     if (serviceChargeAmount && serviceChargeAmount > 0) {
       const scChargeType = await prisma.chargeType.findFirst({
@@ -170,11 +163,103 @@ export class BillingSchedulesService {
             chargeTypeId: scChargeType.id,
             description: `Service Charge — Unit ${lease.unit?.unitNumber || ''}`,
             amount: serviceChargeAmount,
-            isProrated: false, // service charge not prorated
+            isProrated: false,
           },
         });
       }
     }
+  }
+
+  /**
+   * Updates the billing schedule records that were already created at lease-creation
+   * time (one per leaseCharge) so they are ready for future recurring billing runs.
+   *
+   * Called on activation when paymentType = 'fully'.  The first period has already
+   * been directly invoiced by invoicesService.createFromLease, so we advance each
+   * schedule's nextBillingDate by one full billing period so the cron/Run Billing
+   * won't re-invoice the same period.
+   *
+   * Also ensures the billingCycle on each schedule matches the lease's billingCycle —
+   * relevant when a charge's category has monthly=true but the lease runs on a
+   * different cycle (quarterly, semi-annual, annual).
+   */
+  async updateChargeSchedulesFromLease(lease: any): Promise<void> {
+    // Find billing schedules created for this lease (both draft and active)
+    const schedules = await prisma.billingSchedule.findMany({
+      where: { leaseId: lease.id, status: { in: ['draft', 'active'] } },
+      include: {
+        chargeType: {
+          select: { id: true, code: true, category: true },
+        },
+      },
+    });
+    if (schedules.length === 0) return;
+
+    // Fetch categories that have monthly=true so we know which ones override the lease cycle
+    const allCategories = await prisma.chargeCategory.findMany({
+      where: {
+        OR: [{ companyId: null }, { companyId: lease.companyId }],
+        isActive: true,
+        monthly: true,
+      },
+      select: { code: true },
+    });
+    const monthlyCategoryCodes = new Set(allCategories.map((c) => c.code.toLowerCase()));
+
+    const leaseBillingCycle = lease.billingCycle || 'monthly';
+    const leaseBillingDay   = lease.billingDay   || 1;
+    const startDate         = new Date(lease.startDate);
+
+    await prisma.$transaction(
+      schedules.map((schedule) => {
+        // Billing cycle rule:
+        // • Category monthly=true  → always bill monthly (category setting wins over lease cycle)
+        // • Category monthly=false → use the lease's billingCycle (quarterly / semi-annual / annual)
+        const categoryCode      = (schedule.chargeType?.category || '').toLowerCase();
+        const isMonthlyCategory = monthlyCategoryCodes.has(categoryCode);
+        const effectiveCycle    = isMonthlyCategory ? 'monthly' : leaseBillingCycle;
+
+        // Next billing date MUST depend on THIS schedule's effectiveCycle!
+        const nextBillingDate = this.computeNextBillingDateFromStart(startDate, effectiveCycle, leaseBillingDay);
+
+        return prisma.billingSchedule.update({
+          where: { id: schedule.id },
+          data: {
+            status:          'active',   // promote draft → active (now visible in billing schedule list)
+            billingCycle:    effectiveCycle,
+            billingDay:      leaseBillingDay,
+            nextBillingDate,
+          },
+        });
+      })
+    );
+  }
+
+  /**
+   * Computes the next billing date that falls one full billing period after `startDate`,
+   * snapped to `billingDay` in that month.
+   * Safe against JavaScript date month-overflow bugs (e.g. Jan 31 + 1 month).
+   */
+  private computeNextBillingDateFromStart(startDate: Date, billingCycle: string, billingDay: number): Date {
+    const d = new Date(startDate);
+    const startYear = d.getFullYear();
+    const startMonth = d.getMonth();
+    let monthsToAdd = 1;
+    switch (billingCycle) {
+      case 'monthly':     monthsToAdd = 1;  break;
+      case 'quarterly':   monthsToAdd = 3;  break;
+      case 'semi_annual': monthsToAdd = 6;  break;
+      case 'annual':      monthsToAdd = 12; break;
+      default:            monthsToAdd = 1;  break;
+    }
+
+    const totalMonths = startMonth + monthsToAdd;
+    const targetYear = startYear + Math.floor(totalMonths / 12);
+    const targetMonth = totalMonths % 12;
+    const maxDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+    const day = Math.min(billingDay, maxDay);
+
+    return new Date(targetYear, targetMonth, day);
   }
 
   async update(id: string, companyId: string, dto: Record<string, unknown>) {

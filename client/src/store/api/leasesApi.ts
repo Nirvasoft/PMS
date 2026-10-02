@@ -1,6 +1,8 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 import { unitsApi } from './unitsApi';
+import { billingApi } from './billingApi';
+
 
 // ─── Types ───────────────────────────────────
 
@@ -158,7 +160,24 @@ async function invalidateUnitTagsOnSuccess(
   }
 }
 
+// Activation additionally creates Invoices and updates BillingSchedules server-side.
+// Invalidate those caches cross-API so the billing schedule list and invoice list
+// reflect the new records immediately without requiring a page reload.
+async function invalidateOnActivate(
+  _arg: unknown,
+  { dispatch, queryFulfilled }: { dispatch: (action: unknown) => void; queryFulfilled: Promise<unknown> }
+) {
+  try {
+    await queryFulfilled;
+    dispatch(unitsApi.util.invalidateTags(['Units', 'FloorPlan', 'UnitStats']));
+    dispatch(billingApi.util.invalidateTags(['Invoices', 'BillingSchedules']));
+  } catch {
+    // request failed — nothing to invalidate
+  }
+}
+
 // ─── API ─────────────────────────────────────
+
 
 export const leasesApi = createApi({
   reducerPath: 'leasesApi',
@@ -182,8 +201,9 @@ export const leasesApi = createApi({
     createLease: builder.mutation<ApiResponse<LeaseDetail>, Record<string, unknown>>({
       query: (body) => ({ url: '/leases', method: 'POST', body }),
       invalidatesTags: ['Leases'],
-      onQueryStarted: invalidateUnitTagsOnSuccess,
+      onQueryStarted: invalidateOnActivate,
     }),
+
 
     updateLease: builder.mutation<ApiResponse<LeaseDetail>, { id: string; data: Record<string, unknown> }>({
       query: ({ id, data }) => ({ url: `/leases/${id}`, method: 'PUT', body: data }),
@@ -203,7 +223,7 @@ export const leasesApi = createApi({
     activateLease: builder.mutation<ApiResponse<LeaseDetail>, string>({
       query: (id) => ({ url: `/leases/${id}/activate`, method: 'POST' }),
       invalidatesTags: (_, __, id) => [{ type: 'Leases', id }, 'Leases'],
-      onQueryStarted: invalidateUnitTagsOnSuccess,
+      onQueryStarted: invalidateOnActivate,
     }),
 
     cancelLease: builder.mutation<ApiResponse<{ leaseId: string; status: string }>, { id: string; reason?: string }>({

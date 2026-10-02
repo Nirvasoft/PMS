@@ -235,78 +235,315 @@ export class InvoicesService {
     return invoice;
   }
 
-  // ── Direct Invoice from Lease (fully paid, no charges) ──
+  // ── Direct Invoices from Lease (fully paid) ──
 
   /**
-   * Creates a direct invoice immediately on lease activation.
-   * Used when paymentType = 'fully' and the lease has no extra charges.
-   * Bypasses the BillingSchedule system entirely.
+   * Creates direct invoices on lease activation for paymentType = 'fully':
+   *  1. ONE combined invoice for Base Rent + Security Deposit (two line items)
+   *  2. One separate invoice per additional lease charge line (from billingSchedules)
+   *
+   * All invoices are issued immediately and bypass the recurring billing run.
+   * Returns an array of all created invoices.
    */
-  async createFromLease(lease: any, userId: string) {
-    const rentChargeType = await prisma.chargeType.findFirst({
-      where: { code: 'RENT', OR: [{ companyId: null }, { companyId: lease.companyId }] },
+  async createFromLease(lease: any, userId: string): Promise<any[]> {
+    const created: any[] = [];
+
+    const startDate    = new Date(lease.startDate);
+    const dueDate      = new Date(startDate);
+    dueDate.setDate(dueDate.getDate() + (lease.paymentDueDays || 7));
+    const periodTo     = lease.endDate ? new Date(lease.endDate) : null;
+    const currencyRate: number | null = lease.currencyRate ? Number(lease.currencyRate) : null;
+    const currency     = lease.currency || 'USD';
+    const unitLabel    = lease.unit?.unitNumber || '';
+
+    // ── 1. Combined Rent + Security Deposit invoice ────────────────────────────
+    // ── 1. Combined Rent + Security Deposit invoice ────────────────────────────
+    let rentChargeType = await prisma.chargeType.findFirst({
+      where: {
+        OR: [
+          { code: 'RENT' },
+          { code: 'rent' },
+          { category: 'rent' },
+        ],
+        AND: [{ OR: [{ companyId: null }, { companyId: lease.companyId }] }],
+      },
     });
     if (!rentChargeType) {
-      logger.warn(`createFromLease: RENT charge type not found for lease ${lease.leaseNumber}`);
-      return null;
+      rentChargeType = await prisma.chargeType.create({
+        data: { code: 'RENT', name: 'Rent', category: 'rent', isActive: true, isSystem: true },
+      });
     }
 
-    const startDate = new Date(lease.startDate);
-    const dueDate = new Date(startDate);
-    dueDate.setDate(dueDate.getDate() + (lease.paymentDueDays || 7));
-
     const rentAmount = Number(lease.rentAmount);
-    const invoiceNumber = await this.generateInvoiceNumber(lease.companyId);
+    const deposit    = Number(lease.securityDeposit ?? 0);
+    const subtotal   = rentAmount + deposit;
 
-    // Resolve currency rate
-    let currencyRate: number | null = lease.currencyRate ? Number(lease.currencyRate) : null;
+    let depositChargeType: any = null;
+    if (deposit > 0) {
+      depositChargeType = await prisma.chargeType.findFirst({
+        where: {
+          OR: [
+            { code: 'SECURITY_DEPOSIT' },
+            { code: 'security_deposit' },
+            { name: { contains: 'deposit', mode: 'insensitive' } },
+          ],
+          AND: [{ OR: [{ companyId: null }, { companyId: lease.companyId }] }],
+        },
+      });
+      if (!depositChargeType) {
+        depositChargeType = await prisma.chargeType.create({
+          data: { code: 'SECURITY_DEPOSIT', name: 'Security Deposit', category: 'other', isActive: true, isSystem: true },
+        });
+      }
+    }
 
-    const lineData = [{
-      chargeTypeId: rentChargeType.id,
-      description: `Rent — Unit ${lease.unit?.unitNumber || ''}`,
-      quantity: 1,
-      unitPrice: rentAmount,
-      discountPct: 0,
-      amount: rentAmount,
-      taxRate: 0,
-      taxAmount: 0,
-      lineTotal: rentAmount,
-      sortOrder: 0,
-    }];
-
-    const invoice = await prisma.invoice.create({
-      data: {
-        companyId: lease.companyId,
-        propertyId: lease.propertyId,
-        unitId: lease.unitId || null,
-        tenantId: lease.tenantId,
+    // Check if an invoice containing Rent already exists for this lease
+    const existingRent = await prisma.invoice.findFirst({
+      where: {
         leaseId: lease.id,
-        invoiceNumber,
-        invoiceType: 'invoice',
-        status: 'issued',
-        invoiceDate: startDate,
-        dueDate,
-        periodFrom: startDate,
-        periodTo: lease.endDate ? new Date(lease.endDate) : null,
-        subtotal: rentAmount,
-        taxAmount: 0,
-        totalAmount: rentAmount,
-        paidAmount: 0,
-        currency: lease.currency || 'USD',
-        currencyRate,
-        notes: `Direct invoice — fully paid lease ${lease.leaseNumber}`,
-        createdBy: userId,
-        lines: { create: lineData },
+        status: { not: 'void' },
+        lines: { some: { chargeTypeId: rentChargeType.id } },
       },
       include: {
-        lines: { include: { chargeType: { select: { code: true, name: true } } } },
-        tenant: { select: { id: true, firstName: true, lastName: true } },
+        lines: true,
       },
     });
 
-    logger.info(`Direct invoice ${invoiceNumber} created for lease ${lease.leaseNumber}`);
-    webhookInvoiceIssued(invoice);
-    return invoice;
+    if (existingRent) {
+      // If invoice exists, ensure it has the security deposit line if deposit > 0
+      const hasDepositLine = depositChargeType
+        ? existingRent.lines.some((l: any) => l.chargeTypeId === depositChargeType.id)
+        : true;
+
+      if (!hasDepositLine && deposit > 0 && depositChargeType) {
+        await prisma.invoiceLine.create({
+          data: {
+            invoiceId: existingRent.id,
+            chargeTypeId: depositChargeType.id,
+            description: `Security Deposit — Unit ${unitLabel}`,
+            quantity: 1,
+            unitPrice: deposit,
+            discountPct: 0,
+            amount: deposit,
+            taxRate: 0,
+            taxAmount: 0,
+            lineTotal: deposit,
+            sortOrder: 1,
+          },
+        });
+
+        const updatedInv = await prisma.invoice.update({
+          where: { id: existingRent.id },
+          data: {
+            subtotal,
+            totalAmount: subtotal,
+            notes: `Base Rent & Security Deposit — fully paid lease ${lease.leaseNumber}`,
+          },
+          include: {
+            lines: { include: { chargeType: { select: { code: true, name: true } } } },
+            tenant: { select: { id: true, firstName: true, lastName: true } },
+          },
+        });
+
+        // Clean up any separate deposit invoice that may have been created earlier
+        await prisma.invoice.deleteMany({
+          where: {
+            leaseId: lease.id,
+            id: { not: existingRent.id },
+            lines: { some: { chargeTypeId: depositChargeType.id } },
+          },
+        });
+
+        created.push(updatedInv);
+        logger.info(`[createFromLease] Updated existing invoice ${existingRent.invoiceNumber} with Security Deposit for lease ${lease.leaseNumber}`);
+      }
+    } else {
+      const invoiceLines: any[] = [
+        {
+          chargeTypeId: rentChargeType.id,
+          description: `Rent — Unit ${unitLabel}`,
+          quantity: 1,
+          unitPrice: rentAmount,
+          discountPct: 0,
+          amount: rentAmount,
+          taxRate: 0,
+          taxAmount: 0,
+          lineTotal: rentAmount,
+          sortOrder: 0,
+        },
+      ];
+      if (deposit > 0 && depositChargeType) {
+        invoiceLines.push({
+          chargeTypeId: depositChargeType.id,
+          description: `Security Deposit — Unit ${unitLabel}`,
+          quantity: 1,
+          unitPrice: deposit,
+          discountPct: 0,
+          amount: deposit,
+          taxRate: 0,
+          taxAmount: 0,
+          lineTotal: deposit,
+          sortOrder: 1,
+        });
+      }
+
+      const invoiceNumber = await this.generateInvoiceNumber(lease.companyId);
+      const inv = await prisma.invoice.create({
+        data: {
+          companyId: lease.companyId,
+          propertyId: lease.propertyId,
+          unitId: lease.unitId || null,
+          tenantId: lease.tenantId,
+          leaseId: lease.id,
+          invoiceNumber,
+          invoiceType: 'invoice',
+          status: 'issued',
+          invoiceDate: startDate,
+          dueDate,
+          periodFrom: startDate,
+          periodTo,
+          subtotal,
+          taxAmount: 0,
+          totalAmount: subtotal,
+          paidAmount: 0,
+          currency,
+          currencyRate,
+          notes: `Base Rent${deposit > 0 ? ' & Security Deposit' : ''} — fully paid lease ${lease.leaseNumber}`,
+          createdBy: userId,
+          lines: { create: invoiceLines },
+        },
+        include: {
+          lines: { include: { chargeType: { select: { code: true, name: true } } } },
+          tenant: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
+      await this._postInvoiceGlAndNotify(inv, lease.companyId, startDate, currency);
+      created.push(inv);
+      logger.info(`[createFromLease] Rent+Deposit invoice ${invoiceNumber} (${subtotal} ${currency}) for lease ${lease.leaseNumber}`);
+    }
+
+    // ── 2. One invoice per additional charge line (from billingSchedules) ──────
+    // BillingSchedule records were created in leasesService.create() for each leaseCharge.
+    // We emit one invoice per charge here (first period); updateChargeSchedulesFromLease
+    // then advances nextBillingDate so the cron won't re-invoice this period.
+    const chargeSchedules: any[] = lease.billingSchedules ?? [];
+    for (const schedule of chargeSchedules) {
+      // Skip RENT / SECURITY_DEPOSIT — already handled in the combined invoice above
+      const ctCode: string = schedule.chargeType?.code || '';
+      if (ctCode === 'RENT' || ctCode === 'SECURITY_DEPOSIT') continue;
+
+      const amount = Number(schedule.amount);
+      if (!amount || amount <= 0) continue;
+
+      // Idempotency: skip if already invoiced for this lease & charge type
+      const existing = await prisma.invoice.findFirst({
+        where: {
+          leaseId: lease.id,
+          status: { not: 'void' },
+          lines: { some: { chargeTypeId: schedule.chargeTypeId } },
+        },
+      });
+      if (existing) continue;
+
+      const invoiceNumber = await this.generateInvoiceNumber(lease.companyId);
+      const chargeName    = schedule.chargeType?.name || 'Charge';
+      const inv = await prisma.invoice.create({
+        data: {
+          companyId: lease.companyId,
+          propertyId: lease.propertyId,
+          unitId: lease.unitId || null,
+          tenantId: lease.tenantId,
+          leaseId: lease.id,
+          invoiceNumber,
+          invoiceType: 'invoice',
+          status: 'issued',
+          invoiceDate: startDate,
+          dueDate,
+          periodFrom: startDate,
+          periodTo,
+          subtotal: amount,
+          taxAmount: 0,
+          totalAmount: amount,
+          paidAmount: 0,
+          currency,
+          currencyRate,
+          notes: `${chargeName} — fully paid lease ${lease.leaseNumber}`,
+          createdBy: userId,
+          lines: {
+            create: [{
+              chargeTypeId: schedule.chargeTypeId,
+              description: schedule.description || `${chargeName} — Unit ${unitLabel}`,
+              quantity: 1,
+              unitPrice: amount,
+              discountPct: 0,
+              amount,
+              taxRate: 0,
+              taxAmount: 0,
+              lineTotal: amount,
+              sortOrder: 0,
+            }],
+          },
+        },
+        include: {
+          lines: { include: { chargeType: { select: { code: true, name: true } } } },
+          tenant: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
+      await this._postInvoiceGlAndNotify(inv, lease.companyId, startDate, currency);
+      created.push(inv);
+      logger.info(`[createFromLease] ${chargeName} invoice ${invoiceNumber} for lease ${lease.leaseNumber}`);
+    }
+
+    return created;
+  }
+
+  /**
+   * Shared helper: post GL journal + notification + webhook for a directly-created invoice.
+   */
+  private async _postInvoiceGlAndNotify(invoice: any, companyId: string, invoiceDate: Date, currency: string): Promise<void> {
+    try {
+      const subtotal    = Number(invoice.subtotal);
+      const totalAmount = Number(invoice.totalAmount);
+      const taxAmount   = Number(invoice.taxAmount);
+
+      const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
+        { accountCode: '1100', debit: totalAmount, credit: 0, description: `AR — ${invoice.invoiceNumber}` },
+        { accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoice.invoiceNumber}` },
+      ];
+      if (taxAmount > 0) {
+        glLines.push({ accountCode: '2200', debit: 0, credit: taxAmount, description: `Tax Payable — ${invoice.invoiceNumber}` });
+      }
+      await glService.postAutoJournal({
+        companyId,
+        entryDate: invoiceDate,
+        entryType: 'ar_invoice',
+        description: `AR Invoice ${invoice.invoiceNumber}`,
+        referenceType: 'invoice',
+        referenceId: invoice.id,
+        propertyId: invoice.propertyId,
+        lines: glLines,
+      });
+    } catch (err: any) {
+      logger.warn(`[createFromLease] GL auto-journal skipped: ${err.message}`);
+    }
+
+    try {
+      const tenantName = invoice.tenant
+        ? `${invoice.tenant.firstName || ''} ${invoice.tenant.lastName || ''}`.trim()
+        : '';
+      billingNotifications.invoiceIssued(
+        { ...invoice, totalAmount: invoice.totalAmount, currency, companyId, tenantId: invoice.tenantId },
+        tenantName,
+      );
+    } catch (err: any) {
+      logger.warn(`[createFromLease] Notification skipped: ${err.message}`);
+    }
+
+    try {
+      webhookInvoiceIssued(invoice);
+    } catch (err: any) {
+      logger.warn(`[createFromLease] Webhook skipped: ${err.message}`);
+    }
   }
 
   // ── Auto-Generate from Billing Schedule(s) ──
