@@ -32,6 +32,7 @@ import LeaseDetailPage from './pages/admin/LeasesPage/LeaseDetailPage';
 import CreateLeasePage from './pages/admin/LeasesPage/CreateLeasePage';
 import LeaseTemplatesPage from './pages/admin/LeasesPage/LeaseTemplatesPage';
 import LeaseClausesPage from './pages/admin/LeasesPage/LeaseClausesPage';
+import GeneralImportPage from './pages/admin/LeasesPage/GeneralImportPage';
 import LeadPipelinePage from './pages/admin/CRMPage/LeadPipelinePage';
 import CreateLeadPage from './pages/admin/CRMPage/CreateLeadPage';
 import CRMLeadDetailPage from './pages/admin/CRMPage/LeadDetailPage';
@@ -264,6 +265,7 @@ function AppRoutes() {
             <Route path="/admin/leases/new" element={<CreateLeasePage />} />
             <Route path="/admin/leases/templates" element={<LeaseTemplatesPage />} />
             <Route path="/admin/leases/clauses" element={<LeaseClausesPage />} />
+            <Route path="/admin/leases/general-import" element={<GeneralImportPage />} />
             <Route path="/admin/leases/:id" element={<LeaseDetailPage />} />
           </Route>
 

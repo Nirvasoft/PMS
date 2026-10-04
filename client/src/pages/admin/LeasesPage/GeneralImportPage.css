@@ -1,0 +1,27 @@
+.general-import-page { padding: 24px; }
+.gi-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 16px;
+}
+.gi-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.gi-buttons button, .gi-file-row button { display: inline-flex; align-items: center; gap: 6px; }
+.gi-file-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.gi-file-row label { font-weight: 600; white-space: nowrap; }
+.gi-file-text { flex: 1 1 280px; min-width: 200px; padding: 8px 10px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 6px; cursor: pointer; background: transparent; color: inherit; }
+.gi-select { padding: 8px 10px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 6px; min-width: 170px; background: transparent; color: inherit; }
+.gi-summary { margin-bottom: 12px; }
+.gi-ok { color: #16a34a; font-weight: 600; }
+.gi-bad { color: #dc2626; font-weight: 600; }
+.gi-table-wrap { overflow: auto; max-height: 460px; }
+.gi-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.gi-table th, .gi-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-color, #e2e8f0); text-align: left; white-space: nowrap; }
+.gi-table th { position: sticky; top: 0; background: var(--card-bg, #f8fafc); }
+.gi-row-error { background: rgba(220, 38, 38, 0.06); }
+.gi-errors { margin: 0; padding-left: 18px; color: #dc2626; font-size: 13px; }
+.gi-skip { color: #d97706; font-weight: 600; }
+.gi-row-skip { background: rgba(217, 119, 6, 0.08); }
+.gi-stats { margin: 0 0 8px; padding-left: 18px; line-height: 1.7; }
+.gi-notes { margin: 0 0 8px; padding-left: 18px; color: #d97706; font-size: 13px; }

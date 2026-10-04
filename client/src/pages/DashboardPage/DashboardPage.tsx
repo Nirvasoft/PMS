@@ -17,7 +17,7 @@ import {
   Store, TrendingUp, DollarSign, Coins, Tag,
   Zap, Gavel, CreditCard, Palette,
   Plug, Webhook, Server, DoorOpen, QrCode, ShoppingCart, Gauge,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, FileUp,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import NotificationBell from '../../components/notifications/NotificationBell';
@@ -277,9 +277,19 @@ export default function DashboardLayout() {
               </PermissionGuard>
               <FeatureGate flag="leasingEnabled">
                 <PermissionGuard hideWhenDenied permission="leases.read">
-                  <NavLink to="/admin/leases" className="nav-item" title="Leases">
+                  <NavLink
+                    to="/admin/leases"
+                    className={({ isActive }) => `nav-item${isActive && !location.pathname.startsWith('/admin/leases/general-import') ? ' active' : ''}`}
+                    title="Leases"
+                  >
                     <ClipboardList size={18} />
                     <span>Leases</span>
+                  </NavLink>
+                </PermissionGuard>
+                <PermissionGuard hideWhenDenied permission="leases.create">
+                  <NavLink to="/admin/leases/general-import" className="nav-item" title="General Import">
+                    <FileUp size={18} />
+                    <span>General Import</span>
                   </NavLink>
                 </PermissionGuard>
               </FeatureGate>
