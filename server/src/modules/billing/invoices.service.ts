@@ -7,6 +7,7 @@ import { workflowEngine } from '../workflow/services/engine.service';
 import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
 import { formatTenantName } from './billing.utils';
+import { calcLeaseTermMonths } from '../leases/services/helpers';
 
 /** Adds computed `outstandingAmount` to an invoice object */
 function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T): T & { outstandingAmount: number } {
@@ -276,11 +277,21 @@ export class InvoicesService {
 
     const isPartial = lease.paymentType === 'partially';
     const partialAmount = lease.partialAmount != null ? Number(lease.partialAmount) : null;
+    const termMonths = lease.leaseTermMonths || (
+      lease.startDate && lease.endDate
+        ? calcLeaseTermMonths(lease.startDate, lease.endDate)
+        : 1
+    ) || 1;
+    const monthlyRent = Number(lease.rentAmount);
     const rentAmount = (isPartial && partialAmount != null && partialAmount > 0)
       ? partialAmount
-      : Number(lease.rentAmount);
+      : Math.round(monthlyRent * termMonths * 100) / 100;
     const deposit    = Number(lease.securityDeposit ?? 0);
     const subtotal   = rentAmount + deposit;
+
+    const rentQty = isPartial ? 1 : termMonths;
+    const rentUnitPrice = isPartial ? (partialAmount || monthlyRent) : monthlyRent;
+    const rentLineTotal = rentAmount;
 
     let depositChargeType: any = null;
     if (deposit > 0) {
@@ -341,7 +352,9 @@ export class InvoicesService {
           data: {
             subtotal,
             totalAmount: subtotal,
-            notes: `Base Rent & Security Deposit — fully paid lease ${lease.leaseNumber}`,
+            notes: isPartial
+              ? `Base Rent (Partial Payment) & Security Deposit — lease ${lease.leaseNumber}`
+              : `Base Rent (${termMonths} months) & Security Deposit — fully paid lease ${lease.leaseNumber}`,
           },
           include: {
             lines: { include: { chargeType: { select: { code: true, name: true } } } },
@@ -365,14 +378,16 @@ export class InvoicesService {
       const invoiceLines: any[] = [
         {
           chargeTypeId: rentChargeType.id,
-          description: isPartial ? `Rent (Partial Payment) — Unit ${unitLabel}` : `Rent — Unit ${unitLabel}`,
-          quantity: 1,
-          unitPrice: rentAmount,
+          description: isPartial
+            ? `Rent (Partial Payment) — Unit ${unitLabel}`
+            : `Rent (${termMonths} ${termMonths === 1 ? 'month' : 'months'}) — Unit ${unitLabel}`,
+          quantity: rentQty,
+          unitPrice: rentUnitPrice,
           discountPct: 0,
-          amount: rentAmount,
+          amount: rentLineTotal,
           taxRate: 0,
           taxAmount: 0,
-          lineTotal: rentAmount,
+          lineTotal: rentLineTotal,
           sortOrder: 0,
         },
       ];
@@ -414,7 +429,7 @@ export class InvoicesService {
           currencyRate,
           notes: isPartial
             ? `Base Rent (Partial Payment)${deposit > 0 ? ' & Security Deposit' : ''} — lease ${lease.leaseNumber}`
-            : `Base Rent${deposit > 0 ? ' & Security Deposit' : ''} — fully paid lease ${lease.leaseNumber}`,
+            : `Base Rent (${termMonths} months)${deposit > 0 ? ' & Security Deposit' : ''} — fully paid lease ${lease.leaseNumber}`,
           createdBy: userId,
           lines: { create: invoiceLines },
         },
@@ -428,11 +443,14 @@ export class InvoicesService {
       logger.info(`[createFromLease] Rent+Deposit invoice ${invoiceNumber} (${subtotal} ${currency}) for lease ${lease.leaseNumber}`);
     }
 
-    // ── 2. One invoice per additional charge line (from billingSchedules) ──────
+    // ── 2. Combined invoice for additional charge lines (from billingSchedules) ──
     // BillingSchedule records were created in leasesService.create() for each leaseCharge.
-    // Emits one direct invoice per charge (first period) for both fully and partially paid leases;
+    // Emits ONE combined invoice for all additional charges (first period) for the same tenant & unit,
+    // rather than one invoice per charge line.
     // updateChargeSchedulesFromLease then advances nextBillingDate so the cron won't re-invoice this period.
     const chargeSchedules: any[] = lease.billingSchedules ?? [];
+    const eligibleSchedules: any[] = [];
+
     for (const schedule of chargeSchedules) {
       // Skip RENT / SECURITY_DEPOSIT — already handled in the combined invoice above
       const ctCode: string = schedule.chargeType?.code || '';
@@ -451,8 +469,17 @@ export class InvoicesService {
       });
       if (existing) continue;
 
+      eligibleSchedules.push(schedule);
+    }
+
+    if (eligibleSchedules.length > 0) {
+      const totalChargesAmount = eligibleSchedules.reduce((sum, s) => sum + Number(s.amount), 0);
       const invoiceNumber = await this.generateInvoiceNumber(lease.companyId);
-      const chargeName    = schedule.chargeType?.name || 'Charge';
+      const chargeNames = eligibleSchedules.map((s) => s.chargeType?.name || 'Charge').filter(Boolean);
+      const notesDesc = chargeNames.length > 0
+        ? `${chargeNames.join(' & ')} — lease ${lease.leaseNumber}`
+        : `Additional Charges — lease ${lease.leaseNumber}`;
+
       const inv = await prisma.invoice.create({
         data: {
           companyId: lease.companyId,
@@ -467,27 +494,31 @@ export class InvoicesService {
           dueDate,
           periodFrom: startDate,
           periodTo,
-          subtotal: amount,
+          subtotal: totalChargesAmount,
           taxAmount: 0,
-          totalAmount: amount,
+          totalAmount: totalChargesAmount,
           paidAmount: 0,
           currency,
           currencyRate,
-          notes: `${chargeName} — fully paid lease ${lease.leaseNumber}`,
+          notes: notesDesc,
           createdBy: userId,
           lines: {
-            create: [{
-              chargeTypeId: schedule.chargeTypeId,
-              description: schedule.description || `${chargeName} — Unit ${unitLabel}`,
-              quantity: 1,
-              unitPrice: amount,
-              discountPct: 0,
-              amount,
-              taxRate: 0,
-              taxAmount: 0,
-              lineTotal: amount,
-              sortOrder: 0,
-            }],
+            create: eligibleSchedules.map((schedule, idx) => {
+              const chargeName = schedule.chargeType?.name || 'Charge';
+              const amount = Number(schedule.amount);
+              return {
+                chargeTypeId: schedule.chargeTypeId,
+                description: schedule.description || `${chargeName} — Unit ${unitLabel}`,
+                quantity: 1,
+                unitPrice: amount,
+                discountPct: 0,
+                amount,
+                taxRate: 0,
+                taxAmount: 0,
+                lineTotal: amount,
+                sortOrder: idx,
+              };
+            }),
           },
         },
         include: {
@@ -497,7 +528,7 @@ export class InvoicesService {
       });
       await this._postInvoiceGlAndNotify(inv, lease.companyId, startDate, currency);
       created.push(inv);
-      logger.info(`[createFromLease] ${chargeName} invoice ${invoiceNumber} for lease ${lease.leaseNumber}`);
+      logger.info(`[createFromLease] Combined charges invoice ${invoiceNumber} (${totalChargesAmount} ${currency}) with ${eligibleSchedules.length} line(s) for lease ${lease.leaseNumber}`);
     }
 
     return created;

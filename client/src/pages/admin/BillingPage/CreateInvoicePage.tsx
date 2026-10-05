@@ -45,7 +45,7 @@ export default function CreateInvoicePage() {
   const propertyLocked = !!activeProperty;
 
   const [form, setForm] = useState({
-    propertyId: '', tenantId: '', unitId: '', invoiceDate: new Date().toISOString().split('T')[0],
+    propertyId: '', tenantId: '', unitId: '', leaseId: '', invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: '', notes: '',
   });
 
@@ -65,11 +65,15 @@ export default function CreateInvoicePage() {
     { skip: !form.tenantId }
   );
 
+  // Active lease matching the selected unit (or single active lease for tenant)
+  const activeLeases = activeLeasesData?.data || [];
+  const selectedLease = activeLeases.find(l => l.unit?.id === form.unitId)
+    || (form.tenantId && !form.unitId && activeLeases.length === 1 ? activeLeases[0] : null);
+
   // Deduplicate units from the tenant's active leases
   const unitOptions = (() => {
-    const leases = activeLeasesData?.data || [];
     const seen = new Set<string>();
-    return leases
+    return activeLeases
       .filter(l => l.unit && !seen.has(l.unit.id) && seen.add(l.unit.id))
       .map(l => ({ id: l.unit.id, unitNumber: l.unit.unitNumber }));
   })();
@@ -116,10 +120,10 @@ export default function CreateInvoicePage() {
   useEffect(() => {
     if (propertyLocked) {
       if (form.propertyId !== activeProperty) {
-        setForm((f) => ({ ...f, propertyId: activeProperty, tenantId: '', unitId: '' }));
+        setForm((f) => ({ ...f, propertyId: activeProperty, tenantId: '', unitId: '', leaseId: '' }));
       }
     } else if (prevPropertyLockedRef.current) {
-      setForm((f) => ({ ...f, propertyId: '', tenantId: '', unitId: '' }));
+      setForm((f) => ({ ...f, propertyId: '', tenantId: '', unitId: '', leaseId: '' }));
     }
     prevPropertyLockedRef.current = propertyLocked;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,7 +133,7 @@ export default function CreateInvoicePage() {
   const prevPropertyIdRef = useRef(form.propertyId);
   useEffect(() => {
     if (prevPropertyIdRef.current !== form.propertyId) {
-      setForm((f) => ({ ...f, tenantId: '', unitId: '' }));
+      setForm((f) => ({ ...f, tenantId: '', unitId: '', leaseId: '' }));
       prevPropertyIdRef.current = form.propertyId;
     }
   }, [form.propertyId]);
@@ -138,7 +142,7 @@ export default function CreateInvoicePage() {
   const prevTenantIdRef = useRef(form.tenantId);
   useEffect(() => {
     if (prevTenantIdRef.current !== form.tenantId) {
-      setForm((f) => ({ ...f, unitId: '' }));
+      setForm((f) => ({ ...f, unitId: '', leaseId: '' }));
       prevTenantIdRef.current = form.tenantId;
     }
   }, [form.tenantId]);
@@ -147,17 +151,72 @@ export default function CreateInvoicePage() {
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
   ]);
 
-  const addLine = () => setLines([...lines, { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 }]);
+  // When selectedLease changes (tenant/unit chosen), auto-fill Qty with Lease Term and unitPrice with rent
+  const prevSelectedLeaseIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedLease) {
+      prevSelectedLeaseIdRef.current = null;
+      return;
+    }
+    if (prevSelectedLeaseIdRef.current === selectedLease.id) return;
+    prevSelectedLeaseIdRef.current = selectedLease.id;
+
+    if (form.leaseId !== selectedLease.id) {
+      setForm((f) => ({ ...f, leaseId: selectedLease.id }));
+    }
+
+    const leaseTerm = selectedLease.leaseTermMonths || 1;
+    const leaseRent = Number(selectedLease.rentAmount) || 0;
+    const rentCt = chargeTypes.find(c => c.code?.toUpperCase() === 'RENT' || c.name?.toLowerCase() === 'rent' || c.category === 'rent');
+
+    setLines((prev) => {
+      if (prev.length === 1 && (!prev[0].chargeTypeId || (rentCt && prev[0].chargeTypeId === rentCt.id))) {
+        const ct = rentCt || chargeTypes[0];
+        return [{
+          chargeTypeId: ct?.id || '',
+          description: selectedLease.unit?.unitNumber
+            ? `Rent — Unit ${selectedLease.unit.unitNumber}`
+            : (ct?.name || 'Rent'),
+          quantity: leaseTerm,
+          unitPrice: leaseRent,
+          taxRate: ct?.isTaxable ? (Number(ct.taxRate) || 0) : 0,
+        }];
+      }
+      return prev.map((l) => ({
+        ...l,
+        quantity: l.quantity === 1 ? leaseTerm : l.quantity,
+        unitPrice: rentCt && l.chargeTypeId === rentCt.id && l.unitPrice === 0 ? leaseRent : l.unitPrice,
+      }));
+    });
+  }, [selectedLease, form.leaseId, chargeTypes]);
+
+  const addLine = () => setLines([
+    ...lines,
+    { chargeTypeId: '', description: '', quantity: selectedLease?.leaseTermMonths || 1, unitPrice: 0, taxRate: 0 },
+  ]);
   const removeLine = (idx: number) => setLines(lines.filter((_, i) => i !== idx));
   const updateLine = (idx: number, field: string, value: unknown) => {
     const updated = [...lines];
     (updated[idx] as any)[field] = value;
 
-    // Auto-fill description from charge type
+    // Auto-fill description and taxRate from charge type; auto-fill Unit Price & Qty if Rent
     if (field === 'chargeTypeId') {
       const ct = chargeTypes.find(c => c.id === value);
-      if (ct && !updated[idx].description) updated[idx].description = ct.name;
-      if (ct && ct.isTaxable && updated[idx].taxRate === 0) updated[idx].taxRate = Number(ct.taxRate) || 0;
+      if (ct && !updated[idx].description) {
+        updated[idx].description = selectedLease?.unit?.unitNumber
+          ? `${ct.name} — Unit ${selectedLease.unit.unitNumber}`
+          : ct.name;
+      }
+      if (ct && ct.isTaxable && updated[idx].taxRate === 0) {
+        updated[idx].taxRate = Number(ct.taxRate) || 0;
+      }
+      const isRent = ct && (ct.code?.toUpperCase() === 'RENT' || ct.name?.toLowerCase() === 'rent' || ct.category === 'rent');
+      if (isRent && selectedLease?.rentAmount && (!updated[idx].unitPrice || updated[idx].unitPrice === 0)) {
+        updated[idx].unitPrice = Number(selectedLease.rentAmount);
+      }
+      if (isRent && selectedLease?.leaseTermMonths && (!updated[idx].quantity || updated[idx].quantity === 1)) {
+        updated[idx].quantity = selectedLease.leaseTermMonths;
+      }
     }
     setLines(updated);
   };
@@ -172,6 +231,7 @@ export default function CreateInvoicePage() {
     try {
       const result = await createInvoice({
         ...form,
+        leaseId: selectedLease?.id || form.leaseId || undefined,
         currency: effectiveCurrency,
         currencyRate: effectiveRate,
         lines: lines.map(l => ({
@@ -316,6 +376,11 @@ export default function CreateInvoicePage() {
                   <option key={u.id} value={u.id}>{u.unitNumber}</option>
                 ))}
               </select>
+              {selectedLease && (
+                <span className="field-hint" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  Lease {selectedLease.leaseNumber} · Term: {selectedLease.leaseTermMonths} {selectedLease.leaseTermMonths === 1 ? 'month' : 'months'}
+                </span>
+              )}
             </div>
             <div className="inv-field">
               <label>Invoice Date <span className="req">*</span></label>
@@ -357,7 +422,9 @@ export default function CreateInvoicePage() {
               <tr>
                 <th style={{ width: '18%' }}>Charge Type</th>
                 <th style={{ width: '28%' }}>Description</th>
-                <th style={{ width: '10%', textAlign: 'right' }}>Qty</th>
+                <th style={{ width: '10%', textAlign: 'right' }}>
+                  Qty{selectedLease?.leaseTermMonths ? ` (${selectedLease.leaseTermMonths}m)` : ''}
+                </th>
                 <th style={{ width: '15%', textAlign: 'right' }}>Unit Price</th>
                 <th style={{ width: '10%', textAlign: 'right' }}>Tax %</th>
                 <th style={{ width: '14%', textAlign: 'right' }}>

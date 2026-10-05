@@ -220,6 +220,7 @@ export class LeasesService {
           leaseId: lease.id,
           chargeTypeId: c.chargeTypeId,
           amount: c.amount,
+          quantity: calcLeaseTermMonths(start, end) || 1,
           currency: rest.currency || 'USD',
           billingCycle: rest.billingCycle || 'monthly',
           billingDay: rest.billingDay || 1,

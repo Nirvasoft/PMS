@@ -264,6 +264,12 @@ a {
 }
 a:hover { color: var(--accent-hover); }
 
+/* Universal dropdown option background & contrast across all themes */
+select option {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
 /* ─── Light Mode Global Typography & High-Contrast Readability ─── */
 [data-theme="light"] body {
   font-weight: 500;

@@ -124,24 +124,59 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
           );
         }
 
+        const fullRentAmount = Math.round(rent * (termMonths || 1) * 100) / 100;
         return (
           <>
-            <div className="review-subhead">Billing Schedules <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-muted)' }}>(created on activation)</span></div>
+            <div className="review-subhead">Direct Invoices <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-muted)' }}>(issued immediately on activation)</span></div>
             <table className="charges-table">
-              <thead><tr><th>Schedule</th><th className="text-right">Amount</th></tr></thead>
+              <thead><tr><th>Invoice Item</th><th className="text-right">Qty</th><th className="text-right">Unit Price</th><th className="text-right">Amount</th></tr></thead>
               <tbody>
                 <tr>
-                  <td>Rent</td>
+                  <td>Rent ({termMonths} {termMonths === 1 ? 'month' : 'months'})</td>
+                  <td className="text-right">{termMonths}</td>
                   <td className="text-right">{form.currency} {rent.toLocaleString()}</td>
+                  <td className="text-right">{form.currency} {fullRentAmount.toLocaleString()}</td>
                 </tr>
                 {dep > 0 && (
                   <tr>
                     <td>Security Deposit</td>
+                    <td className="text-right">1</td>
+                    <td className="text-right">{form.currency} {dep.toLocaleString()}</td>
                     <td className="text-right">{form.currency} {dep.toLocaleString()}</td>
                   </tr>
                 )}
+                {form.leaseCharges.map((c) => (
+                  <tr key={c.chargeTypeId}>
+                    <td>{chargeTypeName(c.chargeTypeId)}</td>
+                    <td className="text-right">1</td>
+                    <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
+                    <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
+
+            {form.leaseCharges.length > 0 && (
+              <>
+                <div className="review-subhead">
+                  Billing Schedules{' '}
+                  <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-muted)' }}>
+                    (recurring charges from period 2 onward)
+                  </span>
+                </div>
+                <table className="charges-table">
+                  <thead><tr><th>Schedule</th><th className="text-right">Amount / Cycle</th></tr></thead>
+                  <tbody>
+                    {form.leaseCharges.map((c) => (
+                      <tr key={c.chargeTypeId}>
+                        <td>{chargeTypeName(c.chargeTypeId)}</td>
+                        <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
           </>
         );
       })()}
