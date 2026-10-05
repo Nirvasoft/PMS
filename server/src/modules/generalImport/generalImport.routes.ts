@@ -13,6 +13,7 @@ const PERMISSIONS: Record<string, { read: string; create: string }> = {
   meter: { read: 'meter.read', create: 'meter.create' },
   unit: { read: 'unit.read', create: 'unit.create' },
   lease: { read: 'leases.read', create: 'leases.create' },
+  tenant: { read: 'tenants.read', create: 'tenants.create' },
 };
 
 const gate = (action: 'read' | 'create') => (req: Request, res: Response, next: NextFunction) => {

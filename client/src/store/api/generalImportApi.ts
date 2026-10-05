@@ -6,7 +6,7 @@ interface ApiResponse<T> {
   data: T;
 }
 
-export type GeneralImportType = 'meter' | 'unit' | 'lease';
+export type GeneralImportType = 'meter' | 'unit' | 'lease' | 'tenant';
 
 export interface GeneralImportPreview {
   type: GeneralImportType;

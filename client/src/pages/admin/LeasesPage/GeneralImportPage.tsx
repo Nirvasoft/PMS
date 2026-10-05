@@ -16,6 +16,7 @@ const IMPORT_OPTIONS: { value: GeneralImportType; label: string }[] = [
   { value: 'meter', label: 'Meter Import' },
   { value: 'unit', label: 'Unit Import' },
   { value: 'lease', label: 'Lease Import' },
+  { value: 'tenant', label: 'Tenant Import' },
 ];
 
 function errMessage(e: unknown, fallback: string): string {
@@ -199,13 +200,14 @@ export default function GeneralImportPage() {
             <strong>{typeLabel} result</strong> ({result.total} rows in file)
           </div>
           <ul className="gi-stats">
-            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {importType === 'meter' ? 'meter_setups' : 'database'}</li>
+            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants' }[importType as string] ?? 'database'}</li>
+            {(importType === 'meter' || importType === 'tenant') && (
+              <li><span className="gi-skip">{result.skipped}</span> record(s) skipped (
+                {importType === 'meter' ? 'Meter No + Floor + Category already exist' : 'Code already exists'})</li>
+            )}
             {importType === 'meter' && (
-              <>
-                <li><span className="gi-skip">{result.skipped}</span> record(s) skipped (Meter No + Floor + Category already exist)</li>
-                <li><span className="gi-ok">{result.linked}</span> unit connection(s) inserted into utility_meters
-                  {result.linkSkipped > 0 && <>, <span className="gi-skip">{result.linkSkipped}</span> skipped</>}</li>
-              </>
+              <li><span className="gi-ok">{result.linked}</span> unit connection(s) inserted into utility_meters
+                {result.linkSkipped > 0 && <>, <span className="gi-skip">{result.linkSkipped}</span> skipped</>}</li>
             )}
             {result.failed.length > 0 && <li><span className="gi-bad">{result.failed.length}</span> row(s) failed</li>}
           </ul>

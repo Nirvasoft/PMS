@@ -4,8 +4,8 @@ import { AppError } from '../../common/errors';
 import { unitsService, metersService } from '../units/units.service';
 import { leasesService } from '../leases/services/leases.service';
 
-export type ImportType = 'meter' | 'unit' | 'lease';
-export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease'];
+export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant';
+export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant'];
 
 interface ColumnDef {
   header: string;
@@ -45,8 +45,17 @@ const CALC_TYPES = ['per_unit', 'fixed'];
 const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'];
 
 const COLUMNS: Record<ImportType, ColumnDef[]> = {
+  tenant: [
+    { header: 'Property Code', key: 'propertyCode', samples: ['PRP-001', 'PRP-001'] },
+    { header: 'Tenant Type', key: 'tenantType', required: true, samples: ['individual', 'company'] },
+    { header: 'Code', key: 'code', required: true, samples: ['TEN-001', 'TEN-002'] },
+    { header: 'Name', key: 'name', required: true, samples: ['John Smith', 'ABC Trading Co., Ltd.'] },
+    { header: 'DOB', key: 'dob', samples: ['1990-05-12', '1985-11-30'] },
+    { header: 'Gender', key: 'gender', samples: ['male', 'female'] },
+    { header: 'Mobile', key: 'mobile', samples: ['09123456789', '09987654321'] },
+    { header: 'Address', key: 'address', samples: ['No. 1, Main Street', 'No. 2, Park Road'] },
+  ],
   meter: [
-    { header: 'Company Name', key: 'companyName', samples: ['Sample Company', 'Sample Company'] },
     { header: 'Property Code', key: 'propertyCode', samples: ['PRP-001', 'PRP-001'] },
     { header: 'Floor', key: 'floor', samples: ['1F', '2F'] },
     { header: 'Meter Type', key: 'meterType', required: true, samples: ['mepe', 'sub_meter'] },
@@ -160,7 +169,7 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
       data[c.key] = v;
       if (v) any = true;
     }
-    if (any) rows.push({ rowNo, data });
+    if (any) rows.push({ rowNo: rowNo - 1, data }); // header is Excel row 1, so first data row is #1
   });
   if (rows.length === 0) throw AppError.badRequest('The file contains no data rows', 'EMPTY_FILE');
   if (rows.length > 2000) throw AppError.badRequest('A maximum of 2000 rows can be imported at once', 'TOO_MANY_ROWS');
@@ -184,10 +193,9 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
   const out: PreviewRow[] = [];
 
   if (type === 'meter') {
-    const [floors, existing, company, property, units] = await Promise.all([
+    const [floors, existing, property, units] = await Promise.all([
       prisma.floorSetup.findMany({ where: { propertyId }, select: { id: true, floorLabel: true, floorNumber: true } }),
       prisma.meterSetup.findMany({ where: { propertyId }, select: { meterNo: true, floorId: true, category: true } }),
-      prisma.company.findUnique({ where: { id: companyId }, select: { name: true } }),
       prisma.property.findUnique({ where: { id: propertyId }, select: { code: true } }),
       prisma.unit.findMany({ where: { propertyId, deletedAt: null }, select: { unitNumber: true } }),
     ]);
@@ -204,9 +212,6 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
       d.category = norm(d.category);
       if (d.usageType) d.usageType = norm(d.usageType);
       if (d.calculationType) d.calculationType = norm(d.calculationType);
-      if (d.companyName && company && d.companyName.toLowerCase() !== company.name.toLowerCase()) {
-        errors.push(`Company Name "${d.companyName}" does not match "${company.name}"`);
-      }
       if (d.propertyCode && property?.code && d.propertyCode.toLowerCase() !== property.code.toLowerCase()) {
         errors.push(`Property Code "${d.propertyCode}" does not match the selected property (${property.code})`);
       }
@@ -269,6 +274,47 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
         seen.add(k);
       }
       out.push({ rowNo: r.rowNo, data: d, status: errors.length ? 'error' : 'valid', errors });
+    }
+    return out;
+  }
+
+  if (type === 'tenant') {
+    const [property, existing] = await Promise.all([
+      prisma.property.findUnique({ where: { id: propertyId }, select: { code: true } }),
+      prisma.tenant.findMany({ where: { companyId, deletedAt: null }, select: { code: true, firstName: true } }),
+    ]);
+    const known = new Set<string>();
+    existing.forEach((t) => {
+      if (t.code) known.add(t.code.trim().toLowerCase());
+      if (t.firstName) known.add(t.firstName.trim().toLowerCase()); // individual Code was historically stored here
+    });
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const d = r.data;
+      const errors = checkRequired(type, d);
+      if (d.tenantType) {
+        const t = norm(d.tenantType);
+        d.tenantType = t === 'corporate' ? 'company' : t;
+        if (!['individual', 'company'].includes(d.tenantType)) errors.push('Tenant Type must be individual or company');
+      }
+      if (d.propertyCode && property?.code && d.propertyCode.toLowerCase() !== property.code.toLowerCase()) {
+        errors.push(`Property Code "${d.propertyCode}" does not match the selected property (${property.code})`);
+      }
+      if (d.dob && !validDate(d.dob)) errors.push('DOB must be a date (YYYY-MM-DD)');
+      if (d.gender) {
+        const g = d.gender.trim().toLowerCase();
+        d.gender = g === 'm' ? 'male' : g === 'f' ? 'female' : g;
+        if (!['male', 'female', 'other'].includes(d.gender)) errors.push('Gender must be male, female or other');
+      }
+      let status: PreviewRow['status'] = errors.length ? 'error' : 'valid';
+      const notes: string[] = [];
+      if (status === 'valid') {
+        const k = d.code.trim().toLowerCase();
+        if (known.has(k)) { status = 'skip'; notes.push('Code already exists - insert will be skipped'); }
+        else if (seen.has(k)) { status = 'skip'; notes.push('Code duplicated in file - insert will be skipped'); }
+        seen.add(k);
+      }
+      out.push({ rowNo: r.rowNo, data: d, status, errors: status === 'error' ? errors : notes });
     }
     return out;
   }
@@ -445,6 +491,44 @@ export const generalImportService = {
             currency: d.currency.toUpperCase(),
             description: d.description || undefined,
           }, userId);
+          imported++;
+        } catch (e) {
+          failed.push({ rowNo: r.rowNo, errors: [(e as Error).message] });
+        }
+      }
+    } else if (type === 'tenant') {
+      const existing = await prisma.tenant.findMany({
+        where: { companyId, deletedAt: null },
+        select: { code: true, firstName: true },
+      });
+      const known = new Set<string>();
+      existing.forEach((t) => {
+        if (t.code) known.add(t.code.trim().toLowerCase());
+        if (t.firstName) known.add(t.firstName.trim().toLowerCase());
+      });
+      for (const r of valid) {
+        const d = r.data;
+        const code = d.code.trim();
+        const k = code.toLowerCase();
+        if (known.has(k)) { skipped++; continue; }
+        const isCompany = d.tenantType === 'company';
+        try {
+          await prisma.tenant.create({
+            data: {
+              companyId,
+              propertyId,
+              tenantType: d.tenantType,
+              code,
+              ...(isCompany
+                ? { companyName: d.name.trim() }
+                : { firstName: code, lastName: d.name.trim() }),
+              dateOfBirth: d.dob ? new Date(d.dob) : null,
+              gender: d.gender || null,
+              mobile: d.mobile || null,
+              addressLine1: d.address || null,
+            },
+          });
+          known.add(k);
           imported++;
         } catch (e) {
           failed.push({ rowNo: r.rowNo, errors: [(e as Error).message] });
