@@ -607,7 +607,7 @@ export class InvoicesService {
 
     type LineInput = {
       schedule: (typeof schedules)[number];
-      periodFrom: Date; periodTo: Date; amount: number; taxRate: number; taxAmount: number; lineTotal: number;
+      periodFrom: Date; periodTo: Date; nextBillingDate: Date; amount: number; taxRate: number; taxAmount: number; lineTotal: number;
     };
     const lineInputs: LineInput[] = [];
 
@@ -635,7 +635,9 @@ export class InvoicesService {
 
     for (const schedule of schedules) {
       const periodFrom = schedule.nextBillingDate!;
-      const periodTo = this.computePeriodEnd(periodFrom, schedule.billingCycle);
+      const nextBillingDate = this.computeNextBillingDate(periodFrom, schedule.billingDay, schedule.billingCycle);
+      const periodTo = new Date(nextBillingDate);
+      periodTo.setDate(periodTo.getDate() - 1);
 
       // Idempotency: check if this schedule already has an invoice for this period.
       // Scoped to tenant/property/unit/charge type (not just leaseId) — multiple ad-hoc
@@ -667,7 +669,7 @@ export class InvoicesService {
       // Resolve tax rate from pre-fetched configs (no DB call)
       const taxRate = resolveRate(schedule.chargeType.code, periodFrom);
       const taxAmount = Math.round(amount * taxRate * 100) / 100;
-      lineInputs.push({ schedule, periodFrom, periodTo, amount, taxRate, taxAmount, lineTotal: amount + taxAmount });
+      lineInputs.push({ schedule, periodFrom, periodTo, nextBillingDate, amount, taxRate, taxAmount, lineTotal: amount + taxAmount });
     }
 
     if (lineInputs.length === 0) return null;
@@ -745,9 +747,9 @@ export class InvoicesService {
     // Advance all included schedules in a single transaction (was one await per schedule)
     await prisma.$transaction(
       lineInputs.map((l) => {
-        const nextDate = this.computeNextBillingDate(l.periodTo, l.schedule.billingDay, l.schedule.billingCycle);
+        const nextDate = l.nextBillingDate;
         const scheduleEndDate = l.schedule.endDate;
-        const isCompleted = scheduleEndDate && nextDate > scheduleEndDate;
+        const isCompleted = Boolean(scheduleEndDate && nextDate > scheduleEndDate);
         return prisma.billingSchedule.update({
           where: { id: l.schedule.id },
           data: {
@@ -999,25 +1001,41 @@ export class InvoicesService {
     return Math.round((monthlyAmount / daysInMonth) * daysInPeriod * 100) / 100;
   }
 
-  private computePeriodEnd(periodFrom: Date, billingCycle: string): Date {
-    const d = new Date(periodFrom);
+  private getCycleMonths(billingCycle: string): number {
     switch (billingCycle) {
-      case 'monthly':     d.setMonth(d.getMonth() + 1); break;
-      case 'quarterly':   d.setMonth(d.getMonth() + 3); break;
-      case 'semi_annual': d.setMonth(d.getMonth() + 6); break;
-      case 'annual':      d.setMonth(d.getMonth() + 12); break;
+      case 'monthly':     return 1;
+      case 'quarterly':   return 3;
+      case 'semi_annual': return 6;
+      case 'annual':      return 12;
+      default:            return 1;
     }
-    d.setDate(d.getDate() - 1); // End of period = day before next start
-    return d;
   }
 
-  private computeNextBillingDate(periodEnd: Date, billingDay: number, billingCycle: string): Date {
-    const next = new Date(periodEnd);
-    next.setDate(next.getDate() + 1); // Day after period end
-    // Clamp billing day to max days in the month
-    const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-    next.setDate(Math.min(billingDay, maxDay));
-    return next;
+  /**
+   * Computes the next billing date by advancing `billingCycle` months from `periodFrom`,
+   * clamping to the target month's maximum days (e.g. Feb 28/29, Apr 30), and snapping back
+   * to the contract's original `billingDay` (e.g. 31st) when the month has enough days.
+   */
+  private computeNextBillingDate(periodFrom: Date, billingDay: number, billingCycle: string): Date {
+    const d = new Date(periodFrom);
+    const startYear = d.getFullYear();
+    const startMonth = d.getMonth();
+    const monthsToAdd = this.getCycleMonths(billingCycle);
+
+    const totalMonths = startMonth + monthsToAdd;
+    const targetYear = startYear + Math.floor(totalMonths / 12);
+    const targetMonth = totalMonths % 12;
+    const maxDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+    const day = Math.min(billingDay, maxDay);
+
+    return new Date(targetYear, targetMonth, day);
+  }
+
+  private computePeriodEnd(periodFrom: Date, billingCycle: string, billingDay: number): Date {
+    const nextStart = this.computeNextBillingDate(periodFrom, billingDay, billingCycle);
+    const periodEnd = new Date(nextStart);
+    periodEnd.setDate(periodEnd.getDate() - 1);
+    return periodEnd;
   }
 }
 
