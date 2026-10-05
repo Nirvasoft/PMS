@@ -6,6 +6,8 @@ import { redis } from '../../common/redis';
 import {
   UNIT_TYPES, UNIT_STATUS_TRANSITIONS, SQM_TO_SQFT,
 } from './seeds/seedData';
+import { calcLeaseTermMonths, calcEarlyTermPenalty } from '../leases/services/helpers';
+import { webhookLeaseTerminated } from '../../common/webhookHooks';
 
 // ══════════════════════════════════════════════
 // SEED
@@ -481,6 +483,66 @@ export class UnitsService {
       throw new AppError(400, 'REASON_REQUIRED', `A reason is required when changing status to '${dto.status.replace(/_/g, ' ')}'`);
     }
 
+    // If changing from occupied to available, check if there is an active lease to auto-terminate
+    if (unit.status === 'occupied' && dto.status === 'available') {
+      const activeLease = await prisma.lease.findFirst({
+        where: { unitId, propertyId, status: 'active', deletedAt: null },
+      });
+
+      if (activeLease) {
+        const termDate = new Date();
+        const endDate = new Date(activeLease.endDate);
+        const isEarly = termDate < endDate;
+
+        let penalty = 0;
+        let penaltyBreakdown = '';
+        if (isEarly) {
+          const remainingMonths = Math.max(0, calcLeaseTermMonths(termDate, endDate));
+          penalty = calcEarlyTermPenalty(Number(activeLease.rentAmount), remainingMonths);
+          penaltyBreakdown = `Min(3 months rent, ${remainingMonths} remaining months × 50%)`;
+        }
+
+        const terminationReason = dto.reason?.trim()
+          ? dto.reason.trim()
+          : 'Unit status changed from Occupied to Available';
+
+        await prisma.$transaction([
+          prisma.lease.update({
+            where: { id: activeLease.id },
+            data: {
+              status: 'terminated',
+              terminationDate: termDate,
+              terminationReason,
+              terminationType: isEarly ? 'early' : 'normal',
+              earlyTerminationPenalty: penalty,
+            },
+          }),
+          prisma.unitStatusHistory.create({
+            data: { unitId, fromStatus: unit.status, toStatus: dto.status, reason: dto.reason, changedBy: userId },
+          }),
+          prisma.unit.update({ where: { id: unitId }, data: { status: dto.status } }),
+          prisma.billingSchedule.updateMany({
+            where: { leaseId: activeLease.id, status: 'active', billingCycle: { not: 'monthly' } },
+            data: { status: 'cancelled' },
+          }),
+        ]);
+
+        await this.invalidateStatsCache(propertyId);
+
+        const termResult = {
+          leaseId: activeLease.id,
+          status: 'terminated',
+          terminationDate: termDate.toISOString().split('T')[0],
+          terminationType: isEarly ? 'early' : 'normal',
+          earlyTerminationPenalty: penalty,
+          penaltyBreakdown,
+        };
+        webhookLeaseTerminated(termResult, activeLease.companyId);
+
+        return prisma.unit.findUnique({ where: { id: unitId } });
+      }
+    }
+
     await prisma.unitStatusHistory.create({
       data: { unitId, fromStatus: unit.status, toStatus: dto.status, reason: dto.reason, changedBy: userId },
     });
@@ -513,12 +575,32 @@ export class UnitsService {
       }
     }
 
+    // If changing to 'available', check for units with active leases and skip them
+    let activeLeaseUnitIds = new Set<string>();
+    if (status === 'available') {
+      const activeLeases = await prisma.lease.findMany({
+        where: { unitId: { in: unitIds }, propertyId, status: 'active', deletedAt: null },
+        select: { unitId: true, leaseNumber: true },
+      });
+      activeLeaseUnitIds = new Set(activeLeases.map((l) => l.unitId));
+    }
+
     for (const unit of units) {
       const allowed = UNIT_STATUS_TRANSITIONS[unit.status] || [];
       if (!allowed.includes(status)) {
         failed.push({ unitId: unit.id, unitNumber: unit.unitNumber, reason: `Cannot transition from '${unit.status}' to '${status}'` });
         continue;
       }
+
+      if (status === 'available' && activeLeaseUnitIds.has(unit.id)) {
+        failed.push({
+          unitId: unit.id,
+          unitNumber: unit.unitNumber,
+          reason: 'Unit has an active lease. Please terminate the lease or update unit status individually.',
+        });
+        continue;
+      }
+
       await prisma.unitStatusHistory.create({
         data: { unitId: unit.id, fromStatus: unit.status, toStatus: status, reason, changedBy: userId },
       });

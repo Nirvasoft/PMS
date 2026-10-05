@@ -64,6 +64,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [newStatus, setNewStatus] = useState('');
   const [statusReason, setStatusReason] = useState('');
   const [estimatedCompletion, setEstimatedCompletion] = useState('');
+  const [confirmLeaseTermination, setConfirmLeaseTermination] = useState(false);
   const [addingMeter, setAddingMeter] = useState(false);
   const [meterForm, setMeterForm] = useState({
     meterType: '', meterSerialNo: '', meterProvider: '',
@@ -249,11 +250,19 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       if (newStatus === 'maintenance' && estimatedCompletion) {
         reason = `${statusReason}\n[Est. completion: ${estimatedCompletion}]`.trim();
       }
+      const activeLease = (unit?.status === 'occupied' && newStatus === 'available')
+        ? unit?.leases?.find((l) => l.status === 'active')
+        : null;
       await updateStatus({ propertyId, unitId, status: newStatus, reason }).unwrap();
-      toast.success('Status updated');
+      if (activeLease) {
+        toast.success(`Status updated and active lease #${activeLease.leaseNumber} terminated`);
+      } else {
+        toast.success('Status updated');
+      }
       setStatusModal(false);
       setStatusReason('');
       setEstimatedCompletion('');
+      setConfirmLeaseTermination(false);
     } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed to update status'); }
   };
 
@@ -508,7 +517,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
           <PermissionGuard permission="unit.update">
             <div className="status-transition-bar">
               {transitions.map((s) => (
-                <button key={s} onClick={() => { setNewStatus(s); setStatusModal(true); }}
+                <button key={s} onClick={() => { setNewStatus(s); setConfirmLeaseTermination(false); setStatusModal(true); }}
                   style={{ borderColor: STATUS_COLORS[s] + '66', color: STATUS_COLORS[s] }}>
                   → {s.replace(/_/g, ' ')}
                 </button>
@@ -1618,16 +1627,67 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       {/* Status change modal */}
       {statusModal && (() => {
         const reasonRequired = ['maintenance', 'not_for_rent'].includes(newStatus);
-        const canConfirm = !reasonRequired || statusReason.trim().length > 0;
+        const activeLease = (unit?.status === 'occupied' && newStatus === 'available')
+          ? unit?.leases?.find((l) => l.status === 'active')
+          : null;
+        const tenantName = activeLease?.tenant
+          ? (activeLease.tenant.tenantType === 'corporate'
+              ? activeLease.tenant.companyName
+              : `${activeLease.tenant.firstName ?? ''} ${activeLease.tenant.lastName ?? ''}`.trim())
+          : '';
+        const canConfirm = (!reasonRequired || statusReason.trim().length > 0) && (!activeLease || confirmLeaseTermination);
+
         return (
           <div className="modal-overlay">
             <div className="modal-box" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>Change Status</h3>
-                <button onClick={() => setStatusModal(false)}><X size={18} /></button>
+                <button onClick={() => { setStatusModal(false); setConfirmLeaseTermination(false); }}><X size={18} /></button>
               </div>
               <div className="modal-body">
                 <p>→ <strong style={{ color: STATUS_COLORS[newStatus] }}>{newStatus.replace(/_/g, ' ')}</strong></p>
+
+                {activeLease && (
+                  <div className="lease-term-warning-box" style={{
+                    background: 'rgba(251, 191, 36, 0.1)',
+                    border: '1px solid rgba(251, 191, 36, 0.35)',
+                    borderRadius: '8px',
+                    padding: '12px 14px',
+                    margin: '12px 0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--warning, #fbbf24)', fontWeight: 600, fontSize: '0.85rem' }}>
+                      <AlertCircle size={17} style={{ flexShrink: 0 }} />
+                      <span>Active Lease Warning</span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                      This unit currently has an active lease (<strong style={{ color: 'var(--warning, #fbbf24)' }}>{activeLease.leaseNumber}</strong>
+                      {tenantName ? ` · ${tenantName}` : ''}).
+                      Changing status to <strong>Available</strong> will automatically <strong>terminate</strong> this active lease effective today.
+                    </div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '8px',
+                      marginTop: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      fontWeight: 500,
+                      color: 'var(--text-primary)',
+                    }}>
+                      <input
+                        type="checkbox"
+                        style={{ marginTop: '3px', cursor: 'pointer', accentColor: 'var(--accent, #10b981)' }}
+                        checked={confirmLeaseTermination}
+                        onChange={(e) => setConfirmLeaseTermination(e.target.checked)}
+                      />
+                      <span>I understand that active lease #{activeLease.leaseNumber} will be automatically terminated.</span>
+                    </label>
+                  </div>
+                )}
+
                 <label>
                   Reason {reasonRequired
                     ? <span className="reason-required">* required</span>
@@ -1654,8 +1714,15 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                 )}
               </div>
               <div className="modal-footer">
-                <button className="btn-ghost" onClick={() => setStatusModal(false)}>Cancel</button>
-                <button className="btn-primary" onClick={handleStatusChange} disabled={!canConfirm}>Confirm</button>
+                <button className="btn-ghost" onClick={() => { setStatusModal(false); setConfirmLeaseTermination(false); }}>Cancel</button>
+                <button
+                  className="btn-primary"
+                  onClick={handleStatusChange}
+                  disabled={!canConfirm}
+                  style={activeLease ? { background: 'var(--btn-danger-bg, #b91c1c)', borderColor: 'var(--btn-danger-bg, #b91c1c)' } : undefined}
+                >
+                  {activeLease ? 'Terminate Lease & Make Available' : 'Confirm'}
+                </button>
               </div>
             </div>
           </div>
