@@ -274,7 +274,11 @@ export class InvoicesService {
       });
     }
 
-    const rentAmount = Number(lease.rentAmount);
+    const isPartial = lease.paymentType === 'partially';
+    const partialAmount = lease.partialAmount != null ? Number(lease.partialAmount) : null;
+    const rentAmount = (isPartial && partialAmount != null && partialAmount > 0)
+      ? partialAmount
+      : Number(lease.rentAmount);
     const deposit    = Number(lease.securityDeposit ?? 0);
     const subtotal   = rentAmount + deposit;
 
@@ -361,7 +365,7 @@ export class InvoicesService {
       const invoiceLines: any[] = [
         {
           chargeTypeId: rentChargeType.id,
-          description: `Rent — Unit ${unitLabel}`,
+          description: isPartial ? `Rent (Partial Payment) — Unit ${unitLabel}` : `Rent — Unit ${unitLabel}`,
           quantity: 1,
           unitPrice: rentAmount,
           discountPct: 0,
@@ -408,7 +412,9 @@ export class InvoicesService {
           paidAmount: 0,
           currency,
           currencyRate,
-          notes: `Base Rent${deposit > 0 ? ' & Security Deposit' : ''} — fully paid lease ${lease.leaseNumber}`,
+          notes: isPartial
+            ? `Base Rent (Partial Payment)${deposit > 0 ? ' & Security Deposit' : ''} — lease ${lease.leaseNumber}`
+            : `Base Rent${deposit > 0 ? ' & Security Deposit' : ''} — fully paid lease ${lease.leaseNumber}`,
           createdBy: userId,
           lines: { create: invoiceLines },
         },
@@ -424,8 +430,8 @@ export class InvoicesService {
 
     // ── 2. One invoice per additional charge line (from billingSchedules) ──────
     // BillingSchedule records were created in leasesService.create() for each leaseCharge.
-    // We emit one invoice per charge here (first period); updateChargeSchedulesFromLease
-    // then advances nextBillingDate so the cron won't re-invoice this period.
+    // Emits one direct invoice per charge (first period) for both fully and partially paid leases;
+    // updateChargeSchedulesFromLease then advances nextBillingDate so the cron won't re-invoice this period.
     const chargeSchedules: any[] = lease.billingSchedules ?? [];
     for (const schedule of chargeSchedules) {
       // Skip RENT / SECURITY_DEPOSIT — already handled in the combined invoice above

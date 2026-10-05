@@ -94,6 +94,18 @@ export class LeasesLifecycleService {
     await escalationService.generateEscalationSchedule(id);
 
     // ── Billing branch ────────────────────────────────────────────────────────
+    // Query payment_type and partial_amount via raw SQL so they work even if
+    // the Prisma client was generated before the migration ran.
+    try {
+      const extraRows = await prisma.$queryRaw<Array<{ payment_type: string | null; partial_amount: any }>>`
+        SELECT "payment_type", "partial_amount" FROM "leases" WHERE "id" = ${id}::uuid
+      `;
+      if (extraRows && extraRows.length > 0) {
+        (lease as any).paymentType = extraRows[0].payment_type || 'fully';
+        (lease as any).partialAmount = extraRows[0].partial_amount != null ? Number(extraRows[0].partial_amount) : null;
+      }
+    } catch (_e) {}
+
     // paymentType = 'fully':
     //   • Create one direct invoice per charge (Rent, Deposit, each lease charge)
     //   • Update existing billing schedule records: correct billingCycle + nextBillingDate
@@ -113,11 +125,16 @@ export class LeasesLifecycleService {
         await billingSchedulesService.updateChargeSchedulesFromLease(lease);
         logger.info(`Billing schedules activated for lease ${lease.leaseNumber} (fully paid, nextBillingDate advanced by 1 period)`);
       } else {
-        // Partial payment — create Rent/Deposit/SERVICE_CHARGE billing schedules
+        // Partial payment:
+        // 1. Direct invoice for partial rent (+ security deposit if configured)
+        const invoices = await invoicesService.createFromLease(lease, activatedBy);
+        logger.info(`Direct invoice created for partially paid lease ${lease.leaseNumber}: ${invoices.length} invoice(s) — ${invoices.map((i: any) => i.invoiceNumber).join(', ')}`);
+
+        // 2. Create Rent billing schedule for remaining lease balance distributed across remaining cycles
         await billingSchedulesService.createFromLease(lease);
         logger.info(`Billing schedules created for lease ${lease.leaseNumber} (paymentType=${paymentType})`);
 
-        // Also promote the draft leaseCharge schedules (created at lease-creation time) → active
+        // 3. Promote draft leaseCharge schedules (created at lease-creation time) → active
         await billingSchedulesService.updateChargeSchedulesFromLease(lease);
         logger.info(`Charge schedules activated for lease ${lease.leaseNumber} (partial payment)`);
       }

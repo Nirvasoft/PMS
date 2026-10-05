@@ -109,44 +109,105 @@ export class BillingSchedulesService {
     });
     if (existing) return;
 
+    const isPartial = lease.paymentType === 'partially';
     const deposit    = Number(lease.securityDeposit ?? 0);
     const rentAmount = Number(lease.rentAmount);
 
-    // 1. RENT schedule
-    await prisma.billingSchedule.create({
-      data: {
-        ...this.leaseScheduleBase(lease, startDate, billingDay),
-        chargeTypeId: rentChargeType.id,
-        description: `Rent — Unit ${lease.unit?.unitNumber || ''}`,
-        amount: rentAmount,
-        isProrated,
-        prorateStart: isProrated ? startDate : null,
-      },
-    });
+    let scheduleRentAmount = rentAmount;
+    let rentNextBillingDate = startDate;
 
-    // 2. SECURITY_DEPOSIT schedule (if applicable)
-    if (deposit > 0) {
-      let depositChargeType = await prisma.chargeType.findFirst({
-        where: { code: 'SECURITY_DEPOSIT', OR: [{ companyId: null }, { companyId: lease.companyId }] },
-      });
-      if (!depositChargeType) {
-        depositChargeType = await prisma.chargeType.create({
-          data: { code: 'SECURITY_DEPOSIT', name: 'Security Deposit', category: 'other', isActive: true, isSystem: true },
-        });
+    if (isPartial) {
+      let cycleMonths = 1;
+      switch (lease.billingCycle) {
+        case 'monthly':     cycleMonths = 1;  break;
+        case 'quarterly':   cycleMonths = 3;  break;
+        case 'semi_annual': cycleMonths = 6;  break;
+        case 'annual':      cycleMonths = 12; break;
+        default:            cycleMonths = 1;  break;
       }
-      const existingDeposit = await prisma.billingSchedule.findFirst({
-        where: { leaseId: lease.id, chargeTypeId: depositChargeType.id, status: { not: 'cancelled' } },
+
+      const termMonths = lease.leaseTermMonths || (
+        lease.endDate && lease.startDate
+          ? Math.max(1, Math.round((new Date(lease.endDate).getTime() - new Date(lease.startDate).getTime()) / (30.4375 * 86400000)))
+          : 12
+      );
+      const totalCycles = Math.max(1, Math.ceil(termMonths / cycleMonths));
+      const totalRent = Math.round(rentAmount * termMonths * 100) / 100;
+      const partialAmount = lease.partialAmount != null ? Number(lease.partialAmount) : 0;
+      const remainingRent = Math.max(0, Math.round((totalRent - partialAmount) * 100) / 100);
+      const remainingCycles = Math.max(1, totalCycles - 1);
+
+      scheduleRentAmount = totalCycles > 1
+        ? Math.round((remainingRent / remainingCycles) * 100) / 100
+        : remainingRent;
+
+      // When there are remaining cycles and cycle 1 was covered by the upfront invoice,
+      // advance nextBillingDate by 1 full cycle so recurring billing doesn't re-bill cycle 1.
+      if (totalCycles > 1 && partialAmount > 0) {
+        rentNextBillingDate = this.computeNextBillingDateFromStart(startDate, lease.billingCycle || 'monthly', billingDay);
+      }
+    }
+
+    // 1. RENT schedule
+    if (scheduleRentAmount > 0 || !isPartial) {
+      await prisma.billingSchedule.create({
+        data: {
+          ...this.leaseScheduleBase(lease, startDate, billingDay),
+          nextBillingDate: rentNextBillingDate,
+          chargeTypeId: rentChargeType.id,
+          description: isPartial
+            ? `Rent (Remaining Balance) — Unit ${lease.unit?.unitNumber || ''}`
+            : `Rent — Unit ${lease.unit?.unitNumber || ''}`,
+          amount: scheduleRentAmount,
+          isProrated: isPartial ? false : isProrated,
+          prorateStart: (!isPartial && isProrated) ? startDate : null,
+        },
       });
-      if (!existingDeposit) {
-        await prisma.billingSchedule.create({
-          data: {
-            ...this.leaseScheduleBase(lease, startDate, billingDay),
-            chargeTypeId: depositChargeType.id,
-            description: `Security Deposit — Unit ${lease.unit?.unitNumber || ''}`,
-            amount: deposit,
-            isProrated: false,
+    }
+
+    // 2. SECURITY_DEPOSIT schedule (one-time deposit: included directly in the upfront invoice on activation, never scheduled for partial leases)
+    if (deposit > 0 && !isPartial) {
+      const existingDepositInvoice = await prisma.invoice.findFirst({
+        where: {
+          leaseId: lease.id,
+          status: { not: 'void' },
+          lines: {
+            some: {
+              chargeType: {
+                OR: [
+                  { code: 'SECURITY_DEPOSIT' },
+                  { code: 'security_deposit' },
+                  { name: { contains: 'deposit', mode: 'insensitive' } },
+                ],
+              },
+            },
           },
+        },
+      });
+
+      if (!existingDepositInvoice) {
+        let depositChargeType = await prisma.chargeType.findFirst({
+          where: { code: 'SECURITY_DEPOSIT', OR: [{ companyId: null }, { companyId: lease.companyId }] },
         });
+        if (!depositChargeType) {
+          depositChargeType = await prisma.chargeType.create({
+            data: { code: 'SECURITY_DEPOSIT', name: 'Security Deposit', category: 'other', isActive: true, isSystem: true },
+          });
+        }
+        const existingDeposit = await prisma.billingSchedule.findFirst({
+          where: { leaseId: lease.id, chargeTypeId: depositChargeType.id, status: { not: 'cancelled' } },
+        });
+        if (!existingDeposit) {
+          await prisma.billingSchedule.create({
+            data: {
+              ...this.leaseScheduleBase(lease, startDate, billingDay),
+              chargeTypeId: depositChargeType.id,
+              description: `Security Deposit — Unit ${lease.unit?.unitNumber || ''}`,
+              amount: deposit,
+              isProrated: false,
+            },
+          });
+        }
       }
     }
 

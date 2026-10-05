@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Info, X } from 'lucide-react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetUnitQuery, useGetUnitChargesQuery } from '../../../../../../store/api/unitsApi';
 import { useGetChargeTypesQuery, useGetCurrencyRatesQuery } from '../../../../../../store/api/billingApi';
 import { useGetPropertyQuery } from '../../../../../../store/api/propertiesApi';
-import type { FormState } from '../../types';
+import { calcPartialBreakdown, type FormState } from '../../types';
 
 // BillingSchedule/Lease amount columns are Decimal(15,2) — 13 integer digits max.
 const MAX_MONEY_INT_DIGITS = 13;
@@ -29,6 +30,7 @@ function formatMoneyDisplay(value: string): string {
 }
 
 export function FinancialsStep({ form, set }: { form: FormState; set: Function }) {
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
 
   // Fetch unit detail to get the rate
   const { data: unitData } = useGetUnitQuery(
@@ -67,6 +69,14 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
         ? rentAmountNum / Number(selectedCurrencyRate.rate)
         : rentAmountNum * Number(selectedCurrencyRate.rate))
     : null;
+
+  const breakdown = calcPartialBreakdown(
+    form.startDate,
+    form.endDate,
+    form.billingCycle,
+    form.rentAmount,
+    form.partialPaymentPercent,
+  );
 
   // Currency is bound to the selected P-Unit's own Currency (falling back to the
   // property's currency for units created before that field existed) — not something
@@ -192,38 +202,75 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
 
         {/* Payment Type */}
         <div className="form-field">
-          <label>Payment Type</label>
-          <select value={form.paymentType} onChange={(e) => { set('paymentType', e.target.value); if (e.target.value === 'fully') set('partialPaymentPercent', ''); }}>
-            <option value="fully">Fully</option>
-            <option value="partially">Partially</option>
-          </select>
-        </div>
-      </div>
-
-      {/* ── Row 2: Partial Amount (only when Partially) ── */}
-      {form.paymentType === 'partially' && (
-        <div style={{ display: 'grid', gridTemplateColumns: (form.unitId && form.leaseCharges.length > 0) ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12, marginTop: 12 }}>
-          <div className="form-field">
-            <label>Partial Amount</label>
-            <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
-              {form.currency && (
-                <span title="Unit's Currency" className={`currency-addon ${Number(form.partialPaymentPercent) > Number(form.rentAmount) ? 'currency-addon-error' : ''}`}>
-                  {form.currency}
-                </span>
-              )}
-              <input type="text" inputMode="decimal" placeholder="e.g. 1,500"
-                value={formatMoneyDisplay(form.partialPaymentPercent)}
-                onChange={(e) => set('partialPaymentPercent', sanitizeMoneyInput(e.target.value))}
-                style={{ ...(form.currency ? { borderRadius: '0 8px 8px 0', flex: 1 } : {}), ...(Number(form.partialPaymentPercent) > Number(form.rentAmount) ? { borderColor: '#f87171' } : {}) }} />
-            </div>
-            {Number(form.partialPaymentPercent) > 0 && Number(form.rentAmount) > 0 && Number(form.partialPaymentPercent) > Number(form.rentAmount) && (
-              <span style={{ fontSize: '0.72rem', color: '#f87171', marginTop: 3 }}>
-                Partial amount cannot exceed Base Rent ({form.currency} {formatMoneyDisplay(form.rentAmount)})
-              </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label>Payment Type</label>
+            {form.paymentType === 'partially' && Number(form.rentAmount) > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowBreakdownModal(true)}
+                title="Preview Partial Payment Calculation"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent, #6366f1)',
+                  cursor: 'pointer',
+                  fontSize: '0.72rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  padding: 0,
+                  fontWeight: 500,
+                }}
+              >
+                <Info size={12} /> Calculation Preview
+              </button>
             )}
           </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+            <select
+              value={form.paymentType}
+              onChange={(e) => {
+                set('paymentType', e.target.value);
+                if (e.target.value === 'fully') set('partialPaymentPercent', '');
+              }}
+              style={{ flex: form.paymentType === 'partially' ? '0 0 95px' : '1' }}
+            >
+              <option value="fully">Fully</option>
+              <option value="partially">Partially</option>
+            </select>
+
+            {form.paymentType === 'partially' && (
+              <div style={{ display: 'flex', alignItems: 'stretch', flex: 1, minWidth: 0 }}>
+                {form.currency && (
+                  <span
+                    title="Unit's Currency"
+                    className={`currency-addon ${Number(form.partialPaymentPercent) > breakdown.totalRent ? 'currency-addon-error' : ''}`}
+                    style={{ padding: '0 6px', fontSize: '0.72rem' }}
+                  >
+                    {form.currency}
+                  </span>
+                )}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Partial Amount"
+                  value={formatMoneyDisplay(form.partialPaymentPercent)}
+                  onChange={(e) => set('partialPaymentPercent', sanitizeMoneyInput(e.target.value))}
+                  style={{
+                    ...(form.currency ? { borderRadius: '0 8px 8px 0', flex: 1, minWidth: 0 } : { flex: 1, minWidth: 0 }),
+                    ...(Number(form.partialPaymentPercent) > breakdown.totalRent ? { borderColor: '#f87171' } : {}),
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          {form.paymentType === 'partially' && Number(form.partialPaymentPercent) > 0 && breakdown.totalRent > 0 && Number(form.partialPaymentPercent) > breakdown.totalRent && (
+            <span style={{ fontSize: '0.7rem', color: '#f87171', marginTop: 2, display: 'block' }}>
+              Cannot exceed Total Rent ({form.currency} {formatMoneyDisplay(breakdown.totalRent.toFixed(2))})
+            </span>
+          )}
         </div>
-      )}
+      </div>
 
       {/* ── 3. Rent Escalation ──────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: (form.unitId && form.leaseCharges.length > 0) ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12, marginTop: 12 }}>
@@ -294,6 +341,129 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Floating Modal for Partial Payment Calculation Breakdown ── */}
+      {showBreakdownModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.55)',
+            backdropFilter: 'blur(2px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 16,
+          }}
+          onClick={() => setShowBreakdownModal(false)}
+        >
+          <div
+            style={{
+              background: 'var(--surface-elevated, #1e1d2e)',
+              border: '1px solid var(--border, rgba(255, 255, 255, 0.12))',
+              borderRadius: 12,
+              padding: '20px 24px',
+              maxWidth: 480,
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Info size={18} style={{ color: 'var(--accent, #6366f1)' }} /> Lease Payment Plan Preview
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBreakdownModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.85rem' }}>
+              <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Total Contract Rent
+                </div>
+                <div style={{ fontWeight: 600, fontSize: '1rem', marginTop: 2 }}>
+                  {form.currency} {formatMoneyDisplay(breakdown.totalRent.toFixed(2))}
+                  <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
+                    ({breakdown.termMonths} mos · {breakdown.totalCycles} {form.billingCycle.replace(/_/g, ' ')})
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ padding: '10px 14px', background: 'rgba(59, 130, 246, 0.08)', borderRadius: 8, border: '1px solid rgba(59, 130, 246, 0.25)' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Direct Invoice (Activation)
+                </div>
+                <div style={{ fontWeight: 600, fontSize: '1rem', color: '#3b82f6', marginTop: 2 }}>
+                  {form.currency} {formatMoneyDisplay((breakdown.partialAmount + Number(form.securityDeposit || 0)).toFixed(2))}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                  Rent: {form.currency} {formatMoneyDisplay(breakdown.partialAmount.toFixed(2))}
+                  {Number(form.securityDeposit) > 0 && ` + Security Deposit: ${form.currency} ${formatMoneyDisplay(Number(form.securityDeposit).toFixed(2))}`}
+                </div>
+              </div>
+
+              <div style={{ padding: '10px 14px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Billing Schedule (Per Remaining Cycle)
+                </div>
+                <div style={{ fontWeight: 600, fontSize: '1rem', color: '#10b981', marginTop: 2 }}>
+                  {breakdown.remainingCycles > 0 ? (
+                    <>
+                      {form.currency} {formatMoneyDisplay(breakdown.scheduleAmount.toFixed(2))}
+                      <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
+                        ({breakdown.remainingCycles} cycle{breakdown.remainingCycles !== 1 ? 's' : ''} left)
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: '0.85rem', fontWeight: 400, color: 'var(--text-muted)' }}>
+                      None (Single cycle lease)
+                    </span>
+                  )}
+                </div>
+                {breakdown.remainingCycles > 0 && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Remaining Rent: {form.currency} {formatMoneyDisplay(breakdown.remainingRent.toFixed(2))} ÷ {breakdown.remainingCycles} cycles
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowBreakdownModal(false)}
+                style={{
+                  padding: '6px 18px',
+                  borderRadius: 6,
+                  background: 'var(--accent, #6366f1)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  fontSize: '0.85rem',
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

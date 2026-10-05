@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './CreateLeasePage.css';
 
-import type { Step, FormState } from './CreateLeasePage/types';
+import { calcPartialBreakdown, type Step, type FormState } from './CreateLeasePage/types';
 import { UnitTenantStep } from './CreateLeasePage/components/steps/UnitTenantStep';
 import { DatesBillingStep } from './CreateLeasePage/components/steps/DatesBillingStep';
 import { FinancialsStep } from './CreateLeasePage/components/steps/FinancialsStep';
@@ -78,8 +78,16 @@ export default function CreateLeasePage() {
   const canProceed = (): boolean => {
     if (step === 1) return !!(form.propertyId && form.unitId && form.tenantId);
     if (step === 2) return !!(form.startDate && form.endDate && form.startDate < form.endDate);
-    if (step === 3) return !!(form.rentAmount && Number(form.rentAmount) > 0)
-      && !(form.paymentType === 'partially' && Number(form.partialPaymentPercent) > Number(form.rentAmount));
+    if (step === 3) {
+      if (!form.rentAmount || Number(form.rentAmount) <= 0) return false;
+      if (form.paymentType === 'partially') {
+        const bd = calcPartialBreakdown(form.startDate, form.endDate, form.billingCycle, form.rentAmount, form.partialPaymentPercent);
+        if (!form.partialPaymentPercent || Number(form.partialPaymentPercent) <= 0 || Number(form.partialPaymentPercent) > bd.totalRent) {
+          return false;
+        }
+      }
+      return true;
+    }
     if (step === 4) {
       const ra = form.rentalAgreement;
       return !!(ra.renterName && ra.renterSignedName && ra.renterNirc && ra.renterDate

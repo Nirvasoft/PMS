@@ -44,6 +44,58 @@ export function calcLeaseTermMonths(start: Date | string, end: Date | string): n
   return Math.max(1, months);
 }
 
+export function getBillingCycleMonths(cycle?: string): number {
+  switch (cycle) {
+    case 'monthly':     return 1;
+    case 'quarterly':   return 3;
+    case 'semi_annual': return 6;
+    case 'annual':      return 12;
+    default:            return 1;
+  }
+}
+
+export interface PartialBreakdown {
+  termMonths: number;
+  cycleMonths: number;
+  totalCycles: number;
+  totalRent: number;
+  partialAmount: number;
+  remainingRent: number;
+  remainingCycles: number;
+  scheduleAmount: number;
+}
+
+export function calcPartialBreakdown(
+  startDate: string,
+  endDate: string,
+  billingCycle: string,
+  rentAmount: string | number,
+  partialPayment: string | number,
+): PartialBreakdown {
+  const termMonths = calcLeaseTermMonths(startDate, endDate) || 12;
+  const cycleMonths = getBillingCycleMonths(billingCycle);
+  const totalCycles = Math.max(1, Math.ceil(termMonths / cycleMonths));
+  const baseRent = Number(rentAmount || 0);
+  const totalRent = Math.round(baseRent * termMonths * 100) / 100;
+  const partialAmount = Number(partialPayment || 0);
+  const remainingRent = Math.max(0, Math.round((totalRent - partialAmount) * 100) / 100);
+  const remainingCycles = Math.max(0, totalCycles - 1);
+  const scheduleAmount = remainingCycles > 0
+    ? Math.round((remainingRent / remainingCycles) * 100) / 100
+    : 0;
+
+  return {
+    termMonths,
+    cycleMonths,
+    totalCycles,
+    totalRent,
+    partialAmount,
+    remainingRent,
+    remainingCycles,
+    scheduleAmount,
+  };
+}
+
 export interface FormState {
   propertyId: string; propertyCode: string;
   floorNumber: string;

@@ -1,7 +1,7 @@
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetUnitQuery } from '../../../../../../store/api/unitsApi';
 import { useGetChargeTypesQuery } from '../../../../../../store/api/billingApi';
-import { PREDEFINED_TYPE_LABELS, calcLeaseTermMonths, type FormState } from '../../types';
+import { PREDEFINED_TYPE_LABELS, calcLeaseTermMonths, calcPartialBreakdown, type FormState } from '../../types';
 
 /** Format raw billingCycle values to human-readable */
 function formatBillingCycle(cycle: string): string {
@@ -10,6 +10,13 @@ function formatBillingCycle(cycle: string): string {
 
 export function ReviewSubmitStep({ form }: { form: FormState }) {
   const termMonths = calcLeaseTermMonths(form.startDate, form.endDate);
+  const breakdown = calcPartialBreakdown(
+    form.startDate,
+    form.endDate,
+    form.billingCycle,
+    form.rentAmount,
+    form.partialPaymentPercent,
+  );
 
   const { data: unitData } = useGetUnitQuery(
     form.propertyId && form.unitId ? { propertyId: form.propertyId, unitId: form.unitId } : skipToken,
@@ -36,17 +43,87 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
         <ReviewRow label="Term"            value={termMonths ? `${termMonths} month${termMonths !== 1 ? 's' : ''}` : '—'} />
         <ReviewRow label="Rent"            value={`${form.currency} ${Number(form.rentAmount || 0).toLocaleString()}`} />
         <ReviewRow label="Deposit"         value={form.securityDeposit ? `${form.currency} ${Number(form.securityDeposit).toLocaleString()}` : '—'} />
+        <ReviewRow label="Payment Type"    value={form.paymentType === 'partially' ? 'Partially' : 'Fully'} />
+        {form.paymentType === 'partially' && (
+          <>
+            <ReviewRow label="Partial Payment" value={`${form.currency} ${Number(form.partialPaymentPercent || 0).toLocaleString()}`} />
+            <ReviewRow label="Remaining Rent"  value={`${form.currency} ${breakdown.remainingRent.toLocaleString()} (${form.currency} ${breakdown.scheduleAmount.toLocaleString()} / cycle)`} />
+          </>
+        )}
         <ReviewRow label="Billing Cycle"   value={`${formatBillingCycle(form.billingCycle)}, day ${form.billingDay}`} />
         <ReviewRow label="Payment Due"     value={`${form.paymentDueDays} day${form.paymentDueDays !== 1 ? 's' : ''} after billing`} />
         <ReviewRow label="Escalation"      value={form.escalationType ? `${form.escalationType} · ${form.escalationValue} · ${form.escalationFrequency}` : 'None'} />
         <ReviewRow label="Clauses"         value={`${form.clauses.length} clause${form.clauses.length !== 1 ? 's' : ''}`} />
       </div>
 
-      {/* ── Scheduled billing preview ── */}
+      {/* ── Scheduled billing & Direct invoice preview ── */}
       {(() => {
         const rent = Number(form.rentAmount || 0);
         const dep  = Number(form.securityDeposit || 0);
         if (!rent) return null;
+
+        if (form.paymentType === 'partially') {
+          return (
+            <>
+              <div className="review-subhead">Direct Invoices <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-muted)' }}>(issued immediately on activation)</span></div>
+              <table className="charges-table">
+                <thead><tr><th>Invoice Item</th><th className="text-right">Amount</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td>Rent (Partial Payment)</td>
+                    <td className="text-right">{form.currency} {breakdown.partialAmount.toLocaleString()}</td>
+                  </tr>
+                  {dep > 0 && (
+                    <tr>
+                      <td>Security Deposit</td>
+                      <td className="text-right">{form.currency} {dep.toLocaleString()}</td>
+                    </tr>
+                  )}
+                  {form.leaseCharges.map((c) => (
+                    <tr key={c.chargeTypeId}>
+                      <td>{chargeTypeName(c.chargeTypeId)}</td>
+                      <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="review-subhead">
+                Billing Schedules{' '}
+                <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-muted)' }}>
+                  {breakdown.remainingCycles > 0
+                    ? `(recurring for remaining ${breakdown.remainingCycles} ${form.billingCycle.replace(/_/g, ' ')} cycle${breakdown.remainingCycles !== 1 ? 's' : ''})`
+                    : '(single cycle lease — no remaining recurring rent cycles)'}
+                </span>
+              </div>
+              <table className="charges-table">
+                <thead><tr><th>Schedule</th><th className="text-right">Amount / Cycle</th></tr></thead>
+                <tbody>
+                  {breakdown.remainingCycles > 0 && (
+                    <tr>
+                      <td>Rent (Remaining Balance)</td>
+                      <td className="text-right">{form.currency} {breakdown.scheduleAmount.toLocaleString()}</td>
+                    </tr>
+                  )}
+                  {form.leaseCharges.map((c) => (
+                    <tr key={c.chargeTypeId}>
+                      <td>{chargeTypeName(c.chargeTypeId)}</td>
+                      <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {breakdown.remainingCycles === 0 && form.leaseCharges.length === 0 && (
+                    <tr>
+                      <td colSpan={2} style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        None (No recurring schedules for single-cycle lease)
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </>
+          );
+        }
+
         return (
           <>
             <div className="review-subhead">Billing Schedules <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-muted)' }}>(created on activation)</span></div>

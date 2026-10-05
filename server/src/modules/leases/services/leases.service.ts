@@ -104,9 +104,11 @@ export class LeasesService {
     const tenant = lease.tenant;
     const { billingSchedules, ...leaseRest } = lease as any;
 
-    // rental_agreement is read via raw SQL so it works even if the generated
-    // Prisma client predates the column.
-    const raRows = await prisma.$queryRaw<{ rental_agreement: unknown }[]>`SELECT "rental_agreement" FROM "leases" WHERE "id" = ${id}::uuid`;
+    // rental_agreement, payment_type, partial_amount are read via raw SQL so they
+    // work even if the generated Prisma client predates the columns.
+    const extraRows = await prisma.$queryRaw<Array<{ rental_agreement: unknown; payment_type: string | null; partial_amount: any }>>`
+      SELECT "rental_agreement", "payment_type", "partial_amount" FROM "leases" WHERE "id" = ${id}::uuid
+    `;
 
     // Floor label is sourced live from Floor Setup (not the unit's own copy)
     // so it stays in sync if the floor is renamed later.
@@ -119,8 +121,10 @@ export class LeasesService {
 
     return {
       ...leaseRest,
+      paymentType: extraRows[0]?.payment_type ?? 'fully',
+      partialAmount: extraRows[0]?.partial_amount != null ? Number(extraRows[0].partial_amount) : null,
       unit: { ...lease.unit, floorLabel: floorSetup?.floorLabel ?? null },
-      rentalAgreement: raRows[0]?.rental_agreement ?? null,
+      rentalAgreement: extraRows[0]?.rental_agreement ?? null,
       tenant: { ...tenant, displayName: tenant.tenantType === 'company' ? tenant.companyName : `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() },
       daysUntilExpiry: daysUntilExpiry(lease.endDate),
       leaseCharges: billingSchedules,
@@ -193,10 +197,12 @@ export class LeasesService {
 
     // paymentType / partialAmount — written via raw SQL so they work even if
     // the Prisma client was generated before the migration ran.
+    const pt = paymentType || 'fully';
+    const pa = partialAmount != null ? Number(partialAmount) : null;
     try {
-      const pt = paymentType || 'fully';
-      const pa = partialAmount != null ? Number(partialAmount) : null;
       await prisma.$executeRaw`UPDATE "leases" SET "payment_type" = ${pt}, "partial_amount" = ${pa} WHERE "id" = ${lease.id}::uuid`;
+      (lease as any).paymentType = pt;
+      (lease as any).partialAmount = pa;
     } catch (_e) {
       // Column doesn't exist yet (migration pending) — safe to ignore
     }
@@ -244,7 +250,7 @@ export class LeasesService {
     if (!lease) throw AppError.notFound('Lease');
     if (lease.status !== 'draft') throw new AppError(400, 'NOT_DRAFT', 'Only draft leases can be updated');
 
-    const { startDate, endDate, handoverDate, leaseCharges, rentalAgreement, ...rest } = dto as any;
+    const { startDate, endDate, handoverDate, leaseCharges, rentalAgreement, paymentType, partialAmount, ...rest } = dto as any;
     const start = startDate ? new Date(startDate) : new Date(lease.startDate);
     const end   = endDate   ? new Date(endDate)   : new Date(lease.endDate);
     if (end <= start) throw new AppError(400, 'INVALID_DATES', 'End date must be after start date');
@@ -268,6 +274,14 @@ export class LeasesService {
     // Rental agreement JSONB written via raw SQL (see create()).
     if (rentalAgreement !== undefined) {
       await prisma.$executeRaw`UPDATE "leases" SET "rental_agreement" = ${JSON.stringify(rentalAgreement)}::jsonb WHERE "id" = ${id}::uuid`;
+    }
+
+    if (paymentType !== undefined || partialAmount !== undefined) {
+      const pt = paymentType || 'fully';
+      const pa = partialAmount != null ? Number(partialAmount) : null;
+      try {
+        await prisma.$executeRaw`UPDATE "leases" SET "payment_type" = ${pt}, "partial_amount" = ${pa} WHERE "id" = ${id}::uuid`;
+      } catch (_e) {}
     }
 
     // Replace billing schedule charges when provided
