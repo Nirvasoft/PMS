@@ -3,7 +3,7 @@ import { asyncHandler } from '../../middleware/asyncHandler';
 import { integrationsService, INTEGRATION_TYPES, WEBHOOK_EVENTS, API_KEY_SCOPES } from './integrations.service';
 
 const getCompanyId = (req: any): string => req.user?.companyId;
-const getUserId = (req: any): string => req.user?.userId;
+const getUserId = (req: any): string => req.user?.sub || req.user?.id || req.user?.userId;
 
 // ═══════════════════════════════════════
 // INTEGRATIONS ROUTES
@@ -62,6 +62,11 @@ integrationsRouter.get('/entity-map', asyncHandler(async (req, res) => {
     req.query.entityType as string
   );
   res.json({ success: true, data });
+}));
+
+integrationsRouter.delete('/entity-map/:id', asyncHandler(async (req, res) => {
+  await integrationsService.deleteEntityMap(String(req.params.id), getCompanyId(req));
+  res.json({ success: true, message: 'Entity mapping deleted' });
 }));
 
 // ═══════════════════════════════════════

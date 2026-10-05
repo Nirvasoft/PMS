@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
 import {
   useGetApiKeysQuery, useGetApiKeyScopesQuery,
   useCreateApiKeyMutation, useDeleteApiKeyMutation, useRevokeApiKeyMutation,
 } from '../../store/api/integrationsApi';
 import {
   Key, Plus, X, Trash2, Copy, ShieldOff, ShieldCheck,
-  Clock, CheckCircle2,
+  Clock, CheckCircle2, Loader2,
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
@@ -14,7 +15,7 @@ import { PermissionGuard } from '../../components/guards/PermissionGuard';
 export default function ApiKeysPage() {
   const { data: res, isLoading } = useGetApiKeysQuery();
   const { data: scopesRes } = useGetApiKeyScopesQuery();
-  const [createApiKey] = useCreateApiKeyMutation();
+  const [createApiKey, { isLoading: isCreating }] = useCreateApiKeyMutation();
   const [deleteApiKey] = useDeleteApiKeyMutation();
   const [revokeApiKey] = useRevokeApiKeyMutation();
   const confirmDialog = useConfirm();
@@ -34,19 +35,38 @@ export default function ApiKeysPage() {
   };
 
   const handleCreate = async () => {
-    if (!createForm.name || createForm.scopes.length === 0) return;
-    const result = await createApiKey({
-      name: createForm.name,
-      scopes: createForm.scopes,
-      rateLimitRpm: createForm.rateLimitRpm,
-      expiresAt: createForm.expiresAt || null,
-    }).unwrap();
-    setNewKey(result.data.key);
-    setShowCreate(false);
-    setCreateForm({ name: '', scopes: [], rateLimitRpm: 100, expiresAt: '' });
+    const trimmedName = createForm.name.trim();
+    if (!trimmedName) {
+      toast.error('Key Name is required');
+      return;
+    }
+    if (createForm.scopes.length === 0) {
+      toast.error('Please select at least one scope');
+      return;
+    }
+
+    try {
+      const result = await createApiKey({
+        name: trimmedName,
+        scopes: createForm.scopes,
+        rateLimitRpm: Number(createForm.rateLimitRpm) || 100,
+        expiresAt: createForm.expiresAt || null,
+      }).unwrap();
+
+      const generatedKey = result?.data?.key || result?.key;
+      setNewKey(generatedKey);
+      setShowCreate(false);
+      setCreateForm({ name: '', scopes: [], rateLimitRpm: 100, expiresAt: '' });
+      toast.success('API key generated successfully');
+    } catch (err: any) {
+      toast.error(err?.data?.message || err?.message || 'Failed to create API key');
+    }
   };
 
-  const copyToClipboard = (text: string) => navigator.clipboard.writeText(text);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('API key copied to clipboard');
+  };
 
   return (
     <div className="page-content">
@@ -114,11 +134,37 @@ export default function ApiKeysPage() {
                     <PermissionGuard permission="developer-api-keys.write">
                       <div className="intg-row-actions">
                         {ak.isActive && (
-                          <button className="intg-action-btn-sm" onClick={async () => { if (await confirmDialog('Revoke this key?', { danger: true, confirmText: 'Revoke' })) revokeApiKey(ak.id); }} title="Revoke">
+                          <button
+                            className="intg-action-btn-sm"
+                            onClick={async () => {
+                              if (await confirmDialog('Revoke this key? It will immediately stop working.', { danger: true, confirmText: 'Revoke' })) {
+                                try {
+                                  await revokeApiKey(ak.id).unwrap();
+                                  toast.success('API key revoked');
+                                } catch (err: any) {
+                                  toast.error(err?.data?.message || err?.message || 'Failed to revoke API key');
+                                }
+                              }
+                            }}
+                            title="Revoke"
+                          >
                             <ShieldOff size={13} />
                           </button>
                         )}
-                        <button className="intg-action-btn-sm danger" onClick={async () => { if (await confirmDialog('Delete this key permanently?', { danger: true, confirmText: 'Delete' })) deleteApiKey(ak.id); }} title="Delete">
+                        <button
+                          className="intg-action-btn-sm danger"
+                          onClick={async () => {
+                            if (await confirmDialog('Delete this key permanently?', { danger: true, confirmText: 'Delete' })) {
+                              try {
+                                await deleteApiKey(ak.id).unwrap();
+                                toast.success('API key deleted');
+                              } catch (err: any) {
+                                toast.error(err?.data?.message || err?.message || 'Failed to delete API key');
+                              }
+                            }
+                          }}
+                          title="Delete"
+                        >
                           <Trash2 size={13} />
                         </button>
                       </div>
@@ -137,21 +183,36 @@ export default function ApiKeysPage() {
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Create API Key</h3>
-              <button className="mall-modal-close" onClick={() => setShowCreate(false)}>✕</button>
+              <button className="mall-modal-close" onClick={() => !isCreating && setShowCreate(false)}>✕</button>
             </div>
             <div className="mall-modal-body">
               <div className="mall-form-grid">
                 <label style={{ gridColumn: '1 / -1' }}>
                   <span>Key Name *</span>
-                  <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g. My Integration Key" />
+                  <input
+                    value={createForm.name}
+                    onChange={e => setCreateForm({ ...createForm, name: e.target.value })}
+                    placeholder="e.g. My Integration Key"
+                    disabled={isCreating}
+                  />
                 </label>
                 <label>
                   <span>Rate Limit (rpm)</span>
-                  <input type="number" value={createForm.rateLimitRpm} onChange={e => setCreateForm({ ...createForm, rateLimitRpm: Number(e.target.value) })} />
+                  <input
+                    type="number"
+                    value={createForm.rateLimitRpm}
+                    onChange={e => setCreateForm({ ...createForm, rateLimitRpm: Number(e.target.value) })}
+                    disabled={isCreating}
+                  />
                 </label>
                 <label>
                   <span>Expires At (optional)</span>
-                  <input type="date" value={createForm.expiresAt} onChange={e => setCreateForm({ ...createForm, expiresAt: e.target.value })} />
+                  <input
+                    type="date"
+                    value={createForm.expiresAt}
+                    onChange={e => setCreateForm({ ...createForm, expiresAt: e.target.value })}
+                    disabled={isCreating}
+                  />
                 </label>
               </div>
               <div className="intg-events-section">
@@ -161,7 +222,12 @@ export default function ApiKeysPage() {
                 <div className="intg-scopes-grid">
                   {allScopes.map((scope: string) => (
                     <label key={scope} className="intg-event-check">
-                      <input type="checkbox" checked={createForm.scopes.includes(scope)} onChange={() => toggleScope(scope)} />
+                      <input
+                        type="checkbox"
+                        checked={createForm.scopes.includes(scope)}
+                        onChange={() => toggleScope(scope)}
+                        disabled={isCreating}
+                      />
                       <span className="intg-scope-name">{scope}</span>
                     </label>
                   ))}
@@ -169,9 +235,15 @@ export default function ApiKeysPage() {
               </div>
             </div>
             <div className="mall-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleCreate} disabled={!createForm.name || createForm.scopes.length === 0}>
-                <Key size={14} /> Generate Key
+              <button className="btn btn-ghost" onClick={() => setShowCreate(false)} disabled={isCreating}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={handleCreate}
+                disabled={isCreating || !createForm.name.trim() || createForm.scopes.length === 0}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {isCreating ? <Loader2 size={14} className="spin" /> : <Key size={14} />}
+                <span>{isCreating ? 'Generating Key...' : 'Generate Key'}</span>
               </button>
             </div>
           </div>
