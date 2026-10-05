@@ -5,7 +5,7 @@ import {
 } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { Gauge, Plus, X, Pencil, Trash2, Search } from 'lucide-react';
+import { Gauge, Plus, X, Pencil, Trash2, Search, Zap, Layers, Droplets } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
@@ -82,6 +82,22 @@ export default function MeterSetupPage() {
       labelFor(METER_TYPES, m.meterType).toLowerCase().includes(q)
     );
   });
+
+  // ── Counts & Statistics (scoped by selected Property and Floor) ──────
+  const scopedMeters = meters.filter((m) => {
+    if (searchPropertyId && m.propertyId !== searchPropertyId) return false;
+    if (searchFloorId && m.floorId !== searchFloorId) return false;
+    return true;
+  });
+
+  const totalCount = scopedMeters.length;
+
+  const mepeCount = scopedMeters.filter((m) => m.meterType === 'mepe').length;
+  const subMeterCount = scopedMeters.filter((m) => m.meterType === 'sub_meter').length;
+  const ctMeterCount = scopedMeters.filter((m) => m.meterType === 'ct_meter').length;
+  const waterMeterCount = scopedMeters.filter((m) => m.meterType === 'water_meter').length;
+
+  const selectedFloorLabel = searchFloors.find((f) => f.id === searchFloorId)?.floorLabel;
 
   const emptyForm = {
     propertyId: '', floorId: '', meterType: '', meterNo: '', mainMeterId: '', horsePower: '', unitLostPct: '',
@@ -201,14 +217,74 @@ export default function MeterSetupPage() {
             <Gauge size={22} />
           </div>
           <div style={{ flex: 1 }}>
-            <h1>Meter Setup</h1>
-            <p>Register and configure electricity meters across your properties</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h1 style={{ margin: 0 }}>Meter Setup</h1>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: '2px 9px',
+                  borderRadius: 12,
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  color: '#3b82f6',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                }}
+              >
+                {totalCount} Total Meter{totalCount === 1 ? '' : 's'}{selectedFloorLabel ? ` · ${selectedFloorLabel}` : ''}
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0' }}>
+              Register and configure electricity and utility meters across your properties
+            </p>
           </div>
           <PermissionGuard permission="meter.create">
             <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Plus size={14} /> New Meter
             </button>
           </PermissionGuard>
+        </div>
+      </div>
+
+      {/* Summary KPI Cards */}
+      <div className="billing-summary-cards" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
+        <div className="billing-stat-card">
+          <div className="bsc-icon" style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6' }}>
+            <Gauge size={20} />
+          </div>
+          <span className="bsc-label">Total Meters</span>
+          <span className="bsc-value">{totalCount}</span>
+          <span className="bsc-sub">
+            {selectedFloorLabel
+              ? `Floor: ${selectedFloorLabel}`
+              : (lockedPropertyName || properties.find((p) => p.id === searchPropertyId)?.name || 'All registered meters')}
+          </span>
+        </div>
+
+        <div className="billing-stat-card">
+          <div className="bsc-icon" style={{ background: 'rgba(234, 179, 8, 0.12)', color: '#eab308' }}>
+            <Zap size={20} />
+          </div>
+          <span className="bsc-label">MEPE Meters</span>
+          <span className="bsc-value">{mepeCount}</span>
+          <span className="bsc-sub">Main supply meters</span>
+        </div>
+
+        <div className="billing-stat-card">
+          <div className="bsc-icon" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
+            <Layers size={20} />
+          </div>
+          <span className="bsc-label">Sub Meters</span>
+          <span className="bsc-value">{subMeterCount}</span>
+          <span className="bsc-sub">Tenant & branch meters</span>
+        </div>
+
+        <div className="billing-stat-card">
+          <div className="bsc-icon" style={{ background: 'rgba(14, 165, 233, 0.12)', color: '#0ea5e9' }}>
+            <Droplets size={20} />
+          </div>
+          <span className="bsc-label">CT & Water</span>
+          <span className="bsc-value">{ctMeterCount + waterMeterCount}</span>
+          <span className="bsc-sub">{ctMeterCount} CT · {waterMeterCount} Water</span>
         </div>
       </div>
 
