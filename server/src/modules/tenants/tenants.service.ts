@@ -169,6 +169,14 @@ export class TenantsService {
 
   // ── Create ─────────────────────────────────
   async create(companyId: string, dto: Record<string, unknown>) {
+    // If V6 ERP integration is active, disallow manual tenant creation
+    const v6Active = await prisma.integrationConfig.findFirst({
+      where: { companyId, integrationType: 'v6erp', status: { not: 'disabled' }, isActive: true },
+    });
+    if (v6Active) {
+      throw AppError.badRequest('Tenant creation is disabled because V6 ERP integration is active. Please sync tenants from V6 ERP.', 'V6_SYNC_ACTIVE');
+    }
+
     // propertyId is not part of the createTenantSchema (it's infrastructure, not user input)
     const propertyId = typeof dto.propertyId === 'string' ? dto.propertyId : undefined;
     const parsedData = createTenantSchema.parse(dto);
@@ -235,6 +243,17 @@ export class TenantsService {
     // Currency is locked once saved — the client disables the field once set, this is the
     // server-side backstop (mirrors units.service.ts update()).
     if (tenant.currency) delete rest.currency;
+
+    // If V6 ERP integration is active, lock Code (firstName/companyRegNo) and Name (lastName/companyName)
+    const v6Active = await prisma.integrationConfig.findFirst({
+      where: { companyId, integrationType: 'v6erp', status: { not: 'disabled' }, isActive: true },
+    });
+    if (v6Active) {
+      delete rest.firstName;
+      delete rest.lastName;
+      delete rest.companyName;
+      delete rest.companyRegNo;
+    }
 
     // Duplicate code (firstName) check — exclude self
     if (tenant.tenantType === 'individual' && rest.firstName) {

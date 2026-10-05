@@ -4,7 +4,7 @@ import { baseQueryWithReauth } from './baseQuery';
 export const integrationsApi = createApi({
   reducerPath: 'integrationsApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Integrations', 'SyncLogs', 'Webhooks', 'Deliveries', 'ApiKeys', 'BmsDevices'],
+  tagTypes: ['Integrations', 'SyncLogs', 'Webhooks', 'Deliveries', 'ApiKeys', 'BmsDevices', 'EntityMap'],
   endpoints: (builder) => ({
 
     // ── Integrations ──
@@ -31,9 +31,9 @@ export const integrationsApi = createApi({
       query: (id) => ({ url: `/integrations/${id}/test`, method: 'POST' }),
       invalidatesTags: ['Integrations'],
     }),
-    triggerSync: builder.mutation<any, { id: string; data: any }>({
-      query: ({ id, data }) => ({ url: `/integrations/${id}/sync`, method: 'POST', body: data }),
-      invalidatesTags: ['Integrations', 'SyncLogs'],
+    triggerSync: builder.mutation<any, { id: string; data?: any }>({
+      query: ({ id, data = {} }) => ({ url: `/integrations/${id}/sync`, method: 'POST', body: data }),
+      invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
     }),
     getSyncLogs: builder.query<any, { integrationId: string; page?: number }>({
       query: ({ integrationId, page = 1 }) => `/integrations/${integrationId}/sync-logs?page=${page}`,
@@ -46,6 +46,11 @@ export const integrationsApi = createApi({
         if (params?.entityType) qs.set('entityType', params.entityType);
         return `/integrations/entity-map?${qs.toString()}`;
       },
+      providesTags: ['EntityMap'],
+    }),
+    deleteEntityMap: builder.mutation<any, string>({
+      query: (id) => ({ url: `/integrations/entity-map/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['EntityMap'],
     }),
 
     // ── Webhooks ──
@@ -173,6 +178,7 @@ export const {
   useTriggerSyncMutation,
   useGetSyncLogsQuery,
   useGetEntityMapQuery,
+  useDeleteEntityMapMutation,
   useGetWebhookEventsQuery,
   useGetWebhooksQuery,
   useCreateWebhookMutation,

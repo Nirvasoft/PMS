@@ -13,6 +13,7 @@ import {
 } from '../../../store/api/tenantsApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   ArrowLeft, User, Building2, Shield, ShieldOff, Phone, Mail,
   Plus, Trash2, Pin, PinOff, CheckCircle, XCircle, Clock,
@@ -272,6 +273,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
   const history = historyData?.data || [];
   const [editing, setEditing] = useState(false);
   const [updateTenant, { isLoading: saving }] = useUpdateTenantMutation();
+  const { isV6Active } = useV6IntegrationStatus();
   const activePropertyId = useSelectedPropertyId();
   const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId: activePropertyId });
   const currencyOptions = currencyRatesData?.data || [];
@@ -314,6 +316,12 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
     // Currency is locked once saved — the field is disabled in the UI when tenant.currency
     // is already set, and the server ignores changes to it anyway (defense in depth).
     if (tenant.currency) delete payload.currency;
+    if (isV6Active) {
+      delete payload.firstName;
+      delete payload.lastName;
+      delete payload.companyName;
+      delete payload.companyRegNo;
+    }
     payload.tags = tags;
     try {
       await updateTenant({ id: tenantId, data: payload }).unwrap();
@@ -341,11 +349,36 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
               <button className="btn-primary-sm" onClick={handleSave} disabled={saving}><Save size={13} /> {saving ? 'Saving…' : 'Save'}</button>
             </div>
           </div>
+
+          {isV6Active && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+              borderRadius: 8, background: 'rgba(59, 130, 246, 0.08)',
+              border: '1px solid rgba(59, 130, 246, 0.25)', margin: '0 0 14px',
+              fontSize: 12, color: 'var(--text-secondary)'
+            }}>
+              <span>🔒</span>
+              <span><strong>V6 ERP Active:</strong> Code and Name are synchronized from V6 ERP and cannot be modified here.</span>
+            </div>
+          )}
+
           <div className="edit-grid">
             {tenant.tenantType === 'individual' ? (
               <>
-                <EditField label="Code" value={form.firstName} onChange={(v) => set('firstName', v)} />
-                <EditField label="Name" value={form.lastName} onChange={(v) => set('lastName', v)} />
+                <EditField
+                  label="Code"
+                  value={form.firstName}
+                  onChange={(v) => set('firstName', v)}
+                  disabled={isV6Active}
+                  title={isV6Active ? 'Code is managed by V6 ERP' : ''}
+                />
+                <EditField
+                  label="Name"
+                  value={form.lastName}
+                  onChange={(v) => set('lastName', v)}
+                  disabled={isV6Active}
+                  title={isV6Active ? 'Name is managed by V6 ERP' : ''}
+                />
                 <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
                 <EditField label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
                 <EditField label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
@@ -361,8 +394,21 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
               </>
             ) : (
               <>
-                <EditField label="Company Name" value={form.companyName} onChange={(v) => set('companyName', v)} span={2} />
-                <EditField label="Reg. No." value={form.companyRegNo} onChange={(v) => set('companyRegNo', v)} />
+                <EditField
+                  label="Company Name"
+                  value={form.companyName}
+                  onChange={(v) => set('companyName', v)}
+                  span={2}
+                  disabled={isV6Active}
+                  title={isV6Active ? 'Company Name is managed by V6 ERP' : ''}
+                />
+                <EditField
+                  label="Reg. No."
+                  value={form.companyRegNo}
+                  onChange={(v) => set('companyRegNo', v)}
+                  disabled={isV6Active}
+                  title={isV6Active ? 'Registration No. is managed by V6 ERP' : ''}
+                />
                 <EditSelect label="Company Type" value={form.companyType} onChange={(v) => set('companyType', v)}
                   options={[['','—'],['private_limited','Private Limited'],['partnership','Partnership'],['sole_prop','Sole Proprietor'],['public','Public Listed']]} />
                 <EditField label="GST No." value={form.gstRegNo} onChange={(v) => set('gstRegNo', v)} />
@@ -552,13 +598,25 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
   );
 }
 
-function EditField({ label, value, onChange, type = 'text', span, maxLen }: {
+function EditField({ label, value, onChange, type = 'text', span, maxLen, disabled, title }: {
   label: string; value: string; onChange: (v: string) => void; type?: string; span?: number; maxLen?: number;
+  disabled?: boolean; title?: string;
 }) {
   return (
     <div className="edit-field" style={{ gridColumn: span ? `span ${span}` : undefined }}>
-      <label>{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={maxLen} />
+      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>{label}</span>
+        {disabled && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>🔒 Managed by V6 ERP</span>}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={maxLen}
+        disabled={disabled}
+        title={title}
+        style={disabled ? { background: 'var(--bg-tertiary, rgba(255,255,255,0.04))', color: 'var(--text-muted, #94a3b8)', cursor: 'not-allowed', border: '1px dashed var(--border-color, rgba(255,255,255,0.15))' } : undefined}
+      />
     </div>
   );
 }

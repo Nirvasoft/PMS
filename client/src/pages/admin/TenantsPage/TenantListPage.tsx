@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import './TenantListPage.css';
 
 const KYC_COLORS: Record<string, string> = {
@@ -33,6 +34,7 @@ const KYC_LABELS: Record<string, string> = {
 export default function TenantListPage() {
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
+  const { isV6Active } = useV6IntegrationStatus();
   const propertyId = useSelectedPropertyFilter(); // '' when "All Properties", else active property id
   const [search, setSearch]           = useState('');
   const [tenantType, setTenantType]   = useState('');
@@ -110,13 +112,39 @@ export default function TenantListPage() {
               <GitMerge size={14} /> Merge
             </button>
           </PermissionGuard>
-          <PermissionGuard permission="tenants.create">
-            <button className="btn-primary" onClick={() => navigate('/admin/tenants/new')}>
-              <Plus size={15} /> New Tenant
+          {isV6Active ? (
+            <button
+              className="btn-primary"
+              disabled
+              title="Tenant creation is disabled because V6 ERP integration is active. Please sync tenants from V6 ERP."
+              style={{ opacity: 0.6, cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              🔒 New Tenant (V6 Active)
             </button>
-          </PermissionGuard>
+          ) : (
+            <PermissionGuard permission="tenants.create">
+              <button className="btn-primary" onClick={() => navigate('/admin/tenants/new')}>
+                <Plus size={15} /> New Tenant
+              </button>
+            </PermissionGuard>
+          )}
         </div>
       </div>
+
+      {/* V6 ERP active notification banner */}
+      {isV6Active && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
+          borderRadius: 8, background: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid rgba(59, 130, 246, 0.25)', marginBottom: 14,
+          fontSize: 13, color: 'var(--text-secondary)'
+        }}>
+          <span style={{ fontSize: 16 }}>🔗</span>
+          <span>
+            <strong style={{ color: 'var(--text-primary)' }}>V6 ERP Integration Active:</strong> Tenant registry is managed and synchronized from V6 ERP. Direct tenant creation is disabled.
+          </span>
+        </div>
+      )}
 
       {/* KYC status quick-stat chips */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>

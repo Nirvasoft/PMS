@@ -6,10 +6,13 @@ import {
   useSendInvoiceMutation, useCreateCreditNoteMutation, useGetChargeTypesQuery,
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
-import { ArrowLeft, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, AlertTriangle, Clock, Banknote, History, ShieldAlert, Timer, Eye, ExternalLink } from 'lucide-react';
+import { ArrowLeft, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, AlertTriangle, Clock, Banknote, History, ShieldAlert, Timer, Eye, ExternalLink, UploadCloud } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
+import toast from 'react-hot-toast';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { usePushInvoicesToV6ErpMutation } from '../../../store/api/integrationsApi';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, _currency = 'USD') =>
@@ -31,6 +34,8 @@ export default function InvoiceDetailPage() {
   const [triggerPdf, { isFetching: loadingPdf }] = useLazyGetInvoicePdfQuery();
   const [sendInvoice, { isLoading: sending }] = useSendInvoiceMutation();
   const [createCreditNote, { isLoading: creatingCN }] = useCreateCreditNoteMutation();
+  const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
+  const { isV6Active } = useV6IntegrationStatus();
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();
@@ -134,6 +139,21 @@ export default function InvoiceDetailPage() {
       alertDialog(`Invoice sent to ${result.data.sentTo}`);
     } catch (err: any) {
       alertDialog(err?.data?.errors?.[0]?.message || 'Failed to send invoice');
+    }
+  };
+
+  const handleSendToV6 = async () => {
+    if (!inv || inv.status !== 'issued') return;
+    if (!(await confirmDialog(`Send invoice ${inv.invoiceNumber} to V6 ERP?\n\nStatus will change to "sent" upon completion.`))) return;
+    try {
+      const result = await pushInvoicesToV6Erp({ invoiceIds: [inv.id] }).unwrap();
+      if (result.data?.sent > 0) {
+        toast.success(`Invoice ${inv.invoiceNumber} sent to V6 ERP!`);
+      } else if (result.data?.failed > 0) {
+        toast.error(`Failed to send invoice to V6 ERP: ${result.data?.results?.[0]?.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || err?.data?.message || 'Failed to send to V6 ERP');
     }
   };
 
@@ -260,6 +280,17 @@ export default function InvoiceDetailPage() {
               <button className="btn btn-primary" onClick={handleSend} disabled={sending}
                 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Send size={14} /> {sending ? 'Sending…' : 'Send'}
+              </button>
+            )}
+            {isV6Active && inv.status === 'issued' && (
+              <button
+                className="btn btn-secondary"
+                onClick={handleSendToV6}
+                disabled={pushingToV6}
+                title="Send this invoice to V6 ERP"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+              >
+                <UploadCloud size={14} /> {pushingToV6 ? 'Sending…' : 'Send to V6 ERP'}
               </button>
             )}
             {/* Credit Note button */}

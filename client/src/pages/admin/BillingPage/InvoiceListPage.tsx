@@ -9,6 +9,7 @@ import {
 import { usePushInvoicesToV6ErpMutation } from '../../../store/api/integrationsApi';
 import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   FileText, Plus, Play, Search, ChevronLeft, ChevronRight,
   DollarSign, AlertTriangle, CheckCircle, Receipt,
@@ -56,6 +57,7 @@ export default function InvoiceListPage() {
   const [sendInvoice] = useSendInvoiceMutation();
   const [triggerPdf] = useLazyGetInvoicePdfQuery();
   const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
+  const { isV6Active } = useV6IntegrationStatus();
   const confirmDialog = useConfirm();
 
   const invoices = data?.data || [];
@@ -283,16 +285,18 @@ export default function InvoiceListPage() {
         </div>
         <PermissionGuard permission="billing-invoices.write">
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              className="btn btn-secondary"
-              onClick={handleSendAllToV6Erp}
-              disabled={pushingToV6}
-              title="Send all issued invoices to V6 ERP"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
-            >
-              <UploadCloud size={14} />
-              {pushingToV6 ? 'Sending…' : 'Send to V6 ERP'}
-            </button>
+            {isV6Active && (
+              <button
+                className="btn btn-secondary"
+                onClick={handleSendAllToV6Erp}
+                disabled={pushingToV6}
+                title="Send all issued invoices to V6 ERP"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+              >
+                <UploadCloud size={14} />
+                {pushingToV6 ? 'Sending…' : 'Send to V6 ERP'}
+              </button>
+            )}
             <button className="btn btn-secondary" onClick={() => setRunBillingModalOpen(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Play size={14} /> Run Billing
@@ -513,15 +517,17 @@ export default function InvoiceListPage() {
             </button>
             <PermissionGuard permission="billing-invoices.write">
               {/* V6 ERP Bulk Push — only issued invoices will be forwarded */}
-              <button
-                className="bulk-btn"
-                onClick={handleBulkSendToV6Erp}
-                disabled={bulkProcessing || pushingToV6}
-                title="Send selected issued invoices to V6 ERP"
-                style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
-              >
-                <UploadCloud size={14} /> Send to V6 ERP
-              </button>
+              {isV6Active && (
+                <button
+                  className="bulk-btn"
+                  onClick={handleBulkSendToV6Erp}
+                  disabled={bulkProcessing || pushingToV6}
+                  title="Send selected issued invoices to V6 ERP"
+                  style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+                >
+                  <UploadCloud size={14} /> Send to V6 ERP
+                </button>
+              )}
               <button className="bulk-btn void" onClick={handleBulkVoid} disabled={bulkProcessing}
                 title="Void selected invoices">
                 <Ban size={14} /> Void

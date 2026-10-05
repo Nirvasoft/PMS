@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCreateTenantMutation } from '../../../store/api/tenantsApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { ArrowLeft, User, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -13,6 +14,7 @@ type TenantType = 'individual' | 'company';
 export default function CreateTenantPage() {
   const navigate = useNavigate();
   const [createTenant, { isLoading }] = useCreateTenantMutation();
+  const { isV6Active } = useV6IntegrationStatus();
   const [tenantType, setTenantType] = useState<TenantType>('individual');
 
   const activePropertyId = useSelectedPropertyId();
@@ -40,6 +42,10 @@ export default function CreateTenantPage() {
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
+    if (isV6Active) {
+      toast.error('Tenant creation is disabled because V6 ERP integration is active. Please sync tenants from V6 ERP.');
+      return;
+    }
     if (tenantType === 'individual' && !form.firstName) { toast.error('Code is required'); return; }
     if (tenantType === 'company'    && !form.companyName) { toast.error('Company name is required'); return; }
     if (!form.currency) { toast.error('Currency is required'); return; }
@@ -100,6 +106,23 @@ export default function CreateTenantPage() {
         </button>
         <h1>New Tenant</h1>
       </div>
+
+      {isV6Active && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px',
+          borderRadius: 10, background: 'rgba(234, 179, 8, 0.1)',
+          border: '1px solid rgba(234, 179, 8, 0.3)', marginBottom: 20,
+          fontSize: 13, color: '#d97706'
+        }}>
+          <span style={{ fontSize: 20 }}>⚠️</span>
+          <div>
+            <strong style={{ display: 'block', fontSize: 14, color: '#b45309', marginBottom: 2 }}>
+              Tenant Creation Disabled (V6 ERP Active)
+            </strong>
+            V6 ERP Integration is currently active. Tenant information is synchronized from V6 ERP. Direct manual creation of new tenants is disabled.
+          </div>
+        </div>
+      )}
 
       {/* Type toggle */}
       <div className="ct-type-toggle">
@@ -229,8 +252,13 @@ export default function CreateTenantPage() {
       <div className="ct-footer">
         <button className="btn-ghost" onClick={() => navigate('/admin/tenants')}>Cancel</button>
         <PermissionGuard permission="tenants.create">
-          <button className="btn-primary" onClick={handleSubmit} disabled={isLoading || !form.currency}>
-            {isLoading ? 'Creating…' : 'Create Tenant'}
+          <button
+            className="btn-primary"
+            onClick={handleSubmit}
+            disabled={isLoading || isV6Active || !form.currency}
+            style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+          >
+            {isV6Active ? 'Creation Disabled (V6 Active)' : isLoading ? 'Creating…' : 'Create Tenant'}
           </button>
         </PermissionGuard>
       </div>

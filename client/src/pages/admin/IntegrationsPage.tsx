@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
 import {
   useGetIntegrationsQuery,
   useCreateIntegrationMutation, useUpdateIntegrationMutation, useDeleteIntegrationMutation,
   useTestIntegrationMutation, useTriggerSyncMutation, useGetSyncLogsQuery,
-  useGetEntityMapQuery,
+  useGetEntityMapQuery, useDeleteEntityMapMutation,
 } from '../../store/api/integrationsApi';
 import {
   Plug, Plus, X, RefreshCw, Zap, Trash2, Activity,
-  CheckCircle2, AlertCircle, Clock, Settings2, ChevronDown,
+  CheckCircle2, AlertCircle, Clock, Settings2, ChevronDown, ChevronUp,
   Cloud, CreditCard, FileSignature, Building2, Edit, Map, Database,
+  Loader2, Search,
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
@@ -41,8 +43,8 @@ const CAT_ICONS: Record<string, any> = {
 
 export default function IntegrationsPage() {
   const { data: res, isLoading } = useGetIntegrationsQuery();
-  const [createIntegration] = useCreateIntegrationMutation();
-  const [updateIntegration] = useUpdateIntegrationMutation();
+  const [createIntegration, { isLoading: isCreating }] = useCreateIntegrationMutation();
+  const [updateIntegration, { isLoading: isUpdating }] = useUpdateIntegrationMutation();
   const [deleteIntegration] = useDeleteIntegrationMutation();
   const [testIntegration] = useTestIntegrationMutation();
   const [triggerSync] = useTriggerSyncMutation();
@@ -60,25 +62,66 @@ export default function IntegrationsPage() {
 
   const [showLogs, setShowLogs] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<any>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const integrations = res?.data || [];
 
   const handleCreate = async () => {
-    if (!createForm.name) return;
-    await createIntegration(createForm).unwrap();
-    setShowCreate(false);
-    setTypeDropdownOpen(false);
-    setCreateForm({ integrationType: 'v6erp', name: '', description: '', syncFrequency: 'daily' });
+    const trimmedName = createForm.name.trim();
+    if (!trimmedName) {
+      toast.error('Display Name is required');
+      return;
+    }
+    try {
+      await createIntegration({ ...createForm, name: trimmedName }).unwrap();
+      toast.success('Integration created successfully');
+      setShowCreate(false);
+      setTypeDropdownOpen(false);
+      setCreateForm({ integrationType: 'v6erp', name: '', description: '', syncFrequency: 'daily' });
+    } catch (err: any) {
+      toast.error(err?.data?.message || err?.message || 'Failed to create integration');
+    }
   };
 
   const handleTest = async (id: string) => {
-    const res = await testIntegration(id).unwrap();
-    setTestResult({ id, ...res.data });
-    setTimeout(() => setTestResult(null), 3000);
+    setTestingId(id);
+    try {
+      const res = await testIntegration(id).unwrap();
+      setTestResult({ id, status: 'success', ...res.data });
+      toast.success(res?.data?.connected ? 'Connection successful!' : 'Connected');
+      setTimeout(() => setTestResult((prev: any) => (prev?.id === id ? null : prev)), 8000);
+    } catch (err: any) {
+      const errMsg = err?.data?.message || err?.message || 'Connection test failed';
+      setTestResult({ id, status: 'error', error: errMsg });
+      toast.error(errMsg);
+      setTimeout(() => setTestResult((prev: any) => (prev?.id === id ? null : prev)), 8000);
+    } finally {
+      setTestingId(null);
+    }
   };
 
   const handleSync = async (id: string) => {
-    await triggerSync({ id, data: { syncType: 'full_sync' } }).unwrap();
+    setSyncingId(id);
+    try {
+      const res = await triggerSync({ id, data: { syncType: 'full_sync' } }).unwrap();
+      toast.success(res?.message || res?.data?.message || 'Sync completed successfully');
+    } catch (err: any) {
+      toast.error(err?.data?.message || err?.message || 'Sync failed');
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (await confirmDialog('Are you sure you want to delete this integration?', { danger: true })) {
+      try {
+        await deleteIntegration(id).unwrap();
+        toast.success('Integration deleted');
+      } catch (err: any) {
+        toast.error(err?.data?.message || err?.message || 'Failed to delete integration');
+      }
+    }
   };
 
   const openEdit = (intg: any) => {
@@ -86,43 +129,65 @@ export default function IntegrationsPage() {
       name:            intg.name          || '',
       description:     intg.description   || '',
       syncFrequency:   intg.syncFrequency || 'daily',
-      isActive:        intg.status === 'active',
-      // Pre-populate config/credentials as formatted JSON strings for the textarea
-      configJson:      intg.config      ? JSON.stringify(intg.config,      null, 2) : '',
-      credentialsJson: intg.credentials ? JSON.stringify(intg.credentials, null, 2) : '',
+      isActive:        intg.isActive !== undefined ? Boolean(intg.isActive) : (intg.status === 'active'),
+      // Pre-populate config as formatted JSON string for the textarea
+      configJson:      intg.config && Object.keys(intg.config).length > 0 ? JSON.stringify(intg.config, null, 2) : '',
+      credentialsJson: '',
     });
     setShowEdit(intg);
   };
 
   const handleEdit = async () => {
-    if (!showEdit || !editForm.name.trim()) return;
+    if (!showEdit) return;
+    const trimmedName = editForm.name.trim();
+    if (!trimmedName) {
+      toast.error('Display Name is required');
+      return;
+    }
 
-    // Parse JSON fields — show error if malformed
+    // Parse JSON fields — show toast error if malformed
     let config: any = {};
     let credentials: any = undefined;
     if (editForm.configJson.trim()) {
-      try { config = JSON.parse(editForm.configJson); }
-      catch { alert('⚠️ Configuration JSON is invalid. Please check the format.'); return; }
+      try {
+        config = JSON.parse(editForm.configJson);
+      } catch {
+        toast.error('Configuration JSON is invalid. Please check the format.');
+        return;
+      }
     }
-    if (showEdit.integrationType === 'v6erp') {
-      credentials = {};
-    } else if (editForm.credentialsJson.trim()) {
-      try { credentials = JSON.parse(editForm.credentialsJson); }
-      catch { alert('⚠️ Credentials JSON is invalid. Please check the format.'); return; }
+    if (editForm.credentialsJson.trim()) {
+      try {
+        credentials = JSON.parse(editForm.credentialsJson);
+      } catch {
+        toast.error('Credentials JSON is invalid. Please check the format.');
+        return;
+      }
     }
 
-    await updateIntegration({
-      id: showEdit.id,
-      data: {
-        name:          editForm.name,
-        description:   editForm.description,
+    try {
+      const payload: any = {
+        name:          trimmedName,
+        description:   editForm.description.trim(),
         syncFrequency: editForm.syncFrequency,
         isActive:      editForm.isActive,
+        status:        editForm.isActive ? 'active' : 'disabled',
         config,
-        credentials,
-      },
-    });
-    setShowEdit(null);
+      };
+      if (credentials !== undefined) {
+        payload.credentials = credentials;
+      }
+
+      await updateIntegration({
+        id: showEdit.id,
+        data: payload,
+      }).unwrap();
+
+      toast.success('Integration updated successfully');
+      setShowEdit(null);
+    } catch (err: any) {
+      toast.error(err?.data?.message || err?.message || 'Failed to update integration');
+    }
   };
 
   return (
@@ -191,18 +256,60 @@ export default function IntegrationsPage() {
                 </div>
 
                 {testResult?.id === intg.id && (
-                  <div className="intg-test-result" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>
-                    <CheckCircle2 size={14} /> Connected — {testResult.responseTimeMs}ms
+                  <div
+                    className="intg-test-result"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      marginBottom: 12,
+                      background: testResult.status === 'success' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                      border: `1px solid ${testResult.status === 'success' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                      color: testResult.status === 'success' ? '#16a34a' : '#dc2626',
+                    }}
+                  >
+                    {testResult.status === 'success' ? (
+                      <>
+                        <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+                        <span><strong>Connected</strong> ({testResult.responseTimeMs}ms) — {testResult.version || 'API Healthy'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                        <span style={{ wordBreak: 'break-word' }}><strong>Connection Failed:</strong> {testResult.error}</span>
+                      </>
+                    )}
                   </div>
                 )}
 
                 <div className="intg-card-actions">
-                  <button className="intg-action-btn" onClick={() => handleTest(intg.id)} title="Test Connection">
-                    <Zap size={14} /> Test
+                  <button
+                    className="intg-action-btn"
+                    onClick={() => handleTest(intg.id)}
+                    title="Test Connection"
+                    disabled={testingId === intg.id || syncingId === intg.id}
+                  >
+                    {testingId === intg.id ? (
+                      <><Loader2 size={14} className="spin" /> Testing...</>
+                    ) : (
+                      <><Zap size={14} /> Test</>
+                    )}
                   </button>
                   <PermissionGuard permission="developer-integrations.write">
-                    <button className="intg-action-btn" onClick={() => handleSync(intg.id)} title="Trigger Sync">
-                      <RefreshCw size={14} /> Sync
+                    <button
+                      className="intg-action-btn"
+                      onClick={() => handleSync(intg.id)}
+                      title="Trigger Sync"
+                      disabled={syncingId === intg.id || testingId === intg.id}
+                    >
+                      {syncingId === intg.id ? (
+                        <><Loader2 size={14} className="spin" /> Syncing...</>
+                      ) : (
+                        <><RefreshCw size={14} /> Sync</>
+                      )}
                     </button>
                   </PermissionGuard>
                   <button className="intg-action-btn" onClick={() => setShowLogs(intg.id)} title="View Logs">
@@ -215,7 +322,7 @@ export default function IntegrationsPage() {
                     <button className="intg-action-btn" onClick={() => setShowEntityMap(intg.id)} title="Entity Map">
                       <Map size={14} />
                     </button>
-                    <button className="intg-action-btn danger" onClick={async () => { if (await confirmDialog('Delete this integration?', { danger: true })) deleteIntegration(intg.id); }} title="Delete">
+                    <button className="intg-action-btn danger" onClick={() => handleDelete(intg.id)} title="Delete">
                       <Trash2 size={14} />
                     </button>
                   </PermissionGuard>
@@ -365,20 +472,24 @@ export default function IntegrationsPage() {
       {showLogs && createPortal(
         <div className="shop-detail-overlay" onClick={() => setShowLogs(null)}>
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 560, padding: 0, display: 'flex', flexDirection: 'column' }}>
-            <SyncLogsDrawer integrationId={showLogs} onClose={() => setShowLogs(null)} />
+            <SyncLogsDrawer
+              integration={integrations.find((i: any) => i.id === showLogs)}
+              integrationId={showLogs}
+              onClose={() => setShowLogs(null)}
+            />
           </div>
         </div>
       , document.body)}
 
       {/* Edit Integration Modal */}
       {showEdit && createPortal(
-        <div className="mall-modal-overlay">
+        <div className="mall-modal-overlay" onClick={() => !isUpdating && setShowEdit(null)}>
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Edit size={18} /> Edit Integration: {showEdit.name}
               </h3>
-              <button className="mall-modal-close" onClick={() => setShowEdit(null)}>✕</button>
+              <button className="mall-modal-close" onClick={() => !isUpdating && setShowEdit(null)}>✕</button>
             </div>
             <div className="mall-modal-body">
               {/* Type info banner */}
@@ -410,12 +521,62 @@ export default function IntegrationsPage() {
                     <option value="daily">Daily</option>
                   </select>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={editForm.isActive}
-                    onChange={e => setEditForm(f => ({ ...f, isActive: e.target.checked }))}
-                    style={{ width: 16, height: 16 }} />
-                  Active
-                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Status Flag</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={editForm.isActive}
+                      onClick={() => setEditForm(f => ({ ...f, isActive: !f.isActive }))}
+                      style={{
+                        width: 46,
+                        height: 26,
+                        borderRadius: 13,
+                        padding: 2,
+                        background: editForm.isActive ? '#10b981' : 'rgba(156, 163, 175, 0.4)',
+                        border: `1px solid ${editForm.isActive ? '#059669' : 'rgba(156, 163, 175, 0.6)'}`,
+                        cursor: 'pointer',
+                        position: 'relative',
+                        transition: 'all 0.2s ease',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        outline: 'none',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          background: '#ffffff',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
+                          transform: editForm.isActive ? 'translateX(20px)' : 'translateX(0px)',
+                          transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        }}
+                      />
+                    </button>
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: editForm.isActive ? '#10b981' : 'var(--text-muted)',
+                      background: editForm.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(156, 163, 175, 0.1)',
+                      padding: '3px 10px',
+                      borderRadius: 12,
+                      border: `1px solid ${editForm.isActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(156, 163, 175, 0.2)'}`
+                    }}>
+                      <span style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: editForm.isActive ? '#10b981' : '#9ca3af',
+                        boxShadow: editForm.isActive ? '0 0 6px #10b981' : 'none'
+                      }} />
+                      {editForm.isActive ? 'Active (Flag ON)' : 'Disabled (Flag OFF)'}
+                    </span>
+                  </div>
+                </div>
                 <label style={{ gridColumn: '1 / -1' }}>
                   <span>Description</span>
                   <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
@@ -434,44 +595,47 @@ export default function IntegrationsPage() {
                     style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
                   />
                 </label>
-                {showEdit?.integrationType !== 'v6erp' && (
-                  <label style={{ gridColumn: '1 / -1' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      🔑 API Credentials
-                      <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>(JSON)</span>
-                      {showEdit?.hasCredentials && (
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                          background: 'rgba(16,185,129,0.12)', color: '#10b981',
-                          border: '1px solid rgba(16,185,129,0.3)',
-                        }}>
-                          ✅ Credentials saved
-                        </span>
-                      )}
-                    </span>
-                    <textarea
-                      rows={4}
-                      value={editForm.credentialsJson}
-                      onChange={e => setEditForm(f => ({ ...f, credentialsJson: e.target.value }))}
-                      placeholder={showEdit?.hasCredentials
-                        ? '🔒 Leave empty to keep existing credentials unchanged.\n   Type new JSON to replace them.'
-                        : '{\n  "username": "v6admin",\n  "password": "yourpassword"\n}'}
-                      style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
-                    />
-                    <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
-                      {showEdit?.hasCredentials
-                        ? '🔒 Credentials are stored securely. Leave blank to keep unchanged, or type new JSON to replace.'
-                        : '💡 Leave empty if no authentication is required.'}
-                    </span>
-                  </label>
-                )}
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🔑 API Credentials
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>(JSON)</span>
+                    {showEdit?.hasCredentials && (
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                        background: 'rgba(16,185,129,0.12)', color: '#10b981',
+                        border: '1px solid rgba(16,185,129,0.3)',
+                      }}>
+                        ✅ Credentials saved
+                      </span>
+                    )}
+                  </span>
+                  <textarea
+                    rows={4}
+                    value={editForm.credentialsJson}
+                    onChange={e => setEditForm(f => ({ ...f, credentialsJson: e.target.value }))}
+                    placeholder={showEdit?.hasCredentials
+                      ? '🔒 Leave empty to keep existing credentials unchanged.\n   Type new JSON to replace them.'
+                      : '{\n  "username": "admin",\n  "password": "yourpassword"\n}'}
+                    style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
+                    {showEdit?.hasCredentials
+                      ? '🔒 Credentials are stored securely. Leave blank to keep unchanged, or type new JSON to replace.'
+                      : '💡 Leave empty if no authentication is required.'}
+                  </span>
+                </label>
               </div>
             </div>
             <div className="mall-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowEdit(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleEdit} disabled={!editForm.name.trim()}
-                style={{ opacity: !editForm.name.trim() ? 0.5 : 1 }}>
-                <Edit size={14} /> Save Changes
+              <button className="btn btn-ghost" onClick={() => setShowEdit(null)} disabled={isUpdating}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={handleEdit}
+                disabled={isUpdating || !editForm.name.trim()}
+                style={{ opacity: (isUpdating || !editForm.name.trim()) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {isUpdating ? <RefreshCw size={14} className="spin" /> : <Edit size={14} />}
+                {isUpdating ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
@@ -482,7 +646,11 @@ export default function IntegrationsPage() {
       {showEntityMap && createPortal(
         <div className="shop-detail-overlay" onClick={() => setShowEntityMap(null)}>
           <div className="shop-detail-drawer" onClick={e => e.stopPropagation()} style={{ width: 620, padding: 0, display: 'flex', flexDirection: 'column' }}>
-            <EntityMapDrawer integrationId={showEntityMap} onClose={() => setShowEntityMap(null)} />
+            <EntityMapDrawer
+              integration={integrations.find((i: any) => i.id === showEntityMap)}
+              integrationId={showEntityMap}
+              onClose={() => setShowEntityMap(null)}
+            />
           </div>
         </div>
       , document.body)}
@@ -490,43 +658,170 @@ export default function IntegrationsPage() {
   );
 }
 
-function SyncLogsDrawer({ integrationId, onClose }: { integrationId: string; onClose: () => void }) {
-  const { data: res } = useGetSyncLogsQuery({ integrationId });
+function SyncLogsDrawer({ integrationId, integration, onClose }: { integrationId: string; integration?: any; onClose: () => void }) {
+  const { data: res, isFetching, refetch } = useGetSyncLogsQuery({ integrationId });
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const logs = res?.data || [];
+
+  const meta = TYPE_META[integration?.integrationType] || { name: integration?.name || 'Integration', icon: '🔌', color: '#6b7280' };
+
+  const totalRuns = logs.length;
+  const successRuns = logs.filter((l: any) => l.status === 'success').length;
+  const failedRuns = logs.filter((l: any) => l.status === 'failed' || l.recordsFailed > 0).length;
+  const totalProcessed = logs.reduce((acc: number, l: any) => acc + (Number(l.recordsProcessed) || 0), 0);
 
   return (
     <>
-      <div className="shop-detail-drawer-header">
-        <h2 style={{ margin: 0 }}>Sync History</h2>
-        <button className="mall-modal-close" onClick={onClose} title="Close" style={{ marginLeft: 'auto' }}>✕</button>
+      <div className="shop-detail-drawer-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {meta.image ? (
+            <img src={meta.image} alt={meta.name} style={{ width: 24, height: 24, borderRadius: 4, objectFit: 'contain' }} />
+          ) : (
+            <span style={{ fontSize: 20 }}>{meta.icon}</span>
+          )}
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>{integration?.name || 'Sync History'}</h2>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Execution audit logs & record counts</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => refetch()}
+            title="Refresh sync history"
+            disabled={isFetching}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 9px', fontSize: 12 }}
+          >
+            <RefreshCw size={13} className={isFetching ? 'spin' : ''} />
+            <span>{isFetching ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+          <button className="mall-modal-close" onClick={onClose} title="Close">✕</button>
+        </div>
       </div>
-      <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+
+      {logs.length > 0 && (
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
+          padding: '12px 20px', background: 'var(--bg-card-subtle, rgba(255,255,255,0.02))',
+          borderBottom: '1px solid var(--border-color)', fontSize: 12,
+        }}>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Total Runs</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginTop: 2 }}>{totalRuns}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Successful</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#16a34a', marginTop: 2 }}>{successRuns}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>With Issues</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: failedRuns > 0 ? '#ef4444' : 'var(--text-secondary)', marginTop: 2 }}>{failedRuns}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Records</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginTop: 2 }}>{totalProcessed}</div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
         {logs.length === 0 ? (
-          <div className="mall-empty-state" style={{ padding: '40px 0' }}>
-            <Activity size={36} strokeWidth={1} />
-            <h3 style={{ fontSize: '1rem' }}>No sync logs yet</h3>
+          <div className="mall-empty-state" style={{ padding: '40px 0', textAlign: 'center' }}>
+            <Activity size={36} strokeWidth={1} style={{ opacity: 0.5, marginBottom: 8 }} />
+            <h3 style={{ fontSize: '1rem', margin: '0 0 4px' }}>No sync logs yet</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+              Trigger a manual sync or wait for scheduled background runs.
+            </p>
           </div>
         ) : (
-          <div className="intg-logs-list">
-            {logs.map((log: any) => (
-              <div key={log.id} className="intg-log-item">
-                <div className="intg-log-header">
-                  <span className={`intg-log-status ${log.status}`}>
-                    {log.status === 'success' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
-                    {log.status}
-                  </span>
-                  <span className="intg-log-type">{log.syncType.replace(/_/g, ' ')}</span>
-                  <span className="intg-log-dir">{log.direction} →</span>
+          <div className="intg-logs-list" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {logs.map((log: any) => {
+              const hasErrors = log.recordsFailed > 0 || (Array.isArray(log.errorDetails) && log.errorDetails.length > 0);
+              const isExpanded = expandedLogId === log.id;
+              const errorsList = Array.isArray(log.errorDetails) ? log.errorDetails : [];
+
+              return (
+                <div
+                  key={log.id}
+                  className="intg-log-item"
+                  style={{
+                    padding: '14px', borderRadius: 10,
+                    border: `1px solid ${hasErrors ? 'rgba(239, 68, 68, 0.2)' : 'var(--border-color)'}`,
+                    background: hasErrors ? 'rgba(239, 68, 68, 0.02)' : 'var(--card-bg)',
+                  }}
+                >
+                  <div className="intg-log-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className={`intg-log-status ${log.status}`} style={{ display: 'flex', alignItems: 'center', gap: 4, textTransform: 'capitalize' }}>
+                        {log.status === 'success' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+                        {log.status}
+                      </span>
+                      <span className="intg-log-type" style={{ fontSize: 12, fontWeight: 600, textTransform: 'capitalize' }}>
+                        {log.syncType?.replace(/_/g, ' ') || 'Sync'}
+                      </span>
+                    </div>
+                    <span className="intg-log-dir" style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                      {log.direction} →
+                    </span>
+                  </div>
+
+                  <div className="intg-log-stats" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                    <span>📊 <strong>{log.recordsProcessed}</strong> processed</span>
+                    <span>✅ <strong>{log.recordsCreated}</strong> created</span>
+                    {log.recordsUpdated > 0 && <span>🔄 <strong>{log.recordsUpdated}</strong> updated</span>}
+                    {log.recordsFailed > 0 && <span style={{ color: '#ef4444', fontWeight: 600 }}>❌ {log.recordsFailed} failed</span>}
+                    <span>⏱ {log.durationMs}ms</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-secondary)' }}>
+                    <span>{new Date(log.startedAt || log.completedAt).toLocaleString()}</span>
+                    {log.initiatedBy && <span>Trigger: {log.initiatedBy}</span>}
+                  </div>
+
+                  {/* Expandable error details */}
+                  {hasErrors && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                      <button
+                        onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          background: 'none', border: 'none', color: '#ef4444',
+                          fontSize: 12, cursor: 'pointer', padding: 0, fontWeight: 600,
+                        }}
+                      >
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        <span>{isExpanded ? 'Hide Error Details' : `Inspect ${errorsList.length || log.recordsFailed} Error(s)`}</span>
+                      </button>
+
+                      {isExpanded && (
+                        <div style={{
+                          marginTop: 8, padding: 10, borderRadius: 6,
+                          background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                          fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6,
+                        }}>
+                          {errorsList.length === 0 ? (
+                            <div style={{ color: '#ef4444' }}>Execution reported {log.recordsFailed} failure(s).</div>
+                          ) : (
+                            errorsList.map((errItem: any, idx: number) => (
+                              <div key={idx} style={{ padding: '4px 0', borderBottom: idx < errorsList.length - 1 ? '1px dashed rgba(239, 68, 68, 0.2)' : 'none' }}>
+                                {errItem.invoiceNumber && (
+                                  <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                    Invoice #{errItem.invoiceNumber} {errItem.customerCode ? `(Customer: ${errItem.customerCode})` : ''}
+                                  </div>
+                                )}
+                                <div style={{ color: '#ef4444', marginTop: 2, wordBreak: 'break-word' }}>
+                                  {errItem.error || JSON.stringify(errItem)}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="intg-log-stats">
-                  <span>📊 {log.recordsProcessed} processed</span>
-                  <span>✅ {log.recordsCreated} created</span>
-                  {log.recordsFailed > 0 && <span style={{ color: 'var(--error)' }}>❌ {log.recordsFailed} failed</span>}
-                  <span>⏱ {log.durationMs}ms</span>
-                </div>
-                <div className="intg-log-date">{new Date(log.startedAt).toLocaleString()}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -534,75 +829,177 @@ function SyncLogsDrawer({ integrationId, onClose }: { integrationId: string; onC
   );
 }
 
-function EntityMapDrawer({ integrationId, onClose }: { integrationId: string; onClose: () => void }) {
+function EntityMapDrawer({ integrationId, integration, onClose }: { integrationId: string; integration?: any; onClose: () => void }) {
   const [entityFilter, setEntityFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const { data: res, isLoading } = useGetEntityMapQuery({ integrationId, entityType: entityFilter || undefined });
+  const [deleteEntityMap] = useDeleteEntityMapMutation();
+  const confirmDialog = useConfirm();
+
   const maps = res?.data || [];
+  const meta = TYPE_META[integration?.integrationType] || { name: integration?.name || 'External System', icon: '🔗' };
+  const extSystemName = integration?.name || meta.name;
 
   const ENTITY_TYPES = ['tenant', 'invoice', 'property', 'unit', 'payment', 'vendor', 'lease'];
 
+  const filteredMaps = maps.filter((m: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const pmsVal = (m.externalRef || m.pmsId || m.localEntityId || '').toLowerCase();
+    const extVal = (m.externalId || m.externalEntityId || '').toLowerCase();
+    const typeVal = (m.entityType || '').toLowerCase();
+    return pmsVal.includes(q) || extVal.includes(q) || typeVal.includes(q);
+  });
+
+  const handleUnlink = async (mapId: string, itemDesc: string) => {
+    if (await confirmDialog(
+      `Unlink ${itemDesc}? The records in PMS and ${extSystemName} will remain intact, but the automatic synchronization bridge between them will be removed.`,
+      { danger: true }
+    )) {
+      try {
+        await deleteEntityMap(mapId).unwrap();
+        toast.success('Mapping unlinked successfully');
+      } catch (err: any) {
+        toast.error(err?.data?.message || err?.message || 'Failed to unlink mapping');
+      }
+    }
+  };
+
   return (
     <>
-      <div className="shop-detail-drawer-header">
-        <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-          <Database size={18} /> Entity Map
-        </h2>
-        <button className="mall-modal-close" onClick={onClose} title="Close" style={{ marginLeft: 'auto' }}>✕</button>
+      <div className="shop-detail-drawer-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {meta.image ? (
+            <img src={meta.image} alt={meta.name} style={{ width: 24, height: 24, borderRadius: 4, objectFit: 'contain' }} />
+          ) : (
+            <span style={{ fontSize: 20 }}>{meta.icon}</span>
+          )}
+          <div>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>
+              <Database size={16} /> {extSystemName} Entity Map
+            </h2>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              Cross-system identity bridging (PMS ID ↔ {extSystemName} ID)
+            </div>
+          </div>
+        </div>
+        <button className="mall-modal-close" onClick={onClose} title="Close">✕</button>
       </div>
-      <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-color)' }}>
+
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Search input */}
+        <div style={{ position: 'relative' }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder={`Filter by PMS ID, ${extSystemName} ID, or reference...`}
+            style={{
+              width: '100%', padding: '7px 10px 7px 30px', fontSize: 12,
+              borderRadius: 6, border: '1px solid var(--border-color)',
+              background: 'var(--bg-input, rgba(255,255,255,0.04))', color: 'var(--text-primary)',
+            }}
+          />
+        </div>
+
+        {/* Entity type filter chips */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button
             className={`condo-filter-chip ${!entityFilter ? 'active' : ''}`}
             onClick={() => setEntityFilter('')}
-          >All</button>
-          {ENTITY_TYPES.map(t => (
-            <button key={t} className={`condo-filter-chip ${entityFilter === t ? 'active' : ''}`}
-              onClick={() => setEntityFilter(t)}>{t}</button>
-          ))}
+          >All ({maps.length})</button>
+          {ENTITY_TYPES.map(t => {
+            const count = maps.filter((m: any) => m.entityType === t).length;
+            if (count === 0 && entityFilter !== t) return null;
+            return (
+              <button
+                key={t}
+                className={`condo-filter-chip ${entityFilter === t ? 'active' : ''}`}
+                onClick={() => setEntityFilter(t)}
+              >
+                {t} ({count})
+              </button>
+            );
+          })}
         </div>
       </div>
-      <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+
+      <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>Loading...</div>
-        ) : maps.length === 0 ? (
-          <div className="mall-empty-state" style={{ padding: '40px 0' }}>
-            <Map size={36} strokeWidth={1} />
-            <h3 style={{ fontSize: '1rem' }}>No entity mappings</h3>
-            <p style={{ fontSize: '0.85rem' }}>Mappings are created when data is synced with the external system.</p>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>Loading entity maps...</div>
+        ) : filteredMaps.length === 0 ? (
+          <div className="mall-empty-state" style={{ padding: '40px 0', textAlign: 'center' }}>
+            <Map size={36} strokeWidth={1} style={{ opacity: 0.5, marginBottom: 8 }} />
+            <h3 style={{ fontSize: '1rem', margin: '0 0 4px' }}>
+              {searchQuery ? 'No matching mappings' : 'No entity mappings found'}
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+              {searchQuery
+                ? 'Try adjusting your search criteria.'
+                : `Mappings are created when data is synchronized between PMS and ${extSystemName}.`}
+            </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {maps.map((m: any) => (
-              <div key={m.id} style={{
-                padding: '12px 14px', borderRadius: 10,
-                border: '1px solid var(--border-color)', background: 'var(--card-bg)',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{
-                    padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                    background: 'rgba(99,102,241,0.1)', color: '#6366f1', textTransform: 'uppercase',
-                  }}>{m.entityType}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                    {m.syncedAt ? new Date(m.syncedAt).toLocaleString() : '—'}
-                  </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {filteredMaps.map((m: any) => (
+              <div
+                key={m.id}
+                style={{
+                  padding: '12px 14px', borderRadius: 10,
+                  border: '1px solid var(--border-color)', background: 'var(--card-bg)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                      background: 'rgba(99,102,241,0.1)', color: '#6366f1', textTransform: 'uppercase',
+                    }}>{m.entityType}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {m.syncedAt ? new Date(m.syncedAt).toLocaleString() : '—'}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => handleUnlink(m.id, `${m.entityType} mapping (${m.externalId})`)}
+                    title="Unlink mapping"
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--text-secondary)',
+                      cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ef4444'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>PMS Record</div>
-                    <code style={{ fontSize: 12, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.04)' }}>
+                    <code style={{
+                      display: 'block', fontSize: 12, padding: '4px 8px', borderRadius: 4,
+                      background: 'rgba(255,255,255,0.04)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
                       {m.externalRef || m.pmsId?.slice(-12) || m.localEntityId?.slice(-12) || '—'}
                     </code>
                   </div>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: 16 }}>↔</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>V6 ERP ID</div>
-                    <code style={{ fontSize: 12, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.04)' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 16, flexShrink: 0 }}>↔</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>{extSystemName} ID</div>
+                    <code style={{
+                      display: 'block', fontSize: 12, padding: '4px 8px', borderRadius: 4,
+                      background: 'rgba(255,255,255,0.04)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      color: 'var(--primary, #3b82f6)',
+                    }}>
                       {m.externalId || m.externalEntityId || '—'}
                     </code>
                   </div>
                 </div>
-                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--success)' }}>
-                  ✅ Synced with V6 ERP
+
+                <div style={{ marginTop: 8, fontSize: 11, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <CheckCircle2 size={12} />
+                  <span>Bridged to {extSystemName}</span>
                 </div>
               </div>
             ))}
