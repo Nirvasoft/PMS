@@ -8,6 +8,7 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { format } from 'date-fns';
 import './CreateLeadPage.css';
 
 export default function CreateLeadPage() {
@@ -39,7 +40,7 @@ export default function CreateLeadPage() {
 
   const [loi, setLoi] = useState({
     // Applicant Information
-    applicantDate: '', shopName: '', address: '',
+    applicantDate: format(new Date(), 'yyyy-MM-dd'), shopName: '', address: '',
     businessType: '', doorType: '', productPlan: '',
   });
 
