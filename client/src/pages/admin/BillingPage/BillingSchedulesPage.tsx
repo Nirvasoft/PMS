@@ -10,7 +10,7 @@ import type { BillingSchedule } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
-import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil } from 'lucide-react';
+import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
@@ -37,18 +37,29 @@ const emptyForm: ScheduleForm = {
 export default function BillingSchedulesPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('active');
+  const [search, setSearch] = useState('');
   const selectedProperty = useSelectedPropertyFilter();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<ScheduleForm>(emptyForm);
   const [floorId, setFloorId] = useState('');
 
-  // Reset pagination whenever the sidebar's Active Property changes.
-  useEffect(() => { setPage(1); }, [selectedProperty]);
+  // Debounce the search box so typing doesn't fire a request per keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset pagination whenever Active Property, status, or search changes.
+  useEffect(() => { setPage(1); }, [selectedProperty, statusFilter, debouncedSearch]);
 
   const { data, isFetching } = useGetBillingSchedulesQuery({
     ...(statusFilter ? { status: statusFilter } : {}),
-    propertyId: selectedProperty || undefined, page, limit: 5,
+    propertyId: selectedProperty || undefined,
+    search: debouncedSearch || undefined,
+    page,
+    limit: 5,
   });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
@@ -274,6 +285,15 @@ export default function BillingSchedulesPage() {
           </PermissionGuard>
         </div>
         <div className="billing-filters" style={{ marginBottom: 0 }}>
+          <div className="search-wrap">
+            <Search size={15} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search tenant or unit…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
           {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select className="filter-select" value={selectedProperty} disabled>
             {!selectedProperty && <option value="">All Properties</option>}

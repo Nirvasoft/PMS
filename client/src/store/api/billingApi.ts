@@ -265,7 +265,7 @@ export const billingApi = createApi({
 
     // ── Billing Schedules ─────────────────
     getBillingSchedules: builder.query<PaginatedResponse<BillingSchedule>, {
-      leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; page?: number; limit?: number;
+      leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; search?: string; page?: number; limit?: number;
     }>({
       query: (params) => ({ url: '/billing/schedules', params }),
       providesTags: ['BillingSchedules'],

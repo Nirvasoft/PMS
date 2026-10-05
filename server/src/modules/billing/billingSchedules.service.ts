@@ -24,15 +24,26 @@ export class BillingSchedulesService {
   }
 
   async findAll(companyId: string, filters: {
-    leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; page?: number; limit?: number;
+    leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; search?: string; page?: number; limit?: number;
   }) {
-    const { leaseId, tenantId, propertyId, unitId, status, page = 1, limit = 20 } = filters;
+    const { leaseId, tenantId, propertyId, unitId, status, search, page = 1, limit = 20 } = filters;
     const where: any = { companyId };
     if (leaseId) where.leaseId = leaseId;
     if (tenantId) where.tenantId = tenantId;
     if (propertyId) where.propertyId = propertyId;
     if (unitId) where.unitId = unitId;
     if (status) where.status = status;
+    if (search?.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { tenant: { firstName: { contains: q, mode: 'insensitive' } } },
+        { tenant: { lastName: { contains: q, mode: 'insensitive' } } },
+        { tenant: { companyName: { contains: q, mode: 'insensitive' } } },
+        { unit: { unitNumber: { contains: q, mode: 'insensitive' } } },
+        { lease: { leaseNumber: { contains: q, mode: 'insensitive' } } },
+        { chargeType: { name: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
 
     const [data, total] = await Promise.all([
       prisma.billingSchedule.findMany({
