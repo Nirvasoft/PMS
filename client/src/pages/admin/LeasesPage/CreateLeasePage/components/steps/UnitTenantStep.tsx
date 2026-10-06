@@ -127,7 +127,9 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
   const tenantOptions = useMemo(() => {
     const list = (tenantsData?.data || []).map((t) => ({
       id: t.id,
-      label: t.displayName,
+      label: (t.tenantType === 'company' || t.tenantType === 'corporate')
+        ? (t.companyName || t.displayName)
+        : (t.lastName || t.displayName),
       sublabel: [t.email, t.mobile].filter(Boolean).join(' · ') || undefined,
     }));
     if (form.tenantId && !list.some((t) => t.id === form.tenantId)) {

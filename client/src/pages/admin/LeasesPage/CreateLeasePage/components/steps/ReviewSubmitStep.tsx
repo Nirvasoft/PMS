@@ -44,7 +44,6 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
         )}
         <ReviewRow label="Advance Start Date" value={form.startDate} />
         <ReviewRow label="Advance End Date"   value={form.endDate} />
-        <ReviewRow label="Handover Date"   value={form.handoverDate || '—'} />
         <ReviewRow label="Predefined Type" value={PREDEFINED_TYPE_LABELS[form.predefinedType] || '—'} />
         <ReviewRow label="Term"            value={termMonths ? `${termMonths} month${termMonths !== 1 ? 's' : ''}` : '—'} />
         <ReviewRow label="Rent"            value={`${form.currency} ${Number(form.rentAmount || 0).toLocaleString()}`} />

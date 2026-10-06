@@ -26,7 +26,7 @@ const todayISO = () => new Date().toISOString().split('T')[0];
 
 const INITIAL: FormState = {
   propertyId: '', propertyCode: '', floorNumber: '', unitId: '', unitCode: '', tenantId: '', tenantCode: '', templateId: '',
-  startDate: todayISO(), endDate: '', handoverDate: todayISO(), predefinedType: '',
+  startDate: todayISO(), endDate: '', handoverDate: '', predefinedType: '',
   billingCycle: 'monthly', billingDay: 1, paymentDueDays: 7,
   rentAmount: '', currency: 'USD', securityDeposit: '',
   escalationType: '', escalationValue: '', escalationFrequency: 'annual',
@@ -101,13 +101,14 @@ export default function CreateLeasePage() {
     }));
   }, [companyData]);
 
-  // Auto-bind Tenant Data to Customer (Company Name, Address, Signed Name, NRC)
+  // Auto-bind Tenant Data to Customer (Company Name, Address, NRC)
   useEffect(() => {
     if (!tenantData?.data) return;
     const t = tenantData.data;
-    const tenantName = t.companyName || t.displayName || [t.firstName, t.lastName].filter(Boolean).join(' ') || '';
+    const tenantName = (t.tenantType === 'company' || t.tenantType === 'corporate')
+      ? (t.companyName || t.displayName || '')
+      : (t.lastName || t.displayName || '');
     const tenantAddress = [t.addressLine1, t.addressLine2, t.city, t.state, t.postalCode, t.country].filter(Boolean).join(', ');
-    const signedName = t.contactPersonName || t.displayName || [t.firstName, t.lastName].filter(Boolean).join(' ') || '';
     const nrc = t.idNumber || '';
     setForm((f) => ({
       ...f,
@@ -115,7 +116,6 @@ export default function CreateLeasePage() {
         ...f.rentalAgreement,
         companyName: tenantName,
         customerAddress: tenantAddress,
-        customerSignedName: f.rentalAgreement.customerSignedName || signedName,
         customerNirc: f.rentalAgreement.customerNirc || nrc,
       },
     }));

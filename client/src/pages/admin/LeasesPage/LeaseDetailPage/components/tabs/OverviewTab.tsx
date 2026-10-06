@@ -20,7 +20,6 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
           )}
           <InfoRow label="Advance Start" value={new Date(lease.startDate).toLocaleDateString()} />
           <InfoRow label="Advance End"   value={new Date(lease.endDate).toLocaleDateString()} />
-          {lease.handoverDate && <InfoRow label="Handover"   value={new Date(lease.handoverDate).toLocaleDateString()} />}
           <InfoRow label="Term"          value={`${lease.leaseTermMonths} months`} />
           {lease.activatedAt && <InfoRow label="Activated"   value={new Date(lease.activatedAt).toLocaleString()} />}
           {lease.approvedAt  && <InfoRow label="Approved"    value={new Date(lease.approvedAt).toLocaleString()} />}

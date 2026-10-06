@@ -144,6 +144,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
     return previews;
   };
   const esc = previewEscalations();
+  const hasCharges = Boolean(form.unitId && form.leaseCharges.length > 0);
 
   return (
     <div className="step-content">
@@ -154,8 +155,9 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
         className="financials-row-1"
         style={{
           display: 'grid',
-          gridTemplateColumns:
-            form.paymentType === 'partially'
+          gridTemplateColumns: !hasCharges
+            ? 'repeat(2, 1fr)'
+            : form.paymentType === 'partially'
               ? 'repeat(4, 1fr)'
               : 'repeat(3, 1fr)',
           gap: 12,
@@ -288,7 +290,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
       </div>
 
       {/* ── 3. Rent Escalation ──────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: (form.unitId && form.leaseCharges.length > 0) ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12, marginTop: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: hasCharges ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12, marginTop: 12 }}>
         <div className="form-field">
           <label>Escalation Type</label>
           <select value={form.escalationType} onChange={(e) => set('escalationType', e.target.value)}>
@@ -331,7 +333,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
 
 
       {/* ── Lease Charges ── */}
-      {form.unitId && form.leaseCharges.length > 0 && (
+      {hasCharges && (
         <div className="unit-charges-panel" style={{ marginTop: 12, maxHeight: 160, overflowY: 'auto' }}>
           <div className="unit-charges-panel-head" style={{ display: 'none' }}>Charges <span className="optional">(optional)</span></div>
           <table className="charges-table">

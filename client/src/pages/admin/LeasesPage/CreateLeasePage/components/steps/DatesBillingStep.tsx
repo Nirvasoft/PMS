@@ -30,10 +30,6 @@ export function DatesBillingStep({ form, set }: { form: FormState; set: Function
           <input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} />
         </div>
         <div className="form-field">
-          <label>Handover Date <span className="optional">(optional)</span></label>
-          <input type="date" value={form.handoverDate} onChange={(e) => set('handoverDate', e.target.value)} />
-        </div>
-        <div className="form-field">
           <label>Predefined Type</label>
           <select value={form.predefinedType} onChange={(e) => set('predefinedType', e.target.value)}>
             <option value="">-</option>

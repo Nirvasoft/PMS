@@ -248,9 +248,10 @@ export class InvoicesService {
    */
   async createFromLease(lease: any, userId: string): Promise<any[]> {
     const created: any[] = [];
-
+    const now          = new Date();
+    const invoiceDate  = now;
     const startDate    = new Date(lease.startDate);
-    const dueDate      = new Date(startDate);
+    const dueDate      = new Date(invoiceDate);
     dueDate.setDate(dueDate.getDate() + (lease.paymentDueDays || 7));
     const periodTo     = lease.endDate ? new Date(lease.endDate) : null;
     const currencyRate: number | null = lease.currencyRate ? Number(lease.currencyRate) : null;
@@ -417,7 +418,7 @@ export class InvoicesService {
           invoiceNumber,
           invoiceType: 'invoice',
           status: 'issued',
-          invoiceDate: startDate,
+          invoiceDate,
           dueDate,
           periodFrom: startDate,
           periodTo,
@@ -438,7 +439,7 @@ export class InvoicesService {
           tenant: { select: { id: true, firstName: true, lastName: true } },
         },
       });
-      await this._postInvoiceGlAndNotify(inv, lease.companyId, startDate, currency);
+      await this._postInvoiceGlAndNotify(inv, lease.companyId, invoiceDate, currency);
       created.push(inv);
       logger.info(`[createFromLease] Rent+Deposit invoice ${invoiceNumber} (${subtotal} ${currency}) for lease ${lease.leaseNumber}`);
     }
@@ -490,7 +491,7 @@ export class InvoicesService {
           invoiceNumber,
           invoiceType: 'invoice',
           status: 'issued',
-          invoiceDate: startDate,
+          invoiceDate,
           dueDate,
           periodFrom: startDate,
           periodTo,
@@ -526,7 +527,7 @@ export class InvoicesService {
           tenant: { select: { id: true, firstName: true, lastName: true } },
         },
       });
-      await this._postInvoiceGlAndNotify(inv, lease.companyId, startDate, currency);
+      await this._postInvoiceGlAndNotify(inv, lease.companyId, invoiceDate, currency);
       created.push(inv);
       logger.info(`[createFromLease] Combined charges invoice ${invoiceNumber} (${totalChargesAmount} ${currency}) with ${eligibleSchedules.length} line(s) for lease ${lease.leaseNumber}`);
     }

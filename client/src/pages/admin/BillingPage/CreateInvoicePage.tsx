@@ -162,7 +162,11 @@ export default function CreateInvoicePage() {
     prevSelectedLeaseIdRef.current = selectedLease.id;
 
     if (form.leaseId !== selectedLease.id) {
-      setForm((f) => ({ ...f, leaseId: selectedLease.id }));
+      const dueDays = selectedLease.paymentDueDays || 7;
+      const invD = new Date(form.invoiceDate || new Date());
+      invD.setDate(invD.getDate() + dueDays);
+      const autoDue = invD.toISOString().split('T')[0];
+      setForm((f) => ({ ...f, leaseId: selectedLease.id, dueDate: f.dueDate || autoDue }));
     }
 
     const leaseTerm = selectedLease.leaseTermMonths || 1;
@@ -384,7 +388,24 @@ export default function CreateInvoicePage() {
             </div>
             <div className="inv-field">
               <label>Invoice Date <span className="req">*</span></label>
-              <input type="date" required value={form.invoiceDate} onChange={e => setForm({ ...form, invoiceDate: e.target.value })} />
+              <input
+                type="date"
+                required
+                value={form.invoiceDate}
+                onChange={e => {
+                  const newInvDate = e.target.value;
+                  const dueDays = selectedLease?.paymentDueDays ?? 7;
+                  let newDueDate = form.dueDate;
+                  if (newInvDate) {
+                    const d = new Date(newInvDate);
+                    if (!isNaN(d.getTime())) {
+                      d.setDate(d.getDate() + dueDays);
+                      newDueDate = d.toISOString().split('T')[0];
+                    }
+                  }
+                  setForm({ ...form, invoiceDate: newInvDate, dueDate: newDueDate });
+                }}
+              />
             </div>
             <div className="inv-field">
               <label>Due Date <span className="req">*</span></label>

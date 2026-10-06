@@ -101,7 +101,7 @@ export default function LeaseDetailPage() {
 
           {/* Action toolbar */}
           <div className="ld-actions">
-            <button className="btn-action-report" onClick={() => setShowReport(true)}><FileText size={14}/> Show Report</button>
+            <button className="btn-action-report" onClick={() => setShowReport(true)}><FileText size={14}/> Lease Form</button>
             <button className="btn-action-preview" onClick={() => setShowPreview(true)}><FileText size={14}/> Preview</button>
             {isDraft  && (
               <PermissionGuard permission="leases.update">
@@ -248,10 +248,9 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
       renterAddress:      lease.rentalAgreement?.renterAddress      || [lease.company?.addressLine1, lease.company?.addressLine2, lease.company?.city, lease.company?.state, lease.company?.postalCode, lease.company?.country].filter(Boolean).join(', ') || '',
       renterSignedName:   lease.rentalAgreement?.renterSignedName   || '',
       renterNirc:         lease.rentalAgreement?.renterNirc         || '',
-      renterDate:         lease.rentalAgreement?.renterDate         || '',
-      companyName:        lease.rentalAgreement?.companyName        || lease.tenant?.companyName || lease.tenant?.displayName || [lease.tenant?.firstName, lease.tenant?.lastName].filter(Boolean).join(' ') || '',
+      companyName:        lease.rentalAgreement?.companyName        || lease.tenant?.companyName || lease.tenant?.lastName || lease.tenant?.displayName || '',
       customerAddress:    lease.rentalAgreement?.customerAddress    || [lease.tenant?.addressLine1, lease.tenant?.addressLine2, lease.tenant?.city, lease.tenant?.state, lease.tenant?.postalCode, lease.tenant?.country].filter(Boolean).join(', ') || '',
-      customerSignedName: lease.rentalAgreement?.customerSignedName || lease.tenant?.contactPersonName || lease.tenant?.displayName || '',
+      customerSignedName: lease.rentalAgreement?.customerSignedName || '',
       customerNirc:       lease.rentalAgreement?.customerNirc       || (lease.tenant as any)?.idNumber || '',
       customerDate:       lease.rentalAgreement?.customerDate       || '',
       contractStartDate:  lease.rentalAgreement?.contractStartDate  || '',
@@ -322,7 +321,6 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
                 <label>Contract End<input type="date" value={form.rentalAgreement.contractEndDate} onChange={(e) => setRA('contractEndDate', e.target.value)} /></label>
                 <label>Advance Start<input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} /></label>
                 <label>Advance End<input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} /></label>
-                <label>Handover<input type="date" value={form.handoverDate} onChange={(e) => set('handoverDate', e.target.value)} /></label>
                 <label>Predefined Type
                   <select value={form.predefinedType} onChange={(e) => set('predefinedType', e.target.value)}>
                     <option value="">-</option>
