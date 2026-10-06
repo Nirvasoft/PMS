@@ -6,20 +6,23 @@ import { AppError } from '../../common/errors';
 import { generalImportService } from './generalImport.service';
 
 const p = (req: Request, key: string) => req.params[key] as string;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // Each import type is gated by the permission of the entity it writes.
-const PERMISSIONS: Record<string, { read: string; create: string }> = {
+const PERMISSIONS: Record<string, { read: string | string[]; create: string | string[] }> = {
   meter: { read: 'meter.read', create: 'meter.create' },
   unit: { read: 'unit.read', create: 'unit.create' },
   lease: { read: 'leases.read', create: 'leases.create' },
   tenant: { read: 'tenants.read', create: 'tenants.create' },
+  lead: { read: 'crm-leads.read', create: ['crm-leads.create', 'crm-leads.write'] },
 };
 
 const gate = (action: 'read' | 'create') => (req: Request, res: Response, next: NextFunction) => {
   const perm = PERMISSIONS[p(req, 'type')];
   if (!perm) return next(AppError.badRequest('Unknown import type', 'INVALID_IMPORT_TYPE'));
-  return requirePermission(perm[action])(req, res, next);
+  const target = perm[action];
+  const perms = Array.isArray(target) ? target : [target];
+  return requirePermission(...perms)(req, res, next);
 };
 
 /** Mounted at /properties/:propertyId/general-import */

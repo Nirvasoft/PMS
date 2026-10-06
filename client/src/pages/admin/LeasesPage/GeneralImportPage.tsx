@@ -17,6 +17,7 @@ const IMPORT_OPTIONS: { value: GeneralImportType; label: string }[] = [
   { value: 'unit', label: 'Unit Import' },
   { value: 'lease', label: 'Lease Import' },
   { value: 'tenant', label: 'Tenant Import' },
+  { value: 'lead', label: 'Lead Import' },
 ];
 
 function errMessage(e: unknown, fallback: string): string {
@@ -103,7 +104,7 @@ export default function GeneralImportPage() {
           <div className="page-icon-lg"><FileUp size={22} /></div>
           <div>
             <h1>General Import</h1>
-            <p>Import meters, units and leases from an Excel file</p>
+            <p>Import meters, units, leases, tenants and leads from an Excel file</p>
           </div>
         </div>
       </div>
@@ -175,7 +176,7 @@ export default function GeneralImportPage() {
                 </tr>
               </thead>
               <tbody>
-                {preview.rows.map((r) => (
+                {preview.rows.slice(0, 500).map((r) => (
                   <tr key={r.rowNo} className={r.status === 'error' ? 'gi-row-error' : r.status === 'skip' ? 'gi-row-skip' : ''}>
                     <td>{r.rowNo}</td>
                     {preview.columns.map((c) => <td key={c.key}>{r.data[c.key]}</td>)}
@@ -191,6 +192,11 @@ export default function GeneralImportPage() {
               </tbody>
             </table>
           </div>
+          {preview.rows.length > 500 && (
+            <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#6b7280' }}>
+              Showing first 500 of {preview.rows.length} rows in preview. All valid rows will be imported.
+            </p>
+          )}
         </div>
       )}
 
@@ -200,10 +206,14 @@ export default function GeneralImportPage() {
             <strong>{typeLabel} result</strong> ({result.total} rows in file)
           </div>
           <ul className="gi-stats">
-            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants' }[importType as string] ?? 'database'}</li>
-            {(importType === 'meter' || importType === 'tenant') && (
+            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants', lead: 'leads' }[importType as string] ?? 'database'}</li>
+            {(importType === 'meter' || importType === 'tenant' || importType === 'lead') && (
               <li><span className="gi-skip">{result.skipped}</span> record(s) skipped (
-                {importType === 'meter' ? 'Meter No + Floor + Category already exist' : 'Code already exists'})</li>
+                {importType === 'meter'
+                  ? 'Meter No + Floor + Category already exist'
+                  : importType === 'tenant'
+                  ? 'Code already exists'
+                  : 'LeadNumber already exists'})</li>
             )}
             {importType === 'meter' && (
               <li><span className="gi-ok">{result.linked}</span> unit connection(s) inserted into utility_meters

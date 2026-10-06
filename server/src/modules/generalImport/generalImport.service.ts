@@ -4,8 +4,8 @@ import { AppError } from '../../common/errors';
 import { unitsService, metersService } from '../units/units.service';
 import { leasesService } from '../leases/services/leases.service';
 
-export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant';
-export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant'];
+export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead';
+export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant', 'lead'];
 
 interface ColumnDef {
   header: string;
@@ -95,6 +95,25 @@ const COLUMNS: Record<ImportType, ColumnDef[]> = {
     { header: 'Security Deposit', key: 'securityDeposit', samples: [1000, 1500] },
     { header: 'Notes', key: 'notes', samples: ['Sample lease', ''] },
   ],
+  lead: [
+    { header: 'PropertyCode', key: 'propertyCode', samples: ['PRP-001', 'PRP-001'] },
+    { header: 'LeadNumber', key: 'leadNumber', required: true, samples: ['LD-2026-001', 'LD-2026-002'] },
+    { header: 'TenantCode', key: 'tenantCode', samples: ['TEN-001', 'TEN-002'] },
+    { header: 'TenantName', key: 'tenantName', required: true, samples: ['John Doe', 'Acme Corp'] },
+    { header: 'Email', key: 'email', samples: ['john@example.com', 'info@acme.com'] },
+    { header: 'Phone', key: 'phone', samples: ['012345678', '019876543'] },
+    { header: 'Mobile', key: 'mobile', samples: ['09123456789', '09987654321'] },
+    { header: 'unt_type', key: 'unitType', samples: ['1br', 'commercial'] },
+    { header: 'MinAreaSqft', key: 'minAreaSqft', samples: [500, 1000] },
+    { header: 'MaxAreaSqft', key: 'maxAreaSqft', samples: [800, 1500] },
+    { header: 'MinBudget', key: 'minBudget', samples: [1000, 2500] },
+    { header: 'MaxBudget', key: 'maxBudget', samples: [1500, 3500] },
+    { header: 'LeaseTermsMonth', key: 'leaseTermMonths', samples: [12, 24] },
+    { header: 'Address', key: 'address', samples: ['123 Main St', '456 Business Rd'] },
+    { header: 'door type', key: 'doorType', samples: ['glass_door', 'roller_shutter'] },
+    { header: 'productplan', key: 'productPlan', samples: ['plan_a', 'plan_b'] },
+    { header: 'applicantDate', key: 'applicantDate', samples: ['2026-01-15', '2026-02-01'] },
+  ],
 };
 
 // ── Cell helpers ─────────────────────────────────────────────────────────────
@@ -146,9 +165,20 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
   const cols = COLUMNS[type];
   const headerRow = sheet.getRow(1);
   const colIndex: Record<string, number> = {};
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s_-]+/g, '');
   headerRow.eachCell((cell, idx) => {
-    const h = cellToString(cell.value).toLowerCase();
-    const def = cols.find((c) => c.header.toLowerCase() === h);
+    const rawH = cellToString(cell.value);
+    const h = rawH.toLowerCase();
+    const nh = normalize(rawH);
+    const def = cols.find((c) => {
+      const ch = c.header.toLowerCase();
+      if (ch === h || normalize(c.header) === nh) return true;
+      if (c.key === 'unitType' && ['unttype', 'unittype'].includes(nh)) return true;
+      if (c.key === 'doorType' && nh === 'doortype') return true;
+      if (c.key === 'productPlan' && nh === 'productplan') return true;
+      if (c.key === 'applicantDate' && nh === 'applicantdate') return true;
+      return false;
+    });
     if (def) colIndex[def.key] = idx;
   });
   const missing = cols.filter((c) => c.required && !colIndex[c.key]).map((c) => c.header);
@@ -163,16 +193,18 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
   sheet.eachRow((row, rowNo) => {
     if (rowNo === 1) return;
     const data: Record<string, string> = {};
-    let any = false;
+    let hasData = false;
     for (const c of cols) {
       const v = colIndex[c.key] ? cellToString(row.getCell(colIndex[c.key]).value) : '';
       data[c.key] = v;
-      if (v) any = true;
+      if (v.trim() !== '') hasData = true;
     }
-    if (any) rows.push({ rowNo: rowNo - 1, data }); // header is Excel row 1, so first data row is #1
+    // Skip completely blank rows
+    if (hasData) {
+      rows.push({ rowNo: rowNo - 1, data }); // header is Excel row 1, so first data row is #1
+    }
   });
   if (rows.length === 0) throw AppError.badRequest('The file contains no data rows', 'EMPTY_FILE');
-  if (rows.length > 2000) throw AppError.badRequest('A maximum of 2000 rows can be imported at once', 'TOO_MANY_ROWS');
   return rows;
 }
 
@@ -312,6 +344,62 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
         const k = d.code.trim().toLowerCase();
         if (known.has(k)) { status = 'skip'; notes.push('Code already exists - insert will be skipped'); }
         else if (seen.has(k)) { status = 'skip'; notes.push('Code duplicated in file - insert will be skipped'); }
+        seen.add(k);
+      }
+      out.push({ rowNo: r.rowNo, data: d, status, errors: status === 'error' ? errors : notes });
+    }
+    return out;
+  }
+
+  if (type === 'lead') {
+    const [property, existingLeads, properties] = await Promise.all([
+      prisma.property.findUnique({ where: { id: propertyId }, select: { id: true, code: true } }),
+      prisma.lead.findMany({
+        where: { companyId, deletedAt: null, leadNumber: { not: null } },
+        select: { leadNumber: true },
+      }),
+      prisma.property.findMany({ where: { companyId }, select: { id: true, code: true } }),
+    ]);
+    const known = new Set(existingLeads.map((l) => l.leadNumber!.trim().toLowerCase()));
+    const seen = new Set<string>();
+    const propMap = new Map(properties.filter((p) => p.code).map((p) => [p.code!.toLowerCase(), p.id]));
+
+    for (const r of rows) {
+      const d = r.data;
+      const errors = checkRequired(type, d);
+      if (d.propertyCode) {
+        const targetPropId = propMap.get(d.propertyCode.toLowerCase());
+        if (!targetPropId) {
+          errors.push(`Property Code "${d.propertyCode}" not found`);
+        } else if (property?.code && d.propertyCode.toLowerCase() !== property.code.toLowerCase()) {
+          errors.push(`Property Code "${d.propertyCode}" does not match the selected property (${property.code})`);
+        }
+      }
+      if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) {
+        errors.push(`Invalid email format "${d.email}"`);
+      }
+      errors.push(...checkNumbers(d, ['minAreaSqft', 'maxAreaSqft', 'minBudget', 'maxBudget', 'leaseTermMonths'], {
+        minAreaSqft: 'MinAreaSqft',
+        maxAreaSqft: 'MaxAreaSqft',
+        minBudget: 'MinBudget',
+        maxBudget: 'MaxBudget',
+        leaseTermMonths: 'LeaseTermsMonth',
+      }));
+      if (d.applicantDate && !validDate(d.applicantDate)) {
+        errors.push('applicantDate must be a date (YYYY-MM-DD)');
+      }
+
+      let status: PreviewRow['status'] = errors.length ? 'error' : 'valid';
+      const notes: string[] = [];
+      if (status === 'valid' && d.leadNumber) {
+        const k = d.leadNumber.trim().toLowerCase();
+        if (known.has(k)) {
+          status = 'skip';
+          notes.push('LeadNumber already exists - insert will be skipped');
+        } else if (seen.has(k)) {
+          status = 'skip';
+          notes.push('LeadNumber duplicated in file - insert will be skipped');
+        }
         seen.add(k);
       }
       out.push({ rowNo: r.rowNo, data: d, status, errors: status === 'error' ? errors : notes });
@@ -528,6 +616,94 @@ export const generalImportService = {
               addressLine1: d.address || null,
             },
           });
+          known.add(k);
+          imported++;
+        } catch (e) {
+          failed.push({ rowNo: r.rowNo, errors: [(e as Error).message] });
+        }
+      }
+    } else if (type === 'lead') {
+      const [existingLeads, tenants, properties] = await Promise.all([
+        prisma.lead.findMany({
+          where: { companyId, deletedAt: null, leadNumber: { not: null } },
+          select: { leadNumber: true },
+        }),
+        prisma.tenant.findMany({
+          where: { companyId, deletedAt: null },
+          select: { id: true, code: true, firstName: true },
+        }),
+        prisma.property.findMany({
+          where: { companyId },
+          select: { id: true, code: true },
+        }),
+      ]);
+      const known = new Set(existingLeads.map((l) => l.leadNumber!.trim().toLowerCase()));
+      const tenantMap = new Map<string, string>();
+      tenants.forEach((t) => {
+        if (t.code) tenantMap.set(t.code.trim().toLowerCase(), t.id);
+        if (t.firstName) tenantMap.set(t.firstName.trim().toLowerCase(), t.id);
+      });
+      const propMap = new Map<string, string>();
+      properties.forEach((p) => {
+        if (p.code) propMap.set(p.code.trim().toLowerCase(), p.id);
+      });
+
+      for (const r of valid) {
+        const d = r.data;
+        const leadNum = d.leadNumber.trim();
+        const k = leadNum.toLowerCase();
+        if (known.has(k)) {
+          skipped++;
+          continue;
+        }
+
+        const targetPropertyId = (d.propertyCode && propMap.get(d.propertyCode.trim().toLowerCase())) || propertyId;
+        const matchedTenantId = d.tenantCode ? tenantMap.get(d.tenantCode.trim().toLowerCase()) : undefined;
+
+        const loiDetails: Record<string, unknown> = {};
+        if (d.address) loiDetails.address = d.address;
+        if (d.doorType) loiDetails.doorType = d.doorType;
+        if (d.productPlan) loiDetails.productPlan = d.productPlan;
+        if (d.applicantDate) loiDetails.applicantDate = d.applicantDate;
+        if (d.tenantCode) loiDetails.tenantCode = d.tenantCode;
+        if (d.tenantName) loiDetails.tenantName = d.tenantName;
+
+        try {
+          const lead = await prisma.lead.create({
+            data: {
+              companyId,
+              propertyId: targetPropertyId,
+              leadNumber: leadNum,
+              firstName: d.tenantCode || null,
+              lastName: d.tenantName || null,
+              email: d.email || null,
+              phone: d.phone || null,
+              mobile: d.mobile || null,
+              unitTypePreference: d.unitType || null,
+              minAreaSqft: optNum(d.minAreaSqft),
+              maxAreaSqft: optNum(d.maxAreaSqft),
+              budgetMin: optNum(d.minBudget),
+              budgetMax: optNum(d.maxBudget),
+              leaseTermMonths: optNum(d.leaseTermMonths),
+              loiDetails: Object.keys(loiDetails).length > 0 ? (loiDetails as any) : undefined,
+              stage: 'new',
+              priority: 'medium',
+              source: 'import',
+              convertedTenantId: matchedTenantId || null,
+            },
+          });
+          try {
+            await prisma.leadActivity.create({
+              data: {
+                leadId: lead.id,
+                activityType: 'note',
+                description: 'Lead imported via General Import',
+                performedBy: userId,
+              },
+            });
+          } catch {
+            // Non-critical
+          }
           known.add(k);
           imported++;
         } catch (e) {
