@@ -3,9 +3,10 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { unitsService, metersService } from '../units/units.service';
 import { leasesService } from '../leases/services/leases.service';
+import { glService } from '../gl/gl.service';
 
-export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead';
-export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant', 'lead'];
+export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice';
+export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant', 'lead', 'invoice'];
 
 interface ColumnDef {
   header: string;
@@ -114,6 +115,26 @@ const COLUMNS: Record<ImportType, ColumnDef[]> = {
     { header: 'productplan', key: 'productPlan', samples: ['plan_a', 'plan_b'] },
     { header: 'applicantDate', key: 'applicantDate', samples: ['2026-01-15', '2026-02-01'] },
   ],
+  invoice: [
+    { header: 'InvoiceDate', key: 'invoiceDate', required: true, samples: ['2026-03-01', '2026-03-01', '2026-03-05'] },
+    { header: 'Invoice', key: 'invoiceNumber', required: true, samples: ['INV-2026-001', 'INV-2026-001', 'INV-2026-002'] },
+    { header: 'TenantCode', key: 'tenantCode', required: true, samples: ['TEN-001', 'TEN-001', 'TEN-002'] },
+    { header: 'TenantName', key: 'tenantName', samples: ['John Smith', 'John Smith', 'Acme Corp'] },
+    { header: 'Property', key: 'propertyCode', samples: ['PRP-001', 'PRP-001', 'PRP-001'] },
+    { header: 'Floor', key: 'floor', samples: ['1F', '1F', '2F'] },
+    { header: 'Unit', key: 'unitNumber', samples: ['A-101', 'A-101', 'A-201'] },
+    { header: 'Period', key: 'period', samples: ['2026-03-01 - 2026-03-31', '2026-03-01 - 2026-03-31', '2026-03-01 - 2026-03-31'] },
+    { header: 'Currency', key: 'currency', samples: ['USD', 'USD', 'USD'] },
+    { header: 'Description', key: 'description', samples: ['Monthly Rent & Electricity', 'Monthly Rent & Electricity', 'Office Space Rental'] },
+    { header: 'ChargeType', key: 'chargeType', required: true, samples: ['RENT', 'ELECTRICITY', 'RENT'] },
+    { header: 'Qty', key: 'quantity', samples: [1, 100, 1] },
+    { header: 'Unit Price', key: 'unitPrice', samples: [1000, 2.5, 2500] },
+    { header: 'Tax', key: 'tax', samples: [50, 12.5, 125] },
+    { header: 'Total', key: 'total', samples: [1050, 262.5, 2625] },
+    { header: 'Paid', key: 'paid', samples: [0, 0, 2625] },
+    { header: 'Status', key: 'status', samples: ['issued', 'issued', 'paid'] },
+    { header: 'DueDate', key: 'dueDate', required: true, samples: ['2026-03-15', '2026-03-15', '2026-03-20'] },
+  ],
 };
 
 // ── Cell helpers ─────────────────────────────────────────────────────────────
@@ -142,6 +163,12 @@ function num(raw: string): number | null {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const validDate = (s: string) => DATE_RE.test(s) && !isNaN(new Date(s).getTime());
+function parseDateStr(s?: string): Date | null {
+  if (!s || !s.trim()) return null;
+  const clean = s.trim().replace(/\//g, '-');
+  const d = new Date(clean);
+  return isNaN(d.getTime()) ? null : d;
+}
 const norm = (s: string) => s.trim().toLowerCase().replace(/[\s-]+/g, '_');
 
 // ── Core ─────────────────────────────────────────────────────────────────────
@@ -177,6 +204,21 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
       if (c.key === 'doorType' && nh === 'doortype') return true;
       if (c.key === 'productPlan' && nh === 'productplan') return true;
       if (c.key === 'applicantDate' && nh === 'applicantdate') return true;
+      if (c.key === 'invoiceNumber' && ['invoice', 'invoiceno', 'invoicenumber', 'inv', 'invno'].includes(nh)) return true;
+      if (c.key === 'invoiceDate' && ['invoicedate', 'invdate'].includes(nh)) return true;
+      if (c.key === 'tenantCode' && ['tenantcode', 'tencode', 'customerno'].includes(nh)) return true;
+      if (c.key === 'tenantName' && ['tenantname', 'tenname', 'customername'].includes(nh)) return true;
+      if (c.key === 'propertyCode' && ['property', 'propertycode', 'prop', 'propertyfloor'].includes(nh)) return true;
+      if (c.key === 'floor' && ['floor', 'floorlabel', 'floornumber'].includes(nh)) return true;
+      if (c.key === 'unitNumber' && ['unit', 'unitnumber', 'unitno'].includes(nh)) return true;
+      if (c.key === 'period' && ['period', 'billingperiod'].includes(nh)) return true;
+      if (c.key === 'unitPeriod' && ['unitperiod'].includes(nh)) return true;
+      if (c.key === 'chargeType' && ['chargetype', 'chargetypename'].includes(nh)) return true;
+      if (c.key === 'quantity' && ['qty', 'quantity', 'count'].includes(nh)) return true;
+      if (c.key === 'unitPrice' && ['unitprice', 'price', 'rate'].includes(nh)) return true;
+      if (c.key === 'paid' && ['paid', 'paidamount'].includes(nh)) return true;
+      if (c.key === 'status' && ['status', 'paidstatus', 'paymentstatus', 'invoicestatus'].includes(nh)) return true;
+      if (c.key === 'dueDate' && ['duedate', 'due_date'].includes(nh)) return true;
       return false;
     });
     if (def) colIndex[def.key] = idx;
@@ -407,6 +449,73 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
     return out;
   }
 
+  if (type === 'invoice') {
+    const [existingInvoices, properties, tenants] = await Promise.all([
+      prisma.invoice.findMany({ where: { companyId }, select: { invoiceNumber: true } }),
+      prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
+      prisma.tenant.findMany({
+        where: { companyId, deletedAt: null },
+        select: { id: true, code: true, isBlacklisted: true },
+      }),
+    ]);
+
+    const known = new Set(existingInvoices.map((inv) => inv.invoiceNumber.trim().toLowerCase()));
+    const tenantMap = new Map(tenants.filter((t) => t.code).map((t) => [t.code!.toLowerCase(), t.isBlacklisted]));
+
+    const invCountInFile = new Map<string, number>();
+    for (const r of rows) {
+      const inv = (r.data.invoiceNumber || '').trim().toLowerCase();
+      if (inv) invCountInFile.set(inv, (invCountInFile.get(inv) || 0) + 1);
+    }
+    const invLineSeen = new Map<string, number>();
+
+    for (const r of rows) {
+      const d = r.data;
+      const errors = checkRequired(type, d);
+
+      if (d.invoiceDate && !validDate(d.invoiceDate) && !parseDateStr(d.invoiceDate)) {
+        errors.push('InvoiceDate must be a valid date (YYYY-MM-DD)');
+      }
+      if (d.dueDate && !validDate(d.dueDate) && !parseDateStr(d.dueDate)) {
+        errors.push('DueDate must be a valid date (YYYY-MM-DD)');
+      }
+      errors.push(...checkNumbers(d, ['quantity', 'unitPrice', 'tax', 'total'], {
+        quantity: 'Qty',
+        unitPrice: 'Unit Price',
+        tax: 'Tax',
+        total: 'Total',
+      }));
+      if (d.paid && isNaN(num(d.paid)!) && !['yes', 'no', 'paid', 'unpaid', 'true', 'false'].includes(d.paid.toLowerCase().trim())) {
+        errors.push('Paid must be a number or status (e.g. 0, paid, unpaid)');
+      }
+
+      if (d.tenantCode) {
+        const bl = tenantMap.get(d.tenantCode.trim().toLowerCase());
+        if (bl === true) errors.push(`Tenant "${d.tenantCode}" is blacklisted`);
+      }
+
+      let status: PreviewRow['status'] = errors.length ? 'error' : 'valid';
+      const notes: string[] = [];
+
+      if (d.invoiceNumber) {
+        const k = d.invoiceNumber.trim().toLowerCase();
+        const totalLines = invCountInFile.get(k) || 1;
+        const currentLine = (invLineSeen.get(k) || 0) + 1;
+        invLineSeen.set(k, currentLine);
+
+        if (known.has(k)) {
+          status = 'skip';
+          notes.push(`Invoice "${d.invoiceNumber.trim()}" already exists - insert will be skipped`);
+        } else if (totalLines > 1) {
+          notes.push(`Multi-line invoice (Line ${currentLine}/${totalLines})`);
+        }
+      }
+
+      out.push({ rowNo: r.rowNo, data: d, status, errors: status === 'error' ? errors : notes });
+    }
+    return out;
+  }
+
   // lease
   const [units, tenants] = await Promise.all([
     prisma.unit.findMany({ where: { propertyId, deletedAt: null }, select: { unitNumber: true, status: true } }),
@@ -460,8 +569,9 @@ export const generalImportService = {
     header.eachCell((cell, idx) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cols[idx - 1].required ? 'FF1D4ED8' : 'FF64748B' } };
     });
-    for (let i = 0; i < 2; i++) {
-      ws.addRow(Object.fromEntries(cols.map((c) => [c.key, c.samples[i]])));
+    const sampleCount = Math.max(...cols.map((c) => c.samples.length));
+    for (let i = 0; i < sampleCount; i++) {
+      ws.addRow(Object.fromEntries(cols.map((c) => [c.key, c.samples[i] !== undefined ? c.samples[i] : ''])));
     }
     ws.views = [{ state: 'frozen', ySplit: 1 }];
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
@@ -708,6 +818,278 @@ export const generalImportService = {
           imported++;
         } catch (e) {
           failed.push({ rowNo: r.rowNo, errors: [(e as Error).message] });
+        }
+      }
+    } else if (type === 'invoice') {
+      const [existingInvoices, properties, tenants, chargeTypes] = await Promise.all([
+        prisma.invoice.findMany({ where: { companyId }, select: { invoiceNumber: true } }),
+        prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
+        prisma.tenant.findMany({
+          where: { companyId, deletedAt: null },
+          select: { id: true, code: true, firstName: true, lastName: true, companyName: true },
+        }),
+        prisma.chargeType.findMany({
+          where: { OR: [{ companyId }, { companyId: null }] },
+          select: { id: true, code: true, name: true },
+        }),
+      ]);
+
+      const known = new Set(existingInvoices.map((inv) => inv.invoiceNumber.trim().toLowerCase()));
+      const propByCode = new Map(properties.filter((p) => p.code).map((p) => [p.code!.toLowerCase(), p.id]));
+      const propByName = new Map(properties.map((p) => [p.name.toLowerCase(), p.id]));
+
+      const tenantMap = new Map<string, typeof tenants[0]>();
+      tenants.forEach((t) => {
+        if (t.code) tenantMap.set(t.code.trim().toLowerCase(), t);
+        if (t.companyName) tenantMap.set(t.companyName.trim().toLowerCase(), t);
+        const fullName = `${t.firstName || ''} ${t.lastName || ''}`.trim().toLowerCase();
+        if (fullName) tenantMap.set(fullName, t);
+        if (t.firstName) tenantMap.set(t.firstName.trim().toLowerCase(), t);
+      });
+
+      const chargeTypeMap = new Map<string, string>();
+      chargeTypes.forEach((ct) => {
+        chargeTypeMap.set(ct.code.trim().toLowerCase(), ct.id);
+        chargeTypeMap.set(ct.name.trim().toLowerCase(), ct.id);
+      });
+
+      // Group rows by invoice number
+      const groups = new Map<string, typeof valid>();
+      for (const r of valid) {
+        const invNum = r.data.invoiceNumber.trim();
+        const k = invNum.toLowerCase();
+        if (!groups.has(k)) {
+          groups.set(k, []);
+        }
+        groups.get(k)!.push(r);
+      }
+
+      for (const [invKey, groupRows] of groups.entries()) {
+        const headerRow = groupRows[0];
+        const d = headerRow.data;
+        const invNum = d.invoiceNumber.trim();
+
+        if (known.has(invKey)) {
+          skipped++;
+          notes.push({ rowNo: headerRow.rowNo, message: `Invoice "${invNum}" already exists - skipped` });
+          continue;
+        }
+
+        try {
+          // Resolve Property
+          let targetPropertyId = propertyId;
+          const propRaw = (d.propertyCode || d.property || d.propertyFloor || '').trim().toLowerCase();
+          if (propRaw) {
+            const rawProp = propRaw.split(/[\/\-,]/)[0].trim().toLowerCase();
+            const matched = propByCode.get(rawProp) || propByName.get(rawProp);
+            if (matched) targetPropertyId = matched;
+          }
+
+          // Resolve Tenant
+          let targetTenantId: string | null = null;
+          if (d.tenantCode) {
+            const t = tenantMap.get(d.tenantCode.trim().toLowerCase());
+            if (t) targetTenantId = t.id;
+          }
+          if (!targetTenantId && d.tenantName) {
+            const t = tenantMap.get(d.tenantName.trim().toLowerCase());
+            if (t) targetTenantId = t.id;
+          }
+          if (!targetTenantId) {
+            const createdTenant = await prisma.tenant.create({
+              data: {
+                companyId,
+                code: d.tenantCode?.trim() || null,
+                firstName: d.tenantName?.trim() || d.tenantCode?.trim() || 'Imported Tenant',
+                tenantType: 'individual',
+              },
+            });
+            targetTenantId = createdTenant.id;
+            if (createdTenant.code) tenantMap.set(createdTenant.code.toLowerCase(), createdTenant as any);
+          }
+
+          // Resolve Unit and Lease
+          let resolvedUnitId: string | null = null;
+          let resolvedLeaseId: string | null = null;
+          let periodFrom: Date | null = null;
+          let periodTo: Date | null = null;
+
+          const unitRaw = (d.unitNumber || d.unit || d.unitPeriod || '').trim();
+          if (unitRaw) {
+            const unitCandidate = unitRaw.split(/[\(\s]/)[0].trim();
+            if (unitCandidate) {
+              const u = await prisma.unit.findFirst({
+                where: { propertyId: targetPropertyId, unitNumber: { equals: unitCandidate, mode: 'insensitive' } },
+                select: { id: true },
+              });
+              if (u) {
+                resolvedUnitId = u.id;
+                const activeLease = await prisma.lease.findFirst({
+                  where: { tenantId: targetTenantId, unitId: u.id, status: { in: ['active', 'draft', 'pending'] } },
+                  select: { id: true },
+                });
+                if (activeLease) resolvedLeaseId = activeLease.id;
+              }
+            }
+          }
+
+          const periodRaw = (d.period || d.unitPeriod || '').trim();
+          if (periodRaw) {
+            const dateMatches = periodRaw.match(/\d{4}[-\/]\d{2}[-\/]\d{2}/g);
+            if (dateMatches && dateMatches.length >= 2) {
+              periodFrom = parseDateStr(dateMatches[0]);
+              periodTo = parseDateStr(dateMatches[1]);
+            } else if (dateMatches && dateMatches.length === 1) {
+              periodFrom = parseDateStr(dateMatches[0]);
+            } else {
+              const ym = periodRaw.match(/^(\d{4})[-\/](\d{1,2})$/);
+              if (ym) {
+                const y = parseInt(ym[1], 10);
+                const m = parseInt(ym[2], 10);
+                periodFrom = new Date(Date.UTC(y, m - 1, 1));
+                periodTo = new Date(Date.UTC(y, m, 0));
+              }
+            }
+          }
+
+          const invDate = parseDateStr(d.invoiceDate) || new Date();
+          const dueDate = parseDateStr(d.dueDate) || new Date(invDate.getTime() + 14 * 86400000);
+
+          const currency = (d.currency?.trim() || 'USD').toUpperCase();
+          const rawStatus = norm(d.status || d.paidStatus || 'issued');
+          const rawPaid = (d.paid ?? '').toString().trim().toLowerCase();
+          const isPaidText = ['paid', 'yes', 'true'].includes(rawPaid);
+          const paidNum = num(d.paid);
+
+          let subtotal = 0;
+          let invoiceTax = 0;
+          let invoiceTotal = 0;
+          const lineItems: any[] = [];
+
+          for (let idx = 0; idx < groupRows.length; idx++) {
+            const lineRow = groupRows[idx];
+            const ld = lineRow.data;
+            const ctRaw = ld.chargeType?.trim() || 'RENT';
+            const ctKey = ctRaw.toLowerCase();
+
+            let ctId = chargeTypeMap.get(ctKey);
+            if (!ctId) {
+              const newCt = await prisma.chargeType.create({
+                data: {
+                  companyId,
+                  code: ctRaw.toUpperCase().replace(/\s+/g, '_').slice(0, 30),
+                  name: ctRaw,
+                  category: 'other',
+                  isActive: true,
+                },
+              });
+              ctId = newCt.id;
+              chargeTypeMap.set(ctKey, ctId);
+              chargeTypeMap.set(newCt.code.toLowerCase(), ctId);
+            }
+
+            const qty = num(ld.quantity) || 1;
+            const unitPrice = num(ld.unitPrice) || 0;
+            const tax = num(ld.tax) || 0;
+            const total = num(ld.total);
+
+            let amount = Math.round(qty * unitPrice * 100) / 100;
+            if (amount === 0 && total !== null && total > 0) {
+              amount = Math.max(0, total - tax);
+            }
+            const lineTotal = total !== null ? total : amount + tax;
+            const taxRate = amount > 0 && tax > 0 ? Math.round((tax / amount) * 10000) / 10000 : 0;
+
+            subtotal += amount;
+            invoiceTax += tax;
+            invoiceTotal += lineTotal;
+
+            lineItems.push({
+              chargeTypeId: ctId,
+              description: ld.description || ld.chargeType || 'Charge item',
+              quantity: qty,
+              unitPrice: unitPrice || (qty > 0 ? amount / qty : 0),
+              discountPct: 0,
+              amount,
+              taxRate,
+              taxAmount: tax,
+              lineTotal,
+              periodFrom,
+              periodTo,
+              sortOrder: idx,
+            });
+          }
+
+          const finalStatus = ['paid'].includes(rawStatus) || isPaidText || (paidNum !== null && paidNum > 0 && paidNum >= invoiceTotal)
+            ? 'paid'
+            : ['draft'].includes(rawStatus)
+            ? 'draft'
+            : ['partially_paid', 'partial'].includes(rawStatus) || (paidNum !== null && paidNum > 0 && paidNum < invoiceTotal)
+            ? 'partially_paid'
+            : ['overdue'].includes(rawStatus)
+            ? 'overdue'
+            : ['void'].includes(rawStatus)
+            ? 'void'
+            : 'issued';
+
+          let paidAmount = 0;
+          if (paidNum !== null && !isNaN(paidNum)) {
+            paidAmount = Math.min(invoiceTotal, Math.max(0, paidNum));
+          } else if (finalStatus === 'paid' || isPaidText) {
+            paidAmount = invoiceTotal;
+          }
+
+          const createdInvoice = await prisma.invoice.create({
+            data: {
+              companyId,
+              propertyId: targetPropertyId,
+              unitId: resolvedUnitId,
+              leaseId: resolvedLeaseId,
+              tenantId: targetTenantId,
+              invoiceNumber: invNum,
+              invoiceType: 'invoice',
+              status: finalStatus,
+              invoiceDate: invDate,
+              dueDate,
+              periodFrom,
+              periodTo,
+              subtotal,
+              taxAmount: invoiceTax,
+              totalAmount: invoiceTotal,
+              paidAmount,
+              currency,
+              notes: d.description || null,
+              createdBy: userId,
+              lines: { create: lineItems },
+            },
+          });
+
+          try {
+            const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
+              { accountCode: '1100', debit: invoiceTotal, credit: 0, description: `AR — ${invNum}` },
+              { accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invNum}` },
+            ];
+            if (invoiceTax > 0) {
+              glLines.push({ accountCode: '2200', debit: 0, credit: invoiceTax, description: `Tax Payable — ${invNum}` });
+            }
+            await glService.postAutoJournal({
+              companyId,
+              entryDate: invDate,
+              entryType: 'ar_invoice',
+              description: `AR Invoice ${invNum}`,
+              referenceType: 'invoice',
+              referenceId: createdInvoice.id,
+              propertyId: targetPropertyId,
+              lines: glLines,
+            });
+          } catch {
+            // Non-critical GL auto-post failure
+          }
+
+          known.add(invKey);
+          imported++;
+        } catch (e) {
+          groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [(e as Error).message] }));
         }
       }
     } else {

@@ -15,6 +15,7 @@ const PERMISSIONS: Record<string, { read: string | string[]; create: string | st
   lease: { read: 'leases.read', create: 'leases.create' },
   tenant: { read: 'tenants.read', create: 'tenants.create' },
   lead: { read: 'crm-leads.read', create: ['crm-leads.create', 'crm-leads.write'] },
+  invoice: { read: ['billing-invoices.read', 'billing.read'], create: ['billing-invoices.write', 'billing.create'] },
 };
 
 const gate = (action: 'read' | 'create') => (req: Request, res: Response, next: NextFunction) => {

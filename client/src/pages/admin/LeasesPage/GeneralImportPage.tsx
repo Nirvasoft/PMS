@@ -18,6 +18,7 @@ const IMPORT_OPTIONS: { value: GeneralImportType; label: string }[] = [
   { value: 'lease', label: 'Lease Import' },
   { value: 'tenant', label: 'Tenant Import' },
   { value: 'lead', label: 'Lead Import' },
+  { value: 'invoice', label: 'Invoice Import' },
 ];
 
 function errMessage(e: unknown, fallback: string): string {
@@ -104,7 +105,7 @@ export default function GeneralImportPage() {
           <div className="page-icon-lg"><FileUp size={22} /></div>
           <div>
             <h1>General Import</h1>
-            <p>Import meters, units, leases, tenants and leads from an Excel file</p>
+            <p>Import meters, units, leases, tenants, leads and invoices from an Excel file</p>
           </div>
         </div>
       </div>
@@ -206,14 +207,16 @@ export default function GeneralImportPage() {
             <strong>{typeLabel} result</strong> ({result.total} rows in file)
           </div>
           <ul className="gi-stats">
-            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants', lead: 'leads' }[importType as string] ?? 'database'}</li>
-            {(importType === 'meter' || importType === 'tenant' || importType === 'lead') && (
+            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants', lead: 'leads', invoice: 'invoices' }[importType as string] ?? 'database'}</li>
+            {(importType === 'meter' || importType === 'tenant' || importType === 'lead' || importType === 'invoice') && (
               <li><span className="gi-skip">{result.skipped}</span> record(s) skipped (
                 {importType === 'meter'
                   ? 'Meter No + Floor + Category already exist'
                   : importType === 'tenant'
                   ? 'Code already exists'
-                  : 'LeadNumber already exists'})</li>
+                  : importType === 'lead'
+                  ? 'LeadNumber already exists'
+                  : 'Invoice already exists'})</li>
             )}
             {importType === 'meter' && (
               <li><span className="gi-ok">{result.linked}</span> unit connection(s) inserted into utility_meters
