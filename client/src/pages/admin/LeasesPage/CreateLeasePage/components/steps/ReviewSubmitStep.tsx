@@ -215,7 +215,7 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
           <ReviewRow label="Signed Name" value={ra.renterSignedName  || '—'} />
           <ReviewRow label="NRC"         value={ra.renterNirc        || '—'} />
           <ReviewRow label="Date"        value={ra.renterDate        || '—'} />
-          <ReviewRow label="Shop Name"   value={ra.shopName          || '—'} />
+          {ra.shopName ? <ReviewRow label="Shop Name" value={ra.shopName} /> : null}
         </div>
         <div className="review-ra-divider" />
         <div className="review-ra-col">

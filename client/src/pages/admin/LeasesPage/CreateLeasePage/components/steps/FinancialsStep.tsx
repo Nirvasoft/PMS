@@ -150,7 +150,17 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
       <h3>Financial Terms</h3>
 
       {/* ── Row 1: Amounts + Payment Type ─── */}
-      <div style={{ display: 'grid', gridTemplateColumns: (form.unitId && form.leaseCharges.length > 0) ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 12 }}>
+      <div
+        className="financials-row-1"
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            form.paymentType === 'partially'
+              ? 'repeat(4, 1fr)'
+              : 'repeat(3, 1fr)',
+          gap: 12,
+        }}
+      >
         {/* Base Rent */}
         <div className="form-field">
           <label>Base Rent *</label>
@@ -163,9 +173,29 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
             <input type="text" inputMode="decimal" placeholder="e.g. 3,500"
               value={formatMoneyDisplay(form.rentAmount)}
               onChange={(e) => set('rentAmount', sanitizeMoneyInput(e.target.value))}
-              style={form.currency ? { borderRadius: '0 8px 8px 0', flex: 1 } : {}} />
+              style={form.currency ? { borderRadius: '0 8px 8px 0', flex: 1 } : { flex: 1 }} />
           </div>
-          {prefilledFromUnit && <span className="field-hint">Pre-filled from unit rate</span>}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 3 }}>
+            {prefilledFromUnit ? (
+              <span className="field-hint" style={{ marginTop: 0 }}>Pre-filled from unit rate</span>
+            ) : <span />}
+            {baseCurrencyCode && baseAmount != null && rentAmountNum > 0 && baseCurrencyCode !== form.currency && (
+              <span
+                style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  color: 'var(--accent, #34d399)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  whiteSpace: 'nowrap',
+                }}
+                title={`Equivalent in Base Currency (${baseCurrencyCode})`}
+              >
+                ≈ {baseCurrencyCode} {formatMoneyDisplay(baseAmount.toFixed(2))}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Security Deposit */}
@@ -180,96 +210,81 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
             <input type="text" inputMode="decimal" placeholder="e.g. 7,000"
               value={formatMoneyDisplay(form.securityDeposit)}
               onChange={(e) => set('securityDeposit', sanitizeMoneyInput(e.target.value))}
-              style={form.currency ? { borderRadius: '0 8px 8px 0', flex: 1 } : {}} />
-          </div>
-        </div>
-
-        {/* Base Amount (read-only) */}
-        <div className="form-field">
-          <label style={{ color: 'var(--text-muted)' }}>Base Amount</label>
-          <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
-            {baseCurrencyCode && (
-              <span title="Base Currency" className="currency-addon">
-                {baseCurrencyCode}
-              </span>
-            )}
-            <input type="text" readOnly title="Calculated from currency rate"
-              value={baseAmount != null ? formatMoneyDisplay(baseAmount.toFixed(2)) : ''}
-              placeholder={baseCurrencyCode ? `— no rate set for ${form.currency || 'this currency'} —` : '— not set in Currency Setup —'}
-              style={{ cursor: 'not-allowed', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', ...(baseCurrencyCode ? { borderRadius: '0 8px 8px 0', flex: 1 } : {}) }} />
+              style={form.currency ? { borderRadius: '0 8px 8px 0', flex: 1 } : { flex: 1 }} />
           </div>
         </div>
 
         {/* Payment Type */}
         <div className="form-field">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <label>Payment Type</label>
-            {form.paymentType === 'partially' && Number(form.rentAmount) > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowBreakdownModal(true)}
-                title="Preview Partial Payment Calculation"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--accent, #6366f1)',
-                  cursor: 'pointer',
-                  fontSize: '0.72rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 3,
-                  padding: 0,
-                  fontWeight: 500,
-                }}
-              >
-                <Info size={12} /> Calculation Preview
-              </button>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
-            <select
-              value={form.paymentType}
-              onChange={(e) => {
-                set('paymentType', e.target.value);
-                if (e.target.value === 'fully') set('partialPaymentPercent', '');
-              }}
-              style={{ flex: form.paymentType === 'partially' ? '0 0 95px' : '1' }}
-            >
-              <option value="fully">Fully</option>
-              <option value="partially">Partially</option>
-            </select>
-
-            {form.paymentType === 'partially' && (
-              <div style={{ display: 'flex', alignItems: 'stretch', flex: 1, minWidth: 0 }}>
-                {form.currency && (
-                  <span
-                    title="Unit's Currency"
-                    className={`currency-addon ${Number(form.partialPaymentPercent) > breakdown.totalRent ? 'currency-addon-error' : ''}`}
-                    style={{ padding: '0 6px', fontSize: '0.72rem' }}
-                  >
-                    {form.currency}
-                  </span>
-                )}
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="Partial Amount"
-                  value={formatMoneyDisplay(form.partialPaymentPercent)}
-                  onChange={(e) => set('partialPaymentPercent', sanitizeMoneyInput(e.target.value))}
-                  style={{
-                    ...(form.currency ? { borderRadius: '0 8px 8px 0', flex: 1, minWidth: 0 } : { flex: 1, minWidth: 0 }),
-                    ...(Number(form.partialPaymentPercent) > breakdown.totalRent ? { borderColor: '#f87171' } : {}),
-                  }}
-                />
-              </div>
-            )}
-          </div>
-          {form.paymentType === 'partially' && Number(form.partialPaymentPercent) > 0 && breakdown.totalRent > 0 && Number(form.partialPaymentPercent) > breakdown.totalRent && (
-            <span style={{ fontSize: '0.7rem', color: '#f87171', marginTop: 2, display: 'block' }}>
-              Cannot exceed Total Rent ({form.currency} {formatMoneyDisplay(breakdown.totalRent.toFixed(2))})
-            </span>
-          )}
+          <label>Payment Type</label>
+          <select
+            value={form.paymentType}
+            onChange={(e) => {
+              set('paymentType', e.target.value);
+              if (e.target.value === 'fully') set('partialPaymentPercent', '');
+            }}
+          >
+            <option value="fully">Fully</option>
+            <option value="partially">Partially</option>
+          </select>
         </div>
+
+        {/* Partial Amount */}
+        {form.paymentType === 'partially' && (
+          <div className="form-field">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label>Partial Amount</label>
+              {Number(form.rentAmount) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowBreakdownModal(true)}
+                  title="Preview Partial Payment Calculation"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accent, #6366f1)',
+                    cursor: 'pointer',
+                    fontSize: '0.72rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3,
+                    padding: 0,
+                    fontWeight: 500,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Info size={12} /> Preview
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
+              {form.currency && (
+                <span
+                  title="Unit's Currency"
+                  className={`currency-addon ${Number(form.partialPaymentPercent) > breakdown.totalRent ? 'currency-addon-error' : ''}`}
+                >
+                  {form.currency}
+                </span>
+              )}
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="Partial Amount"
+                value={formatMoneyDisplay(form.partialPaymentPercent)}
+                onChange={(e) => set('partialPaymentPercent', sanitizeMoneyInput(e.target.value))}
+                style={{
+                  ...(form.currency ? { borderRadius: '0 8px 8px 0', flex: 1 } : { flex: 1 }),
+                  ...(Number(form.partialPaymentPercent) > breakdown.totalRent ? { borderColor: '#f87171' } : {}),
+                }}
+              />
+            </div>
+            {Number(form.partialPaymentPercent) > 0 && breakdown.totalRent > 0 && Number(form.partialPaymentPercent) > breakdown.totalRent && (
+              <span style={{ fontSize: '0.7rem', color: '#f87171', marginTop: 2, display: 'block' }}>
+                Cannot exceed Total Rent ({form.currency} {formatMoneyDisplay(breakdown.totalRent.toFixed(2))})
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── 3. Rent Escalation ──────────────────────── */}

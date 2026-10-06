@@ -41,6 +41,9 @@ export function DatesBillingStep({ form, set }: { form: FormState; set: Function
             <option value="precontractend">Precontractend</option>
           </select>
         </div>
+      </div>
+
+      <div className="form-grid-3" style={{ marginTop: 12 }}>
         <div className="form-field">
           <label>Billing Cycle *</label>
           <select value={form.billingCycle} onChange={(e) => set('billingCycle', e.target.value)}>

@@ -58,13 +58,6 @@ export function RentalAgreementStep({ form, set }: { form: FormState; set: Funct
           <RAField label="Date (Renter)" required>
             <input type="date" value={ra.renterDate || ''} onChange={(e) => setRA('renterDate', e.target.value)} />
           </RAField>
-          <RAField label="Shop Name">
-            <input
-              value={ra.shopName || ''}
-              onChange={(e) => setRA('shopName', e.target.value)}
-              placeholder="Shop name from lead pipeline…"
-            />
-          </RAField>
         </div>
 
         {/* ── Customer (right) ── */}
