@@ -6562,6 +6562,15 @@ select.input-full:focus {
 }
 
 /* ── Action buttons in light mode ── */
+[data-theme="light"] .btn-action-report {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .btn-action-report:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+}
 [data-theme="light"] .btn-action-submit {
   background: rgba(37,99,235,0.08);
   border-color: rgba(37,99,235,0.25);

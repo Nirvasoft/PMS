@@ -18,8 +18,8 @@ export interface LeaseListItem {
   esignStatus: string;
   daysUntilExpiry: number;
   createdAt: string;
-  unit:     { id: string; unitNumber: string; unitType: string };
-  property: { id: string; name: string };
+  unit:     { id: string; unitNumber: string; unitType: string; areaSqft?: number | null; floorNumber?: number | null; floorLabel?: string | null };
+  property: { id: string; name: string; addressLine1?: string | null; addressLine2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null };
   tenant:   { id: string; displayName: string; tenantType: string; firstName: string | null; lastName: string | null; companyName: string | null };
 }
 
@@ -54,7 +54,32 @@ export interface LeaseDetail extends LeaseListItem {
   approvedAt: string | null;
   activatedAt: string | null;
   unit:     { id: string; unitNumber: string; unitType: string; areaSqft: number | null; floorNumber: number | null; floorLabel: string | null; currency: string | null };
-  property: { id: string; name: string; currency: string };
+  property: {
+    id: string;
+    name: string;
+    currency: string;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    phone?: string | null;
+    contacts?: Array<{ phone?: string | null; mobile?: string | null; name?: string | null; role?: string | null }>;
+  };
+  company?: {
+    id: string;
+    name: string;
+    legalName?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+  } | null;
   tenant:   { id: string; displayName: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string; email: string | null; mobile: string | null };
   creator:  { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
   approver: { id: string; email: string; profile: { firstName: string; lastName: string } | null } | null;
@@ -68,6 +93,7 @@ export interface LeaseDetail extends LeaseListItem {
     amount: string;
     chargeType: { id: string; code: string; name: string; category: string };
   }[];
+  shopName?: string | null;
   rentalAgreement: RentalAgreement | null;
 }
 
@@ -82,6 +108,9 @@ export interface RentalAgreement {
   customerSignedName?: string;
   customerNirc?: string;
   customerDate?: string;
+  contractStartDate?: string;
+  contractEndDate?: string;
+  shopName?: string;
 }
 
 export interface LeaseAmendment {

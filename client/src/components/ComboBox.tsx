@@ -19,12 +19,15 @@ interface Props {
   disabled?: boolean;
   emptyText?: string;
   id?: string;
+  allowCustom?: boolean;
+  onSelectOption?: (option: ComboBoxOption) => void;
 }
 
 export default function ComboBox({
   value, onChange, options, onSearch,
   placeholder = 'Search…', loading = false, disabled = false,
   emptyText = 'No matches', id, selectedLabel,
+  allowCustom = false, onSelectOption,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
@@ -37,8 +40,8 @@ export default function ComboBox({
   const listId = `${id || 'combo'}-list`;
 
   const selected = useMemo(
-    () => options.find((o) => o.id === value) || (picked?.id === value ? picked : null) || (value && selectedLabel ? { id: value, label: selectedLabel } : null),
-    [options, value, picked, selectedLabel],
+    () => options.find((o) => o.id === value) || (picked?.id === value ? picked : null) || (value && (selectedLabel || allowCustom) ? { id: value, label: selectedLabel || value } : null),
+    [options, value, picked, selectedLabel, allowCustom],
   );
 
   // With onSearch the server already filtered; otherwise filter locally.
@@ -70,10 +73,12 @@ export default function ComboBox({
   const pick = (o: ComboBoxOption) => {
     setPicked(o);
     onChange(o.id);
+    onSelectOption?.(o);
     close();
   };
 
-  const clear = () => {
+  const clear = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setPicked(null);
     onChange('');
     setTerm('');
@@ -113,12 +118,17 @@ export default function ComboBox({
           disabled={disabled}
           className="combobox-input"
           placeholder={selected ? selected.label : placeholder}
-          value={open ? term : selected?.label || ''}
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setTerm(e.target.value);
+          value={open ? term : selected?.label || (allowCustom ? value : '')}
+          onFocus={() => {
+            if (allowCustom) setTerm(value || '');
             setOpen(true);
-            onSearch?.(e.target.value);
+          }}
+          onChange={(e) => {
+            const next = e.target.value;
+            setTerm(next);
+            setOpen(true);
+            if (allowCustom) onChange(next);
+            onSearch?.(next);
           }}
           onKeyDown={onKeyDown}
         />
@@ -127,7 +137,22 @@ export default function ComboBox({
             <X size={13} />
           </button>
         ) : (
-          <ChevronDown size={14} className="combobox-caret" aria-hidden="true" />
+          <ChevronDown
+            size={14}
+            className="combobox-caret"
+            aria-hidden="true"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (disabled) return;
+              if (open) {
+                close();
+              } else {
+                setTerm('');
+                setOpen(true);
+                inputRef.current?.focus();
+              }
+            }}
+          />
         )}
       </div>
 

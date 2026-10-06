@@ -1,3 +1,6 @@
+import { useMemo } from 'react';
+import ComboBox, { type ComboBoxOption } from '../../../../../../components/ComboBox';
+import { useGetUsersQuery } from '../../../../../../store/api/usersApi';
 import type { RentalAgreement } from '../../../../../../store/api/leasesApi';
 import type { FormState } from '../../types';
 
@@ -5,6 +8,17 @@ export function RentalAgreementStep({ form, set }: { form: FormState; set: Funct
   const ra = form.rentalAgreement;
   const setRA = (key: keyof RentalAgreement, val: string) =>
     set('rentalAgreement', { ...ra, [key]: val });
+
+  const { data: usersData, isFetching: usersLoading } = useGetUsersQuery({ limit: '200', isActive: 'true' });
+  const users = usersData?.data || [];
+
+  const userOptions: ComboBoxOption[] = useMemo(() => {
+    return users.map((u) => ({
+      id: u.fullName,
+      label: u.fullName,
+      sublabel: [u.jobTitle, u.email].filter(Boolean).join(' · ') || undefined,
+    }));
+  }, [users]);
 
   return (
     <div className="step-content">
@@ -14,7 +28,23 @@ export function RentalAgreementStep({ form, set }: { form: FormState; set: Funct
         {/* ── Renter (left) ── */}
         <div className="ra-col">
           <RAField label="Renter Name" required>
-            <input value={ra.renterName || ''} onChange={(e) => setRA('renterName', e.target.value)} />
+            <ComboBox
+              id="ra-renter-name"
+              value={ra.renterName || ''}
+              options={userOptions}
+              loading={usersLoading}
+              allowCustom
+              placeholder="Select user or type name…"
+              emptyText="No users found"
+              onChange={(val) => setRA('renterName', val)}
+              onSelectOption={(opt) => {
+                set('rentalAgreement', {
+                  ...ra,
+                  renterName: opt.label,
+                  renterSignedName: opt.label,
+                });
+              }}
+            />
           </RAField>
           <RAField label="Address (Renter)">
             <textarea rows={2} value={ra.renterAddress || ''} onChange={(e) => setRA('renterAddress', e.target.value)} />
@@ -27,6 +57,13 @@ export function RentalAgreementStep({ form, set }: { form: FormState; set: Funct
           </RAField>
           <RAField label="Date (Renter)" required>
             <input type="date" value={ra.renterDate || ''} onChange={(e) => setRA('renterDate', e.target.value)} />
+          </RAField>
+          <RAField label="Shop Name">
+            <input
+              value={ra.shopName || ''}
+              onChange={(e) => setRA('shopName', e.target.value)}
+              placeholder="Shop name from lead pipeline…"
+            />
           </RAField>
         </div>
 

@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useGetLeaseQuery, useSubmitLeaseMutation, useActivateLeaseMutation,
   useCancelLeaseMutation, useUpdateLeaseMutation,
 } from '../../../store/api/leasesApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useGetUsersQuery } from '../../../store/api/usersApi';
+import ComboBox, { type ComboBoxOption } from '../../../components/ComboBox';
 import {
   ArrowLeft, CheckCircle, XCircle, PenLine, AlertTriangle,
   Send, RefreshCw, Scissors, ChevronRight, Edit2, Save, X, FileText,
@@ -28,6 +30,7 @@ import { RenewalModal } from './LeaseDetailPage/components/modals/RenewalModal';
 import { AmendModal } from './LeaseDetailPage/components/modals/AmendModal';
 import { EsignSendModal } from './LeaseDetailPage/components/modals/EsignSendModal';
 import { InvoicePreviewModal } from './LeaseDetailPage/components/modals/InvoicePreviewModal';
+import { LeaseReportModal } from './LeaseDetailPage/components/modals/LeaseReportModal';
 
 type Tab = 'overview' | 'terms' | 'amendments' | 'esign' | 'documents' | 'history';
 
@@ -47,6 +50,7 @@ export default function LeaseDetailPage() {
   const [showEsignModal,     setShowEsignModal]      = useState(false);
   const [showEditDraft,      setShowEditDraft]        = useState(false);
   const [showPreview,        setShowPreview]          = useState(false);
+  const [showReport,         setShowReport]           = useState(false);
 
   const { data, isLoading } = useGetLeaseQuery(id!);
   const lease = data?.data;
@@ -97,6 +101,7 @@ export default function LeaseDetailPage() {
 
           {/* Action toolbar */}
           <div className="ld-actions">
+            <button className="btn-action-report" onClick={() => setShowReport(true)}><FileText size={14}/> Show Report</button>
             <button className="btn-action-preview" onClick={() => setShowPreview(true)}><FileText size={14}/> Preview</button>
             {isDraft  && (
               <PermissionGuard permission="leases.update">
@@ -192,6 +197,7 @@ export default function LeaseDetailPage() {
       {showEsignModal     && <EsignSendModal leaseId={id!} tenantEmail={lease.tenant.email || ''} tenantName={lease.tenant.displayName} onClose={() => setShowEsignModal(false)} />}
       {showEditDraft       && <EditDraftModal lease={lease} onClose={() => setShowEditDraft(false)} />}
       {showPreview         && <InvoicePreviewModal lease={lease} onClose={() => setShowPreview(false)} />}
+      {showReport          && <LeaseReportModal lease={lease} onClose={() => setShowReport(false)} />}
     </div>
   );
 }
@@ -209,6 +215,17 @@ function Metric({ label, value, sub, highlight }: { label: string; value: string
 // ── Edit Draft Modal ────────────────────────
 function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/leasesApi').LeaseDetail; onClose: () => void }) {
   const [update, { isLoading }] = useUpdateLeaseMutation();
+
+  const { data: usersData, isFetching: usersLoading } = useGetUsersQuery({ limit: '200', isActive: 'true' });
+  const users = usersData?.data || [];
+
+  const userOptions: ComboBoxOption[] = useMemo(() => {
+    return users.map((u) => ({
+      id: u.fullName,
+      label: u.fullName,
+      sublabel: [u.jobTitle, u.email].filter(Boolean).join(' · ') || undefined,
+    }));
+  }, [users]);
 
   const [form, setForm] = useState({
     rentAmount: Number(lease.rentAmount),
@@ -228,15 +245,18 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
     specialConditions: lease.specialConditions || '',
     rentalAgreement: {
       renterName:         lease.rentalAgreement?.renterName         || '',
-      renterAddress:      lease.rentalAgreement?.renterAddress      || '',
+      renterAddress:      lease.rentalAgreement?.renterAddress      || [lease.company?.addressLine1, lease.company?.addressLine2, lease.company?.city, lease.company?.state, lease.company?.postalCode, lease.company?.country].filter(Boolean).join(', ') || '',
       renterSignedName:   lease.rentalAgreement?.renterSignedName   || '',
       renterNirc:         lease.rentalAgreement?.renterNirc         || '',
       renterDate:         lease.rentalAgreement?.renterDate         || '',
-      companyName:        lease.rentalAgreement?.companyName        || '',
-      customerAddress:    lease.rentalAgreement?.customerAddress    || '',
-      customerSignedName: lease.rentalAgreement?.customerSignedName || '',
-      customerNirc:       lease.rentalAgreement?.customerNirc       || '',
+      companyName:        lease.rentalAgreement?.companyName        || lease.tenant?.companyName || lease.tenant?.displayName || [lease.tenant?.firstName, lease.tenant?.lastName].filter(Boolean).join(' ') || '',
+      customerAddress:    lease.rentalAgreement?.customerAddress    || [lease.tenant?.addressLine1, lease.tenant?.addressLine2, lease.tenant?.city, lease.tenant?.state, lease.tenant?.postalCode, lease.tenant?.country].filter(Boolean).join(', ') || '',
+      customerSignedName: lease.rentalAgreement?.customerSignedName || lease.tenant?.contactPersonName || lease.tenant?.displayName || '',
+      customerNirc:       lease.rentalAgreement?.customerNirc       || (lease.tenant as any)?.idNumber || '',
       customerDate:       lease.rentalAgreement?.customerDate       || '',
+      contractStartDate:  lease.rentalAgreement?.contractStartDate  || '',
+      contractEndDate:    lease.rentalAgreement?.contractEndDate    || '',
+      shopName:           lease.rentalAgreement?.shopName           || lease.shopName || '',
     },
   });
 
@@ -298,8 +318,10 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
             <div className="edf-section">
               <h4>Dates</h4>
               <div className="edf-row">
-                <label>Start Date<input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} /></label>
-                <label>End Date<input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} /></label>
+                <label>Contract Start<input type="date" value={form.rentalAgreement.contractStartDate} onChange={(e) => setRA('contractStartDate', e.target.value)} /></label>
+                <label>Contract End<input type="date" value={form.rentalAgreement.contractEndDate} onChange={(e) => setRA('contractEndDate', e.target.value)} /></label>
+                <label>Advance Start<input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} /></label>
+                <label>Advance End<input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} /></label>
                 <label>Handover<input type="date" value={form.handoverDate} onChange={(e) => set('handoverDate', e.target.value)} /></label>
                 <label>Predefined Type
                   <select value={form.predefinedType} onChange={(e) => set('predefinedType', e.target.value)}>
@@ -378,11 +400,34 @@ function EditDraftModal({ lease, onClose }: { lease: import('../../../store/api/
               <div className="edf-ra-grid">
                 <div className="edf-ra-col">
                   <div className="edf-ra-colhead">Renter</div>
-                  <label>Renter Name<input value={form.rentalAgreement.renterName} onChange={(e) => setRA('renterName', e.target.value)} /></label>
+                  <label>
+                    Renter Name
+                    <ComboBox
+                      id="edit-ra-renter-name"
+                      value={form.rentalAgreement.renterName}
+                      options={userOptions}
+                      loading={usersLoading}
+                      allowCustom
+                      placeholder="Select user or type name…"
+                      emptyText="No users found"
+                      onChange={(val) => setRA('renterName', val)}
+                      onSelectOption={(opt) => {
+                        setForm((f) => ({
+                          ...f,
+                          rentalAgreement: {
+                            ...f.rentalAgreement,
+                            renterName: opt.label,
+                            renterSignedName: opt.label,
+                          },
+                        }));
+                      }}
+                    />
+                  </label>
                   <label>Address<textarea rows={2} value={form.rentalAgreement.renterAddress} onChange={(e) => setRA('renterAddress', e.target.value)} /></label>
                   <label>Signed Name<input value={form.rentalAgreement.renterSignedName} onChange={(e) => setRA('renterSignedName', e.target.value)} /></label>
                   <label>NRC<input value={form.rentalAgreement.renterNirc} onChange={(e) => setRA('renterNirc', e.target.value)} /></label>
                   <label>Date<input type="date" value={form.rentalAgreement.renterDate} onChange={(e) => setRA('renterDate', e.target.value)} /></label>
+                  <label>Shop Name<input value={form.rentalAgreement.shopName || ''} onChange={(e) => setRA('shopName', e.target.value)} placeholder="Shop name…" /></label>
                 </div>
                 <div className="edf-ra-col">
                   <div className="edf-ra-colhead">Customer</div>

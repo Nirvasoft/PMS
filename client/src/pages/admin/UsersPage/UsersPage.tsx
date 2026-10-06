@@ -1,6 +1,13 @@
 import { useState } from 'react';
-import { useGetUsersQuery, useCreateUserMutation, useGetInvitationsQuery, useSendInvitationMutation, useRevokeInvitationMutation } from '../../../store/api/usersApi';
-import { useGetRolesQuery } from '../../../store/api/usersApi';
+import {
+  useGetUsersQuery,
+  useCreateUserMutation,
+  useGetInvitationsQuery,
+  useSendInvitationMutation,
+  useRevokeInvitationMutation,
+  useGetRolesQuery,
+  useGetPositionsQuery,
+} from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { useConfirm } from '../../../components/DialogProvider';
 import { Link } from 'react-router-dom';
@@ -218,14 +225,28 @@ function UserAvatar({ url, name }: { url: string | null; name: string }) {
 function CreateUserModal({ onClose }: { onClose: () => void }) {
   const [createUser, { isLoading }] = useCreateUserMutation();
   const { data: rolesData } = useGetRolesQuery();
+  const { data: positionsData } = useGetPositionsQuery();
+  const positions = positionsData?.data || [];
   const [form, setForm] = useState({
-    email: '', firstName: '', lastName: '', jobTitle: '', roleIds: [] as string[],
+    email: '',
+    firstName: '',
+    lastName: '',
+    jobTitle: '',
+    positionId: '',
+    roleIds: [] as string[],
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createUser(form).unwrap();
+      await createUser({
+        email: form.email,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        jobTitle: form.jobTitle || undefined,
+        positionId: form.positionId || undefined,
+        roleIds: form.roleIds,
+      }).unwrap();
       toast.success('User created successfully');
       onClose();
     } catch (err: unknown) {
@@ -261,8 +282,26 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="form-group">
             <label>Job Title</label>
-            <input className="input-full" value={form.jobTitle}
-              onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} />
+            <select
+              className="input-full"
+              value={form.positionId}
+              onChange={(e) => {
+                const posId = e.target.value;
+                const pos = positions.find((p) => p.id === posId);
+                setForm({
+                  ...form,
+                  positionId: posId,
+                  jobTitle: pos ? pos.name : '',
+                });
+              }}
+            >
+              <option value="">— Select Job Title —</option>
+              {positions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="form-group">
             <label>Role</label>

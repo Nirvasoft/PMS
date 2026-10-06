@@ -271,7 +271,7 @@ departmentsRouter.delete('/:id', requirePermission('departments.delete'), asyncH
 
 export const positionsRouter = Router();
 
-positionsRouter.get('/', requirePermission('positions.read'), asyncHandler(async (req: Request, res: Response) => {
+positionsRouter.get('/', requirePermission('positions.read', 'users.create', 'users.update'), asyncHandler(async (req: Request, res: Response) => {
   const data = await positionsService.findAll(req.user!.companyId, req.query.departmentId as string);
   res.json({ success: true, data });
 }));

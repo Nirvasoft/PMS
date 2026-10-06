@@ -96,6 +96,7 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
   const [updateUser, { isLoading }] = useUpdateUserMutation();
   const { data: deptsData } = useGetDepartmentTreeQuery();
   const { data: posData } = useGetPositionsQuery();
+  const positions = posData?.data || [];
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     firstName: user.firstName || '',
@@ -103,14 +104,35 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
     phone: user.phone || '',
     mobile: user.mobile || '',
     jobTitle: user.jobTitle || '',
+    positionId: user.position?.id || '',
     employeeId: user.employeeId || '',
     timezone: user.timezone || 'UTC',
     locale: user.locale || 'en',
   });
 
+  const handleEditClick = () => {
+    setForm({
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      phone: user.phone || '',
+      mobile: user.mobile || '',
+      jobTitle: user.jobTitle || '',
+      positionId: user.position?.id || '',
+      employeeId: user.employeeId || '',
+      timezone: user.timezone || 'UTC',
+      locale: user.locale || 'en',
+    });
+    setEditing(true);
+  };
+
   const handleSave = async () => {
     try {
-      await updateUser({ id: user.id, data: form }).unwrap();
+      const payload: Record<string, unknown> = {
+        ...form,
+        positionId: form.positionId || null,
+        jobTitle: form.jobTitle || null,
+      };
+      await updateUser({ id: user.id, data: payload }).unwrap();
       toast.success('Profile updated');
       setEditing(false);
       onRefresh();
@@ -136,7 +158,7 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
         <h3>Profile Information</h3>
         {!editing ? (
           <PermissionGuard permission="users.update">
-            <button className="btn btn-sm btn-primary" onClick={() => setEditing(true)}>Edit</button>
+            <button className="btn btn-sm btn-primary" onClick={handleEditClick}>Edit</button>
           </PermissionGuard>
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -194,8 +216,26 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
           <div className="form-row-2">
             <div className="form-group">
               <label>Job Title</label>
-              <input className="input-full" value={form.jobTitle}
-                onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} />
+              <select
+                className="input-full"
+                value={form.positionId}
+                onChange={(e) => {
+                  const posId = e.target.value;
+                  const pos = positions.find((p) => p.id === posId);
+                  setForm({
+                    ...form,
+                    positionId: posId,
+                    jobTitle: pos ? pos.name : '',
+                  });
+                }}
+              >
+                <option value="">— Select Job Title —</option>
+                {positions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
               <label>Employee ID</label>

@@ -1,22 +1,32 @@
+import type { RentalAgreement } from '../../../../../../store/api/leasesApi';
 import { calcLeaseTermMonths, type FormState } from '../../types';
 
 export function DatesBillingStep({ form, set }: { form: FormState; set: Function }) {
   const termMonths = form.startDate && form.endDate && form.endDate >= form.startDate
     ? calcLeaseTermMonths(form.startDate, form.endDate)
     : 0;
+
+  const setRA = (key: keyof RentalAgreement, val: string) =>
+    set('rentalAgreement', { ...form.rentalAgreement, [key]: val });
+
   return (
     <div className="step-content">
       <h3>Lease Dates & Billing</h3>
       <div className="form-grid-2">
         <div className="form-field">
-          <label>Start Date *</label>
-          <input type="date" value={form.startDate} onChange={(e) => {
-            set('startDate', e.target.value);
-            set('handoverDate', e.target.value);
-          }} />
+          <label>Contract Start Date</label>
+          <input type="date" value={form.rentalAgreement.contractStartDate || ''} onChange={(e) => setRA('contractStartDate', e.target.value)} />
         </div>
         <div className="form-field">
-          <label>End Date *</label>
+          <label>Contract End Date</label>
+          <input type="date" value={form.rentalAgreement.contractEndDate || ''} onChange={(e) => setRA('contractEndDate', e.target.value)} />
+        </div>
+        <div className="form-field">
+          <label>Advance Start Date *</label>
+          <input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} />
+        </div>
+        <div className="form-field">
+          <label>Advance End Date *</label>
           <input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} />
         </div>
         <div className="form-field">

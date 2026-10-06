@@ -1,0 +1,403 @@
+/* Lease Report Modal Overlay & Dialog */
+.lease-report-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.lease-report-box {
+  background: var(--bg-primary, #ffffff);
+  border-radius: 12px;
+  width: 920px;
+  max-width: 96vw;
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color, #e2e8f0);
+  overflow: hidden;
+}
+
+.lease-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-secondary, #f8fafc);
+}
+
+.lease-report-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lease-report-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lease-report-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: #525659; /* Document viewer dark background */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.lease-report-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-secondary, #f8fafc);
+}
+
+/* Individual A4 Page in Preview */
+.report-page {
+  background: #ffffff;
+  color: #111111;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 18mm 20mm 15mm 20mm;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+  font-family: 'Pyidaungsu', 'Myanmar3', 'Padauk', 'Noto Sans Myanmar', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.65;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+}
+
+/* Company Header */
+.report-company-header {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.report-company-name {
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #000;
+}
+
+.report-company-address {
+  font-size: 11px;
+  color: #333;
+  line-height: 1.4;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.report-header-line {
+  border: none;
+  border-top: 1.5px solid #222;
+  margin: 10px 0 16px 0;
+}
+
+/* Page 1 Specifics */
+.report-doc-title {
+  text-align: center;
+  font-size: 16px;
+  font-weight: normal;
+  margin-bottom: 20px;
+  color: #000;
+}
+
+.report-preamble {
+  margin-bottom: 20px;
+  line-height: 1.7;
+}
+
+.report-parties-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-bottom: 24px;
+}
+
+.report-party-block {
+  display: flex;
+  gap: 20px;
+}
+
+.report-party-label {
+  width: 140px;
+  font-weight: normal;
+  flex-shrink: 0;
+}
+
+.report-party-content {
+  flex: 1;
+  line-height: 1.65;
+}
+
+.report-party-name {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.report-sub-details {
+  margin-top: 2px;
+  color: #222;
+}
+
+.report-center-section {
+  text-align: center;
+  margin: 20px 0 14px 0;
+}
+
+.report-property-name {
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  font-family: Arial, Helvetica, sans-serif;
+  margin-bottom: 3px;
+}
+
+.report-property-sub {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Premise Details Table/Grid */
+.report-details-grid {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  row-gap: 10px;
+  column-gap: 16px;
+  margin-bottom: 24px;
+  padding: 0 10px;
+}
+
+.report-field-label {
+  font-weight: normal;
+}
+
+.report-field-value {
+  color: #111;
+}
+
+.report-calc-row {
+  display: flex;
+  align-items: center;
+}
+
+.report-rent-val {
+  min-width: 100px;
+}
+
+.report-rent-cycle {
+  margin-left: 20px;
+  min-width: 110px;
+}
+
+.report-rent-total {
+  margin-left: 30px;
+}
+
+.report-term-months {
+  min-width: 100px;
+}
+
+.report-term-dates {
+  margin-left: 20px;
+}
+
+.report-bottom-clause {
+  margin-top: auto;
+  margin-bottom: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: justify;
+}
+
+/* Page Number Footer */
+.report-page-footer {
+  text-align: right;
+  font-size: 11px;
+  color: #333;
+  padding-top: 8px;
+  border-top: 1px solid #f1f1f1;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Page 2 & 3 Clauses */
+.report-clauses-body {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  text-align: justify;
+}
+
+.report-clause-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.report-clause-num {
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.report-clause-text {
+  flex: 1;
+}
+
+.report-sub-clauses {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 6px;
+  padding-left: 8px;
+}
+
+/* Page 3 Signatures */
+.report-closing-statement {
+  margin: 14px 0 20px 0;
+  line-height: 1.7;
+  font-size: 12.5px;
+}
+
+.report-signatures-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18px;
+  margin-bottom: 24px;
+}
+
+.report-sig-column {
+  width: 45%;
+}
+
+.report-sig-label {
+  font-weight: normal;
+  margin-bottom: 8px;
+}
+
+.report-sig-name {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.report-sig-line {
+  border-bottom: 1px solid #333;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  width: 80%;
+  display: inline-block;
+}
+
+.report-witnesses-section {
+  margin-top: 10px;
+}
+
+.report-witnesses-title {
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.report-witnesses-grid {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.report-witness-col {
+  width: 48%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-witness-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.report-witness-label {
+  width: 65px;
+  font-weight: 500;
+}
+
+.report-witness-line {
+  flex: 1;
+  border-bottom: 1px solid #444;
+  height: 16px;
+}
+
+/* Print CSS */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm 12mm 15mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .lease-report-printable,
+  .lease-report-printable * {
+    visibility: visible;
+  }
+
+  .lease-report-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+  }
+
+  .report-page {
+    page-break-after: always !important;
+    break-after: page !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 0 10mm 0 !important;
+    width: 100% !important;
+    min-height: 270mm !important;
+    max-height: 280mm !important;
+  }
+
+  .report-page:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .lease-report-header,
+  .lease-report-footer,
+  .lease-report-overlay {
+    display: none !important;
+    background: transparent !important;
+  }
+}

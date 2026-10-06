@@ -12,8 +12,14 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
         </InfoCard>
 
         <InfoCard title="Dates">
-          <InfoRow label="Start Date"    value={new Date(lease.startDate).toLocaleDateString()} />
-          <InfoRow label="End Date"      value={new Date(lease.endDate).toLocaleDateString()} />
+          {lease.rentalAgreement?.contractStartDate && (
+            <InfoRow label="Contract Start" value={new Date(lease.rentalAgreement.contractStartDate).toLocaleDateString()} />
+          )}
+          {lease.rentalAgreement?.contractEndDate && (
+            <InfoRow label="Contract End"   value={new Date(lease.rentalAgreement.contractEndDate).toLocaleDateString()} />
+          )}
+          <InfoRow label="Advance Start" value={new Date(lease.startDate).toLocaleDateString()} />
+          <InfoRow label="Advance End"   value={new Date(lease.endDate).toLocaleDateString()} />
           {lease.handoverDate && <InfoRow label="Handover"   value={new Date(lease.handoverDate).toLocaleDateString()} />}
           <InfoRow label="Term"          value={`${lease.leaseTermMonths} months`} />
           {lease.activatedAt && <InfoRow label="Activated"   value={new Date(lease.activatedAt).toLocaleString()} />}
@@ -67,6 +73,7 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
                 <InfoRow label="Signed Name" value={lease.rentalAgreement.renterSignedName  || '—'} />
                 <InfoRow label="NRC"         value={lease.rentalAgreement.renterNirc        || '—'} />
                 <InfoRow label="Date"        value={lease.rentalAgreement.renterDate        || '—'} />
+                <InfoRow label="Shop Name"   value={lease.rentalAgreement.shopName || (lease as any).shopName || '—'} />
               </div>
               <div className="ra-divider" />
               <div className="ra-col">

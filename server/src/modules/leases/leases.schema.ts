@@ -17,7 +17,10 @@ const rentalAgreementObject = z.object({
   customerSignedName:  z.string().max(255).optional(),
   customerNirc:        z.string().max(100).optional(),
   customerDate:        z.string().optional(),
-});
+  contractStartDate:   z.string().optional(),
+  contractEndDate:     z.string().optional(),
+  shopName:            z.string().max(255).optional(),
+}).passthrough();
 
 // Shared sub-schemas — defined once, reused in create/update to avoid copy-paste drift
 const clauseItemSchema = z.object({

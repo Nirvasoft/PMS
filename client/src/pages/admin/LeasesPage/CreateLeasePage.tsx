@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetLeaseTemplatesQuery, useGetLeaseClausesQuery,
   useCreateLeaseMutation,
 } from '../../../store/api/leasesApi';
-import { useConvertLeadMutation } from '../../../store/api/crmApi';
+import { useConvertLeadMutation, useGetLeadQuery } from '../../../store/api/crmApi';
 import { useGetUnitChargesQuery, useUpdateUnitChargeMutation } from '../../../store/api/unitsApi';
+import { useGetCompanyQuery } from '../../../store/api/organizationApi';
+import { useGetTenantQuery } from '../../../store/api/tenantsApi';
 import { ArrowLeft, ArrowRight, Check, Building2, FileText, DollarSign, List, FileSignature } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -35,6 +37,8 @@ const INITIAL: FormState = {
   rentalAgreement: {
     renterName: '', renterAddress: '', renterSignedName: '', renterNirc: '', renterDate: todayISO(),
     companyName: '', customerAddress: '', customerSignedName: '', customerNirc: '', customerDate: todayISO(),
+    contractStartDate: todayISO(), contractEndDate: '',
+    shopName: '',
   },
 };
 
@@ -61,6 +65,61 @@ export default function CreateLeasePage() {
   const [convertLead] = useConvertLeadMutation();
   const { data: templatesData } = useGetLeaseTemplatesQuery();
   const { data: clausesData } = useGetLeaseClausesQuery();
+
+  const { data: companyData } = useGetCompanyQuery();
+  const { data: tenantData } = useGetTenantQuery(form.tenantId ? form.tenantId : skipToken);
+  const { data: leadData } = useGetLeadQuery(prefillLeadId ? prefillLeadId : skipToken);
+
+  // Auto-bind Shop Name from Lead Pipeline if lead was imported/converted
+  useEffect(() => {
+    if (!leadData?.data) return;
+    const l = leadData.data;
+    const shop = (l.loiDetails as any)?.shopName || l.companyName || '';
+    if (shop) {
+      setForm((f) => ({
+        ...f,
+        rentalAgreement: {
+          ...f.rentalAgreement,
+          shopName: f.rentalAgreement.shopName || shop,
+        },
+      }));
+    }
+  }, [leadData]);
+
+  // Auto-bind Landlord Company Data to Renter
+  useEffect(() => {
+    if (!companyData?.data) return;
+    const c = companyData.data;
+    const compName = c.legalName || c.name || '';
+    const compAddress = [c.addressLine1, c.addressLine2, c.city, c.state, c.postalCode, c.country].filter(Boolean).join(', ');
+    setForm((f) => ({
+      ...f,
+      rentalAgreement: {
+        ...f.rentalAgreement,
+        renterAddress: f.rentalAgreement.renterAddress || compAddress,
+      },
+    }));
+  }, [companyData]);
+
+  // Auto-bind Tenant Data to Customer (Company Name, Address, Signed Name, NRC)
+  useEffect(() => {
+    if (!tenantData?.data) return;
+    const t = tenantData.data;
+    const tenantName = t.companyName || t.displayName || [t.firstName, t.lastName].filter(Boolean).join(' ') || '';
+    const tenantAddress = [t.addressLine1, t.addressLine2, t.city, t.state, t.postalCode, t.country].filter(Boolean).join(', ');
+    const signedName = t.contactPersonName || t.displayName || [t.firstName, t.lastName].filter(Boolean).join(' ') || '';
+    const nrc = t.idNumber || '';
+    setForm((f) => ({
+      ...f,
+      rentalAgreement: {
+        ...f.rentalAgreement,
+        companyName: tenantName,
+        customerAddress: tenantAddress,
+        customerSignedName: f.rentalAgreement.customerSignedName || signedName,
+        customerNirc: f.rentalAgreement.customerNirc || nrc,
+      },
+    }));
+  }, [tenantData]);
 
   // Baseline unit charges, so we can tell which amounts the user actually edited
   // in the Financial Terms step and only push those back to the unit once the

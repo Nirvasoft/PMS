@@ -18,6 +18,8 @@
 /* Action buttons */
 .ld-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .ld-actions button { display: flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; font-size: .8rem; font-weight: 600; cursor: pointer; border: 1px solid; transition: all .15s; }
+.btn-action-report   { background: transparent; border-color: rgba(255,255,255,.12); color: var(--text-secondary); }
+.btn-action-report:hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.2); color: var(--text-primary); }
 .btn-action-submit   { background: rgba(52,152,219,.12); border-color: rgba(52,152,219,.3);   color: #74b9ff; }
 .btn-action-activate { background: rgba(46,204,113,.12); border-color: rgba(46,204,113,.3);   color: #2ecc71; }
 .btn-action-amend    { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.1);  color: var(--text-muted); }
@@ -392,6 +394,16 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #34d399) 18%, transparent);
 }
 .ld-modal-body input::placeholder { color: var(--text-muted); opacity: .6; }
+
+.ld-modal-body .combobox-input,
+[data-theme="light"] .ld-modal-body .combobox-input {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 8px 0 !important;
+  border-radius: 0 !important;
+  height: auto !important;
+}
 
 /* Fix native select option background in dark theme */
 .ld-modal-body select {

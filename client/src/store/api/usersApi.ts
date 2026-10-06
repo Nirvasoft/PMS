@@ -96,6 +96,16 @@ export interface PermissionsByModule {
   [module: string]: { code: string; name: string; action: string; description: string | null }[];
 }
 
+export interface PositionItem {
+  id: string;
+  name: string;
+  level: number;
+  departmentId?: string | null;
+  department?: { id: string; name: string } | null;
+  canApprove?: boolean;
+  approvalLimit?: number | null;
+}
+
 export const usersApi = createApi({
   reducerPath: 'usersApi',
   baseQuery: baseQueryWithReauth,
@@ -270,7 +280,7 @@ export const usersApi = createApi({
     }),
 
     // ─── Positions ──────────────────────────
-    getPositions: builder.query<ApiResponse<{ id: string; name: string; level: number; departmentId?: string }[]>, void>({
+    getPositions: builder.query<ApiResponse<PositionItem[]>, void>({
       query: () => '/positions',
       providesTags: ['Positions'],
     }),

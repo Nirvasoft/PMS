@@ -55,8 +55,8 @@ export class LeasesService {
           id: true, leaseNumber: true, status: true,
           startDate: true, endDate: true, leaseTermMonths: true,
           rentAmount: true, currency: true, esignStatus: true, createdAt: true,
-          unit:     { select: { id: true, unitNumber: true, unitType: true } },
-          property: { select: { id: true, name: true } },
+          unit:     { select: { id: true, unitNumber: true, unitType: true, areaSqft: true, floorNumber: true, floorLabel: true } },
+          property: { select: { id: true, name: true, addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true, country: true } },
           tenant:   { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -80,8 +80,39 @@ export class LeasesService {
     const lease = await prisma.lease.findFirst({
       where: { id, companyId, deletedAt: null },
       include: {
-        unit:     { select: { id: true, unitNumber: true, unitType: true, areaSqft: true, floorNumber: true, currency: true } },
-        property: { select: { id: true, name: true, currency: true } },
+        unit:     { select: { id: true, unitNumber: true, unitType: true, areaSqft: true, floorNumber: true, floorLabel: true, currency: true } },
+        property: {
+          select: {
+            id: true,
+            name: true,
+            currency: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true,
+            contacts: {
+              select: { phone: true, mobile: true, name: true, role: true },
+              take: 5,
+            },
+          },
+        },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            legalName: true,
+            phone: true,
+            email: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true,
+          },
+        },
         tenant:   { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, email: true, mobile: true } },
         creator:  { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
         approver: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
@@ -119,12 +150,40 @@ export class LeasesService {
         })
       : null;
 
+    const convertedLead = await prisma.lead.findFirst({
+      where: {
+        companyId,
+        OR: [
+          { convertedLeaseId: id },
+          { convertedTenantId: lease.tenantId },
+        ],
+      },
+      select: {
+        id: true,
+        companyName: true,
+        loiDetails: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const leadShopName = (convertedLead?.loiDetails as any)?.shopName
+      || convertedLead?.companyName
+      || null;
+
+    const raObject = (extraRows[0]?.rental_agreement as Record<string, unknown>) || {};
+    const resolvedShopName = (raObject.shopName as string) || leadShopName || null;
+
     return {
       ...leaseRest,
       paymentType: extraRows[0]?.payment_type ?? 'fully',
       partialAmount: extraRows[0]?.partial_amount != null ? Number(extraRows[0].partial_amount) : null,
-      unit: { ...lease.unit, floorLabel: floorSetup?.floorLabel ?? null },
-      rentalAgreement: extraRows[0]?.rental_agreement ?? null,
+      unit: {
+        ...lease.unit,
+        areaSqft: lease.unit.areaSqft != null ? Number(lease.unit.areaSqft) : null,
+        floorLabel: floorSetup?.floorLabel ?? (lease.unit as any).floorLabel ?? null,
+      },
+      rentalAgreement: Object.keys(raObject).length > 0 || resolvedShopName ? { ...raObject, shopName: resolvedShopName } : null,
+      shopName: resolvedShopName,
       tenant: { ...tenant, displayName: tenant.tenantType === 'company' ? tenant.companyName : `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() },
       daysUntilExpiry: daysUntilExpiry(lease.endDate),
       leaseCharges: billingSchedules,

@@ -36,8 +36,14 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
         <ReviewRow label="Unit"            value={form.unitCode     || form.unitId} />
         <ReviewRow label="Total Area"      value={unitArea != null ? `${unitArea.toLocaleString()} sqft` : '—'} />
         <ReviewRow label="Tenant"          value={form.tenantCode   || form.tenantId} />
-        <ReviewRow label="Start Date"      value={form.startDate} />
-        <ReviewRow label="End Date"        value={form.endDate} />
+        {form.rentalAgreement.contractStartDate && (
+          <ReviewRow label="Contract Start Date" value={form.rentalAgreement.contractStartDate} />
+        )}
+        {form.rentalAgreement.contractEndDate && (
+          <ReviewRow label="Contract End Date"   value={form.rentalAgreement.contractEndDate} />
+        )}
+        <ReviewRow label="Advance Start Date" value={form.startDate} />
+        <ReviewRow label="Advance End Date"   value={form.endDate} />
         <ReviewRow label="Handover Date"   value={form.handoverDate || '—'} />
         <ReviewRow label="Predefined Type" value={PREDEFINED_TYPE_LABELS[form.predefinedType] || '—'} />
         <ReviewRow label="Term"            value={termMonths ? `${termMonths} month${termMonths !== 1 ? 's' : ''}` : '—'} />
@@ -209,6 +215,7 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
           <ReviewRow label="Signed Name" value={ra.renterSignedName  || '—'} />
           <ReviewRow label="NRC"         value={ra.renterNirc        || '—'} />
           <ReviewRow label="Date"        value={ra.renterDate        || '—'} />
+          <ReviewRow label="Shop Name"   value={ra.shopName          || '—'} />
         </div>
         <div className="review-ra-divider" />
         <div className="review-ra-col">
