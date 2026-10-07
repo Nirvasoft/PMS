@@ -451,15 +451,34 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
 
   if (type === 'invoice') {
     const [existingInvoices, properties, tenants] = await Promise.all([
-      prisma.invoice.findMany({ where: { companyId }, select: { invoiceNumber: true } }),
+      prisma.invoice.findMany({
+        where: { companyId },
+        select: {
+          invoiceNumber: true,
+          tenantId: true,
+          tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
+        },
+      }),
       prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
       prisma.tenant.findMany({
         where: { companyId, deletedAt: null },
-        select: { id: true, code: true, isBlacklisted: true },
+        select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
       }),
     ]);
 
-    const known = new Set(existingInvoices.map((inv) => inv.invoiceNumber.trim().toLowerCase()));
+    const knownInvoices = new Set<string>();
+    const knownInvTenant = new Set<string>();
+    for (const inv of existingInvoices) {
+      const numStr = inv.invoiceNumber.trim().toLowerCase();
+      knownInvoices.add(numStr);
+      if (inv.tenantId) knownInvTenant.add(`${numStr}|${inv.tenantId.toLowerCase()}`);
+      if (inv.tenant?.code) knownInvTenant.add(`${numStr}|${inv.tenant.code.trim().toLowerCase()}`);
+      if (inv.tenant?.companyName) knownInvTenant.add(`${numStr}|${inv.tenant.companyName.trim().toLowerCase()}`);
+      const fullName = `${inv.tenant?.firstName || ''} ${inv.tenant?.lastName || ''}`.trim().toLowerCase();
+      if (fullName) knownInvTenant.add(`${numStr}|${fullName}`);
+      if (inv.tenant?.firstName) knownInvTenant.add(`${numStr}|${inv.tenant.firstName.trim().toLowerCase()}`);
+    }
+
     const tenantMap = new Map(tenants.filter((t) => t.code).map((t) => [t.code!.toLowerCase(), t.isBlacklisted]));
 
     const invCountInFile = new Map<string, number>();
@@ -503,9 +522,19 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
         const currentLine = (invLineSeen.get(k) || 0) + 1;
         invLineSeen.set(k, currentLine);
 
-        if (known.has(k)) {
+        const tCode = (d.tenantCode || '').trim().toLowerCase();
+        const tName = (d.tenantName || '').trim().toLowerCase();
+        const isExistingInvTenant =
+          (tCode && knownInvTenant.has(`${k}|${tCode}`)) ||
+          (tName && knownInvTenant.has(`${k}|${tName}`));
+
+        if (isExistingInvTenant || knownInvoices.has(k)) {
           status = 'skip';
-          notes.push(`Invoice "${d.invoiceNumber.trim()}" already exists - insert will be skipped`);
+          notes.push(
+            isExistingInvTenant
+              ? `Invoice "${d.invoiceNumber.trim()}" and Tenant "${d.tenantCode || d.tenantName}" already exist - insert will be skipped`
+              : `Invoice "${d.invoiceNumber.trim()}" already exists - insert will be skipped`
+          );
         } else if (totalLines > 1) {
           notes.push(`Multi-line invoice (Line ${currentLine}/${totalLines})`);
         }
@@ -822,7 +851,14 @@ export const generalImportService = {
       }
     } else if (type === 'invoice') {
       const [existingInvoices, properties, tenants, chargeTypes] = await Promise.all([
-        prisma.invoice.findMany({ where: { companyId }, select: { invoiceNumber: true } }),
+        prisma.invoice.findMany({
+          where: { companyId },
+          select: {
+            invoiceNumber: true,
+            tenantId: true,
+            tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
+          },
+        }),
         prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
         prisma.tenant.findMany({
           where: { companyId, deletedAt: null },
@@ -834,7 +870,18 @@ export const generalImportService = {
         }),
       ]);
 
-      const known = new Set(existingInvoices.map((inv) => inv.invoiceNumber.trim().toLowerCase()));
+      const knownInvoices = new Set<string>();
+      const knownInvTenant = new Set<string>();
+      for (const inv of existingInvoices) {
+        const numStr = inv.invoiceNumber.trim().toLowerCase();
+        knownInvoices.add(numStr);
+        if (inv.tenantId) knownInvTenant.add(`${numStr}|${inv.tenantId.toLowerCase()}`);
+        if (inv.tenant?.code) knownInvTenant.add(`${numStr}|${inv.tenant.code.trim().toLowerCase()}`);
+        if (inv.tenant?.companyName) knownInvTenant.add(`${numStr}|${inv.tenant.companyName.trim().toLowerCase()}`);
+        const fullName = `${inv.tenant?.firstName || ''} ${inv.tenant?.lastName || ''}`.trim().toLowerCase();
+        if (fullName) knownInvTenant.add(`${numStr}|${fullName}`);
+        if (inv.tenant?.firstName) knownInvTenant.add(`${numStr}|${inv.tenant.firstName.trim().toLowerCase()}`);
+      }
       const propByCode = new Map(properties.filter((p) => p.code).map((p) => [p.code!.toLowerCase(), p.id]));
       const propByName = new Map(properties.map((p) => [p.name.toLowerCase(), p.id]));
 
@@ -868,10 +915,18 @@ export const generalImportService = {
         const headerRow = groupRows[0];
         const d = headerRow.data;
         const invNum = d.invoiceNumber.trim();
+        const tCode = (d.tenantCode || '').trim().toLowerCase();
+        const tName = (d.tenantName || '').trim().toLowerCase();
+        const isExistingInvTenant =
+          (tCode && knownInvTenant.has(`${invKey}|${tCode}`)) ||
+          (tName && knownInvTenant.has(`${invKey}|${tName}`));
 
-        if (known.has(invKey)) {
+        if (isExistingInvTenant || knownInvoices.has(invKey)) {
           skipped++;
-          notes.push({ rowNo: headerRow.rowNo, message: `Invoice "${invNum}" already exists - skipped` });
+          const skipMsg = isExistingInvTenant
+            ? `Invoice "${invNum}" and Tenant "${d.tenantCode || d.tenantName || ''}" already exist - skipped`
+            : `Invoice "${invNum}" already exists - skipped`;
+          notes.push({ rowNo: headerRow.rowNo, message: skipMsg });
           continue;
         }
 
@@ -1086,7 +1141,10 @@ export const generalImportService = {
             // Non-critical GL auto-post failure
           }
 
-          known.add(invKey);
+          knownInvoices.add(invKey);
+          if (targetTenantId) knownInvTenant.add(`${invKey}|${targetTenantId.toLowerCase()}`);
+          if (d.tenantCode) knownInvTenant.add(`${invKey}|${d.tenantCode.trim().toLowerCase()}`);
+          if (d.tenantName) knownInvTenant.add(`${invKey}|${d.tenantName.trim().toLowerCase()}`);
           imported++;
         } catch (e) {
           groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [(e as Error).message] }));

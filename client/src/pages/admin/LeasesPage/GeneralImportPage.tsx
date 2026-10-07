@@ -216,7 +216,7 @@ export default function GeneralImportPage() {
                   ? 'Code already exists'
                   : importType === 'lead'
                   ? 'LeadNumber already exists'
-                  : 'Invoice already exists'})</li>
+                  : 'Invoice and Tenant already exist'})</li>
             )}
             {importType === 'meter' && (
               <li><span className="gi-ok">{result.linked}</span> unit connection(s) inserted into utility_meters
