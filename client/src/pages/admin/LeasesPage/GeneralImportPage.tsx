@@ -207,8 +207,8 @@ export default function GeneralImportPage() {
             <strong>{typeLabel} result</strong> ({result.total} rows in file)
           </div>
           <ul className="gi-stats">
-            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants', lead: 'leads', invoice: 'invoices' }[importType as string] ?? 'database'}</li>
-            {(importType === 'meter' || importType === 'tenant' || importType === 'lead' || importType === 'invoice') && (
+            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants', lead: 'leads', invoice: 'invoices', lease: 'leases' }[importType as string] ?? 'database'}</li>
+            {(importType === 'meter' || importType === 'tenant' || importType === 'lead' || importType === 'invoice' || importType === 'lease') && (
               <li><span className="gi-skip">{result.skipped}</span> record(s) skipped (
                 {importType === 'meter'
                   ? 'Meter No + Floor + Category already exist'
@@ -216,7 +216,9 @@ export default function GeneralImportPage() {
                   ? 'Code already exists'
                   : importType === 'lead'
                   ? 'LeadNumber already exists'
-                  : 'Invoice and Tenant already exist'})</li>
+                  : importType === 'invoice'
+                  ? 'Invoice and Tenant already exist'
+                  : 'Lease Number and Tenant already exist'})</li>
             )}
             {importType === 'meter' && (
               <li><span className="gi-ok">{result.linked}</span> unit connection(s) inserted into utility_meters

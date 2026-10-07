@@ -3,6 +3,7 @@ import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { unitsService, metersService } from '../units/units.service';
 import { leasesService } from '../leases/services/leases.service';
+import { calcLeaseTermMonths, nextLeaseNumber } from '../leases/services/helpers';
 import { glService } from '../gl/gl.service';
 
 export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice';
@@ -84,17 +85,19 @@ const COLUMNS: Record<ImportType, ColumnDef[]> = {
     { header: 'Description', key: 'description', samples: ['Sample unit', ''] },
   ],
   lease: [
-    { header: 'Unit Number', key: 'unitNumber', required: true, samples: ['A-101', 'A-102'] },
-    { header: 'Tenant Code', key: 'tenantCode', required: true, samples: ['TEN-001', 'TEN-002'] },
-    { header: 'Start Date (YYYY-MM-DD)', key: 'startDate', required: true, samples: ['2026-01-01', '2026-02-01'] },
-    { header: 'End Date (YYYY-MM-DD)', key: 'endDate', required: true, samples: ['2026-12-31', '2027-01-31'] },
-    { header: 'Rent Amount', key: 'rentAmount', required: true, samples: [500, 750] },
+    { header: 'Property', key: 'propertyCode', samples: ['PRP-001', 'PRP-001'] },
+    { header: 'Unit', key: 'unitNumber', required: true, samples: ['A-101', 'A-102'] },
+    { header: 'TenantCode', key: 'tenantCode', required: true, samples: ['TEN-001', 'TEN-002'] },
+    { header: 'LeaseNumber', key: 'leaseNumber', required: true, samples: ['LSE-2026-001', 'LSE-2026-002'] },
+    { header: 'StartDate', key: 'startDate', required: true, samples: ['2026-01-01', '2026-02-01'] },
+    { header: 'EndDate', key: 'endDate', required: true, samples: ['2026-12-31', '2027-01-31'] },
+    { header: 'HandoverDate', key: 'handoverDate', samples: ['2025-12-28', '2026-01-25'] },
+    { header: 'LeaseTerm', key: 'leaseTermMonths', samples: [12, 12] },
+    { header: 'RentAmount', key: 'rentAmount', required: true, samples: [1500, 2000] },
     { header: 'Currency', key: 'currency', samples: ['USD', 'USD'] },
-    { header: 'Billing Cycle', key: 'billingCycle', samples: ['monthly', 'monthly'] },
-    { header: 'Billing Day', key: 'billingDay', samples: [1, 5] },
-    { header: 'Payment Due Days', key: 'paymentDueDays', samples: [7, 7] },
-    { header: 'Security Deposit', key: 'securityDeposit', samples: [1000, 1500] },
-    { header: 'Notes', key: 'notes', samples: ['Sample lease', ''] },
+    { header: 'ContractStartDate', key: 'contractStartDate', samples: ['2026-01-01', '2026-02-01'] },
+    { header: 'ContractEndDate', key: 'contractEndDate', samples: ['2026-12-31', '2027-01-31'] },
+    { header: 'Status', key: 'status', samples: ['active', 'active'] },
   ],
   lead: [
     { header: 'PropertyCode', key: 'propertyCode', samples: ['PRP-001', 'PRP-001'] },
@@ -218,6 +221,14 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
       if (c.key === 'unitPrice' && ['unitprice', 'price', 'rate'].includes(nh)) return true;
       if (c.key === 'paid' && ['paid', 'paidamount'].includes(nh)) return true;
       if (c.key === 'status' && ['status', 'paidstatus', 'paymentstatus', 'invoicestatus'].includes(nh)) return true;
+      if (c.key === 'leaseNumber' && ['leasenumber', 'leaseno', 'lease_number'].includes(nh)) return true;
+      if (c.key === 'handoverDate' && ['handoverdate', 'handover_date'].includes(nh)) return true;
+      if (c.key === 'leaseTermMonths' && ['leaseterm', 'leaseterms', 'leasetermmonths', 'term'].includes(nh)) return true;
+      if (c.key === 'contractStartDate' && ['contractstartdate', 'contract_start_date'].includes(nh)) return true;
+      if (c.key === 'contractEndDate' && ['contractenddate', 'contract_end_date'].includes(nh)) return true;
+      if (c.key === 'startDate' && ['startdate', 'start_date'].includes(nh)) return true;
+      if (c.key === 'endDate' && ['enddate', 'end_date'].includes(nh)) return true;
+      if (c.key === 'rentAmount' && ['rentamount', 'rent', 'rent_amount'].includes(nh)) return true;
       if (c.key === 'dueDate' && ['duedate', 'due_date'].includes(nh)) return true;
       return false;
     });
@@ -546,38 +557,129 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
   }
 
   // lease
-  const [units, tenants] = await Promise.all([
-    prisma.unit.findMany({ where: { propertyId, deletedAt: null }, select: { unitNumber: true, status: true } }),
-    prisma.tenant.findMany({ where: { companyId, code: { not: null } }, select: { code: true, isBlacklisted: true } }),
+  const [units, tenants, properties, existingLeases] = await Promise.all([
+    prisma.unit.findMany({ where: { deletedAt: null }, select: { id: true, unitNumber: true, propertyId: true, status: true } }),
+    prisma.tenant.findMany({
+      where: { companyId, deletedAt: null },
+      select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
+    }),
+    prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
+    prisma.lease.findMany({
+      where: { companyId, deletedAt: null },
+      select: {
+        leaseNumber: true,
+        tenantId: true,
+        tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
+      },
+    }),
   ]);
-  const unitMap = new Map(units.map((u) => [u.unitNumber.toLowerCase(), u.status]));
-  const tenantMap = new Map(tenants.map((t) => [t.code!.toLowerCase(), t.isBlacklisted]));
+
+  const knownLeaseNumbers = new Set<string>();
+  const knownLeaseTenant = new Set<string>();
+  for (const l of existingLeases) {
+    if (!l.leaseNumber) continue;
+    const numStr = l.leaseNumber.trim().toLowerCase();
+    knownLeaseNumbers.add(numStr);
+    if (l.tenantId) knownLeaseTenant.add(`${numStr}|${l.tenantId.toLowerCase()}`);
+    if (l.tenant?.code) knownLeaseTenant.add(`${numStr}|${l.tenant.code.trim().toLowerCase()}`);
+    if (l.tenant?.companyName) knownLeaseTenant.add(`${numStr}|${l.tenant.companyName.trim().toLowerCase()}`);
+    const fullName = `${l.tenant?.firstName || ''} ${l.tenant?.lastName || ''}`.trim().toLowerCase();
+    if (fullName) knownLeaseTenant.add(`${numStr}|${fullName}`);
+    if (l.tenant?.firstName) knownLeaseTenant.add(`${numStr}|${l.tenant.firstName.trim().toLowerCase()}`);
+  }
+
+  const propByCode = new Map(properties.filter((p) => p.code).map((p) => [p.code!.toLowerCase(), p.id]));
+  const propByName = new Map(properties.map((p) => [p.name.toLowerCase(), p.id]));
+  const tenantMap = new Map(tenants.filter((t) => t.code).map((t) => [t.code!.toLowerCase(), t]));
+  const tenantByName = new Map(tenants.map((t) => [t.firstName ? t.firstName.toLowerCase() : '', t]));
+  for (const t of tenants) {
+    if (t.companyName) tenantByName.set(t.companyName.toLowerCase(), t);
+    const full = `${t.firstName || ''} ${t.lastName || ''}`.trim().toLowerCase();
+    if (full) tenantByName.set(full, t);
+  }
+
+  const unitKey = (propId: string, uNum: string) => `${propId}|${uNum.toLowerCase()}`;
+  const unitMap = new Map(units.map((u) => [unitKey(u.propertyId, u.unitNumber), u]));
+
+  const ALLOWED_LEASE_STATUSES = ['draft', 'pending_approval', 'approved', 'active', 'expired', 'terminated', 'renewed', 'cancelled'];
+  const seenLeaseNumbers = new Set<string>();
+  const seenLeaseTenant = new Set<string>();
+
   for (const r of rows) {
     const d = r.data;
     const errors = checkRequired(type, d);
+
+    // Target property
+    let targetPropertyId = propertyId;
+    const propRaw = (d.propertyCode || d.property || '').trim().toLowerCase();
+    if (propRaw) {
+      const matched = propByCode.get(propRaw) || propByName.get(propRaw);
+      if (matched) {
+        targetPropertyId = matched;
+      } else {
+        errors.push(`Property "${d.propertyCode || d.property}" not found`);
+      }
+    }
+
     if (d.unitNumber) {
-      const st = unitMap.get(d.unitNumber.toLowerCase());
-      if (st === undefined) errors.push(`Unit "${d.unitNumber}" not found in this property`);
-      else if (!['available', 'reserved'].includes(st)) errors.push(`Unit "${d.unitNumber}" is ${st}`);
+      const u = unitMap.get(unitKey(targetPropertyId, d.unitNumber.trim()));
+      if (!u) errors.push(`Unit "${d.unitNumber}" not found in property`);
     }
+
     if (d.tenantCode) {
-      const bl = tenantMap.get(d.tenantCode.toLowerCase());
-      if (bl === undefined) errors.push(`Tenant "${d.tenantCode}" not found`);
-      else if (bl) errors.push(`Tenant "${d.tenantCode}" is blacklisted`);
+      const t = tenantMap.get(d.tenantCode.trim().toLowerCase()) || tenantByName.get(d.tenantCode.trim().toLowerCase());
+      if (!t) errors.push(`Tenant "${d.tenantCode}" not found`);
+      else if (t.isBlacklisted) errors.push(`Tenant "${d.tenantCode}" is blacklisted`);
     }
-    if (d.startDate && !validDate(d.startDate)) errors.push('Start Date must be YYYY-MM-DD');
-    if (d.endDate && !validDate(d.endDate)) errors.push('End Date must be YYYY-MM-DD');
-    if (validDate(d.startDate) && validDate(d.endDate) && new Date(d.endDate) <= new Date(d.startDate)) {
-      errors.push('End Date must be after Start Date');
+
+    if (d.startDate && !validDate(d.startDate) && !parseDateStr(d.startDate)) errors.push('StartDate must be YYYY-MM-DD');
+    if (d.endDate && !validDate(d.endDate) && !parseDateStr(d.endDate)) errors.push('EndDate must be YYYY-MM-DD');
+    if (d.handoverDate && !validDate(d.handoverDate) && !parseDateStr(d.handoverDate)) errors.push('HandoverDate must be YYYY-MM-DD');
+    if (d.contractStartDate && !validDate(d.contractStartDate) && !parseDateStr(d.contractStartDate)) errors.push('ContractStartDate must be YYYY-MM-DD');
+    if (d.contractEndDate && !validDate(d.contractEndDate) && !parseDateStr(d.contractEndDate)) errors.push('ContractEndDate must be YYYY-MM-DD');
+
+    const sDate = parseDateStr(d.startDate);
+    const eDate = parseDateStr(d.endDate);
+    if (sDate && eDate && eDate <= sDate) {
+      errors.push('EndDate must be after StartDate');
     }
-    if (d.billingCycle) {
-      d.billingCycle = norm(d.billingCycle);
-      if (!BILLING_CYCLES.includes(d.billingCycle)) errors.push(`Billing Cycle must be one of: ${BILLING_CYCLES.join(', ')}`);
+
+    if (d.status) {
+      const st = norm(d.status);
+      if (!ALLOWED_LEASE_STATUSES.includes(st)) {
+        errors.push(`Status must be one of: ${ALLOWED_LEASE_STATUSES.join(', ')}`);
+      }
     }
-    errors.push(...checkNumbers(d, ['rentAmount', 'billingDay', 'paymentDueDays', 'securityDeposit'], {
-      rentAmount: 'Rent Amount', billingDay: 'Billing Day', paymentDueDays: 'Payment Due Days', securityDeposit: 'Security Deposit',
+
+    errors.push(...checkNumbers(d, ['rentAmount', 'leaseTermMonths'], {
+      rentAmount: 'RentAmount', leaseTermMonths: 'LeaseTerm',
     }));
-    out.push({ rowNo: r.rowNo, data: d, status: errors.length ? 'error' : 'valid', errors });
+
+    let status: PreviewRow['status'] = errors.length ? 'error' : 'valid';
+    const notes: string[] = [];
+
+    if (d.leaseNumber) {
+      const lNum = d.leaseNumber.trim().toLowerCase();
+      const tCode = (d.tenantCode || '').trim().toLowerCase();
+      const isExistingLeaseTenant =
+        (tCode && (knownLeaseTenant.has(`${lNum}|${tCode}`) || seenLeaseTenant.has(`${lNum}|${tCode}`))) ||
+        (d.tenantName && (knownLeaseTenant.has(`${lNum}|${d.tenantName.trim().toLowerCase()}`) || seenLeaseTenant.has(`${lNum}|${d.tenantName.trim().toLowerCase()}`)));
+
+      if (isExistingLeaseTenant || knownLeaseNumbers.has(lNum) || seenLeaseNumbers.has(lNum)) {
+        status = 'skip';
+        notes.push(
+          isExistingLeaseTenant
+            ? `Lease Number "${d.leaseNumber.trim()}" and Tenant "${d.tenantCode || d.tenantName || ''}" already exist - insert will be skipped`
+            : `Lease Number "${d.leaseNumber.trim()}" already exists - insert will be skipped`
+        );
+      } else {
+        seenLeaseNumbers.add(lNum);
+        if (tCode) seenLeaseTenant.add(`${lNum}|${tCode}`);
+        if (d.tenantName) seenLeaseTenant.add(`${lNum}|${d.tenantName.trim().toLowerCase()}`);
+      }
+    }
+
+    out.push({ rowNo: r.rowNo, data: d, status, errors: status === 'error' ? errors : notes });
   }
   return out;
 }
@@ -1151,29 +1253,166 @@ export const generalImportService = {
         }
       }
     } else {
-      const [units, tenants] = await Promise.all([
-        prisma.unit.findMany({ where: { propertyId, deletedAt: null }, select: { id: true, unitNumber: true } }),
-        prisma.tenant.findMany({ where: { companyId, code: { not: null } }, select: { id: true, code: true } }),
+      const [units, tenants, properties, existingLeases] = await Promise.all([
+        prisma.unit.findMany({ where: { deletedAt: null }, select: { id: true, unitNumber: true, propertyId: true, status: true } }),
+        prisma.tenant.findMany({
+          where: { companyId, deletedAt: null },
+          select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
+        }),
+        prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
+        prisma.lease.findMany({
+          where: { companyId, deletedAt: null },
+          select: {
+            leaseNumber: true,
+            tenantId: true,
+            tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
+          },
+        }),
       ]);
-      const unitId = new Map(units.map((u) => [u.unitNumber.toLowerCase(), u.id]));
-      const tenantId = new Map(tenants.map((t) => [t.code!.toLowerCase(), t.id]));
+
+      const knownLeaseNumbers = new Set<string>();
+      const knownLeaseTenant = new Set<string>();
+      for (const l of existingLeases) {
+        if (!l.leaseNumber) continue;
+        const numStr = l.leaseNumber.trim().toLowerCase();
+        knownLeaseNumbers.add(numStr);
+        if (l.tenantId) knownLeaseTenant.add(`${numStr}|${l.tenantId.toLowerCase()}`);
+        if (l.tenant?.code) knownLeaseTenant.add(`${numStr}|${l.tenant.code.trim().toLowerCase()}`);
+        if (l.tenant?.companyName) knownLeaseTenant.add(`${numStr}|${l.tenant.companyName.trim().toLowerCase()}`);
+        const fullName = `${l.tenant?.firstName || ''} ${l.tenant?.lastName || ''}`.trim().toLowerCase();
+        if (fullName) knownLeaseTenant.add(`${numStr}|${fullName}`);
+        if (l.tenant?.firstName) knownLeaseTenant.add(`${numStr}|${l.tenant.firstName.trim().toLowerCase()}`);
+      }
+
+      const propByCode = new Map(properties.filter((p) => p.code).map((p) => [p.code!.toLowerCase(), p.id]));
+      const propByName = new Map(properties.map((p) => [p.name.toLowerCase(), p.id]));
+      const tenantMap = new Map(tenants.filter((t) => t.code).map((t) => [t.code!.toLowerCase(), t]));
+      const tenantByName = new Map(tenants.map((t) => [t.firstName ? t.firstName.toLowerCase() : '', t]));
+      for (const t of tenants) {
+        if (t.companyName) tenantByName.set(t.companyName.toLowerCase(), t);
+        const full = `${t.firstName || ''} ${t.lastName || ''}`.trim().toLowerCase();
+        if (full) tenantByName.set(full, t);
+      }
+
+      const unitKey = (propId: string, uNum: string) => `${propId}|${uNum.toLowerCase()}`;
+      const unitMap = new Map(units.map((u) => [unitKey(u.propertyId, u.unitNumber), u]));
+
       for (const r of valid) {
         const d = r.data;
+        const leaseNum = (d.leaseNumber || '').trim();
+        const lNum = leaseNum.toLowerCase();
+        const tCode = (d.tenantCode || '').trim().toLowerCase();
+        const tName = (d.tenantName || '').trim().toLowerCase();
+
+        const isExistingLeaseTenant =
+          (tCode && knownLeaseTenant.has(`${lNum}|${tCode}`)) ||
+          (tName && knownLeaseTenant.has(`${lNum}|${tName}`));
+
+        if (isExistingLeaseTenant || (lNum && knownLeaseNumbers.has(lNum))) {
+          skipped++;
+          const skipMsg = isExistingLeaseTenant
+            ? `Lease Number "${leaseNum}" and Tenant "${d.tenantCode || d.tenantName || ''}" already exist - skipped`
+            : `Lease Number "${leaseNum}" already exists - skipped`;
+          notes.push({ rowNo: r.rowNo, message: skipMsg });
+          continue;
+        }
+
         try {
-          await leasesService.create(companyId, {
-            propertyId,
-            unitId: unitId.get(d.unitNumber.toLowerCase()),
-            tenantId: tenantId.get(d.tenantCode.toLowerCase()),
-            startDate: d.startDate,
-            endDate: d.endDate,
-            rentAmount: num(d.rentAmount),
-            ...(d.currency ? { currency: d.currency.toUpperCase() } : {}),
-            ...(d.billingCycle ? { billingCycle: d.billingCycle } : {}),
-            ...(d.billingDay ? { billingDay: num(d.billingDay) } : {}),
-            ...(d.paymentDueDays ? { paymentDueDays: num(d.paymentDueDays) } : {}),
-            ...(d.securityDeposit ? { securityDeposit: num(d.securityDeposit) } : {}),
-            ...(d.notes ? { notes: d.notes } : {}),
-          }, userId);
+          // Target property
+          let targetPropertyId = propertyId;
+          const propRaw = (d.propertyCode || d.property || '').trim().toLowerCase();
+          if (propRaw) {
+            const matched = propByCode.get(propRaw) || propByName.get(propRaw);
+            if (matched) {
+              targetPropertyId = matched;
+            }
+          }
+
+          // Target tenant
+          const targetTenant = tenantMap.get(tCode) || (tName ? tenantByName.get(tName) : undefined);
+          if (!targetTenant) {
+            failed.push({ rowNo: r.rowNo, errors: [`Tenant "${d.tenantCode || d.tenantName}" not found`] });
+            continue;
+          }
+          if (targetTenant.isBlacklisted) {
+            failed.push({ rowNo: r.rowNo, errors: [`Tenant "${d.tenantCode || d.tenantName}" is blacklisted`] });
+            continue;
+          }
+
+          // Target unit
+          const unit = unitMap.get(unitKey(targetPropertyId, (d.unitNumber || '').trim()));
+          if (!unit) {
+            failed.push({ rowNo: r.rowNo, errors: [`Unit "${d.unitNumber}" not found in property`] });
+            continue;
+          }
+
+          const startDate = parseDateStr(d.startDate);
+          const endDate = parseDateStr(d.endDate);
+          if (!startDate || !endDate) {
+            failed.push({ rowNo: r.rowNo, errors: ['StartDate and EndDate are required and must be valid dates'] });
+            continue;
+          }
+          const handoverDate = parseDateStr(d.handoverDate);
+          const contractStartDate = parseDateStr(d.contractStartDate);
+          const contractEndDate = parseDateStr(d.contractEndDate);
+
+          let termMonths = optNum(d.leaseTermMonths);
+          if (!termMonths || termMonths <= 0) {
+            termMonths = calcLeaseTermMonths(startDate, endDate);
+          }
+
+          const rent = num(d.rentAmount);
+          if (rent === null || isNaN(rent)) {
+            failed.push({ rowNo: r.rowNo, errors: ['RentAmount must be a valid number'] });
+            continue;
+          }
+
+          const status = d.status ? norm(d.status) : 'active';
+          const currency = (d.currency?.trim() || 'USD').toUpperCase();
+
+          const rentalAgreement = (contractStartDate || contractEndDate)
+            ? {
+                contractStartDate: contractStartDate ? contractStartDate.toISOString().slice(0, 10) : null,
+                contractEndDate: contractEndDate ? contractEndDate.toISOString().slice(0, 10) : null,
+              }
+            : undefined;
+
+          const finalLeaseNumber = leaseNum || nextLeaseNumber();
+
+          await prisma.lease.create({
+            data: {
+              companyId,
+              propertyId: targetPropertyId,
+              unitId: unit.id,
+              tenantId: targetTenant.id,
+              leaseNumber: finalLeaseNumber,
+              status,
+              startDate,
+              endDate,
+              handoverDate,
+              leaseTermMonths: termMonths,
+              rentAmount: rent,
+              currency,
+              rentalAgreement: rentalAgreement ?? undefined,
+              createdBy: userId,
+            },
+          });
+
+          if (status === 'active') {
+            await prisma.unit.update({
+              where: { id: unit.id },
+              data: { status: 'occupied' },
+            }).catch(() => {});
+          }
+
+          const finalNumKey = finalLeaseNumber.trim().toLowerCase();
+          knownLeaseNumbers.add(finalNumKey);
+          knownLeaseTenant.add(`${finalNumKey}|${targetTenant.id.toLowerCase()}`);
+          if (targetTenant.code) knownLeaseTenant.add(`${finalNumKey}|${targetTenant.code.trim().toLowerCase()}`);
+          if (targetTenant.companyName) knownLeaseTenant.add(`${finalNumKey}|${targetTenant.companyName.trim().toLowerCase()}`);
+          const fullName = `${targetTenant.firstName || ''} ${targetTenant.lastName || ''}`.trim().toLowerCase();
+          if (fullName) knownLeaseTenant.add(`${finalNumKey}|${fullName}`);
+
           imported++;
         } catch (e) {
           failed.push({ rowNo: r.rowNo, errors: [(e as Error).message] });
