@@ -121,6 +121,7 @@ const COLUMNS: Record<ImportType, ColumnDef[]> = {
   invoice: [
     { header: 'InvoiceDate', key: 'invoiceDate', required: true, samples: ['2026-03-01', '2026-03-01', '2026-03-05'] },
     { header: 'Invoice', key: 'invoiceNumber', required: true, samples: ['INV-2026-001', 'INV-2026-001', 'INV-2026-002'] },
+    { header: 'SecondRef', key: 'secondRef', samples: ['REF-001', 'REF-001', 'REF-002'] },
     { header: 'TenantCode', key: 'tenantCode', required: true, samples: ['TEN-001', 'TEN-001', 'TEN-002'] },
     { header: 'TenantName', key: 'tenantName', samples: ['John Smith', 'John Smith', 'Acme Corp'] },
     { header: 'Property', key: 'propertyCode', samples: ['PRP-001', 'PRP-001', 'PRP-001'] },
@@ -208,6 +209,7 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
       if (c.key === 'productPlan' && nh === 'productplan') return true;
       if (c.key === 'applicantDate' && nh === 'applicantdate') return true;
       if (c.key === 'invoiceNumber' && ['invoice', 'invoiceno', 'invoicenumber', 'inv', 'invno'].includes(nh)) return true;
+      if (c.key === 'secondRef' && ['secondref', 'second_ref', 'secondreference', 'ref2', '2ndref', 'secondrefno'].includes(nh)) return true;
       if (c.key === 'invoiceDate' && ['invoicedate', 'invdate'].includes(nh)) return true;
       if (c.key === 'tenantCode' && ['tenantcode', 'tencode', 'customerno'].includes(nh)) return true;
       if (c.key === 'tenantName' && ['tenantname', 'tenname', 'customername'].includes(nh)) return true;
@@ -505,6 +507,9 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
 
       if (d.invoiceDate && !validDate(d.invoiceDate) && !parseDateStr(d.invoiceDate)) {
         errors.push('InvoiceDate must be a valid date (YYYY-MM-DD)');
+      }
+      if (d.secondRef && d.secondRef.trim().length > 100) {
+        errors.push('SecondRef cannot exceed 100 characters');
       }
       if (d.dueDate && !validDate(d.dueDate) && !parseDateStr(d.dueDate)) {
         errors.push('DueDate must be a valid date (YYYY-MM-DD)');
@@ -1017,6 +1022,7 @@ export const generalImportService = {
         const headerRow = groupRows[0];
         const d = headerRow.data;
         const invNum = d.invoiceNumber.trim();
+        const secondRef = groupRows.find((r) => r.data.secondRef?.trim())?.data.secondRef?.trim() || null;
         const tCode = (d.tenantCode || '').trim().toLowerCase();
         const tName = (d.tenantName || '').trim().toLowerCase();
         const isExistingInvTenant =
@@ -1204,6 +1210,7 @@ export const generalImportService = {
               leaseId: resolvedLeaseId,
               tenantId: targetTenantId,
               invoiceNumber: invNum,
+              secondRef,
               invoiceType: 'invoice',
               status: finalStatus,
               invoiceDate: invDate,
