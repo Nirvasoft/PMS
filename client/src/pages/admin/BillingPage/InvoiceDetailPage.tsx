@@ -329,6 +329,10 @@ export default function InvoiceDetailPage() {
           <div className="imi-value">{format(new Date(inv.dueDate), 'MMM d, yyyy')}</div>
         </div>
         <div className="invoice-meta-item">
+          <div className="imi-label">Second Ref.</div>
+          <div className="imi-value">{inv.secondRef || '—'}</div>
+        </div>
+        <div className="invoice-meta-item">
           <div className="imi-label">Currency</div>
           <div className="imi-value" style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600 }}>{tenantCurrency}</span>

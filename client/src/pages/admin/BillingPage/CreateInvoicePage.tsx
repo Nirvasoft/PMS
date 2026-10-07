@@ -46,7 +46,7 @@ export default function CreateInvoicePage() {
 
   const [form, setForm] = useState({
     propertyId: '', tenantId: '', unitId: '', leaseId: '', invoiceDate: new Date().toISOString().split('T')[0],
-    dueDate: '', notes: '',
+    dueDate: '', secondRef: '', notes: '',
   });
 
   // Tenants scoped to the selected property — only fetched once a property is chosen.
@@ -235,6 +235,7 @@ export default function CreateInvoicePage() {
     try {
       const result = await createInvoice({
         ...form,
+        secondRef: form.secondRef.trim() || undefined,
         leaseId: selectedLease?.id || form.leaseId || undefined,
         currency: effectiveCurrency,
         currencyRate: effectiveRate,
@@ -410,6 +411,16 @@ export default function CreateInvoicePage() {
             <div className="inv-field">
               <label>Due Date <span className="req">*</span></label>
               <input type="date" required value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+            </div>
+            <div className="inv-field">
+              <label>Second Ref. <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+              <input
+                type="text"
+                maxLength={100}
+                placeholder="Optional second reference…"
+                value={form.secondRef}
+                onChange={e => setForm({ ...form, secondRef: e.target.value })}
+              />
             </div>
           </div>
 

@@ -178,6 +178,7 @@ export const createInvoiceSchema = z.object({
     periodTo: dateString.optional(),
     currency: z.string().length(3).optional(),
     currencyRate: z.number().optional().nullable(),
+    secondRef: z.string().max(100).optional().nullable(),
     notes: z.string().optional(),
     lines: z.array(z.object({
       chargeTypeId: z.string().uuid(),

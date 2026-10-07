@@ -118,6 +118,7 @@ export interface InvoiceLine {
 export interface InvoiceListItem {
   id: string;
   invoiceNumber: string;
+  secondRef?: string | null;
   invoiceType: string;
   status: string;
   invoiceDate: string;

@@ -3025,6 +3025,7 @@ model Invoice {
   tenantId           String    @map("tenant_id") @db.Uuid
   leaseId            String?   @map("lease_id") @db.Uuid
   invoiceNumber      String    @unique @map("invoice_number") @db.VarChar(50)
+  secondRef          String?   @map("second_ref") @db.VarChar(100)
   invoiceType        String    @default("invoice") @map("invoice_type") @db.VarChar(50)
   // 'invoice'|'credit_note'|'debit_note'|'proforma'
   status             String    @default("draft") @db.VarChar(50)

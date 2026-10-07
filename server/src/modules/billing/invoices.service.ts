@@ -39,6 +39,7 @@ export class InvoicesService {
       const q = search.trim();
       where.OR = [
         { invoiceNumber: { contains: q, mode: 'insensitive' } },
+        { secondRef: { contains: q, mode: 'insensitive' } },
         { tenant: { firstName: { contains: q, mode: 'insensitive' } } },
         { tenant: { lastName: { contains: q, mode: 'insensitive' } } },
         { tenant: { companyName: { contains: q, mode: 'insensitive' } } },
@@ -192,6 +193,7 @@ export class InvoicesService {
         paidAmount: 0,
         currency,
         currencyRate,
+        secondRef: (dto.secondRef as string)?.trim() || null,
         notes: (dto.notes as string) || null,
         createdBy: userId,
         lines: { create: lineData },
