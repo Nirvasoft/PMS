@@ -127,14 +127,14 @@ export default function UnitsTab() {
   /* Reset to page 1 whenever the query filters or view (page size) change */
   useEffect(() => {
     setPage(1);
-  }, [propertyId, selectedTowerId, statusParam, floorFilter, searchQuery, viewMode]);
+  }, [propertyId, selectedTowerId, statusParam, unitTypeFilter, floorFilter, searchQuery, viewMode]);
 
   /* Multi-select (List view) — persists across pages so "select all" can span the whole filtered
      result set; cleared whenever the filters themselves change (the selection would no longer match). */
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   useEffect(() => {
     setSelectedIds([]);
-  }, [propertyId, selectedTowerId, statusParam, floorFilter, searchQuery, viewMode]);
+  }, [propertyId, selectedTowerId, statusParam, unitTypeFilter, floorFilter, searchQuery, viewMode]);
   const toggleSelected = (id: string) =>
     setSelectedIds((ids) => (ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id]));
   const [bulkUpdateStatus, { isLoading: bulkUpdating }] = useBulkUpdateUnitStatusMutation();
@@ -146,13 +146,16 @@ export default function UnitsTab() {
   const hasEligibleStatus = eligibleStatuses.length > 0;
   const selectableStatusParam = eligibleStatuses.join(',') || undefined;
 
+  const trimmedSearch = searchQuery.trim();
+
   const { data: listData, isLoading: listLoading } = useGetUnitsQuery(
     {
       propertyId: propertyId!,
       towerId: selectedTowerId || undefined,
       status: statusParam,
+      unitType: unitTypeFilter || undefined,
       floor: floorFilter ?? undefined,
-      search: searchQuery || undefined,
+      search: trimmedSearch || undefined,
       page,
       limit: PAGE_SIZE,
     },
@@ -178,8 +181,9 @@ export default function UnitsTab() {
         propertyId: propertyId!,
         towerId: selectedTowerId || undefined,
         status: selectableStatusParam,
+        unitType: unitTypeFilter || undefined,
         floor: floorFilter ?? undefined,
-        search: searchQuery || undefined,
+        search: trimmedSearch || undefined,
       }).unwrap();
       setSelectedIds(res.data);
     } catch {
@@ -249,21 +253,23 @@ export default function UnitsTab() {
     [unitTypes]
   );
 
-  /* Apply floor + unit type filters to the full building layout (allFloors), so every
+  /* Apply floor + unit type + search filters to the full building layout (allFloors), so every
      level always appears; empty floors are hidden only when a unit-level filter is active. */
+  const queryLower = searchQuery.trim().toLowerCase();
   const filteredFloors = allFloors
     .map((floor) => ({
       ...floor,
       units: floor.units.filter((u) => {
         if (statusFilter.length > 0 && !statusFilter.includes(u.status)) return false;
         if (unitTypeFilter && u.unitType !== unitTypeFilter) return false;
+        if (queryLower && !u.unitNumber.toLowerCase().includes(queryLower)) return false;
         return true;
       }),
     }))
     .filter((f) => {
       if (floorFilter !== null && f.floorNumber !== floorFilter) return false;
-      // Hide empty floors only when a unit-level filter (status/type) is active
-      return f.units.length > 0 || (statusFilter.length === 0 && !unitTypeFilter);
+      // Hide empty floors only when a unit-level filter (status/type/search) is active
+      return f.units.length > 0 || (statusFilter.length === 0 && !unitTypeFilter && !queryLower);
     });
 
   return (

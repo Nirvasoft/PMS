@@ -5,7 +5,7 @@ import {
 } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { Gauge, Plus, X, Pencil, Trash2, Search, Zap, Layers, Droplets } from 'lucide-react';
+import { Gauge, Plus, X, Pencil, Trash2, Search, Zap, Layers, Droplets, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
@@ -82,6 +82,17 @@ export default function MeterSetupPage() {
       labelFor(METER_TYPES, m.meterType).toLowerCase().includes(q)
     );
   });
+
+  // ── Pagination ───────────────────────────────────────
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, searchPropertyId, searchFloorId, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredMeters.length / pageSize));
+  const paginatedMeters = filteredMeters.slice((page - 1) * pageSize, page * pageSize);
 
   // ── Counts & Statistics (scoped by selected Property and Floor) ──────
   const scopedMeters = meters.filter((m) => {
@@ -249,42 +260,50 @@ export default function MeterSetupPage() {
       <div className="billing-summary-cards" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
         <div className="billing-stat-card">
           <div className="bsc-icon" style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6' }}>
-            <Gauge size={20} />
+            <Gauge size={17} />
           </div>
-          <span className="bsc-label">Total Meters</span>
-          <span className="bsc-value">{totalCount}</span>
-          <span className="bsc-sub">
-            {selectedFloorLabel
-              ? `Floor: ${selectedFloorLabel}`
-              : (lockedPropertyName || properties.find((p) => p.id === searchPropertyId)?.name || 'All registered meters')}
-          </span>
+          <div className="bsc-info">
+            <span className="bsc-label">Total Meters</span>
+            <span className="bsc-value">{totalCount}</span>
+            <span className="bsc-sub">
+              {selectedFloorLabel
+                ? `Floor: ${selectedFloorLabel}`
+                : (lockedPropertyName || properties.find((p) => p.id === searchPropertyId)?.name || 'All registered meters')}
+            </span>
+          </div>
         </div>
 
         <div className="billing-stat-card">
           <div className="bsc-icon" style={{ background: 'rgba(234, 179, 8, 0.12)', color: '#eab308' }}>
-            <Zap size={20} />
+            <Zap size={17} />
           </div>
-          <span className="bsc-label">MEPE Meters</span>
-          <span className="bsc-value">{mepeCount}</span>
-          <span className="bsc-sub">Main supply meters</span>
+          <div className="bsc-info">
+            <span className="bsc-label">MEPE Meters</span>
+            <span className="bsc-value">{mepeCount}</span>
+            <span className="bsc-sub">Main supply meters</span>
+          </div>
         </div>
 
         <div className="billing-stat-card">
           <div className="bsc-icon" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
-            <Layers size={20} />
+            <Layers size={17} />
           </div>
-          <span className="bsc-label">Sub Meters</span>
-          <span className="bsc-value">{subMeterCount}</span>
-          <span className="bsc-sub">Tenant & branch meters</span>
+          <div className="bsc-info">
+            <span className="bsc-label">Sub Meters</span>
+            <span className="bsc-value">{subMeterCount}</span>
+            <span className="bsc-sub">Tenant & branch meters</span>
+          </div>
         </div>
 
         <div className="billing-stat-card">
           <div className="bsc-icon" style={{ background: 'rgba(14, 165, 233, 0.12)', color: '#0ea5e9' }}>
-            <Droplets size={20} />
+            <Droplets size={17} />
           </div>
-          <span className="bsc-label">CT & Water</span>
-          <span className="bsc-value">{ctMeterCount + waterMeterCount}</span>
-          <span className="bsc-sub">{ctMeterCount} CT · {waterMeterCount} Water</span>
+          <div className="bsc-info">
+            <span className="bsc-label">CT & Water</span>
+            <span className="bsc-value">{ctMeterCount + waterMeterCount}</span>
+            <span className="bsc-sub">{ctMeterCount} CT · {waterMeterCount} Water</span>
+          </div>
         </div>
       </div>
 
@@ -369,7 +388,7 @@ export default function MeterSetupPage() {
               <tr><td colSpan={8} className="billing-empty">No meters set up yet</td></tr>
             ) : filteredMeters.length === 0 ? (
               <tr><td colSpan={8} className="billing-empty">No meters match your search</td></tr>
-            ) : filteredMeters.map((m) => (
+            ) : paginatedMeters.map((m) => (
               <tr key={m.id}>
                 <td>{m.floor?.floorLabel ?? '—'}</td>
                 <td>{labelFor(METER_TYPES, m.meterType)}</td>
@@ -398,6 +417,50 @@ export default function MeterSetupPage() {
             ))}
           </tbody>
         </table>
+
+        {/* Pagination */}
+        {filteredMeters.length > 0 && (
+          <div className="billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="meter-page-size">Rows per page:</label>
+                <select
+                  id="meter-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="page-btns">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                title="Previous page"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="page-num-display">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                title="Next page"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Create / Edit Form Modal */}

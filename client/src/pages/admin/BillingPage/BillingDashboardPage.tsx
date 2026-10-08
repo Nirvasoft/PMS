@@ -76,7 +76,7 @@ export default function BillingDashboardPage() {
     if (!inv.tenant) return '—';
     return inv.tenant.tenantType !== 'individual'
       ? inv.tenant.companyName || ''
-      : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
+      : inv.tenant.lastName || inv.tenant.firstName || '';
   };
 
   return (
@@ -98,40 +98,48 @@ export default function BillingDashboardPage() {
       <div className="billing-summary-cards">
         <div className="billing-stat-card">
           <div className="bsc-icon" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
-            <FileText size={18} />
+            <FileText size={17} />
           </div>
-          <div className="bsc-label">Issued Today</div>
-          <div className="bsc-value">{stats.issuedToday}</div>
-          <div className="bsc-sub">Invoices generated</div>
+          <div className="bsc-info">
+            <span className="bsc-label">Issued Today</span>
+            <span className="bsc-value">{stats.issuedToday}</span>
+            <span className="bsc-sub">Invoices generated</span>
+          </div>
         </div>
 
         <div className="billing-stat-card">
           <div className="bsc-icon" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }}>
-            <AlertTriangle size={18} />
+            <AlertTriangle size={17} />
           </div>
-          <div className="bsc-label">Overdue</div>
-          <div className="bsc-value">{stats.overdueCount}</div>
-          <div className="bsc-sub" style={{ color: stats.totalOverdue > 0 ? '#f87171' : undefined }}>
-            {formatCurrency(stats.totalOverdue)} outstanding
+          <div className="bsc-info">
+            <span className="bsc-label">Overdue</span>
+            <span className="bsc-value" style={{ color: stats.overdueCount > 0 ? '#f87171' : undefined }}>{stats.overdueCount}</span>
+            <span className="bsc-sub" style={{ color: stats.totalOverdue > 0 ? '#f87171' : undefined }}>
+              {formatCurrency(stats.totalOverdue)} outstanding
+            </span>
           </div>
         </div>
 
         <div className="billing-stat-card">
           <div className="bsc-icon" style={{ background: 'rgba(245,158,11,0.12)', color: '#fbbf24' }}>
-            <Clock size={18} />
+            <Clock size={17} />
           </div>
-          <div className="bsc-label">Due This Week</div>
-          <div className="bsc-value">{stats.dueThisWeek}</div>
-          <div className="bsc-sub">Upcoming payments</div>
+          <div className="bsc-info">
+            <span className="bsc-label">Due This Week</span>
+            <span className="bsc-value">{stats.dueThisWeek}</span>
+            <span className="bsc-sub">Upcoming payments</span>
+          </div>
         </div>
 
         <div className="billing-stat-card">
           <div className="bsc-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
-            <TrendingUp size={18} />
+            <TrendingUp size={17} />
           </div>
-          <div className="bsc-label">MTD Revenue</div>
-          <div className="bsc-value" style={{ fontSize: 22 }}>{formatCurrency(stats.mtdRevenue)}</div>
-          <div className="bsc-sub">Month-to-date collected</div>
+          <div className="bsc-info">
+            <span className="bsc-label">MTD Revenue</span>
+            <span className="bsc-value">{formatCurrency(stats.mtdRevenue)}</span>
+            <span className="bsc-sub">Month-to-date collected</span>
+          </div>
         </div>
       </div>
 
@@ -220,7 +228,7 @@ export default function BillingDashboardPage() {
                   <td><span className="cell-mono">{inv.invoiceNumber}</span></td>
                   <td><span className="cell-primary">{getTenantName(inv)}</span></td>
                   <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{inv.property?.name}</span></td>
-                  <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{format(new Date(inv.invoiceDate), 'MMM d, yyyy')}</span></td>
+                  <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{format(new Date(inv.invoiceDate), 'yyyy-MM-dd')}</span></td>
                   <td className="text-right">
                     <span className="cell-amount">{formatCurrency(Number(inv.totalAmount), inv.currency)}</span>
                   </td>

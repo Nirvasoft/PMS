@@ -28,6 +28,7 @@ const formatCurrency = (amount: string | number, currency = 'USD') =>
 export default function InvoiceListPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -43,14 +44,14 @@ export default function InvoiceListPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Reset pagination whenever the sidebar's Active Property, status, or search changes.
-  useEffect(() => { setPage(1); }, [activePropertyFilter, status, debouncedSearch]);
+  // Reset pagination whenever the sidebar's Active Property, status, pageSize, or search changes.
+  useEffect(() => { setPage(1); }, [activePropertyFilter, status, debouncedSearch, pageSize]);
 
   const { data, isFetching, refetch } = useGetInvoicesQuery({
     propertyId: activePropertyFilter || undefined,
     status: status || undefined,
     search: debouncedSearch || undefined,
-    page, limit: 15,
+    page, limit: pageSize,
   });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
   const [voidInvoice] = useVoidInvoiceMutation();
@@ -214,9 +215,10 @@ export default function InvoiceListPage() {
 
   const getTenantName = (inv: any) => {
     if (!inv.tenant) return '—';
-    return inv.tenant.tenantType !== 'individual'
-      ? inv.tenant.companyName || ''
-      : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
+    if (inv.tenant.tenantType && inv.tenant.tenantType !== 'individual') {
+      return inv.tenant.companyName || '—';
+    }
+    return inv.tenant.lastName || inv.tenant.firstName || '—';
   };
 
   // ── V6 ERP Handlers ────────────────────────────────────────────────────────
@@ -273,18 +275,93 @@ export default function InvoiceListPage() {
   return (
     <div className="billing-page">
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <div className="page-title-row">
           <div className="page-icon-lg" style={{ background: 'var(--primary-subtle)', color: 'var(--primary)' }}>
             <FileText size={22} />
           </div>
           <div>
             <h1>Invoices</h1>
-            <p>Manage billing invoices and credit notes</p>
           </div>
         </div>
+      </div>
+
+      {/* Summary Cards (Compact Modified Design) */}
+      <div className="billing-summary-cards">
+        <div className="billing-stat-card">
+          <div className="bsc-icon" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
+            <Receipt size={17} />
+          </div>
+          <div className="bsc-info">
+            <span className="bsc-label">Total Invoices</span>
+            <span className="bsc-value">{stats.total.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div className="billing-stat-card">
+          <div className="bsc-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+            <DollarSign size={17} />
+          </div>
+          <div className="bsc-info">
+            <span className="bsc-label">Page Revenue</span>
+            {baseCurrencyCode ? (
+              <span className="bsc-value">{formatCurrency(stats.totalInBase, baseCurrencyCode)}</span>
+            ) : Object.keys(stats.byCurrency).length <= 1 ? (
+              <span className="bsc-value">
+                {formatCurrency(stats.totalInBase, Object.keys(stats.byCurrency)[0] || 'USD')}
+              </span>
+            ) : (
+              <span className="bsc-value multi-currency">
+                {Object.entries(stats.byCurrency).map(([cur, amt]) => (
+                  <span key={cur}>{formatCurrency(amt, cur)}</span>
+                ))}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="billing-stat-card">
+          <div className="bsc-icon" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }}>
+            <AlertTriangle size={17} />
+          </div>
+          <div className="bsc-info">
+            <span className="bsc-label">Overdue</span>
+            <span className="bsc-value" style={{ color: stats.overdue > 0 ? '#f87171' : undefined }}>
+              {stats.overdue}
+            </span>
+          </div>
+        </div>
+
+        <div className="billing-stat-card">
+          <div className="bsc-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+            <CheckCircle size={17} />
+          </div>
+          <div className="bsc-info">
+            <span className="bsc-label">Paid</span>
+            <span className="bsc-value" style={{ color: '#34d399' }}>
+              {stats.paid}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Toolbar: Filters (Left) & Actions (Right) */}
+      <div className="billing-filters">
+        <div className="billing-filters-left">
+          <div className="search-wrap">
+            <Search size={15} className="search-icon" />
+            <input type="text" placeholder="Search invoice or tenant" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <select className="filter-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); clearSelection(); }}>
+            <option value="">All Statuses</option>
+            {STATUS_OPTIONS.filter(Boolean).map(s => (
+              <option key={s} value={s}>{s.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
+            ))}
+          </select>
+        </div>
+
         <PermissionGuard permission="billing-invoices.write">
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="billing-filters-actions">
             {isV6Active && (
               <button
                 className="btn btn-secondary"
@@ -309,66 +386,6 @@ export default function InvoiceListPage() {
         </PermissionGuard>
       </div>
 
-      {/* Summary Cards */}
-      <div className="billing-summary-cards">
-        <div className="billing-stat-card">
-          <div className="bsc-icon" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
-            <Receipt size={18} />
-          </div>
-          <span className="bsc-label">Total Invoices</span>
-          <span className="bsc-value">{stats.total}</span>
-        </div>
-        <div className="billing-stat-card">
-          <div className="bsc-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
-            <DollarSign size={18} />
-          </div>
-          <span className="bsc-label">Page Revenue</span>
-          {/* Property selected → show total converted to base currency.
-              All Properties  → list each currency's raw total separately. */}
-          {baseCurrencyCode ? (
-            <span className="bsc-value">{formatCurrency(stats.totalInBase, baseCurrencyCode)}</span>
-          ) : Object.keys(stats.byCurrency).length <= 1 ? (
-            <span className="bsc-value">
-              {formatCurrency(stats.totalInBase, Object.keys(stats.byCurrency)[0] || 'USD')}
-            </span>
-          ) : (
-            <span className="bsc-value" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, fontSize: 13 }}>
-              {Object.entries(stats.byCurrency).map(([cur, amt]) => (
-                <span key={cur}>{formatCurrency(amt, cur)}</span>
-              ))}
-            </span>
-          )}
-        </div>
-        <div className="billing-stat-card">
-          <div className="bsc-icon" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }}>
-            <AlertTriangle size={18} />
-          </div>
-          <span className="bsc-label">Overdue</span>
-          <span className="bsc-value" style={{ color: stats.overdue > 0 ? '#f87171' : undefined }}>{stats.overdue}</span>
-        </div>
-        <div className="billing-stat-card">
-          <div className="bsc-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
-            <CheckCircle size={18} />
-          </div>
-          <span className="bsc-label">Paid</span>
-          <span className="bsc-value" style={{ color: '#34d399' }}>{stats.paid}</span>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="billing-filters">
-        <div className="search-wrap">
-          <Search size={15} className="search-icon" />
-          <input type="text" placeholder="Search invoice or tenant" value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <select className="filter-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); clearSelection(); }}>
-          <option value="">All Statuses</option>
-          {STATUS_OPTIONS.filter(Boolean).map(s => (
-            <option key={s} value={s}>{s.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
-          ))}
-        </select>
-      </div>
-
       {/* Table */}
       <div className="billing-table-wrap">
         <table className="billing-table">
@@ -387,8 +404,7 @@ export default function InvoiceListPage() {
               <th style={{ width: 110 }}>Invoice Date</th>
               <th style={{ width: 140 }}>Invoice #</th>
               <th style={{ width: 160 }}>Tenant</th>
-              <th style={{ width: 180 }}>Property / Unit</th>
-              <th style={{ width: 150 }}>Period</th>
+              <th style={{ width: 120 }}>Unit</th>
               <th className="text-right" style={{ width: 110 }}>Total</th>
               <th className="text-right" style={{ width: 110 }}>Paid</th>
               <th style={{ width: 120 }}>Status</th>
@@ -398,7 +414,7 @@ export default function InvoiceListPage() {
           <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={9}>
                   <div className="billing-empty">
                     {isFetching ? 'Loading invoices…' : 'No invoices found.'}
                   </div>
@@ -427,7 +443,9 @@ export default function InvoiceListPage() {
                       />
                     </td>
                     <td>
-                      <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{format(new Date(inv.invoiceDate), 'MMM d, yyyy')}</div>
+                      <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+                        {inv.invoiceDate ? format(new Date(inv.invoiceDate), 'yyyy-MM-dd') : '—'}
+                      </div>
                     </td>
                     <td>
                       <div className="cell-primary">{inv.invoiceNumber}</div>
@@ -439,18 +457,7 @@ export default function InvoiceListPage() {
                       <div className="cell-primary">{getTenantName(inv)}</div>
                     </td>
                     <td>
-                      <div className="cell-primary">{inv.property?.name}</div>
-                      {inv.unit && <div className="cell-secondary">Unit {inv.unit.unitNumber}</div>}
-                    </td>
-                    <td>
-                      {inv.periodFrom && inv.periodTo ? (
-                        <>
-                          <div className="cell-primary">{format(new Date(inv.periodFrom), 'MMM d')} – {format(new Date(inv.periodTo), 'MMM d')}</div>
-                          <div className="cell-secondary">{format(new Date(inv.periodTo), 'yyyy')}</div>
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--text-tertiary)' }}>—</span>
-                      )}
+                      <div className="cell-primary">{inv.unit ? `Unit ${inv.unit.unitNumber}` : '—'}</div>
                     </td>
                     <td className="text-right">
                       <span className="cell-amount">
@@ -470,7 +477,9 @@ export default function InvoiceListPage() {
                       <span className={`inv-status inv-status--${inv.status}`}>{inv.status.replace('_', ' ')}</span>
                     </td>
                     <td>
-                      <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{format(new Date(inv.dueDate), 'MMM d, yyyy')}</div>
+                      <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+                        {inv.dueDate ? format(new Date(inv.dueDate), 'yyyy-MM-dd') : '—'}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -480,16 +489,43 @@ export default function InvoiceListPage() {
         </table>
 
         {/* Pagination */}
-        {meta && meta.totalPages > 1 && (
+        {meta && meta.total > 0 && (
           <div className="billing-pagination">
-            <span className="page-info">
-              Page {meta.page} of {meta.totalPages} · {meta.total} invoices
-            </span>
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="inv-page-size">Rows per page:</label>
+                <select
+                  id="inv-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
             <div className="page-btns">
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                title="Previous page"
+              >
                 <ChevronLeft size={15} />
               </button>
-              <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>
+              <span className="page-num-display">
+                Page {meta.page} of {Math.max(meta.totalPages, 1)}
+              </span>
+              <button
+                disabled={page >= meta.totalPages}
+                onClick={() => setPage(p => p + 1)}
+                title="Next page"
+              >
                 <ChevronRight size={15} />
               </button>
             </div>
@@ -658,9 +694,13 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
     );
   }, [schedulesData, asOfDate]);
 
-  const getTenantName = (s: any) => s.tenant?.tenantType && s.tenant.tenantType !== 'individual'
-    ? s.tenant.companyName || ''
-    : `${s.tenant?.firstName || ''} ${s.tenant?.lastName || ''}`.trim();
+  const getTenantName = (s: any) => {
+    if (!s.tenant) return '—';
+    if (s.tenant.tenantType && s.tenant.tenantType !== 'individual') {
+      return s.tenant.companyName || '—';
+    }
+    return s.tenant.lastName || s.tenant.firstName || '—';
+  };
 
   const handleSubmit = () => {
     if (!asOfDate || asOfDate > todayStr) {
@@ -722,7 +762,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
                   <div key={s.id} className="rb-schedule-row">
                     <span className="rb-schedule-charge">{s.description || s.chargeType.name}</span>
                     <span>{getTenantName(s)}</span>
-                    <span>{s.nextBillingDate ? format(new Date(s.nextBillingDate), 'MMM d, yyyy') : '—'}</span>
+                    <span>{s.nextBillingDate ? format(new Date(s.nextBillingDate), 'yyyy-MM-dd') : '—'}</span>
                     <span className="text-right">{formatCurrency(s.amount, s.currency)}</span>
                   </div>
                 ))
