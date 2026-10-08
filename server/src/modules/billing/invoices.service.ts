@@ -95,6 +95,117 @@ export class InvoicesService {
     return withOutstanding(invoice);
   }
 
+  // ── Dashboard Summary ───────────────────────
+
+  async getDashboardSummary(companyId: string, propertyId?: string) {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7, 23, 59, 59, 999);
+
+    const baseWhere: any = { companyId };
+    if (propertyId) baseWhere.propertyId = propertyId;
+
+    // 1. Issued Today: Invoices generated or dated today
+    const issuedTodayPromise = prisma.invoice.count({
+      where: {
+        ...baseWhere,
+        invoiceType: 'invoice',
+        status: { not: 'void' },
+        OR: [
+          { invoiceDate: { gte: startOfDay, lte: endOfDay } },
+          { createdAt: { gte: startOfDay, lte: endOfDay } },
+        ],
+      },
+    });
+
+    // 2. Overdue: Invoices past due date that haven't been fully paid
+    const overdueWhere: any = {
+      ...baseWhere,
+      invoiceType: 'invoice',
+      status: { in: ['overdue', 'issued', 'sent', 'partially_paid'] },
+      OR: [
+        { status: 'overdue' },
+        { dueDate: { lt: startOfDay } },
+      ],
+    };
+    const overduePromise = prisma.invoice.aggregate({
+      where: overdueWhere,
+      _count: true,
+      _sum: { totalAmount: true, paidAmount: true },
+    });
+
+    // 3. Due This Week: Upcoming invoices due in next 7 days
+    const dueThisWeekPromise = prisma.invoice.count({
+      where: {
+        ...baseWhere,
+        invoiceType: 'invoice',
+        status: { in: ['issued', 'sent', 'partially_paid'] },
+        dueDate: { gte: startOfDay, lte: endOfWeek },
+      },
+    });
+
+    // 4. MTD Revenue: Cash collected via receipts or paid invoices this month
+    const receiptWhere: any = {
+      companyId,
+      receiptDate: { gte: startOfMonth, lte: endOfDay },
+      status: { in: ['confirmed', 'posted'] },
+    };
+    if (propertyId) receiptWhere.propertyId = propertyId;
+
+    const receiptPromise = prisma.receipt.aggregate({
+      where: receiptWhere,
+      _sum: { amount: true },
+    });
+
+    const invoicePaidPromise = prisma.invoice.aggregate({
+      where: {
+        ...baseWhere,
+        status: { in: ['paid', 'partially_paid'] },
+        OR: [
+          { invoiceDate: { gte: startOfMonth, lte: endOfDay } },
+          { updatedAt: { gte: startOfMonth, lte: endOfDay } },
+        ],
+      },
+      _sum: { paidAmount: true },
+    });
+
+    // 5. Currency resolution
+    const currencyPromise = propertyId
+      ? prisma.property.findFirst({
+          where: { id: propertyId, companyId },
+          select: { currency: true },
+        })
+      : prisma.company.findFirst({
+          where: { id: companyId },
+          select: { currency: true },
+        });
+
+    const [issuedToday, overdueAgg, dueThisWeek, receiptAgg, invoicePaidAgg, entityWithCurrency] = await Promise.all([
+      issuedTodayPromise,
+      overduePromise,
+      dueThisWeekPromise,
+      receiptPromise,
+      invoicePaidPromise,
+      currencyPromise,
+    ]);
+
+    const totalOverdue = Math.max(0, Number(overdueAgg._sum.totalAmount || 0) - Number(overdueAgg._sum.paidAmount || 0));
+    const receiptCollected = Number(receiptAgg._sum.amount || 0);
+    const invoicePaidCollected = Number(invoicePaidAgg._sum.paidAmount || 0);
+    const mtdRevenue = Math.max(receiptCollected, invoicePaidCollected);
+
+    return {
+      issuedToday,
+      overdueCount: overdueAgg._count || 0,
+      totalOverdue,
+      dueThisWeek,
+      mtdRevenue,
+      currency: entityWithCurrency?.currency || 'USD',
+    };
+  }
+
   // ── Invoice Number ──────────────────────────
 
   async generateInvoiceNumber(companyId: string): Promise<string> {

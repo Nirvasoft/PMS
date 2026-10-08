@@ -195,6 +195,14 @@ invoicesRouter.get('/', asyncHandler(async (req, res) => {
   res.json({ success: true, ...result });
 }));
 
+invoicesRouter.get('/dashboard-summary', asyncHandler(async (req, res) => {
+  const data = await invoicesService.getDashboardSummary(
+    req.user!.companyId,
+    req.query.propertyId as string | undefined,
+  );
+  res.json({ success: true, data });
+}));
+
 invoicesRouter.get('/:id', asyncHandler(async (req, res) => {
   const data = await invoicesService.findById(p(req, 'id'), req.user!.companyId);
   res.json({ success: true, data });

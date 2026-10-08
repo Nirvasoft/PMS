@@ -1,66 +1,66 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGetInvoicesQuery, useRunBillingMutation } from '../../../store/api/billingApi';
+import {
+  useGetInvoicesQuery,
+  useGetBillingDashboardSummaryQuery,
+  useRunBillingMutation,
+} from '../../../store/api/billingApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   LayoutDashboard, FileText, AlertTriangle, Clock, DollarSign,
   Play, ArrowRight, TrendingUp, Receipt, CalendarClock, CheckCircle,
 } from 'lucide-react';
-import { format, startOfMonth, isAfter, isBefore, addDays } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './BillingPage.css';
 
-const formatCurrency = (amount: number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+const formatCurrency = (amount: number, currency = 'USD') => {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency || 'USD',
+      currencyDisplay: 'code',
+      maximumFractionDigits: currency === 'MMK' ? 0 : 2,
+    }).format(amount);
+  } catch {
+    return `${currency || 'USD'} ${Number(amount).toLocaleString()}`;
+  }
+};
 
 export default function BillingDashboardPage() {
   const navigate = useNavigate();
   const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const weekEnd = addDays(today, 7).toISOString().split('T')[0];
-  const monthStart = startOfMonth(today).toISOString().split('T')[0];
 
-  // Fetch recent invoices — scoped to the sidebar's Active Property when one is chosen.
+  // Fetch summary & recent invoices — scoped to the sidebar's Active Property when one is chosen.
   const activePropertyFilter = useSelectedPropertyFilter();
   const propertyIdParam = activePropertyFilter || undefined;
-  const { data: allData, isFetching } = useGetInvoicesQuery({ propertyId: propertyIdParam, page: 1, limit: 50 });
-  const { data: overdueData } = useGetInvoicesQuery({ propertyId: propertyIdParam, status: 'overdue', page: 1, limit: 50 });
-  const { data: paidData } = useGetInvoicesQuery({ propertyId: propertyIdParam, status: 'paid', page: 1, limit: 50, from: monthStart });
+
+  const { data: summaryData, isFetching: isFetchingSummary } = useGetBillingDashboardSummaryQuery(
+    propertyIdParam ? { propertyId: propertyIdParam } : undefined,
+  );
+  const { data: allData, isFetching: isFetchingInvoices } = useGetInvoicesQuery({
+    propertyId: propertyIdParam,
+    page: 1,
+    limit: 10,
+  });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();
 
-  const invoices = allData?.data || [];
-  const overdueInvoices = overdueData?.data || [];
-  const paidInvoices = paidData?.data || [];
+  const isFetching = isFetchingInvoices || isFetchingSummary;
+  const summary = summaryData?.data;
+  const currencyCode = summary?.currency || 'USD';
 
-  const stats = useMemo(() => {
-    const issuedToday = invoices.filter(i =>
-      i.invoiceDate === todayStr && i.invoiceType === 'invoice',
-    ).length;
+  const stats = useMemo(() => ({
+    issuedToday: summary?.issuedToday ?? 0,
+    dueThisWeek: summary?.dueThisWeek ?? 0,
+    overdueCount: summary?.overdueCount ?? 0,
+    totalOverdue: summary?.totalOverdue ?? 0,
+    mtdRevenue: summary?.mtdRevenue ?? 0,
+  }), [summary]);
 
-    const dueThisWeek = invoices.filter(i => {
-      const due = i.dueDate;
-      return due >= todayStr && due <= weekEnd &&
-        !['paid', 'void'].includes(i.status);
-    }).length;
-
-    const totalOverdue = overdueInvoices.reduce(
-      (s, i) => s + (Number(i.totalAmount) - Number(i.paidAmount)), 0,
-    );
-
-    const mtdRevenue = paidInvoices.reduce(
-      (s, i) => s + Number(i.paidAmount), 0,
-    );
-
-    return { issuedToday, dueThisWeek, totalOverdue, overdueCount: overdueInvoices.length, mtdRevenue };
-  }, [invoices, overdueInvoices, paidInvoices, todayStr, weekEnd]);
-
-  const recentInvoices = useMemo(() =>
-    [...invoices].sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime()).slice(0, 10),
-    [invoices],
-  );
+  const recentInvoices = allData?.data || [];
 
   const handleRunBilling = async () => {
     if (!(await confirmDialog('This will generate invoices for all due billing schedules. Continue?'))) return;
@@ -115,7 +115,7 @@ export default function BillingDashboardPage() {
             <span className="bsc-label">Overdue</span>
             <span className="bsc-value" style={{ color: stats.overdueCount > 0 ? '#f87171' : undefined }}>{stats.overdueCount}</span>
             <span className="bsc-sub" style={{ color: stats.totalOverdue > 0 ? '#f87171' : undefined }}>
-              {formatCurrency(stats.totalOverdue)} outstanding
+              {formatCurrency(stats.totalOverdue, currencyCode)} outstanding
             </span>
           </div>
         </div>
@@ -137,7 +137,7 @@ export default function BillingDashboardPage() {
           </div>
           <div className="bsc-info">
             <span className="bsc-label">MTD Revenue</span>
-            <span className="bsc-value">{formatCurrency(stats.mtdRevenue)}</span>
+            <span className="bsc-value">{formatCurrency(stats.mtdRevenue, currencyCode)}</span>
             <span className="bsc-sub">Month-to-date collected</span>
           </div>
         </div>

@@ -166,6 +166,15 @@ export interface InvoiceDetail extends InvoiceListItem {
   }[];
 }
 
+export interface BillingDashboardSummary {
+  issuedToday: number;
+  overdueCount: number;
+  totalOverdue: number;
+  dueThisWeek: number;
+  mtdRevenue: number;
+  currency: string;
+}
+
 interface ApiResponse<T> { success: boolean; data: T; }
 interface PaginatedResponse<T> {
   success: boolean; data: T[];
@@ -342,6 +351,11 @@ export const billingApi = createApi({
       invalidatesTags: (_, __, id) => [{ type: 'Invoices', id }, 'Invoices'],
     }),
 
+    getBillingDashboardSummary: builder.query<ApiResponse<BillingDashboardSummary>, { propertyId?: string } | void>({
+      query: (params) => ({ url: '/invoices/dashboard-summary', params: params || {} }),
+      providesTags: ['Invoices'],
+    }),
+
     // ── Manual Billing Run ────────────────
     runBilling: builder.mutation<ApiResponse<{ processed: number; generated: number; errors: string[] }>, { propertyId?: string; asOfDate?: string } | void>({
       query: (body) => ({ url: '/billing/run', method: 'POST', body: body || {} }),
@@ -391,6 +405,7 @@ export const {
   useCancelScheduleMutation,
   useUpdateScheduleMutation,
   useGetInvoicesQuery,
+  useGetBillingDashboardSummaryQuery,
   useGetInvoiceQuery,
   useCreateInvoiceMutation,
   useVoidInvoiceMutation,
