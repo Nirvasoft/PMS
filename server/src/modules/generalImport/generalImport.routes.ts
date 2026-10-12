@@ -5,7 +5,11 @@ import { requirePermission } from '../auth/guards/roleGuard';
 import { AppError } from '../../common/errors';
 import { generalImportService } from './generalImport.service';
 
-const p = (req: Request, key: string) => req.params[key] as string;
+const p = (req: Request, key: string) => {
+  const val = req.params[key] as string;
+  if (key === 'type' && val === 'charges') return 'charge';
+  return val;
+};
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // Each import type is gated by the permission of the entity it writes.
@@ -16,6 +20,10 @@ const PERMISSIONS: Record<string, { read: string | string[]; create: string | st
   tenant: { read: 'tenants.read', create: 'tenants.create' },
   lead: { read: 'crm-leads.read', create: ['crm-leads.create', 'crm-leads.write'] },
   invoice: { read: ['billing-invoices.read', 'billing.read'], create: ['billing-invoices.write', 'billing.create'] },
+  charge: {
+    read: ['billing-charge-types.read', 'billing.read', 'charge-category.read', 'meter.read'],
+    create: ['billing-charge-types.write', 'billing.create', 'charge-category.create', 'meter.create'],
+  },
 };
 
 const gate = (action: 'read' | 'create') => (req: Request, res: Response, next: NextFunction) => {

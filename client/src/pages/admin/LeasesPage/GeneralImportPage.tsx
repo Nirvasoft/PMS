@@ -19,6 +19,7 @@ const IMPORT_OPTIONS: { value: GeneralImportType; label: string }[] = [
   { value: 'tenant', label: 'Tenant Import' },
   { value: 'lead', label: 'Lead Import' },
   { value: 'invoice', label: 'Invoice Import' },
+  { value: 'charge', label: 'Charges Import' },
 ];
 
 function errMessage(e: unknown, fallback: string): string {
@@ -74,7 +75,11 @@ export default function GeneralImportPage() {
       const res = await importMut({ propertyId, type: importType, formData: buildForm() }).unwrap();
       setResult(res.data);
       setPreview(null);
-      if (res.data.imported > 0) toast.success(`${res.data.imported} record(s) imported`);
+      if (res.data.imported > 0) {
+        toast.success(`${res.data.imported} record(s) imported${res.data.skipped > 0 ? `, ${res.data.skipped} skipped` : ''}`);
+      } else if (res.data.skipped > 0) {
+        toast.success(`0 records imported, ${res.data.skipped} skipped`);
+      }
       if (res.data.failed.length > 0) toast.error(`${res.data.failed.length} row(s) failed`);
     } catch (e) {
       toast.error(errMessage(e, 'Failed to import file'));
@@ -88,7 +93,7 @@ export default function GeneralImportPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${importType}-import-sample.xlsx`;
+      a.download = `${importType === 'charge' ? 'charges' : importType}-import-sample.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -105,7 +110,7 @@ export default function GeneralImportPage() {
           <div className="page-icon-lg"><FileUp size={22} /></div>
           <div>
             <h1>General Import</h1>
-            <p>Import meters, units, leases, tenants, leads and invoices from an Excel file</p>
+            <p>Import meters, units, leases, tenants, leads, invoices and charges from an Excel file</p>
           </div>
         </div>
       </div>
@@ -207,8 +212,8 @@ export default function GeneralImportPage() {
             <strong>{typeLabel} result</strong> ({result.total} rows in file)
           </div>
           <ul className="gi-stats">
-            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants', lead: 'leads', invoice: 'invoices', lease: 'leases' }[importType as string] ?? 'database'}</li>
-            {(importType === 'meter' || importType === 'tenant' || importType === 'lead' || importType === 'invoice' || importType === 'lease') && (
+            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants', lead: 'leads', invoice: 'invoices', lease: 'leases', charge: 'Charges' }[importType as string] ?? 'database'}</li>
+            {(['meter', 'tenant', 'lead', 'invoice', 'lease', 'charge'].includes(importType)) && (
               <li><span className="gi-skip">{result.skipped}</span> record(s) skipped (
                 {importType === 'meter'
                   ? 'Meter No + Floor + Category already exist'
@@ -218,7 +223,9 @@ export default function GeneralImportPage() {
                   ? 'LeadNumber already exists'
                   : importType === 'invoice'
                   ? 'Invoice and Tenant already exist'
-                  : 'Lease Number and Tenant already exist'})</li>
+                  : importType === 'lease'
+                  ? 'Lease Number and Tenant already exist'
+                  : 'Charges Code already exists'})</li>
             )}
             {importType === 'meter' && (
               <li><span className="gi-ok">{result.linked}</span> unit connection(s) inserted into utility_meters

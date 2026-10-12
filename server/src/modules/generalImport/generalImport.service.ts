@@ -6,8 +6,8 @@ import { leasesService } from '../leases/services/leases.service';
 import { calcLeaseTermMonths, nextLeaseNumber } from '../leases/services/helpers';
 import { glService } from '../gl/gl.service';
 
-export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice';
-export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant', 'lead', 'invoice'];
+export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice' | 'charge';
+export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant', 'lead', 'invoice', 'charge'];
 
 interface ColumnDef {
   header: string;
@@ -139,6 +139,13 @@ const COLUMNS: Record<ImportType, ColumnDef[]> = {
     { header: 'Status', key: 'status', samples: ['issued', 'issued', 'paid'] },
     { header: 'DueDate', key: 'dueDate', required: true, samples: ['2026-03-15', '2026-03-15', '2026-03-20'] },
   ],
+  charge: [
+    { header: 'Charges Code', key: 'code', required: true, samples: ['CHG-RENT', 'CHG-ELEC', 'CHG-WATER'] },
+    { header: 'Charges Name', key: 'name', required: true, samples: ['Rental Charge', 'Electricity Charge', 'Water Charge'] },
+    { header: 'Charges Category', key: 'category', required: true, samples: ['rent', 'utility', 'utility'] },
+    { header: 'Account Code', key: 'glAccountCode', samples: ['4001', '4900', '4900'] },
+    { header: 'Is_Taxable', key: 'isTaxable', samples: ['No', 'Yes', 'No'] },
+  ],
 };
 
 // ── Cell helpers ─────────────────────────────────────────────────────────────
@@ -178,7 +185,8 @@ const norm = (s: string) => s.trim().toLowerCase().replace(/[\s-]+/g, '_');
 // ── Core ─────────────────────────────────────────────────────────────────────
 
 function assertType(type: string): asserts type is ImportType {
-  if (!IMPORT_TYPES.includes(type as ImportType)) {
+  const normType = type === 'charges' ? 'charge' : type;
+  if (!IMPORT_TYPES.includes(normType as ImportType)) {
     throw AppError.badRequest(`Unknown import type "${type}"`, 'INVALID_IMPORT_TYPE');
   }
 }
@@ -204,6 +212,11 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
     const def = cols.find((c) => {
       const ch = c.header.toLowerCase();
       if (ch === h || normalize(c.header) === nh) return true;
+      if (c.key === 'code' && ['chargescode', 'chargecode', 'code'].includes(nh)) return true;
+      if (c.key === 'name' && ['chargesname', 'chargename', 'name', 'chargestitle'].includes(nh)) return true;
+      if (c.key === 'category' && ['chargescategory', 'chargecategory', 'category'].includes(nh)) return true;
+      if (c.key === 'glAccountCode' && ['accountcode', 'glaccountcode', 'account', 'glaccount', 'glaccountno', 'gl_account_code', 'acctcode'].includes(nh)) return true;
+      if (c.key === 'isTaxable' && ['istaxable', 'taxable', 'is_taxable'].includes(nh)) return true;
       if (c.key === 'unitType' && ['unttype', 'unittype'].includes(nh)) return true;
       if (c.key === 'doorType' && nh === 'doortype') return true;
       if (c.key === 'productPlan' && nh === 'productplan') return true;
@@ -561,6 +574,57 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
     return out;
   }
 
+  if (type === 'charge') {
+    const existing = await prisma.chargeType.findMany({
+      where: { OR: [{ companyId }, { companyId: null }] },
+      select: { code: true },
+    });
+    const knownCodes = new Set(existing.map((c) => c.code.trim().toLowerCase()));
+    const seenCodes = new Set<string>();
+
+    for (const r of rows) {
+      const d = r.data;
+      const errors = checkRequired(type, d);
+
+      if (d.code && d.code.trim().length > 50) {
+        errors.push('Charges Code cannot exceed 50 characters');
+      }
+      if (d.name && d.name.trim().length > 150) {
+        errors.push('Charges Name cannot exceed 150 characters');
+      }
+      if (d.category && d.category.trim().length > 50) {
+        errors.push('Charges Category cannot exceed 50 characters');
+      }
+      if (d.glAccountCode && d.glAccountCode.trim().length > 50) {
+        errors.push('Account Code cannot exceed 50 characters');
+      }
+      if (d.isTaxable) {
+        const val = d.isTaxable.trim().toLowerCase();
+        if (!['yes', 'no', 'true', 'false', '1', '0', 'y', 'n'].includes(val)) {
+          errors.push('Is_Taxable must be Yes/No, True/False, or 1/0');
+        }
+      }
+
+      let status: PreviewRow['status'] = errors.length ? 'error' : 'valid';
+      const notes: string[] = [];
+
+      if (status === 'valid' && d.code) {
+        const k = d.code.trim().toLowerCase();
+        if (knownCodes.has(k)) {
+          status = 'skip';
+          notes.push(`Charges Code "${d.code.trim()}" already exists - insert will be skipped`);
+        } else if (seenCodes.has(k)) {
+          status = 'skip';
+          notes.push(`Charges Code "${d.code.trim()}" is duplicated in file - insert will be skipped`);
+        }
+        seenCodes.add(k);
+      }
+
+      out.push({ rowNo: r.rowNo, data: d, status, errors: status === 'error' ? errors : notes });
+    }
+    return out;
+  }
+
   // lease
   const [units, tenants, properties, existingLeases] = await Promise.all([
     prisma.unit.findMany({ where: { deletedAt: null }, select: { id: true, unitNumber: true, propertyId: true, status: true } }),
@@ -695,10 +759,11 @@ export const generalImportService = {
   assertType,
 
   async buildSample(type: string): Promise<{ buffer: Buffer; filename: string }> {
-    assertType(type);
-    const cols = COLUMNS[type];
+    const normType = (type === 'charges' ? 'charge' : type) as ImportType;
+    assertType(normType);
+    const cols = COLUMNS[normType];
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet(`${type[0].toUpperCase()}${type.slice(1)} Import`);
+    const ws = wb.addWorksheet(normType === 'charge' ? 'Charges Import' : `${normType[0].toUpperCase()}${normType.slice(1)} Import`);
     ws.columns = cols.map((c) => ({ header: c.header, key: c.key, width: Math.max(16, c.header.length + 4) }));
     const header = ws.getRow(1);
     header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -711,17 +776,18 @@ export const generalImportService = {
     }
     ws.views = [{ state: 'frozen', ySplit: 1 }];
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
-    return { buffer, filename: `${type}-import-sample.xlsx` };
+    return { buffer, filename: `${normType === 'charge' ? 'charges' : normType}-import-sample.xlsx` };
   },
 
   async preview(type: string, propertyId: string, companyId: string, buffer: Buffer) {
-    assertType(type);
-    const rows = await validateRows(type, propertyId, companyId, await parseWorkbook(type, buffer));
+    const normType = (type === 'charges' ? 'charge' : type) as ImportType;
+    assertType(normType);
+    const rows = await validateRows(normType, propertyId, companyId, await parseWorkbook(normType, buffer));
     const validCount = rows.filter((r) => r.status === 'valid').length;
     const skipCount = rows.filter((r) => r.status === 'skip').length;
     return {
-      type,
-      columns: COLUMNS[type].map((c) => ({ key: c.key, header: c.header })),
+      type: normType,
+      columns: COLUMNS[normType].map((c) => ({ key: c.key, header: c.header })),
       rows,
       total: rows.length,
       validCount,
@@ -731,8 +797,9 @@ export const generalImportService = {
   },
 
   async import(type: string, propertyId: string, companyId: string, userId: string, buffer: Buffer) {
-    assertType(type);
-    const rows = await validateRows(type, propertyId, companyId, await parseWorkbook(type, buffer));
+    const normType = (type === 'charges' ? 'charge' : type) as ImportType;
+    assertType(normType);
+    const rows = await validateRows(normType, propertyId, companyId, await parseWorkbook(normType, buffer));
     const failed: { rowNo: number; errors: string[] }[] = rows
       .filter((r) => r.status === 'error')
       .map((r) => ({ rowNo: r.rowNo, errors: r.errors }));
@@ -1259,7 +1326,7 @@ export const generalImportService = {
           groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [(e as Error).message] }));
         }
       }
-    } else {
+    } else if (normType === 'lease') {
       const [units, tenants, properties, existingLeases] = await Promise.all([
         prisma.unit.findMany({ where: { deletedAt: null }, select: { id: true, unitNumber: true, propertyId: true, status: true } }),
         prisma.tenant.findMany({
@@ -1425,9 +1492,81 @@ export const generalImportService = {
           failed.push({ rowNo: r.rowNo, errors: [(e as Error).message] });
         }
       }
+    } else if (normType === 'charge') {
+      const [existingCharges, categories] = await Promise.all([
+        prisma.chargeType.findMany({
+          where: { OR: [{ companyId }, { companyId: null }] },
+          select: { code: true },
+        }),
+        prisma.chargeCategory.findMany({
+          where: { OR: [{ companyId }, { companyId: null }] },
+          select: { code: true, description: true },
+        }),
+      ]);
+
+      const knownCodes = new Set(existingCharges.map((c) => c.code.trim().toLowerCase()));
+      const catMap = new Map<string, string>();
+      for (const cat of categories) {
+        catMap.set(cat.code.trim().toLowerCase(), cat.code);
+        if (cat.description) catMap.set(cat.description.trim().toLowerCase(), cat.code);
+      }
+
+      for (const r of valid) {
+        const d = r.data;
+        const code = d.code.trim();
+        const k = code.toLowerCase();
+
+        if (knownCodes.has(k)) {
+          skipped++;
+          notes.push({ rowNo: r.rowNo, message: `Charges Code "${code}" already exists - skipped` });
+          continue;
+        }
+
+        const isTaxable = ['yes', 'true', '1', 'y', 't'].includes((d.isTaxable || '').trim().toLowerCase());
+        const rawCat = (d.category || '').trim();
+        let matchedCat = catMap.get(rawCat.toLowerCase()) || rawCat.toLowerCase();
+
+        if (rawCat && !catMap.has(rawCat.toLowerCase())) {
+          try {
+            await prisma.chargeCategory.create({
+              data: {
+                companyId,
+                code: matchedCat,
+                description: rawCat,
+                monthly: false,
+                isActive: true,
+                isSystem: false,
+              },
+            });
+            catMap.set(rawCat.toLowerCase(), matchedCat);
+          } catch {
+            // Category might already exist or conflict
+          }
+        }
+
+        try {
+          await prisma.chargeType.create({
+            data: {
+              companyId,
+              code,
+              name: d.name.trim(),
+              category: matchedCat || 'misc',
+              glAccountCode: d.glAccountCode?.trim() || null,
+              isTaxable,
+              taxRate: 0,
+              isActive: true,
+              isSystem: false,
+            },
+          });
+          knownCodes.add(k);
+          imported++;
+        } catch (e) {
+          failed.push({ rowNo: r.rowNo, errors: [(e as Error).message] });
+        }
+      }
     }
 
     failed.sort((a, b) => a.rowNo - b.rowNo);
-    return { type, total: rows.length, imported, skipped, linked, linkSkipped, notes, failed };
+    return { type: normType, total: rows.length, imported, skipped, linked, linkSkipped, notes, failed };
   },
 };
