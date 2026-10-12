@@ -7,6 +7,11 @@ import { getDrillDownData } from './widgets/drillDownProvider';
 // DASHBOARD ROUTES
 // ═══════════════════════════════════════════════════
 
+function cleanPropertyId(val?: unknown): string | undefined {
+  if (typeof val !== 'string') return undefined;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : undefined;
+}
+
 export const dashboardRouter = Router();
 
 /** GET /dashboard/widgets — Widget catalog (grouped by category) */
@@ -21,7 +26,7 @@ dashboardRouter.get('/widget-data/:code', asyncHandler(async (req: Request, res:
     req.params.code as string,
     req.user!.companyId,
     {
-      propertyId: req.query.propertyId as string,
+      propertyId: cleanPropertyId(req.query.propertyId),
       dateRange: req.query.dateRange as string,
       userId: req.user!.sub,
     },
@@ -34,7 +39,7 @@ dashboardRouter.get('/widget-data/:code/drilldown', asyncHandler(async (req: Req
   const data = await getDrillDownData(req.params.code as string, {
     companyId: req.user!.companyId,
     userId: req.user!.sub,
-    propertyId: req.query.propertyId as string,
+    propertyId: cleanPropertyId(req.query.propertyId),
     drillKey: req.query.drillKey as string,
     dateFrom: req.query.dateFrom as string,
     dateTo: req.query.dateTo as string,
@@ -113,7 +118,7 @@ reportsRouter.post('/:type/export', asyncHandler(async (req: Request, res: Respo
 
   const exportParams = {
     companyId: req.user!.companyId,
-    propertyId: parameters.propertyId,
+    propertyId: cleanPropertyId(parameters.propertyId),
     dateFrom: parameters.dateFrom || parameters.dateRange?.split(',')[0],
     dateTo: parameters.dateTo || parameters.dateRange?.split(',')[1],
     userId: req.user!.sub,

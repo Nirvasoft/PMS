@@ -6,6 +6,17 @@ export const createStoreSchema = z.object({
     propertyId: z.string().uuid(),
     name: z.string().min(1).max(150),
     location: z.string().max(255).optional(),
+    storeType: z.string().optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
+export const updateStoreSchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(150).optional(),
+    location: z.string().max(255).optional(),
+    storeType: z.string().optional(),
+    isActive: z.boolean().optional(),
   }),
 });
 

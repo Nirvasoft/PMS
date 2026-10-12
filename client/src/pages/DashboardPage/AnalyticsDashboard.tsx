@@ -16,13 +16,13 @@ import { useAppSelector, useAppDispatch } from '../../store';
 import { setDatePreset, toggleEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } from '../../store/slices/dashboardSlice';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   Area, AreaChart,
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Minus, Plus, X, Settings2, RotateCcw,
-  Calendar, LayoutGrid, Maximize2, GripVertical, Trash2, Search,
+  Calendar, LayoutGrid, GripVertical, Trash2, Search,
   BarChart3, PieChart as PieChartIcon, Table2, Gauge, Activity,
   Building2,
 } from 'lucide-react';
@@ -30,8 +30,6 @@ import toast from 'react-hot-toast';
 import { useConfirm } from '../../components/DialogProvider';
 import DrillDownModal from './DrillDownModal';
 import './AnalyticsDashboard.css';
-
-
 
 const CHART_COLORS = ['#6c5ce7', '#00cec9', '#fd79a8', '#fdcb6e', '#74b9ff', '#55efc4', '#a29bfe', '#fab1a0'];
 
@@ -411,6 +409,7 @@ function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: 
   const formatValue = (v: number, unit: string) => {
     if (unit === 'USD') return `$${v.toLocaleString()}`;
     if (unit === '%') return `${v}%`;
+    if (unit) return `${unit} ${v.toLocaleString()}`;
     return v.toLocaleString();
   };
 

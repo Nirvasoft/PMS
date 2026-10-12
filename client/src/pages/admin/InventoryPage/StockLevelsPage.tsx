@@ -1,5 +1,7 @@
 import '../MaintenancePage/MaintenancePage.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import {
   useGetStockLevelsQuery, useGetStoresQuery,
   useReceiveStockMutation, useIssueStockMutation,
@@ -19,9 +21,22 @@ export default function StockLevelsPage() {
   const [storeId, setStoreId] = useState('');
   const [modal, setModal] = useState<ModalType>(null);
 
-  const { data: stockData, isLoading } = useGetStockLevelsQuery({ storeId: storeId || undefined });
-  const { data: storesData } = useGetStoresQuery({});
-  const { data: itemsData } = useGetInventoryItemsQuery({ page: 1, limit: 500 });
+  const filterProperty = useSelectedPropertyFilter();
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const properties = scopeData?.data || [];
+  const activeProperty = properties.find((p: any) => p.id === filterProperty);
+  const currency = activeProperty?.currency || 'MMK';
+
+  useEffect(() => {
+    setStoreId('');
+  }, [filterProperty]);
+
+  const { data: stockData, isLoading } = useGetStockLevelsQuery({
+    propertyId: filterProperty || undefined,
+    storeId: storeId || undefined,
+  });
+  const { data: storesData } = useGetStoresQuery(filterProperty ? { propertyId: filterProperty } : {});
+  const { data: itemsData } = useGetInventoryItemsQuery({ page: 1, limit: 500, propertyId: filterProperty || undefined });
 
   const [receiveStock] = useReceiveStockMutation();
   const [issueStock] = useIssueStockMutation();
@@ -79,7 +94,21 @@ export default function StockLevelsPage() {
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Layers size={20} /></div>
-          <div><h1>Stock Levels</h1><p>{levels.length} records</p></div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{ margin: 0 }}>Stock Levels</h1>
+              {activeProperty ? (
+                <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
+                  🏢 {activeProperty.name}
+                </span>
+              ) : (
+                <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
+                  🌐 All Properties
+                </span>
+              )}
+            </div>
+            <p>{levels.length} records</p>
+          </div>
         </div>
         <PermissionGuard permission="inventory-stock.write">
           <div className="header-actions">
@@ -215,7 +244,7 @@ export default function StockLevelsPage() {
                 <>
                   <div className="form-group"><label>Quantity *</label><input name="quantity" type="number" step="0.001" min="0.001" required /></div>
                   {modal === 'receive' && (
-                    <div className="form-group"><label>Unit Cost</label><input name="unitCost" type="number" step="0.01" /></div>
+                    <div className="form-group"><label>Unit Cost ({currency})</label><input name="unitCost" type="number" step="0.01" /></div>
                   )}
                   <div className="form-group"><label>Notes</label><input name="notes" placeholder="Optional notes" /></div>
                 </>

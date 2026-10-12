@@ -31,10 +31,53 @@ export function createHousekeepingService({ prisma }: { prisma: PrismaClient }) 
   }
 
   async function createSchedule(companyId: string, data: any) {
-    return prisma.cleaningSchedule.create({
+    const schedule = await prisma.cleaningSchedule.create({
       data: { ...data, companyId },
       include: { zone: { select: { id: true, name: true } } },
     });
+
+    // Auto-create task for today if the schedule matches today
+    try {
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const dayOfWeek = today.getDay();
+      const dayOfMonth = today.getDate();
+
+      let shouldCreate = false;
+      switch (schedule.frequencyType) {
+        case 'daily':
+          shouldCreate = true;
+          break;
+        case 'weekly':
+          shouldCreate = Array.isArray(schedule.daysOfWeek) && (schedule.daysOfWeek as number[]).includes(dayOfWeek);
+          break;
+        case 'monthly':
+          shouldCreate = dayOfMonth === 1;
+          break;
+      }
+
+      if (shouldCreate && schedule.status === 'active') {
+        const existing = await prisma.cleaningTask.findFirst({
+          where: { scheduleId: schedule.id, taskDate: new Date(todayStr) },
+        });
+        if (!existing) {
+          await prisma.cleaningTask.create({
+            data: {
+              companyId,
+              propertyId: schedule.propertyId,
+              scheduleId: schedule.id,
+              zoneId: schedule.zoneId,
+              assignedToId: schedule.assignedToId,
+              taskDate: new Date(todayStr),
+              scheduledTime: schedule.scheduledTime || '08:00',
+              status: 'pending',
+            },
+          });
+        }
+      }
+    } catch { /* best-effort task creation */ }
+
+    return schedule;
   }
 
   // ── Tasks ─────────────────────────────
@@ -63,6 +106,80 @@ export function createHousekeepingService({ prisma }: { prisma: PrismaClient }) 
     ]);
 
     return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async function generateTodayTasks(companyId: string, propertyId?: string) {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const dayOfWeek = today.getDay();
+    const dayOfMonth = today.getDate();
+
+    const where: any = { companyId, status: 'active' };
+    if (propertyId) where.propertyId = propertyId;
+
+    const schedules = await prisma.cleaningSchedule.findMany({ where });
+
+    let created = 0;
+    for (const sched of schedules) {
+      let shouldCreate = false;
+      switch (sched.frequencyType) {
+        case 'daily':
+          shouldCreate = true;
+          break;
+        case 'weekly':
+          shouldCreate = Array.isArray(sched.daysOfWeek) && (sched.daysOfWeek as number[]).includes(dayOfWeek);
+          break;
+        case 'monthly':
+          shouldCreate = dayOfMonth === 1;
+          break;
+      }
+
+      if (!shouldCreate) continue;
+
+      const existing = await prisma.cleaningTask.findFirst({
+        where: { scheduleId: sched.id, taskDate: new Date(todayStr) },
+      });
+      if (existing) continue;
+
+      await prisma.cleaningTask.create({
+        data: {
+          companyId: sched.companyId,
+          propertyId: sched.propertyId,
+          scheduleId: sched.id,
+          zoneId: sched.zoneId,
+          assignedToId: sched.assignedToId,
+          taskDate: new Date(todayStr),
+          scheduledTime: sched.scheduledTime || '08:00',
+          status: 'pending',
+        },
+      });
+      created++;
+    }
+
+    return { created, date: todayStr };
+  }
+
+  async function createTask(companyId: string, data: any) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return prisma.cleaningTask.create({
+      data: {
+        companyId,
+        propertyId: data.propertyId,
+        zoneId: data.zoneId,
+        scheduleId: data.scheduleId || null,
+        assignedToId: data.assignedToId || null,
+        taskDate: data.taskDate ? new Date(data.taskDate) : new Date(todayStr),
+        scheduledTime: data.scheduledTime || '08:00',
+        status: data.status || 'pending',
+        notes: data.notes || null,
+      },
+      include: {
+        zone: { select: { id: true, name: true, zoneType: true, floor: true } },
+        property: { select: { id: true, name: true } },
+        schedule: { select: { id: true, name: true } },
+        assignedTo: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
+      },
+    });
   }
 
   async function startTask(companyId: string, taskId: string) {
@@ -182,6 +299,7 @@ export function createHousekeepingService({ prisma }: { prisma: PrismaClient }) 
     listZones, createZone,
     listSchedules, createSchedule,
     listTasks, startTask, completeTask,
+    generateTodayTasks, createTask,
     listInspections, createInspection,
     getStats,
   };

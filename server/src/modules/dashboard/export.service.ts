@@ -4,7 +4,6 @@
  */
 import ExcelJS from 'exceljs';
 import { getRealWidgetData } from './widgets/realProvider';
-import { AppError } from '../../common/errors';
 
 interface ExportParams {
   companyId: string;

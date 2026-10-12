@@ -3,7 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { validateRequest } from '../../middleware/validateRequest';
 import { createInventoryService } from './inventory.service';
 import {
-  createStoreSchema, createItemSchema, updateItemSchema,
+  createStoreSchema, updateStoreSchema, createItemSchema, updateItemSchema,
   receiveStockSchema, issueStockSchema, transferStockSchema, adjustStockSchema,
 } from './inventory.schema';
 
@@ -24,6 +24,12 @@ export function inventoryRoutes(prisma: PrismaClient) {
       res.status(201).json({ success: true, data });
     } catch (e) { next(e); }
   });
+  storesRouter.put('/:id', validateRequest(updateStoreSchema), async (req, res, next) => {
+    try {
+      const data = await svc.updateStore(req.user!.companyId, req.params.id as string, req.body);
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  });
 
   // ── Items ───────────────────────────
   const itemsRouter = Router();
@@ -32,6 +38,7 @@ export function inventoryRoutes(prisma: PrismaClient) {
       const result = await svc.listItems(req.user!.companyId, {
         search: req.query.search, category: req.query.category,
         lowStock: req.query.lowStock,
+        propertyId: req.query.propertyId as string | undefined,
         page: parseInt(req.query.page as string) || 1,
         limit: parseInt(req.query.limit as string) || 20,
       });
@@ -64,6 +71,7 @@ export function inventoryRoutes(prisma: PrismaClient) {
     try {
       const data = await svc.getStockLevels(req.user!.companyId, {
         storeId: req.query.storeId, itemId: req.query.itemId, lowStock: req.query.lowStock,
+        propertyId: req.query.propertyId as string | undefined,
       });
       res.json({ success: true, data });
     } catch (e) { next(e); }
@@ -76,6 +84,7 @@ export function inventoryRoutes(prisma: PrismaClient) {
       const result = await svc.listMovements(req.user!.companyId, {
         itemId: req.query.itemId, storeId: req.query.storeId,
         movementType: req.query.movementType,
+        propertyId: req.query.propertyId as string | undefined,
         page: parseInt(req.query.page as string) || 1,
         limit: parseInt(req.query.limit as string) || 50,
       });
@@ -111,7 +120,7 @@ export function inventoryRoutes(prisma: PrismaClient) {
   const statsRouter = Router();
   statsRouter.get('/', async (req, res, next) => {
     try {
-      const data = await svc.getStats(req.user!.companyId);
+      const data = await svc.getStats(req.user!.companyId, req.query.propertyId as string | undefined);
       res.json({ success: true, data });
     } catch (e) { next(e); }
   });
@@ -122,6 +131,7 @@ export function inventoryRoutes(prisma: PrismaClient) {
     try {
       const result = await svc.listPurchaseRequisitions(req.user!.companyId, {
         status: req.query.status,
+        propertyId: req.query.propertyId as string | undefined,
         page: parseInt(req.query.page as string) || 1,
         limit: parseInt(req.query.limit as string) || 20,
       });

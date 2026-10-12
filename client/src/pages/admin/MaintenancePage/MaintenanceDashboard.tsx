@@ -10,10 +10,12 @@ import {
   ShieldCheck, Star, DollarSign, Clock, CheckCircle2,
   ArrowUpRight, AlertTriangle, Activity, CalendarClock,
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useMaintenanceSocket } from '../../../hooks/useMaintenanceSocket';
 import { useAppSelector, useAppDispatch } from '../../../store';
 import { setDashboardPropertyId } from '../../../store/slices/maintenanceSlice';
+import { useSelectedPropertyFilter, ALL_PROPERTIES } from '../../../hooks/useSelectedPropertyId';
+import { setSelectedProperty } from '../../../store/slices/propertiesSlice';
 
 // ── Priority colors ──────────────────────────
 const PRIORITY_COLORS: Record<string, string> = {
@@ -179,8 +181,10 @@ function UpcomingPmWidget({ propertyId, onClickSchedule }: {
   propertyId?: string;
   onClickSchedule: (id: string) => void;
 }) {
+  const navigate = useNavigate();
+  const cleanPropertyId = (propertyId && propertyId !== '__all__') ? propertyId : undefined;
   const { data: upcomingData } = useGetUpcomingPmQuery({
-    propertyId: propertyId || undefined,
+    propertyId: cleanPropertyId,
     days: 30,
   });
   const schedules = upcomingData?.data || [];
@@ -191,10 +195,21 @@ function UpcomingPmWidget({ propertyId, onClickSchedule }: {
 
   return (
     <div className="md-chart-card md-upcoming-pm">
-      <h3 className="md-chart-title">
-        <CalendarClock size={16} />
-        Upcoming PM ({schedules.length})
-      </h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h3 className="md-chart-title" style={{ margin: 0 }}>
+          <CalendarClock size={16} />
+          Upcoming PM ({schedules.length})
+        </h3>
+        <button
+          type="button"
+          className="btn btn-ghost btn-xs"
+          onClick={() => navigate('/admin/maintenance/pm')}
+          title="View all PM schedules"
+          style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+        >
+          View All
+        </button>
+      </div>
       <div className="md-feed-list">
         {schedules.slice(0, 8).map((s: any) => {
           const days = getDaysUntilDue(s.nextDueDate);
@@ -242,14 +257,25 @@ export default function MaintenanceDashboard() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   useMaintenanceSocket();
+
+  const selectedProperty = useSelectedPropertyFilter();
   const propertyFilter = useAppSelector((s) => s.maintenance.dashboardPropertyId);
 
+  // Sync dashboardPropertyId with the Active Property selector from the sidebar/navbar
+  useEffect(() => {
+    if (propertyFilter !== selectedProperty) {
+      dispatch(setDashboardPropertyId(selectedProperty));
+    }
+  }, [selectedProperty, propertyFilter, dispatch]);
+
+  const activePropertyId = (selectedProperty && selectedProperty !== '__all__') ? selectedProperty : undefined;
+
   const { data: statsData, isLoading } = useGetMaintenanceStatsQuery({
-    propertyId: propertyFilter || undefined,
+    propertyId: activePropertyId,
   });
   const { data: recentData } = useGetTicketsQuery({
     sort: 'createdAt', order: 'desc', limit: 8,
-    propertyId: propertyFilter || undefined,
+    propertyId: activePropertyId,
   });
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
 
@@ -299,15 +325,19 @@ export default function MaintenanceDashboard() {
         <div className="header-actions">
           <select
             className="filter-select"
-            value={propertyFilter}
-            onChange={(e) => dispatch(setDashboardPropertyId(e.target.value))}
+            value={selectedProperty || ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              dispatch(setSelectedProperty(val || ALL_PROPERTIES));
+              dispatch(setDashboardPropertyId(val));
+            }}
           >
             <option value="">All Properties</option>
             {properties.map((p: any) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
-          <button className="btn btn-primary" onClick={() => navigate('/admin/maintenance')}>
+          <button className="btn btn-primary" onClick={() => navigate('/admin/maintenance/tickets')}>
             <Wrench size={16} />
             <span>View Tickets</span>
           </button>
@@ -454,7 +484,7 @@ export default function MaintenanceDashboard() {
               onClickTicket={(id) => navigate(`/admin/maintenance/tickets/${id}`)}
             />
             <UpcomingPmWidget
-              propertyId={propertyFilter || undefined}
+              propertyId={activePropertyId}
               onClickSchedule={(id) => navigate(`/admin/maintenance/pm/${id}`)}
             />
           </div>

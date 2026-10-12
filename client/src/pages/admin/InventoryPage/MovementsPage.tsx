@@ -1,5 +1,7 @@
 import '../MaintenancePage/MaintenancePage.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetMovementsQuery } from '../../../store/api/inventoryApi';
 import { Activity, Loader2, Filter } from 'lucide-react';
 
@@ -16,7 +18,22 @@ export default function MovementsPage() {
   const [movementType, setMovementType] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useGetMovementsQuery({ movementType: movementType || undefined, page, limit: 50 });
+  const filterProperty = useSelectedPropertyFilter();
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const properties = scopeData?.data || [];
+  const activeProperty = properties.find((p: any) => p.id === filterProperty);
+  const currency = activeProperty?.currency || 'MMK';
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterProperty]);
+
+  const { data, isLoading } = useGetMovementsQuery({
+    propertyId: filterProperty || undefined,
+    movementType: movementType || undefined,
+    page,
+    limit: 50,
+  });
   const movements = data?.data || [];
   const meta = data?.meta;
 
@@ -25,7 +42,21 @@ export default function MovementsPage() {
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Activity size={20} /></div>
-          <div><h1>Stock Movements</h1><p>{meta?.total ?? 0} records</p></div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{ margin: 0 }}>Stock Movements</h1>
+              {activeProperty ? (
+                <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
+                  🏢 {activeProperty.name}
+                </span>
+              ) : (
+                <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
+                  🌐 All Properties
+                </span>
+              )}
+            </div>
+            <p>{meta?.total ?? 0} records</p>
+          </div>
         </div>
       </div>
 
@@ -77,10 +108,10 @@ export default function MovementsPage() {
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <span className="cell-mono">{m.unitCost ? `$${Number(m.unitCost).toFixed(2)}` : '—'}</span>
+                      <span className="cell-mono">{m.unitCost ? `${currency} ${Number(m.unitCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <span className="cell-mono">{m.totalCost ? `$${Number(m.totalCost).toFixed(2)}` : '—'}</span>
+                      <span className="cell-mono">{m.totalCost ? `${currency} ${Number(m.totalCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</span>
                     </td>
                     <td><span className="cell-secondary">{user}</span></td>
                     <td><span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>{m.notes || '—'}</span></td>

@@ -6,6 +6,11 @@ import { emitToCompany } from '../../common/socket';
 import { notificationService } from '../notifications/services/notification.service';
 import { webhookTicketCreated, webhookTicketAssigned, webhookTicketRated } from '../../common/webhookHooks';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isUuid(val?: string | null): boolean {
+  return typeof val === 'string' && UUID_REGEX.test(val);
+}
+
 export class TicketsService {
   // ── Query ───────────────────────────────────
 
@@ -19,12 +24,12 @@ export class TicketsService {
       search, from, to, page = 1, limit = 20, sort = 'createdAt', order = 'desc' } = filters;
     const where: any = { companyId, deletedAt: null };
 
-    if (propertyId) where.propertyId = propertyId;
-    if (unitId) where.unitId = unitId;
+    if (propertyId && isUuid(propertyId)) where.propertyId = propertyId;
+    if (unitId && isUuid(unitId)) where.unitId = unitId;
     if (status) where.status = status;
     if (priority) where.priority = priority;
-    if (categoryId) where.categoryId = categoryId;
-    if (assignedTo) where.assignedToId = assignedTo;
+    if (categoryId && isUuid(categoryId)) where.categoryId = categoryId;
+    if (assignedTo && isUuid(assignedTo)) where.assignedToId = assignedTo;
     if (source) where.source = source;
     if (search) {
       where.OR = [
@@ -94,6 +99,7 @@ export class TicketsService {
   }
 
   async findById(id: string, companyId: string) {
+    if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },
       include: {
@@ -186,11 +192,14 @@ export class TicketsService {
       ? addSlaHours(now, slaConfig.resolutionHours, workingOnly)
       : null;
 
+    const unitId = (dto.unitId && isUuid(dto.unitId as string)) ? (dto.unitId as string) : null;
+    const reportedByTenantId = (dto.reportedByTenantId && isUuid(dto.reportedByTenantId as string)) ? (dto.reportedByTenantId as string) : null;
+
     const ticket = await prisma.maintenanceTicket.create({
       data: {
         companyId,
         propertyId: dto.propertyId as string,
-        unitId: (dto.unitId as string) || null,
+        unitId,
         ticketNumber,
         title: dto.title as string,
         description: (dto.description as string) || null,
@@ -198,7 +207,7 @@ export class TicketsService {
         priority,
         status: 'open',
         source: (dto.source as string) || 'staff',
-        reportedByTenantId: (dto.reportedByTenantId as string) || null,
+        reportedByTenantId,
         reportedByUserId: userId,
         locationDetail: (dto.locationDetail as string) || null,
         isUrgent: (dto.isUrgent as boolean) || false,
@@ -246,6 +255,7 @@ export class TicketsService {
   // ── Update ─────────────────────────────────
 
   async update(id: string, companyId: string, dto: Record<string, unknown>) {
+    if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },
     });
@@ -268,6 +278,7 @@ export class TicketsService {
   // ── Assign ─────────────────────────────────
 
   async assign(id: string, companyId: string, dto: Record<string, unknown>, userId: string) {
+    if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },
     });
@@ -337,6 +348,7 @@ export class TicketsService {
   // ── Auto Assign ────────────────────────────
 
   async autoAssign(id: string, companyId: string, userId: string) {
+    if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },
       include: { category: true },
@@ -397,12 +409,13 @@ export class TicketsService {
   // ── Escalate ───────────────────────────────
 
   async escalate(id: string, companyId: string, dto: Record<string, unknown>, userId: string) {
+    if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },
     });
     if (!ticket) throw AppError.notFound('Maintenance ticket');
 
-    const escalateToId = dto.escalateTo as string | undefined;
+    const escalateToId = (dto.escalateTo && isUuid(dto.escalateTo as string)) ? (dto.escalateTo as string) : undefined;
 
     // Transaction: update ticket + reassign open work orders to new escalation target
     const [updated] = await prisma.$transaction(async (tx) => {
@@ -469,6 +482,7 @@ export class TicketsService {
   // ── Cancel ─────────────────────────────────
 
   async cancel(id: string, companyId: string, reason: string, userId: string) {
+    if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },
     });
@@ -501,6 +515,7 @@ export class TicketsService {
   // ── Rate ───────────────────────────────────
 
   async rate(id: string, companyId: string, dto: Record<string, unknown>) {
+    if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },
     });
@@ -532,7 +547,7 @@ export class TicketsService {
 
   async getStats(companyId: string, filters: { propertyId?: string; from?: string; to?: string }) {
     const where: any = { companyId, deletedAt: null };
-    if (filters.propertyId) where.propertyId = filters.propertyId;
+    if (filters.propertyId && isUuid(filters.propertyId)) where.propertyId = filters.propertyId;
     if (filters.from || filters.to) {
       where.createdAt = {};
       if (filters.from) where.createdAt.gte = new Date(filters.from);
@@ -566,7 +581,10 @@ export class TicketsService {
     });
 
     const totalBreaches = await prisma.slaBreachEvent.count({
-      where: { companyId, ...(filters.propertyId ? { ticket: { propertyId: filters.propertyId } } : {}) },
+      where: {
+        companyId,
+        ...(filters.propertyId && isUuid(filters.propertyId) ? { ticket: { propertyId: filters.propertyId } } : {}),
+      },
     });
 
     // By priority
@@ -649,7 +667,7 @@ export class TicketsService {
     groupBy?: 'priority' | 'property' | 'category' | 'technician';
   }) {
     const where: any = { companyId, deletedAt: null };
-    if (filters.propertyId) where.propertyId = filters.propertyId;
+    if (filters.propertyId && isUuid(filters.propertyId)) where.propertyId = filters.propertyId;
     if (filters.from || filters.to) {
       where.createdAt = {};
       if (filters.from) where.createdAt.gte = new Date(filters.from);
@@ -674,7 +692,7 @@ export class TicketsService {
 
     // Get breach counts
     const breachWhere: any = { companyId };
-    if (filters.propertyId) breachWhere.ticket = { propertyId: filters.propertyId };
+    if (filters.propertyId && isUuid(filters.propertyId)) breachWhere.ticket = { propertyId: filters.propertyId };
 
     // Determine grouping key
     type GroupKey = string;

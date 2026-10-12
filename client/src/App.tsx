@@ -380,6 +380,7 @@ function AppRoutes() {
           <Route path="/admin/security/patrol/scan" element={<PatrolScanPage />} />
           <Route path="/admin/security/access-events" element={<AccessEventsPage />} />
           <Route path="/admin/security/blacklist" element={<VisitorBlacklistPage />} />
+          <Route path="/admin/visitors" element={<Navigate to="/admin/security/dashboard" replace />} />
           <Route path="/admin/workflows" element={<WorkflowsPage />} />
           <Route path="/admin/workflows/instances/:id" element={<WorkflowInstancePage />} />
           <Route path="/admin/notifications" element={<NotificationAdminPage />} />
@@ -447,6 +448,11 @@ function AppRoutes() {
           <Route path="/portal/move-requests" element={<PortalMoveRequests />} />
         </Route>
       </Route>
+
+      {/* Route Aliases */}
+      <Route path="/admin/facility-bookings" element={<Navigate to="/admin/facility/schedule" replace />} />
+      <Route path="/admin/preventive-maintenance" element={<Navigate to="/admin/maintenance/pm" replace />} />
+      <Route path="/admin/inventory" element={<Navigate to="/admin/inventory/dashboard" replace />} />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/login" replace />} />

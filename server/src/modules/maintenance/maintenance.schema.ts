@@ -4,18 +4,24 @@ const dateString = z.string().refine((val) => !isNaN(Date.parse(val)), {
   message: 'Invalid date format',
 });
 
+// Helper for optional UUIDs that gracefully handles empty strings, null, and undefined
+const optionalUuid = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? undefined : val),
+  z.string().uuid().optional(),
+);
+
 // ── Tickets ────────────────────────────────
 
 export const createTicketSchema = z.object({
   body: z.object({
     propertyId: z.string().uuid(),
-    unitId: z.string().uuid().optional(),
+    unitId: optionalUuid,
     title: z.string().min(1, 'Title is required').max(500),
     description: z.string().optional(),
     categoryId: z.string().uuid(),
     priority: z.enum(['P1', 'P2', 'P3', 'P4']).optional(),
     source: z.enum(['tenant', 'staff', 'preventive', 'inspection', 'system']).optional(),
-    reportedByTenantId: z.string().uuid().optional(),
+    reportedByTenantId: optionalUuid,
     locationDetail: z.string().max(255).optional(),
     isUrgent: z.boolean().optional(),
     requiresAccess: z.boolean().optional(),
@@ -27,7 +33,7 @@ export const updateTicketSchema = z.object({
   body: z.object({
     title: z.string().min(1).max(500).optional(),
     description: z.string().optional(),
-    categoryId: z.string().uuid().optional(),
+    categoryId: optionalUuid,
     priority: z.enum(['P1', 'P2', 'P3', 'P4']).optional(),
     locationDetail: z.string().max(255).optional(),
     isUrgent: z.boolean().optional(),
@@ -47,7 +53,7 @@ export const assignTicketSchema = z.object({
 
 export const escalateTicketSchema = z.object({
   body: z.object({
-    escalateTo: z.string().uuid(),
+    escalateTo: optionalUuid,
     reason: z.string().min(1, 'Escalation reason is required'),
   }),
 });
@@ -86,7 +92,7 @@ export const completeWorkOrderSchema = z.object({
       itemName: z.string().min(1),
       quantity: z.number().min(0.0001),
       unitCost: z.number().min(0),
-      inventoryItemId: z.string().uuid().optional(),
+      inventoryItemId: optionalUuid,
       issuedFromStock: z.boolean().optional(),
     })).optional(),
   }),
@@ -116,7 +122,7 @@ export const updateWorkOrderSchema = z.object({
 
 export const upsertTechnicianProfileSchema = z.object({
   body: z.object({
-    propertyId: z.string().uuid().nullable().optional(),
+    propertyId: optionalUuid,
     skills: z.array(z.string()).optional(),
     certifications: z.array(z.string()).optional(),
     hourlyRate: z.number().min(0).optional(),
@@ -133,7 +139,7 @@ export const createCategorySchema = z.object({
     name: z.string().min(1).max(150),
     icon: z.string().max(50).optional(),
     description: z.string().max(500).optional(),
-    parentId: z.string().uuid().optional(),
+    parentId: optionalUuid,
     sortOrder: z.number().int().min(0).optional(),
   }),
 });
@@ -143,7 +149,7 @@ export const updateCategorySchema = z.object({
     name: z.string().min(1).max(150).optional(),
     icon: z.string().max(50).nullable().optional(),
     description: z.string().max(500).nullable().optional(),
-    parentId: z.string().uuid().nullable().optional(),
+    parentId: optionalUuid,
     sortOrder: z.number().int().min(0).optional(),
     isActive: z.boolean().optional(),
   }),
@@ -153,25 +159,25 @@ export const updateCategorySchema = z.object({
 
 export const createSlaConfigSchema = z.object({
   body: z.object({
-    propertyId: z.string().uuid().optional(),
-    categoryId: z.string().uuid().optional(),
+    propertyId: optionalUuid,
+    categoryId: optionalUuid,
     priority: z.enum(['P1', 'P2', 'P3', 'P4']),
     responseHours: z.number().int().min(1),
     resolutionHours: z.number().int().min(1),
     workingHoursOnly: z.boolean().optional(),
-    escalationContactId: z.string().uuid().optional(),
+    escalationContactId: optionalUuid,
   }),
 });
 
 export const updateSlaConfigSchema = z.object({
   body: z.object({
-    propertyId: z.string().uuid().nullable().optional(),
-    categoryId: z.string().uuid().nullable().optional(),
+    propertyId: optionalUuid,
+    categoryId: optionalUuid,
     priority: z.enum(['P1', 'P2', 'P3', 'P4']).optional(),
     responseHours: z.number().int().min(1).optional(),
     resolutionHours: z.number().int().min(1).optional(),
     workingHoursOnly: z.boolean().optional(),
-    escalationContactId: z.string().uuid().nullable().optional(),
+    escalationContactId: optionalUuid,
   }),
 });
 

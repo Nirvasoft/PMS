@@ -1,5 +1,6 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
+import { isUuid } from './tickets.service';
 
 export class TechniciansService {
   /** List technician profiles with open job counts and today's schedule */
@@ -7,7 +8,7 @@ export class TechniciansService {
     propertyId?: string; skill?: string; isAvailable?: string;
   }) {
     const where: any = { companyId };
-    if (filters.propertyId) {
+    if (filters.propertyId && isUuid(filters.propertyId)) {
       where.OR = [
         { propertyId: filters.propertyId },
         { propertyId: null },
@@ -94,6 +95,7 @@ export class TechniciansService {
 
   /** Get calendar-style schedule for a technician in a date range */
   async getSchedule(userId: string, companyId: string, filters: { from: string; to: string }) {
+    if (!isUuid(userId)) throw AppError.notFound('Technician profile');
     const tech = await prisma.technicianProfile.findUnique({ where: { userId } });
     if (!tech || tech.companyId !== companyId) {
       throw AppError.notFound('Technician profile');

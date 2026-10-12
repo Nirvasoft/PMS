@@ -7,6 +7,7 @@ import {
   useGetMaintenanceStatsQuery, useUploadTicketPhotosMutation,
 } from '../../../store/api/maintenanceApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Wrench, Plus, Search, LayoutGrid, List, AlertTriangle,
@@ -87,10 +88,10 @@ export default function TicketListPage() {
     priority: filters.priority || undefined,
     categoryId: filters.categoryId || undefined,
     search: filters.search || undefined,
-    propertyId: selectedProperty || undefined,
+    propertyId: (selectedProperty && selectedProperty !== '__all__') ? selectedProperty : undefined,
   });
   const { data: statsData } = useGetMaintenanceStatsQuery({
-    propertyId: selectedProperty || undefined,
+    propertyId: (selectedProperty && selectedProperty !== '__all__') ? selectedProperty : undefined,
   });
   const { data: categoriesData } = useGetCategoriesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 200 });
@@ -326,6 +327,7 @@ export default function TicketListPage() {
         <CreateTicketModal
           categories={categories}
           properties={properties}
+          initialPropertyId={selectedProperty}
           onClose={() => setShowCreateModal(false)}
         />
       )}
@@ -335,15 +337,52 @@ export default function TicketListPage() {
 
 // ── Create Ticket Modal ──────────────────────
 
-function CreateTicketModal({ categories, properties, onClose }: {
-  categories: any[]; properties: any[]; onClose: () => void;
+function CreateTicketModal({ categories, properties, initialPropertyId, onClose }: {
+  categories: any[]; properties: any[]; initialPropertyId?: string; onClose: () => void;
 }) {
   const [createTicket, { isLoading }] = useCreateTicketMutation();
   const [uploadPhotos] = useUploadTicketPhotosMutation();
+
+  const defaultPropertyId = useMemo(() => {
+    if (initialPropertyId && initialPropertyId !== '__all__') {
+      const match = properties.find((p: any) => p.id === initialPropertyId);
+      if (match) return match.id;
+    }
+    return properties[0]?.id || '';
+  }, [initialPropertyId, properties]);
+
+  const defaultCategoryId = categories[0]?.id || '';
+
   const [form, setForm] = useState({
-    propertyId: '', unitId: '', title: '', description: '', categoryId: '',
-    priority: 'P3', source: 'staff', locationDetail: '', isUrgent: false,
+    propertyId: defaultPropertyId,
+    unitId: '',
+    title: '',
+    description: '',
+    categoryId: defaultCategoryId,
+    priority: 'P3',
+    source: 'staff',
+    locationDetail: '',
+    isUrgent: false,
   });
+
+  useEffect(() => {
+    if (!form.propertyId && defaultPropertyId) {
+      setForm((f) => ({ ...f, propertyId: defaultPropertyId }));
+    }
+  }, [defaultPropertyId, form.propertyId]);
+
+  useEffect(() => {
+    if (!form.categoryId && defaultCategoryId) {
+      setForm((f) => ({ ...f, categoryId: defaultCategoryId }));
+    }
+  }, [defaultCategoryId, form.categoryId]);
+
+  const { data: unitsData, isLoading: unitsLoading } = useGetUnitsQuery(
+    { propertyId: form.propertyId, limit: 200 },
+    { skip: !form.propertyId }
+  );
+  const units = unitsData?.data || [];
+
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -355,8 +394,28 @@ function CreateTicketModal({ categories, properties, onClose }: {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.propertyId) {
+      toast.error('Please select a property');
+      return;
+    }
+    if (!form.categoryId) {
+      toast.error('Please select a category');
+      return;
+    }
     try {
-      const result = await createTicket(form).unwrap();
+      const payload: Record<string, unknown> = {
+        propertyId: form.propertyId,
+        title: form.title.trim(),
+        categoryId: form.categoryId,
+        priority: form.priority,
+        source: form.source,
+        isUrgent: form.isUrgent,
+      };
+      if (form.unitId) payload.unitId = form.unitId;
+      if (form.description?.trim()) payload.description = form.description.trim();
+      if (form.locationDetail?.trim()) payload.locationDetail = form.locationDetail.trim();
+
+      const result = await createTicket(payload).unwrap();
       const ticketId = result?.data?.id;
 
       // Upload photos if any were selected
@@ -374,7 +433,7 @@ function CreateTicketModal({ categories, properties, onClose }: {
       toast.success('Ticket created successfully');
       onClose();
     } catch (err: any) {
-      toast.error(err?.data?.errors?.[0]?.message || 'Failed to create ticket');
+      toast.error(err?.data?.errors?.[0]?.message || err?.data?.message || 'Failed to create ticket');
     }
   };
 
@@ -392,17 +451,51 @@ function CreateTicketModal({ categories, properties, onClose }: {
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Property <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.propertyId} onChange={(e) => setForm((f) => ({ ...f, propertyId: e.target.value }))}>
+              <select
+                required
+                value={form.propertyId}
+                onChange={(e) => setForm((f) => ({ ...f, propertyId: e.target.value, unitId: '' }))}
+              >
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
+            <div className="maint-field">
+              <label>Unit (optional)</label>
+              <select
+                value={form.unitId}
+                onChange={(e) => setForm((f) => ({ ...f, unitId: e.target.value }))}
+                disabled={!form.propertyId || unitsLoading}
+              >
+                <option value="">Common Area / Entire Building</option>
+                {units.map((u: any) => (
+                  <option key={u.id} value={u.id}>
+                    Unit {u.unitNumber}{u.floorLabel ? ` (${u.floorLabel})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="maint-form-grid">
             <div className="maint-field">
               <label>Category <span style={{ color: '#f87171' }}>*</span></label>
               <select required value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
                 <option value="">Select category</option>
                 {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+            </div>
+            <div className="maint-field">
+              <label>Priority</label>
+              <div className="priority-selector">
+                {PRIORITIES.map((p) => (
+                  <button key={p.value} type="button"
+                    className={`priority-option ${p.value.toLowerCase()} ${form.priority === p.value ? 'active' : ''}`}
+                    onClick={() => setForm((f) => ({ ...f, priority: p.value }))}
+                  >
+                    {p.value}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <div className="maint-form-grid cols-1">
@@ -419,19 +512,6 @@ function CreateTicketModal({ categories, properties, onClose }: {
           </div>
           <div className="maint-form-grid">
             <div className="maint-field">
-              <label>Priority</label>
-              <div className="priority-selector">
-                {PRIORITIES.map((p) => (
-                  <button key={p.value} type="button"
-                    className={`priority-option ${p.value.toLowerCase()} ${form.priority === p.value ? 'active' : ''}`}
-                    onClick={() => setForm((f) => ({ ...f, priority: p.value }))}
-                  >
-                    {p.value}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="maint-field">
               <label>Source</label>
               <select value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}>
                 <option value="staff">Staff</option>
@@ -440,8 +520,6 @@ function CreateTicketModal({ categories, properties, onClose }: {
                 <option value="system">System</option>
               </select>
             </div>
-          </div>
-          <div className="maint-form-grid cols-1">
             <div className="maint-field">
               <label>Location Detail</label>
               <input type="text" value={form.locationDetail} onChange={(e) => setForm((f) => ({ ...f, locationDetail: e.target.value }))} placeholder="e.g., Master bathroom near light fixture" />

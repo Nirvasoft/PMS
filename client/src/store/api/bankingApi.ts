@@ -2,7 +2,7 @@ import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 
 export interface BankAccount {
-  id: string; companyId: string; propertyId: string | null;
+  id: string; companyId: string; propertyId: string | null; propertyName?: string;
   bankName: string; accountName: string; accountNumber: string;
   accountType: string; currency: string;
   openingBalance: number; currentBalance: number;
@@ -60,8 +60,11 @@ export const bankingApi = createApi({
   tagTypes: ['BankAccounts', 'StatementLines', 'Imports', 'ReconSummary', 'GatewayTxns'],
   endpoints: (b) => ({
     // ── Bank Accounts ────────────
-    getBankAccounts: b.query<BankAccount[], void>({
-      query: () => '/banking/bank-accounts',
+    getBankAccounts: b.query<BankAccount[], { propertyId?: string } | void>({
+      query: (params) => ({
+        url: '/banking/bank-accounts',
+        params: params ? { propertyId: params.propertyId } : undefined,
+      }),
       transformResponse: (r: any) => r.data,
       providesTags: ['BankAccounts'],
     }),

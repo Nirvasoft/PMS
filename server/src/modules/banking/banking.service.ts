@@ -4,11 +4,35 @@ import { logger } from '../../common/logger';
 class BankingService {
   // ── Bank Accounts ───────────────────────────
 
-  async getBankAccounts(companyId: string) {
-    return prisma.bankAccount.findMany({
-      where: { companyId },
-      orderBy: { bankName: 'asc' },
-    });
+  async getBankAccounts(companyId: string, propertyId?: string) {
+    const where: any = { companyId };
+    if (propertyId) {
+      where.OR = [
+        { propertyId },
+        { propertyId: null },
+      ];
+    }
+
+    const [accounts, properties] = await Promise.all([
+      prisma.bankAccount.findMany({
+        where,
+        orderBy: [
+          { propertyId: { sort: 'desc', nulls: 'last' } },
+          { bankName: 'asc' },
+        ],
+      }),
+      prisma.property.findMany({
+        where: { companyId },
+        select: { id: true, name: true },
+      }),
+    ]);
+
+    const propertyMap = new Map(properties.map(p => [p.id, p.name]));
+
+    return accounts.map(a => ({
+      ...a,
+      propertyName: a.propertyId ? (propertyMap.get(a.propertyId) || 'Unknown Property') : 'Company-Wide',
+    }));
   }
 
   async createBankAccount(companyId: string, data: any) {
@@ -46,6 +70,7 @@ class BankingService {
         iban: data.iban,
         glAccountId: data.glAccountId,
         isActive: data.isActive,
+        ...(data.propertyId !== undefined ? { propertyId: data.propertyId || null } : {}),
       },
     });
   }

@@ -1,6 +1,7 @@
 import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
 import { AppError } from '../../common/errors';
+import { isUuid } from './tickets.service';
 
 const DEFAULT_CATEGORIES = [
   { name: 'Plumbing', icon: 'droplet', sortOrder: 1 },
@@ -63,6 +64,7 @@ export class CategoriesService {
 
   /** Update a category (only company-owned categories can be edited) */
   async update(id: string, companyId: string, dto: Record<string, unknown>) {
+    if (!isUuid(id)) throw AppError.notFound('Category');
     const existing = await prisma.maintenanceCategory.findFirst({
       where: { id },
     });
@@ -96,6 +98,7 @@ export class CategoriesService {
 
   /** Soft-delete a category (only company-owned) */
   async delete(id: string, companyId: string) {
+    if (!isUuid(id)) throw AppError.notFound('Category');
     const existing = await prisma.maintenanceCategory.findFirst({
       where: { id },
     });

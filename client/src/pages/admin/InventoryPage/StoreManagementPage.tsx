@@ -31,13 +31,16 @@ export default function StoreManagementPage() {
 
   const { data: storesData, isLoading } = useGetStoresQuery({ propertyId: filterProperty || undefined });
   const { data: propsData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const { data: stockData } = useGetStockLevelsQuery({});
+  const { data: stockData } = useGetStockLevelsQuery(filterProperty ? { propertyId: filterProperty } : {});
   const [createStore, { isLoading: creating }] = useCreateStoreMutation();
   const [updateStore, { isLoading: updating }] = useUpdateStoreMutation();
 
   const stores = storesData?.data || [];
   const properties = propsData?.data || [];
   const stockLevels = stockData?.data || [];
+
+  const activeProperty = properties.find((p: any) => p.id === filterProperty);
+  const currency = activeProperty?.currency || 'MMK';
 
   // Group stock by store for counts
   const storeStockMap: Record<string, { items: number; value: number }> = {};
@@ -58,7 +61,9 @@ export default function StoreManagementPage() {
       }).unwrap();
       toast.success('Store created successfully');
       setShowCreate(false);
-    } catch { toast.error('Failed to create store'); }
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed to create store');
+    }
   };
 
   const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -75,7 +80,9 @@ export default function StoreManagementPage() {
       }).unwrap();
       toast.success('Store updated');
       setEditStore(null);
-    } catch { toast.error('Failed to update store'); }
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed to update store');
+    }
   };
 
   // Filter & search
@@ -114,19 +121,30 @@ export default function StoreManagementPage() {
         marginBottom: 24, flexWrap: 'wrap', gap: 12,
       }}>
         <div>
-          <h1 style={{
-            fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h1 style={{
+              fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
+              display: 'flex', alignItems: 'center', gap: 10,
             }}>
-              <Warehouse size={18} color="#fff" />
-            </div>
-            Store Management
-          </h1>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Warehouse size={18} color="#fff" />
+              </div>
+              Store Management
+            </h1>
+            {activeProperty ? (
+              <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
+                🏢 {activeProperty.name}
+              </span>
+            ) : (
+              <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
+                🌐 All Properties
+              </span>
+            )}
+          </div>
           <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
             {stores.length} store{stores.length !== 1 ? 's' : ''} across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}
           </p>
@@ -188,7 +206,7 @@ export default function StoreManagementPage() {
             <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Value</span>
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#10b981' }}>
-            ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            {currency} {totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>inventory at cost</div>
         </div>
@@ -386,7 +404,7 @@ export default function StoreManagementPage() {
                       }} />
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981', letterSpacing: '-0.02em' }}>
-                          ${info.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          {currency} {info.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </div>
                         <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                           Value
@@ -445,7 +463,7 @@ export default function StoreManagementPage() {
             <form onSubmit={handleCreate}>
               <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
                 <div className="form-group"><label>Property *</label>
-                  <select name="propertyId" required style={{ borderRadius: 10 }}>
+                  <select name="propertyId" required defaultValue={filterProperty || ''} style={{ borderRadius: 10 }}>
                     <option value="">Select property...</option>
                     {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -587,7 +605,7 @@ export default function StoreManagementPage() {
                     <DollarSign size={14} style={{ color: '#10b981' }} />
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 800, color: '#10b981' }}>
-                        ${(storeStockMap[editStore.id]?.value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        {currency} {(storeStockMap[editStore.id]?.value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </div>
                       <div style={{ fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Value</div>
                     </div>

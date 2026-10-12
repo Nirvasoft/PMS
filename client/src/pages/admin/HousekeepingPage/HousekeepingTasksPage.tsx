@@ -4,13 +4,15 @@ import {
   useGetHkTasksQuery, useGetHkZonesQuery, useGetHkSchedulesQuery,
   useCreateHkZoneMutation, useCreateHkScheduleMutation,
   useStartHkTaskMutation, useCompleteHkTaskMutation,
+  useGenerateHkTasksMutation,
   useGetHkStatsQuery,
 } from '../../../store/api/housekeepingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Sparkles, Loader2, Plus, Play, CheckCircle2,
   Calendar, Users, MapPin, ClipboardList, XCircle,
-  Clock, Timer, TrendingUp, LayoutGrid, Star,
+  Clock, Timer, TrendingUp, LayoutGrid, Star, Repeat,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -32,6 +34,7 @@ const STATUS_THEME: Record<string, { bg: string; color: string; icon: any }> = {
 };
 
 export default function HousekeepingTasksPage() {
+  const filterProperty = useSelectedPropertyFilter();
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
   const [status, setStatus] = useState('');
@@ -39,14 +42,15 @@ export default function HousekeepingTasksPage() {
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
-  const { data: tasksData, isLoading: tasksLoading } = useGetHkTasksQuery({ date, status: status || undefined, page: 1, limit: 100 });
-  const { data: zonesData } = useGetHkZonesQuery({});
-  const { data: schedulesData } = useGetHkSchedulesQuery({});
-  const { data: statsData } = useGetHkStatsQuery({});
+  const { data: tasksData, isLoading: tasksLoading } = useGetHkTasksQuery({ propertyId: filterProperty || undefined, date, status: status || undefined, page: 1, limit: 100 });
+  const { data: zonesData } = useGetHkZonesQuery({ propertyId: filterProperty || undefined });
+  const { data: schedulesData } = useGetHkSchedulesQuery({ propertyId: filterProperty || undefined });
+  const { data: statsData } = useGetHkStatsQuery({ propertyId: filterProperty || undefined });
   const { data: propsData } = useGetPropertiesQuery({ page: 1, limit: 100 });
 
   const [createZone] = useCreateHkZoneMutation();
   const [createSchedule] = useCreateHkScheduleMutation();
+  const [generateTasks, { isLoading: generating }] = useGenerateHkTasksMutation();
   const [startTask] = useStartHkTaskMutation();
   const [completeTask] = useCompleteHkTaskMutation();
 
@@ -119,6 +123,20 @@ export default function HousekeepingTasksPage() {
       }).unwrap();
       toast.success('Schedule created'); setShowScheduleModal(false);
     } catch { toast.error('Failed'); }
+  };
+
+  const handleGenerateTasks = async () => {
+    try {
+      const res = await generateTasks({ propertyId: filterProperty || undefined }).unwrap();
+      const count = res.data?.created ?? 0;
+      if (count > 0) {
+        toast.success(`Generated ${count} tasks for today`);
+      } else {
+        toast.success("Tasks for today's active schedules are already up to date");
+      }
+    } catch {
+      toast.error('Failed to generate tasks');
+    }
   };
 
   const completionPct = stats?.today?.completionRate ?? 0;
@@ -197,6 +215,15 @@ export default function HousekeepingTasksPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleGenerateTasks}
+            disabled={generating}
+            style={{ borderRadius: 10, display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            {generating ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} color="#6366f1" />}
+            Generate Today's Tasks
+          </button>
           <PermissionGuard permission="housekeeping-zones.write">
             <button className="btn btn-secondary btn-sm" onClick={() => setShowZoneModal(true)} style={{ borderRadius: 10 }}><MapPin size={14} /> Add Zone</button>
           </PermissionGuard>
@@ -379,7 +406,7 @@ export default function HousekeepingTasksPage() {
             <h2><MapPin size={18} /> New Zone</h2>
             <form onSubmit={handleCreateZone}>
               <div className="form-group"><label>Property *</label>
-                <select name="propertyId" required><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                <select name="propertyId" required defaultValue={filterProperty || ''}><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
               </div>
               <div className="form-group"><label>Zone Name *</label><input name="name" required placeholder="Lobby" /></div>
               <div className="form-group"><label>Type</label>
@@ -405,7 +432,7 @@ export default function HousekeepingTasksPage() {
             <h2><Calendar size={18} /> New Schedule</h2>
             <form onSubmit={handleCreateSchedule}>
               <div className="form-group"><label>Property *</label>
-                <select name="propertyId" required><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                <select name="propertyId" required defaultValue={filterProperty || ''}><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
               </div>
               <div className="form-group"><label>Zone *</label>
                 <select name="zoneId" required><option value="">Select...</option>{zones.map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}</select>

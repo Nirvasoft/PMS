@@ -12,6 +12,11 @@ interface WidgetDataParams {
   userId?: string;
 }
 
+function isUuid(val?: string | null): boolean {
+  if (!val) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
+
 function getMonthLabels(count: number): string[] {
   const months: string[] = [];
   const d = new Date();
@@ -57,27 +62,48 @@ function resolvePeriod(params: WidgetDataParams, fallbackFrom: Date, fallbackTo:
   return { from, to: toEndOfDay };
 }
 
+/** Resolves the display currency for the company or property. */
+async function resolveCurrency(params: WidgetDataParams): Promise<string> {
+  if (params.propertyId && isUuid(params.propertyId)) {
+    const prop = await prisma.property.findFirst({
+      where: { id: params.propertyId, companyId: params.companyId },
+      select: { currency: true },
+    });
+    if (prop?.currency) return prop.currency;
+  }
+  const comp = await prisma.company.findFirst({
+    where: { id: params.companyId },
+    select: { currency: true },
+  });
+  return comp?.currency || 'USD';
+}
+
 /** Revenue billed within the selected period, from issued invoices. */
 async function revenueForPeriod(params: WidgetDataParams, fallbackFrom: Date, fallbackTo: Date, label: string) {
   const { from, to } = resolvePeriod(params, fallbackFrom, fallbackTo);
 
-  const where: Record<string, unknown> = {
+  const where: any = {
     status: { notIn: ['draft', 'void'] },
     invoiceDate: { gte: from, lte: to },
   };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const invoices = await prisma.invoice.findMany({
-    where,
-    select: { totalAmount: true },
-  });
+  const [agg, currency] = await Promise.all([
+    prisma.invoice.aggregate({
+      where,
+      _sum: { totalAmount: true },
+      _count: true,
+    }),
+    resolveCurrency(params),
+  ]);
 
-  const totalRevenue = invoices.reduce((sum, i) => sum + (i.totalAmount?.toNumber() ?? 0), 0);
+  const totalRevenue = agg._sum.totalAmount?.toNumber() ?? 0;
+  const count = agg._count;
 
   return {
-    type: 'kpi_card', label, value: Math.round(totalRevenue), unit: 'USD',
-    trend: { direction: 'up', changePercent: 0, label: `${invoices.length} invoices billed` },
+    type: 'kpi_card', label, value: Math.round(totalRevenue), unit: currency,
+    trend: { direction: 'up', changePercent: 0, label: `${count.toLocaleString()} invoices billed` },
   };
 }
 
@@ -98,20 +124,20 @@ async function collectionRate(params: WidgetDataParams) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const { from, to } = resolvePeriod(params, monthStart, now);
 
-  const where: Record<string, unknown> = {
+  const where: any = {
     status: { notIn: ['draft', 'void'] },
     invoiceDate: { gte: from, lte: to },
   };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const invoices = await prisma.invoice.findMany({
+  const agg = await prisma.invoice.aggregate({
     where,
-    select: { totalAmount: true, paidAmount: true },
+    _sum: { totalAmount: true, paidAmount: true },
   });
 
-  const totalBilled = invoices.reduce((s, i) => s + (i.totalAmount?.toNumber() ?? 0), 0);
-  const totalCollected = invoices.reduce((s, i) => s + (i.paidAmount?.toNumber() ?? 0), 0);
+  const totalBilled = agg._sum.totalAmount?.toNumber() ?? 0;
+  const totalCollected = agg._sum.paidAmount?.toNumber() ?? 0;
   const rate = totalBilled > 0 ? +((totalCollected / totalBilled) * 100).toFixed(1) : 0;
 
   return {
@@ -123,36 +149,33 @@ async function collectionRate(params: WidgetDataParams) {
 
 async function overdueInvoices(params: WidgetDataParams) {
   const now = new Date();
-  const where: Record<string, unknown> = {
+  const where: any = {
     status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
     dueDate: { lt: now },
   };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const invoices = await prisma.invoice.findMany({
-    where,
-    select: { totalAmount: true, paidAmount: true, dueDate: true },
-  });
+  const [agg, currency] = await Promise.all([
+    prisma.invoice.aggregate({
+      where,
+      _sum: { totalAmount: true, paidAmount: true },
+      _count: true,
+    }),
+    resolveCurrency(params),
+  ]);
 
-  const count = invoices.length;
-  const totalOverdue = invoices.reduce((s, i) =>
-    s + ((i.totalAmount?.toNumber() ?? 0) - (i.paidAmount?.toNumber() ?? 0)), 0);
-
-  // Average days overdue
-  const avgDays = count > 0
-    ? Math.round(invoices.reduce((s, i) =>
-        s + Math.ceil((now.getTime() - new Date(i.dueDate).getTime()) / 86400000), 0) / count)
-    : 0;
+  const count = agg._count;
+  const totalOverdue = Math.max(0, (agg._sum.totalAmount?.toNumber() ?? 0) - (agg._sum.paidAmount?.toNumber() ?? 0));
 
   return {
     type: 'kpi_card', label: 'Overdue Invoices', value: count, unit: '',
     trend: {
       direction: count > 0 ? 'up' : 'flat',
       changePercent: 0,
-      label: count === 0 ? 'All invoices current' : `$${Math.round(totalOverdue).toLocaleString()} outstanding`,
+      label: count === 0 ? 'All invoices current' : `${currency} ${Math.round(totalOverdue).toLocaleString()} outstanding`,
     },
-    breakdown: { totalAmount: Math.round(totalOverdue), averageDays: avgDays },
+    breakdown: { totalAmount: Math.round(totalOverdue) },
   };
 }
 
@@ -270,16 +293,28 @@ async function vacancyTrend(params: WidgetDataParams) {
   if (params.propertyId) where.propertyId = params.propertyId;
 
   const total = await prisma.unit.count({ where });
-  const vacant = await prisma.unit.count({ where: { ...where, status: 'available' } });
-  const vacancyRate = total > 0 ? +((vacant / total) * 100).toFixed(1) : 0;
 
-  // Show current rate for all months with slight variation for realism
-  const data = months.map((m, i) => ({
-    x: m,
-    y: +(vacancyRate + (i - 3) * 0.5).toFixed(1),
-  }));
-  // Ensure the latest month shows the real value
-  data[data.length - 1].y = vacancyRate;
+  // For each of the last 6 months, calculate the actual vacancy rate using active leases
+  const data = await Promise.all(
+    months.map(async (m) => {
+      const [year, month] = m.split('-').map(Number);
+      const monthStart = new Date(year, month - 1, 1);
+      const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+
+      const leaseWhere: any = {
+        startDate: { lte: monthEnd },
+        endDate: { gte: monthStart },
+        status: { in: ['active', 'expired', 'terminated'] },
+      };
+      if (params.companyId) leaseWhere.companyId = params.companyId;
+      if (params.propertyId) leaseWhere.propertyId = params.propertyId;
+
+      const occupied = await prisma.lease.count({ where: leaseWhere });
+      const vacant = Math.max(0, total - occupied);
+      const vacancyRate = total > 0 ? +((vacant / total) * 100).toFixed(1) : 0;
+      return { x: m, y: vacancyRate };
+    }),
+  );
 
   return {
     type: 'line_chart', label: 'Vacancy Trend',
@@ -329,36 +364,42 @@ async function revenueByProperty(params: WidgetDataParams) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const { from, to } = resolvePeriod(params, monthStart, now);
 
-  const where: Record<string, unknown> = {
+  const where: any = {
     status: { notIn: ['draft', 'void'] },
     invoiceDate: { gte: from, lte: to },
   };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const invoices = await prisma.invoice.findMany({
-    where,
-    select: {
-      totalAmount: true,
-      property: { select: { name: true } },
-    },
-  });
+  const [groups, properties, currency] = await Promise.all([
+    prisma.invoice.groupBy({
+      by: ['propertyId'],
+      where,
+      _sum: { totalAmount: true },
+    }),
+    prisma.property.findMany({
+      where: { companyId: params.companyId },
+      select: { id: true, name: true },
+    }),
+    resolveCurrency(params),
+  ]);
 
-  // Group revenue by property
-  const byProp: Record<string, number> = {};
-  for (const inv of invoices) {
-    const name = inv.property?.name || 'Unknown';
-    byProp[name] = (byProp[name] || 0) + (inv.totalAmount?.toNumber() ?? 0);
-  }
-
-  const data = Object.entries(byProp)
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value]) => ({ x: name.length > 18 ? name.substring(0, 18) + '…' : name, y: Math.round(value) }));
+  const propNameMap = new Map(properties.map(p => [p.id, p.name]));
+  const data = groups
+    .map((g) => {
+      const name = propNameMap.get(g.propertyId) || 'Unknown';
+      const val = g._sum.totalAmount?.toNumber() ?? 0;
+      return {
+        x: name.length > 18 ? name.substring(0, 18) + '…' : name,
+        y: Math.round(val),
+      };
+    })
+    .sort((a, b) => b.y - a.y);
 
   return {
     type: 'bar_chart', label: 'Revenue by Property',
-    series: [{ name: 'Revenue', data }],
-    yAxis: { label: 'Revenue (USD)', unit: 'USD' },
+    series: [{ name: 'Revenue', data: data.length > 0 ? data : [{ x: 'No Invoices', y: 0 }] }],
+    yAxis: { label: `Revenue (${currency})`, unit: currency },
   };
 }
 
@@ -451,18 +492,21 @@ async function leaseExpiringSoon(params: WidgetDataParams) {
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const leases = await prisma.lease.findMany({
-    where,
-    select: {
-      leaseNumber: true,
-      endDate: true,
-      rentAmount: true,
-      tenant: { select: { firstName: true, lastName: true, companyName: true } },
-      unit: { select: { unitNumber: true } },
-    },
-    orderBy: { endDate: 'asc' },
-    take: 10,
-  });
+  const [leases, currency] = await Promise.all([
+    prisma.lease.findMany({
+      where,
+      select: {
+        leaseNumber: true,
+        endDate: true,
+        rentAmount: true,
+        tenant: { select: { firstName: true, lastName: true, companyName: true } },
+        unit: { select: { unitNumber: true } },
+      },
+      orderBy: { endDate: 'asc' },
+      take: 10,
+    }),
+    resolveCurrency(params),
+  ]);
 
   const rows = leases.map((l) => {
     const tenantName = l.tenant
@@ -474,7 +518,7 @@ async function leaseExpiringSoon(params: WidgetDataParams) {
       l.unit?.unitNumber || l.leaseNumber,
       new Date(l.endDate).toISOString().split('T')[0],
       String(daysLeft),
-      `$${(l.rentAmount?.toNumber() ?? 0).toLocaleString()}`,
+      `${currency} ${(l.rentAmount?.toNumber() ?? 0).toLocaleString()}`,
     ];
   });
 
@@ -486,39 +530,171 @@ async function leaseExpiringSoon(params: WidgetDataParams) {
 }
 
 async function recentActivity(params: WidgetDataParams) {
-  // Pull from notification logs as a proxy for recent activity
-  const where: Record<string, unknown> = {};
-  if (params.companyId) where.companyId = params.companyId;
+  const companyId = params.companyId;
+  const propertyId = params.propertyId;
 
-  const logs = await prisma.notificationLog.findMany({
-    where: { ...where, channel: 'in_app' },
-    select: {
-      subject: true,
-      body: true,
-      createdAt: true,
-      recipient: {
-        select: { profile: { select: { firstName: true, lastName: true } } },
+  const [invoices, leases, receipts, authLogs, tickets, notifLogs] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { companyId, ...(propertyId ? { propertyId } : {}) },
+      select: {
+        invoiceNumber: true,
+        status: true,
+        totalAmount: true,
+        currency: true,
+        createdAt: true,
+        tenant: { select: { firstName: true, lastName: true, companyName: true, tenantType: true } },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 6,
-  });
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+    }),
+    prisma.lease.findMany({
+      where: { companyId, ...(propertyId ? { propertyId } : {}) },
+      select: {
+        leaseNumber: true,
+        status: true,
+        createdAt: true,
+        tenant: { select: { firstName: true, lastName: true, companyName: true, tenantType: true } },
+        unit: { select: { unitNumber: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+    }),
+    prisma.receipt.findMany({
+      where: { companyId, ...(propertyId ? { propertyId } : {}) },
+      select: {
+        receiptNumber: true,
+        amount: true,
+        currency: true,
+        createdAt: true,
+        tenant: { select: { firstName: true, lastName: true, companyName: true, tenantType: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+    }),
+    prisma.authAuditLog.findMany({
+      where: { companyId, eventType: { in: ['login_success', 'password_change'] } },
+      select: {
+        eventType: true,
+        email: true,
+        createdAt: true,
+        user: { select: { profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+    }),
+    prisma.maintenanceTicket.findMany({
+      where: { companyId, ...(propertyId ? { propertyId } : {}) },
+      select: {
+        ticketNumber: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        reportedByUser: { select: { profile: { select: { firstName: true, lastName: true } } } },
+        reportedByTenant: { select: { firstName: true, lastName: true, companyName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+    }),
+    prisma.notificationLog.findMany({
+      where: { companyId, channel: 'in_app' },
+      select: {
+        subject: true,
+        body: true,
+        createdAt: true,
+        recipient: { select: { profile: { select: { firstName: true, lastName: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+    }),
+  ]);
 
-  const rows = logs.map((l) => {
-    const user = l.recipient?.profile
-      ? `${l.recipient.profile.firstName} ${l.recipient.profile.lastName}`
+  const items: { action: string; user: string; details: string; createdAt: Date }[] = [];
+
+  for (const inv of invoices) {
+    const tenantName = inv.tenant
+      ? (inv.tenant.tenantType === 'corporate' ? inv.tenant.companyName : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim())
       : 'System';
-    const timeAgo = getTimeAgo(l.createdAt);
-    return [
-      l.subject || 'Activity',
+    items.push({
+      action: 'Invoice Issued',
+      user: tenantName || 'Customer',
+      details: `${inv.invoiceNumber} (${inv.currency} ${Number(inv.totalAmount).toLocaleString()}) - ${inv.status}`,
+      createdAt: inv.createdAt,
+    });
+  }
+
+  for (const l of leases) {
+    const tenantName = l.tenant
+      ? (l.tenant.tenantType === 'corporate' ? l.tenant.companyName : `${l.tenant.firstName || ''} ${l.tenant.lastName || ''}`.trim())
+      : 'System';
+    items.push({
+      action: 'Lease Created',
+      user: tenantName || 'Tenant',
+      details: `${l.leaseNumber}${l.unit?.unitNumber ? ` (Unit ${l.unit.unitNumber})` : ''} - ${l.status}`,
+      createdAt: l.createdAt,
+    });
+  }
+
+  for (const r of receipts) {
+    const tenantName = r.tenant
+      ? (r.tenant.tenantType === 'corporate' ? r.tenant.companyName : `${r.tenant.firstName || ''} ${r.tenant.lastName || ''}`.trim())
+      : 'Customer';
+    items.push({
+      action: 'Payment Received',
+      user: tenantName || 'Customer',
+      details: `${r.receiptNumber} (${r.currency} ${Number(r.amount).toLocaleString()})`,
+      createdAt: r.createdAt,
+    });
+  }
+
+  for (const a of authLogs) {
+    const userName = a.user?.profile
+      ? `${a.user.profile.firstName} ${a.user.profile.lastName}`.trim()
+      : a.email || 'Admin';
+    items.push({
+      action: a.eventType === 'login_success' ? 'User Login' : 'Security Event',
+      user: userName,
+      details: 'Logged in to dashboard',
+      createdAt: a.createdAt,
+    });
+  }
+
+  for (const t of tickets) {
+    const reporter = t.reportedByUser?.profile
+      ? `${t.reportedByUser.profile.firstName} ${t.reportedByUser.profile.lastName}`.trim()
+      : (t.reportedByTenant
+        ? (t.reportedByTenant.companyName || `${t.reportedByTenant.firstName || ''} ${t.reportedByTenant.lastName || ''}`.trim())
+        : 'Staff');
+    items.push({
+      action: 'Maintenance Ticket',
+      user: reporter || 'Staff',
+      details: `${t.ticketNumber}: ${t.title} (${t.status})`,
+      createdAt: t.createdAt,
+    });
+  }
+
+  for (const n of notifLogs) {
+    const user = n.recipient?.profile
+      ? `${n.recipient.profile.firstName} ${n.recipient.profile.lastName}`.trim()
+      : 'System';
+    items.push({
+      action: n.subject || 'Notification',
       user,
-      (l.body || '').substring(0, 40) + ((l.body?.length ?? 0) > 40 ? '…' : ''),
-      timeAgo,
-    ];
-  });
+      details: (n.body || '').substring(0, 45) + ((n.body?.length ?? 0) > 45 ? '…' : ''),
+      createdAt: n.createdAt,
+    });
+  }
+
+  items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const rows = items.slice(0, 6).map((item) => [
+    item.action,
+    item.user,
+    item.details,
+    getTimeAgo(item.createdAt),
+  ]);
 
   return {
-    type: 'data_table', label: 'Recent Activity',
+    type: 'data_table',
+    label: 'Recent Activity',
     columns: ['Action', 'User', 'Details', 'Time'],
     rows: rows.length > 0 ? rows : [['No recent activity', '—', '—', '—']],
   };
@@ -540,8 +716,7 @@ function getTimeAgo(date: Date): string {
 // ──────────────────────────────────────────────
 
 async function crmActiveLeads(params: WidgetDataParams) {
-  const activeStages = ['new', 'contacted', 'viewing', 'negotiating', 'proposal_sent'];
-  const where: Record<string, unknown> = { stage: { in: activeStages } };
+  const where: Record<string, unknown> = { stage: { notIn: ['lease_signed', 'lost'] } };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
   if (params.dateFrom || params.dateTo) {
@@ -648,12 +823,19 @@ async function facilityUtilization(params: WidgetDataParams) {
 
   const bookings = await prisma.facilityBooking.findMany({
     where,
-    select: { facility: { select: { name: true } } },
+    select: {
+      facility: {
+        select: {
+          name: true,
+          facilityType: { select: { name: true } },
+        },
+      },
+    },
   });
 
   const byFacility: Record<string, number> = {};
   for (const b of bookings) {
-    const name = b.facility?.name || 'Unknown';
+    const name = b.facility?.name || b.facility?.facilityType?.name || 'Unknown';
     byFacility[name] = (byFacility[name] || 0) + 1;
   }
 
@@ -698,15 +880,18 @@ async function parkingRevenue(params: WidgetDataParams) {
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const slots = await prisma.parkingSlot.findMany({
-    where,
-    select: { monthlyRate: true },
-  });
+  const [slots, currency] = await Promise.all([
+    prisma.parkingSlot.findMany({
+      where,
+      select: { monthlyRate: true },
+    }),
+    resolveCurrency(params),
+  ]);
 
   const totalRevenue = slots.reduce((s, sl) => s + (sl.monthlyRate?.toNumber() ?? 0), 0);
 
   return {
-    type: 'kpi_card', label: 'Parking Revenue', value: Math.round(totalRevenue), unit: 'USD',
+    type: 'kpi_card', label: 'Parking Revenue', value: Math.round(totalRevenue), unit: currency,
     trend: { direction: totalRevenue > 0 ? 'up' : 'flat', changePercent: 0, label: `${slots.length} occupied slots` },
   };
 }
@@ -828,35 +1013,39 @@ async function visitorsTrend(params: WidgetDataParams) {
 // ──────────────────────────────────────────────
 
 async function cleaningCompletionRate(params: WidgetDataParams) {
-  const where: Record<string, unknown> = { status: 'active' };
+  const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.taskDate = { gte: from, lte: to };
+  }
 
   const [total, completed] = await Promise.all([
-    prisma.cleaningSchedule.count({ where }),
-    prisma.cleaningSchedule.count({ where: { ...where, status: 'completed' } }),
+    prisma.cleaningTask.count({ where }),
+    prisma.cleaningTask.count({ where: { ...where, status: 'completed' } }),
   ]);
 
-  // Active schedules are "assigned", completed are done
-  // For a gauge, we show % of schedules that are actively running
-  const rate = total > 0 ? +((total / (total + completed || 1)) * 100).toFixed(1) : 100;
+  const rate = total > 0 ? +((completed / total) * 100).toFixed(1) : 100;
 
   return {
-    type: 'gauge', label: 'Cleaning Coverage', value: total > 0 ? 100 : 0, unit: '%',
-    target: 100, breakdown: { active: total, completed },
+    type: 'gauge', label: 'Cleaning Coverage', value: rate, unit: '%',
+    target: 100, breakdown: { total, completed },
   };
 }
 
 async function cleaningOpenTasks(params: WidgetDataParams) {
-  const where: Record<string, unknown> = { status: 'active' };
+  const where: Record<string, unknown> = {
+    status: { in: ['pending', 'in_progress'] },
+  };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const count = await prisma.cleaningSchedule.count({ where });
+  const count = await prisma.cleaningTask.count({ where });
 
   return {
-    type: 'kpi_card', label: 'Active Cleaning Schedules', value: count, unit: '',
-    trend: { direction: 'flat', changePercent: 0, label: `${count} active schedules` },
+    type: 'kpi_card', label: 'Open Cleaning Tasks', value: count, unit: '',
+    trend: { direction: count > 5 ? 'up' : 'flat', changePercent: 0, label: count === 0 ? 'All completed' : `${count} open tasks` },
   };
 }
 
@@ -873,7 +1062,7 @@ async function pmUpcoming(params: WidgetDataParams) {
     dueDate: { lte: sevenDays, gte: new Date() },
   };
   if (params.companyId) where.companyId = params.companyId;
-  if (params.propertyId) where.schedule = { propertyId: params.propertyId };
+  if (params.propertyId && isUuid(params.propertyId)) where.schedule = { propertyId: params.propertyId };
 
   const count = await prisma.pmWorkOrder.count({ where });
 
@@ -886,7 +1075,7 @@ async function pmUpcoming(params: WidgetDataParams) {
 async function pmComplianceRate(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
-  if (params.propertyId) where.schedule = { propertyId: params.propertyId };
+  if (params.propertyId && isUuid(params.propertyId)) where.schedule = { propertyId: params.propertyId };
 
   const [total, completed, overdue] = await Promise.all([
     prisma.pmWorkOrder.count({ where }),
@@ -914,21 +1103,24 @@ async function glNetIncome(params: WidgetDataParams) {
   const where: Record<string, unknown> = { status: 'posted', entryDate: { gte: from, lte: to } };
   if (params.companyId) where.companyId = params.companyId;
 
-  const entries = await prisma.journalEntry.findMany({
-    where,
-    select: { totalDebit: true, totalCredit: true },
-  });
+  const [entries, currency] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where,
+      select: { totalDebit: true, totalCredit: true },
+    }),
+    resolveCurrency(params),
+  ]);
 
   const totalDebit = entries.reduce((s, e) => s + (e.totalDebit?.toNumber() ?? 0), 0);
   const totalCredit = entries.reduce((s, e) => s + (e.totalCredit?.toNumber() ?? 0), 0);
   const netIncome = Math.round(totalCredit - totalDebit);
 
   return {
-    type: 'kpi_card', label: 'Net Income (Period)', value: netIncome, unit: 'USD',
+    type: 'kpi_card', label: 'Net Income (Period)', value: netIncome, unit: currency,
     trend: {
       direction: netIncome > 0 ? 'up' : netIncome < 0 ? 'down' : 'flat',
       changePercent: 0,
-      label: `Dr: $${Math.round(totalDebit).toLocaleString()} / Cr: $${Math.round(totalCredit).toLocaleString()}`,
+      label: `Dr: ${Math.round(totalDebit).toLocaleString()} / Cr: ${Math.round(totalCredit).toLocaleString()}`,
     },
     breakdown: { totalDebit: Math.round(totalDebit), totalCredit: Math.round(totalCredit) },
   };
@@ -937,25 +1129,41 @@ async function glNetIncome(params: WidgetDataParams) {
 async function bankBalanceSummary(params: WidgetDataParams) {
   const where: Record<string, unknown> = {};
   if (params.companyId) where.companyId = params.companyId;
-  if (params.propertyId) where.propertyId = params.propertyId;
+  if (params.propertyId) {
+    where.OR = [
+      { propertyId: params.propertyId },
+      { propertyId: null },
+    ];
+  }
 
   const accounts = await prisma.bankAccount.findMany({
     where,
-    select: { bankName: true, accountName: true, currency: true },
-    orderBy: { bankName: 'asc' },
+    select: {
+      bankName: true,
+      accountName: true,
+      accountNumber: true,
+      currentBalance: true,
+      currency: true,
+      propertyId: true,
+    },
+    orderBy: [
+      { propertyId: { sort: 'desc', nulls: 'last' } },
+      { bankName: 'asc' },
+    ],
     take: 10,
   });
 
   const rows = accounts.map((a) => [
     a.bankName,
     a.accountName,
-    a.currency,
+    a.accountNumber ? `***${a.accountNumber.slice(-4)}` : '—',
+    `${a.currency} ${Number(a.currentBalance || 0).toLocaleString()}`,
   ]);
 
   return {
-    type: 'data_table', label: 'Bank Accounts',
-    columns: ['Bank', 'Account', 'Currency'],
-    rows: rows.length > 0 ? rows : [['No bank accounts', '—', '—']],
+    type: 'data_table', label: 'Bank Accounts & Balances',
+    columns: ['Bank', 'Account', 'Account #', 'Balance'],
+    rows: rows.length > 0 ? rows : [['No bank accounts', '—', '—', '—']],
   };
 }
 
@@ -1141,53 +1349,23 @@ async function occupancyHeatmap(params: WidgetDataParams) {
 }
 
 /**
- * Generate a 7-day sparkline for KPI cards.
- * Uses seeded pseudo-random to produce a consistent micro-trend line
- * around the current value with ±15% variance.
- */
-function generateSparkline(value: number, code: string): number[] {
-  const points: number[] = [];
-  // Simple hash seed from code
-  let seed = 0;
-  for (let i = 0; i < code.length; i++) seed += code.charCodeAt(i);
-  const seededRandom = () => {
-    seed = (seed * 9301 + 49297) % 233280;
-    return seed / 233280;
-  };
-  const variance = Math.max(Math.abs(value) * 0.15, 1);
-  for (let i = 0; i < 7; i++) {
-    const r = seededRandom();
-    // Trend upward slightly toward current value
-    const base = value - variance + (variance * i / 6);
-    points.push(+(base + (r - 0.5) * variance).toFixed(1));
-  }
-  // Last point = actual current value
-  points[6] = value;
-  return points;
-}
-
-/**
  * Get real widget data by querying the database.
- * KPI cards are auto-enriched with a sparkline array.
  */
 export async function getRealWidgetData(code: string, params: WidgetDataParams): Promise<unknown> {
+  const sanitizedParams: WidgetDataParams = {
+    ...params,
+    propertyId: (params.propertyId && isUuid(params.propertyId)) ? params.propertyId : undefined,
+  };
   const provider = REAL_PROVIDERS[code];
   if (!provider) {
     return {
       type: 'kpi_card', label: code.replace(/_/g, ' '), value: 0, unit: '',
       trend: { direction: 'flat', changePercent: 0, label: 'No data provider' },
-      sparkline: [0, 0, 0, 0, 0, 0, 0],
       updatedAt: new Date().toISOString(),
     };
   }
 
-  const data = await provider(params) as Record<string, unknown>;
-  const enriched: Record<string, unknown> = { ...data, updatedAt: new Date().toISOString() };
-
-  // Auto-add sparkline to KPI cards
-  if (data.type === 'kpi_card' && typeof data.value === 'number') {
-    enriched.sparkline = generateSparkline(data.value as number, code);
-  }
-
-  return enriched;
+  const data = await provider(sanitizedParams) as Record<string, unknown>;
+  return { ...data, updatedAt: new Date().toISOString() };
 }
+

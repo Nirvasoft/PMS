@@ -115,6 +115,15 @@ export const visitorsApi = createApi({
       query: (id) => ({ url: `/visitors/blacklist/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Blacklist'],
     }),
+
+    // ── Active Visitors (Security) ───────────────
+    getActiveVisitors: builder.query<
+      { success: boolean; data: any[] },
+      { propertyId?: string } | void
+    >({
+      query: (params) => ({ url: '/visitors/active', params: params || {} }),
+      providesTags: ['Visitors'],
+    }),
   }),
 });
 
@@ -127,4 +136,5 @@ export const {
   useCreateBlacklistEntryMutation,
   useUpdateBlacklistEntryMutation,
   useDeleteBlacklistEntryMutation,
+  useGetActiveVisitorsQuery,
 } = visitorsApi;

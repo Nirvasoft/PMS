@@ -4,6 +4,7 @@ import { logger } from '../../common/logger';
 import { facilityService } from '../facility/facility.service';
 import { glService } from '../gl/gl.service';
 import { emitToCompany } from '../../common/socket';
+import { isUuid } from './tickets.service';
 
 export class WorkOrdersService {
   // ── Query ───────────────────────────────────
@@ -16,9 +17,9 @@ export class WorkOrdersService {
     const { assignedTo, status, propertyId, scheduledFrom, scheduledTo, page = 1, limit = 20 } = filters;
     const where: any = { companyId };
 
-    if (assignedTo) where.assignedToId = assignedTo;
+    if (assignedTo && isUuid(assignedTo)) where.assignedToId = assignedTo;
     if (status) where.status = status;
-    if (propertyId) where.propertyId = propertyId;
+    if (propertyId && isUuid(propertyId)) where.propertyId = propertyId;
     if (scheduledFrom || scheduledTo) {
       where.scheduledStart = {};
       if (scheduledFrom) where.scheduledStart.gte = new Date(scheduledFrom);
@@ -56,6 +57,7 @@ export class WorkOrdersService {
   }
 
   async findById(id: string, companyId: string) {
+    if (!isUuid(id)) throw AppError.notFound('Work order');
     const wo = await prisma.workOrder.findFirst({
       where: { id, companyId },
       include: {

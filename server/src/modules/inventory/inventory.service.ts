@@ -13,12 +13,35 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
   }
 
   async function createStore(companyId: string, data: any) {
-    return prisma.store.create({ data: { ...data, companyId } });
+    const { propertyId, name, location, isActive } = data;
+    return prisma.store.create({
+      data: {
+        companyId,
+        propertyId,
+        name,
+        location: location || null,
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
+      },
+      include: { property: { select: { id: true, name: true } } },
+    });
+  }
+
+  async function updateStore(companyId: string, id: string, data: any) {
+    const { name, location, isActive } = data;
+    return prisma.store.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(location !== undefined && { location: location || null }),
+        ...(isActive !== undefined && { isActive: Boolean(isActive) }),
+      },
+      include: { property: { select: { id: true, name: true } } },
+    });
   }
 
   // ── Items ─────────────────────────────
   async function listItems(companyId: string, params: any) {
-    const { search, category, lowStock, page = 1, limit = 20 } = params;
+    const { search, category, lowStock, propertyId, page = 1, limit = 20 } = params;
     const where: any = { companyId };
     if (search) where.OR = [
       { name: { contains: search, mode: 'insensitive' } },
@@ -31,7 +54,8 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
         where,
         include: {
           stockLevels: {
-            include: { store: { select: { id: true, name: true } } },
+            where: propertyId ? { store: { propertyId } } : undefined,
+            include: { store: { select: { id: true, name: true, propertyId: true } } },
           },
         },
         orderBy: { name: 'asc' },
@@ -76,16 +100,21 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
 
   // ── Stock Levels ──────────────────────
   async function getStockLevels(companyId: string, params: any) {
-    const { storeId, itemId, lowStock } = params;
+    const { storeId, itemId, lowStock, propertyId } = params;
     const where: any = { companyId };
-    if (storeId) where.storeId = storeId;
+    if (storeId) {
+      where.storeId = storeId;
+      if (propertyId) where.store = { propertyId };
+    } else if (propertyId) {
+      where.store = { propertyId };
+    }
     if (itemId) where.itemId = itemId;
 
     const data = await prisma.stockLevel.findMany({
       where,
       include: {
         item: { select: { id: true, itemCode: true, name: true, unitOfMeasure: true, unitCost: true, reorderPoint: true, maxStock: true } },
-        store: { select: { id: true, name: true } },
+        store: { select: { id: true, name: true, propertyId: true, property: { select: { id: true, name: true } } } },
       },
       orderBy: { updatedAt: 'desc' },
     });
@@ -275,10 +304,15 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
   }
 
   async function listMovements(companyId: string, params: any) {
-    const { itemId, storeId, movementType, page = 1, limit = 50 } = params;
+    const { itemId, storeId, movementType, propertyId, page = 1, limit = 50 } = params;
     const where: any = { companyId };
     if (itemId) where.itemId = itemId;
-    if (storeId) where.storeId = storeId;
+    if (storeId) {
+      where.storeId = storeId;
+      if (propertyId) where.store = { propertyId };
+    } else if (propertyId) {
+      where.store = { propertyId };
+    }
     if (movementType) where.movementType = movementType;
 
     const [data, total] = await Promise.all([
@@ -286,7 +320,7 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
         where,
         include: {
           item: { select: { id: true, itemCode: true, name: true, unitOfMeasure: true } },
-          store: { select: { id: true, name: true } },
+          store: { select: { id: true, name: true, propertyId: true, property: { select: { id: true, name: true } } } },
           performedBy: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
         },
         orderBy: { createdAt: 'desc' },
@@ -300,14 +334,23 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
   }
 
   // ── Stats ──────────────────────────────
-  async function getStats(companyId: string) {
+  async function getStats(companyId: string, propertyId?: string) {
+    const storeWhere: any = { companyId, isActive: true };
+    if (propertyId) storeWhere.propertyId = propertyId;
+
+    const stockWhere: any = { companyId };
+    if (propertyId) stockWhere.store = { propertyId };
+
+    const movWhere: any = { companyId, createdAt: { gte: new Date(Date.now() - 7 * 86400000) } };
+    if (propertyId) movWhere.store = { propertyId };
+
     const [totalItems, totalStores] = await Promise.all([
       prisma.inventoryItem.count({ where: { companyId, isActive: true } }),
-      prisma.store.count({ where: { companyId, isActive: true } }),
+      prisma.store.count({ where: storeWhere }),
     ]);
 
     const stockLevels = await prisma.stockLevel.findMany({
-      where: { companyId },
+      where: stockWhere,
       include: { item: { select: { unitCost: true, reorderPoint: true } } },
     });
 
@@ -316,7 +359,7 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
     const outOfStockCount = stockLevels.filter((sl) => Number(sl.qtyOnHand) <= 0).length;
 
     const recentMovements = await prisma.stockMovement.count({
-      where: { companyId, createdAt: { gte: new Date(Date.now() - 7 * 86400000) } },
+      where: movWhere,
     });
 
     return { totalItems, totalStores, totalValue, lowStockCount, outOfStockCount, recentMovements };
@@ -386,9 +429,10 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
 
   // ── Purchase Requisitions (Gap 1) ──────
   async function listPurchaseRequisitions(companyId: string, params: any) {
-    const { status, page = 1, limit = 20 } = params;
+    const { status, propertyId, page = 1, limit = 20 } = params;
     const where: any = { companyId };
     if (status) where.status = status;
+    if (propertyId) where.propertyId = propertyId;
 
     const [data, total] = await Promise.all([
       prisma.purchaseRequisition.findMany({
@@ -434,7 +478,7 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
   }
 
   return {
-    listStores, createStore,
+    listStores, createStore, updateStore,
     listItems, getItemById, createItem, updateItem,
     getStockLevels,
     receiveStock, issueStock, transferStock, adjustStock,

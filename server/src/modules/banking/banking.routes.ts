@@ -9,7 +9,8 @@ export const bankingRouter = Router();
 
 // ── Bank Accounts ─────────────────────────────
 bankingRouter.get('/bank-accounts', asyncHandler(async (req, res) => {
-  const data = await bankingService.getBankAccounts(req.user!.companyId);
+  const propertyId = req.query.propertyId as string | undefined;
+  const data = await bankingService.getBankAccounts(req.user!.companyId, propertyId);
   res.json({ success: true, data });
 }));
 

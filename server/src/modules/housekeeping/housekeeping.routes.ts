@@ -35,6 +35,16 @@ export function housekeepingRoutes(prisma: PrismaClient) {
       res.json({ success: true, ...result });
     } catch (e) { next(e); }
   });
+  tasksRouter.post('/generate', async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await svc.generateTodayTasks(req.user!.companyId, req.body?.propertyId) });
+    } catch (e) { next(e); }
+  });
+  tasksRouter.post('/', async (req, res, next) => {
+    try {
+      res.status(201).json({ success: true, data: await svc.createTask(req.user!.companyId, req.body) });
+    } catch (e) { next(e); }
+  });
   tasksRouter.post('/:id/start', async (req, res, next) => {
     try { res.json({ success: true, data: await svc.startTask(req.user!.companyId, req.params.id as string) }); } catch (e) { next(e); }
   });

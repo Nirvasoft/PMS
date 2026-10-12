@@ -2,6 +2,7 @@ import { prisma, setTenantContext } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { Prisma } from '@prisma/client';
 import { logger } from '../../common/logger';
+import { isUuid } from '../maintenance/tickets.service';
 
 // ── Helpers ─────────────────────────────
 
@@ -38,7 +39,7 @@ class PmService {
 
     const where: Prisma.PmScheduleWhereInput = {
       companyId,
-      ...(params.propertyId && { propertyId: params.propertyId }),
+      ...(params.propertyId && isUuid(params.propertyId) && { propertyId: params.propertyId }),
       ...(params.status && { status: params.status }),
       ...(params.frequencyType && { frequencyType: params.frequencyType }),
       ...(params.search && {
@@ -90,6 +91,7 @@ class PmService {
   }
 
   async findScheduleById(id: string, companyId: string) {
+    if (!isUuid(id)) throw AppError.notFound('PM Schedule');
     await setTenantContext(companyId);
 
     const schedule = await prisma.pmSchedule.findFirst({
@@ -148,6 +150,7 @@ class PmService {
   }
 
   async updateSchedule(id: string, companyId: string, data: any) {
+    if (!isUuid(id)) throw AppError.notFound('PM Schedule');
     await setTenantContext(companyId);
 
     const existing = await prisma.pmSchedule.findFirst({ where: { id, companyId } });
@@ -175,6 +178,7 @@ class PmService {
   }
 
   async pauseSchedule(id: string, companyId: string) {
+    if (!isUuid(id)) throw AppError.notFound('PM Schedule');
     await setTenantContext(companyId);
     const s = await prisma.pmSchedule.findFirst({ where: { id, companyId } });
     if (!s) throw AppError.notFound('PM Schedule');
@@ -183,6 +187,7 @@ class PmService {
   }
 
   async resumeSchedule(id: string, companyId: string) {
+    if (!isUuid(id)) throw AppError.notFound('PM Schedule');
     await setTenantContext(companyId);
     const s = await prisma.pmSchedule.findFirst({ where: { id, companyId } });
     if (!s) throw AppError.notFound('PM Schedule');
@@ -193,6 +198,7 @@ class PmService {
   // ── Work Order Generation ─────────────
 
   async generateWorkOrder(scheduleId: string, companyId: string) {
+    if (!isUuid(scheduleId)) throw AppError.notFound('PM Schedule');
     await setTenantContext(companyId);
 
     const schedule = await prisma.pmSchedule.findFirst({
@@ -255,6 +261,7 @@ class PmService {
   // ── Complete PM Work Order ────────────
 
   async completePmWorkOrder(id: string, companyId: string, data: any, userId: string) {
+    if (!isUuid(id)) throw AppError.notFound('PM Work Order');
     await setTenantContext(companyId);
 
     const pmWo = await prisma.pmWorkOrder.findFirst({
@@ -321,6 +328,7 @@ class PmService {
   // ── History & Upcoming ─────────────────
 
   async getScheduleHistory(scheduleId: string, companyId: string) {
+    if (!isUuid(scheduleId)) throw AppError.notFound('PM Schedule');
     await setTenantContext(companyId);
 
     const schedule = await prisma.pmSchedule.findFirst({ where: { id: scheduleId, companyId } });
@@ -354,9 +362,9 @@ class PmService {
 
     const where: Prisma.PmWorkOrderWhereInput = {
       companyId,
-      ...(params.scheduleId && { scheduleId: params.scheduleId }),
+      ...(params.scheduleId && isUuid(params.scheduleId) && { scheduleId: params.scheduleId }),
       ...(params.status && { status: params.status }),
-      ...(params.propertyId && { schedule: { propertyId: params.propertyId } }),
+      ...(params.propertyId && isUuid(params.propertyId) && { schedule: { propertyId: params.propertyId } }),
       ...(params.from && { dueDate: { gte: new Date(params.from) } }),
       ...(params.to && { dueDate: { ...((params.from ? { gte: new Date(params.from) } : {})), lte: new Date(params.to) } }),
     };
@@ -388,6 +396,7 @@ class PmService {
   }
 
   async findWorkOrderById(id: string, companyId: string) {
+    if (!isUuid(id)) throw AppError.notFound('PM Work Order');
     await setTenantContext(companyId);
     const wo = await prisma.pmWorkOrder.findFirst({
       where: { id, companyId },
@@ -416,7 +425,7 @@ class PmService {
         companyId,
         status: 'active',
         nextDueDate: { lte: cutoff },
-        ...(params.propertyId && { propertyId: params.propertyId }),
+        ...(params.propertyId && isUuid(params.propertyId) && { propertyId: params.propertyId }),
       },
       include: {
         property: { select: { id: true, name: true } },
@@ -435,6 +444,7 @@ class PmService {
   // ── Skip PM Work Order ────────────────
 
   async skipPmWorkOrder(id: string, companyId: string, reason: string, userId: string) {
+    if (!isUuid(id)) throw AppError.notFound('PM Work Order');
     await setTenantContext(companyId);
 
     const pmWo = await prisma.pmWorkOrder.findFirst({
@@ -479,6 +489,7 @@ class PmService {
   // ── Asset Service History ─────────────
 
   async getAssetServiceHistory(assetId: string, companyId: string) {
+    if (!isUuid(assetId)) return [];
     await setTenantContext(companyId);
 
     // Get all PM work orders for schedules linked to this asset

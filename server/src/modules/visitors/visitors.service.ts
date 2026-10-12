@@ -3,6 +3,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 
+function isUuid(val?: string | null): boolean {
+  if (!val) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
+
 class VisitorsService {
   /**
    * Pre-register a visitor (tenant portal).
@@ -338,7 +343,7 @@ class VisitorsService {
       companyId,
       status: { in: ['checked_in', 'approved'] },
     };
-    if (propertyId) where.propertyId = propertyId;
+    if (propertyId && isUuid(propertyId)) where.propertyId = propertyId;
 
     return prisma.visitor.findMany({
       where,
@@ -380,7 +385,7 @@ class VisitorsService {
   }) {
     const { page = 1, limit = 20 } = filters;
     const where: any = { companyId };
-    if (filters.propertyId) where.propertyId = filters.propertyId;
+    if (filters.propertyId && isUuid(filters.propertyId)) where.propertyId = filters.propertyId;
     if (filters.isActive === 'true') where.isActive = true;
     else if (filters.isActive === 'false') where.isActive = false;
     if (filters.search) {
@@ -434,6 +439,7 @@ class VisitorsService {
     visitorName?: string; visitorIc?: string; visitorMobile?: string;
     reason?: string; isActive?: boolean;
   }) {
+    if (!isUuid(entryId)) throw AppError.notFound('Blacklist entry');
     const entry = await prisma.visitorBlacklist.findFirst({ where: { id: entryId, companyId } });
     if (!entry) throw AppError.notFound('Blacklist entry');
 
@@ -453,6 +459,7 @@ class VisitorsService {
   }
 
   async deleteBlacklistEntry(companyId: string, entryId: string) {
+    if (!isUuid(entryId)) throw AppError.notFound('Blacklist entry');
     const entry = await prisma.visitorBlacklist.findFirst({ where: { id: entryId, companyId } });
     if (!entry) throw AppError.notFound('Blacklist entry');
     await prisma.visitorBlacklist.delete({ where: { id: entryId } });

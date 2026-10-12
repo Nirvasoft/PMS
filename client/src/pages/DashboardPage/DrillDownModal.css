@@ -152,12 +152,12 @@
 }
 
 .drilldown-link-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
   background: var(--accent);
-  color: white;
+  color: #ffffff !important;
   text-decoration: none;
   font-size: 0.85rem;
   font-weight: 500;
@@ -167,6 +167,16 @@
 
 .drilldown-link-btn:hover {
   background: var(--accent-hover);
+  color: #ffffff !important;
+  text-decoration: none;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.drilldown-link-btn:active {
+  transform: translateY(0);
+}
+
+.drilldown-link-btn svg {
+  color: inherit;
 }

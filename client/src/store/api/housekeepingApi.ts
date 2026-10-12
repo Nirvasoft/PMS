@@ -26,6 +26,14 @@ export const housekeepingApi = createApi({
       query: (params) => ({ url: '/housekeeping/tasks', params }),
       providesTags: ['HkTasks'],
     }),
+    createHkTask: builder.mutation<any, any>({
+      query: (body) => ({ url: '/housekeeping/tasks', method: 'POST', body }),
+      invalidatesTags: ['HkTasks'],
+    }),
+    generateHkTasks: builder.mutation<any, { propertyId?: string }>({
+      query: (body) => ({ url: '/housekeeping/tasks/generate', method: 'POST', body }),
+      invalidatesTags: ['HkTasks'],
+    }),
     startHkTask: builder.mutation<any, string>({
       query: (id) => ({ url: `/housekeeping/tasks/${id}/start`, method: 'POST' }),
       invalidatesTags: ['HkTasks'],
@@ -51,7 +59,8 @@ export const housekeepingApi = createApi({
 export const {
   useGetHkZonesQuery, useCreateHkZoneMutation,
   useGetHkSchedulesQuery, useCreateHkScheduleMutation,
-  useGetHkTasksQuery, useStartHkTaskMutation, useCompleteHkTaskMutation,
+  useGetHkTasksQuery, useCreateHkTaskMutation, useGenerateHkTasksMutation,
+  useStartHkTaskMutation, useCompleteHkTaskMutation,
   useGetHkInspectionsQuery, useCreateHkInspectionMutation,
   useGetHkStatsQuery,
 } = housekeepingApi;

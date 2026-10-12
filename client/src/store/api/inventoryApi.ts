@@ -67,8 +67,8 @@ export const inventoryApi = createApi({
     }),
 
     // Stats
-    getInventoryStats: builder.query<any, void>({
-      query: () => '/inventory/stats',
+    getInventoryStats: builder.query<any, { propertyId?: string } | void>({
+      query: (params) => ({ url: '/inventory/stats', params: params || {} }),
     }),
 
     // Purchase Requisitions

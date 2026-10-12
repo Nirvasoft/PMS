@@ -4,10 +4,11 @@ import {
   useGetSecurityStatsQuery, useGetSecurityIncidentsQuery,
   useGetPatrolLogsQuery, useGetAccessEventsQuery,
 } from '../../../store/api/securityApi';
+import { useGetActiveVisitorsQuery } from '../../../store/api/visitorsApi';
 import {
   Shield, Loader2, AlertOctagon, Eye, CheckCircle2, AlertTriangle,
   MapPin, TrendingUp, Clock, DoorOpen, ShieldX,
-  ArrowRight, BarChart3, Target,
+  ArrowRight, BarChart3, Target, Users, Car,
 } from 'lucide-react';
 
 const SEVERITY_STYLE: Record<string, { color: string; bg: string }> = {
@@ -33,11 +34,13 @@ export default function SecurityDashboard() {
   const { data: incResp } = useGetSecurityIncidentsQuery({ status: 'open', limit: 5 });
   const { data: patrolResp } = useGetPatrolLogsQuery({ limit: 5 });
   const { data: accessResp } = useGetAccessEventsQuery({ eventType: 'access_denied', limit: 5 });
+  const { data: visitorsResp } = useGetActiveVisitorsQuery();
 
   const stats = statsResp?.data;
   const openIncidents = incResp?.data || [];
   const recentPatrols = patrolResp?.data || [];
   const recentDenied = accessResp?.data || [];
+  const activeVisitors = visitorsResp?.data || [];
 
   if (isLoading) {
     return (
@@ -71,6 +74,9 @@ export default function SecurityDashboard() {
           <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/security/access-events')}>
             <DoorOpen size={14} /> Access Events
           </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/security/blacklist')}>
+            <ShieldX size={14} /> Blacklist
+          </button>
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/admin/security/incidents')}>
             <Shield size={14} /> All Incidents
           </button>
@@ -79,6 +85,13 @@ export default function SecurityDashboard() {
 
       {/* Top Stats Row */}
       <div className="maint-stats-row">
+        <div className="maint-stat-card blue" style={{ position: 'relative' }}>
+          <div className="msc-icon" style={{ background: 'rgba(59,130,246,0.14)', color: '#3b82f6' }}>
+            <Users size={18} />
+          </div>
+          <span className="msc-value" style={{ color: '#3b82f6' }}>{activeVisitors.length}</span>
+          <span className="msc-label">Today's Visitors</span>
+        </div>
         <div className="maint-stat-card red">
           <div className="msc-icon"><AlertOctagon size={18} /></div>
           <span className="msc-value">{inc.open ?? 0}</span>
@@ -226,6 +239,51 @@ export default function SecurityDashboard() {
 
         {/* Right Column */}
         <div className="hk-dash-col">
+          {/* Active Visitors Today */}
+          <div className="hk-dash-card">
+            <div className="hk-dash-card-header">
+              <h3><Users size={15} /> Active Visitors (Today)</h3>
+              <span className="cell-secondary" style={{ fontSize: '11px' }}>{activeVisitors.length} on-site</span>
+            </div>
+            {activeVisitors.length === 0 ? (
+              <div className="hk-dash-empty">
+                <Users size={20} color="var(--text-tertiary)" />
+                <span>No active visitors currently</span>
+              </div>
+            ) : (
+              <div className="sec-feed">
+                {activeVisitors.map((v: any) => (
+                  <div key={v.id} className="sec-feed-item" style={{ borderLeftColor: '#3b82f6' }}>
+                    <div className="sec-feed-icon" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>
+                      <Users size={16} />
+                    </div>
+                    <div className="sec-feed-info">
+                      <span className="sec-feed-title" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <strong>{v.visitorName}</strong>
+                        {v.vehiclePlate ? (
+                          <span style={{ fontSize: 11, background: 'rgba(234,179,8,0.15)', color: '#d97706', padding: '1px 6px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>
+                            <Car size={11} /> {v.vehiclePlate} {v.vehicleMake ? `(${v.vehicleMake})` : ''}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>· Pedestrian</span>
+                        )}
+                      </span>
+                      <span className="sec-feed-meta">
+                        {v.hostUnit?.unitNumber && <>Unit {v.hostUnit.unitNumber}</>}
+                        {v.property?.name && <> · {v.property.name}</>}
+                        {v.visitorCompany && <> · {v.visitorCompany}</>}
+                        {v.checkedInAt && <> · In: {new Date(v.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
+                      </span>
+                    </div>
+                    <span className="sec-patrol-status" style={{ color: '#10b981', background: 'rgba(16,185,129,0.1)', marginLeft: 'auto', alignSelf: 'center' }}>
+                      {v.status?.replace('_', ' ')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Open Incidents Feed */}
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">

@@ -49,7 +49,7 @@ export default function DrillDownModal({ widgetCode, drillKey, propertyId, onClo
               <p>Failed to load drill-down data.</p>
               <button className="btn-primary" onClick={() => fetchDrillDown({ code: widgetCode, drillKey, propertyId, page })}>Retry</button>
             </div>
-          ) : drillData && drillData.rows.length > 0 ? (
+          ) : drillData && drillData.columns.length > 0 ? (
             <div className="drilldown-table-container">
               <table>
                 <thead>
@@ -60,13 +60,21 @@ export default function DrillDownModal({ widgetCode, drillKey, propertyId, onClo
                   </tr>
                 </thead>
                 <tbody>
-                  {drillData.rows.map((row, i) => (
-                    <tr key={i}>
-                      {drillData.columns.map((col) => (
-                        <td key={col.key}>{String(row[col.key] || '')}</td>
-                      ))}
+                  {drillData.rows.length > 0 ? (
+                    drillData.rows.map((row, i) => (
+                      <tr key={i}>
+                        {drillData.columns.map((col) => (
+                          <td key={col.key}>{String(row[col.key] || '')}</td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={drillData.columns.length} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-tertiary)' }}>
+                        No records recorded for today.
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>

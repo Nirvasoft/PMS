@@ -1,5 +1,7 @@
 import '../MaintenancePage/MaintenancePage.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import {
   useGetPurchaseRequisitionsQuery, useSubmitPurchaseRequisitionMutation,
   useApprovePurchaseRequisitionMutation, useRejectPurchaseRequisitionMutation,
@@ -40,7 +42,18 @@ export default function PurchaseRequisitionsPage() {
   const [filters, setFilters] = useState({ status: '', page: 1, limit: 20 });
   const [detailPr, setDetailPr] = useState<any>(null);
 
+  const filterProperty = useSelectedPropertyFilter();
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const properties = scopeData?.data || [];
+  const activeProperty = properties.find((p: any) => p.id === filterProperty);
+  const currency = activeProperty?.currency || 'MMK';
+
+  useEffect(() => {
+    setFilters(f => ({ ...f, page: 1 }));
+  }, [filterProperty]);
+
   const { data: prData, isLoading } = useGetPurchaseRequisitionsQuery({
+    propertyId: filterProperty || undefined,
     status: filters.status || undefined,
     page: filters.page,
     limit: filters.limit,
@@ -83,7 +96,7 @@ export default function PurchaseRequisitionsPage() {
 
   const formatCurrency = (val: any) => {
     if (!val) return '—';
-    return `$${Number(val).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    return `${currency} ${Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Count by status
@@ -97,7 +110,18 @@ export default function PurchaseRequisitionsPage() {
         <div className="page-title-row">
           <div className="page-icon-lg"><ClipboardList size={22} /></div>
           <div>
-            <h1>Purchase Requisitions</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{ margin: 0 }}>Purchase Requisitions</h1>
+              {activeProperty ? (
+                <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
+                  🏢 {activeProperty.name}
+                </span>
+              ) : (
+                <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
+                  🌐 All Properties
+                </span>
+              )}
+            </div>
             <p>Auto-generated and manual purchase requests for inventory items</p>
           </div>
         </div>

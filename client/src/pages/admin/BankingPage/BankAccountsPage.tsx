@@ -1,31 +1,61 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGetBankAccountsQuery, useCreateBankAccountMutation } from '../../../store/api/bankingApi';
 import type { BankAccount } from '../../../store/api/bankingApi';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { skipToken } from '@reduxjs/toolkit/query';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const BANK_ICONS: Record<string, string> = {
   'DBS': '🏦', 'OCBC': '🏛️', 'UOB': '🏢', 'HSBC': '🌐', 'Citi': '🌍', 'Standard Chartered': '🏗️',
+  'KBZ': '🏦', 'AYA': '🏛️', 'CB': '🏢',
 };
-const getBankIcon = (name: string) => Object.entries(BANK_ICONS).find(([k]) => name.includes(k))?.[1] || '🏦';
+const getBankIcon = (name: string) => Object.entries(BANK_ICONS).find(([k]) => name.toUpperCase().includes(k))?.[1] || '🏦';
 
 export default function BankAccountsPage() {
   const navigate = useNavigate();
-  const { data: accounts = [], isLoading } = useGetBankAccountsQuery();
+  const activePropertyFilter = useSelectedPropertyFilter();
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const properties = scopeData?.data || [];
+  const activeProperty = properties.find((p) => p.id === activePropertyFilter);
+
+  const { data: accounts = [], isLoading } = useGetBankAccountsQuery(
+    activePropertyFilter ? { propertyId: activePropertyFilter } : undefined
+  );
   const [showCreate, setShowCreate] = useState(false);
 
-  const totalBalance = accounts.reduce((s, a) => s + Number(a.currentBalance), 0);
   const activeAccounts = accounts.filter(a => a.isActive);
+
+  // Group balances by currency
+  const balancesByCurrency = useMemo(() => {
+    const map: Record<string, number> = {};
+    accounts.forEach((a) => {
+      map[a.currency] = (map[a.currency] || 0) + Number(a.currentBalance || 0);
+    });
+    return map;
+  }, [accounts]);
 
   return (
     <div className="gl-page">
-      <h2>Bank Accounts</h2>
-      <div className="gl-toolbar">
-        <div style={{ flex: 1 }} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h2 style={{ margin: 0 }}>Bank Accounts</h2>
+          {activeProperty ? (
+            <span className="gl-badge open" style={{ fontSize: '0.85rem', padding: '4px 10px', borderRadius: 8 }}>
+              🏢 {activeProperty.name}
+            </span>
+          ) : (
+            <span className="gl-badge closed" style={{ fontSize: '0.85rem', padding: '4px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
+              🌐 All Properties
+            </span>
+          )}
+        </div>
         <PermissionGuard permission="finance-banking.write">
           <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Bank Account</button>
         </PermissionGuard>
@@ -36,9 +66,13 @@ export default function BankAccountsPage() {
           <div className="stat-value">{activeAccounts.length}</div>
           <div className="stat-label">Active Accounts</div>
         </div>
-        <div className="gl-stat-card">
-          <div className="stat-value" style={{color:'var(--success, #22c55e)'}}>{fmtAmt(totalBalance)}</div>
-          <div className="stat-label">Total Balance</div>
+        <div className="gl-stat-card" style={{ flex: 2 }}>
+          <div className="stat-value" style={{ color: 'var(--success, #22c55e)', fontSize: Object.keys(balancesByCurrency).length > 2 ? '1.05rem' : '1.3rem' }}>
+            {Object.entries(balancesByCurrency).length > 0 ? (
+              Object.entries(balancesByCurrency).map(([curr, amt]) => `${curr} ${fmtAmt(amt)}`).join('  •  ')
+            ) : '0.00'}
+          </div>
+          <div className="stat-label">Total Balance by Currency</div>
         </div>
       </div>
 
@@ -50,6 +84,18 @@ export default function BankAccountsPage() {
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 25px rgba(0,0,0,0.12)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
             >
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                {acct.propertyId ? (
+                  <span style={{fontSize:'0.75rem',fontWeight:600,color:'var(--accent, #6366f1)',background:'rgba(99,102,241,0.1)',padding:'2px 8px',borderRadius:6}}>
+                    🏢 {acct.propertyName || 'Property Account'}
+                  </span>
+                ) : (
+                  <span style={{fontSize:'0.75rem',fontWeight:600,color:'var(--text-secondary)',background:'rgba(156,163,175,0.15)',padding:'2px 8px',borderRadius:6}}>
+                    🌐 Company-Wide
+                  </span>
+                )}
+              </div>
+
               <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
                 <span style={{fontSize:'2rem'}}>{getBankIcon(acct.bankName)}</span>
                 <div>
@@ -78,31 +124,80 @@ export default function BankAccountsPage() {
           ))}
           {accounts.length === 0 && (
             <div className="gl-card" style={{textAlign:'center',padding:40,color:'var(--text-muted)',gridColumn:'1/-1'}}>
-              No bank accounts configured. Click "+ Add Bank Account" to get started.
+              No bank accounts found for the selected property scope. Click "+ Add Bank Account" to create one.
             </div>
           )}
         </div>
       )}
 
-      {showCreate && <CreateBankAccountModal onClose={() => setShowCreate(false)} />}
+      {showCreate && (
+        <CreateBankAccountModal
+          properties={properties}
+          initialPropertyId={activePropertyFilter}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
     </div>
   );
 }
 
-function CreateBankAccountModal({ onClose }: { onClose: () => void }) {
+function CreateBankAccountModal({
+  properties,
+  initialPropertyId,
+  onClose,
+}: {
+  properties: Array<{ id: string; name: string; currency?: string }>;
+  initialPropertyId?: string;
+  onClose: () => void;
+}) {
   const [createAccount, { isLoading }] = useCreateBankAccountMutation();
   const [form, setForm] = useState({
-    bankName: '', accountName: '', accountNumber: '', accountType: 'current',
-    currency: 'USD', openingBalance: 0, branchName: '', swiftCode: '',
+    propertyId: initialPropertyId || '',
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    accountType: 'current',
+    currency: 'MMK',
+    openingBalance: 0,
+    branchName: '',
+    swiftCode: '',
   });
   const alertDialog = useAlertDialog();
+
+  // Load Currency Setup data for the currently selected property
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    form.propertyId ? { propertyId: form.propertyId } : skipToken
+  );
+
+  const rates = currencyRatesData?.data || [];
+
+  // When property selection changes, auto-update default currency from Currency Setup
+  useEffect(() => {
+    if (form.propertyId) {
+      if (rates.length > 0) {
+        const baseRate = rates.find((r) => r.isBaseCurrency);
+        const defaultCurr = baseRate?.currency || rates[0]?.currency || 'MMK';
+        setForm((f) => ({ ...f, currency: defaultCurr }));
+      } else {
+        const prop = properties.find((p) => p.id === form.propertyId);
+        if (prop?.currency) {
+          setForm((f) => ({ ...f, currency: prop.currency || 'MMK' }));
+        }
+      }
+    }
+  }, [form.propertyId, rates, properties]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createAccount(form).unwrap();
+      await createAccount({
+        ...form,
+        propertyId: form.propertyId || null,
+      }).unwrap();
       onClose();
-    } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error'); }
+    } catch (err: any) {
+      alertDialog(err.data?.errors?.[0]?.message || 'Error creating bank account');
+    }
   };
 
   return (
@@ -111,21 +206,19 @@ function CreateBankAccountModal({ onClose }: { onClose: () => void }) {
         <h3>Add Bank Account</h3>
         <form onSubmit={handleSubmit}>
           <div className="gl-form-row">
-            <div className="gl-form-group">
-              <label>Bank Name</label>
-              <input value={form.bankName} onChange={e => setForm({...form, bankName: e.target.value})} required placeholder="e.g. DBS Bank" />
+            <div className="gl-form-group" style={{ flex: 1 }}>
+              <label>Property Scope</label>
+              <select
+                value={form.propertyId}
+                onChange={e => setForm({ ...form, propertyId: e.target.value })}
+              >
+                <option value="">🌐 Company-Wide (All Properties)</option>
+                {properties.map(p => (
+                  <option key={p.id} value={p.id}>🏢 {p.name}</option>
+                ))}
+              </select>
             </div>
-            <div className="gl-form-group">
-              <label>Account Name</label>
-              <input value={form.accountName} onChange={e => setForm({...form, accountName: e.target.value})} required placeholder="e.g. Operating Account" />
-            </div>
-          </div>
-          <div className="gl-form-row">
-            <div className="gl-form-group">
-              <label>Account Number</label>
-              <input value={form.accountNumber} onChange={e => setForm({...form, accountNumber: e.target.value})} required />
-            </div>
-            <div className="gl-form-group">
+            <div className="gl-form-group" style={{ flex: 1 }}>
               <label>Account Type</label>
               <select value={form.accountType} onChange={e => setForm({...form, accountType: e.target.value})}>
                 <option value="current">Current</option>
@@ -134,33 +227,99 @@ function CreateBankAccountModal({ onClose }: { onClose: () => void }) {
               </select>
             </div>
           </div>
+
           <div className="gl-form-row">
+            <div className="gl-form-group">
+              <label>Bank Name</label>
+              <input
+                value={form.bankName}
+                onChange={e => setForm({...form, bankName: e.target.value})}
+                required
+                placeholder="e.g. KBZ Bank, AYA Bank, CB Bank"
+              />
+            </div>
+            <div className="gl-form-group">
+              <label>Account Name</label>
+              <input
+                value={form.accountName}
+                onChange={e => setForm({...form, accountName: e.target.value})}
+                required
+                placeholder="e.g. Collection & Operating"
+              />
+            </div>
+          </div>
+
+          <div className="gl-form-row">
+            <div className="gl-form-group">
+              <label>Account Number</label>
+              <input
+                value={form.accountNumber}
+                onChange={e => setForm({...form, accountNumber: e.target.value})}
+                required
+                placeholder="e.g. 086-101-0123456"
+              />
+            </div>
             <div className="gl-form-group">
               <label>Currency</label>
-              <select value={form.currency} onChange={e => setForm({...form, currency: e.target.value})}>
-                <option value="USD">USD</option><option value="SGD">SGD</option>
-                <option value="EUR">EUR</option><option value="GBP">GBP</option>
-                <option value="MMK">MMK</option><option value="THB">THB</option>
+              <select
+                value={form.currency}
+                onChange={e => setForm({...form, currency: e.target.value})}
+              >
+                {rates.length > 0 ? (
+                  rates.map(r => (
+                    <option key={r.currency} value={r.currency}>
+                      {r.currency}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="MMK">MMK</option>
+                    <option value="USD">USD</option>
+                    <option value="SGD">SGD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="THB">THB</option>
+                  </>
+                )}
               </select>
             </div>
-            <div className="gl-form-group">
-              <label>Opening Balance</label>
-              <input type="number" step="0.01" value={form.openingBalance || ''} onChange={e => setForm({...form, openingBalance: parseFloat(e.target.value) || 0})} />
-            </div>
           </div>
+
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>Branch</label>
-              <input value={form.branchName} onChange={e => setForm({...form, branchName: e.target.value})} />
+              <label>Opening Balance</label>
+              <input
+                type="number"
+                step="0.01"
+                value={form.openingBalance || ''}
+                onChange={e => setForm({...form, openingBalance: parseFloat(e.target.value) || 0})}
+              />
             </div>
             <div className="gl-form-group">
-              <label>SWIFT Code</label>
-              <input value={form.swiftCode} onChange={e => setForm({...form, swiftCode: e.target.value})} />
+              <label>Branch</label>
+              <input
+                value={form.branchName}
+                onChange={e => setForm({...form, branchName: e.target.value})}
+                placeholder="e.g. Yuzana Plaza Branch"
+              />
             </div>
           </div>
+
+          <div className="gl-form-row">
+            <div className="gl-form-group">
+              <label>SWIFT / Branch Code</label>
+              <input
+                value={form.swiftCode}
+                onChange={e => setForm({...form, swiftCode: e.target.value})}
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+
           <div className="gl-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Creating…' : 'Create Account'}</button>
+            <button type="submit" className="btn-primary" disabled={isLoading}>
+              {isLoading ? 'Creating…' : 'Create Account'}
+            </button>
           </div>
         </form>
       </div>

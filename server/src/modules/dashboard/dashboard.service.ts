@@ -1,8 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
-import { WIDGET_DEFINITIONS, DEFAULT_LAYOUT, getDefaultLayoutForRole } from './widgets/widgetDefinitions';
-import type { WidgetDef } from './widgets/widgetDefinitions';
+import { WIDGET_DEFINITIONS, getDefaultLayoutForRole } from './widgets/widgetDefinitions';
 import { getRealWidgetData } from './widgets/realProvider';
 import { redis } from '../../common/redis';
 import { config } from '../../common/config';
@@ -11,6 +10,11 @@ import { config } from '../../common/config';
 // to the pattern manually, and stripped again from whatever keys() returns before
 // passing them to del() (which re-adds the prefix itself). See token.service.ts.
 const KEY_PREFIX = config.redis.prefix || '';
+
+function isUuid(val?: string | null): boolean {
+  if (!val) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
 
 /** Cache TTL (seconds) per widget category */
 const CACHE_TTL: Record<string, number> = {
@@ -137,7 +141,8 @@ export class DashboardService {
 
     // Parse date range
     const [dateFrom, dateTo] = (query.dateRange || '').split(',');
-    const propertyKey = query.propertyId || 'all';
+    const cleanPropertyId = (query.propertyId && isUuid(query.propertyId)) ? query.propertyId : undefined;
+    const propertyKey = cleanPropertyId || 'all';
 
     // ─── Redis cache ────────────────────────────
     const widgetDef = WIDGET_DEFINITIONS.find((w) => w.code === code);
@@ -157,7 +162,7 @@ export class DashboardService {
     // Compute fresh data
     const data = await getRealWidgetData(code, {
       companyId,
-      propertyId: query.propertyId,
+      propertyId: cleanPropertyId,
       dateFrom,
       dateTo,
       userId: query.userId,

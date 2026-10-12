@@ -1,6 +1,5 @@
 import { useNavigate, NavLink, Outlet, useLocation, matchPath } from 'react-router-dom';
 import { useLogoutMutation } from '../../store/api/authApi';
-import { useGetPropertyStatsQuery } from '../../store/api/organizationApi';
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useAppSelector, useAppDispatch } from '../../store';
 import { setSelectedProperty } from '../../store/slices/propertiesSlice';
@@ -8,15 +7,15 @@ import { ALL_PROPERTIES } from '../../hooks/useSelectedPropertyId';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { FeatureGate } from '../../components/guards/FeatureGate';
 import {
-  Building2, LayoutDashboard, Shield, LogOut, Settings, ChevronRight, ChevronDown, SquareKanban,
+  Building2, LayoutDashboard, Shield, LogOut, Settings, ChevronRight, SquareKanban,
   User, Users, Key, GitBranch, Home, MapPin, Workflow, Inbox, Bell, Briefcase, FileText, FolderOpen,
   Users2, ClipboardList, Target, Megaphone, Car, Link2, Ticket, Activity, Receipt, CalendarClock, CalendarDays,
   Banknote, BarChart3, Clock, RotateCcw,
-  BookOpen, Calculator, Scale, PieChart, Landmark, Wallet, Box,
+  BookOpen, Scale, PieChart, Landmark, Wallet, Box,
   Wrench, Calendar, Package, Layers, Sparkles, ClipboardCheck,
   Store, TrendingUp, DollarSign, Coins, Tag,
   Zap, Gavel, CreditCard, Palette,
-  Plug, Webhook, Server, DoorOpen, QrCode, ShoppingCart, Gauge,
+  Plug, Webhook, Server, DoorOpen, QrCode, ShoppingCart,
   PanelLeftClose, PanelLeftOpen, FileUp,
 } from 'lucide-react';
 import toast from 'react-hot-toast';

@@ -1,5 +1,7 @@
 import '../MaintenancePage/MaintenancePage.css';
 import { useNavigate } from 'react-router-dom';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import {
   useGetInventoryStatsQuery, useGetInventoryItemsQuery,
   useGetStockLevelsQuery, useGetMovementsQuery, useGetPurchaseRequisitionsQuery,
@@ -32,13 +34,20 @@ const CAT_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#ec4
 
 export default function InventoryDashboard() {
   const navigate = useNavigate();
+  const activePropertyFilter = useSelectedPropertyFilter();
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const properties = scopeData?.data || [];
+  const activeProperty = properties.find((p) => p.id === activePropertyFilter);
+  const currency = activeProperty?.currency || 'MMK';
 
-  const { data: statsResp, isLoading } = useGetInventoryStatsQuery();
-  const { data: itemsResp } = useGetInventoryItemsQuery({ limit: 100 });
-  const { data: stockResp } = useGetStockLevelsQuery({});
-  const { data: movResp } = useGetMovementsQuery({ limit: 10 });
-  const { data: prResp } = useGetPurchaseRequisitionsQuery({ limit: 10 });
-  const { data: storesResp } = useGetStoresQuery({});
+  const propParams = activePropertyFilter ? { propertyId: activePropertyFilter } : undefined;
+
+  const { data: statsResp, isLoading } = useGetInventoryStatsQuery(propParams);
+  const { data: itemsResp } = useGetInventoryItemsQuery({ limit: 100, ...(activePropertyFilter && { propertyId: activePropertyFilter }) });
+  const { data: stockResp } = useGetStockLevelsQuery(activePropertyFilter ? { propertyId: activePropertyFilter } : {});
+  const { data: movResp } = useGetMovementsQuery({ limit: 10, ...(activePropertyFilter && { propertyId: activePropertyFilter }) });
+  const { data: prResp } = useGetPurchaseRequisitionsQuery({ limit: 10, ...(activePropertyFilter && { propertyId: activePropertyFilter }) });
+  const { data: storesResp } = useGetStoresQuery(activePropertyFilter ? { propertyId: activePropertyFilter } : {});
 
   const stats = statsResp?.data;
   const items = itemsResp?.data || [];
@@ -97,19 +106,30 @@ export default function InventoryDashboard() {
         marginBottom: 24, flexWrap: 'wrap', gap: 12,
       }}>
         <div>
-          <h1 style={{
-            fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h1 style={{
+              fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
+              display: 'flex', alignItems: 'center', gap: 10,
             }}>
-              <Package size={18} color="#fff" />
-            </div>
-            Inventory Dashboard
-          </h1>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Package size={18} color="#fff" />
+              </div>
+              Inventory Dashboard
+            </h1>
+            {activeProperty ? (
+              <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
+                🏢 {activeProperty.name}
+              </span>
+            ) : (
+              <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
+                🌐 All Properties
+              </span>
+            )}
+          </div>
           <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
             Stock levels, movements & procurement at a glance
           </p>
@@ -182,7 +202,7 @@ export default function InventoryDashboard() {
             </span>
           </div>
           <div style={{ fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#10b981' }}>
-            ${(stats?.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            {currency} {(stats?.totalValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
             inventory at cost
@@ -607,7 +627,7 @@ export default function InventoryDashboard() {
                           {itemCount} item{itemCount !== 1 ? 's' : ''}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
-                          ${Number(pr.totalAmount || 0).toLocaleString()}
+                          {currency} {Number(pr.totalAmount || 0).toLocaleString()}
                           {pr.property?.name && <> · {pr.property.name}</>}
                         </div>
                       </div>

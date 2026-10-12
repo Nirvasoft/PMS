@@ -817,7 +817,11 @@ function EscalateModal({ ticketId, onClose }: { ticketId: string; onClose: () =>
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await escalate({ id: ticketId, data: form }).unwrap();
+      const payload: Record<string, unknown> = {
+        reason: form.reason.trim(),
+      };
+      if (form.escalateTo) payload.escalateTo = form.escalateTo;
+      await escalate({ id: ticketId, data: payload }).unwrap();
       toast.success('Ticket escalated');
       onClose();
     } catch (err: any) {

@@ -1,5 +1,7 @@
 import '../MaintenancePage/MaintenancePage.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import {
   useGetInventoryItemsQuery, useCreateInventoryItemMutation,
   useUpdateInventoryItemMutation,
@@ -29,11 +31,22 @@ export default function ItemCatalogPage() {
   const [editItem, setEditItem] = useState<any>(null);
   const [showStoreModal, setShowStoreModal] = useState(false);
 
+  const filterProperty = useSelectedPropertyFilter();
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
+  const scopedProperties = scopeData?.data || [];
+  const activeProperty = scopedProperties.find((p: any) => p.id === filterProperty);
+  const currency = activeProperty?.currency || 'MMK';
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterProperty]);
+
   const { data: itemsData, isLoading } = useGetInventoryItemsQuery({
     search, category, lowStock: lowStock ? 'true' : undefined, page, limit: 20,
+    propertyId: filterProperty || undefined,
   });
-  const { data: statsData } = useGetInventoryStatsQuery();
-  const { data: storesData } = useGetStoresQuery({});
+  const { data: statsData } = useGetInventoryStatsQuery(filterProperty ? { propertyId: filterProperty } : undefined);
+  const { data: storesData } = useGetStoresQuery(filterProperty ? { propertyId: filterProperty } : {});
   const { data: propsData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const [createItem] = useCreateInventoryItemMutation();
   const [updateItem] = useUpdateInventoryItemMutation();
@@ -117,7 +130,7 @@ export default function ItemCatalogPage() {
           <div className="maint-stat-card green">
             <div className="msc-icon"><DollarSign size={18} /></div>
             <div className="msc-label">Total Value</div>
-            <div className="msc-value">${stats.totalValue?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+            <div className="msc-value">{currency} {stats.totalValue?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
           </div>
           <div className="maint-stat-card purple">
             <div className="msc-icon"><Warehouse size={18} /></div>
@@ -136,7 +149,21 @@ export default function ItemCatalogPage() {
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Package size={20} /></div>
-          <div><h1>Item Catalog</h1><p>{meta?.total ?? 0} items · {stores.length} stores</p></div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{ margin: 0 }}>Item Catalog</h1>
+              {activeProperty ? (
+                <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
+                  🏢 {activeProperty.name}
+                </span>
+              ) : (
+                <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
+                  🌐 All Properties
+                </span>
+              )}
+            </div>
+            <p>{meta?.total ?? 0} items · {stores.length} stores</p>
+          </div>
         </div>
         <div className="header-actions">
           <PermissionGuard permission="inventory-stores.write">
@@ -199,7 +226,11 @@ export default function ItemCatalogPage() {
                     </span>
                   </td>
                   <td><span className="cell-secondary">{item.unitOfMeasure}</span></td>
-                  <td style={{ textAlign: 'right' }}><span className="cell-mono">${Number(item.unitCost).toFixed(2)}</span></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <span className="cell-mono">
+                      {currency} {Number(item.unitCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </td>
                   <td style={{ textAlign: 'right' }}>
                     <span className={`cell-mono ${item.isLowStock ? 'text-danger' : ''}`}>{item.totalOnHand}</span>
                   </td>
@@ -293,7 +324,7 @@ export default function ItemCatalogPage() {
             <form onSubmit={handleCreateStore}>
               <div className="form-group">
                 <label>Property *</label>
-                <select name="propertyId" required>
+                <select name="propertyId" required defaultValue={filterProperty || ''}>
                   <option value="">Select property...</option>
                   {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
