@@ -65,17 +65,21 @@ export default function PositionsPage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <h1><Briefcase size={24} /> Positions</h1>
-        <p className="text-muted">Manage organizational positions and job levels</p>
+        <div className="page-header-row" style={{ alignItems: 'center' }}>
+          <div>
+            <h1><Briefcase size={24} /> Positions</h1>
+            <p className="text-muted">Manage organizational positions and job levels</p>
+          </div>
+          <PermissionGuard permission="positions.create">
+            <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={16} /> New Position
+            </button>
+          </PermissionGuard>
+        </div>
       </div>
 
       <div className="toolbar">
         <span className="text-secondary">{positions.length} position(s)</span>
-        <PermissionGuard permission="positions.create">
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            <Plus size={16} /> New Position
-          </button>
-        </PermissionGuard>
       </div>
 
       {showForm && (

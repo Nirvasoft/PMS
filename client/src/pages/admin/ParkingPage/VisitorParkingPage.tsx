@@ -64,18 +64,24 @@ export default function VisitorParkingPage() {
   return (
     <div className="parking-page">
       <div className="page-header">
-        <div className="page-title-row">
-          <div className="page-icon-lg"><Ticket size={22} /></div>
-          <div>
-            <h1>Visitor Parking Passes</h1>
-            <p>{data?.meta ? `${data.meta.total} passes` : 'Loading…'}</p>
+        <div className="page-header-row" style={{ alignItems: 'center' }}>
+          <div className="page-title-row">
+            <div className="page-icon-lg"><Ticket size={22} /></div>
+            <div>
+              <h1>Visitor Parking Passes</h1>
+              <p>{data?.meta ? `${data.meta.total} passes` : 'Loading…'}</p>
+            </div>
           </div>
+          <PermissionGuard permission="parking-visitors.write">
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowIssue(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Plus size={15} /> Issue Pass
+            </button>
+          </PermissionGuard>
         </div>
-        <PermissionGuard permission="parking-visitors.write">
-          <button className="btn-primary" onClick={() => setShowIssue(true)}>
-            <Plus size={15} /> Issue Pass
-          </button>
-        </PermissionGuard>
       </div>
 
       <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>

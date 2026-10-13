@@ -51,8 +51,15 @@ export default function RolesPage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <h1>🔑 Roles & Permissions</h1>
-        <p className="text-secondary">Define roles and assign permissions to control access</p>
+        <div className="page-header-row" style={{ alignItems: 'center' }}>
+          <div>
+            <h1>🔑 Roles & Permissions</h1>
+            <p className="text-secondary">Define roles and assign permissions to control access</p>
+          </div>
+          <PermissionGuard permission="roles.create">
+            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Role</button>
+          </PermissionGuard>
+        </div>
       </div>
 
       <div className="toolbar">
@@ -63,11 +70,6 @@ export default function RolesPage() {
           <button className={view === 'grid' ? 'active' : ''} onClick={() => changeView('grid')} title="Grid view">
             <LayoutGrid size={16} />
           </button>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <PermissionGuard permission="roles.create">
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Role</button>
-          </PermissionGuard>
         </div>
       </div>
 

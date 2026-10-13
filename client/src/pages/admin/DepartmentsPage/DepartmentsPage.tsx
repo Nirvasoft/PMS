@@ -45,17 +45,17 @@ export default function DepartmentsPage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <h1>🏢 Departments</h1>
-        <p className="text-secondary">Organize your team with hierarchical departments</p>
-      </div>
-
-      <div className="toolbar">
-        <div />
-        <PermissionGuard permission="departments.create">
-          <button className="btn btn-primary" onClick={() => { setCreateParentId(undefined); setShowCreate(true); }}>
-            + New Department
-          </button>
-        </PermissionGuard>
+        <div className="page-header-row" style={{ alignItems: 'center' }}>
+          <div>
+            <h1>🏢 Departments</h1>
+            <p className="text-secondary">Organize your team with hierarchical departments</p>
+          </div>
+          <PermissionGuard permission="departments.create">
+            <button className="btn btn-primary" onClick={() => { setCreateParentId(undefined); setShowCreate(true); }}>
+              + New Department
+            </button>
+          </PermissionGuard>
+        </div>
       </div>
 
       {isLoading ? (

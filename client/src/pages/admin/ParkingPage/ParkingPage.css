@@ -14,6 +14,10 @@
 
 .parking-page { padding: 28px 32px; }
 
+.parking-page .page-header {
+  margin-bottom: 24px;
+}
+
 .parking-filter-field {
   display: flex;
   flex-direction: column;

@@ -52,18 +52,24 @@ export default function AllocationManager() {
   return (
     <div className="parking-page">
       <div className="page-header">
-        <div className="page-title-row">
-          <div className="page-icon-lg"><Link2 size={22} /></div>
-          <div>
-            <h1>Parking Allocations</h1>
-            <p>{meta ? `${meta.total} allocations` : 'Loading…'}</p>
+        <div className="page-header-row" style={{ alignItems: 'center' }}>
+          <div className="page-title-row">
+            <div className="page-icon-lg"><Link2 size={22} /></div>
+            <div>
+              <h1>Parking Allocations</h1>
+              <p>{meta ? `${meta.total} allocations` : 'Loading…'}</p>
+            </div>
           </div>
+          <PermissionGuard permission="parking-allocations.write">
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowCreate(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Plus size={15} /> New Allocation
+            </button>
+          </PermissionGuard>
         </div>
-        <PermissionGuard permission="parking-allocations.write">
-          <button className="btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus size={15} /> New Allocation
-          </button>
-        </PermissionGuard>
       </div>
 
       <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>

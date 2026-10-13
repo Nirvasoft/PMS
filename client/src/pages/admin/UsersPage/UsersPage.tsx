@@ -47,11 +47,21 @@ export default function UsersPage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <div className="page-header-row">
+        <div className="page-header-row" style={{ alignItems: 'center' }}>
           <div>
             <h1><Users size={24} /> User Management</h1>
             <p className="text-secondary">Manage users, roles, and access for your organization</p>
           </div>
+          <PermissionGuard permission="users.create">
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowCreate(true)}
+              id="create-user-btn"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <UserPlus size={16} /> New User
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -65,11 +75,6 @@ export default function UsersPage() {
         <button className={`tab ${tab === 'import' ? 'active' : ''}`} onClick={() => setTab('import')}>
           📂 Bulk Import
         </button>
-        <PermissionGuard permission="users.create">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} id="create-user-btn" style={{ marginLeft: 'auto',marginBottom:'6px', alignSelf: 'flex-end' }}>
-            <UserPlus size={16} /> New User
-          </button>
-        </PermissionGuard>
       </div>
 
       {tab === 'invitations' && <InvitationsTab />}

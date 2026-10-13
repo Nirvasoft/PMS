@@ -269,6 +269,17 @@ select option {
   background: var(--surface);
   color: var(--text-primary);
 }
+select optgroup {
+  background: var(--surface-elevated, var(--surface));
+  color: var(--accent);
+  font-weight: 700;
+  font-style: normal;
+}
+select optgroup option {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-weight: 400;
+}
 
 /* ─── Light Mode Global Typography & High-Contrast Readability ─── */
 [data-theme="light"] body {
@@ -3134,7 +3145,7 @@ input.input-full:focus {
 /* ─── Page Header Row ───────────────────────── */
 .page-header-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
