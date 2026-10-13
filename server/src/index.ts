@@ -18,6 +18,7 @@ import { adminRouter } from './modules/admin/admin.routes';
 import { usersRouter, rolesRouter, roleTemplatesRouter, permissionsRouter, departmentsRouter, positionsRouter } from './modules/users/users.routes';
 import { invitationsRouter } from './modules/users/invitations.routes';
 import { companyRouter, branchesRouter, regionsRouter, businessUnitsRouter } from './modules/organization/organization.routes';
+import { sequenceRouter } from './modules/organization/sequence.routes';
 import { propertiesRouter, facilityTypesRouter, floorSetupRouter } from './modules/properties/properties.routes';
 import { propertiesService, seedPropertyTypes } from './modules/properties/properties.service';
 import { towersRouter, unitsRouter, unitTypesRouter } from './modules/units/units.routes';
@@ -146,6 +147,7 @@ async function bootstrap() {
 
   // Module 1.3 — Organization Management
   app.use('/api/v1/company', companyRouter);
+  app.use('/api/v1/sequences', sequenceRouter);
   app.use('/api/v1/branches', branchesRouter);
   app.use('/api/v1/regions', regionsRouter);
   app.use('/api/v1/business-units', businessUnitsRouter);

@@ -1,6 +1,7 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import { sequenceService, parseStoredPrefix } from '../../common/sequence.service';
 import {
   createTenantSchema, updateTenantSchema, createKycRequirementSchema,
   updateKycRequirementSchema, submitKycDocumentSchema, reviewKycDocumentSchema,
@@ -200,8 +201,27 @@ export class TenantsService {
       if (firstName) {
         const dup = await prisma.tenant.findFirst({ where: { companyId, firstName, deletedAt: null } });
         if (dup) throw new AppError(409, 'DUPLICATE_TENANT', `Code "${firstName}" is already used by another tenant`, { existingId: dup.id });
+        (rest as any).code = firstName;
       } else {
-        throw AppError.validation('Code is required for individual tenants', 'VALIDATION_ERROR');
+        // Check if tenant code sequence is configured in auto mode
+        let seqRow = propertyId
+          ? await prisma.companySequence.findUnique({
+              where: { companyId_sequenceKey: { companyId, sequenceKey: `tenant:${propertyId}` } },
+            })
+          : null;
+        if (!seqRow) {
+          seqRow = await prisma.companySequence.findUnique({
+            where: { companyId_sequenceKey: { companyId, sequenceKey: 'tenant' } },
+          });
+        }
+        const parsed = parseStoredPrefix(seqRow?.prefix);
+        if (parsed.mode === 'auto') {
+          const generatedCode = await sequenceService.next(companyId, 'tenant', { propertyId });
+          (rest as any).firstName = generatedCode;
+          (rest as any).code = generatedCode;
+        } else {
+          throw AppError.validation('Code is required for individual tenants', 'VALIDATION_ERROR');
+        }
       }
     }
 

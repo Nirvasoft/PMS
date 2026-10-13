@@ -19,6 +19,7 @@ import RolesPage from './pages/admin/RolesPage/RolesPage';
 import AssignPermissionPage from './pages/admin/RolesPage/AssignPermissionPage';
 import DepartmentsPage from './pages/admin/DepartmentsPage/DepartmentsPage';
 import CompanyPage from './pages/admin/CompanyPage/CompanyPage';
+import PrefixSetupPage from './pages/admin/PrefixSetupPage/PrefixSetupPage';
 import PropertiesPage from './pages/admin/PropertiesPage/PropertiesPage';
 import CreatePropertyPage from './pages/admin/PropertiesPage/CreatePropertyPage';
 import PropertyDetailPage from './pages/admin/PropertyDetailPage/PropertyDetailPage';
@@ -237,10 +238,11 @@ function AppRoutes() {
             <Route path="/admin/positions" element={<PositionsPage />} />
           </Route>
 
-          {/* Company & SSO — requires company.manage */}
-          <Route element={<RequirePermission permission="company.manage" />}>
+          {/* Company, SSO & Prefix Setup */}
+          <Route element={<RequirePermission permission={['company.manage', 'company.read']} />}>
             <Route path="/admin/company" element={<CompanyPage />} />
             <Route path="/admin/sso" element={<SsoConfigPage />} />
+            <Route path="/admin/prefix-setup" element={<PrefixSetupPage />} />
           </Route>
 
           {/* Properties — requires properties.read */}

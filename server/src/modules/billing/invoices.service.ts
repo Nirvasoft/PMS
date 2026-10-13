@@ -1,4 +1,5 @@
 import { prisma } from '../../common/database';
+import { sequenceService } from '../../common/sequence.service';
 import { AppError } from '../../common/errors';
 import { taxService } from './tax.service';
 import { logger } from '../../common/logger';
@@ -208,29 +209,14 @@ export class InvoicesService {
 
   // ── Invoice Number ──────────────────────────
 
-  async generateInvoiceNumber(companyId: string): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `INV-${year}-`;
-
-    const lastInvoice = await prisma.invoice.findFirst({
-      where: { companyId, invoiceNumber: { startsWith: prefix } },
-      orderBy: { invoiceNumber: 'desc' },
-      select: { invoiceNumber: true },
-    });
-
-    let seq = 1;
-    if (lastInvoice) {
-      const lastSeq = parseInt(lastInvoice.invoiceNumber.replace(prefix, ''), 10);
-      if (!isNaN(lastSeq)) seq = lastSeq + 1;
-    }
-
-    return `${prefix}${String(seq).padStart(5, '0')}`;
+  async generateInvoiceNumber(companyId: string, propertyId?: string | null): Promise<string> {
+    return sequenceService.next(companyId, 'invoice', { propertyId });
   }
 
   // ── Manual Invoice Creation ─────────────────
 
   async createManual(companyId: string, dto: Record<string, unknown>, userId: string) {
-    const invoiceNumber = await this.generateInvoiceNumber(companyId);
+    const invoiceNumber = await this.generateInvoiceNumber(companyId, dto.propertyId as string | undefined);
     const lines = dto.lines as Array<{
       chargeTypeId: string; description: string; quantity?: number; unitPrice: number; taxRate?: number; discountPct?: number;
     }>;

@@ -1,13 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
-type ConfirmOptions = {
+export type ConfirmOptions = {
   title?: string;
+  message?: string;
   confirmText?: string;
+  confirmLabel?: string;
   cancelText?: string;
+  cancelLabel?: string;
   danger?: boolean;
+  variant?: 'danger' | 'warning' | 'info' | 'primary';
 };
 
-type AlertOptions = {
+export type AlertOptions = {
   title?: string;
   buttonText?: string;
 };
@@ -16,7 +20,10 @@ type DialogRequest =
   | { kind: 'confirm'; message: string; options: ConfirmOptions; resolve: (value: boolean) => void }
   | { kind: 'alert'; message: string; options: AlertOptions; resolve: () => void };
 
-type ConfirmFn = (message: string, options?: ConfirmOptions) => Promise<boolean>;
+export type ConfirmFn = {
+  (message: string, options?: ConfirmOptions): Promise<boolean>;
+  (options: ConfirmOptions): Promise<boolean>;
+};
 type AlertFn = (message: string, options?: AlertOptions) => Promise<void>;
 
 const ConfirmContext = createContext<ConfirmFn | null>(null);
@@ -59,9 +66,25 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const confirmDialog = useCallback<ConfirmFn>((message, options = {}) => {
+  const confirmDialog = useCallback<ConfirmFn>((messageOrOptions: string | ConfirmOptions, options: ConfirmOptions = {}) => {
+    let message = '';
+    let opts: ConfirmOptions = { ...options };
+
+    if (typeof messageOrOptions === 'object' && messageOrOptions !== null) {
+      message = messageOrOptions.message || '';
+      opts = {
+        title: messageOrOptions.title,
+        confirmText: messageOrOptions.confirmText || messageOrOptions.confirmLabel,
+        cancelText: messageOrOptions.cancelText || messageOrOptions.cancelLabel,
+        danger: messageOrOptions.danger || messageOrOptions.variant === 'danger',
+        ...options,
+      };
+    } else {
+      message = String(messageOrOptions ?? '');
+    }
+
     return new Promise<boolean>((resolve) => {
-      enqueue({ kind: 'confirm', message, options, resolve });
+      enqueue({ kind: 'confirm', message, options: opts, resolve });
     });
   }, [enqueue]);
 

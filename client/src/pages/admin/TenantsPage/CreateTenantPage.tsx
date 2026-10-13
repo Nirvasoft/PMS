@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCreateTenantMutation } from '../../../store/api/tenantsApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useGetSequencesQuery } from '../../../store/api/sequenceApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { ArrowLeft, User, Building2 } from 'lucide-react';
@@ -20,6 +21,13 @@ export default function CreateTenantPage() {
   const activePropertyId = useSelectedPropertyId();
   const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId: activePropertyId });
   const currencyOptions = currencyRatesData?.data || [];
+
+  const { data: sequences } = useGetSequencesQuery(
+    activePropertyId ? { locationId: activePropertyId } : undefined,
+    { skip: !activePropertyId }
+  );
+  const tenantSeq = sequences?.find((s) => s.typeKey === 'tenant');
+  const isTenantCodeAuto = tenantSeq?.mode === 'auto';
 
   const [form, setForm] = useState({
     // individual
@@ -46,14 +54,18 @@ export default function CreateTenantPage() {
       toast.error('Tenant creation is disabled because V6 ERP integration is active. Please sync tenants from V6 ERP.');
       return;
     }
-    if (tenantType === 'individual' && !form.firstName) { toast.error('Code is required'); return; }
+    if (tenantType === 'individual' && !isTenantCodeAuto && !form.firstName) {
+      toast.error('Code is required');
+      return;
+    }
     if (tenantType === 'company'    && !form.companyName) { toast.error('Company name is required'); return; }
     if (!form.currency) { toast.error('Currency is required'); return; }
 
     const payload: Record<string, unknown> = { tenantType };
     if (tenantType === 'individual') {
       Object.assign(payload, {
-        firstName: form.firstName, lastName: form.lastName, fatherName: form.fatherName || null,
+        firstName: isTenantCodeAuto ? undefined : (form.firstName || null),
+        lastName: form.lastName, fatherName: form.fatherName || null,
         dateOfBirth: form.dateOfBirth || null, gender: form.gender || null,
         nationality: form.nationality || null, idType: form.idType || null,
         idNumber: form.idNumber || null, idExpiryDate: form.idExpiryDate || null,
@@ -138,10 +150,19 @@ export default function CreateTenantPage() {
         {/* Individual fields */}
         {tenantType === 'individual' && (
           <div className="ct-section">
-            <h3>Personal Information</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: 10 }}>
+              <h3 style={{ margin: 0, border: 'none', padding: 0 }}>Personal Information</h3>
+              {isTenantCodeAuto && (
+                <span className="tenant-code-auto-tag">
+                  Auto Code Enabled ({tenantSeq?.prefix1 || 'TNT'}-…)
+                </span>
+              )}
+            </div>
             <div className="form-grid">
-              <Field label="Code *"      value={form.firstName} onChange={(v) => set('firstName', v)} />
-              <Field label="Name *"      value={form.lastName}  onChange={(v) => set('lastName', v)} />
+              {!isTenantCodeAuto && (
+                <Field label="Code *" value={form.firstName} onChange={(v) => set('firstName', v)} />
+              )}
+              <Field label="Name *" value={form.lastName}  onChange={(v) => set('lastName', v)} />
               <Field label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
               <Field label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
               <Field label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />

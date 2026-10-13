@@ -43,6 +43,7 @@ import { biApi } from './api/biApi';
 import { integrationsApi } from './api/integrationsApi';
 import { meterRecordsApi } from './api/meterRecordsApi';
 import { generalImportApi } from './api/generalImportApi';
+import { sequenceApi } from './api/sequenceApi';
 
 // Every RTK Query slice, so its cache can be wiped on logout — otherwise a second user
 // signing in on the same tab (no full page reload) sees the previous user's cached data,
@@ -53,6 +54,7 @@ const apiSlices = [
   billingApi, arApi, apApi, glApi, assetsApi, bankingApi, maintenanceApi, pmApi,
   facilityApi, inventoryApi, housekeepingApi, securityApi, portalApi, visitorsApi,
   bookingsApi, communityApi, mallApi, condoApi, biApi, integrationsApi, meterRecordsApi, generalImportApi,
+  sequenceApi,
 ];
 
 const resetApiCachesOnLogout: Middleware = (storeApi) => (next) => (action) => {
@@ -106,6 +108,7 @@ export const store = configureStore({
     [integrationsApi.reducerPath]: integrationsApi.reducer,
     [meterRecordsApi.reducerPath]: meterRecordsApi.reducer,
     [generalImportApi.reducerPath]: generalImportApi.reducer,
+    [sequenceApi.reducerPath]: sequenceApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -136,6 +139,7 @@ export const store = configureStore({
       integrationsApi.middleware,
       meterRecordsApi.middleware,
       generalImportApi.middleware,
+      sequenceApi.middleware,
       resetApiCachesOnLogout,
     ),
 });

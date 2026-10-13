@@ -1,5 +1,6 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
+import { sequenceService } from '../../common/sequence.service';
 
 /** Allowed stage transitions map */
 const STAGE_TRANSITIONS: Record<string, string[]> = {
@@ -13,14 +14,6 @@ const STAGE_TRANSITIONS: Record<string, string[]> = {
   lost:               [],
   duplicate:          [],
 };
-
-let leadCounter = 0;
-function nextLeadNumber(): string {
-  leadCounter++;
-  const d = new Date();
-  const prefix = `LD-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-  return `${prefix}-${String(leadCounter).padStart(4, '0')}`;
-}
 
 export class LeadsService {
   // ── List ────────────────────────────────
@@ -97,12 +90,17 @@ export class LeadsService {
   // ── Create ───────────────────────────────
   async create(companyId: string, dto: Record<string, unknown>, userId: string) {
     const assignedTo = (dto.assignedTo as string) ?? await this.autoAssignAgent(dto.propertyId as string | undefined, companyId);
+    const propertyId = (dto.propertyId as string | undefined) || undefined;
+    const leadNumber =
+      (dto.leadNumber as string) ||
+      (await sequenceService.next(companyId, 'lead', { propertyId }));
 
+    const { leadNumber: _ignored, ...restDto } = dto;
     const lead = await prisma.lead.create({
       data: {
         companyId,
-        leadNumber: nextLeadNumber(),
-        ...(dto as any),
+        ...(restDto as any),
+        leadNumber,
         assignedTo,
       },
     });

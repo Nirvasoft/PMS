@@ -1,4 +1,5 @@
 import { prisma } from '../../common/database';
+import { sequenceService } from '../../common/sequence.service';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
 import { glService } from '../gl/gl.service';
@@ -39,23 +40,8 @@ export class ReceiptsService {
 
   // ── Receipt Number ──────────────────────────
 
-  async generateReceiptNumber(companyId: string): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `RCT-${year}-`;
-
-    const last = await prisma.receipt.findFirst({
-      where: { companyId, receiptNumber: { startsWith: prefix } },
-      orderBy: { receiptNumber: 'desc' },
-      select: { receiptNumber: true },
-    });
-
-    let seq = 1;
-    if (last) {
-      const lastSeq = parseInt(last.receiptNumber.replace(prefix, ''), 10);
-      if (!isNaN(lastSeq)) seq = lastSeq + 1;
-    }
-
-    return `${prefix}${String(seq).padStart(5, '0')}`;
+  async generateReceiptNumber(companyId: string, propertyId?: string | null): Promise<string> {
+    return sequenceService.next(companyId, 'receipt', { propertyId });
   }
 
   // ── Create Receipt ──────────────────────────
@@ -96,7 +82,7 @@ export class ReceiptsService {
       throw AppError.validation('Total allocations exceed receipt amount');
     }
 
-    const receiptNumber = await this.generateReceiptNumber(companyId);
+    const receiptNumber = (dto.receiptNumber as string) || (await this.generateReceiptNumber(companyId, dto.propertyId as string | undefined));
 
     // Create receipt in transaction
     const receipt = await prisma.$transaction(async (tx) => {

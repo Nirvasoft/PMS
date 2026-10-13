@@ -117,7 +117,8 @@ export default function DashboardLayout() {
   // has no meaningful data to show there, so hide it from the switcher too.
   const isCurrencySetupPage = !!matchPath('/admin/billing/currency-rates', location.pathname);
   const isMeterSetupPage = !!matchPath('/admin/billing/meter-setup', location.pathname);
-  const hideAllPropertiesOption = isPropertyDetailPage || isCurrencySetupPage || isMeterSetupPage;
+  const isPrefixSetupPage = !!matchPath('/admin/prefix-setup', location.pathname);
+  const hideAllPropertiesOption = isPropertyDetailPage || isCurrencySetupPage || isMeterSetupPage || isPrefixSetupPage;
   const [logout] = useLogoutMutation();
   useRealtimeNotifications(); // Real-time WS notifications
 
@@ -260,6 +261,12 @@ export default function DashboardLayout() {
                 <NavLink to="/admin/billing/currency-rates" className="nav-item" title="Currency Setup">
                   <Coins size={18} />
                   <span>Currency Setup</span>
+                </NavLink>
+              </PermissionGuard>
+              <PermissionGuard hideWhenDenied permission="company.read">
+                <NavLink to="/admin/prefix-setup" className="nav-item" title="Prefix Setup">
+                  <Tag size={18} />
+                  <span>Prefix Setup</span>
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="properties.read">
