@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from './components/TableScrollWrapper';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -312,7 +313,8 @@ export default function BillingSchedulesPage() {
       </div>
 
       <div className="billing-table-wrap" style={{ marginTop: 24 }}>
-        <table className="billing-table">
+        <TableScrollWrapper>
+          <table className="billing-table">
           <thead>
             <tr>
               <th style={{ width: 220 }}>Charge</th>
@@ -422,6 +424,7 @@ export default function BillingSchedulesPage() {
             )}
           </tbody>
         </table>
+        </TableScrollWrapper>
 
         {meta && meta.totalPages > 1 && (
           <div className="billing-pagination">

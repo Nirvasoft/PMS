@@ -4,6 +4,7 @@ import { Calculator, Plus, X, Percent, Calendar, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from './components/TableScrollWrapper';
 import './BillingPage.css';
 
 export default function TaxConfigPage() {
@@ -70,7 +71,8 @@ export default function TaxConfigPage() {
 
       {/* Tax Table */}
       <div className="billing-table-wrap">
-        <table className="billing-table">
+        <TableScrollWrapper>
+          <table className="billing-table">
           <thead>
             <tr>
               <th>Tax Name</th>
@@ -129,6 +131,7 @@ export default function TaxConfigPage() {
             ))}
           </tbody>
         </table>
+        </TableScrollWrapper>
       </div>
 
       {/* Create Form Modal */}

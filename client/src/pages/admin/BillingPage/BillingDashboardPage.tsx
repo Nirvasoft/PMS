@@ -13,6 +13,7 @@ import {
 import { format, addDays } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from './components/TableScrollWrapper';
 import './BillingPage.css';
 
 const formatCurrency = (amount: number, currency = 'USD') => {
@@ -207,36 +208,38 @@ export default function BillingDashboardPage() {
           </button>
         </div>
         <div className="billing-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
-          <table className="billing-table">
-            <thead>
-              <tr>
-                <th>Invoice #</th>
-                <th>Tenant</th>
-                <th>Property</th>
-                <th>Date</th>
-                <th className="text-right">Amount</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isFetching && !recentInvoices.length ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>Loading…</td></tr>
-              ) : recentInvoices.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>No invoices yet</td></tr>
-              ) : recentInvoices.map(inv => (
-                <tr key={inv.id} className="clickable" onClick={() => navigate(`/admin/billing/invoices/${inv.id}`)}>
-                  <td><span className="cell-mono">{inv.invoiceNumber}</span></td>
-                  <td><span className="cell-primary">{getTenantName(inv)}</span></td>
-                  <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{inv.property?.name}</span></td>
-                  <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{format(new Date(inv.invoiceDate), 'yyyy-MM-dd')}</span></td>
-                  <td className="text-right">
-                    <span className="cell-amount">{formatCurrency(Number(inv.totalAmount), inv.currency)}</span>
-                  </td>
-                  <td><span className={`inv-status inv-status--${inv.status}`}>{inv.status.replace('_', ' ')}</span></td>
+          <TableScrollWrapper>
+            <table className="billing-table">
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Tenant</th>
+                  <th>Property</th>
+                  <th>Date</th>
+                  <th className="text-right">Amount</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {isFetching && !recentInvoices.length ? (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>Loading…</td></tr>
+                ) : recentInvoices.length === 0 ? (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>No invoices yet</td></tr>
+                ) : recentInvoices.map(inv => (
+                  <tr key={inv.id} className="clickable" onClick={() => navigate(`/admin/billing/invoices/${inv.id}`)}>
+                    <td><span className="cell-mono">{inv.invoiceNumber}</span></td>
+                    <td><span className="cell-primary">{getTenantName(inv)}</span></td>
+                    <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{inv.property?.name}</span></td>
+                    <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{format(new Date(inv.invoiceDate), 'yyyy-MM-dd')}</span></td>
+                    <td className="text-right">
+                      <span className="cell-amount">{formatCurrency(Number(inv.totalAmount), inv.currency)}</span>
+                    </td>
+                    <td><span className={`inv-status inv-status--${inv.status}`}>{inv.status.replace('_', ' ')}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
         </div>
       </div>
     </div>

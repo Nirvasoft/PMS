@@ -32,36 +32,242 @@
 .expiry-filter button.active { background: rgba(243,156,18,.15); color: #f39c12; }
 .btn-clear-filter { display: flex; align-items: center; gap: 4px; padding: 7px 10px; background: none; border: none; color: var(--text-muted); font-size: .78rem; cursor: pointer; }
 
-/* Table */
-.lease-table-wrap { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; overflow: hidden; }
-.lease-table-header { display: grid; grid-template-columns: 140px 140px 1fr 160px 110px 120px 44px; gap: 0; padding: 10px 16px; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,.04); }
-.lease-row { display: grid; grid-template-columns: 140px 140px 1fr 160px 110px 120px 44px; gap: 0; align-items: center; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,.03); cursor: pointer; font-size: .82rem; transition: background .12s; }
-.lease-row:last-child { border-bottom: none; }
-.lease-row:hover { background: rgba(255,255,255,.025); }
-.lease-row.expiring { background: rgba(243,156,18,.04); }
+/* Table Card & Scroll */
+.lease-table-wrap {
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* In-viewport scroll container base */
+.lease-table-scroll,
+.lease-table-wrap .table-scroll-container,
+.lease-table-wrap .billing-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.lease-table-scroll::-webkit-scrollbar,
+.lease-table-wrap .table-scroll-container::-webkit-scrollbar,
+.lease-table-wrap .billing-table-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 6px;
+}
+.lease-table-scroll::-webkit-scrollbar-track,
+.lease-table-wrap .table-scroll-container::-webkit-scrollbar-track,
+.lease-table-wrap .billing-table-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+.lease-table-scroll::-webkit-scrollbar-thumb,
+.lease-table-wrap .table-scroll-container::-webkit-scrollbar-thumb,
+.lease-table-wrap .billing-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.lease-table-scroll::-webkit-scrollbar-thumb:hover,
+.lease-table-wrap .table-scroll-container::-webkit-scrollbar-thumb:hover,
+.lease-table-wrap .billing-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* When horizontal scrollbar is present: lock max-height in viewport & sticky header */
+.lease-table-scroll.has-overflow,
+.lease-table-wrap .table-scroll-container.has-overflow,
+.lease-table-wrap .billing-table-scroll.has-overflow {
+  max-height: calc(100vh - 350px);
+  min-height: 200px;
+  overflow-y: auto;
+}
+.lease-table-scroll.has-overflow thead th,
+.lease-table-wrap .table-scroll-container.has-overflow thead th,
+.lease-table-wrap .billing-table-scroll.has-overflow thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface-card, #13141f);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* When table fits without horizontal scroll: natural height, no inner scroll */
+.lease-table-scroll.no-overflow,
+.lease-table-wrap .table-scroll-container.no-overflow,
+.lease-table-wrap .billing-table-scroll.no-overflow {
+  max-height: none;
+  min-height: auto;
+  overflow-y: visible;
+}
+
+/* Semantic Table */
+.lease-table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+}
+
+.lease-table thead tr {
+  background: rgba(255,255,255,0.03);
+  height: 40px;
+}
+
+.lease-table th {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  white-space: nowrap;
+  height: 40px;
+  box-sizing: border-box;
+}
+.lease-table th.text-right { text-align: right; }
+.lease-table th.text-center { text-align: center; }
+
+.lease-table td {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  vertical-align: middle;
+  height: 48px;
+  box-sizing: border-box;
+}
+.lease-table td.text-right { text-align: right; }
+.lease-table td.text-center { text-align: center; }
+
+.lease-table tbody tr {
+  height: 48px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.lease-table tbody tr:hover {
+  background-color: rgba(108,92,231,0.08);
+}
+.lease-table tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+.lease-table tbody tr.expiring {
+  background-color: rgba(243, 156, 18, 0.06);
+}
+.lease-table tbody tr.expiring:hover {
+  background-color: rgba(243, 156, 18, 0.12);
+}
+
+/* Light mode for sticky header and scrollbars */
+[data-theme="light"] .lease-table-scroll.has-overflow thead th,
+[data-theme="light"] .lease-table-wrap .table-scroll-container.has-overflow thead th,
+[data-theme="light"] .lease-table-wrap .billing-table-scroll.has-overflow thead th {
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .lease-table tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+[data-theme="light"] .lease-table tbody tr:hover {
+  background-color: rgba(108, 92, 231, 0.06);
+}
+[data-theme="light"] .lease-table-scroll::-webkit-scrollbar-track,
+[data-theme="light"] .lease-table-wrap .table-scroll-container::-webkit-scrollbar-track,
+[data-theme="light"] .lease-table-wrap .billing-table-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+[data-theme="light"] .lease-table-scroll::-webkit-scrollbar-thumb,
+[data-theme="light"] .lease-table-wrap .table-scroll-container::-webkit-scrollbar-thumb,
+[data-theme="light"] .lease-table-wrap .billing-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Modern Lease Pagination Toolbar */
+.lease-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.01);
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+}
+.lease-pagination .pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.lease-pagination .page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.lease-pagination .page-size-selector select {
+  height: 32px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+[data-theme="light"] .lease-pagination .page-size-selector select {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.lease-pagination .page-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lease-pagination .page-btns button {
+  height: 32px;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.lease-pagination .page-btns button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.lease-pagination .page-btns button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.lease-pagination .page-num-display {
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  padding: 0 4px;
+}
+
 .ln-badge { font-family: monospace; font-size: .78rem; background: rgba(255,255,255,.06); padding: 2px 6px; border-radius: 4px; }
 .exp-warn { display: flex; align-items: center; gap: 3px; font-size: .65rem; color: #f39c12; margin-top: 3px; }
 .lu-number { font-weight: 700; font-size: .84rem; }
 .lu-property { font-size: .72rem; color: var(--text-muted); }
-.lease-tenant { font-size: .82rem; padding-left: 8px; padding-right: 8px; }
-.lease-dates { font-size: .72rem; color: var(--text-muted); padding-left: 20px; }
-.lease-dates-header { padding-left: 20px; }
-.date-sep { color: rgba(255,255,255,.2); }
-.lease-rent { display: flex; align-items: baseline; gap: 3px; margin-left: -60px; }
-.lease-rent-header { margin-left: -60px; }
+.lease-tenant { font-size: .82rem; }
+.lease-dates { font-size: .76rem; color: var(--text-secondary, #94a3b8); }
+.date-sep { color: rgba(255,255,255,.2); margin: 0 4px; }
+.lease-rent { display: flex; align-items: baseline; gap: 4px; }
 .rent-val { font-weight: 700; font-size: .88rem; }
 .rent-cur { font-size: .7rem; color: var(--text-muted); }
 .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .7rem; font-weight: 700; border: 1px solid; white-space: nowrap; }
 .row-actions { display: flex; align-items: center; justify-content: center; }
-.row-chevron { color: var(--text-muted); }
 .table-loading { padding: 24px 16px; display: flex; flex-direction: column; gap: 8px; }
 .lp { height: 40px; background: rgba(255,255,255,.03); border-radius: 8px; animation: pulse 1.4s ease infinite; }
 @keyframes pulse { 0%,100%{opacity:.4}50%{opacity:.8} }
-.table-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 60px 20px; color: rgba(255,255,255,.1); }
-.pagination { display: flex; align-items: center; justify-content: center; gap: 12px; }
-.pagination button { padding: 6px 14px; border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); color: var(--text-primary); font-size: .8rem; cursor: pointer; }
-.pagination button:disabled { opacity: .35; cursor: default; }
-.pagination span { font-size: .8rem; color: var(--text-muted); }
+.table-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 60px 20px; color: rgba(255,255,255,.3); }
 
 /* ─── Create Lease Page ──────────────────── */
 .create-lease-page { padding: 24px 28px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }

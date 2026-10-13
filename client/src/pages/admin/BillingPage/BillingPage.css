@@ -184,6 +184,26 @@
 .billing-filters .search-wrap input:focus {
   border-color: var(--primary);
 }
+.billing-filters .search-wrap .search-clear-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+.billing-filters .search-wrap .search-clear-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
 
 .billing-filters .filter-select {
   height: 38px;
@@ -232,6 +252,54 @@
   overflow-x: auto;
   overflow-y: hidden;
 }
+.billing-table-wrap:has(.billing-table-scroll) {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* In-viewport scroll container base */
+.billing-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.billing-table-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 6px;
+}
+.billing-table-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+.billing-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.billing-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* When horizontal scrollbar is present: lock max-height in viewport & sticky header */
+.billing-table-scroll.has-overflow {
+  max-height: calc(100vh - 350px);
+  min-height: 200px;
+  overflow-y: auto;
+}
+.billing-table-scroll.has-overflow .billing-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface-card, #162a23);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* When table fits without horizontal scroll: natural height, no inner scroll */
+.billing-table-scroll.no-overflow {
+  max-height: none;
+  min-height: auto;
+  overflow-y: visible;
+}
 
 .billing-table {
   width: 100%;
@@ -241,6 +309,7 @@
 
 .billing-table thead tr {
   background: rgba(255,255,255,0.03);
+  height: 40px;
 }
 
 .billing-table th {
@@ -253,6 +322,8 @@
   text-align: left;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   white-space: nowrap;
+  height: 40px;
+  box-sizing: border-box;
 }
 .billing-table th.text-right { text-align: right; }
 .billing-table th.text-center { text-align: center; }
@@ -263,6 +334,8 @@
   color: var(--text-primary);
   border-bottom: 1px solid rgba(255,255,255,0.03);
   vertical-align: middle;
+  height: 48px;
+  box-sizing: border-box;
 }
 .billing-table td.text-right { text-align: right; }
 .billing-table td.text-center { text-align: center; }
@@ -275,10 +348,17 @@
 }
 
 .billing-table tbody tr {
+  height: 48px;
   transition: background 0.12s;
 }
+.billing-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+.billing-table tbody tr:nth-child(odd) {
+  background: transparent;
+}
 .billing-table tbody tr:last-child td { border-bottom: none; }
-.billing-table tbody tr:hover { background: rgba(255,255,255,0.025); }
+.billing-table tbody tr:hover { background: rgba(255, 255, 255, 0.045) !important; }
 .billing-table tbody tr.clickable { cursor: pointer; }
 .billing-table tbody tr.row-denied { background: rgba(239,68,68,0.04); }
 .billing-table tbody tr.row-denied:hover { background: rgba(239,68,68,0.08); }
@@ -1127,6 +1207,10 @@
 [data-theme="light"] .billing-table thead tr {
   background: rgba(0,0,0,0.02);
 }
+[data-theme="light"] .billing-table-scroll .billing-table thead th {
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
 [data-theme="light"] .billing-table th {
   border-bottom-color: rgba(0,0,0,0.06);
   color: #6b7280;
@@ -1134,8 +1218,14 @@
 [data-theme="light"] .billing-table td {
   border-bottom-color: rgba(0,0,0,0.04);
 }
+[data-theme="light"] .billing-table tbody tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+[data-theme="light"] .billing-table tbody tr:nth-child(odd) {
+  background: #ffffff;
+}
 [data-theme="light"] .billing-table tbody tr:hover {
-  background: rgba(0,0,0,0.02);
+  background: rgba(0, 0, 0, 0.04) !important;
 }
 [data-theme="light"] .billing-table tbody tr.row-denied {
   background: rgba(239,68,68,0.03);
@@ -1900,3 +1990,18 @@
 [data-theme="light"] .rb-field select option { background: #ffffff; }
 [data-theme="light"] .rb-hint { background: rgba(0,0,0,0.02); }
 [data-theme="light"] .rb-schedule-header { background: rgba(0,0,0,0.02); }
+
+[data-theme="light"] .billing-table-scroll.has-overflow .billing-table thead th {
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .billing-table-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+[data-theme="light"] .billing-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+[data-theme="light"] .billing-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+

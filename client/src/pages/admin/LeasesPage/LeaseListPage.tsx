@@ -5,10 +5,12 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import {
   FileText, Plus, Search, X, AlertTriangle, Trash2,
   Clock, CheckCircle, XCircle, PenLine, Archive, Import,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import ImportLeadModal from './ImportLeadModal';
 import './LeaseListPage.css';
 
@@ -30,6 +32,7 @@ export default function LeaseListPage() {
   const [status, setStatus]           = useState('');
   const [expiring, setExpiring]       = useState<number | undefined>(undefined);
   const [page, setPage]               = useState(1);
+  const [pageSize, setPageSize]       = useState(10);
   const [showImportModal, setShowImportModal] = useState(false);
   const activePropertyFilter = useSelectedPropertyFilter();
 
@@ -41,7 +44,8 @@ export default function LeaseListPage() {
     status: status || undefined,
     expiringWithinDays: expiring,
     propertyId: activePropertyFilter || undefined,
-    page, limit: 10,
+    page,
+    limit: pageSize,
   });
 
   // Count expiring soon for alert banner
@@ -126,78 +130,165 @@ export default function LeaseListPage() {
 
       {/* Table */}
       <div className="lease-table-wrap">
-        <div className="lease-table-header">
-          <span>Lease #</span><span>Unit</span><span className="lease-tenant">Tenant</span>
-          <span className="lease-dates-header">Dates</span><span className="lease-rent-header">Rent</span><span>Status</span><span>Action</span>
-        </div>
+        <TableScrollWrapper>
+          <table className="lease-table billing-table">
+            <thead>
+              <tr>
+                <th style={{ width: 150 }}>Lease #</th>
+                <th style={{ width: 170 }}>Unit / Property</th>
+                <th style={{ minWidth: 200 }}>Tenant</th>
+                <th style={{ width: 190 }}>Dates</th>
+                <th className="text-right" style={{ width: 140 }}>Rent</th>
+                <th style={{ width: 150 }}>Status</th>
+                <th className="text-center" style={{ width: 80 }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7}>
+                    <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
+                  </td>
+                </tr>
+              ) : leases.length === 0 ? (
+                <tr>
+                  <td colSpan={7}>
+                    <div className="table-empty"><FileText size={40} /><p>No leases found{hasFilters ? ' — try clearing filters' : ''}</p></div>
+                  </td>
+                </tr>
+              ) : (
+                leases.map((lease) => {
+                  const s = STATUS_META[lease.status] || { label: lease.status, color: '#95a5a6', icon: null };
+                  const expiring = lease.status === 'active' && lease.daysUntilExpiry <= 30;
 
-        {isLoading ? (
-          <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
-        ) : leases.length === 0 ? (
-          <div className="table-empty"><FileText size={40} /><p>No leases found{hasFilters ? ' — try clearing filters' : ''}</p></div>
-        ) : (
-          leases.map((lease) => <LeaseRow key={lease.id} lease={lease} onOpen={() => navigate(`/admin/leases/${lease.id}`)} onDelete={async (e) => {
-            e.stopPropagation();
-            if (!(await confirmDialog(`Delete lease ${lease.leaseNumber}?`, { danger: true, confirmText: 'Delete' }))) return;
-            try { await deleteLease(lease.id).unwrap(); toast.success('Deleted'); }
-            catch { toast.error('Cannot delete active lease'); }
-          }} />)
-        )}
-      </div>
+                  return (
+                    <tr
+                      key={lease.id}
+                      className={expiring ? 'expiring' : ''}
+                      onClick={() => navigate(`/admin/leases/${lease.id}`)}
+                    >
+                      <td>
+                        <div className="lease-num">
+                          <span className="ln-badge">{lease.leaseNumber}</span>
+                          {expiring && (
+                            <span className="exp-warn">
+                              <AlertTriangle size={10} /> {lease.daysUntilExpiry}d left
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="lu-number">{lease.unit?.unitNumber || '—'}</div>
+                        {lease.property?.name && (
+                          <div className="lu-property">{lease.property.name}</div>
+                        )}
+                      </td>
+                      <td>
+                        <div className="lease-tenant" title={lease.tenant?.firstName || undefined}>
+                          <span style={{ fontWeight: 600 }}>
+                            {lease.tenant?.displayName || lease.tenant?.lastName || lease.tenant?.companyName || '—'}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="lease-dates">
+                          <div>
+                            {lease.startDate ? new Date(lease.startDate).toLocaleDateString() : '—'}
+                            <span className="date-sep">→</span>
+                            {lease.endDate ? new Date(lease.endDate).toLocaleDateString() : '—'}
+                          </div>
+                          {lease.leaseTermMonths ? (
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                              {lease.leaseTermMonths} months
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="text-right">
+                        <div className="lease-rent" style={{ justifyContent: 'flex-end' }}>
+                          <span className="rent-val">{Number(lease.rentAmount || 0).toLocaleString()}</span>
+                          <span className="rent-cur">{lease.currency || 'USD'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="status-pill" style={{ color: s.color, background: s.color + '1a', borderColor: s.color + '40' }}>
+                          {s.icon}{s.label}
+                        </span>
+                      </td>
+                      <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                        {['draft', 'cancelled', 'expired', 'terminated'].includes(lease.status) && (
+                          <PermissionGuard permission="leases.terminate">
+                            <button
+                              className="btn-icon"
+                              title="Delete"
+                              style={{ color: 'var(--text-muted)' }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!(await confirmDialog(`Delete lease ${lease.leaseNumber}?`, { danger: true, confirmText: 'Delete' }))) return;
+                                try { await deleteLease(lease.id).unwrap(); toast.success('Deleted'); }
+                                catch { toast.error('Cannot delete active lease'); }
+                              }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </PermissionGuard>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
 
-      {meta && meta.totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span>Page {page} of {meta.totalPages}</span>
-          <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
-        </div>
-      )}
-    </div>
-  );
-}
+        {/* Pagination Toolbar */}
+        {meta && meta.total > 0 && (
+          <div className="lease-pagination billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="lease-page-size">Rows per page:</label>
+                <select
+                  id="lease-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+              <span className="pagination-range" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                Showing {(page - 1) * pageSize + 1} – {Math.min(page * pageSize, meta.total)} of {meta.total} leases
+              </span>
+            </div>
 
-function LeaseRow({ lease, onOpen, onDelete }: {
-  lease: LeaseListItem; onOpen: () => void; onDelete: (e: React.MouseEvent) => void;
-}) {
-  const s = STATUS_META[lease.status] || { label: lease.status, color: '#95a5a6', icon: null };
-  const expiring = lease.status === 'active' && lease.daysUntilExpiry <= 30;
-
-  return (
-    <div className={`lease-row ${expiring ? 'expiring' : ''}`} onClick={onOpen}>
-      <div className="lease-num">
-        <span className="ln-badge">{lease.leaseNumber}</span>
-        {expiring && <span className="exp-warn"><AlertTriangle size={10} /> {lease.daysUntilExpiry}d</span>}
-      </div>
-      <div className="lease-unit">
-        <div className="lu-number">{lease.unit.unitNumber}</div>
-      </div>
-      <div className="lease-tenant" title={lease.tenant.firstName || undefined}>{lease.tenant.lastName || lease.tenant.companyName || lease.tenant.displayName}</div>
-      <div className="lease-dates">
-        <div>{new Date(lease.startDate).toLocaleDateString()}</div>
-        <div className="date-sep">→</div>
-        <div>{new Date(lease.endDate).toLocaleDateString()}</div>
-      </div>
-      <div className="lease-rent">
-        <span className="rent-val">{Number(lease.rentAmount).toLocaleString()}</span>
-        <span className="rent-cur">{lease.currency}</span>
-      </div>
-      <div>
-        <span className="status-pill" style={{ color: s.color, background: s.color + '1a', borderColor: s.color + '40' }}>
-          {s.icon}{s.label}
-        </span>
-      </div>
-      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-        {['draft', 'cancelled', 'expired', 'terminated'].includes(lease.status) && (
-          <PermissionGuard permission="leases.terminate">
-            <button
-              className="btn-icon"
-              title="Delete"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-              onClick={onDelete}
-            ><Trash2 size={13} /></button>
-          </PermissionGuard>
+            <div className="page-btns">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                title="Previous page"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="page-num-display">
+                Page {meta.page} of {Math.max(meta.totalPages, 1)}
+              </span>
+              <button
+                disabled={page >= meta.totalPages}
+                onClick={() => setPage(p => p + 1)}
+                title="Next page"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

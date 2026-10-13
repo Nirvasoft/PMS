@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from './components/TableScrollWrapper';
 import './BillingPage.css';
 
 const STATUS_OPTIONS = ['', 'draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
@@ -388,7 +389,8 @@ export default function InvoiceListPage() {
 
       {/* Table */}
       <div className="billing-table-wrap">
-        <table className="billing-table">
+        <TableScrollWrapper>
+          <table className="billing-table">
           <thead>
             <tr>
               <th style={{ width: 40, paddingLeft: 12 }}>
@@ -487,6 +489,7 @@ export default function InvoiceListPage() {
             )}
           </tbody>
         </table>
+        </TableScrollWrapper>
 
         {/* Pagination */}
         {meta && meta.total > 0 && (

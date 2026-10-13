@@ -8,6 +8,7 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import { Gauge, Plus, X, Pencil, Trash2, Search, Zap, Layers, Droplets, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from './components/TableScrollWrapper';
 import './BillingPage.css';
 
 export const METER_TYPES = [
@@ -368,7 +369,8 @@ export default function MeterSetupPage() {
 
       {/* Meter Setup Table */}
       <div className="billing-table-wrap">
-        <table className="billing-table">
+        <TableScrollWrapper>
+          <table className="billing-table">
           <thead>
             <tr>
               <th>Floor Label</th>
@@ -417,6 +419,7 @@ export default function MeterSetupPage() {
             ))}
           </tbody>
         </table>
+        </TableScrollWrapper>
 
         {/* Pagination */}
         {filteredMeters.length > 0 && (

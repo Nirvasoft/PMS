@@ -1,33 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetChargeTypesQuery, useCreateChargeTypeMutation, useUpdateChargeTypeMutation,
   useGetChargeCategoriesQuery,
   type ChargeType,
 } from '../../../store/api/billingApi';
-import { DollarSign, Plus, X, Tag, Check, Pencil, Lock } from 'lucide-react';
+import { DollarSign, Plus, X, Tag, Check, Pencil, Lock, Search, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from './components/TableScrollWrapper';
 import './BillingPage.css';
-
-// const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
-//   rent:    { bg: 'rgba(99,102,241,0.12)', color: '#a5b4fc' },
-//   utility: { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
-//   service: { bg: 'rgba(6,182,212,0.12)',  color: '#22d3ee' },
-//   parking: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-//   penalty: { bg: 'rgba(239,68,68,0.12)',  color: '#f87171' },
-//   deposit: { bg: 'rgba(139,92,246,0.12)', color: '#a78bfa' },
-//   misc:    { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af' },
-// };
-const PALETTE: { bg: string; color: string }[] = [
-  { bg: 'rgba(99,102,241,0.12)',  color: '#a5b4fc' },
-  { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
-  { bg: 'rgba(6,182,212,0.12)',  color: '#22d3ee' },
-  { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-  { bg: 'rgba(239,68,68,0.12)',  color: '#f87171' },
-  { bg: 'rgba(139,92,246,0.12)', color: '#a78bfa' },
-  { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af' },
-  { bg: 'rgba(236,72,153,0.12)', color: '#f472b6' },
-];
 
 export default function ChargeTypesPage() {
   const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery();
@@ -43,6 +24,26 @@ export default function ChargeTypesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ChargeType | null>(null);
   const [form, setForm] = useState(emptyForm);
+
+  // Search and filter state
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [taxFilter, setTaxFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const hasActiveFilters = Boolean(search.trim() || categoryFilter || taxFilter || statusFilter);
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setCategoryFilter('');
+    setTaxFilter('');
+    setStatusFilter('');
+    setPage(1);
+  };
 
   const openCreate = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
   const openEdit = (ct: ChargeType) => {
@@ -77,13 +78,42 @@ export default function ChargeTypesPage() {
     }
   };
 
-  // Group by category
-  const grouped = chargeTypes.reduce((acc, ct) => {
-    const cat = ct.category || 'misc';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(ct);
-    return acc;
-  }, {} as Record<string, typeof chargeTypes>);
+  const filteredChargeTypes = chargeTypes.filter((ct) => {
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const codeMatch = ct.code.toLowerCase().includes(q);
+      const nameMatch = ct.name.toLowerCase().includes(q);
+      const glMatch = ct.glAccountCode ? ct.glAccountCode.toLowerCase().includes(q) : false;
+      const categoryMatch = ct.category ? ct.category.toLowerCase().includes(q) : false;
+      if (!codeMatch && !nameMatch && !glMatch && !categoryMatch) return false;
+    }
+    if (categoryFilter && ct.category !== categoryFilter) {
+      return false;
+    }
+    if (taxFilter === 'taxable' && !ct.isTaxable) {
+      return false;
+    }
+    if (taxFilter === 'non_taxable' && ct.isTaxable) {
+      return false;
+    }
+    if (statusFilter === 'active' && !ct.isActive) {
+      return false;
+    }
+    if (statusFilter === 'inactive' && ct.isActive) {
+      return false;
+    }
+    return true;
+  });
+
+  // Reset pagination when search or filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, categoryFilter, taxFilter, statusFilter, pageSize]);
+
+  const totalItems = filteredChargeTypes.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const startIndex = (page - 1) * pageSize;
+  const paginatedChargeTypes = filteredChargeTypes.slice(startIndex, startIndex + pageSize);
 
   return (
     <div className="billing-page">
@@ -105,33 +135,90 @@ export default function ChargeTypesPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="billing-summary-cards" style={{ gridTemplateColumns: `repeat(${categories.length || 1}, 1fr)` }}>
-        {categories.map((cat, idx) => {
-          const count = grouped[cat.code]?.length || 0;
-          const c = PALETTE[idx % PALETTE.length];
-          return (
-            <div key={cat.id} className="billing-stat-card" style={{ padding: '14px 16px' }}>
-              <div className="bsc-label" style={{ fontSize: 10 }}>{cat.code}</div>
-              <div className="bsc-value" style={{ fontSize: 22, color: c.color }}>{count}</div>
-            </div>
-          );
-        })}
+      {/* Search & Filter Toolbar */}
+      <div className="billing-filters">
+        <div className="billing-filters-left">
+          <div className="search-wrap">
+            <Search size={15} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search code, name, GL account…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                className="search-clear-btn"
+                onClick={() => setSearch('')}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <select
+            className="filter-select"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.code}>
+                {cat.description || cat.code}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="filter-select"
+            value={taxFilter}
+            onChange={(e) => setTaxFilter(e.target.value)}
+          >
+            <option value="">All Tax Status</option>
+            <option value="taxable">Taxable</option>
+            <option value="non_taxable">Non-Taxable</option>
+          </select>
+
+          <select
+            className="filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleResetFilters}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, height: 38, padding: '0 14px' }}
+              title="Reset all filters"
+            >
+              <RotateCcw size={13} /> Reset
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Charge Types Table */}
       <div className="billing-table-wrap">
-        <table className="billing-table">
+        <TableScrollWrapper>
+          <table className="billing-table">
           <thead>
             <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Category</th>
-              <th>GL Account</th>
-              <th className="text-center">Taxable</th>
-              <th className="text-right">Default Tax</th>
-              <th>Status</th>
-              <th className="text-center">Actions</th>
+              <th style={{ width: 140 }}>Code</th>
+              <th style={{ minWidth: 200 }}>Name</th>
+              <th style={{ width: 140 }}>Category</th>
+              <th style={{ width: 140 }}>GL Account</th>
+              <th className="text-center" style={{ width: 90 }}>Taxable</th>
+              <th className="text-right" style={{ width: 120 }}>Default Tax</th>
+              <th style={{ width: 110 }}>Status</th>
+              <th className="text-center" style={{ width: 80 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -139,18 +226,31 @@ export default function ChargeTypesPage() {
               <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
             ) : chargeTypes.length === 0 ? (
               <tr><td colSpan={8} className="billing-empty">No charge types found</td></tr>
-            ) : chargeTypes.map(ct => {
-              const catIdx = categories.findIndex(cat => cat.code === ct.category);
-              const c = PALETTE[(catIdx >= 0 ? catIdx : 0) % PALETTE.length];
-              return (
+            ) : filteredChargeTypes.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="billing-empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
+                  <div style={{ marginBottom: 12, fontSize: 14, color: 'var(--text-secondary)' }}>
+                    No charge types match your search or filter criteria.
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleResetFilters}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '6px 14px' }}
+                  >
+                    <RotateCcw size={13} /> Reset Filters
+                  </button>
+                </td>
+              </tr>
+            ) : paginatedChargeTypes.map(ct => (
                 <tr key={ct.id}>
                   <td><span className="cell-mono">{ct.code}</span></td>
-                  <td><span className="cell-primary">{ct.name}</span></td>
+                  <td><div className="cell-primary">{ct.name}</div></td>
                   <td>
                     <span className={`charge-type-badge ${ct.category}`}>{ct.category}</span>
                   </td>
                   <td>
-                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
                       {ct.glAccountCode || '—'}
                     </span>
                   </td>
@@ -160,13 +260,13 @@ export default function ChargeTypesPage() {
                         <Check size={13} />
                       </span>
                     ) : (
-                      <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>—</span>
+                      <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>—</span>
                     )}
                   </td>
                   <td className="text-right">
                     {ct.isTaxable && Number(ct.taxRate) > 0
                       ? <span style={{ fontWeight: 600, color: '#fbbf24' }}>{(Number(ct.taxRate) * 100).toFixed(1)}%</span>
-                      : <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>—</span>}
+                      : <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>—</span>}
                   </td>
                   <td>
                     {ct.isActive
@@ -187,10 +287,57 @@ export default function ChargeTypesPage() {
                     )}
                   </td>
                 </tr>
-              );
-            })}
+              ))}
           </tbody>
         </table>
+        </TableScrollWrapper>
+
+        {/* Pagination */}
+        {totalItems > 0 && (
+          <div className="billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="ct-page-size">Rows per page:</label>
+                <select
+                  id="ct-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+              <span className="page-info">
+                Showing {totalItems === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + pageSize, totalItems)} of {totalItems}
+              </span>
+            </div>
+
+            <div className="page-btns">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                title="Previous page"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="page-num-display">
+                Page {page} of {Math.max(totalPages, 1)}
+              </span>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                title="Next page"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Create / Edit Form Modal */}

@@ -4,6 +4,7 @@ import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { Shield, Plus, AlertTriangle, Percent, DollarSign, Clock, X } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from './components/TableScrollWrapper';
 import './BillingPage.css';
 
 const PENALTY_TYPES: Record<string, string> = {
@@ -111,7 +112,8 @@ export default function PenaltyConfigPage() {
 
       {/* Configs Table */}
       <div className="billing-table-wrap">
-        <table className="billing-table">
+        <TableScrollWrapper>
+          <table className="billing-table">
           <thead>
             <tr>
               <th>Property</th>
@@ -168,6 +170,7 @@ export default function PenaltyConfigPage() {
             ))}
           </tbody>
         </table>
+        </TableScrollWrapper>
       </div>
 
       {/* Create Form Modal */}

@@ -7,8 +7,11 @@ import {
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 
-import { CURRENCIES } from '../../../constants/currencies';
 import { Coins, Plus, X, Trash2, Search, ChevronLeft, ChevronRight, List, Save } from 'lucide-react';
+import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
+import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from './components/TableScrollWrapper';
+import './BillingPage.css';
 
 /** ISO currency reference table — country, currency name, ISO code, symbol */
 const ISO_CURRENCY_LIST: { country: string; name: string; code: string; symbol: string }[] = [
@@ -52,10 +55,6 @@ const ISO_CURRENCY_LIST: { country: string; name: string; code: string; symbol: 
   { country: 'Central Africa',name: 'CFA Franc BEAC',      code: 'XAF', symbol: 'Fr'  },
   { country: 'South Africa',  name: 'South African Rand',  code: 'ZAR', symbol: 'R'   },
 ];
-
-import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
-import { PermissionGuard } from '../../../components/guards/PermissionGuard';
-import './BillingPage.css';
 
 const formatRate = (rate: string) => {
   const n = Number(rate);
@@ -289,7 +288,8 @@ export default function CurrencyRatesPage() {
 
           {/* Currency Rate History Table */}
           <div className="billing-table-wrap">
-            <table className="billing-table">
+            <TableScrollWrapper>
+              <table className="billing-table">
               <thead>
                 <tr>
                   <th>Code</th>
@@ -326,6 +326,7 @@ export default function CurrencyRatesPage() {
                 ))}
               </tbody>
             </table>
+            </TableScrollWrapper>
 
             {totalPages > 1 && (
               <div className="billing-pagination">
