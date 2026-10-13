@@ -94,6 +94,20 @@
   margin-bottom: 14px;
 }
 
+.report-property-logo-wrap {
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.report-property-logo {
+  max-width: 95px;
+  max-height: 85px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
 .report-company-name {
   font-size: 18px;
   font-weight: bold;

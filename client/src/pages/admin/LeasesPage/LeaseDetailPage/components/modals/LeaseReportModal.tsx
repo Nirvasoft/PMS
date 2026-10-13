@@ -122,6 +122,11 @@ export function LeaseReportModal({ lease, onClose }: LeaseReportModalProps) {
     lease.property?.country,
   ].filter(Boolean).join('၊ ');
 
+  let propertyImage = lease.property?.coverImageUrl || lease.property?.imageUrl || null;
+  if (propertyImage && !propertyImage.startsWith('http://') && !propertyImage.startsWith('https://') && !propertyImage.startsWith('data:')) {
+    propertyImage = `${window.location.origin}${propertyImage.startsWith('/') ? '' : '/'}${propertyImage}`;
+  }
+
   const unitNumber = lease.unit?.unitNumber || '';
   const floorLabel = lease.unit?.floorLabel || (lease.unit?.floorNumber != null ? `Floor ${lease.unit.floorNumber}` : '');
   const areaSqft = (lease.unit?.areaSqft != null && !isNaN(Number(lease.unit.areaSqft)) && Number(lease.unit.areaSqft) > 0)
@@ -256,6 +261,11 @@ export function LeaseReportModal({ lease, onClose }: LeaseReportModalProps) {
   // Reusable Company Header Component
   const renderHeader = () => (
     <div className="report-company-header">
+      {propertyImage ? (
+        <div className="report-property-logo-wrap">
+          <img src={propertyImage} alt={propertyName} className="report-property-logo" />
+        </div>
+      ) : null}
       <div className="report-company-name">{headerCompanyName}</div>
       <div className="report-company-address">
         {headerCompanyAddress ? <div>{headerCompanyAddress}</div> : null}

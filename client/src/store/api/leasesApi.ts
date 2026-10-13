@@ -58,6 +58,8 @@ export interface LeaseDetail extends LeaseListItem {
     id: string;
     name: string;
     currency: string;
+    coverImageUrl?: string | null;
+    imageUrl?: string | null;
     addressLine1?: string | null;
     addressLine2?: string | null;
     city?: string | null;

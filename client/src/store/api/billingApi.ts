@@ -132,7 +132,7 @@ export interface InvoiceListItem {
   currencyRate?: string | number | null;
   tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string; currency: string | null };
   unit: { id: string; unitNumber: string } | null;
-  property: { id: string; name: string };
+  property: { id: string; name: string; coverImageUrl?: string | null; imageUrl?: string | null };
   outstandingAmount: number;
   _count: { lines: number };
 }

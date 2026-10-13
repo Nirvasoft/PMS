@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -6,13 +6,14 @@ import {
   useSendInvoiceMutation, useCreateCreditNoteMutation, useGetChargeTypesQuery,
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
-import { ArrowLeft, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, AlertTriangle, Clock, Banknote, History, ShieldAlert, Timer, Eye, ExternalLink, UploadCloud } from 'lucide-react';
+import { ArrowLeft, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, Eye, UploadCloud } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { usePushInvoicesToV6ErpMutation } from '../../../store/api/integrationsApi';
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
+import { openInvoicePrintPreview } from './utils/invoicePrintPreview';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, _currency = 'USD') =>
@@ -31,7 +32,7 @@ export default function InvoiceDetailPage() {
   const navigate = useNavigate();
   const { data, isLoading } = useGetInvoiceQuery(id!);
   const [voidInvoice, { isLoading: voiding }] = useVoidInvoiceMutation();
-  const [triggerPdf, { isFetching: loadingPdf }] = useLazyGetInvoicePdfQuery();
+  const [triggerPdf, { isFetching: downloadingPdf }] = useLazyGetInvoicePdfQuery();
   const [sendInvoice, { isLoading: sending }] = useSendInvoiceMutation();
   const [createCreditNote, { isLoading: creatingCN }] = useCreateCreditNoteMutation();
   const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
@@ -80,37 +81,18 @@ export default function InvoiceDetailPage() {
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
   ]);
 
-  // PDF Viewer state
-  const [showPdfViewer, setShowPdfViewer] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
-
   const handleVoid = async () => {
     const reason = prompt('Enter void reason:');
     if (!reason) return;
     await voidInvoice({ id: id!, reason }).unwrap();
   };
 
-  const handleViewPdf = async () => {
-    setPdfLoading(true);
-    setShowPdfViewer(true);
-    try {
-      const blobUrl = await triggerPdf(id!).unwrap();
-      if (blobUrl) {
-        setPdfUrl(blobUrl);
-      }
-    } catch {
-      setPdfUrl(null);
-    } finally {
-      setPdfLoading(false);
-    }
+  const handleViewPdf = () => {
+    if (!inv) return;
+    openInvoicePrintPreview(inv);
   };
 
   const handleDownloadPdf = async () => {
-    if (pdfUrl) {
-      window.open(pdfUrl, '_blank');
-      return;
-    }
     try {
       const blobUrl = await triggerPdf(id!).unwrap();
       if (blobUrl) {
@@ -118,19 +100,6 @@ export default function InvoiceDetailPage() {
       }
     } catch { /* error handled by RTK */ }
   };
-
-  const closePdfViewer = useCallback(() => {
-    setShowPdfViewer(false);
-    setPdfUrl(null);
-  }, []);
-
-  // ESC key to close PDF viewer
-  useEffect(() => {
-    if (!showPdfViewer) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closePdfViewer(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [showPdfViewer, closePdfViewer]);
 
   const handleSend = async () => {
     if (!(await confirmDialog('Send this invoice to the tenant via email?'))) return;
@@ -267,13 +236,13 @@ export default function InvoiceDetailPage() {
           )}
         </div>
         <div className="inv-actions">
-          <button className="btn btn-primary" onClick={handleViewPdf} disabled={loadingPdf}
+          <button className="btn btn-primary" onClick={handleViewPdf}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Eye size={14} /> {loadingPdf ? 'Loading…' : 'View PDF'}
+            <Eye size={14} /> View PDF
           </button>
-          <button className="btn btn-secondary" onClick={handleDownloadPdf}
+          <button className="btn btn-secondary" onClick={handleDownloadPdf} disabled={downloadingPdf}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Download size={14} /> Download
+            <Download size={14} /> {downloadingPdf ? 'Downloading…' : 'Download'}
           </button>
           <PermissionGuard permission="billing-invoices.write">
             {['draft', 'issued'].includes(inv.status) && (
@@ -697,62 +666,6 @@ export default function InvoiceDetailPage() {
         </div>
       )}
 
-      {/* ═══ Embedded PDF Viewer ═══ */}
-      {showPdfViewer && (
-        <div className="pdf-viewer-overlay">
-          <div className="pdf-viewer-modal" onClick={e => e.stopPropagation()}>
-            <div className="pdf-viewer-header">
-              <h3>
-                <FileText size={16} style={{ color: 'var(--primary)' }} />
-                {inv.invoiceNumber} — PDF Preview
-              </h3>
-              <div className="pdf-actions">
-                {pdfUrl && (
-                  <button className="btn btn-secondary" onClick={() => window.open(pdfUrl, '_blank')}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '6px 12px' }}>
-                    <ExternalLink size={13} /> Open in New Tab
-                  </button>
-                )}
-                {pdfUrl && (
-                  <a href={pdfUrl} download className="btn btn-secondary"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '6px 12px', textDecoration: 'none' }}>
-                    <Download size={13} /> Download
-                  </a>
-                )}
-                <button className="btn btn-secondary" onClick={closePdfViewer}
-                  style={{ padding: '6px 8px', display: 'flex' }}>
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-            <div className="pdf-viewer-body">
-              {pdfLoading && (
-                <div className="pdf-viewer-loading">
-                  <div className="pdf-spinner" />
-                  Generating PDF…
-                </div>
-              )}
-              {!pdfLoading && pdfUrl && (
-                <iframe
-                  src={pdfUrl}
-                  title={`Invoice ${inv.invoiceNumber} PDF`}
-                  style={{ width: '100%', height: '100%' }}
-                />
-              )}
-              {!pdfLoading && !pdfUrl && (
-                <div className="pdf-viewer-loading">
-                  <AlertTriangle size={28} style={{ color: '#f87171' }} />
-                  <span>Failed to generate PDF. Try again.</span>
-                  <button className="btn btn-secondary" onClick={handleViewPdf}
-                    style={{ marginTop: 8, fontSize: 12 }}>
-                    Retry
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -76,7 +76,7 @@ export class InvoicesService {
         },
         tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, email: true, currency: true } },
         unit: { select: { id: true, unitNumber: true } },
-        property: { select: { id: true, name: true } },
+        property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
         creditNotes: { select: { id: true, invoiceNumber: true, totalAmount: true, status: true } },
         receiptAllocations: {
           include: {

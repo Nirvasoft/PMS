@@ -86,6 +86,8 @@ export class LeasesService {
             id: true,
             name: true,
             currency: true,
+            coverImageUrl: true,
+            imageUrl: true,
             addressLine1: true,
             addressLine2: true,
             city: true,
