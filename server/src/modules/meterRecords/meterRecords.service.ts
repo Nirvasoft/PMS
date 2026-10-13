@@ -288,7 +288,7 @@ class MeterRecordsService {
     const arrayBuffer = await workbook.xlsx.writeBuffer();
     return {
       buffer: Buffer.from(arrayBuffer),
-      filename: `meter-records-${property.code}-${billDate}.xlsx`,
+      filename: `meter-records-${property.code || property.name || propertyId}-${billDate}.xlsx`,
     };
   }
 

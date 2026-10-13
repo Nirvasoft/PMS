@@ -906,9 +906,11 @@ function CreateUnitModal({
   const setAreaSqm = (v: string) => setForm((f) => ({
     ...f, areaSqm: v, areaSqft: v ? (Number(v) * SQM_TO_SQFT).toFixed(2) : '',
   }));
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [createUnit, { isLoading }] = useCreateUnitMutation();
   const unitTypes = typesData?.data || [];
   const currencyOptions = currencyRatesData?.data || [];
+
   const totalFloors = propertyData?.data?.totalFloors ?? 0;
   // All floor numbers 1..totalFloors — shown regardless of whether floor setup exists
   const allFloorNumbers = totalFloors > 0
@@ -925,17 +927,21 @@ function CreateUnitModal({
   const unitNumberPrefix = form.useFloorLabelPrefix && floorPrefix ? `${floorPrefix}` : '';
   const fullUnitNumber = `${unitNumberPrefix}${form.unitNumber.trim()}`;
 
+  const isUnitNumberMissing = hasAttemptedSubmit && !form.unitNumber.trim();
+  const isUnitTypeMissing = hasAttemptedSubmit && !form.unitType;
+  const isFloorLabelMissing = hasAttemptedSubmit && !form.floorLabel.trim();
+  const isCurrencyMissing = hasAttemptedSubmit && !form.currency;
+
   const handleSubmit = async () => {
-    if (!form.unitNumber.trim() || !form.unitType) {
-      toast.error('P-Unit number and type are required');
-      return;
-    }
-    if (!form.floorLabel.trim()) {
-      toast.error('Floor label is required');
-      return;
-    }
-    if (!form.currency) {
-      toast.error('Currency is required');
+    setHasAttemptedSubmit(true);
+    const missing: string[] = [];
+    if (!form.unitNumber.trim()) missing.push('P-Unit Number');
+    if (!form.unitType) missing.push('P-Unit Type');
+    if (!form.floorLabel.trim()) missing.push('Floor Label');
+    if (!form.currency) missing.push('Currency');
+
+    if (missing.length > 0) {
+      toast.error('Please fill in all required fields');
       return;
     }
     try {
@@ -1057,8 +1063,10 @@ function CreateUnitModal({
                 value={form.floorLabel}
                 onChange={(e) => set('floorLabel', e.target.value)}
                 readOnly
+                className={isFloorLabelMissing ? 'cu-input-error' : ''}
                 title={selectedFloor ? 'Floor label is automatically set from floor setup' : ''}
               />
+              {isFloorLabelMissing && <span className="cu-error-text">Floor label is required</span>}
             </div>
           </div>
 
@@ -1106,23 +1114,34 @@ function CreateUnitModal({
                   value={form.unitNumber}
                   onChange={(e) => set('unitNumber', e.target.value)}
                   maxLength={unitNumberPrefix ? Math.max(0, 15 - unitNumberPrefix.length) : 15}
+                  className={isUnitNumberMissing ? 'cu-input-error' : ''}
                   style={unitNumberPrefix ? { paddingLeft: `calc(11px + ${unitNumberPrefix.length}ch + 2px)` } : {}}
                 />
               </div>
+              {isUnitNumberMissing && <span className="cu-error-text">P-Unit number is required</span>}
             </div>
             <div className="cu-field">
               <label>P-Unit Type *</label>
-              <select value={form.unitType} onChange={(e) => set('unitType', e.target.value)}>
+              <select
+                value={form.unitType}
+                onChange={(e) => set('unitType', e.target.value)}
+                className={isUnitTypeMissing ? 'cu-input-error' : ''}
+              >
                 <option value="">Select type…</option>
                 {unitTypes.length > 0
-                  ? ['residential', 'commercial', 'storage', 'parking'].map((cat) => (
-                      <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
-                        {unitTypes.filter((t) => t.category === cat).map((t) => <option key={t.id} value={t.code}>{t.name}</option>)}
-                      </optgroup>
-                    ))
+                  ? ['residential', 'commercial', 'storage', 'parking'].map((cat) => {
+                      const items = unitTypes.filter((t) => t.category === cat);
+                      if (items.length === 0) return null;
+                      return (
+                        <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                          {items.map((t) => <option key={t.id} value={t.code}>{t.name}</option>)}
+                        </optgroup>
+                      );
+                    })
                   : ['studio','one_bedroom','two_bedroom','three_bedroom','penthouse','shop','office','warehouse'].map((t) =>
                       <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
+              {isUnitTypeMissing && <span className="cu-error-text">P-Unit type is required</span>}
             </div>
           </div>
 
@@ -1130,14 +1149,19 @@ function CreateUnitModal({
           <div className="cu-grid">
             <div className="cu-field">
               <label>Currency *</label>
-              <select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
+              <select
+                value={form.currency}
+                onChange={(e) => set('currency', e.target.value)}
+                className={isCurrencyMissing ? 'cu-input-error' : ''}
+              >
                 <option value="">Select currency…</option>
-                {[...currencyOptions].sort((a, b) => (b.isBaseCurrency ? 1 : 0) - (a.isBaseCurrency ? 1 : 0)).map((c) => (
-                  <option key={c.id} value={c.currency}>
+                {[...currencyOptions].sort((a: any, b: any) => (b.isBaseCurrency ? 1 : 0) - (a.isBaseCurrency ? 1 : 0)).map((c: any) => (
+                  <option key={c.id || c.currency} value={c.currency}>
                     {c.currency}{c.isBaseCurrency ? ' (Base)' : ''}
                   </option>
                 ))}
               </select>
+              {isCurrencyMissing && <span className="cu-error-text">Currency is required</span>}
             </div>
             <div className="cu-field">
               <label>Zone <span className="cu-opt">(optional)</span></label>
@@ -1243,7 +1267,7 @@ function CreateUnitModal({
           <button
             className="cu-btn-submit"
             onClick={handleSubmit}
-            disabled={isLoading || !form.unitNumber.trim() || !form.unitType || !form.currency || !form.floorLabel.trim()}
+            disabled={isLoading}
           >
             {isLoading ? 'Creating…' : '+ Add P-Unit'}
           </button>

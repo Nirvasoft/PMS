@@ -433,7 +433,7 @@ export default function CreatePropertyPage() {
                 <input placeholder="e.g. Marina Bay Residences" value={form.name} onChange={e => set('name', e.target.value)} />
               </div>
               <div className="cp-field">
-                <label>Property Code <span className="opt">(auto-generated if blank)</span></label>
+                <label>Property Code <span className="opt">(optional)</span></label>
                 <input placeholder="e.g. MBR-001" value={form.code} onChange={e => set('code', e.target.value)} />
               </div>
               <div className="cp-field">
@@ -704,7 +704,7 @@ export default function CreatePropertyPage() {
               <div className="cp-review-grid">
                 <ReviewRow label="Name" value={form.name} />
                 <ReviewRow label="Type" value={form.propertyType} />
-                <ReviewRow label="Code" value={form.code || 'Auto-generated'} />
+                <ReviewRow label="Code" value={form.code || '—'} />
                 <ReviewRow label="Total Floors" value={form.totalFloors} />
                 <ReviewRow label="Location" value={[form.city, form.country].filter(Boolean).join(', ') || '—'} />
                 <ReviewRow label="Branch" value={branches.find(b => b.id === form.branchId)?.name || '—'} />

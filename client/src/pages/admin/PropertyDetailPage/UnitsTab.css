@@ -1072,9 +1072,41 @@
   border-color: rgba(108,92,231,0.5);
   box-shadow: 0 0 0 3px rgba(108,92,231,0.08);
 }
-.cu-field select option { background: #1a1f2e; }
-.cu-field select optgroup { background: #1a1f2e; font-weight: 700; }
+.cu-field select option {
+  background: #1a1f2e;
+  color: var(--text-primary, #f1f5f9);
+}
+.cu-field select optgroup {
+  background: #121622;
+  color: #a78bfa;
+  font-weight: 700;
+  font-style: normal;
+}
+.cu-field select optgroup option {
+  background: #1a1f2e;
+  color: var(--text-primary, #f1f5f9);
+  font-weight: 400;
+}
 .cu-field textarea { resize: vertical; min-height: 54px; }
+
+/* ── Mandatory Field Error Highlighting ── */
+.cu-field input.cu-input-error,
+.cu-field select.cu-input-error,
+.cu-field textarea.cu-input-error {
+  border-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.cu-error-text {
+  color: #ef4444;
+  font-size: 0.72rem;
+  font-weight: 500;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .cu-checkbox-row {
   display: flex; align-items: center; gap: 5px;
   margin-top: 1px;
@@ -1248,8 +1280,21 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
-[data-theme="light"] .cu-field select option { background: #ffffff; }
-[data-theme="light"] .cu-field select optgroup { background: #ffffff; }
+[data-theme="light"] .cu-field select option {
+  background: #ffffff;
+  color: var(--text-primary, #1e293b);
+}
+[data-theme="light"] .cu-field select optgroup {
+  background: #f1f5f9;
+  color: #6c5ce7;
+  font-weight: 700;
+  font-style: normal;
+}
+[data-theme="light"] .cu-field select optgroup option {
+  background: #ffffff;
+  color: var(--text-primary, #1e293b);
+  font-weight: 400;
+}
 [data-theme="light"] .cu-footer { border-top-color: rgba(0,0,0,0.07); }
 [data-theme="light"] .cu-btn-cancel {
   background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.09);
