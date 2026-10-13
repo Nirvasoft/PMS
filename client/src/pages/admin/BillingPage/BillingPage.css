@@ -1355,6 +1355,40 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Validation Error Styles ─────────────────── */
+.inv-field input.inv-input-error,
+.inv-field select.inv-input-error,
+.inv-field textarea.inv-input-error,
+.inv-lines-table input.inv-input-error,
+.inv-lines-table select.inv-input-error {
+  border-color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.inv-error-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: #ef4444;
+  margin-top: 4px;
+  display: block;
+}
+
+[data-theme="light"] .inv-field input.inv-input-error,
+[data-theme="light"] .inv-field select.inv-input-error,
+[data-theme="light"] .inv-field textarea.inv-input-error,
+[data-theme="light"] .inv-lines-table input.inv-input-error,
+[data-theme="light"] .inv-lines-table select.inv-input-error {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
+}
+
+[data-theme="light"] .inv-error-text {
+  color: #dc2626;
+}
+
+
 /* ── Line items table ──────────────────── */
 .inv-lines-table {
   width: 100%;

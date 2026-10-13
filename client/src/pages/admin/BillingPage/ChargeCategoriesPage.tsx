@@ -8,6 +8,7 @@ import { Tag, Plus, X, Pencil, Trash2, Check, Lock, Search, RotateCcw, ChevronLe
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
+import toast from 'react-hot-toast';
 import './BillingPage.css';
 
 export default function ChargeCategoriesPage() {
@@ -24,6 +25,7 @@ export default function ChargeCategoriesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ChargeCategory | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   // Search and filter state
   const [search, setSearch] = useState('');
@@ -43,16 +45,24 @@ export default function ChargeCategoriesPage() {
     setPage(1);
   };
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
+  const openCreate = () => { setHasAttemptedSubmit(false); setEditing(null); setForm(emptyForm); setShowForm(true); };
   const openEdit = (cc: ChargeCategory) => {
+    setHasAttemptedSubmit(false);
     setEditing(cc);
     setForm({ code: cc.code, description: cc.description || '', monthly: cc.monthly });
     setShowForm(true);
   };
-  const closeForm = () => { setShowForm(false); setEditing(null); setForm(emptyForm); };
+  const closeForm = () => { setHasAttemptedSubmit(false); setShowForm(false); setEditing(null); setForm(emptyForm); };
+
+  const isCodeMissing = hasAttemptedSubmit && !form.code.trim();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.code.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
     const payload = {
       code: form.code.trim(),
       description: form.description || undefined,
@@ -318,13 +328,18 @@ export default function ChargeCategoriesPage() {
               <h2><Tag size={18} /> {editing ? 'Edit Charge Category' : 'New Charge Category'}</h2>
               <button className="modal-close" onClick={closeForm}><X size={18} /></button>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(1, 1fr)' }}>
                   <div className="inv-field">
                     <label>Code <span className="req">*</span></label>
-                    <input required placeholder="e.g. utility" value={form.code}
-                      onChange={e => setForm({ ...form, code: e.target.value })} />
+                    <input
+                      className={isCodeMissing ? 'inv-input-error' : ''}
+                      placeholder="e.g. utility"
+                      value={form.code}
+                      onChange={e => setForm({ ...form, code: e.target.value })}
+                    />
+                    {isCodeMissing && <span className="inv-error-text">Code is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Description</label>

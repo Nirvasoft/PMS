@@ -44,6 +44,9 @@ export default function CreateLeadPage() {
     businessType: '', doorType: '', productPlan: '',
   });
 
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const isNameMissing = hasAttemptedSubmit && !form.lastName.trim();
+
   // Track the previous lock state so switching to "All Properties" clears the
   // field back to "Select property" instead of leaving the old locked value behind.
   const prevPropertyLockedRef = useRef(propertyLocked);
@@ -64,7 +67,8 @@ export default function CreateLeadPage() {
   };
 
   const handleSubmit = async () => {
-    if (!form.lastName) { toast.error('Name is required'); return; }
+    setHasAttemptedSubmit(true);
+    if (!form.lastName.trim()) { toast.error('Please fill in all required fields'); return; }
     if ((form.budgetMin && Number(form.budgetMin) < 0) || (form.budgetMax && Number(form.budgetMax) < 0)) {
       toast.error('Budget cannot be negative');
       return;
@@ -119,7 +123,13 @@ export default function CreateLeadPage() {
         <div className="cl-section">
           <h3>Contact Information</h3>
           <div className="form-grid">
-            <Field label="Name *" value={form.lastName} onChange={(v) => set('lastName', v)} placeholder="Doe" />
+            <Field
+              label="Name *"
+              value={form.lastName}
+              onChange={(v) => set('lastName', v)}
+              placeholder="Doe"
+              error={isNameMissing ? 'Name is required' : undefined}
+            />
             <Field label="Email" value={form.email} onChange={(v) => set('email', v.toLowerCase())} type="email" placeholder="john@email.com" />
             <Field label="Phone" value={form.phone} onChange={(v) => set('phone', v.replace(/\D/g, ''))} type="tel" placeholder="15551234" />
             <Field label="Address" value={loi.address} onChange={(v) => setLoiField('address', v)} placeholder="123 Main St" />
@@ -187,7 +197,7 @@ export default function CreateLeadPage() {
       <div className="cl-footer">
         <button className="btn-secondary" onClick={() => navigate('/admin/crm/leads')}>Cancel</button>
         <PermissionGuard permission="crm-leads.write">
-          <button className="btn-primary" onClick={handleSubmit} disabled={isLoading || !form.lastName}>
+          <button className="btn-primary" onClick={handleSubmit} disabled={isLoading}>
             {isLoading ? 'Creating…' : 'Create Lead'}
           </button>
         </PermissionGuard>
@@ -196,9 +206,9 @@ export default function CreateLeadPage() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', span, placeholder, min }: {
+function Field({ label, value, onChange, type = 'text', span, placeholder, min, error }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; span?: number; placeholder?: string; min?: number;
+  type?: string; span?: number; placeholder?: string; min?: number; error?: string;
 }) {
   return (
     <div className="form-field" style={{ gridColumn: span ? `span ${span}` : undefined }}>
@@ -213,21 +223,30 @@ function Field({ label, value, onChange, type = 'text', span, placeholder, min }
         autoCapitalize={type === 'email' ? 'none' : undefined}
         autoCorrect={type === 'email' ? 'off' : undefined}
         spellCheck={type === 'email' ? false : undefined}
-        style={type === 'email' ? { textTransform: 'lowercase' } : undefined} />
+        style={type === 'email' ? { textTransform: 'lowercase' } : undefined}
+        className={error ? 'cl-input-error' : ''}
+      />
+      {error && <span className="cl-error-text">{error}</span>}
     </div>
   );
 }
 
-function SelectField({ label, value, onChange, options, span, disabled }: {
+function SelectField({ label, value, onChange, options, span, disabled, error }: {
   label: string; value: string; onChange: (v: string) => void;
-  options: [string, string][]; span?: number; disabled?: boolean;
+  options: [string, string][]; span?: number; disabled?: boolean; error?: string;
 }) {
   return (
     <div className="form-field" style={{ gridColumn: span ? `span ${span}` : undefined }}>
       <label>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={error ? 'cl-input-error' : ''}
+      >
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
+      {error && <span className="cl-error-text">{error}</span>}
     </div>
   );
 }

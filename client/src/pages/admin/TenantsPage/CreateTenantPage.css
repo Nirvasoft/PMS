@@ -58,3 +58,31 @@
   color: #10b981;
   letter-spacing: 0.02em;
 }
+
+/* ── Red Line Border Validation ── */
+.form-field input.ct-input-error,
+.form-field select.ct-input-error,
+.form-field textarea.ct-input-error {
+  border-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+[data-theme="light"] .form-field input.ct-input-error,
+[data-theme="light"] .form-field select.ct-input-error,
+[data-theme="light"] .form-field textarea.ct-input-error {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
+}
+
+.ct-error-text {
+  color: #ef4444;
+  font-size: 0.72rem;
+  font-weight: 500;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+

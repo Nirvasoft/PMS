@@ -20,6 +20,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
   const [currency, setCurrency] = useState('');
   const [notes, setNotes] = useState('');
   const [allocations, setAllocations] = useState<Record<string, number>>({});
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   // Active property — tenants are scoped to this property and must be KYC-verified.
   const activePropertyId = useSelectedPropertyId();
@@ -82,9 +83,15 @@ export default function CreateReceiptModal({ onClose }: Props) {
     setAllocations(prev => ({ ...prev, [invoiceId]: n }));
   };
 
+  const isTenantMissing = hasAttemptedSubmit && !tenantId;
+  const isPaymentMethodMissing = hasAttemptedSubmit && !paymentMethod;
+  const isReceiptDateMissing = hasAttemptedSubmit && !receiptDate;
+  const isAmountMissing = hasAttemptedSubmit && (!amount.trim() || amountNum <= 0);
+
   const handleSubmit = async () => {
-    if (!tenantId || amountNum <= 0) {
-      toast.error('Please select a tenant and enter an amount');
+    setHasAttemptedSubmit(true);
+    if (!tenantId || !paymentMethod || !receiptDate || !amount.trim() || amountNum <= 0) {
+      toast.error('Please fill in all required fields');
       return;
     }
     if (totalAllocated > amountNum + 0.01) {
@@ -137,12 +144,17 @@ export default function CreateReceiptModal({ onClose }: Props) {
         <div className="ar-form-grid">
           <div className="ar-field" style={{ gridColumn: '1 / -1' }}>
             <label>Tenant <span className="req">*</span></label>
-            <select value={tenantId} onChange={e => { setTenantId(e.target.value); setAllocations({}); }}>
+            <select
+              className={isTenantMissing ? 'ar-input-error' : ''}
+              value={tenantId}
+              onChange={e => { setTenantId(e.target.value); setAllocations({}); }}
+            >
               <option value="">Select tenant…</option>
               {tenants.map((t: any) => (
                 <option key={t.id} value={t.id}>{getTenantName(t)}</option>
               ))}
             </select>
+            {isTenantMissing && <span className="ar-error-text">Tenant is required</span>}
             {tenants.length === 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#f59e0b' }}>
                 <AlertTriangle size={13} />
@@ -156,7 +168,11 @@ export default function CreateReceiptModal({ onClose }: Props) {
         <div className="ar-form-grid">
           <div className="ar-field">
             <label>Payment Method <span className="req">*</span></label>
-            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
+            <select
+              className={isPaymentMethodMissing ? 'ar-input-error' : ''}
+              value={paymentMethod}
+              onChange={e => setPaymentMethod(e.target.value)}
+            >
               <option value="bank_transfer">Bank Transfer</option>
               <option value="cheque">Cheque</option>
               <option value="cash">Cash</option>
@@ -164,15 +180,30 @@ export default function CreateReceiptModal({ onClose }: Props) {
               <option value="giro">GIRO</option>
               <option value="credit_card">Credit Card</option>
             </select>
+            {isPaymentMethodMissing && <span className="ar-error-text">Payment method is required</span>}
           </div>
           <div className="ar-field">
             <label>Receipt Date <span className="req">*</span></label>
-            <input type="date" value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
+            <input
+              type="date"
+              className={isReceiptDateMissing ? 'ar-input-error' : ''}
+              value={receiptDate}
+              onChange={e => setReceiptDate(e.target.value)}
+            />
+            {isReceiptDateMissing && <span className="ar-error-text">Receipt date is required</span>}
           </div>
           <div className="ar-field">
             <label>Amount <span className="req">*</span></label>
-            <input type="number" step="0.01" min="0" placeholder="0.00" value={amount}
-              onChange={e => setAmount(e.target.value)} />
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              className={isAmountMissing ? 'ar-input-error' : ''}
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+            />
+            {isAmountMissing && <span className="ar-error-text">Valid amount is required</span>}
           </div>
           <div className="ar-field">
             <label>Currency</label>

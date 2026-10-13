@@ -8,6 +8,7 @@ import { DollarSign, Plus, X, Tag, Check, Pencil, Lock, Search, RotateCcw, Chevr
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
+import toast from 'react-hot-toast';
 import './BillingPage.css';
 
 export default function ChargeTypesPage() {
@@ -24,6 +25,7 @@ export default function ChargeTypesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ChargeType | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   // Search and filter state
   const [search, setSearch] = useState('');
@@ -45,8 +47,9 @@ export default function ChargeTypesPage() {
     setPage(1);
   };
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
+  const openCreate = () => { setHasAttemptedSubmit(false); setEditing(null); setForm(emptyForm); setShowForm(true); };
   const openEdit = (ct: ChargeType) => {
+    setHasAttemptedSubmit(false);
     setEditing(ct);
     setForm({
       code: ct.code, name: ct.name, category: ct.category,
@@ -54,10 +57,19 @@ export default function ChargeTypesPage() {
     });
     setShowForm(true);
   };
-  const closeForm = () => { setShowForm(false); setEditing(null); setForm(emptyForm); };
+  const closeForm = () => { setHasAttemptedSubmit(false); setShowForm(false); setEditing(null); setForm(emptyForm); };
+
+  const isCodeMissing = hasAttemptedSubmit && !form.code.trim();
+  const isNameMissing = hasAttemptedSubmit && !form.name.trim();
+  const isCategoryMissing = hasAttemptedSubmit && !form.category.trim();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.code.trim() || !form.name.trim() || !form.category.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
     const payload = {
       code: form.code.toUpperCase(),
       name: form.name,
@@ -348,26 +360,41 @@ export default function ChargeTypesPage() {
               <h2><Tag size={18} /> {editing ? 'Edit Charge Type' : 'New Charge Type'}</h2>
               <button className="modal-close" onClick={closeForm}><X size={18} /></button>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="inv-field">
                     <label>Code <span className="req">*</span></label>
-                    <input required placeholder="e.g. ELECTRICITY" value={form.code}
+                    <input
+                      className={isCodeMissing ? 'inv-input-error' : ''}
+                      placeholder="e.g. ELECTRICITY"
+                      value={form.code}
                       onChange={e => setForm({ ...form, code: e.target.value })}
-                      style={{ textTransform: 'uppercase' }} />
+                      style={{ textTransform: 'uppercase' }}
+                    />
+                    {isCodeMissing && <span className="inv-error-text">Code is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Name <span className="req">*</span></label>
-                    <input required placeholder="e.g. Electricity" value={form.name}
-                      onChange={e => setForm({ ...form, name: e.target.value })} />
+                    <input
+                      className={isNameMissing ? 'inv-input-error' : ''}
+                      placeholder="e.g. Electricity"
+                      value={form.name}
+                      onChange={e => setForm({ ...form, name: e.target.value })}
+                    />
+                    {isNameMissing && <span className="inv-error-text">Name is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Category <span className="req">*</span></label>
-                    <select required value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                    <select
+                      className={isCategoryMissing ? 'inv-input-error' : ''}
+                      value={form.category}
+                      onChange={e => setForm({ ...form, category: e.target.value })}
+                    >
                       {categories.length === 0 && <option value="">No charge categories — add one first</option>}
                       {categories.map(cat => <option key={cat.id} value={cat.code}>{cat.description || cat.code}</option>)}
                     </select>
+                    {isCategoryMissing && <span className="inv-error-text">Category is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>GL Account Code</label>

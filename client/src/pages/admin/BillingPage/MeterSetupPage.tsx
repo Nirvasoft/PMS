@@ -9,6 +9,7 @@ import { Gauge, Plus, X, Pencil, Trash2, Search, Zap, Layers, Droplets, ChevronL
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
+import toast from 'react-hot-toast';
 import './BillingPage.css';
 
 export const METER_TYPES = [
@@ -118,6 +119,7 @@ export default function MeterSetupPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MeterSetup | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const { data: floorsData } = useGetFloorSetupsQuery(
     form.propertyId ? { propertyId: form.propertyId } : undefined,
@@ -151,8 +153,9 @@ export default function MeterSetupPage() {
     (m) => m.propertyId === form.propertyId && m.meterType !== 'sub_meter' && m.id !== editing?.id
   );
 
-  const openCreate = () => { setEditing(null); setForm({ ...emptyForm, propertyId: searchPropertyId }); setShowForm(true); };
+  const openCreate = () => { setHasAttemptedSubmit(false); setEditing(null); setForm({ ...emptyForm, propertyId: searchPropertyId }); setShowForm(true); };
   const openEdit = (m: MeterSetup) => {
+    setHasAttemptedSubmit(false);
     setEditing(m);
     setForm({
       propertyId: m.propertyId,
@@ -171,7 +174,7 @@ export default function MeterSetupPage() {
     });
     setShowForm(true);
   };
-  const closeForm = () => { setShowForm(false); setEditing(null); setForm(emptyForm); };
+  const closeForm = () => { setHasAttemptedSubmit(false); setShowForm(false); setEditing(null); setForm(emptyForm); };
 
   const handlePropertyChange = (propertyId: string) => {
     setForm({ ...form, propertyId, floorId: '', mainMeterId: '' });
@@ -181,8 +184,29 @@ export default function MeterSetupPage() {
     setForm({ ...form, meterType, mainMeterId: meterType === 'sub_meter' ? form.mainMeterId : '' });
   };
 
+  const isPropertyMissing = hasAttemptedSubmit && !form.propertyId;
+  const isMeterTypeMissing = hasAttemptedSubmit && !form.meterType;
+  const isMainMeterMissing = hasAttemptedSubmit && form.meterType === 'sub_meter' && !form.mainMeterId;
+  const isMeterNoMissing = hasAttemptedSubmit && !form.meterNo.trim();
+  const isCategoryMissing = hasAttemptedSubmit && !form.category;
+  const isRateMissing = hasAttemptedSubmit && (form.rate === '' || form.rate == null || isNaN(Number(form.rate)) || Number(form.rate) < 0);
+  const isCalculationMissing = hasAttemptedSubmit && !form.calculationType;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (
+      !form.propertyId ||
+      !form.meterType ||
+      (form.meterType === 'sub_meter' && !form.mainMeterId) ||
+      !form.meterNo.trim() ||
+      !form.category ||
+      form.rate === '' || form.rate == null || isNaN(Number(form.rate)) || Number(form.rate) < 0 ||
+      !form.calculationType
+    ) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
     const payload = {
       propertyId: form.propertyId,
       floorId: form.floorId || undefined,
@@ -474,12 +498,17 @@ export default function MeterSetupPage() {
               <h2><Gauge size={18} /> {editing ? 'Edit Meter' : 'New Meter'}</h2>
               <button className="modal-close" onClick={closeForm}><X size={18} /></button>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="inv-field">
                     <label>Property <span className="req">*</span></label>
-                    <select required value={form.propertyId} disabled={propertyLocked} onChange={(e) => handlePropertyChange(e.target.value)}>
+                    <select
+                      className={isPropertyMissing ? 'inv-input-error' : ''}
+                      value={form.propertyId}
+                      disabled={propertyLocked}
+                      onChange={(e) => handlePropertyChange(e.target.value)}
+                    >
                       {propertyLocked ? (
                         <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
                       ) : (
@@ -489,6 +518,7 @@ export default function MeterSetupPage() {
                         </>
                       )}
                     </select>
+                    {isPropertyMissing && <span className="inv-error-text">Property is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Floor</label>
@@ -500,34 +530,54 @@ export default function MeterSetupPage() {
                   </div>
                   <div className="inv-field">
                     <label>Meter Type <span className="req">*</span></label>
-                    <select required value={form.meterType} onChange={(e) => handleMeterTypeChange(e.target.value)}>
+                    <select
+                      className={isMeterTypeMissing ? 'inv-input-error' : ''}
+                      value={form.meterType}
+                      onChange={(e) => handleMeterTypeChange(e.target.value)}
+                    >
                       <option value="">Select type…</option>
                       {METER_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
+                    {isMeterTypeMissing && <span className="inv-error-text">Meter type is required</span>}
                   </div>
                   {form.meterType === 'sub_meter' && (
                     <div className="inv-field">
                       <label>Main Meter <span className="req">*</span></label>
-                      <select required value={form.mainMeterId} disabled={!form.propertyId}
-                        onChange={(e) => setForm({ ...form, mainMeterId: e.target.value })}>
+                      <select
+                        className={isMainMeterMissing ? 'inv-input-error' : ''}
+                        value={form.mainMeterId}
+                        disabled={!form.propertyId}
+                        onChange={(e) => setForm({ ...form, mainMeterId: e.target.value })}
+                      >
                         <option value="">{form.propertyId ? 'Select main meter…' : 'Select property first'}</option>
                         {mainMeterOptions.map((m) => (
                           <option key={m.id} value={m.id}>{m.meterNo}</option>
                         ))}
                       </select>
+                      {isMainMeterMissing && <span className="inv-error-text">Main meter is required</span>}
                     </div>
                   )}
                   <div className="inv-field">
                     <label>Meter No <span className="req">*</span></label>
-                    <input required placeholder="e.g. MT-00123" value={form.meterNo}
-                      onChange={(e) => setForm({ ...form, meterNo: e.target.value })} />
+                    <input
+                      className={isMeterNoMissing ? 'inv-input-error' : ''}
+                      placeholder="e.g. MT-00123"
+                      value={form.meterNo}
+                      onChange={(e) => setForm({ ...form, meterNo: e.target.value })}
+                    />
+                    {isMeterNoMissing && <span className="inv-error-text">Meter number is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Category <span className="req">*</span></label>
-                    <select required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                    <select
+                      className={isCategoryMissing ? 'inv-input-error' : ''}
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    >
                       <option value="">Select category…</option>
                       {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
+                    {isCategoryMissing && <span className="inv-error-text">Category is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Horse Power</label>
@@ -551,14 +601,27 @@ export default function MeterSetupPage() {
                   </div>
                   <div className="inv-field">
                     <label>Rate <span className="req">*</span></label>
-                    <input required type="number" className="no-spinner" step="0.0001" min={0} placeholder="e.g. 150.00" value={form.rate}
-                      onChange={(e) => setForm({ ...form, rate: e.target.value })} />
+                    <input
+                      type="number"
+                      className={`no-spinner ${isRateMissing ? 'inv-input-error' : ''}`}
+                      step="0.0001"
+                      min={0}
+                      placeholder="e.g. 150.00"
+                      value={form.rate}
+                      onChange={(e) => setForm({ ...form, rate: e.target.value })}
+                    />
+                    {isRateMissing && <span className="inv-error-text">Valid rate is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Calculation <span className="req">*</span></label>
-                    <select required value={form.calculationType} onChange={(e) => setForm({ ...form, calculationType: e.target.value })}>
+                    <select
+                      className={isCalculationMissing ? 'inv-input-error' : ''}
+                      value={form.calculationType}
+                      onChange={(e) => setForm({ ...form, calculationType: e.target.value })}
+                    >
                       {CALCULATION_TYPES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
+                    {isCalculationMissing && <span className="inv-error-text">Calculation type is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Meter Usage Type</label>

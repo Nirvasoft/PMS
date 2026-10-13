@@ -9,6 +9,7 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import toast from 'react-hot-toast';
 import './BillingPage.css';
 
 interface LineItem {
@@ -48,6 +49,7 @@ export default function CreateInvoicePage() {
     propertyId: '', tenantId: '', unitId: '', leaseId: '', invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: '', secondRef: '', notes: '',
   });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   // Tenants scoped to the selected property — only fetched once a property is chosen.
   // The server's propertyId filter matches tenants whose propertyId field equals it
@@ -230,8 +232,19 @@ export default function CreateInvoicePage() {
   const tax = lines.reduce((s, l) => s + l.quantity * l.unitPrice * l.taxRate, 0);
   const total = subtotal + tax;
 
+  const isPropertyMissing = hasAttemptedSubmit && !form.propertyId;
+  const isTenantMissing = hasAttemptedSubmit && !form.tenantId;
+  const isInvoiceDateMissing = hasAttemptedSubmit && !form.invoiceDate;
+  const isDueDateMissing = hasAttemptedSubmit && !form.dueDate;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    const hasLineErrors = lines.length === 0 || lines.some(l => !l.chargeTypeId || !l.description.trim());
+    if (!form.propertyId || !form.tenantId || !form.invoiceDate || !form.dueDate || hasLineErrors) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
     try {
       const result = await createInvoice({
         ...form,
@@ -272,7 +285,7 @@ export default function CreateInvoicePage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         {/* ── Section 1: Invoice Details ── */}
         <div className="inv-form-section">
           <div className="inv-form-section-header">
@@ -290,7 +303,7 @@ export default function CreateInvoicePage() {
               <label>Property <span className="req">*</span></label>
               {/* Locked to the sidebar's Active Property; not independently choosable then. */}
               <select
-                required
+                className={isPropertyMissing ? 'inv-input-error' : ''}
                 value={form.propertyId}
                 disabled={propertyLocked}
                 onChange={e => setForm({ ...form, propertyId: e.target.value, tenantId: '', unitId: '' })}
@@ -298,11 +311,12 @@ export default function CreateInvoicePage() {
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              {isPropertyMissing && <span className="inv-error-text">Property is required</span>}
             </div>
             <div className="inv-field">
               <label>Tenant <span className="req">*</span></label>
               <select
-                required
+                className={isTenantMissing ? 'inv-input-error' : ''}
                 value={form.tenantId}
                 disabled={!form.propertyId}
                 onChange={e => setForm({ ...form, tenantId: e.target.value })}
@@ -322,6 +336,7 @@ export default function CreateInvoicePage() {
                     <option key={t.id} value={t.id}>{t.label}</option>
                   ))}
               </select>
+              {isTenantMissing && <span className="inv-error-text">Tenant is required</span>}
             </div>
             <div className="inv-field">
               <label>Currency</label>
@@ -391,7 +406,7 @@ export default function CreateInvoicePage() {
               <label>Invoice Date <span className="req">*</span></label>
               <input
                 type="date"
-                required
+                className={isInvoiceDateMissing ? 'inv-input-error' : ''}
                 value={form.invoiceDate}
                 onChange={e => {
                   const newInvDate = e.target.value;
@@ -407,10 +422,17 @@ export default function CreateInvoicePage() {
                   setForm({ ...form, invoiceDate: newInvDate, dueDate: newDueDate });
                 }}
               />
+              {isInvoiceDateMissing && <span className="inv-error-text">Invoice date is required</span>}
             </div>
             <div className="inv-field">
               <label>Due Date <span className="req">*</span></label>
-              <input type="date" required value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+              <input
+                type="date"
+                className={isDueDateMissing ? 'inv-input-error' : ''}
+                value={form.dueDate}
+                onChange={e => setForm({ ...form, dueDate: e.target.value })}
+              />
+              {isDueDateMissing && <span className="inv-error-text">Due date is required</span>}
             </div>
             <div className="inv-field">
               <label>Second Ref. <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
@@ -470,16 +492,29 @@ export default function CreateInvoicePage() {
                 const lineAmt = line.quantity * line.unitPrice;
                 const lineTax = lineAmt * line.taxRate;
                 const lineTotal = lineAmt + lineTax;
+                const lineChargeTypeMissing = hasAttemptedSubmit && !line.chargeTypeId;
+                const lineDescMissing = hasAttemptedSubmit && !line.description.trim();
                 return (
                   <tr key={idx}>
                     <td>
-                      <select className="line-select" required value={line.chargeTypeId} onChange={e => updateLine(idx, 'chargeTypeId', e.target.value)}>
+                      <select
+                        className={`line-select ${lineChargeTypeMissing ? 'inv-input-error' : ''}`}
+                        value={line.chargeTypeId}
+                        onChange={e => updateLine(idx, 'chargeTypeId', e.target.value)}
+                      >
                         <option value="">Select…</option>
                         {chargeTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
                       </select>
+                      {lineChargeTypeMissing && <span className="inv-error-text">Required</span>}
                     </td>
                     <td>
-                      <input className="line-input" required placeholder="Charge description" value={line.description} onChange={e => updateLine(idx, 'description', e.target.value)} />
+                      <input
+                        className={`line-input ${lineDescMissing ? 'inv-input-error' : ''}`}
+                        placeholder="Charge description"
+                        value={line.description}
+                        onChange={e => updateLine(idx, 'description', e.target.value)}
+                      />
+                      {lineDescMissing && <span className="inv-error-text">Required</span>}
                     </td>
                     <td>
                       <input type="number" className="line-input" min={0} step={1} value={line.quantity} onChange={e => updateLine(idx, 'quantity', Number(e.target.value))} />

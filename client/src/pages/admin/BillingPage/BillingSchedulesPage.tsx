@@ -16,6 +16,7 @@ import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
+import toast from 'react-hot-toast';
 import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -44,6 +45,7 @@ export default function BillingSchedulesPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<ScheduleForm>(emptyForm);
   const [floorId, setFloorId] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   // Debounce the search box so typing doesn't fire a request per keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -198,6 +200,7 @@ export default function BillingSchedulesPage() {
   };
 
   const openCreate = () => {
+    setHasAttemptedSubmit(false);
     setEditId(null);
     setForm({ ...emptyForm, propertyId: selectedProperty });
     setFloorId('');
@@ -205,6 +208,7 @@ export default function BillingSchedulesPage() {
   };
 
   const openEdit = (s: BillingSchedule) => {
+    setHasAttemptedSubmit(false);
     setEditId(s.id);
     setFloorId('');
     // Mark as already synced so the lease-load effect doesn't overwrite the
@@ -229,8 +233,29 @@ export default function BillingSchedulesPage() {
     setShowForm(true);
   };
 
+  const isChargeTypeMissing = hasAttemptedSubmit && !form.chargeTypeId;
+  const isPropertyMissing = hasAttemptedSubmit && !form.propertyId;
+  const isTenantMissing = hasAttemptedSubmit && !form.leaseId;
+  const isAmountMissing = hasAttemptedSubmit && (form.amount === undefined || form.amount === null || isNaN(form.amount) || form.amount <= 0 || String(form.amount).trim() === '');
+  const isBillingCycleMissing = hasAttemptedSubmit && !form.billingCycle;
+  const isBillingDayMissing = hasAttemptedSubmit && (!form.billingDay || form.billingDay < 1 || form.billingDay > 28);
+  const isStartDateMissing = hasAttemptedSubmit && !form.startDate;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (
+      !form.chargeTypeId ||
+      !form.propertyId ||
+      !form.leaseId ||
+      form.amount === undefined || form.amount === null || isNaN(form.amount) || form.amount <= 0 || String(form.amount).trim() === '' ||
+      !form.billingCycle ||
+      !form.billingDay || form.billingDay < 1 || form.billingDay > 28 ||
+      !form.startDate
+    ) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
     try {
       const payload: Record<string, unknown> = {
         chargeTypeId: form.chargeTypeId,
@@ -449,24 +474,34 @@ export default function BillingSchedulesPage() {
               <h2><CalendarClock size={18} /> {editId ? 'Edit Schedule' : 'New Billing Schedule'}</h2>
               <button className="modal-close" onClick={() => setShowForm(false)}><X size={18} /></button>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="inv-field">
                     <label>Charge Type <span className="req">*</span></label>
-                    <select required value={form.chargeTypeId} onChange={e => setForm({ ...form, chargeTypeId: e.target.value })}>
+                    <select
+                      className={isChargeTypeMissing ? 'inv-input-error' : ''}
+                      value={form.chargeTypeId}
+                      onChange={e => setForm({ ...form, chargeTypeId: e.target.value })}
+                    >
                       <option value="">Select charge type</option>
                       {chargeTypes.filter(ct => ct.isActive).map(ct => (
                         <option key={ct.id} value={ct.id}>{ct.name}</option>
                       ))}
                     </select>
+                    {isChargeTypeMissing && <span className="inv-error-text">Charge type is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Property <span className="req">*</span></label>
-                    <select required value={form.propertyId} disabled={propertyLocked} onChange={e => {
-                      setForm({ ...form, propertyId: e.target.value, unitId: '', tenantId: '', leaseId: '' });
-                      setFloorId('');
-                    }}>
+                    <select
+                      className={isPropertyMissing ? 'inv-input-error' : ''}
+                      value={form.propertyId}
+                      disabled={propertyLocked}
+                      onChange={e => {
+                        setForm({ ...form, propertyId: e.target.value, unitId: '', tenantId: '', leaseId: '' });
+                        setFloorId('');
+                      }}
+                    >
                       {propertyLocked ? (
                         <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
                       ) : (
@@ -476,6 +511,7 @@ export default function BillingSchedulesPage() {
                         </>
                       )}
                     </select>
+                    {isPropertyMissing && <span className="inv-error-text">Property is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Floor</label>
@@ -500,18 +536,23 @@ export default function BillingSchedulesPage() {
                   </div>
                   <div className="inv-field">
                     <label>Tenant <span className="req">*</span></label>
-                    <select required value={form.leaseId} disabled={!form.propertyId} onChange={e => {
-                      const lease = leases.find(l => l.id === e.target.value);
-                      const unitId = lease?.unit?.id || form.unitId;
-                      setForm({
-                        ...form,
-                        leaseId: lease?.id || '',
-                        tenantId: lease?.tenant.id || '',
-                        unitId,
-                        quantity: lease?.leaseTermMonths ?? form.quantity,
-                      });
-                      if (lease?.unit?.id) setFloorId(deriveFloorId(lease.unit.id));
-                    }}>
+                    <select
+                      className={isTenantMissing ? 'inv-input-error' : ''}
+                      value={form.leaseId}
+                      disabled={!form.propertyId}
+                      onChange={e => {
+                        const lease = leases.find(l => l.id === e.target.value);
+                        const unitId = lease?.unit?.id || form.unitId;
+                        setForm({
+                          ...form,
+                          leaseId: lease?.id || '',
+                          tenantId: lease?.tenant.id || '',
+                          unitId,
+                          quantity: lease?.leaseTermMonths ?? form.quantity,
+                        });
+                        if (lease?.unit?.id) setFloorId(deriveFloorId(lease.unit.id));
+                      }}
+                    >
                       <option value="">
                         {!form.propertyId ? 'Select property first' : filteredLeases.length > 0 ? 'Select tenant' : 'No active leases for this property/floor/unit'}
                       </option>
@@ -521,6 +562,7 @@ export default function BillingSchedulesPage() {
                         </option>
                       ))}
                     </select>
+                    {isTenantMissing && <span className="inv-error-text">Tenant is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Qty</label>
@@ -529,8 +571,15 @@ export default function BillingSchedulesPage() {
                   </div>
                   <div className="inv-field">
                     <label>Amount <span className="req">*</span></label>
-                    <input type="number" required min={0} step={0.01} value={form.amount}
-                      onChange={e => setForm({ ...form, amount: Number(e.target.value) })} />
+                    <input
+                      type="number"
+                      className={isAmountMissing ? 'inv-input-error' : ''}
+                      min={0}
+                      step={0.01}
+                      value={form.amount}
+                      onChange={e => setForm({ ...form, amount: Number(e.target.value) })}
+                    />
+                    {isAmountMissing && <span className="inv-error-text">Amount must be greater than 0</span>}
                   </div>
                   <div className="inv-field">
                     <label>Currency</label>
@@ -558,16 +607,28 @@ export default function BillingSchedulesPage() {
                   </div>
                   <div className="inv-field">
                     <label>Billing Cycle <span className="req">*</span></label>
-                    <select required value={form.billingCycle} onChange={e => setForm({ ...form, billingCycle: e.target.value })}>
+                    <select
+                      className={isBillingCycleMissing ? 'inv-input-error' : ''}
+                      value={form.billingCycle}
+                      onChange={e => setForm({ ...form, billingCycle: e.target.value })}
+                    >
                       {BILLING_CYCLES.map(c => (
                         <option key={c} value={c}>{c.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
                       ))}
                     </select>
+                    {isBillingCycleMissing && <span className="inv-error-text">Billing cycle is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Billing Day (of month) <span className="req">*</span></label>
-                    <input type="number" required min={1} max={28} value={form.billingDay}
-                      onChange={e => setForm({ ...form, billingDay: Number(e.target.value) })} />
+                    <input
+                      type="number"
+                      className={isBillingDayMissing ? 'inv-input-error' : ''}
+                      min={1}
+                      max={28}
+                      value={form.billingDay}
+                      onChange={e => setForm({ ...form, billingDay: Number(e.target.value) })}
+                    />
+                    {isBillingDayMissing && <span className="inv-error-text">Billing day must be between 1 and 28</span>}
                   </div>
                   <div className="inv-field">
                     <label>Payment Due (days after billing)</label>
@@ -576,8 +637,13 @@ export default function BillingSchedulesPage() {
                   </div>
                   <div className="inv-field">
                     <label>Start Date <span className="req">*</span></label>
-                    <input type="date" required value={form.startDate}
-                      onChange={e => setForm({ ...form, startDate: e.target.value })} />
+                    <input
+                      type="date"
+                      className={isStartDateMissing ? 'inv-input-error' : ''}
+                      value={form.startDate}
+                      onChange={e => setForm({ ...form, startDate: e.target.value })}
+                    />
+                    {isStartDateMissing && <span className="inv-error-text">Start date is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>End Date (optional)</label>

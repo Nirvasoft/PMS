@@ -418,6 +418,35 @@
 .ar-field select option { background: #1a1f2e; }
 .ar-field textarea { resize: vertical; min-height: 60px; }
 
+/* ── Validation Error Styles ─────────────────── */
+.ar-field input.ar-input-error,
+.ar-field select.ar-input-error,
+.ar-field textarea.ar-input-error {
+  border-color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.ar-error-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: #ef4444;
+  margin-top: 4px;
+  display: block;
+}
+
+[data-theme="light"] .ar-field input.ar-input-error,
+[data-theme="light"] .ar-field select.ar-input-error,
+[data-theme="light"] .ar-field textarea.ar-input-error {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
+}
+
+[data-theme="light"] .ar-error-text {
+  color: #dc2626;
+}
+
 /* ── Allocation table inside modal ─────────── */
 .alloc-section {
   margin: 24px 0; padding: 20px; background: rgba(255,255,255,0.02);

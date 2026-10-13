@@ -31,3 +31,31 @@
 .cl-radio-option input[type="radio"] { width: 15px; height: 15px; cursor: pointer; accent-color: #6c5ce7; flex-shrink: 0; }
 
 .cl-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
+
+/* ── Red Line Border Validation ── */
+.form-field input.cl-input-error,
+.form-field select.cl-input-error,
+.form-field textarea.cl-input-error {
+  border-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+[data-theme="light"] .form-field input.cl-input-error,
+[data-theme="light"] .form-field select.cl-input-error,
+[data-theme="light"] .form-field textarea.cl-input-error {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
+}
+
+.cl-error-text {
+  color: #ef4444;
+  font-size: 0.72rem;
+  font-weight: 500;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+

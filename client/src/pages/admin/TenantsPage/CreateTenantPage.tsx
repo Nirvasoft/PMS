@@ -46,20 +46,36 @@ export default function CreateTenantPage() {
   });
 
   const [tagInput, setTagInput] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  const isCodeMissing = hasAttemptedSubmit && tenantType === 'individual' && !isTenantCodeAuto && !form.firstName.trim();
+  const isNameMissing = hasAttemptedSubmit && tenantType === 'individual' && !form.lastName.trim();
+  const isCompanyNameMissing = hasAttemptedSubmit && tenantType === 'company' && !form.companyName.trim();
+  const isCurrencyMissing = hasAttemptedSubmit && !form.currency;
 
   const handleSubmit = async () => {
     if (isV6Active) {
       toast.error('Tenant creation is disabled because V6 ERP integration is active. Please sync tenants from V6 ERP.');
       return;
     }
-    if (tenantType === 'individual' && !isTenantCodeAuto && !form.firstName) {
-      toast.error('Code is required');
+
+    setHasAttemptedSubmit(true);
+
+    const missing: string[] = [];
+    if (tenantType === 'individual') {
+      if (!isTenantCodeAuto && !form.firstName.trim()) missing.push('Code');
+      if (!form.lastName.trim()) missing.push('Name');
+    } else {
+      if (!form.companyName.trim()) missing.push('Company Name');
+    }
+    if (!form.currency) missing.push('Currency');
+
+    if (missing.length > 0) {
+      toast.error('Please fill in all required fields');
       return;
     }
-    if (tenantType === 'company'    && !form.companyName) { toast.error('Company name is required'); return; }
-    if (!form.currency) { toast.error('Currency is required'); return; }
 
     const payload: Record<string, unknown> = { tenantType };
     if (tenantType === 'individual') {
@@ -138,10 +154,16 @@ export default function CreateTenantPage() {
 
       {/* Type toggle */}
       <div className="ct-type-toggle">
-        <button className={tenantType === 'individual' ? 'active' : ''} onClick={() => setTenantType('individual')}>
+        <button
+          className={tenantType === 'individual' ? 'active' : ''}
+          onClick={() => { setTenantType('individual'); setHasAttemptedSubmit(false); }}
+        >
           <User size={16} /> Individual
         </button>
-        <button className={tenantType === 'company' ? 'active' : ''} onClick={() => setTenantType('company')}>
+        <button
+          className={tenantType === 'company' ? 'active' : ''}
+          onClick={() => { setTenantType('company'); setHasAttemptedSubmit(false); }}
+        >
           <Building2 size={16} /> Company
         </button>
       </div>
@@ -160,9 +182,19 @@ export default function CreateTenantPage() {
             </div>
             <div className="form-grid">
               {!isTenantCodeAuto && (
-                <Field label="Code *" value={form.firstName} onChange={(v) => set('firstName', v)} />
+                <Field
+                  label="Code *"
+                  value={form.firstName}
+                  onChange={(v) => set('firstName', v)}
+                  error={isCodeMissing ? 'Code is required' : undefined}
+                />
               )}
-              <Field label="Name *" value={form.lastName}  onChange={(v) => set('lastName', v)} />
+              <Field
+                label="Name *"
+                value={form.lastName}
+                onChange={(v) => set('lastName', v)}
+                error={isNameMissing ? 'Name is required' : undefined}
+              />
               <Field label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
               <Field label="Father's NRC" value={form.fatherNrc} onChange={(v) => set('fatherNrc', v)} />
               <Field label="Date of Birth" value={form.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} type="date" />
@@ -186,7 +218,13 @@ export default function CreateTenantPage() {
             <div className="ct-section">
               <h3>Company Information</h3>
               <div className="form-grid">
-                <Field label="Company Name *" value={form.companyName} onChange={(v) => set('companyName', v)} span={2} />
+                <Field
+                  label="Company Name *"
+                  value={form.companyName}
+                  onChange={(v) => set('companyName', v)}
+                  span={2}
+                  error={isCompanyNameMissing ? 'Company name is required' : undefined}
+                />
                 <Field label="Registration No." value={form.companyRegNo} onChange={(v) => set('companyRegNo', v)} />
                 <SelectField label="Company Type" value={form.companyType} onChange={(v) => set('companyType', v)}
                   options={[['','Select…'],['private_limited','Private Limited'],['partnership','Partnership'],['sole_prop','Sole Proprietor'],['public','Public Listed']]} />
@@ -215,8 +253,13 @@ export default function CreateTenantPage() {
             <Field label="Mobile" value={form.mobile} onChange={(v) => set('mobile', v)} />
             <SelectField label="Source" value={form.source} onChange={(v) => set('source', v)}
               options={[['','Select…'],['walk_in','Walk-in'],['referral','Referral'],['online','Online'],['agent','Agent']]} />
-            <SelectField label="Currency *" value={form.currency} onChange={(v) => set('currency', v)}
-              options={[['','Select currency…'], ...currencyOptions.map((c) => [c.currency, c.currency] as [string, string])]} />
+            <SelectField
+              label="Currency *"
+              value={form.currency}
+              onChange={(v) => set('currency', v)}
+              options={[['','Select currency…'], ...currencyOptions.map((c) => [c.currency, c.currency] as [string, string])]}
+              error={isCurrencyMissing ? 'Currency is required' : undefined}
+            />
           </div>
         </div>
 
@@ -276,7 +319,7 @@ export default function CreateTenantPage() {
           <button
             className="btn-primary"
             onClick={handleSubmit}
-            disabled={isLoading || isV6Active || !form.currency}
+            disabled={isLoading || isV6Active}
             style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
           >
             {isV6Active ? 'Creation Disabled (V6 Active)' : isLoading ? 'Creating…' : 'Create Tenant'}
@@ -287,28 +330,40 @@ export default function CreateTenantPage() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', span, maxLength }: {
+function Field({ label, value, onChange, type = 'text', span, maxLength, error }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; span?: number; maxLength?: number;
+  type?: string; span?: number; maxLength?: number; error?: string;
 }) {
   return (
     <div className="form-field" style={{ gridColumn: span ? `span ${span}` : undefined }}>
       <label>{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={maxLength} />
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={maxLength}
+        className={error ? 'ct-input-error' : ''}
+      />
+      {error && <span className="ct-error-text">{error}</span>}
     </div>
   );
 }
 
-function SelectField({ label, value, onChange, options }: {
+function SelectField({ label, value, onChange, options, error }: {
   label: string; value: string; onChange: (v: string) => void;
-  options: [string, string][];
+  options: [string, string][]; error?: string;
 }) {
   return (
     <div className="form-field">
       <label>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={error ? 'ct-input-error' : ''}
+      >
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
+      {error && <span className="ct-error-text">{error}</span>}
     </div>
   );
 }
