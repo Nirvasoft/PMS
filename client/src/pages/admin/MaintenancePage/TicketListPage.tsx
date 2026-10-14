@@ -11,13 +11,14 @@ import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Wrench, Plus, Search, LayoutGrid, List, AlertTriangle,
-  Clock, CheckCircle2, XCircle, Loader2,
+  Clock, XCircle, Loader2,
   Inbox, TrendingUp, ShieldAlert, Star, AlertOctagon, ImagePlus, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMaintenanceSocket } from '../../../hooks/useMaintenanceSocket';
 import { setTicketFilters, setViewMode as setViewModeAction } from '../../../store/slices/maintenanceSlice';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 
 const PRIORITIES = [
   { value: 'P1', label: 'P1 — Emergency', color: '#ef4444' },
@@ -214,70 +215,99 @@ export default function TicketListPage() {
       ) : viewMode === 'table' ? (
         <>
           <div className="maint-table-wrap">
-            <table className="maint-table">
-              <thead>
-                <tr>
-                  <th>Ticket</th>
-                  <th>Title</th>
-                  <th>Category</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                  <th>SLA</th>
-                  <th>Assigned To</th>
-                  <th>Property</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tickets.length === 0 ? (
+            <TableScrollWrapper>
+              <table className="maint-table">
+                <thead>
                   <tr>
-                    <td colSpan={9}>
-                      <div className="maint-empty">
-                        <div className="empty-icon"><Inbox size={28} /></div>
-                        <p>No tickets found</p>
-                      </div>
-                    </td>
+                    <th>Ticket</th>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>SLA</th>
+                    <th>Assigned To</th>
+                    <th>Property</th>
+                    <th>Created</th>
                   </tr>
-                ) : tickets.map((t) => (
-                  <tr key={t.id} onClick={() => navigate(`/admin/maintenance/tickets/${t.id}`)}>
-                    <td><span className="cell-mono">{t.ticketNumber}</span></td>
-                    <td>
-                      <div className="ticket-title-cell">
-                        {t.isUrgent && <AlertTriangle size={14} className="urgent-icon" />}
-                        <span className="title-text">{t.title}</span>
-                      </div>
-                    </td>
-                    <td><span className="cell-secondary">{t.category.name}</span></td>
-                    <td><PriorityBadge priority={t.priority} /></td>
-                    <td><StatusBadge status={t.status} /></td>
-                    <td><SlaChip slaStatus={t.slaStatus} hoursUntilSla={t.hoursUntilSla} /></td>
-                    <td>
-                      <span className="cell-secondary">
-                        {t.assignedTo ? (
-                          t.assignedTo.profile
-                            ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}`
-                            : t.assignedTo.email
-                        ) : '—'}
-                      </span>
-                    </td>
-                    <td><span className="cell-secondary">{t.property.name}</span></td>
-                    <td><span className="cell-secondary">{new Date(t.createdAt).toLocaleDateString()}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {tickets.length === 0 ? (
+                    <tr>
+                      <td colSpan={9}>
+                        <div className="maint-empty">
+                          <div className="empty-icon"><Inbox size={28} /></div>
+                          <p>No tickets found</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : tickets.map((t) => (
+                    <tr key={t.id} onClick={() => navigate(`/admin/maintenance/tickets/${t.id}`)}>
+                      <td><span className="cell-mono">{t.ticketNumber}</span></td>
+                      <td>
+                        <div className="ticket-title-cell">
+                          {t.isUrgent && <AlertTriangle size={14} className="urgent-icon" />}
+                          <span className="title-text">{t.title}</span>
+                        </div>
+                      </td>
+                      <td><span className="cell-secondary">{t.category.name}</span></td>
+                      <td><PriorityBadge priority={t.priority} /></td>
+                      <td><StatusBadge status={t.status} /></td>
+                      <td><SlaChip slaStatus={t.slaStatus} hoursUntilSla={t.hoursUntilSla} /></td>
+                      <td>
+                        <span className="cell-secondary">
+                          {t.assignedTo ? (
+                            t.assignedTo.profile
+                              ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}`
+                              : t.assignedTo.email
+                          ) : '—'}
+                        </span>
+                      </td>
+                      <td><span className="cell-secondary">{t.property.name}</span></td>
+                      <td><span className="cell-secondary">{new Date(t.createdAt).toLocaleDateString()}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
 
-          {/* Pagination */}
-          {meta && meta.totalPages > 1 && (
-            <div className="maint-pagination">
-              <span className="page-info">Page {meta.page} of {meta.totalPages} ({meta.total} tickets)</span>
-              <div className="page-btns">
-                <button disabled={filters.page <= 1} onClick={() => dispatch(setTicketFilters({ page: filters.page - 1 }))}>Previous</button>
-                <button disabled={filters.page >= meta.totalPages} onClick={() => dispatch(setTicketFilters({ page: filters.page + 1 }))}>Next</button>
+            {/* Pagination */}
+            {meta && meta.total >= 10 && (
+              <div className="maint-pagination">
+                <div className="pagination-left">
+                  <div className="page-size-selector">
+                    <span>Rows per page:</span>
+                    <select
+                      value={filters.limit || 20}
+                      onChange={(e) => dispatch(setTicketFilters({ limit: Number(e.target.value), page: 1 }))}
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="page-btns">
+                  <button
+                    disabled={filters.page <= 1}
+                    onClick={() => dispatch(setTicketFilters({ page: filters.page - 1 }))}
+                    title="Previous Page"
+                  >
+                    &lt;
+                  </button>
+                  <span className="page-num-display">
+                    Page {meta.page} of {meta.totalPages || 1}
+                  </span>
+                  <button
+                    disabled={filters.page >= meta.totalPages}
+                    onClick={() => dispatch(setTicketFilters({ page: filters.page + 1 }))}
+                    title="Next Page"
+                  >
+                    &gt;
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </>
       ) : (
         /* Kanban View */
@@ -364,6 +394,7 @@ function CreateTicketModal({ categories, properties, initialPropertyId, onClose 
     locationDetail: '',
     isUrgent: false,
   });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   useEffect(() => {
     if (!form.propertyId && defaultPropertyId) {
@@ -394,12 +425,8 @@ function CreateTicketModal({ categories, properties, initialPropertyId, onClose 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.propertyId) {
-      toast.error('Please select a property');
-      return;
-    }
-    if (!form.categoryId) {
-      toast.error('Please select a category');
+    setHasAttemptedSubmit(true);
+    if (!form.propertyId || !form.categoryId || !form.title.trim()) {
       return;
     }
     try {
@@ -447,18 +474,21 @@ function CreateTicketModal({ categories, properties, initialPropertyId, onClose 
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Property <span style={{ color: '#f87171' }}>*</span></label>
               <select
-                required
+                className={hasAttemptedSubmit && !form.propertyId ? 'maint-input-error' : ''}
                 value={form.propertyId}
                 onChange={(e) => setForm((f) => ({ ...f, propertyId: e.target.value, unitId: '' }))}
               >
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              {hasAttemptedSubmit && !form.propertyId && (
+                <span className="maint-error-text">Property is required</span>
+              )}
             </div>
             <div className="maint-field">
               <label>Unit (optional)</label>
@@ -479,10 +509,17 @@ function CreateTicketModal({ categories, properties, initialPropertyId, onClose 
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Category <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
+              <select
+                className={hasAttemptedSubmit && !form.categoryId ? 'maint-input-error' : ''}
+                value={form.categoryId}
+                onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+              >
                 <option value="">Select category</option>
                 {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {hasAttemptedSubmit && !form.categoryId && (
+                <span className="maint-error-text">Category is required</span>
+              )}
             </div>
             <div className="maint-field">
               <label>Priority</label>
@@ -501,7 +538,16 @@ function CreateTicketModal({ categories, properties, initialPropertyId, onClose 
           <div className="maint-form-grid cols-1">
             <div className="maint-field">
               <label>Title <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="text" required value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Brief description of the issue" />
+              <input
+                type="text"
+                className={hasAttemptedSubmit && !form.title.trim() ? 'maint-input-error' : ''}
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="Brief description of the issue"
+              />
+              {hasAttemptedSubmit && !form.title.trim() && (
+                <span className="maint-error-text">Title is required</span>
+              )}
             </div>
           </div>
           <div className="maint-form-grid cols-1">

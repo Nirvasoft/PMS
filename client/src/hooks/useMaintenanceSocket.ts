@@ -77,7 +77,7 @@ export function useMaintenanceSocket() {
       invalidateTicketDetail(data.ticketId);
     });
 
-    socket.on('ticket:cancelled', (data: { ticketId: string; ticketNumber: string }) => {
+    socket.on('ticket:cancelled', () => {
       invalidateTickets();
     });
 

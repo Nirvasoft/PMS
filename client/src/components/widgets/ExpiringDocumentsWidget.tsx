@@ -14,10 +14,6 @@ function getFileIcon(mimeType: string, size = 16) {
   return <File size={size} className="file-icon default" />;
 }
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 function getUrgencyClass(days: number | undefined): string {
   if (days === undefined || days === null) return 'ok';
   if (days <= 0) return 'expired';

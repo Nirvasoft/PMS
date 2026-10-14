@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   useGetPropertyQuery, useGetStatusHistoryQuery,
@@ -19,8 +19,8 @@ import UnitsTab from './UnitsTab';
 import FloorSetupTab from './FloorSetupTab';
 import {
   ArrowLeft, Building2, MapPin, Calendar, Users, Phone, Mail,
-  Settings2, Globe, Clock, Star, Trash2, Plus, Upload, CheckCircle,
-  AlertCircle, Wrench, ChevronRight, ChevronLeft, X, Camera, Tag, Edit3, GripVertical,
+  Globe, Clock, Star, Trash2, Plus, Upload, CheckCircle,
+  AlertCircle, Wrench, ChevronRight, ChevronLeft, X, Camera, Edit3, GripVertical,
   Waves, Dumbbell, Flame, TreePine, Lock, Zap, Car, Coffee, FileText, DollarSign, Briefcase,
   Wifi, Shield, ArrowUp, ShoppingBag, UtensilsCrossed, MonitorSmartphone, Download, Gauge,
 } from 'lucide-react';
@@ -315,7 +315,7 @@ function OverviewTab({ property }: { property: any }) {
 }
 
 // ── Facility helpers ─────────────────────────
-const FACILITY_ICONS: Record<string, JSX.Element> = {
+const FACILITY_ICONS: Record<string, ReactNode> = {
   waves:          <Waves size={18} />,
   dumbbell:       <Dumbbell size={18} />,
   flame:          <Flame size={18} />,

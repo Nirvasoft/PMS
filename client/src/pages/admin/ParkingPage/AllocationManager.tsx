@@ -8,9 +8,10 @@ import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../stor
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../../components/DialogProvider';
-import { Link2, Plus, Trash2, Car, Edit3, Save, X, Calendar, DollarSign, FileText } from 'lucide-react';
+import { Link2, Plus, Trash2, Car, Edit3, Save, X, Calendar, DollarSign, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ParkingPage.css';
 
 function ordinalSuffix(n: number): string {
@@ -25,11 +26,12 @@ export default function AllocationManager() {
   const confirmDialog = useConfirm();
   const selectedProperty = useSelectedPropertyFilter();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [showCreate, setShowCreate] = useState(false);
   const [editingAlloc, setEditingAlloc] = useState<ParkingAllocation | null>(null);
 
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const { data, isLoading } = useGetAllocationsQuery({ propertyId: selectedProperty || undefined, page, limit: 20 });
+  const { data, isLoading } = useGetAllocationsQuery({ propertyId: selectedProperty || undefined, page, limit: pageSize });
 
   // Reset pagination whenever the sidebar's Active Property changes.
   useEffect(() => { setPage(1); }, [selectedProperty]);
@@ -52,24 +54,26 @@ export default function AllocationManager() {
   return (
     <div className="parking-page">
       <div className="page-header">
-        <div className="page-header-row" style={{ alignItems: 'center' }}>
-          <div className="page-title-row">
-            <div className="page-icon-lg"><Link2 size={22} /></div>
-            <div>
-              <h1>Parking Allocations</h1>
-              <p>{meta ? `${meta.total} allocations` : 'Loading…'}</p>
-            </div>
+        <div className="page-title-row">
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
+            <Link2 size={22} />
           </div>
-          <PermissionGuard permission="parking-allocations.write">
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowCreate(true)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <Plus size={15} /> New Allocation
-            </button>
-          </PermissionGuard>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Parking Allocations</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {meta ? `${meta.total} total allocations` : 'Loading…'}
+            </p>
+          </div>
         </div>
+        <PermissionGuard permission="parking-allocations.write">
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowCreate(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Plus size={15} /> New Allocation
+          </button>
+        </PermissionGuard>
       </div>
 
       <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>
@@ -82,66 +86,87 @@ export default function AllocationManager() {
       </div>
 
       <div className="alloc-table-wrap">
-        <div className="alloc-table-header">
-          <span>Slot</span><span>Tenant</span><span>Dates</span>
-          <span>Rate/mo</span><span>Status</span><span></span>
-        </div>
-        {isLoading ? (
-          <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
-        ) : allocations.length === 0 ? (
-          <div className="table-empty"><Car size={40} /><p>No allocations found</p></div>
-        ) : (
-          allocations.map((a: ParkingAllocation) => {
-            const tenantName = a.tenant.tenantType !== 'individual' ? a.tenant.companyName : `${a.tenant.firstName} ${a.tenant.lastName}`;
-            return (
-              <div key={a.id} className="alloc-row">
-                <div>
-                  <div style={{ fontWeight: 600 }}>{a.slot.slotNumber}</div>
-                  {a.slot.zone && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{a.slot.zone.name}</div>}
-                </div>
-                <div>
-                  <div>{tenantName}</div>
-                  {a.unit && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Unit {a.unit.unitNumber}</div>}
-                  {a.vehicle && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>🚗 {a.vehicle.plateNumber}</div>}
-                </div>
-                <div style={{ fontSize: 12 }}>
-                  {new Date(a.startDate).toLocaleDateString()}
-                  {a.endDate ? ` → ${new Date(a.endDate).toLocaleDateString()}` : ' → Ongoing'}
-                </div>
-                <div style={{ fontWeight: 600 }}>${Number(a.monthlyRate).toLocaleString()}</div>
-                <div>
-                  <span className="slot-status-badge" style={{
-                    background: a.status === 'active' ? '#10b98118' : a.status === 'cancelled' ? '#ef444418' : '#6b728018',
-                    color: a.status === 'active' ? '#10b981' : a.status === 'cancelled' ? '#ef4444' : '#6b7280',
-                  }}>
-                    {a.status}
-                  </span>
-                </div>
-                <div className="alloc-row-actions">
-                  {a.status === 'active' && (
-                    <PermissionGuard permission="parking-allocations.write">
-                      <button className="row-btn-edit" onClick={() => setEditingAlloc(a)} title="Edit allocation">
-                        <Edit3 size={13} />
-                      </button>
-                      <button className="row-btn-delete" onClick={() => handleCancel(a.id, a.slot.slotNumber)} title="Cancel allocation">
-                        <Trash2 size={13} />
-                      </button>
-                    </PermissionGuard>
-                  )}
-                </div>
+        <TableScrollWrapper className="tenant-table-scroll">
+          <div className="alloc-table-inner">
+            <div className="alloc-table-header">
+              <span>Slot</span><span>Tenant</span><span>Dates</span>
+              <span>Rate/mo</span><span>Status</span><span></span>
+            </div>
+            {isLoading ? (
+              <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
+            ) : allocations.length === 0 ? (
+              <div className="table-empty"><Car size={40} /><p>No allocations found</p></div>
+            ) : (
+              allocations.map((a: ParkingAllocation) => {
+                const tenantName = a.tenant.tenantType !== 'individual' ? a.tenant.companyName : `${a.tenant.firstName} ${a.tenant.lastName}`;
+                return (
+                  <div key={a.id} className="alloc-row">
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{a.slot.slotNumber}</div>
+                      {a.slot.zone && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{a.slot.zone.name}</div>}
+                    </div>
+                    <div>
+                      <div>{tenantName}</div>
+                      {a.unit && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Unit {a.unit.unitNumber}</div>}
+                      {a.vehicle && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>🚗 {a.vehicle.plateNumber}</div>}
+                    </div>
+                    <div style={{ fontSize: 12 }}>
+                      {new Date(a.startDate).toLocaleDateString()}
+                      {a.endDate ? ` → ${new Date(a.endDate).toLocaleDateString()}` : ' → Ongoing'}
+                    </div>
+                    <div style={{ fontWeight: 600 }}>${Number(a.monthlyRate).toLocaleString()}</div>
+                    <div>
+                      <span className="slot-status-badge" style={{
+                        background: a.status === 'active' ? '#10b98118' : a.status === 'cancelled' ? '#ef444418' : '#6b728018',
+                        color: a.status === 'active' ? '#10b981' : a.status === 'cancelled' ? '#ef4444' : '#6b7280',
+                      }}>
+                        {a.status}
+                      </span>
+                    </div>
+                    <div className="alloc-row-actions">
+                      {a.status === 'active' && (
+                        <PermissionGuard permission="parking-allocations.write">
+                          <button className="row-btn-edit" onClick={() => setEditingAlloc(a)} title="Edit allocation">
+                            <Edit3 size={13} />
+                          </button>
+                          <button className="row-btn-delete" onClick={() => handleCancel(a.id, a.slot.slotNumber)} title="Cancel allocation">
+                            <Trash2 size={13} />
+                          </button>
+                        </PermissionGuard>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </TableScrollWrapper>
+
+        {meta && meta.total >= 10 && (
+          <div className="parking-pagination billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <span>Rows per page:</span>
+                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
               </div>
-            );
-          })
+            </div>
+            <div className="page-btns">
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} title="Previous Page">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="page-num-display">Page {page} of {meta.totalPages}</span>
+              <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)} title="Next Page">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
-
-      {meta && meta.totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span>Page {page} of {meta.totalPages}</span>
-          <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
-        </div>
-      )}
 
       {showCreate && <CreateAllocationModal properties={properties} activeProperty={selectedProperty} onClose={() => setShowCreate(false)} />}
       {editingAlloc && (
@@ -348,6 +373,7 @@ function CreateAllocationModal({ properties, activeProperty, onClose }: { proper
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 100 });
 
   const [form, setForm] = useState({ slotId: '', tenantId: '', startDate: '', endDate: '', monthlyRate: '' });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const handlePropertyChange = (id: string) => { setPropertyId(id); setParkingType(''); setZoneId(''); set('slotId', ''); };
@@ -371,6 +397,8 @@ function CreateAllocationModal({ properties, activeProperty, onClose }: { proper
   const tenants = tenantsData?.data || [];
 
   const handleSubmit = async () => {
+    setHasAttemptedSubmit(true);
+    if (!form.slotId || !form.tenantId || !form.startDate || !form.monthlyRate) return;
     try {
       await createAllocation({
         slotId: form.slotId,
@@ -441,27 +469,64 @@ function CreateAllocationModal({ properties, activeProperty, onClose }: { proper
           </div>
           <div className="form-group">
             <label>Available Slot *</label>
-            <select className="form-input" value={form.slotId} onChange={e => set('slotId', e.target.value)}>
+            <select
+              className={`form-input ${hasAttemptedSubmit && !form.slotId ? 'input-error' : ''}`}
+              value={form.slotId}
+              onChange={e => set('slotId', e.target.value)}
+            >
               <option value="">— Select slot —</option>
               {slots.map((s: any) => <option key={s.id} value={s.id}>{s.slotNumber} ({s.zone?.name || 'No zone'})</option>)}
             </select>
+            {hasAttemptedSubmit && !form.slotId && (
+              <span className="field-error-text">Available slot is required</span>
+            )}
           </div>
         </div>
         <div className="form-group">
           <label>Tenant *</label>
-          <select className="form-input" value={form.tenantId} onChange={e => set('tenantId', e.target.value)}>
+          <select
+            className={`form-input ${hasAttemptedSubmit && !form.tenantId ? 'input-error' : ''}`}
+            value={form.tenantId}
+            onChange={e => set('tenantId', e.target.value)}
+          >
             <option value="">— Select tenant —</option>
             {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType !== 'individual' ? t.companyName : `${t.firstName} ${t.lastName}`}</option>)}
           </select>
+          {hasAttemptedSubmit && !form.tenantId && (
+            <span className="field-error-text">Tenant is required</span>
+          )}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-          <div className="form-group"><label>Start Date *</label><input className="form-input" type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} /></div>
+          <div className="form-group">
+            <label>Start Date *</label>
+            <input
+              className={`form-input ${hasAttemptedSubmit && !form.startDate ? 'input-error' : ''}`}
+              type="date"
+              value={form.startDate}
+              onChange={e => set('startDate', e.target.value)}
+            />
+            {hasAttemptedSubmit && !form.startDate && (
+              <span className="field-error-text">Start date is required</span>
+            )}
+          </div>
           <div className="form-group"><label>End Date</label><input className="form-input" type="date" value={form.endDate} onChange={e => set('endDate', e.target.value)} /></div>
-          <div className="form-group"><label>Monthly Rate *</label><input className="form-input" type="number" value={form.monthlyRate} onChange={e => set('monthlyRate', e.target.value)} placeholder="100" /></div>
+          <div className="form-group">
+            <label>Monthly Rate *</label>
+            <input
+              className={`form-input ${hasAttemptedSubmit && !form.monthlyRate ? 'input-error' : ''}`}
+              type="number"
+              value={form.monthlyRate}
+              onChange={e => set('monthlyRate', e.target.value)}
+              placeholder="100"
+            />
+            {hasAttemptedSubmit && !form.monthlyRate && (
+              <span className="field-error-text">Monthly rate is required</span>
+            )}
+          </div>
         </div>
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={isLoading || !form.slotId || !form.tenantId || !form.startDate || !form.monthlyRate} onClick={handleSubmit}>
+          <button className="btn-primary" disabled={isLoading} onClick={handleSubmit}>
             {isLoading ? 'Creating…' : 'Create Allocation'}
           </button>
         </div>

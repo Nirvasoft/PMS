@@ -11,6 +11,7 @@ import {
   useRunCronJobNowMutation,
   useGetCronJobLogsQuery,
 } from '../../../store/api/integrationsApi';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './CronJobsPage.css';
 
 interface CronJobItem {
@@ -259,15 +260,17 @@ export default function CronJobsPage() {
   return (
     <div className="cron-page">
       {/* Page Header */}
-      <div className="cron-header">
-        <div>
-          <h1>
-            <Clock size={24} className="text-primary" />
-            Background Cron Jobs
-          </h1>
-          <p>
-            Monitor, reschedule, pause/resume, and manually trigger system background tasks in real time.
-          </p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Clock size={22} />
+          </div>
+          <div>
+            <h1>Background Cron Jobs</h1>
+            <p>
+              {totalJobs} total job{totalJobs !== 1 ? 's' : ''} · Monitor, reschedule, pause/resume, and manually trigger system background tasks
+            </p>
+          </div>
         </div>
         <button
           className="cron-btn"
@@ -408,6 +411,7 @@ export default function CronJobsPage() {
       {/* ── View 1: Table View ── */}
       {viewMode === 'table' ? (
         <div className="cron-table-container">
+          <TableScrollWrapper>
           <table className="cron-table">
             <thead>
               <tr>
@@ -415,7 +419,7 @@ export default function CronJobsPage() {
                 <th className="cron-col-schedule">Schedule</th>
                 <th className="cron-col-status">Status</th>
                 <th className="cron-col-lastrun">Last Execution</th>
-                <th className="cron-col-actions">Actions</th>
+                <th className="cron-col-actions"></th>
               </tr>
             </thead>
             <tbody>
@@ -556,6 +560,7 @@ export default function CronJobsPage() {
               )}
             </tbody>
           </table>
+          </TableScrollWrapper>
         </div>
       ) : (
         /* ── View 2: Modern Card Grid View ── */
@@ -989,6 +994,7 @@ function CronJobLogsModal({ job, onClose }: { job: CronJobItem; onClose: () => v
         </div>
 
         <div className="cron-modal-body" style={{ padding: 0 }}>
+          <TableScrollWrapper>
           <table className="cron-table">
             <thead>
               <tr>
@@ -1045,6 +1051,7 @@ function CronJobLogsModal({ job, onClose }: { job: CronJobItem; onClose: () => v
               )}
             </tbody>
           </table>
+          </TableScrollWrapper>
         </div>
 
         <div className="cron-modal-footer">

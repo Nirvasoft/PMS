@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   useGetInstanceQuery, useCancelInstanceMutation,
-  type WorkflowTask, type WorkflowInstance,
+  type WorkflowTask,
 } from '../../../store/api/workflowApi';
 import toast from 'react-hot-toast';
 import {

@@ -277,7 +277,6 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
   const { data: permsData } = useGetPermissionsQuery();
   const [assignRole] = useAssignUserRoleMutation();
   const [removeRole] = useRemoveUserRoleMutation();
-  const [addOverride] = useAddPermissionOverrideMutation();
   const [removeOverride] = useRemovePermissionOverrideMutation();
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [showOverrideModal, setShowOverrideModal] = useState(false);

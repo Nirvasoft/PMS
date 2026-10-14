@@ -104,6 +104,6 @@ blacklistRouter.put('/:id', asyncHandler(async (req, res) => {
 
 /** DELETE /visitors/blacklist/:id */
 blacklistRouter.delete('/:id', asyncHandler(async (req, res) => {
-  const data = await visitorsService.deleteBlacklistEntry(req.user!.companyId, p(req, 'id'));
+  await visitorsService.deleteBlacklistEntry(req.user!.companyId, p(req, 'id'));
   res.json({ success: true });
 }));

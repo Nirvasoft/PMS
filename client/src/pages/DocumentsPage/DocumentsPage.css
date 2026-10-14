@@ -12,10 +12,12 @@
 /* ─── Header ────────────────────────────────── */
 .documents-page .page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   padding: 24px 28px 16px;
   border-bottom: 1px solid var(--border-light, rgba(255,255,255,0.06));
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .documents-page .header-left {
@@ -24,24 +26,28 @@
   gap: 14px;
 }
 
+.documents-page .page-icon-lg,
 .documents-page .header-icon {
-  color: var(--accent, #6c5ce7);
-  background: rgba(108, 92, 231, 0.12);
-  padding: 10px;
+  color: var(--accent, #10b981);
+  background: rgba(16, 185, 129, 0.15);
   border-radius: 12px;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .documents-page h1 {
   font-size: 1.5rem;
-  font-weight: 700;
+  font-weight: 800;
   margin: 0;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 
 .documents-page .subtitle {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--text-muted, #8b95a5);
   margin: 2px 0 0;
 }
@@ -49,6 +55,19 @@
 .documents-page .header-actions {
   display: flex;
   gap: 10px;
+}
+
+.doc-input-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
+}
+
+.doc-error-text {
+  color: #ef4444;
+  font-size: 0.72rem;
+  font-weight: 500;
+  margin-top: 3px;
+  display: block;
 }
 
 /* ─── Tabs ───────────────────────────────────── */
@@ -1028,6 +1047,19 @@
 .btn-secondary:hover {
   background: rgba(255,255,255,0.08);
   border-color: rgba(255,255,255,0.15);
+}
+
+[data-theme="light"] .btn-secondary {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: var(--text-primary, #0f172a);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: var(--text-primary, #0f172a);
 }
 
 /* ─── Menu Divider ───────────────────────────── */

@@ -8,10 +8,11 @@ import {
 } from '../../../store/api/inventoryApi';
 import {
   ClipboardList, Loader2, Inbox, Send, CheckCircle2, XCircle,
-  ShoppingCart, AlertTriangle, Clock, Eye,
+  ShoppingCart, Clock, Eye, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
@@ -122,7 +123,7 @@ export default function PurchaseRequisitionsPage() {
                 </span>
               )}
             </div>
-            <p>Auto-generated and manual purchase requests for inventory items</p>
+            <p>{meta?.total ?? prs.length} total requisitions</p>
           </div>
         </div>
       </div>
@@ -168,8 +169,8 @@ export default function PurchaseRequisitionsPage() {
           </p>
         </div>
       ) : (
-        <>
-          <div className="maint-table-wrap">
+        <div className="maint-table-wrap">
+          <TableScrollWrapper>
             <table className="maint-table">
               <thead>
                 <tr>
@@ -180,7 +181,7 @@ export default function PurchaseRequisitionsPage() {
                   <th>Status</th>
                   <th>Requested By</th>
                   <th>Date</th>
-                  <th style={{ width: 140, textAlign: 'center' }}>Actions</th>
+                  <th style={{ width: 140, textAlign: 'center' }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -268,18 +269,43 @@ export default function PurchaseRequisitionsPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScrollWrapper>
 
-          {meta && meta.totalPages > 1 && (
+          {meta && meta.total >= 10 && (
             <div className="maint-pagination">
-              <span className="page-info">Page {meta.page} of {meta.totalPages} ({meta.total} requisitions)</span>
-              <div className="page-btns">
-                <button disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}>Previous</button>
-                <button disabled={filters.page >= meta.totalPages} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}>Next</button>
+              <div className="maint-pagination-left">
+                <span>Rows per page:</span>
+                <select
+                  value={filters.limit}
+                  onChange={(e) => setFilters(f => ({ ...f, limit: Number(e.target.value), page: 1 }))}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+              <div className="maint-pagination-right">
+                <button
+                  className="maint-page-btn"
+                  disabled={filters.page <= 1}
+                  onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="maint-page-info">
+                  Page {meta.page} of {meta.totalPages || 1}
+                </span>
+                <button
+                  className="maint-page-btn"
+                  disabled={filters.page >= (meta.totalPages || 1)}
+                  onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* PR Detail Modal */}

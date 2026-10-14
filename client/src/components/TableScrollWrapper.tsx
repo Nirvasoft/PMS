@@ -43,9 +43,9 @@ export const TableScrollWrapper: React.FC<TableScrollWrapperProps> = ({
     });
 
     ro.observe(el);
-    const tableEl = el.querySelector('table');
-    if (tableEl) {
-      ro.observe(tableEl);
+    const innerEl = el.querySelector('table') || el.firstElementChild;
+    if (innerEl) {
+      ro.observe(innerEl);
     }
 
     window.addEventListener('resize', checkOverflow);

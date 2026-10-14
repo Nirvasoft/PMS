@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Package, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   useGetAssetsQuery, useCreateAssetMutation, useRunDepreciationMutation,
 } from '../../../store/api/assetsApi';
-import type { FixedAsset } from '../../../store/api/assetsApi';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -16,10 +17,11 @@ const CATEGORIES = ['building', 'machinery', 'furniture', 'vehicle', 'it_equipme
 export default function AssetsListPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState('active');
   const [showCreate, setShowCreate] = useState(false);
-  const { data: result, isLoading } = useGetAssetsQuery({ page, limit: 20, category: category || undefined, status: status || undefined });
+  const { data: result, isLoading } = useGetAssetsQuery({ page, limit, category: category || undefined, status: status || undefined });
   const [runDep, { isLoading: depRunning }] = useRunDepreciationMutation();
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();
@@ -42,25 +44,37 @@ export default function AssetsListPage() {
 
   return (
     <div className="gl-page">
-      <h2>Fixed Assets</h2>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Package size={22} />
+          </div>
+          <div>
+            <h1>Fixed Assets</h1>
+            <p>{meta.total} total assets</p>
+          </div>
+        </div>
+        <PermissionGuard permission="finance-assets.write">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-sm" onClick={handleRunDepreciation} disabled={depRunning}>
+              {depRunning ? '⏳ Running…' : '⚙️ Run Depreciation'}
+            </button>
+            <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Asset</button>
+          </div>
+        </PermissionGuard>
+      </div>
+
       <div className="gl-toolbar">
-        <select value={category} onChange={e => setCategory(e.target.value)}>
+        <select value={category} onChange={e => { setCategory(e.target.value); setPage(1); }}>
           <option value="">All Categories</option>
           {CATEGORIES.map(c => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
         </select>
-        <select value={status} onChange={e => setStatus(e.target.value)}>
+        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
           <option value="">All Status</option>
           <option value="active">Active</option>
           <option value="disposed">Disposed</option>
           <option value="transferred">Transferred</option>
         </select>
-        <div style={{ flex: 1 }} />
-        <PermissionGuard permission="finance-assets.write">
-          <button className="btn-sm" onClick={handleRunDepreciation} disabled={depRunning}>
-            {depRunning ? '⏳ Running…' : '⚙️ Run Depreciation'}
-          </button>
-          <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Asset</button>
-        </PermissionGuard>
       </div>
 
       <div className="gl-stats">
@@ -80,41 +94,61 @@ export default function AssetsListPage() {
 
       {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
         <div className="gl-table-wrap">
-          <table className="gl-table">
-            <thead>
-              <tr>
-                <th>Asset #</th><th>Name</th><th>Category</th><th>Acquisition</th>
-                <th style={{textAlign:'right'}}>Cost</th><th style={{textAlign:'right'}}>Accum Dep</th>
-                <th style={{textAlign:'right'}}>NBV</th><th>Status</th><th>Location</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.map(a => (
-                <tr key={a.id} onClick={() => navigate(`/admin/assets/${a.id}`)} style={{cursor:'pointer'}}>
-                  <td style={{fontWeight:600}}>{a.assetNumber}</td>
-                  <td>{a.name}</td>
-                  <td><span className={`gl-type-chip ${a.category === 'building' ? 'asset' : a.category === 'machinery' ? 'liability' : a.category === 'vehicle' ? 'equity' : a.category === 'it_equipment' ? 'income' : 'expense'}`}>{a.category.replace(/_/g, ' ')}</span></td>
-                  <td>{fmtDate(a.acquisitionDate)}</td>
-                  <td className="amount">{fmtAmt(Number(a.acquisitionCost))}</td>
-                  <td className="amount negative">{fmtAmt(Number(a.accumulatedDepreciation))}</td>
-                  <td className="amount positive">{fmtAmt(a.netBookValue)}</td>
-                  <td><span className={`gl-badge ${a.status === 'active' ? 'open' : a.status === 'disposed' ? 'reversed' : 'closed'}`}>{a.status}</span></td>
-                  <td style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{a.currentLocation || '—'}</td>
+          <TableScrollWrapper>
+            <table className="gl-table">
+              <thead>
+                <tr>
+                  <th>Asset #</th><th>Name</th><th>Category</th><th>Acquisition</th>
+                  <th style={{textAlign:'right'}}>Cost</th><th style={{textAlign:'right'}}>Accum Dep</th>
+                  <th style={{textAlign:'right'}}>NBV</th><th>Status</th><th>Location</th>
                 </tr>
-              ))}
-              {assets.length === 0 && (
-                <tr><td colSpan={9} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>No assets found</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {assets.map(a => (
+                  <tr key={a.id} onClick={() => navigate(`/admin/assets/${a.id}`)} style={{cursor:'pointer'}}>
+                    <td style={{fontWeight:600}}>{a.assetNumber}</td>
+                    <td>{a.name}</td>
+                    <td><span className={`gl-type-chip ${a.category === 'building' ? 'asset' : a.category === 'machinery' ? 'liability' : a.category === 'vehicle' ? 'equity' : a.category === 'it_equipment' ? 'income' : 'expense'}`}>{a.category.replace(/_/g, ' ')}</span></td>
+                    <td>{fmtDate(a.acquisitionDate)}</td>
+                    <td className="amount">{fmtAmt(Number(a.acquisitionCost))}</td>
+                    <td className="amount negative">{fmtAmt(Number(a.accumulatedDepreciation))}</td>
+                    <td className="amount positive">{fmtAmt(a.netBookValue)}</td>
+                    <td><span className={`gl-badge ${a.status === 'active' ? 'open' : a.status === 'disposed' ? 'reversed' : 'closed'}`}>{a.status}</span></td>
+                    <td style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{a.currentLocation || '—'}</td>
+                  </tr>
+                ))}
+                {assets.length === 0 && (
+                  <tr><td colSpan={9} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>No assets found</td></tr>
+                )}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
 
-      {meta.totalPages > 1 && (
-        <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:16}}>
-          <button className="btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span style={{padding:'6px 12px',color:'var(--text-secondary)',fontSize:'0.85rem'}}>Page {meta.page} of {meta.totalPages}</span>
-          <button className="btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
+          {meta.total >= 10 && (
+            <div className="gl-pagination">
+              <div className="pagination-left">
+                <div className="page-size-selector">
+                  <span>Rows per page:</span>
+                  <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+              <div className="page-btns">
+                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} title="Previous Page">
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="page-num-display">
+                  Page {meta.page} of {Math.max(1, meta.totalPages)}
+                </span>
+                <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)} title="Next Page">
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -126,6 +160,7 @@ export default function AssetsListPage() {
 function CreateAssetModal({ onClose }: { onClose: () => void }) {
   const [createAsset, { isLoading }] = useCreateAssetMutation();
   const alertDialog = useAlertDialog();
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({
     name: '', category: 'machinery', acquisitionDate: new Date().toISOString().split('T')[0],
     acquisitionCost: 0, usefulLifeYears: 10, residualValue: 0,
@@ -135,6 +170,8 @@ function CreateAssetModal({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.name.trim() || !form.acquisitionDate || !form.acquisitionCost || form.usefulLifeYears < 1) return;
     try {
       await createAsset(form).unwrap();
       onClose();
@@ -147,11 +184,18 @@ function CreateAssetModal({ onClose }: { onClose: () => void }) {
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()}>
         <h3>Register New Asset</h3>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>Asset Name</label>
-              <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+              <label>Asset Name <span className="req">*</span></label>
+              <input
+                className={hasAttemptedSubmit && !form.name.trim() ? 'gl-input-error' : ''}
+                value={form.name}
+                onChange={e => setForm({...form, name: e.target.value})}
+              />
+              {hasAttemptedSubmit && !form.name.trim() && (
+                <span className="gl-error-text">Asset name is required</span>
+              )}
             </div>
             <div className="gl-form-group">
               <label>Category</label>
@@ -162,18 +206,46 @@ function CreateAssetModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>Acquisition Date</label>
-              <input type="date" value={form.acquisitionDate} onChange={e => setForm({...form, acquisitionDate: e.target.value})} required />
+              <label>Acquisition Date <span className="req">*</span></label>
+              <input
+                type="date"
+                className={hasAttemptedSubmit && !form.acquisitionDate ? 'gl-input-error' : ''}
+                value={form.acquisitionDate}
+                onChange={e => setForm({...form, acquisitionDate: e.target.value})}
+              />
+              {hasAttemptedSubmit && !form.acquisitionDate && (
+                <span className="gl-error-text">Acquisition date is required</span>
+              )}
             </div>
             <div className="gl-form-group">
-              <label>Acquisition Cost</label>
-              <input type="number" min="0" step="0.01" value={form.acquisitionCost || ''} onChange={e => setForm({...form, acquisitionCost: parseFloat(e.target.value) || 0})} required />
+              <label>Acquisition Cost <span className="req">*</span></label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className={hasAttemptedSubmit && !form.acquisitionCost ? 'gl-input-error' : ''}
+                value={form.acquisitionCost || ''}
+                onChange={e => setForm({...form, acquisitionCost: parseFloat(e.target.value) || 0})}
+              />
+              {hasAttemptedSubmit && !form.acquisitionCost && (
+                <span className="gl-error-text">Acquisition cost is required</span>
+              )}
             </div>
           </div>
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>Useful Life (Years)</label>
-              <input type="number" min="1" max="100" value={form.usefulLifeYears} onChange={e => setForm({...form, usefulLifeYears: parseInt(e.target.value) || 1})} required />
+              <label>Useful Life (Years) <span className="req">*</span></label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                className={hasAttemptedSubmit && form.usefulLifeYears < 1 ? 'gl-input-error' : ''}
+                value={form.usefulLifeYears}
+                onChange={e => setForm({...form, usefulLifeYears: parseInt(e.target.value) || 0})}
+              />
+              {hasAttemptedSubmit && form.usefulLifeYears < 1 && (
+                <span className="gl-error-text">Useful life must be at least 1 year</span>
+              )}
             </div>
             <div className="gl-form-group">
               <label>Residual Value</label>
@@ -207,7 +279,7 @@ function CreateAssetModal({ onClose }: { onClose: () => void }) {
             <div style={{fontSize:'0.8rem',color:'var(--text-secondary)'}}>Monthly Depreciation Preview</div>
             <div style={{fontSize:'1.1rem',fontWeight:700,color:'var(--text-primary)',fontVariantNumeric:'tabular-nums'}}>
               {form.depreciationMethod === 'straight_line'
-                ? fmtAmt((form.acquisitionCost - form.residualValue) / (form.usefulLifeYears * 12))
+                ? fmtAmt((form.acquisitionCost - form.residualValue) / (Math.max(1, form.usefulLifeYears) * 12))
                 : '(depends on rate)'
               } / month
             </div>

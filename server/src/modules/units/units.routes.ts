@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request } from 'express';
 import multer from 'multer';
 import { asyncHandler, propertyAccessGuard, getUserFloorScope } from '../../middleware';
 import { requirePermission } from '../auth/guards/roleGuard';

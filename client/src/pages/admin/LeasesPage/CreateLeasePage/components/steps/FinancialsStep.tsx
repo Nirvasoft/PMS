@@ -60,7 +60,6 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
     { refetchOnMountOrArgChange: true },
   );
   const currencyRates = currencyRatesData?.data ?? [];
-  const currencyCodes = [...new Set(currencyRates.map((r) => r.currency))].sort();
   const baseCurrencyCode = currencyRates.find((r) => r.isBaseCurrency)?.currency ?? '';
   const selectedCurrencyRate = currencyRates.find((r) => r.currency === form.currency);
   const rentAmountNum = Number(form.rentAmount || 0);

@@ -4,6 +4,7 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import { useGetGateLogsQuery } from '../../../store/api/parkingApi';
 import { Activity, ShieldCheck, ShieldAlert, LogIn, LogOut, ChevronLeft, ChevronRight, Car } from 'lucide-react';
 import '../BillingPage/BillingPage.css';
+import './ParkingPage.css';
 import { format } from 'date-fns';
 
 export default function GateAccessLogsPage() {
@@ -18,6 +19,7 @@ export default function GateAccessLogsPage() {
   const propertyId = propertyLocked ? activeProperty : manualPropertyId;
 
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Clears the manual pick back to "Select Property" if the sidebar leaves "All Properties".
   const prevPropertyLockedRef = useRef(propertyLocked);
@@ -30,7 +32,7 @@ export default function GateAccessLogsPage() {
   useEffect(() => { setPage(1); }, [propertyId]);
 
   const { data: logsData, isFetching } = useGetGateLogsQuery(
-    { propertyId, page, limit: 20 },
+    { propertyId, page, limit: pageSize },
     { skip: !propertyId, pollingInterval: 5000 }
   );
 
@@ -42,16 +44,18 @@ export default function GateAccessLogsPage() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <Activity size={22} />
           </div>
           <div>
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
               Gate Access Logs
               <span className="live-dot" />
               <span style={{ fontSize: 11, fontWeight: 600, color: '#34d399', textTransform: 'uppercase', letterSpacing: 1 }}>Live</span>
             </h1>
-            <p>Real-time RFID barrier access events</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {meta ? `${meta.total} total logs` : 'Real-time RFID barrier access events'}
+            </p>
           </div>
         </div>
         <div className="billing-filters" style={{ marginBottom: 0 }}>
@@ -178,17 +182,26 @@ export default function GateAccessLogsPage() {
           </table>
 
           {/* Pagination */}
-          {meta && meta.totalPages > 1 && (
-            <div className="billing-pagination">
-              <span className="page-info">
-                Page {meta.page} of {meta.totalPages} · {meta.total} events
-              </span>
+          {meta && meta.total >= 10 && (
+            <div className="parking-pagination billing-pagination">
+              <div className="pagination-left">
+                <div className="page-size-selector">
+                  <span>Rows per page:</span>
+                  <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
               <div className="page-btns">
-                <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>
-                  <ChevronLeft size={15} />
+                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} title="Previous Page">
+                  <ChevronLeft size={16} />
                 </button>
-                <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>
-                  <ChevronRight size={15} />
+                <span className="page-num-display">Page {page} of {meta.totalPages}</span>
+                <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)} title="Next Page">
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>

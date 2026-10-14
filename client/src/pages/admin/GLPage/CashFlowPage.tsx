@@ -1,5 +1,8 @@
 import { useState } from 'react';
+import { Activity } from 'lucide-react';
 import { useGetCashFlowQuery } from '../../../store/api/glApi';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
+import './GLPage.css';
 
 export default function CashFlowPage() {
   const year = new Date().getFullYear();
@@ -14,19 +17,25 @@ export default function CashFlowPage() {
     return formatted;
   };
 
-  const sign = (n: number) => n >= 0 ? 'positive' : 'negative';
-
   return (
     <div className="gl-page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h2 style={{ margin: 0 }}>💰 Cash Flow Statement</h2>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14 }} />
-          <span style={{ color: 'var(--text-secondary)' }}>to</span>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14 }} />
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Activity size={22} />
+          </div>
+          <div>
+            <h1>Cash Flow Statement</h1>
+            <p>Operating, investing & financing cash movements</p>
+          </div>
         </div>
+      </div>
+
+      <div className="gl-toolbar">
+        <label>From</label>
+        <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+        <label>To</label>
+        <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
       </div>
 
       {isLoading && <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-secondary)' }}>Loading cash flow statement...</div>}
@@ -76,16 +85,13 @@ export default function CashFlowPage() {
             { title: '🏗️ Investing Activities', section: cf.investing, color: '#f59e0b' },
             { title: '🏦 Financing Activities', section: cf.financing, color: '#8b5cf6' },
           ].map(({ title, section, color }) => (
-            <div key={title} style={{
-              background: 'var(--bg-secondary)', borderRadius: 12, marginBottom: 16,
-              border: '1px solid var(--border-color)', overflow: 'hidden',
-            }}>
+            <div key={title} className="gl-table-wrap" style={{ marginBottom: 16 }}>
               <div style={{
-                padding: '16px 24px', borderBottom: '1px solid var(--border-color)',
+                padding: '14px 16px', borderBottom: '1px solid var(--border-color)',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 background: `linear-gradient(135deg, ${color}11, transparent)`,
               }}>
-                <span style={{ fontWeight: 600, fontSize: 16 }}>{title}</span>
+                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{title}</span>
                 <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
                   <span style={{ color: '#10b981' }}>In: {fmt(section.cashIn)}</span>
                   <span style={{ color: '#ef4444' }}>Out: {fmt(section.cashOut)}</span>
@@ -100,28 +106,26 @@ export default function CashFlowPage() {
                   No cash movements in this category
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ textAlign: 'left', padding: '10px 24px', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Description</th>
-                      <th style={{ textAlign: 'right', padding: '10px 24px', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.items.map((item, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '10px 24px', fontSize: 14 }}>{item.description}</td>
-                        <td style={{
-                          padding: '10px 24px', textAlign: 'right', fontSize: 14, fontWeight: 600,
-                          fontFamily: 'monospace',
-                          color: item.amount >= 0 ? '#10b981' : '#ef4444',
-                        }}>
-                          {item.amount >= 0 ? '+' : ''}{fmt(item.amount)}
-                        </td>
+                <TableScrollWrapper>
+                  <table className="gl-table">
+                    <thead>
+                      <tr>
+                        <th>Description</th>
+                        <th style={{ textAlign: 'right' }}>Amount</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {section.items.map((item, i) => (
+                        <tr key={i}>
+                          <td>{item.description}</td>
+                          <td className={`amount ${item.amount >= 0 ? 'positive' : 'negative'}`} style={{ fontWeight: 600 }}>
+                            {item.amount >= 0 ? '+' : ''}{fmt(item.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScrollWrapper>
               )}
             </div>
           ))}

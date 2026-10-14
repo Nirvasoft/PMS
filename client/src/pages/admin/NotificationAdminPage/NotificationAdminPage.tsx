@@ -1,13 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   useGetNotificationLogsQuery, useRetryNotificationMutation,
   useGetNotificationTemplatesQuery,
   useCreateTemplateMutation, useUpdateTemplateMutation, useDeleteTemplateMutation,
   type NotificationLogItem, type NotificationTemplate,
 } from '../../../store/api/notificationsApi';
-import { FileText, RotateCw, Loader2, Mail, Bell, Smartphone, MessageSquare, Plus, Trash2, Save, X, Eye, Code } from 'lucide-react';
+import { FileText, RotateCw, Loader2, Mail, Bell, Smartphone, MessageSquare, Plus, Trash2, Save, X, Eye, Code, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import '../MaintenancePage/MaintenancePage.css';
 
 type Tab = 'logs' | 'templates';
 
@@ -15,10 +17,15 @@ export default function NotificationAdminPage() {
   const [tab, setTab] = useState<Tab>('logs');
 
   return (
-    <div className="page-content">
+    <div className="page-content maint-page">
       <div className="page-header">
-        <h1><Bell size={24} /> Notification Admin</h1>
-        <p className="text-muted">Monitor notification delivery and manage templates</p>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Bell size={22} /></div>
+          <div>
+            <h1>Notification Admin</h1>
+            <p>Monitor notification delivery and manage templates</p>
+          </div>
+        </div>
       </div>
 
       <div className="tabs">
@@ -40,7 +47,7 @@ export default function NotificationAdminPage() {
 
 /* ─── Logs Tab ─────────────────────────────── */
 
-const CHANNEL_ICONS: Record<string, JSX.Element> = {
+const CHANNEL_ICONS: Record<string, ReactNode> = {
   email: <Mail size={14} />, in_app: <Bell size={14} />,
   sms: <Smartphone size={14} />, push: <MessageSquare size={14} />,
 };
@@ -89,71 +96,77 @@ function LogsTab() {
           <p className="text-muted">No notification logs found.</p>
         </div>
       ) : (
-        <div className="audit-table-container">
-          <table className="audit-table">
-            <thead>
-              <tr>
-                <th>Recipient</th>
-                <th>Channel</th>
-                <th>Subject</th>
-                <th>Status</th>
-                <th>Sent At</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((log: NotificationLogItem) => (
-                <tr key={log.id}>
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: 13, fontWeight: 500 }}>
-                        {log.recipient?.profile ? `${log.recipient.profile.firstName} ${log.recipient.profile.lastName}` : 'Unknown'}
-                      </span>
-                      <span className="text-muted text-small">{log.recipient?.email || '—'}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {CHANNEL_ICONS[log.channel] || null}
-                      {log.channel}
-                    </span>
-                  </td>
-                  <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {log.subject || log.templateCode || '—'}
-                  </td>
-                  <td>
-                    <span className={`status-badge ${log.status === 'sent' ? 'active' : log.status === 'failed' ? 'danger' : 'pending'}`}>
-                      {log.status}
-                    </span>
-                    {log.errorMessage && (
-                      <div className="text-small" style={{ color: 'var(--danger)', marginTop: 2 }}>{log.errorMessage}</div>
-                    )}
-                  </td>
-                  <td className="text-small">{log.sentAt ? new Date(log.sentAt).toLocaleString() : new Date(log.createdAt).toLocaleString()}</td>
-                  <td>
-                    {log.status === 'failed' && (
-                      <PermissionGuard permission="notifications.send">
-                        <button className="btn btn-sm" title="Retry" onClick={async () => {
-                          try { await retryNotif(log.id).unwrap(); toast.success('Retrying...'); }
-                          catch { toast.error('Retry failed'); }
-                        }}>
-                          <RotateCw size={14} />
-                        </button>
-                      </PermissionGuard>
-                    )}
-                  </td>
+        <div className="maint-table-wrap">
+          <TableScrollWrapper>
+            <table className="maint-table">
+              <thead>
+                <tr>
+                  <th>Recipient</th>
+                  <th>Channel</th>
+                  <th>Subject</th>
+                  <th>Status</th>
+                  <th>Sent At</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {meta && meta.totalPages > 1 && (
-        <div className="pagination">
-          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
-          <span className="text-secondary">Page {meta.page} of {meta.totalPages}</span>
-          <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next →</button>
+              </thead>
+              <tbody>
+                {logs.map((log: NotificationLogItem) => (
+                  <tr key={log.id}>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: 13, fontWeight: 500 }}>
+                          {log.recipient?.profile ? `${log.recipient.profile.firstName} ${log.recipient.profile.lastName}` : 'Unknown'}
+                        </span>
+                        <span className="text-muted text-small">{log.recipient?.email || '—'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {CHANNEL_ICONS[log.channel] || null}
+                        {log.channel}
+                      </span>
+                    </td>
+                    <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {log.subject || log.templateCode || '—'}
+                    </td>
+                    <td>
+                      <span className={`status-badge ${log.status === 'sent' ? 'active' : log.status === 'failed' ? 'danger' : 'pending'}`}>
+                        {log.status}
+                      </span>
+                      {log.errorMessage && (
+                        <div className="text-small" style={{ color: 'var(--danger)', marginTop: 2 }}>{log.errorMessage}</div>
+                      )}
+                    </td>
+                    <td className="text-small">{log.sentAt ? new Date(log.sentAt).toLocaleString() : new Date(log.createdAt).toLocaleString()}</td>
+                    <td>
+                      {log.status === 'failed' && (
+                        <PermissionGuard permission="notifications.send">
+                          <button className="btn btn-sm" title="Retry" onClick={async () => {
+                            try { await retryNotif(log.id).unwrap(); toast.success('Retrying...'); }
+                            catch { toast.error('Retry failed'); }
+                          }}>
+                            <RotateCw size={14} />
+                          </button>
+                        </PermissionGuard>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
+          {meta && meta.total >= 10 && (
+            <div className="maint-pagination">
+              <div className="maint-pagination-left">
+                <span>Rows per page: 20</span>
+              </div>
+              <div className="maint-pagination-right">
+                <button disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={16} /></button>
+                <span className="maint-page-info">Page {meta.page} of {Math.max(1, meta.totalPages)}</span>
+                <button disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}><ChevronRight size={16} /></button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
@@ -179,6 +192,7 @@ function TemplatesTab() {
   const templates = data?.data || [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState<Partial<NotificationTemplate>>(EMPTY_TEMPLATE);
   const [previewMode, setPreviewMode] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -191,6 +205,7 @@ function TemplatesTab() {
     setSelectedId(null);
     setForm({ ...EMPTY_TEMPLATE });
     setEditing(true);
+    setSubmitted(false);
     setPreviewMode(false);
   };
 
@@ -204,17 +219,19 @@ function TemplatesTab() {
       isActive: t.isActive,
     });
     setEditing(true);
+    setSubmitted(false);
     setPreviewMode(false);
   };
 
   const cancelEdit = () => {
     setEditing(false);
+    setSubmitted(false);
     setForm(EMPTY_TEMPLATE);
   };
 
   const handleSave = async () => {
-    if (!form.code || !form.name || !form.bodyText) {
-      toast.error('Code, name, and body text are required');
+    setSubmitted(true);
+    if (!form.code?.trim() || !form.name?.trim() || !form.bodyText?.trim()) {
       return;
     }
     try {
@@ -226,6 +243,7 @@ function TemplatesTab() {
         toast.success('Template updated');
       }
       setEditing(false);
+      setSubmitted(false);
     } catch {
       toast.error('Save failed');
     }
@@ -366,14 +384,16 @@ function TemplatesTab() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label className="text-small text-muted">Code *</label>
-                    <input className="input-full" value={form.code || ''} placeholder="e.g. lease_approved"
+                    <input className={`input-full ${submitted && !form.code?.trim() ? 'maint-input-error' : ''}`} value={form.code || ''} placeholder="e.g. lease_approved"
                       disabled={!isNew}
                       onChange={e => setForm({ ...form, code: e.target.value })} />
+                    {submitted && !form.code?.trim() && <span className="maint-error-text">Code is required</span>}
                   </div>
                   <div>
                     <label className="text-small text-muted">Name *</label>
-                    <input className="input-full" value={form.name || ''} placeholder="e.g. Lease Approved"
+                    <input className={`input-full ${submitted && !form.name?.trim() ? 'maint-input-error' : ''}`} value={form.name || ''} placeholder="e.g. Lease Approved"
                       onChange={e => setForm({ ...form, name: e.target.value })} />
+                    {submitted && !form.name?.trim() && <span className="maint-error-text">Name is required</span>}
                   </div>
                 </div>
 
@@ -433,10 +453,11 @@ function TemplatesTab() {
                       </div>
                     )}
                   </div>
-                  <textarea className="input-full" rows={6} value={form.bodyText || ''}
+                  <textarea className={`input-full ${submitted && !form.bodyText?.trim() ? 'maint-input-error' : ''}`} rows={6} value={form.bodyText || ''}
                     placeholder="Dear {{tenantName}}, your lease for Unit {{unitCode}} has been approved."
                     style={{ fontFamily: 'monospace', fontSize: 13, resize: 'vertical' }}
                     onChange={e => setForm({ ...form, bodyText: e.target.value })} />
+                  {submitted && !form.bodyText?.trim() && <span className="maint-error-text">Body text is required</span>}
                 </div>
 
                 <div>

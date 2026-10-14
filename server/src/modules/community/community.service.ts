@@ -49,7 +49,7 @@ class CommunityService {
     return { data: formatted, meta: { total, page, limit } };
   }
 
-  async getAnnouncementById(companyId: string, userId: string, id: string) {
+  async getAnnouncementById(companyId: string, _userId: string, id: string) {
     const announcement = await prisma.announcement.findFirst({
       where: { id, companyId, status: 'published' },
       include: { creator: { select: { email: true } } },
@@ -184,7 +184,7 @@ class CommunityService {
     return { success: true };
   }
 
-  async getPollResults(companyId: string, userId: string, pollId: string) {
+  async getPollResults(companyId: string, _userId: string, pollId: string) {
     const poll = await prisma.poll.findFirst({
       where: { id: pollId, companyId },
       include: {
@@ -248,7 +248,7 @@ class CommunityService {
   // ══════════════════════════════════════════════
 
   async getPortalComplaints(companyId: string, userId: string) {
-    const resident = await this.getActiveResident(companyId, userId);
+    await this.getActiveResident(companyId, userId);
 
     return prisma.communityComplaint.findMany({
       where: {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useGetPortalKycQuery, useSubmitPortalKycDocumentMutation } from '../../store/api/portalApi';
 import {
   FileCheck, Upload, CheckCircle2, Clock, XCircle, AlertCircle,
@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const STATUS_CONFIG: Record<string, { icon: JSX.Element; label: string; className: string }> = {
+const STATUS_CONFIG: Record<string, { icon: ReactNode; label: string; className: string }> = {
   pending: { icon: <Clock size={14} />, label: 'Pending', className: 'status-pending' },
   approved: { icon: <CheckCircle2 size={14} />, label: 'Approved', className: 'status-active' },
   rejected: { icon: <XCircle size={14} />, label: 'Rejected', className: 'status-cancelled' },

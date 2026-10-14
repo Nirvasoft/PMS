@@ -9,6 +9,7 @@ import {
   Moon, Sun, Save, CheckCircle, Shield,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 // Group templates by category prefix (e.g. "invoice_" → "Invoices")
 function guessCategory(code: string): string {
@@ -109,10 +110,15 @@ export default function NotificationPreferencesPage() {
 
   return (
     <div className="page-content">
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1><Bell size={24} /> Notification Preferences</h1>
-          <p className="text-muted">Choose how and when you receive notifications for each category</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Bell size={22} />
+          </div>
+          <div>
+            <h1>Notification Preferences</h1>
+            <p>{prefs.length} total template{prefs.length !== 1 ? 's' : ''} · Choose how and when you receive notifications for each category</p>
+          </div>
         </div>
         <button
           className="btn btn-primary"
@@ -148,7 +154,7 @@ export default function NotificationPreferencesPage() {
 
       {/* Grouped Preferences */}
       {grouped.map(([category, items]) => (
-        <div key={category} className="info-card" style={{ marginBottom: 16, overflow: 'hidden' }}>
+        <div key={category} className="info-card" style={{ marginBottom: 16, overflow: 'hidden', padding: 0 }}>
           <div style={{
             padding: '12px 20px',
             borderBottom: '1px solid var(--border-color, rgba(128,128,128,0.1))',
@@ -166,51 +172,53 @@ export default function NotificationPreferencesPage() {
             </span>
           </div>
 
-          <div className="data-table-wrapper" style={{ margin: 0 }}>
-            <table className="data-table" style={{ marginBottom: 0 }}>
-              <thead>
-                <tr>
-                  <th style={{ width: '40%' }}>Notification</th>
-                  {CHANNEL_INFO.map(ch => (
-                    <th key={ch.key} style={{ textAlign: 'center', width: '15%' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                        {ch.icon} {ch.label}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map(p => (
-                  <tr key={p.templateCode}>
-                    <td>
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{p.name}</div>
-                      <div style={{ fontSize: '0.72rem', opacity: 0.4, fontFamily: 'monospace' }}>{p.templateCode}</div>
-                    </td>
-                    {CHANNEL_INFO.map(ch => {
-                      const supported = p.channels.includes(ch.channelKey);
-                      const enabled = p[ch.key] as boolean;
-                      return (
-                        <td key={ch.key} style={{ textAlign: 'center' }}>
-                          {supported ? (
-                            <label className="toggle-switch" title={`${enabled ? 'Disable' : 'Enable'} ${ch.label}`}>
-                              <input
-                                type="checkbox"
-                                checked={enabled}
-                                onChange={() => toggle(p.templateCode, ch.key)}
-                              />
-                              <span className="toggle-slider" />
-                            </label>
-                          ) : (
-                            <span style={{ fontSize: '0.75rem', opacity: 0.25 }}>—</span>
-                          )}
-                        </td>
-                      );
-                    })}
+          <div className="audit-table-container" style={{ margin: 0, border: 'none', borderRadius: 0 }}>
+            <TableScrollWrapper>
+              <table className="audit-table" style={{ marginBottom: 0 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '40%' }}>Notification</th>
+                    {CHANNEL_INFO.map(ch => (
+                      <th key={ch.key} style={{ textAlign: 'center', width: '15%' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                          {ch.icon} {ch.label}
+                        </div>
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {items.map(p => (
+                    <tr key={p.templateCode}>
+                      <td>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{p.name}</div>
+                        <div style={{ fontSize: '0.72rem', opacity: 0.4, fontFamily: 'monospace' }}>{p.templateCode}</div>
+                      </td>
+                      {CHANNEL_INFO.map(ch => {
+                        const supported = p.channels.includes(ch.channelKey);
+                        const enabled = p[ch.key] as boolean;
+                        return (
+                          <td key={ch.key} style={{ textAlign: 'center' }}>
+                            {supported ? (
+                              <label className="toggle-switch" title={`${enabled ? 'Disable' : 'Enable'} ${ch.label}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={enabled}
+                                  onChange={() => toggle(p.templateCode, ch.key)}
+                                />
+                                <span className="toggle-slider" />
+                              </label>
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', opacity: 0.25 }}>—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
           </div>
         </div>
       ))}

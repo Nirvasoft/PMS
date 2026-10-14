@@ -4,6 +4,8 @@ import {
   Activity, Users, Clock, FileText, Wifi, TrendingUp,
   Calendar,
 } from 'lucide-react';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import '../MaintenancePage/MaintenancePage.css';
 
 function formatDateInput(d: Date) {
   return d.toISOString().split('T')[0];
@@ -16,10 +18,15 @@ export default function PortalAnalyticsPage() {
   const { data, isLoading } = useGetPortalAnalyticsQuery({ startDate, endDate });
 
   return (
-    <div className="page-content">
+    <div className="page-content maint-page">
       <div className="page-header">
-        <h1><Activity size={24} /> Portal Session Analytics</h1>
-        <p className="text-muted">Track portal usage, engagement, and activity patterns</p>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Activity size={22} /></div>
+          <div>
+            <h1>Portal Session Analytics</h1>
+            <p>{data?.summary?.totalSessions ?? 0} total sessions</p>
+          </div>
+        </div>
       </div>
 
       {/* Date Range */}
@@ -68,35 +75,37 @@ export default function PortalAnalyticsPage() {
             {data.topUsers.length === 0 ? (
               <p className="text-muted" style={{ textAlign: 'center', padding: 20 }}>No sessions recorded yet</p>
             ) : (
-              <div className="data-table-wrapper">
-                <table className="data-table" id="top-users-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>User</th>
-                      <th>Email</th>
-                      <th>Sessions</th>
-                      <th>Pages Visited</th>
-                      <th>Engagement</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.topUsers.map((u, i) => (
-                      <tr key={u.userId}>
-                        <td style={{ fontWeight: 700, opacity: 0.4 }}>{i + 1}</td>
-                        <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
-                        <td className="text-muted">{u.email}</td>
-                        <td>
-                          <span className="status-badge status-active">{u.sessionCount}</span>
-                        </td>
-                        <td>{u.totalPages}</td>
-                        <td>
-                          <EngagementBar value={u.sessionCount} max={data.topUsers[0]?.sessionCount || 1} />
-                        </td>
+              <div className="maint-table-wrap">
+                <TableScrollWrapper>
+                  <table className="maint-table" id="top-users-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Sessions</th>
+                        <th>Pages Visited</th>
+                        <th>Engagement</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {data.topUsers.map((u, i) => (
+                        <tr key={u.userId}>
+                          <td style={{ fontWeight: 700, opacity: 0.4 }}>{i + 1}</td>
+                          <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
+                          <td className="text-muted">{u.email}</td>
+                          <td>
+                            <span className="status-badge status-active">{u.sessionCount}</span>
+                          </td>
+                          <td>{u.totalPages}</td>
+                          <td>
+                            <EngagementBar value={u.sessionCount} max={data.topUsers[0]?.sessionCount || 1} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScrollWrapper>
               </div>
             )}
           </div>

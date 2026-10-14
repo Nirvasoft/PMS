@@ -4,12 +4,13 @@ import {
   useGetApInvoiceQuery, useApproveApInvoiceMutation, useRejectApInvoiceMutation,
 } from '../../../store/api/apApi';
 import {
-  ArrowLeft, FileText, CheckCircle, XCircle, Clock, Building2,
-  User, Calendar, DollarSign, AlertTriangle, Link2,
+  ArrowLeft, FileText, CheckCircle, XCircle, Building2,
+  User, DollarSign, AlertTriangle, Link2, X,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './APPage.css';
 
 const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -23,6 +24,7 @@ export default function ApInvoiceDetailPage() {
 
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [hasAttemptedReject, setHasAttemptedReject] = useState(false);
 
   const inv = res?.data;
 
@@ -31,11 +33,16 @@ export default function ApInvoiceDetailPage() {
   };
 
   const handleReject = async () => {
-    if (!rejectReason) return;
+    setHasAttemptedReject(true);
+    if (!rejectReason.trim()) {
+      toast.error('Please enter a rejection reason');
+      return;
+    }
     try {
       await rejectApInvoice({ id: id!, reason: rejectReason }).unwrap();
       toast.success('AP Invoice rejected');
       setShowReject(false);
+      setHasAttemptedReject(false);
     } catch { toast.error('Rejection failed'); }
   };
 
@@ -51,14 +58,21 @@ export default function ApInvoiceDetailPage() {
     <div className="ap-page">
       {/* Header */}
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button className="ap-btn icon-only ghost" onClick={() => navigate('/admin/ap/invoices')}><ArrowLeft size={18} /></button>
-          <div>
-            <h1 style={{ marginBottom: '0.25rem' }}>{inv.apInvoiceNumber}</h1>
-            <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{inv.vendorName}</span>
+        <div className="page-title-row">
+          <button className="ap-btn icon-only ghost" onClick={() => navigate('/admin/ap/invoices')} title="Back to AP Invoices">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="page-icon-lg">
+            <FileText size={22} />
           </div>
-          <span className={`ap-status ${inv.status}`} style={{ marginLeft: '0.5rem', fontSize: '0.875rem' }}>{inv.status}</span>
-          {isOverdue && <span className="ap-status" style={{ background: '#fef2f2', color: '#b91c1c' }}>Overdue</span>}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h1>{inv.apInvoiceNumber}</h1>
+              <span className={`ap-status ${inv.status}`}>{inv.status}</span>
+              {isOverdue && <span className="ap-status" style={{ background: 'rgba(239, 68, 68, 0.14)', color: '#f87171' }}>Overdue</span>}
+            </div>
+            <p>{inv.vendorName}</p>
+          </div>
         </div>
         {inv.status === 'pending' && (
           <PermissionGuard permission="ap-invoices.write">
@@ -66,7 +80,7 @@ export default function ApInvoiceDetailPage() {
               <button className="ap-btn success" onClick={handleApprove} disabled={approving}>
                 <CheckCircle size={16} /> {approving ? 'Approving...' : 'Approve'}
               </button>
-              <button className="ap-btn danger" onClick={() => setShowReject(true)} disabled={rejecting}>
+              <button className="ap-btn danger" onClick={() => { setHasAttemptedReject(false); setRejectReason(''); setShowReject(true); }} disabled={rejecting}>
                 <XCircle size={16} /> Reject
               </button>
             </div>
@@ -119,42 +133,44 @@ export default function ApInvoiceDetailPage() {
       {/* Line Items */}
       <div className="ap-table-wrap" style={{ marginBottom: '1.5rem' }}>
         <div style={{ padding: '1rem 1rem 0.5rem', fontWeight: 700 }}>Line Items</div>
-        <table className="ap-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Description</th>
-              <th>Charge Type</th>
-              <th style={{ textAlign: 'right' }}>Qty</th>
-              <th style={{ textAlign: 'right' }}>Unit Price</th>
-              <th style={{ textAlign: 'right' }}>Amount</th>
-              <th style={{ textAlign: 'right' }}>Tax</th>
-              <th style={{ textAlign: 'right' }}>Line Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {inv.lines.map((line: any, idx: number) => (
-              <tr key={line.id}>
-                <td>{idx + 1}</td>
-                <td>{line.description}</td>
-                <td>{line.chargeType?.name || '—'}</td>
-                <td style={{ textAlign: 'right' }}>{Number(line.quantity)}</td>
-                <td style={{ textAlign: 'right' }}>{fmt(line.unitPrice)}</td>
-                <td style={{ textAlign: 'right' }}>{fmt(line.amount)}</td>
-                <td style={{ textAlign: 'right' }}>{fmt(line.taxAmount)}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(line.lineTotal)}</td>
+        <TableScrollWrapper>
+          <table className="ap-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Description</th>
+                <th>Charge Type</th>
+                <th style={{ textAlign: 'right' }}>Qty</th>
+                <th style={{ textAlign: 'right' }}>Unit Price</th>
+                <th style={{ textAlign: 'right' }}>Amount</th>
+                <th style={{ textAlign: 'right' }}>Tax</th>
+                <th style={{ textAlign: 'right' }}>Line Total</th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr style={{ fontWeight: 700 }}>
-              <td colSpan={5}></td>
-              <td style={{ textAlign: 'right' }}>{fmt(inv.subtotal)}</td>
-              <td style={{ textAlign: 'right' }}>{fmt(inv.taxAmount)}</td>
-              <td style={{ textAlign: 'right', fontSize: '1rem' }}>{fmt(inv.totalAmount)}</td>
-            </tr>
-          </tfoot>
-        </table>
+            </thead>
+            <tbody>
+              {inv.lines.map((line: any, idx: number) => (
+                <tr key={line.id}>
+                  <td>{idx + 1}</td>
+                  <td>{line.description}</td>
+                  <td>{line.chargeType?.name || '—'}</td>
+                  <td style={{ textAlign: 'right' }}>{Number(line.quantity)}</td>
+                  <td style={{ textAlign: 'right' }}>{fmt(line.unitPrice)}</td>
+                  <td style={{ textAlign: 'right' }}>{fmt(line.amount)}</td>
+                  <td style={{ textAlign: 'right' }}>{fmt(line.taxAmount)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(line.lineTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ fontWeight: 700 }}>
+                <td colSpan={5}></td>
+                <td style={{ textAlign: 'right' }}>{fmt(inv.subtotal)}</td>
+                <td style={{ textAlign: 'right' }}>{fmt(inv.taxAmount)}</td>
+                <td style={{ textAlign: 'right', fontSize: '1rem' }}>{fmt(inv.totalAmount)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </TableScrollWrapper>
       </div>
 
       {/* Linked Vouchers */}
@@ -163,43 +179,56 @@ export default function ApInvoiceDetailPage() {
           <div style={{ padding: '1rem 1rem 0.5rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Link2 size={16} /> Linked Payment Vouchers
           </div>
-          <table className="ap-table">
-            <thead>
-              <tr>
-                <th>Voucher No.</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Paid At</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inv.pvAllocations.map((alloc: any) => (
-                <tr key={alloc.id}>
-                  <td><strong>{alloc.voucher.voucherNumber}</strong></td>
-                  <td>{fmt(alloc.amount)}</td>
-                  <td><span className={`ap-status ${alloc.voucher.status}`}>{alloc.voucher.status}</span></td>
-                  <td>{alloc.voucher.paidAt ? format(new Date(alloc.voucher.paidAt), 'dd MMM yyyy HH:mm') : '—'}</td>
+          <TableScrollWrapper>
+            <table className="ap-table">
+              <thead>
+                <tr>
+                  <th>Voucher No.</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Paid At</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {inv.pvAllocations.map((alloc: any) => (
+                  <tr key={alloc.id}>
+                    <td><strong>{alloc.voucher.voucherNumber}</strong></td>
+                    <td>{fmt(alloc.amount)}</td>
+                    <td><span className={`ap-status ${alloc.voucher.status}`}>{alloc.voucher.status}</span></td>
+                    <td>{alloc.voucher.paidAt ? format(new Date(alloc.voucher.paidAt), 'dd MMM yyyy HH:mm') : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
         </div>
       )}
 
       {/* Reject modal */}
       {showReject && (
         <div className="ap-modal-overlay">
-          <div className="ap-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <div className="ap-modal-header"><h2><AlertTriangle size={18} /> Reject AP Invoice</h2><button className="ap-btn icon-only ghost" onClick={() => setShowReject(false)}><X size={18} /></button></div>
+          <div className="ap-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="ap-modal-header">
+              <h2><AlertTriangle size={18} /> Reject AP Invoice</h2>
+              <button className="ap-btn icon-only ghost" onClick={() => { setShowReject(false); setHasAttemptedReject(false); }}><X size={18} /></button>
+            </div>
             <div className="ap-modal-body">
               <div className="ap-form-group">
-                <label>Rejection Reason *</label>
-                <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Enter reason..." />
+                <label>Rejection Reason <span className="req">*</span></label>
+                <textarea
+                  className={hasAttemptedReject && !rejectReason.trim() ? 'ap-input-error' : ''}
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  placeholder="Enter reason..."
+                />
+                {hasAttemptedReject && !rejectReason.trim() && (
+                  <span className="ap-error-text">Rejection reason is required</span>
+                )}
               </div>
             </div>
             <div className="ap-modal-footer">
-              <button className="ap-btn ghost" onClick={() => setShowReject(false)}>Cancel</button>
-              <button className="ap-btn danger" disabled={!rejectReason || rejecting} onClick={handleReject}>Reject</button>
+              <button className="ap-btn ghost" onClick={() => { setShowReject(false); setHasAttemptedReject(false); }}>Cancel</button>
+              <button className="ap-btn danger" disabled={rejecting} onClick={handleReject}>Reject</button>
             </div>
           </div>
         </div>

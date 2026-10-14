@@ -9,10 +9,10 @@ import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   ClipboardList, Loader2, Inbox, Clock, Check, SkipForward,
-  CheckCircle2, XCircle, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
@@ -88,7 +88,7 @@ export default function PmWorkOrderListPage() {
           <div className="page-icon-lg"><ClipboardList size={22} /></div>
           <div>
             <h1>PM Work Orders</h1>
-            <p>All preventive maintenance work orders across schedules</p>
+            <p>{meta?.total ?? workOrders.length} total work orders</p>
           </div>
         </div>
       </div>
@@ -125,111 +125,140 @@ export default function PmWorkOrderListPage() {
       ) : (
         <>
           <div className="maint-table-wrap">
-            <table className="maint-table">
-              <thead>
-                <tr>
-                  <th>Schedule</th>
-                  <th>Property</th>
-                  <th>Due Date</th>
-                  <th>Status</th>
-                  <th>Completed</th>
-                  <th>Findings</th>
-                  <th style={{ width: 90, textAlign: 'center' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {workOrders.map((wo: any) => {
-                  const days = getDaysUntilDue(wo.dueDate);
-                  const isActionable = wo.status === 'scheduled' || wo.status === 'in_progress' || wo.status === 'overdue';
-                  return (
-                    <tr key={wo.id}>
-                      <td>
-                        <div>
-                          <span
-                            className="cell-primary" style={{ cursor: 'pointer', color: 'var(--primary)' }}
-                            onClick={() => wo.scheduleId && navigate(`/admin/maintenance/pm/${wo.scheduleId}`)}
-                          >
-                            {wo.schedule?.name || '—'}
+            <TableScrollWrapper>
+              <table className="maint-table">
+                <thead>
+                  <tr>
+                    <th>Schedule</th>
+                    <th>Property</th>
+                    <th>Due Date</th>
+                    <th>Status</th>
+                    <th>Completed</th>
+                    <th>Findings</th>
+                    <th style={{ width: 90, textAlign: 'center' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workOrders.map((wo: any) => {
+                    const days = getDaysUntilDue(wo.dueDate);
+                    const isActionable = wo.status === 'scheduled' || wo.status === 'in_progress' || wo.status === 'overdue';
+                    return (
+                      <tr key={wo.id}>
+                        <td>
+                          <div>
+                            <span
+                              className="cell-primary" style={{ cursor: 'pointer', color: 'var(--primary)' }}
+                              onClick={() => wo.scheduleId && navigate(`/admin/maintenance/pm/${wo.scheduleId}`)}
+                            >
+                              {wo.schedule?.name || '—'}
+                            </span>
+                            {wo.schedule?.category && (
+                              <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>
+                                {wo.schedule.category.name}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td><span className="cell-secondary">{wo.schedule?.property?.name || '—'}</span></td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span className="cell-mono">{new Date(wo.dueDate).toLocaleDateString()}</span>
+                            {isActionable && (
+                              <span className={`sla-chip ${days < 0 ? 'breached' : days <= 3 ? 'at_risk' : 'on_track'}`}>
+                                <Clock size={10} />
+                                {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`maint-status ${WO_STATUS_MAP[wo.status] || 'open'}`}>
+                            {wo.status}
                           </span>
-                          {wo.schedule?.category && (
+                        </td>
+                        <td>
+                          <span className="cell-secondary">
+                            {wo.completedAt ? new Date(wo.completedAt).toLocaleString() : '—'}
+                          </span>
+                          {wo.completedBy?.profile && (
                             <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>
-                              {wo.schedule.category.name}
+                              by {wo.completedBy.profile.firstName} {wo.completedBy.profile.lastName}
                             </span>
                           )}
-                        </div>
-                      </td>
-                      <td><span className="cell-secondary">{wo.schedule?.property?.name || '—'}</span></td>
-                      <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <span className="cell-mono">{new Date(wo.dueDate).toLocaleDateString()}</span>
-                          {isActionable && (
-                            <span className={`sla-chip ${days < 0 ? 'breached' : days <= 3 ? 'at_risk' : 'on_track'}`}>
-                              <Clock size={10} />
-                              {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`maint-status ${WO_STATUS_MAP[wo.status] || 'open'}`}>
-                          {wo.status}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="cell-secondary">
-                          {wo.completedAt ? new Date(wo.completedAt).toLocaleString() : '—'}
-                        </span>
-                        {wo.completedBy?.profile && (
-                          <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>
-                            by {wo.completedBy.profile.firstName} {wo.completedBy.profile.lastName}
+                        </td>
+                        <td>
+                          <span className="cell-secondary" style={{
+                            maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap', display: 'block',
+                          }}>
+                            {wo.findings || '—'}
                           </span>
-                        )}
-                      </td>
-                      <td>
-                        <span className="cell-secondary" style={{
-                          maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap', display: 'block',
-                        }}>
-                          {wo.findings || '—'}
-                        </span>
-                      </td>
-                      <td>
-                        {isActionable ? (
-                          <PermissionGuard permission="maintenance-pm.write">
-                            <div className="sla-row-actions">
-                              <button className="btn btn-ghost btn-sm" title="Quick Complete"
-                                style={{ color: '#22c55e' }}
-                                onClick={() => handleQuickComplete(wo.id)}
-                              >
-                                <Check size={14} />
-                              </button>
-                              <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Skip"
-                                onClick={() => handleQuickSkip(wo.id)}
-                              >
-                                <SkipForward size={14} />
-                              </button>
-                            </div>
-                          </PermissionGuard>
-                        ) : (
-                          <span className="cell-secondary" style={{ fontSize: 11 }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td>
+                          {isActionable ? (
+                            <PermissionGuard permission="maintenance-pm.write">
+                              <div className="sla-row-actions">
+                                <button className="btn btn-ghost btn-sm" title="Quick Complete"
+                                  style={{ color: '#22c55e' }}
+                                  onClick={() => handleQuickComplete(wo.id)}
+                                >
+                                  <Check size={14} />
+                                </button>
+                                <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Skip"
+                                  onClick={() => handleQuickSkip(wo.id)}
+                                >
+                                  <SkipForward size={14} />
+                                </button>
+                              </div>
+                            </PermissionGuard>
+                          ) : (
+                            <span className="cell-secondary" style={{ fontSize: 11 }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
 
-          {meta && meta.totalPages > 1 && (
-            <div className="maint-pagination">
-              <span className="page-info">Page {meta.page} of {meta.totalPages} ({meta.total} work orders)</span>
-              <div className="page-btns">
-                <button disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}>Previous</button>
-                <button disabled={filters.page >= meta.totalPages} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}>Next</button>
+            {meta && meta.total >= 10 && (
+              <div className="maint-pagination">
+                <div className="pagination-left">
+                  <div className="page-size-selector">
+                    <span>Rows per page:</span>
+                    <select
+                      value={filters.limit}
+                      onChange={(e) => setFilters(f => ({ ...f, limit: Number(e.target.value), page: 1 }))}
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="page-btns">
+                  <button
+                    disabled={filters.page <= 1}
+                    onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
+                    title="Previous Page"
+                  >
+                    &lt;
+                  </button>
+                  <span className="page-num-display">
+                    Page {meta.page} of {meta.totalPages || 1}
+                  </span>
+                  <button
+                    disabled={filters.page >= meta.totalPages}
+                    onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
+                    title="Next Page"
+                  >
+                    &gt;
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </>
       )}
     </div>

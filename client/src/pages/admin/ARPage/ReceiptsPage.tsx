@@ -5,12 +5,13 @@ import { useSelectedPropertyId, useSelectedPropertyFilter } from '../../../hooks
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
   Banknote, Plus, Search, ChevronLeft, ChevronRight,
-  DollarSign, CheckCircle, RotateCcw, Clock,
+  DollarSign, CheckCircle, RotateCcw,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import CreateReceiptModal from './CreateReceiptModal';
 import ReceiptDetailDrawer from './ReceiptDetailDrawer';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ARPage.css';
 
 const STATUS_OPTIONS = ['', 'pending', 'confirmed', 'reversed', 'refunded'];
@@ -19,6 +20,7 @@ const formatCurrency = (amount: string | number, currency = 'USD') =>
 
 export default function ReceiptsPage() {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -34,7 +36,7 @@ export default function ReceiptsPage() {
     status: status || undefined,
     propertyId: propertyFilter || undefined,
     page,
-    limit: 15,
+    limit: pageSize,
   });
   const receipts = data?.data || [];
   const meta = data?.meta;
@@ -92,17 +94,22 @@ export default function ReceiptsPage() {
       : `${r.tenant.firstName || ''} ${r.tenant.lastName || ''}`.trim();
   };
 
+  const totalCount = meta ? meta.total : filtered.length;
+  const totalPages = meta?.totalPages || 1;
+
   return (
     <div className="ar-page">
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <Banknote size={22} />
           </div>
           <div>
-            <h1>Payment Receipts</h1>
-            <p>Record and manage incoming payments</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Payment Receipts</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {meta ? `${meta.total} total receipts` : 'Loading…'}
+            </p>
           </div>
         </div>
         <PermissionGuard permission="ar-receipts.write">
@@ -161,73 +168,93 @@ export default function ReceiptsPage() {
 
       {/* Table */}
       <div className="ar-table-wrap">
-        <table className="ar-table">
-          <thead>
-            <tr>
-              <th style={{ width: 140 }}>Receipt #</th>
-              <th style={{ width: 170 }}>Tenant</th>
-              <th style={{ width: 110 }}>Date</th>
-              <th style={{ width: 130 }}>Method</th>
-              <th className="text-right" style={{ width: 120 }}>Amount</th>
-              <th style={{ width: 150 }}>Reference</th>
-              <th style={{ width: 110 }}>Status</th>
-              <th style={{ width: 60 }}>Inv.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
+        <TableScrollWrapper>
+          <table className="ar-table">
+            <thead>
               <tr>
-                <td colSpan={8}>
-                  <div className="ar-empty">
-                    {isFetching ? 'Loading receipts…' : 'No receipts found.'}
-                  </div>
-                </td>
+                <th style={{ width: 140 }}>Receipt #</th>
+                <th style={{ width: 170 }}>Tenant</th>
+                <th style={{ width: 110 }}>Date</th>
+                <th style={{ width: 130 }}>Method</th>
+                <th className="text-right" style={{ width: 120 }}>Amount</th>
+                <th style={{ width: 150 }}>Reference</th>
+                <th style={{ width: 110 }}>Status</th>
+                <th className="text-center" style={{ width: 60 }}>Inv.</th>
               </tr>
-            ) : (
-              filtered.map(r => (
-                <tr key={r.id} className="clickable" onClick={() => setSelectedId(r.id)}>
-                  <td><div className="cell-primary">{r.receiptNumber}</div></td>
-                  <td><div className="cell-primary">{getTenantName(r)}</div></td>
-                  <td>
-                    <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-                      {format(new Date(r.receiptDate), 'MMM d, yyyy')}
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8}>
+                    <div className="ar-empty">
+                      {isFetching ? 'Loading receipts…' : 'No receipts found.'}
                     </div>
                   </td>
-                  <td>
-                    <span className="pay-method">{r.paymentMethod.replace(/_/g, ' ')}</span>
-                  </td>
-                  <td className="text-right">
-                    <span className="cell-amount">{formatCurrency(r.amount, r.currency)}</span>
-                  </td>
-                  <td>
-                    {r.paymentReference ? (
-                      <span className="cell-mono">{r.paymentReference}</span>
-                    ) : (
-                      <span style={{ color: 'var(--text-tertiary)' }}>—</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`ar-status ar-status--${r.status}`}>{r.status}</span>
-                  </td>
-                  <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
-                    {r._count?.allocations || 0}
-                  </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                filtered.map(r => (
+                  <tr key={r.id} className="clickable" onClick={() => setSelectedId(r.id)}>
+                    <td><div className="cell-primary">{r.receiptNumber}</div></td>
+                    <td><div className="cell-primary">{getTenantName(r)}</div></td>
+                    <td>
+                      <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+                        {format(new Date(r.receiptDate), 'MMM d, yyyy')}
+                      </div>
+                    </td>
+                    <td>
+                      <span className="pay-method">{r.paymentMethod.replace(/_/g, ' ')}</span>
+                    </td>
+                    <td className="text-right">
+                      <span className="cell-amount">{formatCurrency(r.amount, r.currency)}</span>
+                    </td>
+                    <td>
+                      {r.paymentReference ? (
+                        <span className="cell-mono">{r.paymentReference}</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`ar-status ar-status--${r.status}`}>{r.status}</span>
+                    </td>
+                    <td className="text-center" style={{ color: 'var(--text-secondary)' }}>
+                      {r._count?.allocations || 0}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
 
-        {meta && meta.totalPages > 1 && (
+        {totalCount >= 10 && (
           <div className="ar-pagination">
-            <span className="page-info">
-              Page {meta.page} of {meta.totalPages} · {meta.total} receipts
-            </span>
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="rc-page-size">Rows per page:</label>
+                <select
+                  id="rc-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
             <div className="page-btns">
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} title="Previous page">
                 <ChevronLeft size={15} />
               </button>
-              <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>
+              <span className="page-num-display">
+                Page {page} of {Math.max(totalPages, 1)}
+              </span>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} title="Next page">
                 <ChevronRight size={15} />
               </button>
             </div>

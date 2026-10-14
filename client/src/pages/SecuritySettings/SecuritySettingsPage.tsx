@@ -7,10 +7,11 @@ import {
   useGetMeQuery,
 } from '../../store/api/authApi';
 import { useAppSelector } from '../../store';
-import { Shield, Smartphone, Monitor, Clock, Trash2, Lock, AlertTriangle, Loader2, CheckCircle, Key, Globe, ShieldCheck } from 'lucide-react';
+import { Shield, Smartphone, Monitor, Clock, Trash2, Lock, AlertTriangle, Loader2, CheckCircle, Key, Globe, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PasswordStrengthMeter from '../../components/PasswordStrengthMeter';
 import { useConfirm } from '../../components/DialogProvider';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 type TabId = 'password' | 'mfa' | 'devices' | 'audit' | 'ip-policy' | 'pw-policy';
 
@@ -24,8 +25,15 @@ export default function SecuritySettingsPage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <h1><Shield size={24} /> Security Settings</h1>
-        <p className="text-muted">Manage your account security, MFA, and policies</p>
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Shield size={22} />
+          </div>
+          <div>
+            <h1>Security Settings</h1>
+            <p>Manage your account security, MFA, and policies</p>
+          </div>
+        </div>
       </div>
 
       {mustChangePassword && (
@@ -74,14 +82,19 @@ function ChangePasswordSection() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword !== confirmPassword) { setError('Passwords do not match'); return; }
+    setSubmitted(true);
+    if (!currentPassword || !newPassword || newPassword.length < 8 || !confirmPassword || newPassword !== confirmPassword) {
+      return;
+    }
     try {
       await changePassword({ currentPassword, newPassword, confirmPassword }).unwrap();
       toast.success('Password changed! Please sign in again.');
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      setSubmitted(false);
       // Force re-login — backend has already cleared the refresh token cookie
       // and set mustChangePassword = false on the user record
       window.location.href = '/login';
@@ -95,19 +108,39 @@ function ChangePasswordSection() {
     <div className="settings-section">
       <h2>Change Password</h2>
       {error && <div className="alert alert-error"><AlertTriangle size={16} /> {error}</div>}
-      <form onSubmit={handleSubmit} className="settings-form">
+      <form onSubmit={handleSubmit} className="settings-form" noValidate>
         <div className="form-group">
-          <label>Current Password</label>
-          <input type="password" value={currentPassword} onChange={(e) => { setCurrentPassword(e.target.value); setError(''); }} required />
+          <label>Current Password *</label>
+          <input
+            type="password"
+            className={submitted && !currentPassword ? 'maint-input-error' : ''}
+            value={currentPassword}
+            onChange={(e) => { setCurrentPassword(e.target.value); setError(''); }}
+          />
+          {submitted && !currentPassword && <span className="maint-error-text">Current password is required</span>}
         </div>
         <div className="form-group">
-          <label>New Password</label>
-          <input type="password" value={newPassword} onChange={(e) => { setNewPassword(e.target.value); setError(''); }} required minLength={8} />
+          <label>New Password *</label>
+          <input
+            type="password"
+            className={submitted && (!newPassword || newPassword.length < 8) ? 'maint-input-error' : ''}
+            value={newPassword}
+            onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
+          />
+          {submitted && !newPassword && <span className="maint-error-text">New password is required</span>}
+          {submitted && newPassword && newPassword.length < 8 && <span className="maint-error-text">New password must be at least 8 characters</span>}
           <PasswordStrengthMeter password={newPassword} />
         </div>
         <div className="form-group">
-          <label>Confirm New Password</label>
-          <input type="password" value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }} required />
+          <label>Confirm New Password *</label>
+          <input
+            type="password"
+            className={submitted && (!confirmPassword || newPassword !== confirmPassword) ? 'maint-input-error' : ''}
+            value={confirmPassword}
+            onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
+          />
+          {submitted && !confirmPassword && <span className="maint-error-text">Please confirm your new password</span>}
+          {submitted && confirmPassword && newPassword !== confirmPassword && <span className="maint-error-text">Passwords do not match</span>}
         </div>
         <button type="submit" className="btn btn-primary" disabled={isLoading}>
           {isLoading ? <><Loader2 size={16} className="spin" /> Changing...</> : 'Change Password'}
@@ -163,12 +196,13 @@ function DevicesSection() {
 
 function AuditLogSection() {
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(15);
   const [eventType, setEventType] = useState('');
   const [status, setStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const params: Record<string, string> = { page: String(page), limit: '15' };
+  const params: Record<string, string> = { page: String(page), limit: String(limit) };
   if (eventType) params.eventType = eventType;
   if (status) params.status = status;
   if (dateFrom) params.from = new Date(dateFrom).toISOString();
@@ -177,6 +211,8 @@ function AuditLogSection() {
   const { data, isLoading, isFetching } = useGetAuditLogsQuery(params);
   const logs = data?.data || [];
   const meta = data?.meta || { total: 0, totalPages: 0, page: 1 };
+  const totalCount = meta.total ?? logs.length;
+  const totalPages = Math.max(1, meta.totalPages || Math.ceil(totalCount / limit));
 
   const hasFilters = eventType || status || dateFrom || dateTo;
   const clearFilters = () => {
@@ -250,7 +286,7 @@ function AuditLogSection() {
           )}
         </div>
         <div className="text-small text-muted" style={{ marginTop: 4 }}>
-          {isFetching ? 'Loading...' : `${meta.total ?? logs.length} event${(meta.total ?? logs.length) === 1 ? '' : 's'} found`}
+          {isFetching ? 'Loading...' : `${totalCount} event${totalCount === 1 ? '' : 's'} found`}
         </div>
       </div>
 
@@ -261,40 +297,59 @@ function AuditLogSection() {
       ) : (
         <>
           <div className="audit-table-container">
-            <table className="audit-table">
-              <thead>
-                <tr>
-                  <th>Event</th>
-                  <th>Status</th>
-                  <th>IP Address</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log: Record<string, unknown>) => (
-                  <tr key={log.id as string}>
-                    <td>
-                      <span className={`event-badge ${log.eventType as string}`}>
-                        {(log.eventType as string).replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td>
-                      {log.status === 'success'
-                        ? <span className="status-success"><CheckCircle size={14} /> Success</span>
-                        : <span className="status-failure"><AlertTriangle size={14} /> Failure</span>}
-                    </td>
-                    <td className="text-mono">{log.ipAddress as string || '—'}</td>
-                    <td>{new Date(log.createdAt as string).toLocaleString()}</td>
+            <TableScrollWrapper>
+              <table className="audit-table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Status</th>
+                    <th>IP Address</th>
+                    <th>Date</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {logs.map((log: Record<string, unknown>) => (
+                    <tr key={log.id as string}>
+                      <td>
+                        <span className={`event-badge ${log.eventType as string}`}>
+                          {(log.eventType as string).replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td>
+                        {log.status === 'success'
+                          ? <span className="status-success"><CheckCircle size={14} /> Success</span>
+                          : <span className="status-failure"><AlertTriangle size={14} /> Failure</span>}
+                      </td>
+                      <td className="text-mono">{log.ipAddress as string || '—'}</td>
+                      <td>{new Date(log.createdAt as string).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
           </div>
-          {meta.totalPages > 1 && (
-            <div className="pagination">
-              <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="btn btn-sm">Previous</button>
-              <span className="text-muted">Page {meta.page} of {meta.totalPages}</span>
-              <button disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)} className="btn btn-sm">Next</button>
+          {totalCount >= 10 && (
+            <div className="maint-pagination">
+              <div className="maint-page-size">
+                <span>Rows per page:</span>
+                <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}>
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+              <div className="maint-page-controls">
+                <button className="maint-page-btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="maint-page-info">
+                  Page {page} of {totalPages}
+                </span>
+                <button className="maint-page-btn" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
           )}
         </>
@@ -314,6 +369,8 @@ function MfaSetupSection() {
   const [setupData, setSetupData] = useState<{ secret: string; qrCodeDataUrl: string; backupCodes: string[] } | null>(null);
   const [code, setCode] = useState('');
   const [disableCode, setDisableCode] = useState('');
+  const [verifySubmitted, setVerifySubmitted] = useState(false);
+  const [disableSubmitted, setDisableSubmitted] = useState(false);
   const [verifyError, setVerifyError] = useState('');
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [copiedBackup, setCopiedBackup] = useState(false);
@@ -328,7 +385,8 @@ function MfaSetupSection() {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!setupData) return;
+    setVerifySubmitted(true);
+    if (!setupData || code.length < 6) return;
     setVerifyError('');
     try {
       await enableMfa({ secret: setupData.secret, code, backupCodes: setupData.backupCodes }).unwrap();
@@ -340,10 +398,13 @@ function MfaSetupSection() {
 
   const handleDisable = async (e: React.FormEvent) => {
     e.preventDefault();
+    setDisableSubmitted(true);
+    if (!disableCode.trim() || disableCode.trim().length < 6) return;
     try {
       await disableMfa({ code: disableCode }).unwrap();
       toast.success('MFA has been disabled.');
       setDisableCode('');
+      setDisableSubmitted(false);
     } catch { toast.error('Invalid code.'); }
   };
 
@@ -373,11 +434,24 @@ function MfaSetupSection() {
         <div className="info-card" style={{ borderLeft: '4px solid var(--success)', marginBottom: 16 }}>
           <p><CheckCircle size={16} style={{ color: 'var(--success)' }} /> <strong>MFA is enabled</strong> — your account is protected with TOTP-based two-factor authentication.</p>
         </div>
-        <form onSubmit={handleDisable} className="settings-form">
+        <form onSubmit={handleDisable} className="settings-form" noValidate>
           <p className="text-muted">To disable MFA, enter a current authenticator code:</p>
-          <div className="form-group" style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <input type="text" value={disableCode} onChange={(e) => setDisableCode(e.target.value)} placeholder="6-digit code" maxLength={6} required style={{ maxWidth: 180 }} />
-            <button type="submit" className="btn btn-danger" disabled={disabling}>{disabling ? 'Disabling...' : 'Disable MFA'}</button>
+          <div className="form-group">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="text"
+                className={disableSubmitted && disableCode.trim().length < 6 ? 'maint-input-error' : ''}
+                value={disableCode}
+                onChange={(e) => setDisableCode(e.target.value)}
+                placeholder="6-digit code"
+                maxLength={6}
+                style={{ maxWidth: 180 }}
+              />
+              <button type="submit" className="btn btn-danger" disabled={disabling}>{disabling ? 'Disabling...' : 'Disable MFA'}</button>
+            </div>
+            {disableSubmitted && disableCode.trim().length < 6 && (
+              <span className="maint-error-text">6-digit authenticator code is required</span>
+            )}
           </div>
         </form>
       </div>
@@ -459,7 +533,7 @@ function MfaSetupSection() {
           <p className="text-muted" style={{ marginBottom: 16 }}>
             Enter the 6-digit code shown in your authenticator app to verify the setup:
           </p>
-          <form onSubmit={handleVerify}>
+          <form onSubmit={handleVerify} noValidate>
             <div className="mfa-code-input-wrapper">
               <input
                 type="text"
@@ -471,10 +545,12 @@ function MfaSetupSection() {
                 }}
                 placeholder="000000"
                 maxLength={6}
-                required
                 autoFocus
-                className="mfa-code-input"
+                className={`mfa-code-input${verifySubmitted && code.length < 6 ? ' maint-input-error' : ''}`}
               />
+              {verifySubmitted && code.length < 6 && (
+                <span className="maint-error-text" style={{ display: 'block', marginTop: 6 }}>6-digit verification code is required</span>
+              )}
             </div>
             {verifyError && (
               <div className="alert alert-error" style={{ marginTop: 12 }}>
@@ -483,7 +559,7 @@ function MfaSetupSection() {
             )}
             <div className="mfa-wizard-actions">
               <button type="button" className="btn btn-outline" onClick={() => setWizardStep(1)}>← Back</button>
-              <button type="submit" className="btn btn-primary" disabled={enabling || code.length < 6}>
+              <button type="submit" className="btn btn-primary" disabled={enabling}>
                 {enabling ? <><Loader2 size={16} className="spin" /> Verifying...</> : 'Verify & Enable'}
               </button>
             </div>
@@ -546,13 +622,17 @@ function IpPolicySection() {
   const [deletePolicy] = useDeleteIpPolicyMutation();
   const policies = data?.data || [];
   const [form, setForm] = useState({ ipAddress: '', type: 'allow', description: '' });
+  const [ipSubmitted, setIpSubmitted] = useState(false);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIpSubmitted(true);
+    if (!form.ipAddress.trim()) return;
     try {
       await createPolicy(form).unwrap();
       toast.success('IP policy added');
       setForm({ ipAddress: '', type: 'allow', description: '' });
+      setIpSubmitted(false);
     } catch { toast.error('Failed to add policy'); }
   };
 
@@ -562,8 +642,16 @@ function IpPolicySection() {
     <div className="settings-section">
       <h2><Globe size={20} /> IP Access Policy</h2>
       <p className="text-muted" style={{ marginBottom: 16 }}>Control which IP addresses can access the system.</p>
-      <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-        <input className="input-full" style={{ maxWidth: 200 }} required value={form.ipAddress} onChange={(e) => setForm({ ...form, ipAddress: e.target.value })} placeholder="e.g. 192.168.1.0/24" />
+      <form onSubmit={handleAdd} noValidate style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 200, width: '100%' }}>
+          <input
+            className={`input-full${ipSubmitted && !form.ipAddress.trim() ? ' maint-input-error' : ''}`}
+            value={form.ipAddress}
+            onChange={(e) => setForm({ ...form, ipAddress: e.target.value })}
+            placeholder="e.g. 192.168.1.0/24 *"
+          />
+          {ipSubmitted && !form.ipAddress.trim() && <span className="maint-error-text">IP / CIDR is required</span>}
+        </div>
         <select className="input-full" style={{ maxWidth: 120 }} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
           <option value="allow">Allow</option>
           <option value="block">Block</option>
@@ -575,19 +663,21 @@ function IpPolicySection() {
         <p className="text-muted">No IP policies configured. All IPs are allowed.</p>
       ) : (
         <div className="audit-table-container">
-          <table className="audit-table">
-            <thead><tr><th>IP / CIDR</th><th>Type</th><th>Description</th><th>Actions</th></tr></thead>
-            <tbody>
-              {policies.map((p: Record<string, unknown>) => (
-                <tr key={p.id as string}>
-                  <td className="text-mono">{p.ipAddress as string}</td>
-                  <td><span className={`status-badge ${p.type === 'allow' ? 'active' : 'danger'}`}>{p.type as string}</span></td>
-                  <td>{p.description as string || '—'}</td>
-                  <td><button className="btn-icon btn-danger" onClick={async () => { await deletePolicy(p.id as string).unwrap(); toast.success('Removed'); }}><Trash2 size={14} /></button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TableScrollWrapper>
+            <table className="audit-table">
+              <thead><tr><th>IP / CIDR</th><th>Type</th><th>Description</th><th></th></tr></thead>
+              <tbody>
+                {policies.map((p: Record<string, unknown>) => (
+                  <tr key={p.id as string}>
+                    <td className="text-mono">{p.ipAddress as string}</td>
+                    <td><span className={`status-badge ${p.type === 'allow' ? 'active' : 'danger'}`}>{p.type as string}</span></td>
+                    <td>{p.description as string || '—'}</td>
+                    <td><button className="btn-icon btn-danger" onClick={async () => { await deletePolicy(p.id as string).unwrap(); toast.success('Removed'); }}><Trash2 size={14} /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
         </div>
       )}
     </div>

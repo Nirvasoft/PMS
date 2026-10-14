@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { GitBranch, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   useGetDepartmentTreeQuery, useCreateDepartmentMutation,
-  useUpdateDepartmentMutation, useDeleteDepartmentMutation,
+  useDeleteDepartmentMutation,
   useMoveDepartmentMutation,
 } from '../../../store/api/usersApi';
 import type { DepartmentNode } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { useConfirm } from '../../../components/DialogProvider';
 import toast from 'react-hot-toast';
+
+function countDepartments(nodes: DepartmentNode[]): number {
+  return nodes.reduce((sum, node) => sum + 1 + countDepartments(node.children), 0);
+}
 
 export default function DepartmentsPage() {
   const confirmDialog = useConfirm();
@@ -17,8 +22,19 @@ export default function DepartmentsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createParentId, setCreateParentId] = useState<string | undefined>();
   const [movingDept, setMovingDept] = useState<{ id: string; name: string } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const tree = data?.data ?? [];
+  const totalDepartments = countDepartments(tree);
+  const totalPages = Math.max(1, Math.ceil(tree.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const currentPage = Math.min(page, totalPages);
+  const pagedTree = tree.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleCreate = async (name: string, code: string, parentId?: string) => {
     try {
@@ -46,9 +62,29 @@ export default function DepartmentsPage() {
     <div className="page-content">
       <div className="page-header">
         <div className="page-header-row" style={{ alignItems: 'center' }}>
-          <div>
-            <h1>🏢 Departments</h1>
-            <p className="text-secondary">Organize your team with hierarchical departments</p>
+          <div className="page-title-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              className="page-icon-lg"
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 12,
+                background: 'rgba(16, 185, 129, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent)',
+                flexShrink: 0,
+              }}
+            >
+              <GitBranch size={22} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Departments</h1>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                {isLoading ? 'Loading…' : `${totalDepartments} total departments`}
+              </p>
+            </div>
           </div>
           <PermissionGuard permission="departments.create">
             <button className="btn btn-primary" onClick={() => { setCreateParentId(undefined); setShowCreate(true); }}>
@@ -65,18 +101,63 @@ export default function DepartmentsPage() {
           <p className="text-muted">No departments yet. Create your first department to get started.</p>
         </div>
       ) : (
-        <div className="dept-tree">
-          {tree.map((node) => (
-            <DeptTreeNode
-              key={node.id}
-              node={node}
-              depth={0}
-              onAddChild={(parentId) => { setCreateParentId(parentId); setShowCreate(true); }}
-              onDelete={handleDelete}
-              onMove={(id, name) => setMovingDept({ id, name })}
-            />
-          ))}
-        </div>
+        <>
+          <div className="dept-tree">
+            {pagedTree.map((node) => (
+              <DeptTreeNode
+                key={node.id}
+                node={node}
+                depth={0}
+                onAddChild={(parentId) => { setCreateParentId(parentId); setShowCreate(true); }}
+                onDelete={handleDelete}
+                onMove={(id, name) => setMovingDept({ id, name })}
+              />
+            ))}
+          </div>
+
+          {tree.length >= 10 && (
+            <div className="departments-pagination positions-pagination billing-pagination roles-grid-pagination">
+              <div className="pagination-left">
+                <div className="page-size-selector">
+                  <label htmlFor="dept-page-size">Rows per page:</label>
+                  <select
+                    id="dept-page-size"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="page-btns">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  title="Previous page"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <span className="page-num-display">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  title="Next page"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {showCreate && (
@@ -168,6 +249,17 @@ function CreateDeptModal({
 }) {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  const nameError = hasAttemptedSubmit && !name.trim() ? 'Department name is required' : '';
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setHasAttemptedSubmit(true);
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    onCreate(trimmedName, code, parentId);
+  };
 
   return (
     <div className="modal-overlay">
@@ -176,10 +268,16 @@ function CreateDeptModal({
           <h2>{parentId ? 'Add Sub-Department' : 'Create Department'}</h2>
           <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); onCreate(name, code, parentId); }} className="modal-body">
+        <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">
             <label>Department Name *</label>
-            <input className="input-full" required value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+            <input
+              className={`input-full${nameError ? ' input-error' : ''}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+            {nameError && <span className="field-error-text">{nameError}</span>}
           </div>
           <div className="form-group">
             <label>Code (e.g. FIN, OPS)</label>

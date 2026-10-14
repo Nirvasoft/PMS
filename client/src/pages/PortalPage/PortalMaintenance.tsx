@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import {
   useGetPortalMaintenanceTicketsQuery,
   useSubmitPortalMaintenanceMutation,
@@ -7,8 +7,7 @@ import {
 } from '../../store/api/portalApi';
 import toast from 'react-hot-toast';
 import {
-  Wrench, Plus, X, Send, Star, Clock, CheckCircle2,
-  AlertTriangle, ChevronRight, Camera,
+  Wrench, Plus, X, Send, Star, Clock,
 } from 'lucide-react';
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -33,9 +32,7 @@ function statusColor(status: string): string {
 
 export default function PortalMaintenance() {
   const location = useLocation();
-  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(!!(location.state as any)?.showForm);
-  const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [ratingTicket, setRatingTicket] = useState<string | null>(null);
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState('');

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Landmark } from 'lucide-react';
 import { useGetBankAccountsQuery, useCreateBankAccountMutation } from '../../../store/api/bankingApi';
-import type { BankAccount } from '../../../store/api/bankingApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
@@ -43,9 +43,15 @@ export default function BankAccountsPage() {
 
   return (
     <div className="gl-page">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h2 style={{ margin: 0 }}>Bank Accounts</h2>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Landmark size={22} />
+          </div>
+          <div>
+            <h1>Bank Accounts</h1>
+            <p>{accounts.length} total bank accounts</p>
+          </div>
           {activeProperty ? (
             <span className="gl-badge open" style={{ fontSize: '0.85rem', padding: '4px 10px', borderRadius: 8 }}>
               🏢 {activeProperty.name}
@@ -151,6 +157,7 @@ function CreateBankAccountModal({
   onClose: () => void;
 }) {
   const [createAccount, { isLoading }] = useCreateBankAccountMutation();
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({
     propertyId: initialPropertyId || '',
     bankName: '',
@@ -189,6 +196,8 @@ function CreateBankAccountModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.bankName.trim() || !form.accountName.trim() || !form.accountNumber.trim()) return;
     try {
       await createAccount({
         ...form,
@@ -204,7 +213,7 @@ function CreateBankAccountModal({
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()}>
         <h3>Add Bank Account</h3>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-row">
             <div className="gl-form-group" style={{ flex: 1 }}>
               <label>Property Scope</label>
@@ -230,34 +239,43 @@ function CreateBankAccountModal({
 
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>Bank Name</label>
+              <label>Bank Name <span className="req">*</span></label>
               <input
+                className={hasAttemptedSubmit && !form.bankName.trim() ? 'gl-input-error' : ''}
                 value={form.bankName}
                 onChange={e => setForm({...form, bankName: e.target.value})}
-                required
                 placeholder="e.g. KBZ Bank, AYA Bank, CB Bank"
               />
+              {hasAttemptedSubmit && !form.bankName.trim() && (
+                <span className="gl-error-text">Bank name is required</span>
+              )}
             </div>
             <div className="gl-form-group">
-              <label>Account Name</label>
+              <label>Account Name <span className="req">*</span></label>
               <input
+                className={hasAttemptedSubmit && !form.accountName.trim() ? 'gl-input-error' : ''}
                 value={form.accountName}
                 onChange={e => setForm({...form, accountName: e.target.value})}
-                required
                 placeholder="e.g. Collection & Operating"
               />
+              {hasAttemptedSubmit && !form.accountName.trim() && (
+                <span className="gl-error-text">Account name is required</span>
+              )}
             </div>
           </div>
 
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>Account Number</label>
+              <label>Account Number <span className="req">*</span></label>
               <input
+                className={hasAttemptedSubmit && !form.accountNumber.trim() ? 'gl-input-error' : ''}
                 value={form.accountNumber}
                 onChange={e => setForm({...form, accountNumber: e.target.value})}
-                required
                 placeholder="e.g. 086-101-0123456"
               />
+              {hasAttemptedSubmit && !form.accountNumber.trim() && (
+                <span className="gl-error-text">Account number is required</span>
+              )}
             </div>
             <div className="gl-form-group">
               <label>Currency</label>

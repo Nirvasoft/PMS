@@ -17,6 +17,7 @@ export interface LeaseListItem {
   currency: string;
   esignStatus: string;
   daysUntilExpiry: number;
+  paymentDueDays?: number | null;
   createdAt: string;
   unit:     { id: string; unitNumber: string; unitType: string; areaSqft?: number | null; floorNumber?: number | null; floorLabel?: string | null };
   property: { id: string; name: string; addressLine1?: string | null; addressLine2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null };

@@ -1,4 +1,4 @@
-import { prisma, setTenantContext } from '../../common/database';
+import { prisma } from '../../common/database';
 import { companiesService } from '../organization/services/companies.service';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
@@ -106,13 +106,7 @@ export class CompanyProvisioningService {
    * - First admin user with temporary password
    */
   async provision(dto: ProvisionDto): Promise<ProvisionResult> {
-    // Validate admin email doesn't already exist globally
-    const existingUser = await prisma.user.findFirst({
-      where: { email: dto.adminEmail.toLowerCase().trim() },
-    });
-    // Note: with RLS active, this only finds users if tenant context is set.
-    // Since we're called from an authenticated admin, their tenant context is set.
-    // We need to check across all companies, so we do a raw query.
+    // Validate admin email doesn't already exist globally across all companies
     const existingAcrossCompanies = await prisma.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) FROM users WHERE email = ${dto.adminEmail.toLowerCase().trim()} AND deleted_at IS NULL
     `;

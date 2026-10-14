@@ -60,7 +60,7 @@ export default function UtilitySystemsPage() {
           <div className="page-icon-lg"><Gauge size={22} /></div>
           <div>
             <h1>Utility Systems</h1>
-            <p>Building-level meters and utility systems</p>
+            <p>{systems.length} total systems</p>
           </div>
         </div>
         <div className="header-actions">
@@ -207,6 +207,7 @@ function UtilitySystemModal({ system, properties, onClose }: {
   const [createSystem, { isLoading: creating }] = useCreateUtilitySystemMutation();
   const [updateSystem, { isLoading: updating }] = useUpdateUtilitySystemMutation();
   const isLoading = creating || updating;
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const [form, setForm] = useState({
     propertyId: system?.propertyId || '',
@@ -229,6 +230,8 @@ function UtilitySystemModal({ system, properties, onClose }: {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.propertyId) return;
     const payload = {
       propertyId: form.propertyId,
       systemType: form.systemType,
@@ -264,7 +267,7 @@ function UtilitySystemModal({ system, properties, onClose }: {
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form noValidate onSubmit={handleSubmit}>
           {/* System Type Selector */}
           <div className="maint-field" style={{ marginBottom: '16px' }}>
             <label>System Type <span style={{ color: '#f87171' }}>*</span></label>
@@ -289,12 +292,18 @@ function UtilitySystemModal({ system, properties, onClose }: {
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Property <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.propertyId} disabled={isEdit}
+              <select
+                className={hasAttemptedSubmit && !form.propertyId ? 'maint-input-error' : ''}
+                value={form.propertyId}
+                disabled={isEdit}
                 onChange={(e) => setForm(f => ({ ...f, propertyId: e.target.value }))}
               >
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              {hasAttemptedSubmit && !form.propertyId && (
+                <span className="maint-error-text">Property is required</span>
+              )}
               {isEdit && <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '2px' }}>Property cannot be changed</span>}
             </div>
             <div className="maint-field">

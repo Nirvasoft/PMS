@@ -24,10 +24,13 @@ export default function CreateTenantPage() {
 
   const { data: sequences } = useGetSequencesQuery(
     activePropertyId ? { locationId: activePropertyId } : undefined,
-    { skip: !activePropertyId }
+    { refetchOnMountOrArgChange: true }
   );
   const tenantSeq = sequences?.find((s) => s.typeKey === 'tenant');
   const isTenantCodeAuto = tenantSeq?.mode === 'auto';
+  const autoCodePreview =
+    tenantSeq?.samplePreview ||
+    `${tenantSeq?.prefix1 || 'TNT'}-${String((tenantSeq?.currentVal ?? 0) + 1).padStart(tenantSeq?.padLength || 6, '0')}`;
 
   const [form, setForm] = useState({
     // individual
@@ -172,23 +175,15 @@ export default function CreateTenantPage() {
         {/* Individual fields */}
         {tenantType === 'individual' && (
           <div className="ct-section">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: 10 }}>
-              <h3 style={{ margin: 0, border: 'none', padding: 0 }}>Personal Information</h3>
-              {isTenantCodeAuto && (
-                <span className="tenant-code-auto-tag">
-                  Auto Code Enabled ({tenantSeq?.prefix1 || 'TNT'}-…)
-                </span>
-              )}
-            </div>
+            <h3>Personal Information</h3>
             <div className="form-grid">
-              {!isTenantCodeAuto && (
-                <Field
-                  label="Code *"
-                  value={form.firstName}
-                  onChange={(v) => set('firstName', v)}
-                  error={isCodeMissing ? 'Code is required' : undefined}
-                />
-              )}
+              <Field
+                label="Code *"
+                value={isTenantCodeAuto ? autoCodePreview : form.firstName}
+                onChange={(v) => set('firstName', v)}
+                disabled={isTenantCodeAuto}
+                error={isCodeMissing ? 'Code is required' : undefined}
+              />
               <Field
                 label="Name *"
                 value={form.lastName}
@@ -330,9 +325,9 @@ export default function CreateTenantPage() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', span, maxLength, error }: {
+function Field({ label, value, onChange, type = 'text', span, maxLength, error, disabled }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; span?: number; maxLength?: number; error?: string;
+  type?: string; span?: number; maxLength?: number; error?: string; disabled?: boolean;
 }) {
   return (
     <div className="form-field" style={{ gridColumn: span ? `span ${span}` : undefined }}>
@@ -342,6 +337,7 @@ function Field({ label, value, onChange, type = 'text', span, maxLength, error }
         value={value}
         onChange={(e) => onChange(e.target.value)}
         maxLength={maxLength}
+        disabled={disabled}
         className={error ? 'ct-input-error' : ''}
       />
       {error && <span className="ct-error-text">{error}</span>}

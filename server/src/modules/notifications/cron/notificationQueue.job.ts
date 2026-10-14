@@ -1,4 +1,3 @@
-import cron from 'node-cron';
 import { prisma } from '../../../common/database';
 import { logger } from '../../../common/logger';
 

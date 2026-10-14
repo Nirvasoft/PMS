@@ -5,7 +5,7 @@ import {
   type LeaseTemplate,
 } from '../../../store/api/leasesApi';
 import {
-  ArrowLeft, FileText, Plus, X, ChevronRight,
+  ArrowLeft, FileText, Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -18,6 +18,7 @@ export default function LeaseTemplatesPage() {
   const { data, isLoading } = useGetLeaseTemplatesQuery();
   const [create, { isLoading: creating }] = useCreateLeaseTemplateMutation();
   const [showForm, setShowForm] = useState(false);
+  const [attempted, setAttempted] = useState(false);
   const [form, setForm] = useState({
     name: '',
     propertyType: '',
@@ -35,7 +36,8 @@ export default function LeaseTemplatesPage() {
   const templates = data?.data || [];
 
   const handleCreate = async () => {
-    if (!form.name.trim()) { toast.error('Name is required'); return; }
+    setAttempted(true);
+    if (!form.name.trim()) { toast.error('Template name is required'); return; }
     try {
       await create({
         name: form.name,
@@ -50,6 +52,7 @@ export default function LeaseTemplatesPage() {
       }).unwrap();
       toast.success('Template created');
       setShowForm(false);
+      setAttempted(false);
       setForm({ name: '', propertyType: '', description: '', defaultTerms: { billingCycle: 'monthly', billingDay: 1, paymentDueDays: 7, escalationType: '', escalationValue: '', escalationFrequency: 'annual' } });
     } catch (e: any) {
       toast.error(e?.data?.errors?.[0]?.message || 'Failed');
@@ -67,7 +70,7 @@ export default function LeaseTemplatesPage() {
           <p className="lt-subtitle">Manage reusable lease templates with default terms. Templates can be selected when creating new leases.</p>
         </div>
         <PermissionGuard permission="leases.update">
-          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
+          <button className="btn-primary" onClick={() => { setShowForm(!showForm); setAttempted(false); }}>
             <Plus size={14} /> New Template
           </button>
         </PermissionGuard>
@@ -78,8 +81,16 @@ export default function LeaseTemplatesPage() {
           <h3>New Lease Template</h3>
           <div className="lt-form-grid">
             <div className="field" style={{ gridColumn: 'span 2' }}>
-              <label>Template Name *</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Standard Residential 12-Month" />
+              <label>Template Name <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                className={attempted && !form.name.trim() ? 'input-error' : ''}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Standard Residential 12-Month"
+              />
+              {attempted && !form.name.trim() && (
+                <span className="field-error-text">Template name is required</span>
+              )}
             </div>
             <div className="field">
               <label>Property Type</label>
@@ -120,7 +131,7 @@ export default function LeaseTemplatesPage() {
             <button className="btn-primary" onClick={handleCreate} disabled={creating}>
               {creating ? 'Creating…' : 'Create Template'}
             </button>
-            <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn-ghost" onClick={() => { setShowForm(false); setAttempted(false); }}>Cancel</button>
           </div>
         </div>
       )}
@@ -147,9 +158,9 @@ export default function LeaseTemplatesPage() {
               </div>
               {t.description && <p className="lt-card-desc">{t.description}</p>}
               <div className="lt-card-terms">
-                {terms.billingCycle && <span>Billing: {String(terms.billingCycle).replace(/_/g, ' ')}</span>}
-                {terms.paymentDueDays && <span>Due: {String(terms.paymentDueDays)}d</span>}
-                {terms.escalationType && <span>Escalation: {String(terms.escalationType).replace(/_/g, ' ')}</span>}
+                {Boolean(terms.billingCycle) && <span>Billing: {String(terms.billingCycle).replace(/_/g, ' ')}</span>}
+                {Boolean(terms.paymentDueDays) && <span>Due: {String(terms.paymentDueDays)}d</span>}
+                {Boolean(terms.escalationType) && <span>Escalation: {String(terms.escalationType).replace(/_/g, ' ')}</span>}
               </div>
               <div className="lt-card-footer">
                 <span className="lt-date">Created {new Date(t.createdAt).toLocaleDateString()}</span>

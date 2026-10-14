@@ -1,3 +1,4 @@
+import '../MaintenancePage/MaintenancePage.css';
 import { useState, useEffect } from 'react';
 import {
   useGetAdminBookingsQuery, useApproveBookingMutation, useRejectBookingMutation,
@@ -5,8 +6,8 @@ import {
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  CalendarDays, CheckCircle, XCircle, Clock, Search,
-  ChevronLeft, ChevronRight, User, Building2, Filter,
+  CalendarDays, CheckCircle, XCircle, Clock,
+  ChevronLeft, ChevronRight, User, Building2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -34,6 +35,7 @@ export default function FacilitySchedulePage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectAttempted, setRejectAttempted] = useState(false);
 
   // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
@@ -87,11 +89,14 @@ export default function FacilitySchedulePage() {
 
   const handleReject = async () => {
     if (!rejectId) return;
+    setRejectAttempted(true);
+    if (!rejectReason.trim()) return;
     try {
-      await rejectBooking({ id: rejectId, reason: rejectReason || 'Rejected by admin' }).unwrap();
+      await rejectBooking({ id: rejectId, reason: rejectReason }).unwrap();
       toast.success('Booking rejected');
       setRejectId(null);
       setRejectReason('');
+      setRejectAttempted(false);
     } catch { toast.error('Failed to reject'); }
   };
 
@@ -107,10 +112,15 @@ export default function FacilitySchedulePage() {
   };
 
   return (
-    <div className="page-content">
+    <div className="maint-page">
       <div className="page-header">
-        <h1><CalendarDays size={24} /> Facility Bookings Schedule</h1>
-        <p className="text-muted">View and manage facility bookings across all properties</p>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><CalendarDays size={22} /></div>
+          <div>
+            <h1>Facility Bookings Schedule</h1>
+            <p>{meta?.total ?? items.length} total bookings</p>
+          </div>
+        </div>
       </div>
 
       {/* Week Navigation + Filters */}
@@ -154,17 +164,21 @@ export default function FacilitySchedulePage() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
             <h3>Reject Booking</h3>
             <div className="form-group">
-              <label>Reason</label>
+              <label>Reason <span style={{ color: '#f87171' }}>*</span></label>
               <textarea
+                className={rejectAttempted && !rejectReason.trim() ? 'maint-input-error' : ''}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 rows={3}
                 placeholder="Reason for rejection..."
                 style={{ width: '100%' }}
               />
+              {rejectAttempted && !rejectReason.trim() && (
+                <span className="maint-error-text">Reason is required</span>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-              <button className="btn" onClick={() => setRejectId(null)}>Cancel</button>
+              <button className="btn" onClick={() => { setRejectId(null); setRejectAttempted(false); }}>Cancel</button>
               <button className="btn btn-danger" onClick={handleReject}>Reject</button>
             </div>
           </div>
@@ -232,7 +246,7 @@ export default function FacilitySchedulePage() {
                                 </button>
                                 <button
                                   className="btn-icon"
-                                  onClick={() => setRejectId(b.id)}
+                                  onClick={() => { setRejectId(b.id); setRejectAttempted(false); }}
                                   title="Reject"
                                   style={{ color: 'var(--danger, #ef4444)' }}
                                 >
@@ -253,13 +267,20 @@ export default function FacilitySchedulePage() {
       )}
 
       {/* Pagination */}
-      {meta && meta.total > meta.limit && (
-        <div className="pagination" style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</button>
-          <span className="text-muted" style={{ padding: '6px 12px' }}>
-            Page {meta.page} of {Math.ceil(meta.total / meta.limit)}
-          </span>
-          <button className="btn btn-sm" disabled={page >= Math.ceil(meta.total / meta.limit)} onClick={() => setPage(p => p + 1)}>Next</button>
+      {meta && meta.total >= 10 && (
+        <div className="maint-pagination" style={{ marginTop: 16 }}>
+          <div className="maint-pagination-left" />
+          <div className="maint-pagination-right">
+            <button className="maint-page-btn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <ChevronLeft size={16} />
+            </button>
+            <span className="maint-page-info">
+              Page {meta.page} of {Math.ceil(meta.total / meta.limit) || 1}
+            </span>
+            <button className="maint-page-btn" disabled={page >= Math.ceil(meta.total / meta.limit)} onClick={() => setPage(p => p + 1)}>
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       )}
     </div>

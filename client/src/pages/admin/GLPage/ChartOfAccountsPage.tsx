@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BookOpen } from 'lucide-react';
 import { useGetGlAccountsQuery, useCreateGlAccountMutation, useUpdateGlAccountMutation, useSeedCOAMutation } from '../../../store/api/glApi';
 import type { GlAccount } from '../../../store/api/glApi';
 import { useAlertDialog } from '../../../components/DialogProvider';
@@ -48,7 +49,24 @@ export default function ChartOfAccountsPage() {
 
   return (
     <div className="gl-page">
-      <h2>Chart of Accounts</h2>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <BookOpen size={22} />
+          </div>
+          <div>
+            <h1>Chart of Accounts</h1>
+            <p>{accounts.length} total accounts</p>
+          </div>
+        </div>
+        <PermissionGuard permission="finance-coa.write">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-sm" onClick={() => seedCOA()} title="Seed default accounts">🌱 Seed COA</button>
+            <button className="btn-primary" onClick={handleNew}>+ Add Account</button>
+          </div>
+        </PermissionGuard>
+      </div>
+
       <div className="gl-toolbar">
         <select value={filterType} onChange={e => setFilterType(e.target.value)}>
           <option value="">All Types</option>
@@ -58,11 +76,6 @@ export default function ChartOfAccountsPage() {
           <option value="income">Income</option>
           <option value="expense">Expense</option>
         </select>
-        <div style={{ flex: 1 }} />
-        <PermissionGuard permission="finance-coa.write">
-          <button className="btn-primary" onClick={handleNew}>+ Add Account</button>
-          <button className="btn-sm" onClick={() => seedCOA()} title="Seed default accounts">🌱 Seed COA</button>
-        </PermissionGuard>
       </div>
 
       {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
@@ -90,6 +103,7 @@ export default function ChartOfAccountsPage() {
 function AccountModal({ account, accounts, onClose, onCreate, onUpdate }: any) {
   const isEdit = !!account;
   const alertDialog = useAlertDialog();
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({
     code: account?.code || '',
     name: account?.name || '',
@@ -104,6 +118,8 @@ function AccountModal({ account, accounts, onClose, onCreate, onUpdate }: any) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if ((!isEdit && !form.code.trim()) || !form.name.trim()) return;
     try {
       if (isEdit) {
         await onUpdate({ id: account.id, data: { name: form.name, accountSubtype: form.accountSubtype || null, description: form.description || null, isActive: form.isActive } }).unwrap();
@@ -120,15 +136,30 @@ function AccountModal({ account, accounts, onClose, onCreate, onUpdate }: any) {
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()}>
         <h3>{isEdit ? 'Edit Account' : 'New Account'}</h3>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>Account Code</label>
-              <input value={form.code} onChange={e => setForm({...form, code: e.target.value})} required disabled={isEdit} />
+              <label>Account Code <span className="req">*</span></label>
+              <input
+                className={hasAttemptedSubmit && !isEdit && !form.code.trim() ? 'gl-input-error' : ''}
+                value={form.code}
+                onChange={e => setForm({...form, code: e.target.value})}
+                disabled={isEdit}
+              />
+              {hasAttemptedSubmit && !isEdit && !form.code.trim() && (
+                <span className="gl-error-text">Account code is required</span>
+              )}
             </div>
             <div className="gl-form-group">
-              <label>Account Name</label>
-              <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+              <label>Account Name <span className="req">*</span></label>
+              <input
+                className={hasAttemptedSubmit && !form.name.trim() ? 'gl-input-error' : ''}
+                value={form.name}
+                onChange={e => setForm({...form, name: e.target.value})}
+              />
+              {hasAttemptedSubmit && !form.name.trim() && (
+                <span className="gl-error-text">Account name is required</span>
+              )}
             </div>
           </div>
           <div className="gl-form-row">

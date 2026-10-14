@@ -17,7 +17,7 @@ import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   ArrowLeft, User, Building2, Shield, ShieldOff, Phone, Mail,
   Plus, Trash2, Pin, PinOff, CheckCircle, XCircle, Clock,
-  AlertCircle, FileText, Users2, Edit2, X, ChevronRight, Save,
+  AlertCircle, FileText, Edit2, X, Save,
   FolderOpen, Upload, Download, Camera, Pencil, CalendarClock,
 } from 'lucide-react';
 import { useGetDocumentsQuery, useUploadDocumentMutation, useDeleteDocumentMutation, type DocumentItem } from '../../../store/api/documentsApi';
@@ -38,7 +38,7 @@ export default function TenantDetailPage() {
   const [tab, setTab] = useState<Tab>('profile');
 
   const { data, isLoading } = useGetTenantQuery(id!);
-  const [uploadAvatar, { isLoading: uploadingAvatar }] = useUploadAvatarMutation();
+  const [uploadAvatar] = useUploadAvatarMutation();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const canEditAvatar = usePermission('tenants.update');
 
@@ -1159,7 +1159,7 @@ function NotesTab({ tenantId }: { tenantId: string }) {
   );
 }
 
-function NoteCard({ note, tenantId, onTogglePin, onDelete }: {
+function NoteCard({ note, tenantId: _tenantId, onTogglePin, onDelete }: {
   note: TenantNote; tenantId: string; onTogglePin: () => void; onDelete: () => void;
 }) {
   return (

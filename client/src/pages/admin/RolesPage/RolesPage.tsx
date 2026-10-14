@@ -1,14 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List, LayoutGrid, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
+import { List, LayoutGrid, ChevronLeft, ChevronRight, Pencil, Trash2, Search, Key } from 'lucide-react';
 import {
   useGetRolesQuery, useCreateRoleMutation, useUpdateRoleMutation, useDeleteRoleMutation, type RoleItem,
 } from '../../../store/api/usersApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { useConfirm } from '../../../components/DialogProvider';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import toast from 'react-hot-toast';
-
-const ROLES_PAGE_SIZE = 10;
 
 export default function RolesPage() {
   const navigate = useNavigate();
@@ -20,7 +19,9 @@ export default function RolesPage() {
   const [view, setView] = useState<'list' | 'grid'>(
     () => (localStorage.getItem('roles-view') as 'list' | 'grid') || 'grid'
   );
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const changeView = (next: 'list' | 'grid') => {
     setView(next);
@@ -33,9 +34,28 @@ export default function RolesPage() {
     return a.name.localeCompare(b.name);
   });
 
-  const totalPages = Math.max(1, Math.ceil(roles.length / ROLES_PAGE_SIZE));
+  const filteredRoles = roles.filter((r) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase().trim();
+    return (
+      r.name.toLowerCase().includes(q) ||
+      (r.description || '').toLowerCase().includes(q) ||
+      (r.isSystem && 'system'.includes(q))
+    );
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredRoles.length / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   const currentPage = Math.min(page, totalPages);
-  const pagedRoles = roles.slice((currentPage - 1) * ROLES_PAGE_SIZE, currentPage * ROLES_PAGE_SIZE);
+  const pagedRoles = filteredRoles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleDelete = async (id: string, name: string) => {
     if (!(await confirmDialog(`Delete role "${name}"?`, { danger: true, confirmText: 'Delete' }))) return;
@@ -48,148 +68,234 @@ export default function RolesPage() {
     }
   };
 
+  const renderPagination = (extraClass = '') => {
+    if (filteredRoles.length < 10) return null;
+    return (
+      <div className={`roles-pagination positions-pagination billing-pagination ${extraClass}`.trim()}>
+        <div className="pagination-left">
+          <div className="page-size-selector">
+            <label htmlFor="roles-page-size">Rows per page:</label>
+            <select
+              id="roles-page-size"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="page-btns">
+          <button
+            disabled={currentPage === 1}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            title="Previous page"
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <span className="page-num-display">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            title="Next page"
+          >
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="page-content">
       <div className="page-header">
         <div className="page-header-row" style={{ alignItems: 'center' }}>
-          <div>
-            <h1>🔑 Roles & Permissions</h1>
-            <p className="text-secondary">Define roles and assign permissions to control access</p>
+          <div className="page-title-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              className="page-icon-lg"
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 12,
+                background: 'rgba(16, 185, 129, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent)',
+                flexShrink: 0,
+              }}
+            >
+              <Key size={22} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Roles & Permissions</h1>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                {isLoading ? 'Loading…' : `${roles.length} total roles`}
+              </p>
+            </div>
           </div>
-          <PermissionGuard permission="roles.create">
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Role</button>
-          </PermissionGuard>
+          <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="view-toggle">
+              <button className={view === 'list' ? 'active' : ''} onClick={() => changeView('list')} title="List view">
+                <List size={16} />
+              </button>
+              <button className={view === 'grid' ? 'active' : ''} onClick={() => changeView('grid')} title="Grid view">
+                <LayoutGrid size={16} />
+              </button>
+            </div>
+            <PermissionGuard permission="roles.create">
+              <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Role</button>
+            </PermissionGuard>
+          </div>
         </div>
       </div>
 
-      <div className="toolbar">
-        <div className="view-toggle">
-          <button className={view === 'list' ? 'active' : ''} onClick={() => changeView('list')} title="List view">
-            <List size={16} />
-          </button>
-          <button className={view === 'grid' ? 'active' : ''} onClick={() => changeView('grid')} title="Grid view">
-            <LayoutGrid size={16} />
-          </button>
+      {/* Users-style Toolbar with Search Bar */}
+      <div className="users-toolbar">
+        <div className="users-search-wrap">
+          <Search size={16} className="users-search-icon" />
+          <input
+            type="text"
+            placeholder="Search roles by name or description..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="users-search-input"
+            id="role-search"
+          />
         </div>
       </div>
 
       {isLoading ? (
         <div className="loading-inline"><div className="loading-spinner" /> Loading roles...</div>
       ) : view === 'list' ? (
-        <div className="audit-table-container">
-          <table className="audit-table">
-            <thead>
-              <tr>
-                <th>Role</th>
-                <th>Description</th>
-                <th>Users</th>
-                <th>Permissions</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedRoles.map((role) => (
-                <tr key={role.id} className="table-row-clickable" onClick={() => navigate(`/admin/roles/assign-permission?roleId=${role.id}`)}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontWeight: 600 }}>{role.name}</span>
-                      {role.isSystem && <span className="role-chip system">System</span>}
-                    </div>
-                  </td>
-                  <td className="text-secondary text-small">{role.description || 'No description'}</td>
-                  <td className="text-muted text-small">{role.userCount}</td>
-                  <td className="text-muted text-small">{role.permissionCount ?? 0}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {!role.isSystem && (
-                        <PermissionGuard permission="roles.manage">
-                          <button
-                            className="btn-icon"
-                            title="Edit"
-                            onClick={(e) => { e.stopPropagation(); setEditingRole(role); }}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        </PermissionGuard>
-                      )}
-                      {!role.isSystem && (
-                        <PermissionGuard permission="roles.manage">
-                          <button
-                            className="btn-icon"
-                            title="Delete"
-                            style={{ color: 'var(--text-muted)' }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-                            onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </PermissionGuard>
-                      )}
-                    </div>
-                  </td>
+        <div className="roles-table-wrap positions-table-wrap billing-table-wrap">
+          <TableScrollWrapper className="roles-table-scroll positions-table-scroll">
+            <table className="audit-table billing-table positions-table roles-table" id="roles-table">
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 200 }}>Role</th>
+                  <th style={{ minWidth: 260 }}>Description</th>
+                  <th style={{ width: 110 }}>Users</th>
+                  <th style={{ width: 130 }}>Permissions</th>
+                  <th style={{ width: 80, textAlign: 'center' }}></th>
                 </tr>
-              ))}
-              {pagedRoles.length === 0 && (
-                <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px' }} className="text-muted">No roles found</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pagedRoles.map((role) => (
+                  <tr key={role.id} className="table-row-clickable" onClick={() => navigate(`/admin/roles/assign-permission?roleId=${role.id}`)}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 600 }}>{role.name}</span>
+                        {role.isSystem && <span className="role-chip system">System</span>}
+                      </div>
+                    </td>
+                    <td className="text-secondary text-small">{role.description || 'No description'}</td>
+                    <td className="text-muted text-small">{role.userCount}</td>
+                    <td className="text-muted text-small">{role.permissionCount ?? 0}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        {!role.isSystem && (
+                          <PermissionGuard permission="roles.manage">
+                            <button
+                              className="btn-icon"
+                              title="Edit"
+                              onClick={(e) => { e.stopPropagation(); setEditingRole(role); }}
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          </PermissionGuard>
+                        )}
+                        {!role.isSystem && (
+                          <PermissionGuard permission="roles.manage">
+                            <button
+                              className="btn-icon"
+                              title="Delete"
+                              style={{ color: 'var(--text-muted)' }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                              onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </PermissionGuard>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {pagedRoles.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '36px 16px' }} className="text-muted">
+                      {search.trim() ? 'No roles match your search' : 'No roles found'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
+
+          {renderPagination()}
         </div>
       ) : (
-        <div className="roles-grid">
-          {pagedRoles.map((role) => (
-            <div key={role.id} className="role-card-full" onClick={() => navigate(`/admin/roles/assign-permission?roleId=${role.id}`)}>
-              <div className="role-card-header">
-                <h3>{role.name}</h3>
-                {role.isSystem && <span className="role-chip system">System</span>}
-              </div>
-              <p className="text-secondary text-small">{role.description || 'No description'}</p>
-              <div className="role-card-footer">
-                <span className="text-muted text-small">{role.userCount} user(s)</span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {!role.isSystem && (
-                    <PermissionGuard permission="roles.manage">
-                      <button
-                        className="btn-icon"
-                        title="Edit"
-                        onClick={(e) => { e.stopPropagation(); setEditingRole(role); }}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                    </PermissionGuard>
-                  )}
-                  {!role.isSystem && (
-                    <PermissionGuard permission="roles.manage">
-                      <button
-                        className="btn-icon"
-                        title="Delete"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-                        onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </PermissionGuard>
-                  )}
+        <>
+          <div className="roles-grid">
+            {pagedRoles.map((role) => (
+              <div key={role.id} className="role-card-full" onClick={() => navigate(`/admin/roles/assign-permission?roleId=${role.id}`)}>
+                <div className="role-card-header">
+                  <h3>{role.name}</h3>
+                  {role.isSystem && <span className="role-chip system">System</span>}
+                </div>
+                <p className="text-secondary text-small">{role.description || 'No description'}</p>
+                <div className="role-card-footer">
+                  <span className="text-muted text-small">{role.userCount} user(s)</span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {!role.isSystem && (
+                      <PermissionGuard permission="roles.manage">
+                        <button
+                          className="btn-icon"
+                          title="Edit"
+                          onClick={(e) => { e.stopPropagation(); setEditingRole(role); }}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </PermissionGuard>
+                    )}
+                    {!role.isSystem && (
+                      <PermissionGuard permission="roles.manage">
+                        <button
+                          className="btn-icon"
+                          title="Delete"
+                          style={{ color: 'var(--text-muted)' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                          onClick={(e) => { e.stopPropagation(); handleDelete(role.id, role.name); }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </PermissionGuard>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {totalPages > 1 && (
-        <div className="pagination">
-          <button className="btn btn-sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
-            <ChevronLeft size={14} /> Prev
-          </button>
-          <span className="text-secondary">Page {currentPage} of {totalPages} ({roles.length} roles)</span>
-          <button className="btn btn-sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>
-            Next <ChevronRight size={14} />
-          </button>
-        </div>
+            ))}
+            {pagedRoles.length === 0 && (
+              <div className="info-card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 16px' }}>
+                <p className="text-muted" style={{ margin: 0 }}>
+                  {search.trim() ? 'No roles match your search' : 'No roles found'}
+                </p>
+              </div>
+            )}
+          </div>
+          {renderPagination('roles-grid-pagination')}
+        </>
       )}
 
       {showCreate && <CreateRoleModal onClose={() => setShowCreate(false)} />}
@@ -202,11 +308,19 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
   const [createRole, { isLoading: creating }] = useCreateRoleMutation();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  const nameError = hasAttemptedSubmit && !name.trim() ? 'Role name is required' : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return;
+    }
     try {
-      await createRole({ name, description, permissionCodes: [] }).unwrap();
+      await createRole({ name: trimmedName, description: description.trim(), permissionCodes: [] }).unwrap();
       toast.success('Role created');
       onClose();
     } catch (err: unknown) {
@@ -222,11 +336,15 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
           <h2>Create Role</h2>
           <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
-        <form onSubmit={handleSubmit} className="modal-body">
+        <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">
             <label>Role Name *</label>
-            <input className="input-full" required value={name}
-              onChange={(e) => setName(e.target.value)} />
+            <input
+              className={`input-full${nameError ? ' input-error' : ''}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            {nameError && <span className="field-error-text">{nameError}</span>}
           </div>
           <div className="form-group">
             <label>Description</label>
@@ -248,12 +366,20 @@ function EditRoleModal({ role, onClose }: { role: RoleItem; onClose: () => void 
   const [updateRole, { isLoading: updating }] = useUpdateRoleMutation();
   const [name, setName] = useState(role.name);
   const [description, setDescription] = useState(role.description ?? '');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const isSystem = role.isSystem;
+
+  const nameError = hasAttemptedSubmit && !name.trim() ? 'Role name is required' : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return;
+    }
     try {
-      await updateRole({ id: role.id, data: { name, description } }).unwrap();
+      await updateRole({ id: role.id, data: { name: trimmedName, description: description.trim() } }).unwrap();
       toast.success('Role updated');
       onClose();
     } catch (err: unknown) {
@@ -269,11 +395,16 @@ function EditRoleModal({ role, onClose }: { role: RoleItem; onClose: () => void 
           <h2>{isSystem ? role.name : `Edit: ${name}`}</h2>
           <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
-        <form onSubmit={handleSubmit} className="modal-body">
+        <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">
             <label>Role Name *</label>
-            <input className="input-full" required value={name} disabled={isSystem}
-              onChange={(e) => setName(e.target.value)} />
+            <input
+              className={`input-full${nameError ? ' input-error' : ''}`}
+              value={name}
+              disabled={isSystem}
+              onChange={(e) => setName(e.target.value)}
+            />
+            {nameError && <span className="field-error-text">{nameError}</span>}
           </div>
           <div className="form-group">
             <label>Description</label>

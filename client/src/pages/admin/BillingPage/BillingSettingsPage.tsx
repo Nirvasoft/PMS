@@ -1,15 +1,17 @@
 import { useNavigate } from 'react-router-dom';
-import { useGetPenaltyConfigsQuery, useGetTaxConfigsQuery } from '../../../store/api/billingApi';
-import { Settings, Shield, Calculator, ArrowRight, Tag, DollarSign } from 'lucide-react';
+import { useGetPenaltyConfigsQuery, useGetTaxConfigsQuery, useGetChargeTypesQuery } from '../../../store/api/billingApi';
+import { Settings, Shield, Calculator, ArrowRight, DollarSign } from 'lucide-react';
 import './BillingPage.css';
 
 export default function BillingSettingsPage() {
   const navigate = useNavigate();
   const { data: penaltyData } = useGetPenaltyConfigsQuery();
   const { data: taxData } = useGetTaxConfigsQuery();
+  const { data: chargeTypesData } = useGetChargeTypesQuery();
 
   const penaltyCount = penaltyData?.data?.length || 0;
   const taxCount = taxData?.data?.length || 0;
+  const chargeTypeCount = chargeTypesData?.data?.length || 0;
 
   const sections = [
     {
@@ -20,27 +22,27 @@ export default function BillingSettingsPage() {
       bg: 'rgba(239,68,68,0.12)',
       path: '/admin/billing/penalty-configs',
       count: penaltyCount,
-      countLabel: 'active configs',
+      countLabel: penaltyCount === 1 ? 'active config' : 'active configs',
     },
     {
       title: 'Tax Configuration',
       description: 'Manage GST, VAT, and other tax rates. Assign rates to specific charge types with effective date ranges.',
       icon: <Calculator size={22} />,
-      color: '#fbbf24',
+      color: '#f59e0b',
       bg: 'rgba(245,158,11,0.12)',
       path: '/admin/billing/tax-configs',
       count: taxCount,
-      countLabel: 'tax rules',
+      countLabel: taxCount === 1 ? 'tax rule' : 'tax rules',
     },
     {
       title: 'Charge Types',
       description: 'Define and manage charge type categories used across billing, invoicing, and lease schedules.',
       icon: <DollarSign size={22} />,
-      color: '#34d399',
+      color: '#10b981',
       bg: 'rgba(16,185,129,0.12)',
       path: '/admin/billing/charge-types',
-      count: 0,
-      countLabel: '',
+      count: chargeTypeCount,
+      countLabel: chargeTypeCount === 1 ? 'charge type' : 'charge types',
     },
   ];
 
@@ -49,49 +51,46 @@ export default function BillingSettingsPage() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <Settings size={22} />
           </div>
           <div>
-            <h1>Billing Settings</h1>
-            <p>Configure penalties, taxes, and billing rules</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Billing Settings</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Configure penalties, taxes, and billing rules</p>
           </div>
         </div>
       </div>
 
       {/* Settings Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+      <div className="billing-settings-grid">
         {sections.map(section => (
           <div
             key={section.path}
-            className="billing-stat-card"
+            className="billing-setting-card"
             onClick={() => navigate(section.path)}
-            style={{ cursor: 'pointer', padding: 28, gap: 14 }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div className="bsc-icon" style={{ background: section.bg, color: section.color, width: 44, height: 44 }}>
+            <div className="bsc-card-top">
+              <div className="bsc-card-icon" style={{ background: section.bg, color: section.color }}>
                 {section.icon}
               </div>
               {section.count > 0 && (
-                <span style={{
-                  background: section.bg, color: section.color,
-                  padding: '4px 12px', borderRadius: 20,
-                  fontSize: 12, fontWeight: 700,
-                }}>
+                <span
+                  className="bsc-card-badge"
+                  style={{ background: section.bg, color: section.color }}
+                >
                   {section.count} {section.countLabel}
                 </span>
               )}
             </div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)', marginBottom: 6 }}>
-                {section.title}
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                {section.description}
-              </div>
+
+            <div className="bsc-card-body">
+              <h3 className="bsc-card-title">{section.title}</h3>
+              <p className="bsc-card-desc">{section.description}</p>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--primary)', fontSize: 13, fontWeight: 600, marginTop: 4 }}>
-              Configure <ArrowRight size={14} />
+
+            <div className="bsc-card-footer">
+              <span>Configure</span>
+              <ArrowRight size={15} className="bsc-card-arrow" />
             </div>
           </div>
         ))}

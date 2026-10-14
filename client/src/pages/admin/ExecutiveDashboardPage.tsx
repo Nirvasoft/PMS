@@ -8,11 +8,12 @@ import {
   useAcknowledgeAnomalyMutation,
 } from '../../store/api/biApi';
 import {
-  BarChart3, TrendingUp, TrendingDown, Building2, Users, DollarSign,
+  BarChart3, TrendingUp, Building2, Users, DollarSign,
   Wrench, AlertTriangle, ChevronRight, RefreshCw, CheckCircle, Eye,
   Activity, PieChart, Calendar,
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#ef4444',
@@ -57,15 +58,15 @@ export default function ExecutiveDashboardPage() {
   return (
     <div className="page-content" style={{ maxWidth: 1400, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>
-            <BarChart3 size={24} style={{ marginRight: 8, verticalAlign: 'middle' }} />
-            Executive Dashboard
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0', fontSize: 14 }}>
-            Portfolio-wide performance overview
-          </p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <BarChart3 size={22} />
+          </div>
+          <div>
+            <h1>Executive Dashboard</h1>
+            <p>{properties.length} total properties · Portfolio-wide performance overview</p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <select
@@ -97,39 +98,41 @@ export default function ExecutiveDashboardPage() {
             <Building2 size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
             Property Performance
           </h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Property</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600 }}>Units</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600 }}>Occupancy</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600 }}>Revenue</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600 }}>Collection</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600 }}>Tickets</th>
-                </tr>
-              </thead>
-              <tbody>
-                {properties.map((p: any) => (
-                  <tr key={p.propertyId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 500 }}>{p.name}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{p.totalUnits}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                      <span style={{ color: p.occupancyRate > 85 ? '#22c55e' : p.occupancyRate > 70 ? '#eab308' : '#ef4444' }}>
-                        {p.occupancyRate}%
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>${(p.revenueYtd / 1000).toFixed(0)}K</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                      <span style={{ color: p.collectionRate > 90 ? '#22c55e' : '#eab308' }}>
-                        {p.collectionRate}%
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{p.openTickets}</td>
+          <div className="mall-table-wrap">
+            <TableScrollWrapper>
+              <table className="mall-table">
+                <thead>
+                  <tr>
+                    <th>Property</th>
+                    <th style={{ textAlign: 'right' }}>Units</th>
+                    <th style={{ textAlign: 'right' }}>Occupancy</th>
+                    <th style={{ textAlign: 'right' }}>Revenue</th>
+                    <th style={{ textAlign: 'right' }}>Collection</th>
+                    <th style={{ textAlign: 'right' }}>Tickets</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {properties.map((p: any) => (
+                    <tr key={p.propertyId}>
+                      <td style={{ fontWeight: 500 }}>{p.name}</td>
+                      <td style={{ textAlign: 'right' }}>{p.totalUnits}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span style={{ fontWeight: 600, color: p.occupancyRate > 85 ? '#22c55e' : p.occupancyRate > 70 ? '#eab308' : '#ef4444' }}>
+                          {p.occupancyRate}%
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>${(p.revenueYtd / 1000).toFixed(0)}K</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span style={{ fontWeight: 600, color: p.collectionRate > 90 ? '#22c55e' : '#eab308' }}>
+                          {p.collectionRate}%
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>{p.openTickets}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
           </div>
         </div>
 

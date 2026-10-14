@@ -277,7 +277,7 @@ export class TicketsService {
 
   // ── Assign ─────────────────────────────────
 
-  async assign(id: string, companyId: string, dto: Record<string, unknown>, userId: string) {
+  async assign(id: string, companyId: string, dto: Record<string, unknown>, _userId: string) {
     if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },
@@ -298,7 +298,7 @@ export class TicketsService {
     // Generate WO number
     const woNumber = await this.generateWoNumber(companyId);
 
-    const [updatedTicket, workOrder] = await prisma.$transaction([
+    const [_updatedTicket, workOrder] = await prisma.$transaction([
       prisma.maintenanceTicket.update({
         where: { id },
         data: {
@@ -408,7 +408,7 @@ export class TicketsService {
 
   // ── Escalate ───────────────────────────────
 
-  async escalate(id: string, companyId: string, dto: Record<string, unknown>, userId: string) {
+  async escalate(id: string, companyId: string, dto: Record<string, unknown>, _userId: string) {
     if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },
@@ -481,7 +481,7 @@ export class TicketsService {
 
   // ── Cancel ─────────────────────────────────
 
-  async cancel(id: string, companyId: string, reason: string, userId: string) {
+  async cancel(id: string, companyId: string, reason: string, _userId: string) {
     if (!isUuid(id)) throw AppError.notFound('Maintenance ticket');
     const ticket = await prisma.maintenanceTicket.findFirst({
       where: { id, companyId, deletedAt: null },

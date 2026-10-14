@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
   useGetRefundsQuery, useCreateRefundMutation,
   useApproveRefundMutation, useRejectRefundMutation, useMarkRefundPaidMutation,
@@ -11,6 +11,7 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ARPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
@@ -20,12 +21,13 @@ type ActionType = 'approve' | 'reject' | 'mark_paid';
 
 export default function RefundsPage() {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [actionModal, setActionModal] = useState<{ type: ActionType; refund: any } | null>(null);
 
-  const { data, isFetching } = useGetRefundsQuery({ status: status || undefined, page, limit: 15 });
+  const { data, isFetching } = useGetRefundsQuery({ status: status || undefined, page, limit: pageSize });
   const refunds = data?.data || [];
   const meta = data?.meta;
 
@@ -44,17 +46,22 @@ export default function RefundsPage() {
       : `${r.tenant.firstName || ''} ${r.tenant.lastName || ''}`.trim();
   };
 
+  const totalCount = meta ? meta.total : filtered.length;
+  const totalPages = meta?.totalPages || 1;
+
   return (
     <div className="ar-page">
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(139,92,246,0.12)', color: '#a78bfa' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <RotateCcw size={22} />
           </div>
           <div>
-            <h1>Refund Requests</h1>
-            <p>Manage refunds for overpayments, deposits, and adjustments</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Refund Requests</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {meta ? `${meta.total} total refunds` : 'Loading…'}
+            </p>
           </div>
         </div>
         <PermissionGuard permission="ar-refunds.write">
@@ -81,86 +88,108 @@ export default function RefundsPage() {
 
       {/* Table */}
       <div className="ar-table-wrap">
-        <table className="ar-table">
-          <thead>
-            <tr>
-              <th style={{ width: 170 }}>Tenant</th>
-              <th style={{ width: 100 }}>Type</th>
-              <th className="text-right" style={{ width: 120 }}>Amount</th>
-              <th style={{ width: 200 }}>Reason</th>
-              <th style={{ width: 100 }}>Status</th>
-              <th style={{ width: 110 }}>Created</th>
-              <th style={{ width: 140 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
+        <TableScrollWrapper>
+          <table className="ar-table">
+            <thead>
               <tr>
-                <td colSpan={7}>
-                  <div className="ar-empty">{isFetching ? 'Loading…' : 'No refund requests found.'}</div>
-                </td>
+                <th style={{ width: 170 }}>Tenant</th>
+                <th style={{ width: 100 }}>Type</th>
+                <th className="text-right" style={{ width: 120 }}>Amount</th>
+                <th style={{ width: 200 }}>Reason</th>
+                <th style={{ width: 100 }}>Status</th>
+                <th style={{ width: 110 }}>Created</th>
+                <th className="text-center" style={{ width: 140 }}></th>
               </tr>
-            ) : (
-              filtered.map(r => (
-                <tr key={r.id}>
-                  <td><span className="cell-primary">{getTenantName(r)}</span></td>
-                  <td>
-                    <span className={`refund-type refund-type--${r.refundType}`}>{r.refundType}</span>
-                  </td>
-                  <td className="text-right">
-                    <span className="cell-amount">{formatCurrency(r.amount, r.currency)}</span>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {r.reason}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`ar-status ar-status--${r.status}`}>{r.status}</span>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-                      {format(new Date(r.createdAt), 'MMM d, yyyy')}
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <PermissionGuard permission="ar-refunds.write">
-                        {r.status === 'pending' && (
-                          <>
-                            <button className="action-btn" title="Approve" onClick={() => setActionModal({ type: 'approve', refund: r })}>
-                              <Check size={14} />
-                            </button>
-                            <button className="action-btn danger" title="Reject" onClick={() => setActionModal({ type: 'reject', refund: r })}>
-                              <XCircle size={14} />
-                            </button>
-                          </>
-                        )}
-                        {r.status === 'approved' && (
-                          <button className="action-btn" title="Mark Paid" onClick={() => setActionModal({ type: 'mark_paid', refund: r })}>
-                            <Banknote size={14} />
-                          </button>
-                        )}
-                      </PermissionGuard>
-                      {(r.status === 'rejected' || r.status === 'paid') && (
-                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                          {r.status === 'paid' ? r.paymentReference || '—' : r.rejectionReason || '—'}
-                        </span>
-                      )}
-                    </div>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7}>
+                    <div className="ar-empty">{isFetching ? 'Loading…' : 'No refund requests found.'}</div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                filtered.map(r => (
+                  <tr key={r.id}>
+                    <td><span className="cell-primary">{getTenantName(r)}</span></td>
+                    <td>
+                      <span className={`refund-type refund-type--${r.refundType}`}>{r.refundType}</span>
+                    </td>
+                    <td className="text-right">
+                      <span className="cell-amount">{formatCurrency(r.amount, r.currency)}</span>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.reason}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`ar-status ar-status--${r.status}`}>{r.status}</span>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+                        {format(new Date(r.createdAt), 'MMM d, yyyy')}
+                      </div>
+                    </td>
+                    <td className="text-center">
+                      <div style={{ display: 'inline-flex', gap: 4, justifyContent: 'center' }}>
+                        <PermissionGuard permission="ar-refunds.write">
+                          {r.status === 'pending' && (
+                            <>
+                              <button className="action-btn" title="Approve" onClick={() => setActionModal({ type: 'approve', refund: r })}>
+                                <Check size={14} />
+                              </button>
+                              <button className="action-btn danger" title="Reject" onClick={() => setActionModal({ type: 'reject', refund: r })}>
+                                <XCircle size={14} />
+                              </button>
+                            </>
+                          )}
+                          {r.status === 'approved' && (
+                            <button className="action-btn" title="Mark Paid" onClick={() => setActionModal({ type: 'mark_paid', refund: r })}>
+                              <Banknote size={14} />
+                            </button>
+                          )}
+                        </PermissionGuard>
+                        {(r.status === 'rejected' || r.status === 'paid') && (
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                            {r.status === 'paid' ? r.paymentReference || '—' : r.rejectionReason || '—'}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
 
-        {meta && meta.totalPages > 1 && (
+        {totalCount >= 10 && (
           <div className="ar-pagination">
-            <span className="page-info">Page {meta.page} of {meta.totalPages} · {meta.total} refunds</span>
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="rf-page-size">Rows per page:</label>
+                <select
+                  id="rf-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
             <div className="page-btns">
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}><ChevronLeft size={15} /></button>
-              <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}><ChevronRight size={15} /></button>
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} title="Previous page"><ChevronLeft size={15} /></button>
+              <span className="page-num-display">
+                Page {page} of {Math.max(totalPages, 1)}
+              </span>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} title="Next page"><ChevronRight size={15} /></button>
             </div>
           </div>
         )}
@@ -190,6 +219,7 @@ function RefundActionModal({
 }) {
   const [notes, setNotes] = useState('');
   const [paymentRef, setPaymentRef] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [approveRefund, { isLoading: approving }] = useApproveRefundMutation();
   const [rejectRefund, { isLoading: rejecting }] = useRejectRefundMutation();
   const [markPaid, { isLoading: marking }] = useMarkRefundPaidMutation();
@@ -216,7 +246,7 @@ function RefundActionModal({
       confirmLabel: 'Reject Refund',
       confirmClass: 'btn-danger',
       description: 'This will reject the refund request. Please provide a reason.',
-      notesLabel: 'Rejection Reason *',
+      notesLabel: 'Rejection Reason',
       notesPlaceholder: 'Enter the reason for rejecting this refund…',
     },
     mark_paid: {
@@ -227,12 +257,13 @@ function RefundActionModal({
       confirmLabel: 'Mark as Paid',
       confirmClass: 'btn-primary',
       description: 'Confirm that this refund has been paid out.',
-      notesLabel: 'Payment Reference *',
+      notesLabel: 'Payment Reference',
       notesPlaceholder: 'e.g. CHK-2025-001, TRF-12345',
     },
   }[type];
 
   const handleSubmit = async () => {
+    setHasAttemptedSubmit(true);
     try {
       if (type === 'approve') {
         await approveRefund(refund.id).unwrap();
@@ -296,19 +327,33 @@ function RefundActionModal({
         <div className="ar-form-grid cols-1">
           {type === 'mark_paid' ? (
             <div className="ar-field">
-              <label>{config.notesLabel}</label>
-              <input type="text" placeholder={config.notesPlaceholder}
-                value={paymentRef} onChange={e => setPaymentRef(e.target.value)}
+              <label>{config.notesLabel} <span className="req">*</span></label>
+              <input
+                type="text"
+                placeholder={config.notesPlaceholder}
+                value={paymentRef}
+                onChange={e => setPaymentRef(e.target.value)}
+                className={hasAttemptedSubmit && !paymentRef.trim() ? 'ar-input-error' : ''}
                 autoFocus
               />
+              {hasAttemptedSubmit && !paymentRef.trim() && (
+                <span className="ar-error-text">Payment reference is required</span>
+              )}
             </div>
           ) : (
             <div className="ar-field">
-              <label>{config.notesLabel}</label>
-              <textarea placeholder={config.notesPlaceholder}
-                value={notes} onChange={e => setNotes(e.target.value)}
-                rows={3} autoFocus={type === 'reject'}
+              <label>{config.notesLabel}{type === 'reject' && <span className="req"> *</span>}</label>
+              <textarea
+                placeholder={config.notesPlaceholder}
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                rows={3}
+                className={type === 'reject' && hasAttemptedSubmit && !notes.trim() ? 'ar-input-error' : ''}
+                autoFocus={type === 'reject'}
               />
+              {type === 'reject' && hasAttemptedSubmit && !notes.trim() && (
+                <span className="ar-error-text">Rejection reason is required</span>
+              )}
             </div>
           )}
         </div>
@@ -336,6 +381,7 @@ function CreateRefundModal({ onClose }: { onClose: () => void }) {
   const [bankName, setBankName] = useState('');
   const [bankAccountNo, setBankAccountNo] = useState('');
   const [bankAccountName, setBankAccountName] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 50 });
   const tenants = tenantsData?.data || [];
@@ -344,14 +390,20 @@ function CreateRefundModal({ onClose }: { onClose: () => void }) {
   const getTenantName = (t: any) =>
     t.tenantType === 'corporate' ? t.companyName || '' : `${t.firstName || ''} ${t.lastName || ''}`.trim();
 
+  const amtNum = parseFloat(amount);
+  const isTenantInvalid = !tenantId;
+  const isAmountInvalid = !amount.trim() || isNaN(amtNum) || amtNum <= 0;
+  const isReasonInvalid = !reason.trim();
+
   const handleSubmit = async () => {
-    if (!tenantId || !amount || !reason) {
+    setHasAttemptedSubmit(true);
+    if (isTenantInvalid || isAmountInvalid || isReasonInvalid) {
       toast.error('Please fill required fields');
       return;
     }
     try {
       await createRefund({
-        tenantId, refundType, amount: parseFloat(amount), currency, reason,
+        tenantId, refundType, amount: amtNum, currency, reason: reason.trim(),
         bankName: bankName || undefined,
         bankAccountNo: bankAccountNo || undefined,
         bankAccountName: bankAccountName || undefined,
@@ -377,10 +429,17 @@ function CreateRefundModal({ onClose }: { onClose: () => void }) {
         <div className="ar-form-grid">
           <div className="ar-field" style={{ gridColumn: '1 / -1' }}>
             <label>Tenant <span className="req">*</span></label>
-            <select value={tenantId} onChange={e => setTenantId(e.target.value)}>
+            <select
+              value={tenantId}
+              onChange={e => setTenantId(e.target.value)}
+              className={hasAttemptedSubmit && isTenantInvalid ? 'ar-input-error' : ''}
+            >
               <option value="">Select tenant…</option>
               {tenants.map((t: any) => <option key={t.id} value={t.id}>{getTenantName(t)}</option>)}
             </select>
+            {hasAttemptedSubmit && isTenantInvalid && (
+              <span className="ar-error-text">Tenant is required</span>
+            )}
           </div>
         </div>
 
@@ -395,7 +454,18 @@ function CreateRefundModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="ar-field">
             <label>Amount <span className="req">*</span></label>
-            <input type="number" step="0.01" min="0" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              className={hasAttemptedSubmit && isAmountInvalid ? 'ar-input-error' : ''}
+            />
+            {hasAttemptedSubmit && isAmountInvalid && (
+              <span className="ar-error-text">Valid amount is required</span>
+            )}
           </div>
           <div className="ar-field">
             <label>Currency</label>
@@ -408,7 +478,15 @@ function CreateRefundModal({ onClose }: { onClose: () => void }) {
         <div className="ar-form-grid cols-1">
           <div className="ar-field">
             <label>Reason <span className="req">*</span></label>
-            <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason for refund…" />
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Reason for refund…"
+              className={hasAttemptedSubmit && isReasonInvalid ? 'ar-input-error' : ''}
+            />
+            {hasAttemptedSubmit && isReasonInvalid && (
+              <span className="ar-error-text">Reason is required</span>
+            )}
           </div>
         </div>
 

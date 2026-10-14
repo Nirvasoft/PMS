@@ -5,12 +5,13 @@ import {
   type TenantListItem,
 } from '../../../store/api/tenantsApi';
 import {
-  Users, Plus, Search, X, Building2, User, Shield, ShieldOff, ShieldCheck,
-  Trash2, Filter, GitMerge, Tag,
+  Users, Plus, Search, Filter, X, Building2, User, Shield, ShieldOff, ShieldCheck,
+  Trash2, GitMerge, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import './TenantListPage.css';
@@ -37,24 +38,24 @@ export default function TenantListPage() {
   const { isV6Active } = useV6IntegrationStatus();
   const propertyId = useSelectedPropertyFilter(); // '' when "All Properties", else active property id
   const [search, setSearch]           = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [tenantType, setTenantType]   = useState('');
   const [kycStatus, setKycStatus]     = useState('');
-  const [tags, setTags]               = useState('');
   const [showBlacklisted, setShowBlacklisted] = useState<boolean | undefined>(undefined);
   const [page, setPage]               = useState(1);
+  const [pageSize, setPageSize]       = useState(10);
 
-  // Reset to page 1 whenever the active property changes
-  useEffect(() => { setPage(1); }, [propertyId]);
+  // Reset to page 1 whenever filters, active property, or page size change
+  useEffect(() => { setPage(1); }, [propertyId, pageSize, search, tenantType, kycStatus, showBlacklisted]);
 
-  const { data, isLoading, isFetching } = useGetTenantsQuery({
+  const { data, isLoading } = useGetTenantsQuery({
     search: search || undefined,
     tenantType: tenantType || undefined,
     kycStatus: kycStatus || undefined,
-    tags: tags || undefined,
     isBlacklisted: showBlacklisted,
     propertyId: propertyId || undefined,
     page,
-    limit: 10,
+    limit: pageSize,
   });
 
   const [deleteTenant] = useDeleteTenantMutation();
@@ -73,7 +74,8 @@ export default function TenantListPage() {
 
   const tenants = data?.data || [];
   const meta = data?.meta;
-  const hasFilters = !!(search || tenantType || kycStatus || tags || showBlacklisted !== undefined);
+  const hasActiveFilters = !!(tenantType || kycStatus || showBlacklisted !== undefined);
+  const hasFilters = !!(search || hasActiveFilters);
 
   const handleDelete = async (t: TenantListItem, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -86,8 +88,8 @@ export default function TenantListPage() {
     }
   };
 
-  const clearFilters = () => {
-    setSearch(''); setTenantType(''); setKycStatus(''); setTags(''); setShowBlacklisted(undefined); setPage(1);
+  const resetFilters = () => {
+    setTenantType(''); setKycStatus(''); setShowBlacklisted(undefined); setPage(1);
   };
 
   const isCompanyTab = tenantType === 'company';
@@ -100,7 +102,7 @@ export default function TenantListPage() {
           <div className="page-icon"><Users size={22} /></div>
           <div>
             <h1>Tenants</h1>
-            <p>{meta ? `${meta.total} tenants in registry` : 'Loading…'}</p>
+            <p>{meta ? `${meta.total} total tenants` : 'Loading…'}</p>
           </div>
         </div>
         <div className="page-actions">
@@ -208,7 +210,7 @@ export default function TenantListPage() {
         )}
       </div>
 
-      {/* Filters */}
+      {/* Search & Filters */}
       <div className="tenant-filters">
         <div className="search-box">
           <Search size={14} />
@@ -220,86 +222,117 @@ export default function TenantListPage() {
           {search && <button onClick={() => setSearch('')}><X size={13} /></button>}
         </div>
 
-        <div className="filter-tabs">
-          {[['', 'All'], ['individual', 'Individual'], ['company', 'Company']].map(([val, label]) => (
-            <button key={val} className={tenantType === val ? 'active' : ''}
-              onClick={() => { setTenantType(val); setPage(1); }}>
-              {val === 'individual' ? <User size={12} /> : val === 'company' ? <Building2 size={12} /> : null}
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <select className="filter-select" value={kycStatus} onChange={(e) => { setKycStatus(e.target.value); setPage(1); }}>
-          <option value="">All KYC Statuses</option>
-          {Object.entries(KYC_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-
-        <button
-          className={`filter-btn-bl ${kycStatus === 'verified' ? 'active' : ''}`}
-          style={kycStatus === 'verified' ? { borderColor: '#2ecc71', color: '#2ecc71', background: 'rgba(46,204,113,0.08)' } : {}}
-          onClick={() => { setKycStatus(kycStatus === 'verified' ? '' : 'verified'); setPage(1); }}
-        >
-          <ShieldCheck size={13} /> KYC Verified
+        <button className="btn-ghost" onClick={() => setShowFilters(!showFilters)}>
+          <Filter size={14} /> Filters{hasActiveFilters ? ' •' : ''}
         </button>
-
-        <div className="search-box">
-          <Tag size={14} />
-          <input
-            placeholder="Filter by tags (comma separated)…"
-            value={tags}
-            onChange={(e) => { setTags(e.target.value); setPage(1); }}
-          />
-          {tags && <button onClick={() => setTags('')}><X size={13} /></button>}
-        </div>
-
-        <button
-          className={`filter-btn-bl ${showBlacklisted === true ? 'active' : ''}`}
-          onClick={() => { setShowBlacklisted(showBlacklisted === true ? undefined : true); setPage(1); }}
-        >
-          <ShieldOff size={13} /> Blacklisted
-        </button>
-
-        {hasFilters && <button className="btn-clear-filter" onClick={clearFilters}><X size={12} /> Clear</button>}
       </div>
+
+      {showFilters && (
+        <div className="filter-bar">
+          <div className="filter-tabs">
+            {[['', 'All'], ['individual', 'Individual'], ['company', 'Company']].map(([val, label]) => (
+              <button key={val} className={tenantType === val ? 'active' : ''}
+                onClick={() => { setTenantType(val); setPage(1); }}>
+                {val === 'individual' ? <User size={12} /> : val === 'company' ? <Building2 size={12} /> : null}
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <select className="filter-select" value={kycStatus} onChange={(e) => { setKycStatus(e.target.value); setPage(1); }}>
+            <option value="">All KYC Statuses</option>
+            {Object.entries(KYC_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+
+          <button
+            className={`filter-btn-bl ${showBlacklisted === true ? 'active' : ''}`}
+            onClick={() => { setShowBlacklisted(showBlacklisted === true ? undefined : true); setPage(1); }}
+          >
+            <ShieldOff size={13} /> Blacklisted
+          </button>
+
+          <button className="btn-ghost" onClick={resetFilters}>
+            <X size={14} /> Reset
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="tenant-table-wrap">
-        <div className="tenant-table-header">
-          <span>Photo</span>
-          {isCompanyTab
-            ? <span style={{ gridColumn: 'span 2' }}>Company</span>
-            : <><span>Code</span><span>Name</span></>
-          }
-          <span>Type</span><span>Property</span>
-          <span>KYC Status</span><span>Lease</span><span>Actions</span>
-        </div>
+        <TableScrollWrapper className="tenant-table-scroll">
+          <div className="tenant-table-inner">
+            <div className="tenant-table-header">
+              <span>Photo</span>
+              {isCompanyTab
+                ? <span style={{ gridColumn: 'span 2' }}>Company</span>
+                : <><span>Code</span><span>Name</span></>
+              }
+              <span>Type</span>
+              <span>KYC Status</span><span>Lease</span><span></span>
+            </div>
 
-        {isLoading ? (
-          <div className="table-loading"><div className="loading-pulse" /><div className="loading-pulse" /><div className="loading-pulse" /></div>
-        ) : tenants.length === 0 ? (
-          <div className="table-empty"><Users size={40} /><p>No tenants found{hasFilters ? ' — try clearing filters' : ''}</p></div>
-        ) : (
-          tenants.map((tenant) => (
-            <TenantRow
-              key={tenant.id}
-              tenant={tenant}
-              isCompanyTab={isCompanyTab}
-              onClick={() => navigate(`/admin/tenants/${tenant.id}`)}
-              onDelete={(e) => handleDelete(tenant, e)}
-            />
-          ))
+            {isLoading ? (
+              <div className="table-loading"><div className="loading-pulse" /><div className="loading-pulse" /><div className="loading-pulse" /></div>
+            ) : tenants.length === 0 ? (
+              <div className="table-empty"><Users size={40} /><p>No tenants found{hasFilters ? ' — try clearing filters' : ''}</p></div>
+            ) : (
+              tenants.map((tenant) => (
+                <TenantRow
+                  key={tenant.id}
+                  tenant={tenant}
+                  isCompanyTab={isCompanyTab}
+                  onClick={() => navigate(`/admin/tenants/${tenant.id}`)}
+                  onDelete={(e) => handleDelete(tenant, e)}
+                />
+              ))
+            )}
+          </div>
+        </TableScrollWrapper>
+
+        {/* Pagination Toolbar */}
+        {meta && meta.total >= 10 && (
+          <div className="tenant-pagination billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="tenant-page-size">Rows per page:</label>
+                <select
+                  id="tenant-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="page-btns">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                title="Previous page"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="page-num-display">
+                Page {page} of {meta.totalPages}
+              </span>
+              <button
+                disabled={page >= meta.totalPages}
+                onClick={() => setPage(p => p + 1)}
+                title="Next page"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
-
-      {/* Pagination */}
-      {meta && meta.totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span>Page {page} of {meta.totalPages}</span>
-          <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
-        </div>
-      )}
     </div>
   );
 }
@@ -333,8 +366,9 @@ function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
           <div
             className={`tenant-display-name${isDash ? ' cell-dash' : ''}`}
             style={isCompanyTab ? { gridColumn: 'span 2' } : {}}
+            title={!isDash ? codeVal : undefined}
           >
-            {codeVal}
+            <span className="tenant-code-text">{codeVal}</span>
             {tenant.isBlacklisted && <span className="bl-badge"><ShieldOff size={10} /> Blacklisted</span>}
           </div>
         );
@@ -343,8 +377,12 @@ function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
       {/* Name — hidden on company tab; shows company displayName for company tenants */}
       {!isCompanyTab && (() => {
         const nameVal = isCompany ? tenant.displayName : (tenant.lastName || '—');
+        const isDash  = nameVal === '—';
         return (
-          <div className={`tenant-name-value${nameVal === '—' ? ' cell-dash' : ''}`}>
+          <div
+            className={`tenant-name-value${isDash ? ' cell-dash' : ''}`}
+            title={!isDash ? nameVal : undefined}
+          >
             {nameVal}
           </div>
         );
@@ -357,9 +395,6 @@ function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
           {isCompany ? 'company' : 'individual'}
         </span>
       </div>
-
-      {/* Property Name */}
-      <div className="tenant-property-name">{tenant.propertyName || '—'}</div>
 
       {/* KYC */}
       <div>

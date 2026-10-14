@@ -56,21 +56,28 @@
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 
+.properties-page .search-box,
 .search-box {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  height: 38px;
+  padding: 0 14px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 10px;
   max-width: 420px;
+  box-sizing: border-box;
 }
 
+.properties-page .search-box svg,
 .search-box svg { color: var(--text-muted); flex-shrink: 0; }
 
+.properties-page .search-box input,
 .search-box input {
   flex: 1;
+  height: 100%;
+  padding: 0;
   background: none;
   border: none;
   outline: none;
@@ -78,12 +85,23 @@
   font-size: 0.85rem;
 }
 
+.properties-page .search-box button,
 .search-box button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
   padding: 2px;
+}
+
+.properties-page .properties-toolbar .btn-secondary {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  box-sizing: border-box;
 }
 
 .filter-bar {
@@ -132,7 +150,7 @@
 }
 
 .view-toggle button.active {
-  background: #6c5ce7;
+  background: var(--accent-solid, var(--accent));
   color: white;
 }
 
@@ -415,6 +433,35 @@
 .row-actions button:hover { color: var(--text-primary); background: rgba(255,255,255,0.08); }
 .row-actions button.danger:hover { color: #e74c3c; background: rgba(231,76,60,0.1); }
 
+[data-theme="light"] .row-avatar {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+[data-theme="light"] .row-type {
+  color: #334155;
+  font-weight: 500;
+}
+
+[data-theme="light"] .row-actions button {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+
+[data-theme="light"] .row-actions button:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+[data-theme="light"] .row-actions button.danger:hover {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
 /* ─── Skeleton ───────────────────────────────── */
 .property-skeleton {
   height: 280px;
@@ -435,9 +482,13 @@
   text-align: center;
 }
 
-.empty-state svg { opacity: 0.2; }
-.empty-state h3 { margin: 16px 0 4px; font-size: 1.1rem; }
-.empty-state p { margin: 0 0 20px; font-size: 0.85rem; }
+.empty-state > svg { opacity: 0.25; }
+.empty-state h3 { margin: 16px 0 4px; font-size: 1.1rem; color: var(--text-primary); }
+.empty-state p { margin: 0 0 20px; font-size: 0.88rem; font-weight: 500; color: var(--text-secondary); }
+
+[data-theme="light"] .empty-state > svg { opacity: 0.45; color: var(--text-muted, #64748b); }
+[data-theme="light"] .empty-state h3 { color: var(--text-primary, #0f172a); font-weight: 700; }
+[data-theme="light"] .empty-state p { color: var(--text-secondary, #475569); font-weight: 600; }
 
 /* ─── Pagination ─────────────────────────────── */
 .pagination {
@@ -497,20 +548,47 @@
 
 .btn-secondary:hover { background: rgba(255,255,255,0.08); }
 
+[data-theme="light"] .btn-secondary {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: var(--text-primary, #0f172a);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: var(--text-primary, #0f172a);
+}
+
 .btn-ghost {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 7px 12px;
-  background: none;
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 8px;
-  color: var(--text-muted);
+  color: var(--text-primary);
   font-size: 0.82rem;
   cursor: pointer;
+  transition: all 0.15s;
 }
 
-.btn-ghost:hover { border-color: rgba(255,255,255,0.15); color: var(--text-primary); }
+.btn-ghost:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: var(--text-primary); }
+
+[data-theme="light"] .btn-ghost {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: var(--text-primary, #0f172a);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .btn-ghost:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: var(--text-primary, #0f172a);
+}
 
 @keyframes pulse {
   0% { background-position: 200% 0; }

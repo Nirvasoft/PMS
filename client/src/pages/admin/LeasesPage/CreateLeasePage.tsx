@@ -73,8 +73,8 @@ export default function CreateLeasePage() {
   // Auto-bind Shop Name from Lead Pipeline if lead was imported/converted
   useEffect(() => {
     if (!leadData?.data) return;
-    const l = leadData.data;
-    const shop = (l.loiDetails as any)?.shopName || l.companyName || '';
+    const l = leadData.data as any;
+    const shop = l.loiDetails?.shopName || l.companyName || '';
     if (shop) {
       setForm((f) => ({
         ...f,
@@ -89,8 +89,7 @@ export default function CreateLeasePage() {
   // Auto-bind Landlord Company Data to Renter
   useEffect(() => {
     if (!companyData?.data) return;
-    const c = companyData.data;
-    const compName = c.legalName || c.name || '';
+    const c = companyData.data as any;
     const compAddress = [c.addressLine1, c.addressLine2, c.city, c.state, c.postalCode, c.country].filter(Boolean).join(', ');
     setForm((f) => ({
       ...f,

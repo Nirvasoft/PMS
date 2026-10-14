@@ -1,5 +1,4 @@
 import { prisma } from '../../common/database';
-import { logger } from '../../common/logger';
 
 class BudgetsService {
   async findAll(companyId: string, params: any) {
@@ -69,7 +68,7 @@ class BudgetsService {
     return prisma.budget.delete({ where: { id } });
   }
 
-  async approve(id: string, companyId: string, userId: string) {
+  async approve(id: string, _companyId: string, userId: string) {
     return prisma.budget.update({
       where: { id },
       data: { status: 'approved', approvedBy: userId },

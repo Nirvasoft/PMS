@@ -2,7 +2,7 @@ import { useGetPortalDashboardQuery } from '../../store/api/portalApi';
 import { useNavigate } from 'react-router-dom';
 import {
   DollarSign, CalendarDays, Wrench, AlertTriangle,
-  Clock, ChevronRight, Megaphone, TrendingUp,
+  ChevronRight, Megaphone, TrendingUp,
 } from 'lucide-react';
 
 export default function PortalDashboard() {

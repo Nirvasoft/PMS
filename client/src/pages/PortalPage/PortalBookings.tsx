@@ -9,7 +9,7 @@ import {
 import toast from 'react-hot-toast';
 import {
   CalendarDays, Clock, Users, ChevronLeft, ChevronRight,
-  X, CheckCircle2, XCircle, MapPin, DollarSign, Dumbbell,
+  X, CheckCircle2, XCircle, DollarSign, Dumbbell,
 } from 'lucide-react';
 
 const CATEGORY_ICONS: Record<string, string> = {

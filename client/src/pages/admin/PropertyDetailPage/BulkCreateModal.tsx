@@ -69,7 +69,7 @@ export function BulkCreateModal({ propertyId, towers }: Props) {
   // ── Conflict pre-check state ────────────────
   const [conflicts, setConflicts] = useState<Set<string>>(new Set());
   const [checking, setChecking] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // ── Generate ALL units (not limited) ────────
   // Unit numbers use the prefix from Floor Setup. Falls back to plain floor number

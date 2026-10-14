@@ -7,11 +7,11 @@ import {
 import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 import {
   FileBarChart, Plus, X, Trash2, Play, Clock, Building2, DollarSign,
   Wrench, BarChart3, PieChart, Users, CheckCircle, AlertCircle,
-  TrendingUp, TrendingDown, Share2, Calendar, RefreshCw, ChevronDown,
-  Eye, Layers, Activity, ArrowRight,
+  Share2, Calendar, RefreshCw, Layers, Activity,
 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────
@@ -22,8 +22,6 @@ const REPORT_TYPES = [
   { code: 'portfolio', label: 'Portfolio', description: 'Executive summary with all KPIs aggregated', icon: Layers, color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' },
   { code: 'custom', label: 'Custom', description: 'Custom report with user-defined configuration', icon: BarChart3, color: '#06b6d4', gradient: 'linear-gradient(135deg, #06b6d4, #22d3ee)' },
 ];
-
-const STATUS_COLORS: Record<string, string> = { occupancy: '#6366f1', revenue: '#22c55e', maintenance: '#f59e0b', portfolio: '#8b5cf6', custom: '#06b6d4' };
 
 function getTypeMeta(code: string) {
   return REPORT_TYPES.find(t => t.code === code) || REPORT_TYPES[4];
@@ -93,15 +91,15 @@ export default function BiReportsPage() {
   return (
     <div className="page-content" style={{ maxWidth: 1400, margin: '0 auto' }}>
       {/* Header */}
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>
-            <FileBarChart size={24} style={{ marginRight: 8, verticalAlign: 'middle' }} />
-            BI Saved Reports
-          </h1>
-          <p style={styles.subtitle}>
-            Create, manage and run analytical reports • {total} report{total !== 1 ? 's' : ''}
-          </p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <FileBarChart size={22} />
+          </div>
+          <div>
+            <h1>BI Saved Reports</h1>
+            <p>{total} total reports · Create, manage and run analytical reports</p>
+          </div>
         </div>
         <PermissionGuard permission="reports-bi.write">
           <button style={styles.createBtn} onClick={() => setShowCreate(true)}>
@@ -323,38 +321,40 @@ function OccupancyResult({ data }: { data: any[] }) {
       </div>
 
       {/* Per-property table */}
-      <div style={styles.tableWrap}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Property</th>
-              <th style={{ ...styles.th, textAlign: 'right' }}>Total</th>
-              <th style={{ ...styles.th, textAlign: 'right' }}>Occupied</th>
-              <th style={{ ...styles.th, textAlign: 'right' }}>Vacant</th>
-              <th style={{ ...styles.th, textAlign: 'right' }}>Under Reno</th>
-              <th style={{ ...styles.th, textAlign: 'right' }}>Rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row: any) => (
-              <tr key={row.propertyId}>
-                <td style={styles.td}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Building2 size={14} color="#6366f1" />
-                    {row.propertyName}
-                  </div>
-                </td>
-                <td style={{ ...styles.td, textAlign: 'right' }}>{row.totalUnits}</td>
-                <td style={{ ...styles.td, textAlign: 'right', color: '#22c55e' }}>{row.occupied}</td>
-                <td style={{ ...styles.td, textAlign: 'right', color: '#ef4444' }}>{row.vacant}</td>
-                <td style={{ ...styles.td, textAlign: 'right', color: '#f59e0b' }}>{row.underRenovation}</td>
-                <td style={{ ...styles.td, textAlign: 'right' }}>
-                  <RateBar value={row.occupancyRate} />
-                </td>
+      <div className="mall-table-wrap" style={{ marginTop: 16 }}>
+        <TableScrollWrapper>
+          <table className="mall-table">
+            <thead>
+              <tr>
+                <th>Property</th>
+                <th style={{ textAlign: 'right' }}>Total</th>
+                <th style={{ textAlign: 'right' }}>Occupied</th>
+                <th style={{ textAlign: 'right' }}>Vacant</th>
+                <th style={{ textAlign: 'right' }}>Under Reno</th>
+                <th style={{ textAlign: 'right' }}>Rate</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.map((row: any) => (
+                <tr key={row.propertyId}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Building2 size={14} color="#6366f1" />
+                      {row.propertyName}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>{row.totalUnits}</td>
+                  <td style={{ textAlign: 'right', color: '#22c55e' }}>{row.occupied}</td>
+                  <td style={{ textAlign: 'right', color: '#ef4444' }}>{row.vacant}</td>
+                  <td style={{ textAlign: 'right', color: '#f59e0b' }}>{row.underRenovation}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <RateBar value={row.occupancyRate} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
     </div>
   );
@@ -402,32 +402,34 @@ function RevenueResult({ data }: { data: any[] }) {
       </div>
 
       {/* Table */}
-      <div style={styles.tableWrap}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Month</th>
-              <th style={{ ...styles.th, textAlign: 'right' }}>Invoiced</th>
-              <th style={{ ...styles.th, textAlign: 'right' }}>Collected</th>
-              <th style={{ ...styles.th, textAlign: 'right' }}>Invoices</th>
-              <th style={{ ...styles.th, textAlign: 'right' }}>Rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((d: any) => {
-              const rate = d.invoiced > 0 ? Math.round((d.collected / d.invoiced) * 100) : 0;
-              return (
-                <tr key={d.month}>
-                  <td style={styles.td}>{new Date(d.month).toLocaleDateString('en', { month: 'long', year: 'numeric' })}</td>
-                  <td style={{ ...styles.td, textAlign: 'right' }}>${d.invoiced.toLocaleString()}</td>
-                  <td style={{ ...styles.td, textAlign: 'right', color: '#22c55e' }}>${d.collected.toLocaleString()}</td>
-                  <td style={{ ...styles.td, textAlign: 'right' }}>{d.invoiceCount}</td>
-                  <td style={{ ...styles.td, textAlign: 'right' }}><RateBar value={rate} /></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="mall-table-wrap" style={{ marginTop: 16 }}>
+        <TableScrollWrapper>
+          <table className="mall-table">
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th style={{ textAlign: 'right' }}>Invoiced</th>
+                <th style={{ textAlign: 'right' }}>Collected</th>
+                <th style={{ textAlign: 'right' }}>Invoices</th>
+                <th style={{ textAlign: 'right' }}>Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((d: any) => {
+                const rate = d.invoiced > 0 ? Math.round((d.collected / d.invoiced) * 100) : 0;
+                return (
+                  <tr key={d.month}>
+                    <td>{new Date(d.month).toLocaleDateString('en', { month: 'long', year: 'numeric' })}</td>
+                    <td style={{ textAlign: 'right' }}>${d.invoiced.toLocaleString()}</td>
+                    <td style={{ textAlign: 'right', color: '#22c55e' }}>${d.collected.toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }}>{d.invoiceCount}</td>
+                    <td style={{ textAlign: 'right' }}><RateBar value={rate} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
     </div>
   );
@@ -505,29 +507,31 @@ function PortfolioResult({ data }: { data: any }) {
       </div>
 
       {properties.length > 0 && (
-        <div style={{ ...styles.tableWrap, marginTop: 16 }}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Property</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Occupancy</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Revenue YTD</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Collection</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Tickets</th>
-              </tr>
-            </thead>
-            <tbody>
-              {properties.map((p: any) => (
-                <tr key={p.propertyId}>
-                  <td style={styles.td}>{p.name}</td>
-                  <td style={{ ...styles.td, textAlign: 'right' }}><RateBar value={p.occupancyRate} /></td>
-                  <td style={{ ...styles.td, textAlign: 'right' }}>${Number(p.revenueYtd).toLocaleString()}</td>
-                  <td style={{ ...styles.td, textAlign: 'right' }}>{p.collectionRate}%</td>
-                  <td style={{ ...styles.td, textAlign: 'right' }}>{p.openTickets}</td>
+        <div className="mall-table-wrap" style={{ marginTop: 16 }}>
+          <TableScrollWrapper>
+            <table className="mall-table">
+              <thead>
+                <tr>
+                  <th>Property</th>
+                  <th style={{ textAlign: 'right' }}>Occupancy</th>
+                  <th style={{ textAlign: 'right' }}>Revenue YTD</th>
+                  <th style={{ textAlign: 'right' }}>Collection</th>
+                  <th style={{ textAlign: 'right' }}>Tickets</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {properties.map((p: any) => (
+                  <tr key={p.propertyId}>
+                    <td>{p.name}</td>
+                    <td style={{ textAlign: 'right' }}><RateBar value={p.occupancyRate} /></td>
+                    <td style={{ textAlign: 'right' }}>${Number(p.revenueYtd).toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }}>{p.collectionRate}%</td>
+                    <td style={{ textAlign: 'right' }}>{p.openTickets}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
         </div>
       )}
     </div>
@@ -539,6 +543,7 @@ function CreateReportModal({ onClose }: { onClose: () => void }) {
   const [createReport, { isLoading }] = useCreateBiReportMutation();
   const { data: propsRes } = useGetPropertiesQuery({});
   const properties = propsRes?.data || [];
+  const [submitted, setSubmitted] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -554,6 +559,7 @@ function CreateReportModal({ onClose }: { onClose: () => void }) {
   });
 
   const handleSubmit = async () => {
+    setSubmitted(true);
     if (!form.name.trim()) return;
     await createReport({
       name: form.name.trim(),
@@ -608,11 +614,13 @@ function CreateReportModal({ onClose }: { onClose: () => void }) {
             <label style={styles.label}>Report Name *</label>
             <input
               style={styles.input}
+              className={submitted && !form.name.trim() ? 'mall-input-error' : ''}
               type="text"
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder={`e.g. Monthly ${meta.label} — ${new Date().toLocaleDateString('en', { month: 'long', year: 'numeric' })}`}
             />
+            {submitted && !form.name.trim() && <span className="mall-error-text">Report name is required</span>}
           </div>
 
           {/* Description */}
@@ -681,9 +689,9 @@ function CreateReportModal({ onClose }: { onClose: () => void }) {
         <div style={styles.modalFooter}>
           <button style={styles.cancelBtn} onClick={onClose}>Cancel</button>
           <button
-            style={{ ...styles.createBtn, opacity: !form.name.trim() || isLoading ? 0.5 : 1 }}
+            style={{ ...styles.createBtn, opacity: isLoading ? 0.5 : 1 }}
             onClick={handleSubmit}
-            disabled={!form.name.trim() || isLoading}
+            disabled={isLoading}
           >
             {isLoading ? <><RefreshCw size={14} className="spin" /> Creating...</> : <><Plus size={14} /> Create Report</>}
           </button>
@@ -734,9 +742,6 @@ function legendDot(color: string): React.CSSProperties {
 
 // ─── Inline Styles ───────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 24, fontWeight: 700, margin: 0 },
-  subtitle: { color: 'var(--text-secondary)', margin: '4px 0 0', fontSize: 14 },
   createBtn: {
     display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 10,
     border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
@@ -806,12 +811,6 @@ const styles: Record<string, React.CSSProperties> = {
   kpiRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 },
   kpiMini: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)' },
   kpiMiniIcon: { width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-
-  // Table
-  tableWrap: { marginTop: 16, borderRadius: 12, border: '1px solid var(--border-color)', overflow: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse' as any, fontSize: 13 },
-  th: { padding: '10px 14px', textAlign: 'left' as any, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.02)' },
-  td: { padding: '10px 14px', borderBottom: '1px solid var(--border-color)' },
 
   // Chart area
   chartArea: { marginTop: 16, padding: 16, borderRadius: 12, border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.02)' },

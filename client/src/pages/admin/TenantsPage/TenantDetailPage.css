@@ -380,7 +380,154 @@
 .doc-actions a:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
 .doc-actions .btn-danger-ghost:hover { background: rgba(231,76,60,0.18); color: #e74c3c; }
 
-[data-theme="light"] .doc-card-sm { background: #fff; border-color: rgba(0,0,0,0.08); }
-[data-theme="light"] .doc-card-sm:hover { border-color: rgba(0,0,0,0.15); }
+[data-theme="light"] .doc-card-sm { background: #fff; border-color: #cbd5e1; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+[data-theme="light"] .doc-card-sm:hover { border-color: #94a3b8; }
 [data-theme="light"] .doc-actions a, [data-theme="light"] .doc-actions button { background: rgba(0,0,0,0.04); }
 [data-theme="light"] .doc-actions a:hover { background: rgba(0,0,0,0.08); }
+
+/* ── Comprehensive Light Mode overrides for Tenant Detail ── */
+[data-theme="light"] .tenant-detail-page .back-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+[data-theme="light"] .tenant-detail-page .back-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+[data-theme="light"] .tenant-detail-page .source-badge,
+[data-theme="light"] .tenant-detail-page .kyc-expiry-badge:not(.warning):not(.expired) {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-weight: 600;
+}
+
+[data-theme="light"] .tenant-detail-page .kyc-strip {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="light"] .tenant-detail-page .kyc-stat {
+  border-right: 1px solid #cbd5e1;
+  font-weight: 600;
+}
+[data-theme="light"] .tenant-detail-page .kyc-stat:last-child {
+  border-right: none;
+}
+[data-theme="light"] .tenant-detail-page .kyc-stat.approved { color: #16a34a; }
+[data-theme="light"] .tenant-detail-page .kyc-stat.pending  { color: #d97706; }
+[data-theme="light"] .tenant-detail-page .kyc-stat.rejected { color: #dc2626; }
+[data-theme="light"] .tenant-detail-page .kyc-stat.total    { color: #475569; }
+
+[data-theme="light"] .tenant-detail-page .td-tabs {
+  border-bottom: 1px solid #cbd5e1;
+}
+[data-theme="light"] .tenant-detail-page .td-tabs button {
+  color: #475569;
+  font-weight: 500;
+}
+[data-theme="light"] .tenant-detail-page .td-tabs button:hover:not(.active) {
+  color: #0f172a;
+}
+[data-theme="light"] .tenant-detail-page .td-tabs button.active {
+  color: var(--accent, #059669);
+  border-bottom-color: var(--accent, #059669);
+  font-weight: 600;
+}
+
+[data-theme="light"] .tenant-detail-page .info-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="light"] .tenant-detail-page .tenant-tag {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-weight: 500;
+}
+
+[data-theme="light"] .tenant-detail-page .ec-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .tenant-detail-page .kyc-overall {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .tenant-detail-page .kyc-doc-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+[data-theme="light"] .tenant-detail-page .kyc-doc-card.approved {
+  border-color: #22c55e;
+}
+[data-theme="light"] .tenant-detail-page .kyc-doc-card.rejected {
+  border-color: #ef4444;
+}
+
+[data-theme="light"] .tenant-detail-page .req-badge {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-weight: 600;
+}
+
+[data-theme="light"] .tenant-detail-page .review-toggle button {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-weight: 500;
+}
+[data-theme="light"] .tenant-detail-page .review-toggle button.active.approve {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: #16a34a;
+  color: #16a34a;
+  font-weight: 600;
+}
+[data-theme="light"] .tenant-detail-page .review-toggle button.active.reject {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: #dc2626;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+[data-theme="light"] .tenant-detail-page .lease-stat {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+[data-theme="light"] .tenant-detail-page .lease-stat.active {
+  background: rgba(22, 163, 74, 0.10);
+  border-color: rgba(22, 163, 74, 0.35);
+  color: #16a34a;
+}
+
+[data-theme="light"] .tenant-detail-page .lease-row:not(.header) {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+}
+[data-theme="light"] .tenant-detail-page .lease-row:hover:not(.header) {
+  border-color: #94a3b8;
+}
+
+[data-theme="light"] .tenant-detail-page .note-compose,
+[data-theme="light"] .tenant-detail-page .note-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+[data-theme="light"] .tenant-detail-page .note-compose-footer {
+  border-top: 1px solid #e2e8f0;
+}
+

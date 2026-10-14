@@ -5,33 +5,6 @@
   color: var(--text-primary);
 }
 
-.cron-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.75rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.cron-header h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin: 0 0 0.35rem 0;
-  letter-spacing: -0.02em;
-}
-
-.cron-header p {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin: 0;
-  line-height: 1.4;
-}
-
 /* ── Stat Cards ── */
 .cron-stats {
   display: grid;
@@ -235,46 +208,86 @@
   color: var(--text-primary);
 }
 
-/* ── Table Styles ── */
+/* ── Table Styles (Tenants Table Design) ── */
 .cron-table-container {
-  background: var(--surface-card, var(--surface));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 12px);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-lg, 14px);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
 }
 
 .cron-table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: 0.875rem;
+  font-size: 0.82rem;
+}
+
+.cron-table thead tr {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  height: 40px;
 }
 
 .cron-table th {
-  background: var(--surface-elevated);
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.06em;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.cron-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  height: 48px;
+  transition: background-color 0.15s ease;
+}
+
+.cron-table tbody tr:last-child {
+  border-bottom: none;
 }
 
 .cron-table td {
-  padding: 0.9rem 1.15rem;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 14px;
   color: var(--text-primary);
   vertical-align: middle;
 }
 
-.cron-table tbody tr {
-  transition: background-color var(--transition-fast);
+.cron-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
-.cron-table tbody tr:hover {
-  background: var(--surface-hover);
+[data-theme="light"] .cron-table-container {
+  background: var(--surface, #ffffff);
+  border-color: var(--border, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .cron-table thead tr {
+  background: var(--accent, #059669);
+  border-bottom: 1px solid #047857;
+}
+
+[data-theme="light"] .cron-table th {
+  color: #ffffff;
+}
+
+[data-theme="light"] .cron-table tbody tr {
+  border-bottom-color: var(--border-subtle, #f1f5f9);
+}
+
+[data-theme="light"] .cron-table tbody tr:nth-child(even) {
+  background: #F8FAFC;
+}
+
+[data-theme="light"] .cron-table tbody tr:nth-child(odd) {
+  background: #FFFFFF;
+}
+
+[data-theme="light"] .cron-table tbody tr:hover {
+  background: rgba(5, 150, 105, 0.05);
 }
 
 /* Left Status Color Accent Bar on Table Rows */

@@ -191,8 +191,9 @@ export default function InvoiceListPage() {
     for (const inv of selectedInvoices) {
       try {
         const result = await triggerPdf(inv.id).unwrap();
-        if (result.data?.url) {
-          window.open(result.data.url, '_blank');
+        const url = typeof result === 'string' ? result : (result as any)?.data?.url;
+        if (url) {
+          window.open(url, '_blank');
           success++;
         }
       } catch { failed++; }
@@ -278,11 +279,14 @@ export default function InvoiceListPage() {
       {/* Header */}
       <div className="page-header" style={{ marginBottom: 16 }}>
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'var(--primary-subtle)', color: 'var(--primary)' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <FileText size={22} />
           </div>
           <div>
-            <h1>Invoices</h1>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Invoices</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {meta ? `${meta.total} total invoices` : 'Loading…'}
+            </p>
           </div>
         </div>
       </div>
@@ -459,7 +463,7 @@ export default function InvoiceListPage() {
                       <div className="cell-primary">{getTenantName(inv)}</div>
                     </td>
                     <td>
-                      <div className="cell-primary">{inv.unit ? `Unit ${inv.unit.unitNumber}` : '—'}</div>
+                      <div className="cell-primary">{inv.unit?.unitNumber || '—'}</div>
                     </td>
                     <td className="text-right">
                       <span className="cell-amount">
@@ -492,7 +496,7 @@ export default function InvoiceListPage() {
         </TableScrollWrapper>
 
         {/* Pagination */}
-        {meta && meta.total > 0 && (
+        {meta && meta.total >= 10 && (
           <div className="billing-pagination">
             <div className="pagination-left">
               <div className="page-size-selector">

@@ -154,7 +154,7 @@ class AssetsService {
     });
   }
 
-  async runDepreciation(companyId: string, userId: string) {
+  async runDepreciation(companyId: string, _userId: string) {
     // Find current open fiscal period
     const now = new Date();
     const period = await prisma.fiscalPeriod.findFirst({

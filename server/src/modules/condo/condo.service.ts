@@ -555,7 +555,7 @@ class CondoService {
   }
 
   // Gap #3: Send meeting notice to all unit owners
-  async sendMeetingNotice(id: string, companyId: string, userId: string) {
+  async sendMeetingNotice(id: string, companyId: string, _userId: string) {
     const meeting = await prisma.generalMeeting.findFirst({
       where: { id, companyId },
       include: { property: { select: { name: true } } },

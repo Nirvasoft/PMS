@@ -13,7 +13,7 @@
   background: rgba(255,255,255,.03); color: var(--text-secondary);
   font-size: .78rem; cursor: pointer; transition: all .15s; text-transform: capitalize;
 }
-.lc-filters button.active { border-color: #6c5ce7; background: rgba(108,92,231,.1); color: #6c5ce7; }
+.lc-filters button.active { border-color: var(--accent, #10b981); background: rgba(16, 185, 129, .1); color: var(--accent, #10b981); font-weight: 600; }
 .lc-filters button:hover:not(.active) { background: rgba(255,255,255,.06); }
 
 /* Form */
@@ -21,20 +21,41 @@
 .lc-form h3 { font-size: 1rem; font-weight: 700; margin: 0 0 14px; }
 .lc-form-fields { display: flex; flex-direction: column; gap: 10px; }
 .lc-form-fields .field-row { display: flex; gap: 12px; }
-.lc-form-fields .field label { display: block; font-size: .72rem; color: var(--text-muted); margin-bottom: 4px; }
-.lc-form-fields .field input, .lc-form-fields .field select, .lc-form-fields .field textarea {
-  width: 100%; padding: 8px 10px; border-radius: 8px;
-  border: 1px solid rgba(255,255,255,.1);
-  background: rgba(255,255,255,.04);
+.lc-form-fields .field label { display: block; font-size: .72rem; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
+.lc-form-fields .field input:not([type="checkbox"]),
+.lc-form-fields .field select,
+.lc-form-fields .field textarea {
+  width: 100%; padding: 9px 12px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.05);
   color: var(--text-primary); font-size: .82rem;
+  font-family: inherit;
   outline: none; box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.lc-form-fields .field select option {
+  background: var(--surface, #12231d);
+  color: var(--text-primary);
+}
+.lc-form-fields .field input:not([type="checkbox"]):focus,
+.lc-form-fields .field select:focus,
+.lc-form-fields .field textarea:focus {
+  border-color: var(--accent, #10b981);
+  box-shadow: 0 0 0 3px var(--accent-glow, rgba(16, 185, 129, 0.14));
+}
+.lc-form-fields .field input.input-error,
+.lc-form-fields .field select.input-error,
+.lc-form-fields .field textarea.input-error {
+  border-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
 }
 .lc-form-fields .field textarea { resize: vertical; }
 .lc-form-fields .checkbox-field label {
   display: flex; align-items: center; gap: 8px;
   font-size: .82rem; color: var(--text-secondary); cursor: pointer;
 }
-.lc-form-fields .checkbox-field input[type="checkbox"] { accent-color: #6c5ce7; }
+.lc-form-fields .checkbox-field input[type="checkbox"] { accent-color: var(--accent, #10b981); width: auto; }
 .lc-form-actions { display: flex; gap: 8px; margin-top: 14px; }
 
 /* Category sections */
@@ -60,3 +81,70 @@
 .lc-page .empty-state h3 { font-size: 1rem; color: var(--text-secondary); margin: 0; }
 .lc-page .empty-state p { font-size: .82rem; margin: 0; }
 .loading-center { text-align: center; padding: 40px; color: var(--text-muted); }
+
+/* ─── Light Mode ────────────────────────────── */
+[data-theme="light"] .lc-filters button {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+[data-theme="light"] .lc-filters button:hover:not(.active) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+[data-theme="light"] .lc-filters button.active {
+  background: rgba(5, 150, 105, 0.1);
+  border-color: var(--accent, #059669);
+  color: var(--accent, #059669);
+}
+[data-theme="light"] .lc-form {
+  background: #ffffff;
+  border-color: var(--border, #cbd5e1);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .lc-form-fields .field label {
+  color: #334155;
+}
+[data-theme="light"] .lc-form-fields .field input:not([type="checkbox"]),
+[data-theme="light"] .lc-form-fields .field select,
+[data-theme="light"] .lc-form-fields .field textarea {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: var(--text-primary, #0f172a);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+[data-theme="light"] .lc-form-fields .field input:not([type="checkbox"]):hover:not(:focus):not(.input-error),
+[data-theme="light"] .lc-form-fields .field select:hover:not(:focus):not(.input-error),
+[data-theme="light"] .lc-form-fields .field textarea:hover:not(:focus):not(.input-error) {
+  border-color: #94a3b8;
+}
+[data-theme="light"] .lc-form-fields .field input:not([type="checkbox"]):focus,
+[data-theme="light"] .lc-form-fields .field select:focus,
+[data-theme="light"] .lc-form-fields .field textarea:focus {
+  border-color: var(--accent, #059669);
+  box-shadow: 0 0 0 3px var(--accent-glow, rgba(5, 150, 105, 0.16));
+}
+[data-theme="light"] .lc-form-fields .field select option {
+  background: #ffffff;
+  color: var(--text-primary, #0f172a);
+}
+[data-theme="light"] .lc-form-fields .field input.input-error,
+[data-theme="light"] .lc-form-fields .field select.input-error,
+[data-theme="light"] .lc-form-fields .field textarea.input-error {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14) !important;
+}
+[data-theme="light"] .lc-cat-title {
+  border-bottom-color: #e2e8f0;
+}
+[data-theme="light"] .lc-clause-card {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+[data-theme="light"] .lc-clause-card:hover {
+  border-color: var(--accent, #059669);
+}
+

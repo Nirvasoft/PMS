@@ -380,6 +380,140 @@
   margin: 0 auto;
 }
 
+/* ── Light Mode ───────────────────────────── */
+
+[data-theme="light"] .floor-skyline-stage {
+  background:
+    radial-gradient(ellipse 65% 90% at 30% 0%, rgba(16, 185, 129, 0.06), transparent 70%),
+    #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .floor-skyline {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 22px 14px;
+}
+
+[data-theme="light"] .building-spire {
+  background: linear-gradient(#94a3b8, transparent);
+}
+
+[data-theme="light"] .building-ground {
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.12), transparent 72%);
+}
+
+[data-theme="light"] .floor-slab.filled {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="light"] .floor-slab.filled::after {
+  background: repeating-linear-gradient(90deg, rgba(5, 150, 105, 0.08) 0 5px, transparent 5px 13px);
+  opacity: 0.65;
+}
+
+[data-theme="light"] .floor-slab.filled:hover {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-color: #10b981;
+  box-shadow: 0 6px 14px rgba(16, 185, 129, 0.18), 0 0 0 2px rgba(16, 185, 129, 0.20);
+}
+
+[data-theme="light"] .floor-slab.filled .fs-num {
+  color: #047857;
+  opacity: 0.9;
+  font-weight: 700;
+}
+
+[data-theme="light"] .floor-slab.filled .fs-label {
+  color: #064e3b;
+  font-weight: 700;
+}
+
+[data-theme="light"] .floor-slab.empty {
+  background: #ffffff;
+  border: 1.5px dashed #cbd5e1;
+  color: #64748b;
+}
+
+[data-theme="light"] .floor-slab.empty:hover {
+  border-color: #10b981;
+  color: #059669;
+  background: #ecfdf5;
+}
+
+[data-theme="light"] .fs-actions {
+  background: rgba(236, 253, 245, 0.88);
+  backdrop-filter: blur(2px);
+}
+
+[data-theme="light"] .fs-actions button {
+  background: #ffffff;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .fs-actions button:hover {
+  background: #d1fae5;
+  border-color: #10b981;
+  color: #064e3b;
+}
+
+[data-theme="light"] .fs-actions button.danger:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+[data-theme="light"] .fip-stat {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .bl-progress {
+  background: #e2e8f0;
+  height: 6px;
+  border-radius: 999px;
+}
+
+[data-theme="light"] .bl-progress-fill {
+  background: linear-gradient(90deg, #059669, #10b981);
+  border-radius: 999px;
+}
+
+[data-theme="light"] .fip-legend-dot.filled {
+  background: #d1fae5;
+  border: 1.5px solid #10b981;
+}
+
+[data-theme="light"] .fip-legend-dot.empty {
+  background: #ffffff;
+  border: 1.5px dashed #94a3b8;
+}
+
+[data-theme="light"] .bl-fill-btn {
+  background: #ecfdf5;
+  border: 1px dashed #10b981;
+  color: #047857;
+}
+
+[data-theme="light"] .bl-fill-btn:hover:not(:disabled) {
+  background: #d1fae5;
+  border-style: solid;
+}
+
+[data-theme="light"] .building-empty-state {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
 /* ── Responsive ───────────────────────────── */
 
 @media (max-width: 768px) {

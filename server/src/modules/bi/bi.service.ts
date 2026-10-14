@@ -61,15 +61,10 @@ class BiService {
     const periodLength = now.getTime() - fromDate.getTime();
     prevFromDate.setTime(fromDate.getTime() - periodLength);
 
-    const [prevOccupied, prevRevenue] = await Promise.all([
-      prisma.unit.count({
-        where: { companyId, propertyId: { in: propIds }, status: 'occupied' },
-      }),
-      prisma.invoice.aggregate({
-        where: { companyId, propertyId: { in: propIds }, invoiceDate: { gte: prevFromDate, lt: fromDate }, status: { not: 'cancelled' } },
-        _sum: { totalAmount: true },
-      }),
-    ]);
+    const prevRevenue = await prisma.invoice.aggregate({
+      where: { companyId, propertyId: { in: propIds }, invoiceDate: { gte: prevFromDate, lt: fromDate }, status: { not: 'cancelled' } },
+      _sum: { totalAmount: true },
+    });
 
     const prevRevenueTotal = Number(prevRevenue._sum.totalAmount || 0);
     const revenueTrendPct = prevRevenueTotal > 0 ? ((totalRevenue - prevRevenueTotal) / prevRevenueTotal * 100) : 0;
@@ -129,7 +124,7 @@ class BiService {
     };
   }
 
-  private async generateAlerts(companyId: string, propIds: string[], fromDate: Date) {
+  private async generateAlerts(companyId: string, propIds: string[], _fromDate: Date) {
     const alerts: any[] = [];
     const now = new Date();
     const sixtyDaysFromNow = new Date(now.getTime() + 60 * 86400000);

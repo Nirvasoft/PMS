@@ -7,7 +7,7 @@ import {
 import { useGetActiveVisitorsQuery } from '../../../store/api/visitorsApi';
 import {
   Shield, Loader2, AlertOctagon, Eye, CheckCircle2, AlertTriangle,
-  MapPin, TrendingUp, Clock, DoorOpen, ShieldX,
+  MapPin, Clock, DoorOpen, ShieldX,
   ArrowRight, BarChart3, Target, Users, Car,
 } from 'lucide-react';
 
@@ -21,10 +21,6 @@ const SEVERITY_STYLE: Record<string, { color: string; bg: string }> = {
 const TYPE_ICONS: Record<string, string> = {
   theft: '🔓', vandalism: '🔨', trespassing: '🚷', fire: '🔥',
   medical: '🏥', accident: '⚠️', suspicious_activity: '🔍', other: '📋',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  open: '#ef4444', investigating: '#eab308', resolved: '#10b981', closed: '#6b7280',
 };
 
 export default function SecurityDashboard() {

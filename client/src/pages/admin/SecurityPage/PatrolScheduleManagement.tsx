@@ -40,13 +40,26 @@ export default function PatrolScheduleManagement() {
   const properties = propsData?.data || [];
   const stats = statsResp?.data;
 
+  const [scheduleErrors, setScheduleErrors] = useState<Record<string, string>>({});
+  const [checkpointErrors, setCheckpointErrors] = useState<Record<string, string>>({});
+
   const handleCreateSchedule = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyId = (fd.get('propertyId') as string) || '';
+    const name = ((fd.get('name') as string) || '').trim();
+    const errs: Record<string, string> = {};
+    if (!propertyId) errs.propertyId = 'Property is required';
+    if (!name) errs.name = 'Schedule name is required';
+    if (Object.keys(errs).length > 0) {
+      setScheduleErrors(errs);
+      return;
+    }
+    setScheduleErrors({});
     const chkIds = Array.from(fd.getAll('checkpoints')).filter(Boolean) as string[];
     try {
       await createSchedule({
-        propertyId: fd.get('propertyId'), name: fd.get('name'),
+        propertyId, name,
         frequencyType: fd.get('frequencyType'),
         checkpoints: chkIds,
         customTimes: (fd.get('customTimes') as string || '').split(',').map(s => s.trim()).filter(Boolean),
@@ -60,9 +73,19 @@ export default function PatrolScheduleManagement() {
   const handleCreateCheckpoint = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyId = (fd.get('propertyId') as string) || '';
+    const name = ((fd.get('name') as string) || '').trim();
+    const errs: Record<string, string> = {};
+    if (!propertyId) errs.propertyId = 'Property is required';
+    if (!name) errs.name = 'Checkpoint name is required';
+    if (Object.keys(errs).length > 0) {
+      setCheckpointErrors(errs);
+      return;
+    }
+    setCheckpointErrors({});
     try {
       await createCheckpoint({
-        propertyId: fd.get('propertyId'), name: fd.get('name'),
+        propertyId, name,
         location: fd.get('location') || undefined, floor: fd.get('floor') || undefined,
         sortOrder: parseInt(fd.get('sortOrder') as string) || 0,
       }).unwrap();
@@ -78,15 +101,15 @@ export default function PatrolScheduleManagement() {
           <div className="page-icon-lg"><Shield size={22} /></div>
           <div>
             <h1>Patrol Management</h1>
-            <p>Schedules, checkpoints & QR-enabled patrol routes</p>
+            <p>{schedules.length} total schedules · {checkpoints.length} checkpoints</p>
           </div>
         </div>
         <PermissionGuard permission="security-patrol-schedules.write">
           <div className="header-actions">
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowCreateCheckpoint(true)}>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setCheckpointErrors({}); setShowCreateCheckpoint(true); }}>
               <QrCode size={14} /> Add Checkpoint
             </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCreateSchedule(true)}>
+            <button className="btn btn-primary btn-sm" onClick={() => { setScheduleErrors({}); setShowCreateSchedule(true); }}>
               <Plus size={14} /> New Schedule
             </button>
           </div>
@@ -229,19 +252,21 @@ export default function PatrolScheduleManagement() {
                 <XCircle size={20} />
               </button>
             </div>
-            <form onSubmit={handleCreateSchedule}>
+            <form onSubmit={handleCreateSchedule} noValidate>
               <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
                 <div className="form-group"><label>Property *</label>
-                  <select name="propertyId" required>
+                  <select name="propertyId" className={scheduleErrors.propertyId ? 'maint-input-error' : ''} onChange={() => setScheduleErrors((p) => ({ ...p, propertyId: '' }))}>
                     <option value="">Select...</option>
                     {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  {scheduleErrors.propertyId && <span className="maint-error-text">{scheduleErrors.propertyId}</span>}
                 </div>
                 <div className="form-group"><label>Schedule Name *</label>
-                  <input name="name" required placeholder="Hourly Floor 1 Patrol" />
+                  <input name="name" placeholder="Hourly Floor 1 Patrol" className={scheduleErrors.name ? 'maint-input-error' : ''} onChange={() => setScheduleErrors((p) => ({ ...p, name: '' }))} />
+                  {scheduleErrors.name && <span className="maint-error-text">{scheduleErrors.name}</span>}
                 </div>
                 <div className="form-group"><label>Frequency *</label>
-                  <select name="frequencyType" required>
+                  <select name="frequencyType">
                     <option value="hourly">Hourly</option>
                     <option value="every_2h">Every 2 Hours</option>
                     <option value="every_4h">Every 4 Hours</option>
@@ -285,16 +310,18 @@ export default function PatrolScheduleManagement() {
                 <XCircle size={20} />
               </button>
             </div>
-            <form onSubmit={handleCreateCheckpoint}>
+            <form onSubmit={handleCreateCheckpoint} noValidate>
               <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
                 <div className="form-group"><label>Property *</label>
-                  <select name="propertyId" required>
+                  <select name="propertyId" className={checkpointErrors.propertyId ? 'maint-input-error' : ''} onChange={() => setCheckpointErrors((p) => ({ ...p, propertyId: '' }))}>
                     <option value="">Select...</option>
                     {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  {checkpointErrors.propertyId && <span className="maint-error-text">{checkpointErrors.propertyId}</span>}
                 </div>
                 <div className="form-group"><label>Name *</label>
-                  <input name="name" required placeholder="Main Gate, Lobby A..." />
+                  <input name="name" placeholder="Main Gate, Lobby A..." className={checkpointErrors.name ? 'maint-input-error' : ''} onChange={() => setCheckpointErrors((p) => ({ ...p, name: '' }))} />
+                  {checkpointErrors.name && <span className="maint-error-text">{checkpointErrors.name}</span>}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group"><label>Location</label><input name="location" placeholder="Building A, Level 1" /></div>

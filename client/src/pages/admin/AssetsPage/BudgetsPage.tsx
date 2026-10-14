@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { PieChart } from 'lucide-react';
 import {
   useGetBudgetsQuery, useCreateBudgetMutation, useUpdateBudgetMutation,
   useDeleteBudgetMutation, useApproveBudgetMutation, useGetBudgetVarianceQuery,
@@ -12,6 +13,7 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -24,7 +26,23 @@ export default function BudgetsPage() {
 
   return (
     <div className="gl-page" style={{ maxWidth: 1600 }}>
-      <h2>Budgeting</h2>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <PieChart size={22} />
+          </div>
+          <div>
+            <h1>Budgeting</h1>
+            <p>Annual & monthly budget allocation and variance tracking</p>
+          </div>
+        </div>
+        {tab === 'spreadsheet' && (
+          <PermissionGuard permission="finance-budgets.write">
+            <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New Budget</button>
+          </PermissionGuard>
+        )}
+      </div>
+
       <div className="gl-toolbar">
         <button className={`btn-sm ${tab === 'spreadsheet' ? 'btn-primary' : ''}`} onClick={() => setTab('spreadsheet')}>
           📋 Budget Spreadsheet
@@ -35,11 +53,6 @@ export default function BudgetsPage() {
         <div style={{ flex: 1 }} />
         <label>FY</label>
         <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} min={2020} max={2099} style={{width:80}} />
-        {tab === 'spreadsheet' && (
-          <PermissionGuard permission="finance-budgets.write">
-            <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New Budget</button>
-          </PermissionGuard>
-        )}
       </div>
 
       {tab === 'spreadsheet' ? (
@@ -283,7 +296,7 @@ function SpreadsheetTab({ year }: { year: number }) {
                 ))}
                 <th style={{ textAlign: 'right', minWidth: 100, background: 'rgba(59,130,246,0.06)' }}>Annual</th>
                 <th style={{ minWidth: 70 }}>Status</th>
-                <th style={{ minWidth: 130 }}>Actions</th>
+                <th style={{ minWidth: 130 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -683,39 +696,41 @@ function VarianceTab({ year }: { year: number }) {
 
           {/* Variance table */}
           <div className="gl-table-wrap">
-            <table className="gl-table">
-              <thead>
-                <tr>
-                  <th>Account</th><th>Account Name</th>
-                  <th style={{ textAlign: 'right' }}>Budget</th>
-                  <th style={{ textAlign: 'right' }}>Actual</th>
-                  <th style={{ textAlign: 'right' }}>Variance</th>
-                  <th>%</th><th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {variance.rows.map(r => (
-                  <tr key={r.budgetId}>
-                    <td style={{ fontWeight: 600 }}>{r.glAccountCode}</td>
-                    <td>{r.accountName}</td>
-                    <td className="amount">{fmtAmt(r.budgetAmount)}</td>
-                    <td className="amount">{fmtAmt(r.actualAmount)}</td>
-                    <td className={`amount ${r.variance >= 0 ? 'positive' : 'negative'}`}>{fmtAmt(r.variance)}</td>
-                    <td style={{ color: r.variance >= 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
-                      {r.variancePct > 0 ? '+' : ''}{r.variancePct}%
-                    </td>
-                    <td>
-                      <span className={`gl-badge ${r.status === 'under_budget' ? 'posted' : 'reversed'}`}>
-                        {r.status === 'under_budget' ? '✓ Under' : '✗ Over'}
-                      </span>
-                    </td>
+            <TableScrollWrapper>
+              <table className="gl-table">
+                <thead>
+                  <tr>
+                    <th>Account</th><th>Account Name</th>
+                    <th style={{ textAlign: 'right' }}>Budget</th>
+                    <th style={{ textAlign: 'right' }}>Actual</th>
+                    <th style={{ textAlign: 'right' }}>Variance</th>
+                    <th>%</th><th>Status</th>
                   </tr>
-                ))}
-                {variance.rows.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No budget data for FY {year}</td></tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {variance.rows.map(r => (
+                    <tr key={r.budgetId}>
+                      <td style={{ fontWeight: 600 }}>{r.glAccountCode}</td>
+                      <td>{r.accountName}</td>
+                      <td className="amount">{fmtAmt(r.budgetAmount)}</td>
+                      <td className="amount">{fmtAmt(r.actualAmount)}</td>
+                      <td className={`amount ${r.variance >= 0 ? 'positive' : 'negative'}`}>{fmtAmt(r.variance)}</td>
+                      <td style={{ color: r.variance >= 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                        {r.variancePct > 0 ? '+' : ''}{r.variancePct}%
+                      </td>
+                      <td>
+                        <span className={`gl-badge ${r.status === 'under_budget' ? 'posted' : 'reversed'}`}>
+                          {r.status === 'under_budget' ? '✓ Under' : '✗ Over'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {variance.rows.length === 0 && (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No budget data for FY {year}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
           </div>
         </>
       )}
@@ -731,6 +746,7 @@ function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => voi
   const { data: accounts = [] } = useGetGlAccountsQuery({});
   const [createBudget, { isLoading }] = useCreateBudgetMutation();
   const expenseAccounts = accounts.filter(a => (a.accountType === 'expense' || a.accountType === 'income') && a.isActive && !a.isControl);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const [form, setForm] = useState({
     glAccountId: '', name: '', annualAmount: 0,
@@ -755,6 +771,8 @@ function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => voi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.glAccountId || !form.annualAmount) return;
     const monthlyAmounts: Record<string, number> = {};
     form.monthly.forEach((v, i) => { monthlyAmounts[String(i + 1)] = v; });
     try {
@@ -776,14 +794,21 @@ function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => voi
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:800}}>
         <h3>New Budget — FY {year}</h3>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>GL Account</label>
-              <select value={form.glAccountId} onChange={e => setForm({...form, glAccountId: e.target.value})} required>
+              <label>GL Account <span className="req">*</span></label>
+              <select
+                className={hasAttemptedSubmit && !form.glAccountId ? 'gl-input-error' : ''}
+                value={form.glAccountId}
+                onChange={e => setForm({...form, glAccountId: e.target.value})}
+              >
                 <option value="">Select account…</option>
                 {expenseAccounts.map(a => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
               </select>
+              {hasAttemptedSubmit && !form.glAccountId && (
+                <span className="gl-error-text">GL account is required</span>
+              )}
             </div>
             <div className="gl-form-group">
               <label>Budget Name (optional)</label>
@@ -792,8 +817,18 @@ function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => voi
           </div>
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>Annual Amount</label>
-              <input type="number" min="0" step="0.01" value={form.annualAmount || ''} onChange={e => setForm({...form, annualAmount: parseFloat(e.target.value) || 0})} required />
+              <label>Annual Amount <span className="req">*</span></label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className={hasAttemptedSubmit && !form.annualAmount ? 'gl-input-error' : ''}
+                value={form.annualAmount || ''}
+                onChange={e => setForm({...form, annualAmount: parseFloat(e.target.value) || 0})}
+              />
+              {hasAttemptedSubmit && !form.annualAmount && (
+                <span className="gl-error-text">Annual amount is required</span>
+              )}
             </div>
             <div className="gl-form-group" style={{display:'flex',alignItems:'flex-end'}}>
               <button type="button" className="btn-sm" onClick={distributeEvenly}>Distribute Evenly</button>

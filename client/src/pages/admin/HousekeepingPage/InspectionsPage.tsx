@@ -7,7 +7,7 @@ import {
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  ClipboardCheck, Plus, Loader2, Inbox, Star, XCircle,
+  ClipboardCheck, Plus, Loader2, Star, XCircle,
   AlertTriangle, MapPin, Eye, Ticket, Search, Filter,
   Building2, Calendar, User,
 } from 'lucide-react';
@@ -66,6 +66,7 @@ export default function InspectionsPage() {
   const [formIssues, setFormIssues] = useState<string[]>([]);
   const [newIssue, setNewIssue] = useState('');
   const [formAction, setFormAction] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const resetForm = () => {
     setFormProperty(''); setFormZone('');
@@ -73,10 +74,12 @@ export default function InspectionsPage() {
     setFormOverall(4);
     setFormChecklist(DEFAULT_CHECKLIST.map(c => ({ ...c })));
     setFormIssues([]); setNewIssue(''); setFormAction(false);
+    setHasAttemptedSubmit(false);
   };
 
   const handleCreate = async () => {
-    if (!formProperty) return toast.error('Select a property');
+    setHasAttemptedSubmit(true);
+    if (!formProperty) return;
     try {
       await createInspection({
         propertyId: formProperty,
@@ -122,30 +125,16 @@ export default function InspectionsPage() {
   return (
     <div className="maint-page">
       {/* ── Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        marginBottom: 24, flexWrap: 'wrap', gap: 12,
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #f59e0b, #f97316)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <ClipboardCheck size={18} color="#fff" />
-            </div>
-            Inspections
-          </h1>
-          <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            Quality inspections with per-item scoring and issue tracking
-          </p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><ClipboardCheck size={22} /></div>
+          <div>
+            <h1>Inspections</h1>
+            <p>{inspections.length} total inspections</p>
+          </div>
         </div>
         <PermissionGuard permission="housekeeping-inspections.write">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
+          <button className="btn btn-primary btn-sm" onClick={() => { resetForm(); setShowCreate(true); }}>
             <Plus size={14} /> New Inspection
           </button>
         </PermissionGuard>
@@ -443,10 +432,11 @@ export default function InspectionsPage() {
             <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group"><label>Property *</label>
-                  <select value={formProperty} onChange={(e) => setFormProperty(e.target.value)} style={{ borderRadius: 10 }}>
+                  <select value={formProperty} onChange={(e) => setFormProperty(e.target.value)} className={hasAttemptedSubmit && !formProperty ? 'maint-input-error' : ''} style={{ borderRadius: 10 }}>
                     <option value="">Select property...</option>
                     {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  {hasAttemptedSubmit && !formProperty && <span className="maint-error-text">Property is required</span>}
                 </div>
                 <div className="form-group"><label>Zone</label>
                   <select value={formZone} onChange={(e) => setFormZone(e.target.value)} style={{ borderRadius: 10 }}>

@@ -26,7 +26,7 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
     });
   }
 
-  async function updateStore(companyId: string, id: string, data: any) {
+  async function updateStore(_companyId: string, id: string, data: any) {
     const { name, location, isActive } = data;
     return prisma.store.update({
       where: { id },
@@ -94,7 +94,7 @@ export function createInventoryService({ prisma }: InventoryServiceDeps) {
     return prisma.inventoryItem.create({ data: { ...data, companyId } });
   }
 
-  async function updateItem(companyId: string, id: string, data: any) {
+  async function updateItem(_companyId: string, id: string, data: any) {
     return prisma.inventoryItem.update({ where: { id }, data });
   }
 

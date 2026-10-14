@@ -1,5 +1,6 @@
 import { useGetCollectionSummaryQuery, useGetOutstandingByPropertyQuery, useGetOverdueTrendQuery } from '../../../store/api/arApi';
 import { TrendingUp, DollarSign, AlertTriangle, CheckCircle, BarChart3, Building2, Activity } from 'lucide-react';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ARPage.css';
 
 const formatCurrency = (amount: number, currency = 'USD') =>
@@ -27,12 +28,12 @@ export default function CollectionDashboard() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <BarChart3 size={22} />
           </div>
           <div>
-            <h1>Collection Dashboard</h1>
-            <p>Overview of accounts receivable collection performance</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Collection Dashboard</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Overview of accounts receivable collection performance</p>
           </div>
         </div>
       </div>
@@ -116,48 +117,50 @@ export default function CollectionDashboard() {
 
       {/* Quick Summary Table */}
       <div className="ar-table-wrap">
-        <table className="ar-table">
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th className="text-right">Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><span className="cell-primary">Collection Rate</span></td>
-              <td className="text-right">
-                <span className="cell-amount" style={{ color: gaugeColor }}>{summary.collectionRate}%</span>
-              </td>
-            </tr>
-            <tr>
-              <td><span className="cell-primary">Total Revenue Invoiced</span></td>
-              <td className="text-right">
-                <span className="cell-amount">{formatCurrency(summary.totalInvoiced)}</span>
-              </td>
-            </tr>
-            <tr>
-              <td><span className="cell-primary">Total Cash Collected</span></td>
-              <td className="text-right">
-                <span className="cell-amount paid">{formatCurrency(summary.totalCollected)}</span>
-              </td>
-            </tr>
-            <tr>
-              <td><span className="cell-primary">Total Outstanding Balance</span></td>
-              <td className="text-right">
-                <span className="cell-amount" style={{ color: '#fb923c' }}>{formatCurrency(summary.totalOutstanding)}</span>
-              </td>
-            </tr>
-            <tr>
-              <td><span className="cell-primary">Overdue Invoices</span></td>
-              <td className="text-right">
-                <span className="cell-amount" style={{ color: summary.overdueCount > 0 ? '#f87171' : undefined }}>
-                  {summary.overdueCount} ({formatCurrency(summary.overdueAmount)})
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <TableScrollWrapper>
+          <table className="ar-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th className="text-right">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span className="cell-primary">Collection Rate</span></td>
+                <td className="text-right">
+                  <span className="cell-amount" style={{ color: gaugeColor }}>{summary.collectionRate}%</span>
+                </td>
+              </tr>
+              <tr>
+                <td><span className="cell-primary">Total Revenue Invoiced</span></td>
+                <td className="text-right">
+                  <span className="cell-amount">{formatCurrency(summary.totalInvoiced)}</span>
+                </td>
+              </tr>
+              <tr>
+                <td><span className="cell-primary">Total Cash Collected</span></td>
+                <td className="text-right">
+                  <span className="cell-amount paid">{formatCurrency(summary.totalCollected)}</span>
+                </td>
+              </tr>
+              <tr>
+                <td><span className="cell-primary">Total Outstanding Balance</span></td>
+                <td className="text-right">
+                  <span className="cell-amount" style={{ color: '#fb923c' }}>{formatCurrency(summary.totalOutstanding)}</span>
+                </td>
+              </tr>
+              <tr>
+                <td><span className="cell-primary">Overdue Invoices</span></td>
+                <td className="text-right">
+                  <span className="cell-amount" style={{ color: summary.overdueCount > 0 ? '#f87171' : undefined }}>
+                    {summary.overdueCount} ({formatCurrency(summary.overdueAmount)})
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
       {/* Outstanding by Property */}
       {propertyBreakdown.length > 0 && (

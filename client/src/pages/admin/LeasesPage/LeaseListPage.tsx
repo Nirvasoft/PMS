@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGetLeasesQuery, useDeleteLeaseMutation, type LeaseListItem } from '../../../store/api/leasesApi';
+import { useGetLeasesQuery, useDeleteLeaseMutation } from '../../../store/api/leasesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  FileText, Plus, Search, X, AlertTriangle, Trash2,
+  FileText, Plus, Search, Filter, X, AlertTriangle, Trash2,
   Clock, CheckCircle, XCircle, PenLine, Archive, Import,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
@@ -29,6 +29,7 @@ export default function LeaseListPage() {
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
   const [search, setSearch]           = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [status, setStatus]           = useState('');
   const [expiring, setExpiring]       = useState<number | undefined>(undefined);
   const [page, setPage]               = useState(1);
@@ -59,6 +60,7 @@ export default function LeaseListPage() {
 
   const leases = data?.data || [];
   const meta   = data?.meta;
+  const hasActiveFilters = !!(status || expiring);
   const hasFilters = !!(search || status || expiring);
 
   return (
@@ -72,18 +74,13 @@ export default function LeaseListPage() {
             <p>{meta ? `${meta.total} total leases` : 'Loading…'}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="lease-header-actions">
           <button className="btn-ghost" onClick={() => navigate('/admin/leases/templates')}>
             <FileText size={14} /> Templates
           </button>
           <button className="btn-ghost" onClick={() => navigate('/admin/leases/clauses')}>
             <Archive size={14} /> Clauses
           </button>
-          <PermissionGuard permission="leases.create">
-            <button className="btn-ghost" onClick={() => navigate('/admin/leases/general-import?type=lease')}>
-              <Import size={14} /> Import Lease
-            </button>
-          </PermissionGuard>
           <PermissionGuard permission="leases.create">
             <button className="btn-import-lead" onClick={() => setShowImportModal(true)}>
               <Import size={14} /> Import Lead
@@ -105,33 +102,42 @@ export default function LeaseListPage() {
         <div className="expiry-banner">
           <AlertTriangle size={15} />
           <span><strong>{expiringCount}</strong> lease{expiringCount > 1 ? 's' : ''} expiring within 30 days</span>
-          <button onClick={() => { setExpiring(30); setStatus('active'); }}>View →</button>
+          <button onClick={() => { setExpiring(30); setStatus('active'); setShowFilters(true); setPage(1); }}>View →</button>
         </div>
       )}
 
-      {/* Filters */}
+      {/* Search & Filters */}
       <div className="lease-filters">
         <div className="search-box">
           <Search size={14} />
           <input placeholder="Search lease #, unit no, or tenant code/name…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           {search && <button onClick={() => setSearch('')}><X size={13} /></button>}
         </div>
-
-        <select className="filter-select" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
-          <option value="">All Statuses</option>
-          {Object.entries(STATUS_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
-        </select>
-
-        <div className="expiry-filter">
-          {[30, 60, 90].map((d) => (
-            <button key={d} className={expiring === d ? 'active' : ''} onClick={() => { setExpiring(expiring === d ? undefined : d); setPage(1); }}>
-              <Clock size={11} /> Expiring {d}d
-            </button>
-          ))}
-        </div>
-
-        {hasFilters && <button className="btn-clear-filter" onClick={() => { setSearch(''); setStatus(''); setExpiring(undefined); setPage(1); }}><X size={12} /> Clear</button>}
+        <button className="btn-ghost" onClick={() => setShowFilters(!showFilters)}>
+          <Filter size={14} /> Filters{hasActiveFilters ? ' •' : ''}
+        </button>
       </div>
+
+      {showFilters && (
+        <div className="filter-bar">
+          <select className="filter-select" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+            <option value="">All Statuses</option>
+            {Object.entries(STATUS_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
+          </select>
+
+          <div className="expiry-filter">
+            {[30, 60, 90].map((d) => (
+              <button key={d} className={expiring === d ? 'active' : ''} onClick={() => { setExpiring(expiring === d ? undefined : d); setPage(1); }}>
+                <Clock size={11} /> Expiring {d}d
+              </button>
+            ))}
+          </div>
+
+          <button className="btn-ghost" onClick={() => { setStatus(''); setExpiring(undefined); setPage(1); }}>
+            <X size={14} /> Reset
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="lease-table-wrap">
@@ -139,25 +145,26 @@ export default function LeaseListPage() {
           <table className="lease-table billing-table">
             <thead>
               <tr>
-                <th style={{ width: 150 }}>Lease #</th>
-                <th style={{ width: 170 }}>Unit / Property</th>
-                <th style={{ minWidth: 200 }}>Tenant</th>
-                <th style={{ width: 190 }}>Dates</th>
-                <th className="text-right" style={{ width: 140 }}>Rent</th>
-                <th style={{ width: 150 }}>Status</th>
-                <th className="text-center" style={{ width: 80 }}>Action</th>
+                <th className="col-lease-num">Lease #</th>
+                <th className="col-unit">Unit</th>
+                <th className="col-code">Code</th>
+                <th className="col-tenant">Tenant</th>
+                <th className="col-dates">Dates</th>
+                <th className="col-rent text-right">Rent</th>
+                <th className="col-status">Status</th>
+                <th className="col-action text-center"></th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
                   </td>
                 </tr>
               ) : leases.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     <div className="table-empty"><FileText size={40} /><p>No leases found{hasFilters ? ' — try clearing filters' : ''}</p></div>
                   </td>
                 </tr>
@@ -165,6 +172,8 @@ export default function LeaseListPage() {
                 leases.map((lease) => {
                   const s = STATUS_META[lease.status] || { label: lease.status, color: '#95a5a6', icon: null };
                   const expiring = lease.status === 'active' && lease.daysUntilExpiry <= 30;
+                  const tenantCode = lease.tenant?.firstName || '—';
+                  const tenantName = lease.tenant?.lastName || lease.tenant?.companyName || '—';
 
                   return (
                     <tr
@@ -172,7 +181,7 @@ export default function LeaseListPage() {
                       className={expiring ? 'expiring' : ''}
                       onClick={() => navigate(`/admin/leases/${lease.id}`)}
                     >
-                      <td>
+                      <td className="col-lease-num">
                         <div className="lease-num">
                           <span className="ln-badge">{lease.leaseNumber}</span>
                           {expiring && (
@@ -182,45 +191,52 @@ export default function LeaseListPage() {
                           )}
                         </div>
                       </td>
-                      <td>
-                        <div className="lu-number">{lease.unit?.unitNumber || '—'}</div>
-                        {lease.property?.name && (
-                          <div className="lu-property">{lease.property.name}</div>
-                        )}
-                      </td>
-                      <td>
-                        <div className="lease-tenant" title={lease.tenant?.firstName || undefined}>
+                      <td className="col-unit">
+                        <div className="lease-tenant lu-number" title={lease.unit?.unitNumber || undefined}>
                           <span style={{ fontWeight: 600 }}>
-                            {lease.tenant?.displayName || lease.tenant?.lastName || lease.tenant?.companyName || '—'}
+                            {lease.unit?.unitNumber || '—'}
                           </span>
                         </div>
                       </td>
-                      <td>
+                      <td className="col-code">
+                        <div className="lease-tenant" title={tenantCode !== '—' ? tenantCode : undefined}>
+                          <span style={{ fontWeight: 600 }}>
+                            {tenantCode}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="col-tenant">
+                        <div className="lease-tenant" title={tenantName !== '—' ? tenantName : undefined}>
+                          <span style={{ fontWeight: 600 }}>
+                            {tenantName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="col-dates">
                         <div className="lease-dates">
-                          <div>
-                            {lease.startDate ? new Date(lease.startDate).toLocaleDateString() : '—'}
-                            <span className="date-sep">→</span>
-                            {lease.endDate ? new Date(lease.endDate).toLocaleDateString() : '—'}
+                          <div className="lease-dates-stack">
+                            <span>{lease.startDate ? new Date(lease.startDate).toLocaleDateString() : '—'}</span>
+                            <span>{lease.endDate ? new Date(lease.endDate).toLocaleDateString() : '—'}</span>
                           </div>
                           {lease.leaseTermMonths ? (
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                              {lease.leaseTermMonths} months
-                            </div>
+                            <span className="lease-term-middle">
+                              {lease.leaseTermMonths} mo
+                            </span>
                           ) : null}
                         </div>
                       </td>
-                      <td className="text-right">
+                      <td className="col-rent text-right">
                         <div className="lease-rent" style={{ justifyContent: 'flex-end' }}>
-                          <span className="rent-val">{Number(lease.rentAmount || 0).toLocaleString()}</span>
+                          <span className="rent-val" style={{ fontWeight: 600 }}>{Number(lease.rentAmount || 0).toLocaleString()}</span>
                           <span className="rent-cur">{lease.currency || 'USD'}</span>
                         </div>
                       </td>
-                      <td>
+                      <td className="col-status">
                         <span className="status-pill" style={{ color: s.color, background: s.color + '1a', borderColor: s.color + '40' }}>
                           {s.icon}{s.label}
                         </span>
                       </td>
-                      <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                      <td className="col-action text-center" onClick={(e) => e.stopPropagation()}>
                         {['draft', 'cancelled', 'expired', 'terminated'].includes(lease.status) && (
                           <PermissionGuard permission="leases.terminate">
                             <button
@@ -250,7 +266,7 @@ export default function LeaseListPage() {
         </TableScrollWrapper>
 
         {/* Pagination Toolbar */}
-        {meta && meta.total > 0 && (
+        {meta && meta.total >= 10 && (
           <div className="lease-pagination billing-pagination">
             <div className="pagination-left">
               <div className="page-size-selector">
@@ -269,9 +285,6 @@ export default function LeaseListPage() {
                   <option value={100}>100</option>
                 </select>
               </div>
-              <span className="pagination-range" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                Showing {(page - 1) * pageSize + 1} – {Math.min(page * pageSize, meta.total)} of {meta.total} leases
-              </span>
             </div>
 
             <div className="page-btns">

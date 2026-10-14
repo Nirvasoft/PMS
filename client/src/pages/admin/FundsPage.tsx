@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetFundsQuery, useCreateFundMutation, useGetFundTransactionsQuery,
@@ -6,8 +6,9 @@ import {
 } from '../../store/api/condoApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { useAlertDialog } from '../../components/DialogProvider';
-import { Wallet, Plus, X, ArrowUpRight, ArrowDownRight, CheckCircle, XCircle, Clock, ShieldCheck } from 'lucide-react';
+import { Wallet, Plus, CheckCircle, XCircle, Clock, ShieldCheck } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 const FUND_TYPES = ['sinking_fund', 'management_fund', 'reserve_fund'];
 const TXN_TYPES = ['contribution', 'expenditure', 'interest', 'transfer'];
@@ -26,7 +27,9 @@ export default function FundsPage() {
 
   const [selectedFund, setSelectedFund] = useState<string>('');
   const [showCreateFund, setShowCreateFund] = useState(false);
+  const [fundSubmitted, setFundSubmitted] = useState(false);
   const [showAddTxn, setShowAddTxn] = useState(false);
+  const [txnSubmitted, setTxnSubmitted] = useState(false);
 
   const { data: txnRes } = useGetFundTransactionsQuery({ fundId: selectedFund }, { skip: !selectedFund });
   const transactions = txnRes?.data || [];
@@ -42,16 +45,20 @@ export default function FundsPage() {
   const [rejectReason, setRejectReason] = useState('');
 
   const handleCreateFund = async () => {
-    if (!fundForm.name) return;
+    setFundSubmitted(true);
+    if (!fundForm.name.trim()) return;
     await createFund({ propertyId, ...fundForm, openingBalance: Number(fundForm.openingBalance), fiscalYear: Number(fundForm.fiscalYear) });
     setShowCreateFund(false);
+    setFundSubmitted(false);
     setFundForm({ fundType: 'sinking_fund', name: '', openingBalance: '0', currency: 'USD', fiscalYear: String(currentYear) });
   };
 
   const handleAddTxn = async () => {
-    if (!txnForm.amount || !txnForm.description) return;
+    setTxnSubmitted(true);
+    if (!txnForm.amount || !txnForm.description.trim()) return;
     await addTxn({ fundId: selectedFund, data: { ...txnForm, amount: Number(txnForm.amount) } });
     setShowAddTxn(false);
+    setTxnSubmitted(false);
     setTxnForm({ transactionType: 'contribution', amount: '', description: '', transactionDate: new Date().toISOString().slice(0, 10), notes: '' });
   };
 
@@ -82,17 +89,20 @@ export default function FundsPage() {
 
   return (
     <div className="page-content">
-      <div className="condo-page-header">
-        <div>
-          <h1>Funds Management</h1>
-          <p className="condo-page-subtitle">Sinking fund, management fund & reserve fund ledger</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Wallet size={22} /></div>
+          <div>
+            <h1>Funds Management</h1>
+            <p>{funds.length} total funds</p>
+          </div>
         </div>
         <div className="condo-header-actions">
           <select className="condo-filter-select" value={year} onChange={e => setYear(Number(e.target.value))}>
             {[currentYear - 1, currentYear, currentYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <PermissionGuard permission="condo-funds.write">
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCreateFund(true)}>
+            <button className="btn btn-primary btn-sm" onClick={() => { setFundSubmitted(false); setShowCreateFund(true); }}>
               <Plus size={14} style={{ marginRight: 4 }} />New Fund
             </button>
           </PermissionGuard>
@@ -155,81 +165,83 @@ export default function FundsPage() {
               )}
             </h3>
             <PermissionGuard permission="condo-funds.write">
-              <button className="btn btn-primary btn-sm" onClick={() => setShowAddTxn(true)}>
+              <button className="btn btn-primary btn-sm" onClick={() => { setTxnSubmitted(false); setShowAddTxn(true); }}>
                 <Plus size={14} style={{ marginRight: 4 }} />Add Transaction
               </button>
             </PermissionGuard>
           </div>
           <div className="condo-table-wrap">
-            <table className="condo-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Type</th>
-                  <th>Description</th>
-                  <th>Unit</th>
-                  <th className="text-right">Amount</th>
-                  <th>Status</th>
-                  <th>Created By</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length === 0 ? (
-                  <tr><td colSpan={8} className="condo-table-empty">No transactions yet</td></tr>
-                ) : transactions.map((t: any) => (
-                  <tr key={t.id}>
-                    <td>{new Date(t.transactionDate).toLocaleDateString()}</td>
-                    <td><span className={`condo-txn-type condo-txn-${t.transactionType}`}>{t.transactionType}</span></td>
-                    <td>
-                      {t.description}
-                      {t.rejectionReason && (
-                        <div style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: 2 }}>
-                          Reason: {t.rejectionReason}
-                        </div>
-                      )}
-                    </td>
-                    <td>{t.unit?.unitNumber || '—'}</td>
-                    <td className={`text-right ${t.transactionType === 'expenditure' || t.transactionType === 'transfer' ? 'text-danger' : 'text-success'}`}>
-                      {t.transactionType === 'expenditure' || t.transactionType === 'transfer' ? '-' : '+'}{fmt(Number(t.amount))}
-                    </td>
-                    <td>
-                      <span className={`condo-approval-badge condo-approval-${t.status}`}>
-                        {t.status === 'pending_approval' && <><Clock size={11} /> Pending</>}
-                        {t.status === 'approved' && <><CheckCircle size={11} /> Approved</>}
-                        {t.status === 'auto_approved' && <><ShieldCheck size={11} /> Auto</>}
-                        {t.status === 'rejected' && <><XCircle size={11} /> Rejected</>}
-                      </span>
-                    </td>
-                    <td>{t.creator?.profile?.firstName || t.creator?.email || '—'}</td>
-                    <td>
-                      {t.status === 'pending_approval' && (
-                        <PermissionGuard permission="condo-funds.write">
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button
-                              className="btn btn-sm"
-                              style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}
-                              onClick={() => handleApprove(t.id)}
-                              disabled={isApproving}
-                            >
-                              <CheckCircle size={12} /> Approve
-                            </button>
-                            <button
-                              className="btn btn-sm"
-                              style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
-                              onClick={() => { setShowRejectModal(t.id); setRejectReason(''); }}
-                              disabled={isRejecting}
-                            >
-                              <XCircle size={12} /> Reject
-                            </button>
-                          </div>
-                        </PermissionGuard>
-                      )}
-                    </td>
+            <TableScrollWrapper>
+              <table className="condo-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Unit</th>
+                    <th className="text-right">Amount</th>
+                    <th>Status</th>
+                    <th>Created By</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {transactions.length === 0 ? (
+                    <tr><td colSpan={8} className="condo-table-empty">No transactions yet</td></tr>
+                  ) : transactions.map((t: any) => (
+                    <tr key={t.id}>
+                      <td>{new Date(t.transactionDate).toLocaleDateString()}</td>
+                      <td><span className={`condo-txn-type condo-txn-${t.transactionType}`}>{t.transactionType}</span></td>
+                      <td>
+                        {t.description}
+                        {t.rejectionReason && (
+                          <div style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: 2 }}>
+                            Reason: {t.rejectionReason}
+                          </div>
+                        )}
+                      </td>
+                      <td>{t.unit?.unitNumber || '—'}</td>
+                      <td className={`text-right ${t.transactionType === 'expenditure' || t.transactionType === 'transfer' ? 'text-danger' : 'text-success'}`}>
+                        {t.transactionType === 'expenditure' || t.transactionType === 'transfer' ? '-' : '+'}{fmt(Number(t.amount))}
+                      </td>
+                      <td>
+                        <span className={`condo-approval-badge condo-approval-${t.status}`}>
+                          {t.status === 'pending_approval' && <><Clock size={11} /> Pending</>}
+                          {t.status === 'approved' && <><CheckCircle size={11} /> Approved</>}
+                          {t.status === 'auto_approved' && <><ShieldCheck size={11} /> Auto</>}
+                          {t.status === 'rejected' && <><XCircle size={11} /> Rejected</>}
+                        </span>
+                      </td>
+                      <td>{t.creator?.profile?.firstName || t.creator?.email || '—'}</td>
+                      <td>
+                        {t.status === 'pending_approval' && (
+                          <PermissionGuard permission="condo-funds.write">
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}
+                                onClick={() => handleApprove(t.id)}
+                                disabled={isApproving}
+                              >
+                                <CheckCircle size={12} /> Approve
+                              </button>
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 8px', fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                                onClick={() => { setShowRejectModal(t.id); setRejectReason(''); }}
+                                disabled={isRejecting}
+                              >
+                                <XCircle size={12} /> Reject
+                              </button>
+                            </div>
+                          </PermissionGuard>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
           </div>
         </div>
       )}
@@ -240,7 +252,7 @@ export default function FundsPage() {
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Create Fund Account</h3>
-              <button className="condo-modal-close" onClick={() => setShowCreateFund(false)}>×</button>
+              <button className="condo-modal-close" onClick={() => { setShowCreateFund(false); setFundSubmitted(false); }}>×</button>
             </div>
             <div className="condo-modal-body">
               <div className="condo-form-grid">
@@ -252,8 +264,14 @@ export default function FundsPage() {
                 <label>Fiscal Year
                   <input type="number" value={fundForm.fiscalYear} onChange={e => setFundForm(p => ({ ...p, fiscalYear: e.target.value }))} />
                 </label>
-                <label style={{ gridColumn: '1 / -1' }}>Fund Name
-                  <input value={fundForm.name} onChange={e => setFundForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. 2025 Sinking Fund" />
+                <label style={{ gridColumn: '1 / -1' }}>Fund Name *
+                  <input
+                    value={fundForm.name}
+                    className={fundSubmitted && !fundForm.name.trim() ? 'mall-input-error' : ''}
+                    onChange={e => setFundForm(p => ({ ...p, name: e.target.value }))}
+                    placeholder="e.g. 2025 Sinking Fund"
+                  />
+                  {fundSubmitted && !fundForm.name.trim() && <span className="mall-error-text">Fund name is required</span>}
                 </label>
                 <label>Opening Balance
                   <input type="number" value={fundForm.openingBalance} onChange={e => setFundForm(p => ({ ...p, openingBalance: e.target.value }))} />
@@ -264,7 +282,7 @@ export default function FundsPage() {
               </div>
             </div>
             <div className="condo-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowCreateFund(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => { setShowCreateFund(false); setFundSubmitted(false); }}>Cancel</button>
               <button className="btn btn-primary" onClick={handleCreateFund}>Create Fund</button>
             </div>
           </div>
@@ -277,7 +295,7 @@ export default function FundsPage() {
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Add Transaction</h3>
-              <button className="condo-modal-close" onClick={() => setShowAddTxn(false)}>×</button>
+              <button className="condo-modal-close" onClick={() => { setShowAddTxn(false); setTxnSubmitted(false); }}>×</button>
             </div>
             <div className="condo-modal-body">
               <div className="condo-form-grid">
@@ -286,11 +304,22 @@ export default function FundsPage() {
                     {TXN_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                   </select>
                 </label>
-                <label>Amount
-                  <input type="number" value={txnForm.amount} onChange={e => setTxnForm(p => ({ ...p, amount: e.target.value }))} />
+                <label>Amount *
+                  <input
+                    type="number"
+                    value={txnForm.amount}
+                    className={txnSubmitted && !txnForm.amount ? 'mall-input-error' : ''}
+                    onChange={e => setTxnForm(p => ({ ...p, amount: e.target.value }))}
+                  />
+                  {txnSubmitted && !txnForm.amount && <span className="mall-error-text">Amount is required</span>}
                 </label>
-                <label style={{ gridColumn: '1 / -1' }}>Description
-                  <input value={txnForm.description} onChange={e => setTxnForm(p => ({ ...p, description: e.target.value }))} />
+                <label style={{ gridColumn: '1 / -1' }}>Description *
+                  <input
+                    value={txnForm.description}
+                    className={txnSubmitted && !txnForm.description.trim() ? 'mall-input-error' : ''}
+                    onChange={e => setTxnForm(p => ({ ...p, description: e.target.value }))}
+                  />
+                  {txnSubmitted && !txnForm.description.trim() && <span className="mall-error-text">Description is required</span>}
                 </label>
                 <label>Date
                   <input type="date" value={txnForm.transactionDate} onChange={e => setTxnForm(p => ({ ...p, transactionDate: e.target.value }))} />
@@ -301,7 +330,7 @@ export default function FundsPage() {
               </div>
             </div>
             <div className="condo-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowAddTxn(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => { setShowAddTxn(false); setTxnSubmitted(false); }}>Cancel</button>
               <button className="btn btn-primary" onClick={handleAddTxn}>Add Transaction</button>
             </div>
           </div>

@@ -94,11 +94,11 @@ export function createSecurityService({ prisma }: { prisma: PrismaClient }) {
     return incident;
   }
 
-  async function updateIncident(companyId: string, id: string, data: any) {
+  async function updateIncident(_companyId: string, id: string, data: any) {
     return prisma.securityIncident.update({ where: { id }, data });
   }
 
-  async function resolveIncident(companyId: string, id: string, data: any) {
+  async function resolveIncident(_companyId: string, id: string, data: any) {
     return prisma.securityIncident.update({
       where: { id },
       data: {

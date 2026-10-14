@@ -9,21 +9,14 @@ import {
 import { useGetUnitsQuery } from '../../store/api/unitsApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import {
-  Users, Plus, MapPin, Building2, Calendar, Vote, X, Send, FileText,
+  Users, Plus, MapPin, Building2, Calendar, Vote, FileText,
   CheckCircle, AlertCircle, ThumbsUp, ThumbsDown, MinusCircle, Loader2,
-  Bell, Upload, Eye, UserCheck, Shield, BarChart3, PieChart,
+  Bell, Upload, UserCheck, Shield, BarChart3, PieChart,
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 const STATUSES = ['planned', 'notice_sent', 'in_progress', 'completed', 'adjourned'];
-
-const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  planned:      { bg: 'rgba(99,102,241,0.12)',  color: '#818cf8' },
-  notice_sent:  { bg: 'rgba(34,211,238,0.12)',  color: '#22d3ee' },
-  in_progress:  { bg: 'rgba(249,115,22,0.12)',  color: '#f97316' },
-  completed:    { bg: 'rgba(34,197,94,0.12)',   color: '#22c55e' },
-  adjourned:    { bg: 'rgba(148,163,184,0.12)', color: '#94a3b8' },
-};
 
 export default function MeetingsPage() {
 
@@ -41,10 +34,15 @@ export default function MeetingsPage() {
 
   const [selectedId, setSelectedId] = useState<string>('');
   const [showCreate, setShowCreate] = useState(false);
+  const [meetingSubmitted, setMeetingSubmitted] = useState(false);
   const [showAddRes, setShowAddRes] = useState(false);
+  const [resSubmitted, setResSubmitted] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState<{ meetingId: string; resolutionId: string; resolutionTitle: string } | null>(null);
+  const [voteSubmitted, setVoteSubmitted] = useState(false);
   const [showMinutesModal, setShowMinutesModal] = useState(false);
+  const [minutesSubmitted, setMinutesSubmitted] = useState(false);
   const [showProxyModal, setShowProxyModal] = useState(false);
+  const [proxySubmitted, setProxySubmitted] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [noticeSending, setNoticeSending] = useState(false);
@@ -79,7 +77,8 @@ export default function MeetingsPage() {
   const filteredMeetings = statusFilter ? meetings.filter((m: any) => m.status === statusFilter) : meetings;
 
   const handleCreateMeeting = async () => {
-    if (!meetingForm.title || !meetingForm.scheduledAt) return;
+    setMeetingSubmitted(true);
+    if (!meetingForm.title.trim() || !meetingForm.scheduledAt) return;
     await createMeeting({
       propertyId, ...meetingForm,
       quorumPercentage: Number(meetingForm.quorumPercentage),
@@ -88,16 +87,20 @@ export default function MeetingsPage() {
       agenda: [],
     });
     setShowCreate(false);
+    setMeetingSubmitted(false);
   };
 
   const handleAddResolution = async () => {
-    if (!resForm.title) return;
+    setResSubmitted(true);
+    if (!resForm.title.trim()) return;
     await addResolution({ meetingId: selectedId, data: { ...resForm, resolutionNo: Number(resForm.resolutionNo) } });
     setShowAddRes(false);
+    setResSubmitted(false);
     setResForm({ resolutionNo: '1', title: '', description: '', resolutionType: 'ordinary' });
   };
 
   const handleCastVote = async () => {
+    setVoteSubmitted(true);
     if (!showVoteModal || !voteForm.unitId) return;
     await castVote({
       meetingId: showVoteModal.meetingId,
@@ -105,6 +108,7 @@ export default function MeetingsPage() {
       data: { vote: voteForm.vote, unitId: voteForm.unitId, isProxy: false },
     });
     setShowVoteModal(null);
+    setVoteSubmitted(false);
     setVoteForm({ vote: 'for', unitId: '' });
   };
 
@@ -119,13 +123,16 @@ export default function MeetingsPage() {
   };
 
   const handlePublishMinutes = async () => {
+    setMinutesSubmitted(true);
     if (!selectedId || !minutesUrl.trim()) return;
     await publishMinutes({ id: selectedId, data: { minutesUrl: minutesUrl.trim() } });
     setShowMinutesModal(false);
+    setMinutesSubmitted(false);
     setMinutesUrl('');
   };
 
   const handleSubmitProxy = async () => {
+    setProxySubmitted(true);
     if (!selectedId || !proxyForm.unitId || !proxyForm.ownerName.trim() || !proxyForm.proxyName.trim()) return;
     await submitProxy({
       meetingId: selectedId,
@@ -137,6 +144,7 @@ export default function MeetingsPage() {
       },
     });
     setShowProxyModal(false);
+    setProxySubmitted(false);
     setProxyForm({ unitId: '', ownerName: '', proxyName: '', proxyIdNumber: '' });
   };
 
@@ -144,13 +152,16 @@ export default function MeetingsPage() {
 
   return (
     <div className="page-content">
-      <div className="condo-page-header">
-        <div>
-          <h1>General Meetings</h1>
-          <p className="condo-page-subtitle">AGM / EGM management with digital voting</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Users size={22} /></div>
+          <div>
+            <h1>General Meetings</h1>
+            <p>{meetings.length} total meetings</p>
+          </div>
         </div>
         <PermissionGuard permission="condo-meetings.write">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+          <button className="btn btn-primary btn-sm" onClick={() => { setMeetingSubmitted(false); setShowCreate(true); }}>
             <Plus size={14} style={{ marginRight: 4 }} />New Meeting
           </button>
         </PermissionGuard>
@@ -182,7 +193,6 @@ export default function MeetingsPage() {
             </div>
           ) : filteredMeetings.map((m: any) => {
             const d = new Date(m.scheduledAt);
-            const sc = STATUS_COLORS[m.status] || STATUS_COLORS.planned;
             return (
               <div key={m.id}
                 className={`condo-meeting-card ${selectedId === m.id ? 'condo-meeting-selected' : ''}`}
@@ -256,7 +266,7 @@ export default function MeetingsPage() {
                     <PermissionGuard permission="condo-meetings.write">
                       <button
                         style={minutesBtnStyle}
-                        onClick={() => setShowMinutesModal(true)}
+                        onClick={() => { setMinutesSubmitted(false); setShowMinutesModal(true); }}
                       >
                         <Upload size={14} /> Publish Minutes
                       </button>
@@ -288,7 +298,7 @@ export default function MeetingsPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 16 }}>
                   <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>Resolutions</h4>
                   <PermissionGuard permission="condo-meetings.write">
-                    <button className="condo-btn-sm" onClick={() => setShowAddRes(true)}>+ Add Resolution</button>
+                    <button className="condo-btn-sm" onClick={() => { setResSubmitted(false); setShowAddRes(true); }}>+ Add Resolution</button>
                   </PermissionGuard>
                 </div>
 
@@ -333,11 +343,14 @@ export default function MeetingsPage() {
                         <div style={voteActionRowStyle}>
                           <button
                             style={castVoteBtnStyle}
-                            onClick={() => setShowVoteModal({
-                              meetingId: detail.id,
-                              resolutionId: r.id,
-                              resolutionTitle: r.title,
-                            })}
+                            onClick={() => {
+                              setVoteSubmitted(false);
+                              setShowVoteModal({
+                                meetingId: detail.id,
+                                resolutionId: r.id,
+                                resolutionTitle: r.title,
+                              });
+                            }}
                           >
                             <Vote size={14} /> Cast Vote
                           </button>
@@ -354,7 +367,7 @@ export default function MeetingsPage() {
                   </h4>
                   {(detail.status === 'planned' || detail.status === 'notice_sent') && (
                     <PermissionGuard permission="condo-meetings.write">
-                      <button style={proxyBtnStyle} onClick={() => setShowProxyModal(true)}>
+                      <button style={proxyBtnStyle} onClick={() => { setProxySubmitted(false); setShowProxyModal(true); }}>
                         <UserCheck size={14} /> Submit Proxy
                       </button>
                     </PermissionGuard>
@@ -363,20 +376,22 @@ export default function MeetingsPage() {
 
                 {detail.proxies?.length > 0 ? (
                   <div className="condo-table-wrap">
-                    <table className="condo-table">
-                      <thead><tr><th>Owner</th><th>Proxy</th><th>Unit</th><th>ID Number</th><th>Valid</th></tr></thead>
-                      <tbody>
-                        {detail.proxies.map((p: any) => (
-                          <tr key={p.id}>
-                            <td>{p.ownerName}</td>
-                            <td>{p.proxyName}</td>
-                            <td>{p.unitId?.slice(-4)}</td>
-                            <td style={{ color: 'var(--text-secondary)' }}>{p.proxyIdNumber || '—'}</td>
-                            <td>{p.isValid ? '✅' : '❌'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <TableScrollWrapper>
+                      <table className="condo-table">
+                        <thead><tr><th>Owner</th><th>Proxy</th><th>Unit</th><th>ID Number</th><th>Valid</th></tr></thead>
+                        <tbody>
+                          {detail.proxies.map((p: any) => (
+                            <tr key={p.id}>
+                              <td>{p.ownerName}</td>
+                              <td>{p.proxyName}</td>
+                              <td>{p.unitId?.slice(-4)}</td>
+                              <td style={{ color: 'var(--text-secondary)' }}>{p.proxyIdNumber || '—'}</td>
+                              <td>{p.isValid ? '✅' : '❌'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </TableScrollWrapper>
                   </div>
                 ) : (
                   <p className="condo-no-data" style={{ fontSize: 13 }}>No proxy forms submitted yet.</p>
@@ -495,7 +510,7 @@ export default function MeetingsPage() {
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Schedule Meeting</h3>
-              <button className="condo-modal-close" onClick={() => setShowCreate(false)}>×</button>
+              <button className="condo-modal-close" onClick={() => { setShowCreate(false); setMeetingSubmitted(false); }}>×</button>
             </div>
             <div className="condo-modal-body">
               <div className="condo-form-grid">
@@ -507,11 +522,23 @@ export default function MeetingsPage() {
                 <label>Fiscal Year
                   <input type="number" value={meetingForm.fiscalYear} onChange={e => setMeetingForm(p => ({ ...p, fiscalYear: e.target.value }))} />
                 </label>
-                <label style={{ gridColumn: '1 / -1' }}>Title
-                  <input value={meetingForm.title} onChange={e => setMeetingForm(p => ({ ...p, title: e.target.value }))} placeholder="Annual General Meeting 2025" />
+                <label style={{ gridColumn: '1 / -1' }}>Title *
+                  <input
+                    value={meetingForm.title}
+                    className={meetingSubmitted && !meetingForm.title.trim() ? 'mall-input-error' : ''}
+                    onChange={e => setMeetingForm(p => ({ ...p, title: e.target.value }))}
+                    placeholder="Annual General Meeting 2025"
+                  />
+                  {meetingSubmitted && !meetingForm.title.trim() && <span className="mall-error-text">Title is required</span>}
                 </label>
-                <label>Scheduled Date/Time
-                  <input type="datetime-local" value={meetingForm.scheduledAt} onChange={e => setMeetingForm(p => ({ ...p, scheduledAt: e.target.value }))} />
+                <label>Scheduled Date/Time *
+                  <input
+                    type="datetime-local"
+                    value={meetingForm.scheduledAt}
+                    className={meetingSubmitted && !meetingForm.scheduledAt ? 'mall-input-error' : ''}
+                    onChange={e => setMeetingForm(p => ({ ...p, scheduledAt: e.target.value }))}
+                  />
+                  {meetingSubmitted && !meetingForm.scheduledAt && <span className="mall-error-text">Scheduled date/time is required</span>}
                 </label>
                 <label>Venue
                   <input value={meetingForm.venue} onChange={e => setMeetingForm(p => ({ ...p, venue: e.target.value }))} />
@@ -525,7 +552,7 @@ export default function MeetingsPage() {
               </div>
             </div>
             <div className="condo-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => { setShowCreate(false); setMeetingSubmitted(false); }}>Cancel</button>
               <button className="btn btn-primary" onClick={handleCreateMeeting}>Schedule</button>
             </div>
           </div>
@@ -538,7 +565,7 @@ export default function MeetingsPage() {
           <div className="condo-modal" onClick={e => e.stopPropagation()}>
             <div className="condo-modal-header">
               <h3>Add Resolution</h3>
-              <button className="condo-modal-close" onClick={() => setShowAddRes(false)}>×</button>
+              <button className="condo-modal-close" onClick={() => { setShowAddRes(false); setResSubmitted(false); }}>×</button>
             </div>
             <div className="condo-modal-body">
               <div className="condo-form-grid">
@@ -550,8 +577,13 @@ export default function MeetingsPage() {
                     <option value="ordinary">Ordinary</option><option value="special">Special</option><option value="unanimous">Unanimous</option>
                   </select>
                 </label>
-                <label style={{ gridColumn: '1 / -1' }}>Title
-                  <input value={resForm.title} onChange={e => setResForm(p => ({ ...p, title: e.target.value }))} />
+                <label style={{ gridColumn: '1 / -1' }}>Title *
+                  <input
+                    value={resForm.title}
+                    className={resSubmitted && !resForm.title.trim() ? 'mall-input-error' : ''}
+                    onChange={e => setResForm(p => ({ ...p, title: e.target.value }))}
+                  />
+                  {resSubmitted && !resForm.title.trim() && <span className="mall-error-text">Resolution title is required</span>}
                 </label>
                 <label style={{ gridColumn: '1 / -1' }}>Description
                   <textarea rows={3} value={resForm.description} onChange={e => setResForm(p => ({ ...p, description: e.target.value }))} />
@@ -559,7 +591,7 @@ export default function MeetingsPage() {
               </div>
             </div>
             <div className="condo-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowAddRes(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => { setShowAddRes(false); setResSubmitted(false); }}>Cancel</button>
               <button className="btn btn-primary" onClick={handleAddResolution}>Add Resolution</button>
             </div>
           </div>
@@ -574,7 +606,7 @@ export default function MeetingsPage() {
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Vote size={20} /> Cast Vote
               </h3>
-              <button className="condo-modal-close" onClick={() => setShowVoteModal(null)}>×</button>
+              <button className="condo-modal-close" onClick={() => { setShowVoteModal(null); setVoteSubmitted(false); }}>×</button>
             </div>
             <div className="condo-modal-body">
               {/* Resolution info */}
@@ -588,6 +620,7 @@ export default function MeetingsPage() {
                 <label style={voteLabelStyle}>Voting Unit *</label>
                 <select
                   style={voteSelectStyle}
+                  className={voteSubmitted && !voteForm.unitId ? 'mall-input-error' : ''}
                   value={voteForm.unitId}
                   onChange={e => setVoteForm(f => ({ ...f, unitId: e.target.value }))}
                 >
@@ -598,6 +631,7 @@ export default function MeetingsPage() {
                     </option>
                   ))}
                 </select>
+                {voteSubmitted && !voteForm.unitId && <span className="mall-error-text">Voting unit is required</span>}
               </div>
 
               {/* Vote selection */}
@@ -636,12 +670,10 @@ export default function MeetingsPage() {
               </div>
             </div>
             <div className="condo-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowVoteModal(null)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => { setShowVoteModal(null); setVoteSubmitted(false); }}>Cancel</button>
               <button
                 className="btn btn-primary"
                 onClick={handleCastVote}
-                disabled={!voteForm.unitId}
-                style={{ opacity: !voteForm.unitId ? 0.5 : 1 }}
               >
                 <Vote size={14} style={{ marginRight: 4 }} /> Submit Vote
               </button>
@@ -658,28 +690,28 @@ export default function MeetingsPage() {
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileText size={20} /> Publish Meeting Minutes
               </h3>
-              <button className="condo-modal-close" onClick={() => setShowMinutesModal(false)}>×</button>
+              <button className="condo-modal-close" onClick={() => { setShowMinutesModal(false); setMinutesSubmitted(false); }}>×</button>
             </div>
             <div className="condo-modal-body">
               <label style={voteLabelStyle}>Minutes Document URL *</label>
               <input
                 style={voteSelectStyle}
+                className={minutesSubmitted && !minutesUrl.trim() ? 'mall-input-error' : ''}
                 type="url"
                 placeholder="https://drive.google.com/file/d/..."
                 value={minutesUrl}
                 onChange={e => setMinutesUrl(e.target.value)}
               />
+              {minutesSubmitted && !minutesUrl.trim() && <span className="mall-error-text">Minutes document URL is required</span>}
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
                 Provide a link to the uploaded meeting minutes document. This will be shared with all attendees.
               </p>
             </div>
             <div className="condo-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowMinutesModal(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => { setShowMinutesModal(false); setMinutesSubmitted(false); }}>Cancel</button>
               <button
                 className="btn btn-primary"
                 onClick={handlePublishMinutes}
-                disabled={!minutesUrl.trim()}
-                style={{ opacity: !minutesUrl.trim() ? 0.5 : 1 }}
               >
                 <Upload size={14} style={{ marginRight: 4 }} /> Publish
               </button>
@@ -696,7 +728,7 @@ export default function MeetingsPage() {
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <UserCheck size={20} /> Submit Proxy Form
               </h3>
-              <button className="condo-modal-close" onClick={() => setShowProxyModal(false)}>×</button>
+              <button className="condo-modal-close" onClick={() => { setShowProxyModal(false); setProxySubmitted(false); }}>×</button>
             </div>
             <div className="condo-modal-body">
               {/* Info banner */}
@@ -711,6 +743,7 @@ export default function MeetingsPage() {
                 <label>Unit *
                   <select
                     value={proxyForm.unitId}
+                    className={proxySubmitted && !proxyForm.unitId ? 'mall-input-error' : ''}
                     onChange={e => setProxyForm(f => ({ ...f, unitId: e.target.value }))}
                   >
                     <option value="">— Select unit —</option>
@@ -720,20 +753,25 @@ export default function MeetingsPage() {
                       </option>
                     ))}
                   </select>
+                  {proxySubmitted && !proxyForm.unitId && <span className="mall-error-text">Unit is required</span>}
                 </label>
                 <label>Owner Name *
                   <input
                     value={proxyForm.ownerName}
+                    className={proxySubmitted && !proxyForm.ownerName.trim() ? 'mall-input-error' : ''}
                     onChange={e => setProxyForm(f => ({ ...f, ownerName: e.target.value }))}
                     placeholder="Full name of the unit owner"
                   />
+                  {proxySubmitted && !proxyForm.ownerName.trim() && <span className="mall-error-text">Owner name is required</span>}
                 </label>
                 <label>Proxy Name *
                   <input
                     value={proxyForm.proxyName}
+                    className={proxySubmitted && !proxyForm.proxyName.trim() ? 'mall-input-error' : ''}
                     onChange={e => setProxyForm(f => ({ ...f, proxyName: e.target.value }))}
                     placeholder="Full name of the authorized proxy"
                   />
+                  {proxySubmitted && !proxyForm.proxyName.trim() && <span className="mall-error-text">Proxy name is required</span>}
                 </label>
                 <label>Proxy ID Number
                   <input
@@ -745,12 +783,10 @@ export default function MeetingsPage() {
               </div>
             </div>
             <div className="condo-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowProxyModal(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => { setShowProxyModal(false); setProxySubmitted(false); }}>Cancel</button>
               <button
                 className="btn btn-primary"
                 onClick={handleSubmitProxy}
-                disabled={!proxyForm.unitId || !proxyForm.ownerName.trim() || !proxyForm.proxyName.trim()}
-                style={{ opacity: (!proxyForm.unitId || !proxyForm.ownerName.trim() || !proxyForm.proxyName.trim()) ? 0.5 : 1 }}
               >
                 <UserCheck size={14} style={{ marginRight: 4 }} /> Submit Proxy
               </button>

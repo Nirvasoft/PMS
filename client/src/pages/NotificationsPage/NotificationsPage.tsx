@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Bell, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   useGetInAppNotificationsQuery,
   useMarkAsReadMutation,
   useMarkAllReadMutation,
   useDeleteNotificationMutation,
 } from '../../store/api/notificationsApi';
+import '../admin/MaintenancePage/MaintenancePage.css';
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
@@ -50,12 +52,17 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="page-content">
+    <div className="page-content maint-page">
       <div className="page-header">
-        <h1>🔔 Notifications</h1>
-        <p className="text-secondary">
-          {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
-        </p>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Bell size={22} /></div>
+          <div>
+            <h1>Notifications</h1>
+            <p>
+              {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : `${meta?.total ?? notifications.length} total notifications`}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="toolbar">
@@ -104,11 +111,16 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {meta && meta.totalPages > 1 && (
-        <div className="pagination">
-          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
-          <span className="text-secondary">Page {meta.page} of {meta.totalPages}</span>
-          <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next →</button>
+      {meta && meta.total >= 10 && (
+        <div className="maint-pagination" style={{ marginTop: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div className="maint-pagination-left">
+            <span>Rows per page: 20</span>
+          </div>
+          <div className="maint-pagination-right">
+            <button disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={16} /></button>
+            <span className="maint-page-info">Page {meta.page} of {Math.max(1, meta.totalPages)}</span>
+            <button disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}><ChevronRight size={16} /></button>
+          </div>
         </div>
       )}
     </div>

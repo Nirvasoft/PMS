@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetMallDashboardQuery, useGetTenantMixQuery,
@@ -110,10 +110,15 @@ export default function MallDashboard() {
 
   return (
     <div className="page-content">
-      <div className="mall-page-header">
-        <div>
-          <h1>Mall Dashboard</h1>
-          <p className="mall-page-subtitle">Overview of mall operations and performance</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Store size={22} />
+          </div>
+          <div>
+            <h1>Mall Dashboard</h1>
+            <p>Overview of mall operations and performance</p>
+          </div>
         </div>
         <PermissionGuard permission="mall-dashboard.write">
           <button className="btn btn-outline" onClick={openConfig} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

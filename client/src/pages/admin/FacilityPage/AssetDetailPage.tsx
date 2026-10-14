@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast';
 import { useState } from 'react';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 const ASSET_TYPES: Record<string, { label: string; icon: string }> = {
   hvac: { label: 'HVAC', icon: '❄️' }, elevator: { label: 'Elevator', icon: '🛗' },
@@ -203,25 +204,27 @@ export default function AssetDetailPage() {
             PM Schedules ({pmSchedules.length})
           </h3>
         </div>
-        <table className="maint-table">
-          <thead><tr><th>Schedule</th><th>Frequency</th><th>Next Due</th><th>Status</th><th>Priority</th></tr></thead>
-          <tbody>
-            {pmSchedules.length === 0 ? (
-              <tr><td colSpan={5}><div className="maint-empty" style={{ padding: '24px 0' }}><p>No PM schedules linked</p></div></td></tr>
-            ) : pmSchedules.map((s: any) => (
-              <tr key={s.id} onClick={() => navigate(`/admin/maintenance/pm/${s.id}`)}>
-                <td>
-                  <span className="cell-primary">{s.name}</span>
-                  {s.asset && <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>{s.asset.assetNumber} — {s.asset.name}</span>}
-                </td>
-                <td><span className="maint-status open">{s.frequencyType}</span></td>
-                <td><span className="cell-secondary">{new Date(s.nextDueDate).toLocaleDateString()}</span></td>
-                <td><span className={`maint-status ${s.status === 'active' ? 'in_progress' : 'closed'}`}>{s.status}</span></td>
-                <td><span className={`maint-priority ${s.priority?.toLowerCase()}`}>{s.priority}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TableScrollWrapper>
+          <table className="maint-table">
+            <thead><tr><th>Schedule</th><th>Frequency</th><th>Next Due</th><th>Status</th><th>Priority</th></tr></thead>
+            <tbody>
+              {pmSchedules.length === 0 ? (
+                <tr><td colSpan={5}><div className="maint-empty" style={{ padding: '24px 0' }}><p>No PM schedules linked</p></div></td></tr>
+              ) : pmSchedules.map((s: any) => (
+                <tr key={s.id} onClick={() => navigate(`/admin/maintenance/pm/${s.id}`)}>
+                  <td>
+                    <span className="cell-primary">{s.name}</span>
+                    {s.asset && <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>{s.asset.assetNumber} — {s.asset.name}</span>}
+                  </td>
+                  <td><span className="maint-status open">{s.frequencyType}</span></td>
+                  <td><span className="cell-secondary">{new Date(s.nextDueDate).toLocaleDateString()}</span></td>
+                  <td><span className={`maint-status ${s.status === 'active' ? 'in_progress' : 'closed'}`}>{s.status}</span></td>
+                  <td><span className={`maint-priority ${s.priority?.toLowerCase()}`}>{s.priority}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
 
       {/* Service History */}
@@ -232,23 +235,25 @@ export default function AssetDetailPage() {
             Service History ({serviceHistory.length})
           </h3>
         </div>
-        <table className="maint-table">
-          <thead><tr><th>Schedule</th><th>Due Date</th><th>Completed</th><th>Technician</th><th>Status</th><th>Findings</th></tr></thead>
-          <tbody>
-            {serviceHistory.length === 0 ? (
-              <tr><td colSpan={6}><div className="maint-empty" style={{ padding: '24px 0' }}><p>No service history yet</p></div></td></tr>
-            ) : serviceHistory.map((h: any) => (
-              <tr key={h.id}>
-                <td><span className="cell-primary">{h.scheduleName}</span></td>
-                <td><span className="cell-secondary">{new Date(h.dueDate).toLocaleDateString()}</span></td>
-                <td><span className="cell-secondary">{h.completedAt ? new Date(h.completedAt).toLocaleDateString() : '—'}</span></td>
-                <td>{h.technician || '—'}</td>
-                <td><span className={`maint-status ${h.status === 'completed' ? 'completed' : 'cancelled'}`}>{h.status}</span></td>
-                <td><span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{h.findings || '—'}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TableScrollWrapper>
+          <table className="maint-table">
+            <thead><tr><th>Schedule</th><th>Due Date</th><th>Completed</th><th>Technician</th><th>Status</th><th>Findings</th></tr></thead>
+            <tbody>
+              {serviceHistory.length === 0 ? (
+                <tr><td colSpan={6}><div className="maint-empty" style={{ padding: '24px 0' }}><p>No service history yet</p></div></td></tr>
+              ) : serviceHistory.map((h: any) => (
+                <tr key={h.id}>
+                  <td><span className="cell-primary">{h.scheduleName}</span></td>
+                  <td><span className="cell-secondary">{new Date(h.dueDate).toLocaleDateString()}</span></td>
+                  <td><span className="cell-secondary">{h.completedAt ? new Date(h.completedAt).toLocaleDateString() : '—'}</span></td>
+                  <td>{h.technician || '—'}</td>
+                  <td><span className={`maint-status ${h.status === 'completed' ? 'completed' : 'cancelled'}`}>{h.status}</span></td>
+                  <td><span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{h.findings || '—'}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
 
       {/* Delete Confirmation */}

@@ -7,6 +7,7 @@ import {
   ShieldCheck, AlertTriangle, Clock, BarChart3,
   Loader2, TrendingUp, TrendingDown, Filter,
 } from 'lucide-react';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 
 const PRIORITY_COLORS: Record<string, string> = {
   P1: '#ef4444', P2: '#f97316', P3: '#3b82f6', P4: '#94a3b8',
@@ -55,8 +56,6 @@ function RateBar({ rate, label }: { rate: number; label?: string }) {
 
 // ── Group Row ────────────────────────────────
 function GroupRow({ g }: { g: SlaReportGroup }) {
-  const respColor = g.slaResponse.rate >= 90 ? '#22c55e' : g.slaResponse.rate >= 70 ? '#f59e0b' : '#ef4444';
-  const resColor = g.slaResolution.rate >= 90 ? '#22c55e' : g.slaResolution.rate >= 70 ? '#f59e0b' : '#ef4444';
   const priorityColor = PRIORITY_COLORS[g.group];
 
   return (
@@ -230,23 +229,25 @@ export default function SlaReportPage() {
             </h3>
 
             <div className="maint-table-wrap" style={{ marginTop: 14 }}>
-              <table className="maint-table sla-report-table">
-                <thead>
-                  <tr>
-                    <th>{filters.groupBy.charAt(0).toUpperCase() + filters.groupBy.slice(1)}</th>
-                    <th className="text-center">Tickets</th>
-                    <th>Response SLA</th>
-                    <th>Resolution SLA</th>
-                    <th className="text-center">Breaches</th>
-                    <th className="text-center">Avg Resolution</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.groups.map((g) => (
-                    <GroupRow key={g.group} g={g} />
-                  ))}
-                </tbody>
-              </table>
+              <TableScrollWrapper>
+                <table className="maint-table sla-report-table">
+                  <thead>
+                    <tr>
+                      <th>{filters.groupBy.charAt(0).toUpperCase() + filters.groupBy.slice(1)}</th>
+                      <th className="text-center">Tickets</th>
+                      <th>Response SLA</th>
+                      <th>Resolution SLA</th>
+                      <th className="text-center">Breaches</th>
+                      <th className="text-center">Avg Resolution</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.groups.map((g) => (
+                      <GroupRow key={g.group} g={g} />
+                    ))}
+                  </tbody>
+                </table>
+              </TableScrollWrapper>
             </div>
           </div>
         </>

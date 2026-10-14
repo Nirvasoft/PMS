@@ -13,7 +13,7 @@ export default function PaymentSuccessPage() {
   const [pollCount, setPollCount] = useState(0);
 
   // Re-fetch invoices to check if payment landed
-  const { data: invoiceData, refetch } = useGetPortalInvoicesQuery({
+  const { refetch } = useGetPortalInvoicesQuery({
     status: 'paid',
     page: 1,
     limit: 5,

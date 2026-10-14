@@ -113,12 +113,12 @@ export default function CurrencyRatesPage() {
     .sort((a, b) => (b.isBaseCurrency ? 1 : 0) - (a.isBaseCurrency ? 1 : 0) || a.currency.localeCompare(b.currency) || b.effectiveDate.localeCompare(a.effectiveDate));
 
   // ── Pagination ──────────────────────────────────────
-  const PAGE_SIZE = 10;
+  const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [searchQuery]);
-  const totalPages = Math.max(1, Math.ceil(filteredRates.length / PAGE_SIZE));
+  useEffect(() => { setPage(1); }, [searchQuery, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(filteredRates.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const paginatedRates = filteredRates.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedRates = filteredRates.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // ── List / Form toolbar (List, New, Save, Delete) ────
   const [viewMode, setViewMode] = useState<'list' | 'form'>('list');
@@ -126,14 +126,19 @@ export default function CurrencyRatesPage() {
   const [isoSearch, setIsoSearch] = useState('');
   const [editing, setEditing] = useState<CurrencyRate | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   // No rows yet for this property means no base currency is set — the row about to be
   // created must be it, so Code/Base Currency below bind to and lock onto the property's
   // own currency instead of offering a free choice.
   const mustBeBaseCurrency = !editing && rates.length === 0;
 
+  const currencyError = hasAttemptedSubmit && !form.currency.trim() ? 'Currency code is required' : '';
+  const rateError = hasAttemptedSubmit && (!String(form.rate).trim() || !(Number(form.rate) > 0)) ? 'Valid rate is required' : '';
+
   const openCreate = () => {
     setEditing(null);
+    setHasAttemptedSubmit(false);
     setForm(propertyCurrency && rates.length === 0
       ? { ...emptyForm, currency: propertyCurrency, isBaseCurrency: true, rate: '1' }
       : emptyForm);
@@ -141,6 +146,7 @@ export default function CurrencyRatesPage() {
   };
   const openEdit = (r: CurrencyRate) => {
     setEditing(r);
+    setHasAttemptedSubmit(false);
     setForm({
       currency: r.currency,
       description: r.description || '',
@@ -153,7 +159,7 @@ export default function CurrencyRatesPage() {
     });
     setViewMode('form');
   };
-  const backToList = () => { setViewMode('list'); setEditing(null); setForm(emptyForm); };
+  const backToList = () => { setViewMode('list'); setEditing(null); setHasAttemptedSubmit(false); setForm(emptyForm); };
 
   // Switching the sidebar's Active Property changes which property's rates this page shows —
   // an open create/edit form would otherwise keep referencing the property it was opened for.
@@ -161,6 +167,11 @@ export default function CurrencyRatesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+
+    if (!form.currency.trim() || !String(form.rate).trim() || !(Number(form.rate) > 0)) {
+      return;
+    }
 
     // Nothing is base yet — the first currency created must be marked Base Currency,
     // otherwise the property would end up with no base at all. Unreachable in practice
@@ -222,12 +233,28 @@ export default function CurrencyRatesPage() {
     <div className="billing-page">
       {/* Header */}
       <div className="page-header">
-        <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>
+        <div className="page-title-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div
+            className="page-icon-lg"
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 12,
+              background: 'rgba(16, 185, 129, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--accent)',
+              flexShrink: 0,
+            }}
+          >
             <Coins size={22} />
           </div>
           <div style={{ flex: 1 }}>
-            <h1>Currency Setup</h1>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Currency Setup</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {isFetching && rates.length === 0 ? 'Loading…' : `${rates.length} total currencies`}
+            </p>
           </div>
           {viewMode === 'list' ? (
             <PermissionGuard permission="currency-rate.create">
@@ -328,14 +355,43 @@ export default function CurrencyRatesPage() {
             </table>
             </TableScrollWrapper>
 
-            {totalPages > 1 && (
-              <div className="billing-pagination">
-                <span className="page-info">Page {currentPage} of {totalPages}</span>
+            {filteredRates.length >= 10 && (
+              <div className="positions-pagination billing-pagination">
+                <div className="pagination-left">
+                  <div className="page-size-selector">
+                    <label htmlFor="cr-page-size">Rows per page:</label>
+                    <select
+                      id="cr-page-size"
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setPage(1);
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div className="page-btns">
-                  <button disabled={currentPage === 1} onClick={() => setPage((p) => p - 1)}>
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setPage((p) => p - 1)}
+                    title="Previous page"
+                  >
                     <ChevronLeft size={15} />
                   </button>
-                  <button disabled={currentPage === totalPages} onClick={() => setPage((p) => p + 1)}>
+                  <span className="page-num-display">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                    title="Next page"
+                  >
                     <ChevronRight size={15} />
                   </button>
                 </div>
@@ -345,10 +401,10 @@ export default function CurrencyRatesPage() {
         </>
       ) : (
         /* Detail Form — Code / Base Currency checkbox / Description / Operator / Symbol / Rate + live conversion */
-        <form id="currency-rate-form" onSubmit={handleSubmit}>
-          <div className="billing-table-wrap" style={{ padding: 20 }}>
+        <form id="currency-rate-form" onSubmit={handleSubmit} noValidate>
+          <div className="billing-table-wrap cr-detail-form-card" style={{ padding: 24 }}>
             <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(1, 1fr)', maxWidth: 480 }}>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                 <div className="inv-field" style={{ flex: 1 }}>
                   <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>Code <span className="req">*</span></span>
@@ -363,17 +419,18 @@ export default function CurrencyRatesPage() {
                     )}
                   </label>
                   <input
-                    required
+                    className={currencyError ? 'input-error' : ''}
                     placeholder="Select via ISO →"
                     value={form.currency}
                     disabled
-                    style={{ cursor: 'not-allowed', opacity: form.currency ? 1 : 0.6 }}
+                    style={{ cursor: 'not-allowed', opacity: form.currency ? 1 : (currencyError ? 1 : 0.6) }}
                     readOnly
                   />
+                  {currencyError && <span className="field-error-text">{currencyError}</span>}
                 </div>
                 <label
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, whiteSpace: 'nowrap',
+                    display: 'flex', alignItems: 'center', gap: 6, paddingTop: 28, whiteSpace: 'nowrap',
                     opacity: (baseCurrencyLocked || editing || mustBeBaseCurrency) ? 0.5 : 1,
                   }}
                 >
@@ -409,9 +466,16 @@ export default function CurrencyRatesPage() {
 
               <div className="inv-field">
                 <label>Rate <span className="req">*</span></label>
-                <input required type="number" min="0" step="0.000001" placeholder="e.g. 2100.00"
+                <input
+                  className={rateError ? 'input-error' : ''}
+                  type="number"
+                  min="0"
+                  step="0.000001"
+                  placeholder="e.g. 2100.00"
                   value={form.rate}
-                  onChange={(e) => setForm({ ...form, rate: e.target.value })} />
+                  onChange={(e) => setForm({ ...form, rate: e.target.value })}
+                />
+                {rateError && <span className="field-error-text">{rateError}</span>}
               </div>
 
               <div className="cr-conversion-preview">

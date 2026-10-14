@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import {
   useGetCompanyQuery, useUpdateCompanyMutation, useUpdateCompanySettingsMutation,
-  useUploadLogoMutation, useGetCompanyHierarchyQuery,
+  useUploadLogoMutation,
   useGetBranchesQuery, useCreateBranchMutation, useUpdateBranchMutation, useDeleteBranchMutation,
   useGetRegionsQuery, useCreateRegionMutation, useUpdateRegionMutation, useDeleteRegionMutation,
   useGetRegionPropertiesQuery, useAddRegionPropertyMutation, useRemoveRegionPropertyMutation,
@@ -68,6 +68,7 @@ function GeneralTab() {
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const canManage = usePermission('company.manage');
 
   const startEdit = () => {
@@ -88,13 +89,17 @@ function GeneralTab() {
       registrationNo: company.registrationNo || '',
       taxId: company.taxId || '',
     });
+    setHasAttemptedSave(false);
     setEditing(true);
   };
 
   const handleSave = async () => {
+    setHasAttemptedSave(true);
+    if (!form.name?.trim()) return;
     try {
-      await updateCompany(form).unwrap();
+      await updateCompany({ ...form, name: form.name.trim() }).unwrap();
       toast.success('Company details updated');
+      setHasAttemptedSave(false);
       setEditing(false);
     } catch {
       toast.error('Failed to update');
@@ -127,7 +132,7 @@ function GeneralTab() {
             </PermissionGuard>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+              <button className="btn btn-sm" onClick={() => { setHasAttemptedSave(false); setEditing(false); }}>Cancel</button>
               <button className="btn btn-sm btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving...' : 'Save'}
               </button>
@@ -153,16 +158,22 @@ function GeneralTab() {
           </div>
         ) : (
           <div className="org-edit-form">
-            {Object.entries(form).map(([key, val]) => (
-              <div className="form-group" key={key}>
-                <label>{key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}</label>
-                <input
-                  className="input-full"
-                  value={val}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                />
-              </div>
-            ))}
+            {Object.entries(form).map(([key, val]) => {
+              const isRequired = key === 'name';
+              const labelText = key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase());
+              const fieldError = hasAttemptedSave && isRequired && !val.trim() ? `${labelText} is required` : '';
+              return (
+                <div className="form-group" key={key}>
+                  <label>{labelText}{isRequired ? ' *' : ''}</label>
+                  <input
+                    className={`input-full${fieldError ? ' input-error' : ''}`}
+                    value={val}
+                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  />
+                  {fieldError && <span className="field-error-text">{fieldError}</span>}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -715,6 +726,7 @@ function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitL
   const [form, setForm] = useState<Record<string, string>>(
     initialValues || Object.fromEntries(fields.map((f) => [f.key, '']))
   );
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   // Load users for user-select fields
   const hasUserSelect = fields.some(f => f.type === 'user-select');
@@ -730,53 +742,64 @@ function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitL
         </div>
         <form
           className="modal-body"
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
+            setHasAttemptedSubmit(true);
+            const hasMissingRequired = fields.some((f) => f.required && !(form[f.key] || '').trim());
+            if (hasMissingRequired) return;
             // Empty fields are omitted entirely so Prisma uses column defaults.
             // Sending null breaks non-nullable columns (e.g. country String @default("US"))
             // and UUID/FK columns (e.g. managerId) that expect a valid UUID or nothing.
             const sanitized = Object.fromEntries(
-              Object.entries(form).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+              Object.entries(form)
+                .map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+                .filter(([, v]) => v !== '' && v !== null && v !== undefined)
             );
             onSubmit(sanitized as Record<string, string>);
           }}
         >
-          {fields.map((f) => (
-            <div className="form-group" key={f.key}>
-              <label>{f.label} {f.required && '*'}</label>
-              {f.type === 'select' ? (
-                <select
-                  className="input-full"
-                  value={form[f.key]}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                >
-                  <option value="">— Select —</option>
-                  {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              ) : f.type === 'user-select' ? (
-                <select
-                  className="input-full"
-                  value={form[f.key]}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                >
-                  <option value="">— No Manager —</option>
-                  {users.map((u: Record<string, unknown>) => (
-                    <option key={u.id as string} value={u.id as string}>
-                      {String(u.fullName || u.email || '')}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className="input-full"
-                  required={f.required}
-                  maxLength={f.maxLength}
-                  value={form[f.key]}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                />
-              )}
-            </div>
-          ))}
+          {fields.map((f) => {
+            const fieldError = hasAttemptedSubmit && f.required && !(form[f.key] || '').trim()
+              ? `${f.label} is required`
+              : '';
+            return (
+              <div className="form-group" key={f.key}>
+                <label>{f.label} {f.required && '*'}</label>
+                {f.type === 'select' ? (
+                  <select
+                    className={`input-full${fieldError ? ' input-error' : ''}`}
+                    value={form[f.key]}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  >
+                    <option value="">— Select —</option>
+                    {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                ) : f.type === 'user-select' ? (
+                  <select
+                    className={`input-full${fieldError ? ' input-error' : ''}`}
+                    value={form[f.key]}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  >
+                    <option value="">— No Manager —</option>
+                    {users.map((u: any) => (
+                      <option key={u.id as string} value={u.id as string}>
+                        {String(u.fullName || u.email || '')}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className={`input-full${fieldError ? ' input-error' : ''}`}
+                    maxLength={f.maxLength}
+                    value={form[f.key]}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  />
+                )}
+                {fieldError && <span className="field-error-text">{fieldError}</span>}
+              </div>
+            );
+          })}
           <div className="modal-actions">
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary">{submitLabel || 'Create'}</button>

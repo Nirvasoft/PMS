@@ -1,5 +1,4 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
-import type { RootState } from '../index';
 import { setCredentials, setMfaPending, clearAuth } from '../slices/authSlice';
 import { baseQueryWithReauth } from './baseQuery';
 

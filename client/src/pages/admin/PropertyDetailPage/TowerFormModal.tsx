@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   useCreateTowerMutation, useUpdateTowerMutation, useDeleteTowerMutation,
   useAddSectionMutation, useUpdateSectionMutation, useDeleteSectionMutation,
 } from '../../../store/api/unitsApi';
-import type { Tower, TowerSection } from '../../../store/api/unitsApi';
-import { X, Plus, Trash2, Building2, AlertTriangle } from 'lucide-react';
+import type { Tower } from '../../../store/api/unitsApi';
+import { X, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './TowerFormModal.css';

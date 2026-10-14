@@ -296,7 +296,7 @@ class BookingService {
   /**
    * Get/update booking rules (admin).
    */
-  async getBookingRules(companyId: string, facilityId: string) {
+  async getBookingRules(_companyId: string, facilityId: string) {
     return prisma.facilityBookingRule.findUnique({
       where: { facilityId },
     });
@@ -450,7 +450,7 @@ class BookingService {
   /**
    * Admin reject a pending booking.
    */
-  async rejectBooking(companyId: string, userId: string, bookingId: string, reason: string) {
+  async rejectBooking(companyId: string, _userId: string, bookingId: string, reason: string) {
     const booking = await prisma.facilityBooking.findFirst({
       where: { id: bookingId, companyId, status: 'pending' },
     });

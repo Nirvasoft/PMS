@@ -12,6 +12,8 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import '../MaintenancePage/MaintenancePage.css';
 
 const ACTION_TYPES = [
   { value: 'page', label: 'Internal Page', desc: 'Navigate to a portal page (e.g. /portal/invoices)' },
@@ -48,6 +50,7 @@ export default function QuickActionsAdminPage() {
   const [deleteAction] = useDeleteQuickActionMutation();
 
   const [showForm, setShowForm] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
     propertyId: '', label: '', icon: '⚡', actionType: 'page', actionUrl: '', sortOrder: 0,
   });
@@ -69,8 +72,8 @@ export default function QuickActionsAdminPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.propertyId) { toast.error('Select a property'); return; }
-    if (!form.label.trim()) { toast.error('Label is required'); return; }
+    setSubmitted(true);
+    if (!form.propertyId || !form.label.trim()) return;
     try {
       await createAction({
         propertyId: form.propertyId,
@@ -82,6 +85,7 @@ export default function QuickActionsAdminPage() {
       }).unwrap();
       toast.success('Quick action created');
       setShowForm(false);
+      setSubmitted(false);
       setForm({ propertyId: '', label: '', icon: '⚡', actionType: 'page', actionUrl: '', sortOrder: 0 });
     } catch (err: any) {
       toast.error(err?.data?.errors?.[0]?.message || 'Failed to create');
@@ -108,10 +112,15 @@ export default function QuickActionsAdminPage() {
   };
 
   return (
-    <div className="page-content">
+    <div className="page-content maint-page">
       <div className="page-header">
-        <h1><Zap size={24} /> Portal Quick Actions</h1>
-        <p className="text-muted">Manage dashboard shortcuts for portal users, customizable per property</p>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Zap size={22} /></div>
+          <div>
+            <h1>Portal Quick Actions</h1>
+            <p>{actions.length} total quick actions</p>
+          </div>
+        </div>
       </div>
 
       <div className="section-toolbar" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
@@ -126,7 +135,7 @@ export default function QuickActionsAdminPage() {
         <PermissionGuard permission="community-quick-actions.write">
           <button
             className="btn btn-primary"
-            onClick={() => { setForm((f) => ({ ...f, propertyId: propertyFilter })); setShowForm(true); }}
+            onClick={() => { setForm((f) => ({ ...f, propertyId: propertyFilter })); setSubmitted(false); setShowForm(true); }}
             id="add-quick-action-btn"
           >
             <Plus size={14} /> Add Quick Action
@@ -139,9 +148,9 @@ export default function QuickActionsAdminPage() {
         <div className="info-card" style={{ marginBottom: 20, padding: 20, borderLeft: '4px solid var(--primary, #6366f1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h3 style={{ margin: 0 }}>New Quick Action</h3>
-            <button className="btn-icon" onClick={() => setShowForm(false)}><X size={18} /></button>
+            <button className="btn-icon" onClick={() => { setShowForm(false); setSubmitted(false); }}><X size={18} /></button>
           </div>
-          <form onSubmit={handleCreate}>
+          <form onSubmit={handleCreate} noValidate>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
                 <label>Property *</label>
@@ -149,8 +158,7 @@ export default function QuickActionsAdminPage() {
                   value={form.propertyId}
                   disabled={propertyLocked}
                   onChange={(e) => setForm({ ...form, propertyId: e.target.value })}
-                  className="form-select"
-                  required
+                  className={`form-select ${submitted && !form.propertyId ? 'maint-input-error' : ''}`}
                 >
                   {propertyLocked ? (
                     <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
@@ -163,6 +171,7 @@ export default function QuickActionsAdminPage() {
                     </>
                   )}
                 </select>
+                {submitted && !form.propertyId && <span className="maint-error-text">Property is required</span>}
               </div>
               <div className="form-group">
                 <label>Label *</label>
@@ -170,8 +179,9 @@ export default function QuickActionsAdminPage() {
                   value={form.label}
                   onChange={(e) => setForm({ ...form, label: e.target.value })}
                   placeholder="e.g. Pay Invoice"
-                  required
+                  className={submitted && !form.label.trim() ? 'maint-input-error' : ''}
                 />
+                {submitted && !form.label.trim() && <span className="maint-error-text">Label is required</span>}
               </div>
               <div className="form-group">
                 <label>Icon</label>
@@ -229,7 +239,7 @@ export default function QuickActionsAdminPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-              <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
+              <button type="button" className="btn" onClick={() => { setShowForm(false); setSubmitted(false); }}>Cancel</button>
               <button type="submit" className="btn btn-primary" disabled={creating}>
                 {creating ? <><Loader2 size={14} className="spin" /> Creating...</> : <><Zap size={14} /> Create</>}
               </button>
@@ -248,69 +258,71 @@ export default function QuickActionsAdminPage() {
           <p className="text-muted">Quick actions appear as shortcut buttons on the portal dashboard</p>
         </div>
       ) : (
-        <div className="data-table-wrapper">
-          <table className="data-table" id="quick-actions-table">
-            <thead>
-              <tr>
-                <th>Icon</th>
-                <th>Label</th>
-                <th>Property</th>
-                <th>Type</th>
-                <th>URL</th>
-                <th><ArrowUpDown size={14} /> Order</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {actions.map((qa) => (
-                <tr key={qa.id} style={{ opacity: qa.isActive === false ? 0.5 : 1 }}>
-                  <td style={{ fontSize: '1.3rem' }}>{qa.icon || '⚡'}</td>
-                  <td style={{ fontWeight: 600 }}>{qa.label}</td>
-                  <td>{qa.property?.name || '—'}</td>
-                  <td>
-                    <span className={`status-badge ${qa.actionType === 'page' ? 'status-active' : qa.actionType === 'link' ? 'status-pending' : 'status-closed'}`}>
-                      {qa.actionType}
-                    </span>
-                  </td>
-                  <td>
-                    {qa.actionUrl ? (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.85rem' }}>
-                        {qa.actionUrl}
-                        {qa.actionType === 'link' && <ExternalLink size={12} />}
-                      </span>
-                    ) : '—'}
-                  </td>
-                  <td>{qa.sortOrder}</td>
-                  <td>
-                    <span className={`status-badge ${qa.isActive !== false ? 'status-active' : 'status-cancelled'}`}>
-                      {qa.isActive !== false ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td>
-                    <PermissionGuard permission="community-quick-actions.write">
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button
-                          className="btn-icon"
-                          onClick={() => handleToggle(qa.id, qa.isActive !== false)}
-                          title={qa.isActive !== false ? 'Deactivate' : 'Activate'}
-                        >
-                          {qa.isActive !== false ? <ToggleRight size={16} className="text-success" /> : <ToggleLeft size={16} />}
-                        </button>
-                        <button
-                          className="btn-icon btn-danger"
-                          onClick={() => handleDelete(qa.id)}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </PermissionGuard>
-                  </td>
+        <div className="maint-table-wrap">
+          <TableScrollWrapper>
+            <table className="maint-table" id="quick-actions-table">
+              <thead>
+                <tr>
+                  <th>Icon</th>
+                  <th>Label</th>
+                  <th>Property</th>
+                  <th>Type</th>
+                  <th>URL</th>
+                  <th><ArrowUpDown size={14} /> Order</th>
+                  <th>Status</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {actions.map((qa) => (
+                  <tr key={qa.id} style={{ opacity: qa.isActive === false ? 0.5 : 1 }}>
+                    <td style={{ fontSize: '1.3rem' }}>{qa.icon || '⚡'}</td>
+                    <td style={{ fontWeight: 600 }}>{qa.label}</td>
+                    <td>{qa.property?.name || '—'}</td>
+                    <td>
+                      <span className={`status-badge ${qa.actionType === 'page' ? 'status-active' : qa.actionType === 'link' ? 'status-pending' : 'status-closed'}`}>
+                        {qa.actionType}
+                      </span>
+                    </td>
+                    <td>
+                      {qa.actionUrl ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.85rem' }}>
+                          {qa.actionUrl}
+                          {qa.actionType === 'link' && <ExternalLink size={12} />}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td>{qa.sortOrder}</td>
+                    <td>
+                      <span className={`status-badge ${qa.isActive !== false ? 'status-active' : 'status-cancelled'}`}>
+                        {qa.isActive !== false ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td>
+                      <PermissionGuard permission="community-quick-actions.write">
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            className="btn-icon"
+                            onClick={() => handleToggle(qa.id, qa.isActive !== false)}
+                            title={qa.isActive !== false ? 'Deactivate' : 'Activate'}
+                          >
+                            {qa.isActive !== false ? <ToggleRight size={16} className="text-success" /> : <ToggleLeft size={16} />}
+                          </button>
+                          <button
+                            className="btn-icon btn-danger"
+                            onClick={() => handleDelete(qa.id)}
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </PermissionGuard>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetWebhooksQuery, useGetWebhookEventsQuery,
@@ -6,11 +6,12 @@ import {
   useTestWebhookMutation, useGetDeliveriesQuery, useRetryDeliveryMutation,
 } from '../../store/api/integrationsApi';
 import {
-  Webhook, Plus, X, Trash2, Send, Copy, Eye, ExternalLink,
+  Webhook, Plus, Trash2, Send, Copy, Eye, ExternalLink,
   CheckCircle2, AlertCircle, Clock, RefreshCw, XCircle, Edit,
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 const DELIVERY_STATUS: Record<string, { color: string; icon: any }> = {
   delivered: { color: 'var(--success)', icon: CheckCircle2 },
@@ -29,7 +30,9 @@ export default function WebhooksPage() {
   const confirmDialog = useConfirm();
 
   const [showCreate, setShowCreate] = useState(false);
+  const [createSubmitted, setCreateSubmitted] = useState(false);
   const [showEdit, setShowEdit] = useState<any | null>(null);
+  const [editSubmitted, setEditSubmitted] = useState(false);
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [showDeliveries, setShowDeliveries] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState({ url: '', description: '', events: [] as string[] });
@@ -46,10 +49,12 @@ export default function WebhooksPage() {
   };
 
   const handleCreate = async () => {
-    if (!createForm.url || createForm.events.length === 0) return;
-    const result = await createWebhook(createForm).unwrap();
+    setCreateSubmitted(true);
+    if (!createForm.url.trim() || createForm.events.length === 0) return;
+    const result = await createWebhook({ ...createForm, url: createForm.url.trim() }).unwrap();
     setNewSecret(result.data.secret);
     setShowCreate(false);
+    setCreateSubmitted(false);
     setCreateForm({ url: '', description: '', events: [] });
   };
 
@@ -63,6 +68,7 @@ export default function WebhooksPage() {
   };
 
   const openEdit = (wh: any) => {
+    setEditSubmitted(false);
     setEditForm({
       url: wh.url || '',
       description: wh.description || '',
@@ -73,20 +79,28 @@ export default function WebhooksPage() {
   };
 
   const handleEdit = async () => {
-    if (!showEdit || !editForm.url.trim() || editForm.events.length === 0) return;
-    await updateWebhook({ id: showEdit.id, data: editForm });
+    if (!showEdit) return;
+    setEditSubmitted(true);
+    if (!editForm.url.trim() || editForm.events.length === 0) return;
+    await updateWebhook({ id: showEdit.id, data: { ...editForm, url: editForm.url.trim() } });
     setShowEdit(null);
+    setEditSubmitted(false);
   };
 
   return (
     <div className="page-content">
-      <div className="intg-header">
-        <div>
-          <h1><Webhook size={24} /> Webhooks</h1>
-          <p className="mall-page-subtitle">Configure outbound webhook endpoints for event notifications</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Webhook size={22} />
+          </div>
+          <div>
+            <h1>Webhooks</h1>
+            <p>{webhooks.length} total webhooks · Configure outbound webhook endpoints for event notifications</p>
+          </div>
         </div>
         <PermissionGuard permission="developer-webhooks.write">
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          <button className="btn btn-primary" onClick={() => { setShowCreate(true); setCreateSubmitted(false); }}>
             <Plus size={16} /> Add Webhook
           </button>
         </PermissionGuard>
@@ -104,66 +118,68 @@ export default function WebhooksPage() {
         </div>
       ) : (
         <div className="intg-table-wrap">
-          <table className="intg-table">
-            <thead>
-              <tr>
-                <th>Endpoint URL</th>
-                <th>Events</th>
-                <th>Status</th>
-                <th>Deliveries</th>
-                <th>Last Success</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {webhooks.map((wh: any) => (
-                <tr key={wh.id}>
-                  <td>
-                    <div className="intg-url-cell">
-                      <ExternalLink size={13} />
-                      <span className="intg-url-text">{wh.url}</span>
-                    </div>
-                    {wh.description && <div className="intg-url-desc">{wh.description}</div>}
-                  </td>
-                  <td>
-                    <div className="intg-events-wrap">
-                      {wh.events.slice(0, 3).map((e: string) => (
-                        <span key={e} className="intg-event-badge">{e}</span>
-                      ))}
-                      {wh.events.length > 3 && <span className="intg-event-badge more">+{wh.events.length - 3}</span>}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`intg-wh-status ${wh.isActive ? 'active' : 'inactive'}`}>
-                      {wh.isActive ? '● Active' : '○ Inactive'}
-                    </span>
-                  </td>
-                  <td>{wh._count?.deliveries || 0}</td>
-                  <td className="intg-date-cell">{wh.lastSuccessAt ? new Date(wh.lastSuccessAt).toLocaleDateString() : '—'}</td>
-                  <td>
-                    <div className="intg-row-actions">
-                      <PermissionGuard permission="developer-webhooks.write">
-                        <button className="intg-action-btn-sm" onClick={() => testWebhook(wh.id)} title="Send Test">
-                          <Send size={13} />
-                        </button>
-                        <button className="intg-action-btn-sm" onClick={() => openEdit(wh)} title="Edit">
-                          <Edit size={13} />
-                        </button>
-                      </PermissionGuard>
-                      <button className="intg-action-btn-sm" onClick={() => setShowDeliveries(wh.id)} title="View Deliveries">
-                        <Eye size={13} />
-                      </button>
-                      <PermissionGuard permission="developer-webhooks.write">
-                        <button className="intg-action-btn-sm danger" onClick={async () => { if (await confirmDialog('Delete webhook?', { danger: true })) deleteWebhook(wh.id); }} title="Delete">
-                          <Trash2 size={13} />
-                        </button>
-                      </PermissionGuard>
-                    </div>
-                  </td>
+          <TableScrollWrapper>
+            <table className="intg-table">
+              <thead>
+                <tr>
+                  <th>Endpoint URL</th>
+                  <th>Events</th>
+                  <th>Status</th>
+                  <th>Deliveries</th>
+                  <th>Last Success</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {webhooks.map((wh: any) => (
+                  <tr key={wh.id}>
+                    <td>
+                      <div className="intg-url-cell">
+                        <ExternalLink size={13} />
+                        <span className="intg-url-text">{wh.url}</span>
+                      </div>
+                      {wh.description && <div className="intg-url-desc">{wh.description}</div>}
+                    </td>
+                    <td>
+                      <div className="intg-events-wrap">
+                        {wh.events.slice(0, 3).map((e: string) => (
+                          <span key={e} className="intg-event-badge">{e}</span>
+                        ))}
+                        {wh.events.length > 3 && <span className="intg-event-badge more">+{wh.events.length - 3}</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`intg-wh-status ${wh.isActive ? 'active' : 'inactive'}`}>
+                        {wh.isActive ? '● Active' : '○ Inactive'}
+                      </span>
+                    </td>
+                    <td>{wh._count?.deliveries || 0}</td>
+                    <td className="intg-date-cell">{wh.lastSuccessAt ? new Date(wh.lastSuccessAt).toLocaleDateString() : '—'}</td>
+                    <td>
+                      <div className="intg-row-actions">
+                        <PermissionGuard permission="developer-webhooks.write">
+                          <button className="intg-action-btn-sm" onClick={() => testWebhook(wh.id)} title="Send Test">
+                            <Send size={13} />
+                          </button>
+                          <button className="intg-action-btn-sm" onClick={() => openEdit(wh)} title="Edit">
+                            <Edit size={13} />
+                          </button>
+                        </PermissionGuard>
+                        <button className="intg-action-btn-sm" onClick={() => setShowDeliveries(wh.id)} title="View Deliveries">
+                          <Eye size={13} />
+                        </button>
+                        <PermissionGuard permission="developer-webhooks.write">
+                          <button className="intg-action-btn-sm danger" onClick={async () => { if (await confirmDialog('Delete webhook?', { danger: true })) deleteWebhook(wh.id); }} title="Delete">
+                            <Trash2 size={13} />
+                          </button>
+                        </PermissionGuard>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
         </div>
       )}
 
@@ -173,13 +189,19 @@ export default function WebhooksPage() {
           <div className="mall-modal" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Add Webhook Endpoint</h3>
-              <button className="mall-modal-close" onClick={() => setShowCreate(false)}>✕</button>
+              <button className="mall-modal-close" onClick={() => { setShowCreate(false); setCreateSubmitted(false); }}>✕</button>
             </div>
             <div className="mall-modal-body">
               <div className="mall-form-grid">
                 <label style={{ gridColumn: '1 / -1' }}>
                   <span>Endpoint URL *</span>
-                  <input value={createForm.url} onChange={e => setCreateForm({ ...createForm, url: e.target.value })} placeholder="https://yourapp.com/webhooks/pms" />
+                  <input
+                    value={createForm.url}
+                    className={createSubmitted && !createForm.url.trim() ? 'mall-input-error' : ''}
+                    onChange={e => setCreateForm({ ...createForm, url: e.target.value })}
+                    placeholder="https://yourapp.com/webhooks/pms"
+                  />
+                  {createSubmitted && !createForm.url.trim() && <span className="mall-error-text">Endpoint URL is required</span>}
                 </label>
                 <label style={{ gridColumn: '1 / -1' }}>
                   <span>Description</span>
@@ -188,9 +210,9 @@ export default function WebhooksPage() {
               </div>
               <div className="intg-events-section">
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 600, margin: '16px 0 10px', color: 'var(--text-primary)' }}>
-                  Subscribe to Events ({createForm.events.length} selected)
+                  Subscribe to Events * ({createForm.events.length} selected)
                 </h4>
-                <div className="intg-events-grid">
+                <div className={`intg-events-grid ${createSubmitted && createForm.events.length === 0 ? 'mall-input-error' : ''}`} style={{ borderRadius: 8 }}>
                   {Object.entries(allEvents).map(([key, desc]) => (
                     <label key={key} className="intg-event-check">
                       <input type="checkbox" checked={createForm.events.includes(key)} onChange={() => toggleEvent(key)} />
@@ -201,11 +223,12 @@ export default function WebhooksPage() {
                     </label>
                   ))}
                 </div>
+                {createSubmitted && createForm.events.length === 0 && <span className="mall-error-text">Select at least one event</span>}
               </div>
             </div>
             <div className="mall-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleCreate} disabled={!createForm.url || createForm.events.length === 0}>
+              <button className="btn btn-ghost" onClick={() => { setShowCreate(false); setCreateSubmitted(false); }}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleCreate}>
                 <Plus size={14} /> Create Webhook
               </button>
             </div>
@@ -259,13 +282,18 @@ export default function WebhooksPage() {
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Edit size={18} /> Edit Webhook
               </h3>
-              <button className="mall-modal-close" onClick={() => setShowEdit(null)}>✕</button>
+              <button className="mall-modal-close" onClick={() => { setShowEdit(null); setEditSubmitted(false); }}>✕</button>
             </div>
             <div className="mall-modal-body">
               <div className="mall-form-grid">
                 <label style={{ gridColumn: '1 / -1' }}>
                   <span>Endpoint URL *</span>
-                  <input value={editForm.url} onChange={e => setEditForm(f => ({ ...f, url: e.target.value }))} />
+                  <input
+                    value={editForm.url}
+                    className={editSubmitted && !editForm.url.trim() ? 'mall-input-error' : ''}
+                    onChange={e => setEditForm(f => ({ ...f, url: e.target.value }))}
+                  />
+                  {editSubmitted && !editForm.url.trim() && <span className="mall-error-text">Endpoint URL is required</span>}
                 </label>
                 <label>
                   <span>Description</span>
@@ -280,9 +308,9 @@ export default function WebhooksPage() {
               </div>
               <div className="intg-events-section">
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 600, margin: '16px 0 10px', color: 'var(--text-primary)' }}>
-                  Subscribed Events ({editForm.events.length} selected)
+                  Subscribed Events * ({editForm.events.length} selected)
                 </h4>
-                <div className="intg-events-grid">
+                <div className={`intg-events-grid ${editSubmitted && editForm.events.length === 0 ? 'mall-input-error' : ''}`} style={{ borderRadius: 8 }}>
                   {Object.entries(allEvents).map(([key, desc]) => (
                     <label key={key} className="intg-event-check">
                       <input type="checkbox" checked={editForm.events.includes(key)} onChange={() => toggleEditEvent(key)} />
@@ -293,13 +321,12 @@ export default function WebhooksPage() {
                     </label>
                   ))}
                 </div>
+                {editSubmitted && editForm.events.length === 0 && <span className="mall-error-text">Select at least one event</span>}
               </div>
             </div>
             <div className="mall-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowEdit(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleEdit}
-                disabled={!editForm.url.trim() || editForm.events.length === 0}
-                style={{ opacity: (!editForm.url.trim() || editForm.events.length === 0) ? 0.5 : 1 }}>
+              <button className="btn btn-ghost" onClick={() => { setShowEdit(null); setEditSubmitted(false); }}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleEdit}>
                 <Edit size={14} /> Save Changes
               </button>
             </div>

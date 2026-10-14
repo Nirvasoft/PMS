@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useGetPositionsQuery, useCreatePositionMutation, useDeletePositionMutation, useGetDepartmentTreeQuery } from '../../../store/api/usersApi';
-import { Briefcase, Trash2, Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Briefcase, Trash2, Plus, Loader2, ChevronLeft, ChevronRight, Search, Filter, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
-
-const PAGE_SIZE = 10;
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 export default function PositionsPage() {
   const confirmDialog = useConfirm();
@@ -18,19 +17,36 @@ export default function PositionsPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', level: 1, departmentId: '', canApprove: false, approvalLimit: '' });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
+  const [search, setSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [approvalFilter, setApprovalFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
   const [page, setPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(positions.length / PAGE_SIZE));
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
-  const pagedPositions = positions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const [pageSize, setPageSize] = useState(10);
+
+  const nameError = hasAttemptedSubmit && !form.name.trim() ? 'Position name is required' : '';
+
+  const openForm = () => {
+    setHasAttemptedSubmit(false);
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setHasAttemptedSubmit(false);
+    setShowForm(false);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    const trimmedName = form.name.trim();
+    if (!trimmedName) return;
     try {
       await createPosition({
-        name: form.name,
+        name: trimmedName,
         level: form.level,
         ...(form.departmentId ? { departmentId: form.departmentId } : {}),
         canApprove: form.canApprove,
@@ -38,6 +54,7 @@ export default function PositionsPage() {
       }).unwrap();
       toast.success('Position created!');
       setForm({ name: '', level: 1, departmentId: '', canApprove: false, approvalLimit: '' });
+      setHasAttemptedSubmit(false);
       setShowForm(false);
     } catch { toast.error('Failed to create position'); }
   };
@@ -60,40 +77,164 @@ export default function PositionsPage() {
   };
   flatten(departments);
 
+  const availableLevels = Array.from(new Set(positions.map(p => p.level))).sort((a, b) => a - b);
+  const hasActiveFilters = Boolean(departmentFilter || approvalFilter || levelFilter);
+
+  const resetFilters = () => {
+    setDepartmentFilter('');
+    setApprovalFilter('');
+    setLevelFilter('');
+    setPage(1);
+  };
+
+  const filteredPositions = positions.filter((p) => {
+    if (departmentFilter) {
+      if (departmentFilter === '__unassigned__') {
+        if (p.departmentId) return false;
+      } else if (p.departmentId !== departmentFilter) {
+        return false;
+      }
+    }
+    if (approvalFilter) {
+      const canApprove = Boolean((p as any).canApprove);
+      if (approvalFilter === 'can_approve' && !canApprove) return false;
+      if (approvalFilter === 'cannot_approve' && canApprove) return false;
+    }
+    if (levelFilter && String(p.level) !== levelFilter) {
+      return false;
+    }
+    if (!search.trim()) return true;
+    const q = search.toLowerCase().trim();
+    const deptName = p.departmentId ? (flatDepts.find(d => d.id === p.departmentId)?.name || '') : 'All';
+    return (
+      p.name.toLowerCase().includes(q) ||
+      deptName.toLowerCase().includes(q) ||
+      `level ${p.level}`.toLowerCase().includes(q) ||
+      String(p.level).includes(q)
+    );
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredPositions.length / pageSize));
+  useEffect(() => {
+    setPage(1);
+  }, [search, departmentFilter, approvalFilter, levelFilter, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const pagedPositions = filteredPositions.slice((page - 1) * pageSize, page * pageSize);
+
   if (isLoading) return <div className="page-content"><div className="loading-inline"><Loader2 size={20} className="spin" /> Loading positions...</div></div>;
 
   return (
     <div className="page-content">
       <div className="page-header">
         <div className="page-header-row" style={{ alignItems: 'center' }}>
-          <div>
-            <h1><Briefcase size={24} /> Positions</h1>
-            <p className="text-muted">Manage organizational positions and job levels</p>
+          <div className="page-title-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              className="page-icon-lg"
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 12,
+                background: 'rgba(16, 185, 129, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent)',
+                flexShrink: 0,
+              }}
+            >
+              <Briefcase size={22} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Positions</h1>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                {`${positions.length} total positions`}
+              </p>
+            </div>
           </div>
-          <PermissionGuard permission="positions.create">
-            <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <Plus size={16} /> New Position
-            </button>
-          </PermissionGuard>
+          <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <PermissionGuard permission="positions.create">
+              <button className="btn btn-primary" onClick={openForm} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Plus size={16} /> New Position
+              </button>
+            </PermissionGuard>
+          </div>
         </div>
       </div>
 
-      <div className="toolbar">
-        <span className="text-secondary">{positions.length} position(s)</span>
+      {/* Users-style Toolbar with Search Bar and Filters */}
+      <div className="users-toolbar" style={showFilters ? { marginBottom: 10 } : undefined}>
+        <div className="users-search-wrap">
+          <Search size={16} className="users-search-icon" />
+          <input
+            type="text"
+            placeholder="Search positions by name, department, level..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="users-search-input"
+            id="position-search"
+          />
+        </div>
+        <button className="btn-secondary" onClick={() => setShowFilters(!showFilters)}>
+          <Filter size={15} /> Filters{hasActiveFilters ? ' •' : ''}
+        </button>
       </div>
+
+      {showFilters && (
+        <div className="filter-bar" style={{ marginBottom: 20 }}>
+          <select
+            value={departmentFilter}
+            onChange={(e) => { setDepartmentFilter(e.target.value); setPage(1); }}
+          >
+            <option value="">All Departments</option>
+            <option value="__unassigned__">All (Global / No Department)</option>
+            {flatDepts.map(d => (
+              <option key={d.id} value={d.id}>{'\u00A0\u00A0'.repeat(d.depth) + d.name}</option>
+            ))}
+          </select>
+          <select
+            value={approvalFilter}
+            onChange={(e) => { setApprovalFilter(e.target.value); setPage(1); }}
+          >
+            <option value="">All Approvals</option>
+            <option value="can_approve">Can Approve</option>
+            <option value="cannot_approve">Cannot Approve</option>
+          </select>
+          <select
+            value={levelFilter}
+            onChange={(e) => { setLevelFilter(e.target.value); setPage(1); }}
+          >
+            <option value="">All Levels</option>
+            {availableLevels.map(lvl => (
+              <option key={lvl} value={String(lvl)}>Level {lvl}</option>
+            ))}
+          </select>
+          <button className="btn-ghost" onClick={resetFilters}>
+            <X size={14} /> Reset
+          </button>
+        </div>
+      )}
 
       {showForm && (
         <div className="modal-overlay">
           <div className="modal-card">
             <div className="modal-header">
               <h2>New Position</h2>
-              <button className="btn-icon" onClick={() => setShowForm(false)}>✕</button>
+              <button className="btn-icon" onClick={closeForm}>✕</button>
             </div>
-            <form onSubmit={handleCreate} className="modal-body">
+            <form onSubmit={handleCreate} className="modal-body" noValidate>
               <div className="form-group">
                 <label>Position Name *</label>
-                <input className="input-full" required value={form.name} placeholder="e.g. Senior Manager"
-                  onChange={e => setForm({ ...form, name: e.target.value })} />
+                <input
+                  className={`input-full${nameError ? ' input-error' : ''}`}
+                  value={form.name}
+                  placeholder="e.g. Senior Manager"
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                />
+                {nameError && <span className="field-error-text">{nameError}</span>}
               </div>
               <div className="form-group">
                 <label>Level</label>
@@ -126,7 +267,7 @@ export default function PositionsPage() {
                 <label style={{ margin: 0 }}>Can Approve</label>
               </div>
               <div className="modal-actions">
-                <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
+                <button type="button" className="btn" onClick={closeForm}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Create</button>
               </div>
             </form>
@@ -140,65 +281,102 @@ export default function PositionsPage() {
           <p className="text-muted">No positions defined yet. Click "New Position" to create one.</p>
         </div>
       ) : (
-        <div className="audit-table-container">
-          <table className="audit-table">
-            <thead>
-              <tr>
-                <th>Position Name</th>
-                <th>Level</th>
-                <th>Department</th>
-                <th>Approval</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedPositions.map(p => (
-                <tr key={p.id}>
-                  <td><strong>{p.name}</strong></td>
-                  <td><span className="role-chip">Level {p.level}</span></td>
-                  <td className="text-muted">{p.departmentId ? flatDepts.find(d => d.id === p.departmentId)?.name || '—' : 'All'}</td>
-                  <td>
-                    {(p as Record<string, unknown>).canApprove ? (
-                      <span className="status-badge active">
-                        ✓ {(p as Record<string, unknown>).approvalLimit
-                          ? `≤ ${Number((p as Record<string, unknown>).approvalLimit).toLocaleString()}`
-                          : 'Unlimited'}
-                      </span>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </td>
-                  <td>
-                    <PermissionGuard permission="positions.delete">
-                      <button
-                        className="btn-icon"
-                        title="Delete"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-                        onClick={() => handleDelete(p.id, p.name)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </PermissionGuard>
-                  </td>
+        <div className="positions-table-wrap billing-table-wrap">
+          <TableScrollWrapper className="positions-table-scroll">
+            <table className="audit-table billing-table positions-table" id="positions-table">
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 200 }}>Position Name</th>
+                  <th style={{ width: 120 }}>Level</th>
+                  <th style={{ minWidth: 180 }}>Department</th>
+                  <th style={{ width: 160 }}>Approval</th>
+                  <th style={{ width: 70, textAlign: 'center' }}></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredPositions.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                      No positions match your search
+                    </td>
+                  </tr>
+                ) : (
+                  pagedPositions.map(p => (
+                    <tr key={p.id}>
+                      <td><strong>{p.name}</strong></td>
+                      <td><span className="role-chip">Level {p.level}</span></td>
+                      <td className="text-muted">{p.departmentId ? flatDepts.find(d => d.id === p.departmentId)?.name || '—' : 'All'}</td>
+                      <td>
+                        {(p as any).canApprove ? (
+                          <span className="status-badge active">
+                            ✓ {(p as any).approvalLimit
+                              ? `≤ ${Number((p as any).approvalLimit).toLocaleString()}`
+                              : 'Unlimited'}
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <PermissionGuard permission="positions.delete">
+                          <button
+                            className="btn-icon"
+                            title="Delete"
+                            style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                            onClick={() => handleDelete(p.id, p.name)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </PermissionGuard>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
 
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderTop: '1px solid var(--border-subtle)' }}>
-              <span className="text-muted text-small">
-                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, positions.length)} of {positions.length}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button className="btn btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
-                  <ChevronLeft size={14} /> Previous
+          {/* Modern Pagination Toolbar */}
+          {filteredPositions.length >= 10 && (
+            <div className="positions-pagination billing-pagination">
+              <div className="pagination-left">
+                <div className="page-size-selector">
+                  <label htmlFor="positions-page-size">Rows per page:</label>
+                  <select
+                    id="positions-page-size"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="page-btns">
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage(p => p - 1)}
+                  title="Previous page"
+                >
+                  <ChevronLeft size={15} />
                 </button>
-                <span className="text-muted text-small">Page {page} of {totalPages}</span>
-                <button className="btn btn-sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
-                  Next <ChevronRight size={14} />
+                <span className="page-num-display">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(p => p + 1)}
+                  title="Next page"
+                >
+                  <ChevronRight size={15} />
                 </button>
               </div>
             </div>

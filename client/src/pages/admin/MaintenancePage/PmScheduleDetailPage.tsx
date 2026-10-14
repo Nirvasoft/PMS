@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 
 const FREQUENCIES: Record<string, string> = {
   daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly',
@@ -198,84 +199,86 @@ export default function PmScheduleDetailPage() {
             Service History ({history.length})
           </h3>
         </div>
-        <table className="maint-table">
-          <thead>
-            <tr>
-              <th>Due Date</th>
-              <th>Status</th>
-              <th>Completed At</th>
-              <th>Completed By</th>
-              <th>Ticket</th>
-              <th>Findings</th>
-              <th style={{ width: 100, textAlign: 'center' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {history.length === 0 ? (
+        <TableScrollWrapper>
+          <table className="maint-table">
+            <thead>
               <tr>
-                <td colSpan={7}>
-                  <div className="maint-empty" style={{ padding: '24px 0' }}>
-                    <p>No service history yet</p>
-                  </div>
-                </td>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th>Completed At</th>
+                <th>Completed By</th>
+                <th>Ticket</th>
+                <th>Findings</th>
+                <th style={{ width: 100, textAlign: 'center' }}></th>
               </tr>
-            ) : history.map((wo: any) => (
-              <tr key={wo.id}>
-                <td><span className="cell-mono">{new Date(wo.dueDate).toLocaleDateString()}</span></td>
-                <td>
-                  <span className={`maint-status ${wo.status === 'completed' ? 'completed' : wo.status === 'overdue' ? 'cancelled' : wo.status === 'skipped' ? 'pending_parts' : 'open'}`}>
-                    {wo.status}
-                  </span>
-                </td>
-                <td><span className="cell-secondary">{wo.completedAt ? new Date(wo.completedAt).toLocaleString() : '—'}</span></td>
-                <td>
-                  <span className="cell-secondary">
-                    {wo.completedBy?.profile ? `${wo.completedBy.profile.firstName} ${wo.completedBy.profile.lastName}` : '—'}
-                  </span>
-                </td>
-                <td>
-                  {wo.ticket ? (
-                    <span className="cell-mono" style={{ cursor: 'pointer', color: 'var(--primary)' }}
-                      onClick={() => navigate(`/admin/maintenance/tickets/${wo.ticket.id}`)}
-                    >
-                      {wo.ticket.ticketNumber}
+            </thead>
+            <tbody>
+              {history.length === 0 ? (
+                <tr>
+                  <td colSpan={7}>
+                    <div className="maint-empty" style={{ padding: '24px 0' }}>
+                      <p>No service history yet</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : history.map((wo: any) => (
+                <tr key={wo.id}>
+                  <td><span className="cell-mono">{new Date(wo.dueDate).toLocaleDateString()}</span></td>
+                  <td>
+                    <span className={`maint-status ${wo.status === 'completed' ? 'completed' : wo.status === 'overdue' ? 'cancelled' : wo.status === 'skipped' ? 'pending_parts' : 'open'}`}>
+                      {wo.status}
                     </span>
-                  ) : '—'}
-                </td>
-                <td>
-                  <span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                    {wo.findings || '—'}
-                  </span>
-                </td>
-                <td>
-                  {(wo.status === 'scheduled' || wo.status === 'in_progress' || wo.status === 'overdue') ? (
-                    <PermissionGuard permission="maintenance-pm.write">
-                      <div className="sla-row-actions">
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          title="Complete"
-                          style={{ color: '#22c55e' }}
-                          onClick={() => setCompleteWoId(wo.id)}
-                        >
-                          <Check size={14} />
-                        </button>
-                        <button
-                          className="btn btn-ghost btn-sm btn-danger-ghost"
-                          title="Skip"
-                          onClick={() => setSkipWoId(wo.id)}
-                        >
-                          <SkipForward size={14} />
-                        </button>
-                      </div>
-                    </PermissionGuard>
-                  ) : (
-                    <span className="cell-secondary" style={{ fontSize: 11 }}>—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                  <td><span className="cell-secondary">{wo.completedAt ? new Date(wo.completedAt).toLocaleString() : '—'}</span></td>
+                  <td>
+                    <span className="cell-secondary">
+                      {wo.completedBy?.profile ? `${wo.completedBy.profile.firstName} ${wo.completedBy.profile.lastName}` : '—'}
+                    </span>
+                  </td>
+                  <td>
+                    {wo.ticket ? (
+                      <span className="cell-mono" style={{ cursor: 'pointer', color: 'var(--primary)' }}
+                        onClick={() => navigate(`/admin/maintenance/tickets/${wo.ticket.id}`)}
+                      >
+                        {wo.ticket.ticketNumber}
+                      </span>
+                    ) : '—'}
+                  </td>
+                  <td>
+                    <span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                      {wo.findings || '—'}
+                    </span>
+                  </td>
+                  <td>
+                    {(wo.status === 'scheduled' || wo.status === 'in_progress' || wo.status === 'overdue') ? (
+                      <PermissionGuard permission="maintenance-pm.write">
+                        <div className="sla-row-actions">
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            title="Complete"
+                            style={{ color: '#22c55e' }}
+                            onClick={() => setCompleteWoId(wo.id)}
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-sm btn-danger-ghost"
+                            title="Skip"
+                            onClick={() => setSkipWoId(wo.id)}
+                          >
+                            <SkipForward size={14} />
+                          </button>
+                        </div>
+                      </PermissionGuard>
+                    ) : (
+                      <span className="cell-secondary" style={{ fontSize: 11 }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
 
       {/* Complete Modal */}
@@ -538,14 +541,17 @@ function EditScheduleModal({ schedule, categories, properties, onClose }: {
   });
   const [checklist, setChecklist] = useState<Array<{ item: string; isRequired: boolean }>>(existingChecklist);
   const [newItem, setNewItem] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.name.trim()) return;
     try {
       await updateSchedule({
         id: schedule.id,
         data: {
-          name: form.name,
+          name: form.name.trim(),
           description: form.description || undefined,
           categoryId: form.categoryId || null,
           frequencyType: form.frequencyType,
@@ -590,11 +596,19 @@ function EditScheduleModal({ schedule, categories, properties, onClose }: {
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit} style={{ maxHeight: '70vh', overflowY: 'auto', padding: '0 24px 24px' }}>
+        <form onSubmit={handleSubmit} noValidate style={{ maxHeight: '70vh', overflowY: 'auto', padding: '0 24px 24px' }}>
           <div className="maint-form-grid cols-1">
             <div className="maint-field">
               <label>Schedule Name <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="text" required value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
+              <input
+                type="text"
+                className={hasAttemptedSubmit && !form.name.trim() ? 'maint-input-error' : ''}
+                value={form.name}
+                onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+              />
+              {hasAttemptedSubmit && !form.name.trim() && (
+                <span className="maint-error-text">Schedule name is required</span>
+              )}
             </div>
           </div>
 

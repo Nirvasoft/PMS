@@ -7,16 +7,18 @@ import {
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  Megaphone, Plus, Edit3, Save, X, Calendar, DollarSign, Trash2, AlertTriangle,
+  Megaphone, Plus, Edit3, Save, X, Calendar, DollarSign, Trash2, AlertTriangle, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './CRMPage.css';
 
 export default function CampaignsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<CampaignItem | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const activePropertyFilter = useSelectedPropertyFilter();
 
   // Reset pagination whenever the sidebar's Active Property changes.
@@ -24,7 +26,7 @@ export default function CampaignsPage() {
 
   const { data, isLoading } = useGetCampaignsQuery({
     propertyId: activePropertyFilter || undefined,
-    page, limit: 20,
+    page, limit: pageSize,
   });
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
 
@@ -37,10 +39,26 @@ export default function CampaignsPage() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg"><Megaphone size={22} /></div>
+          <div
+            className="page-icon-lg"
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 12,
+              background: 'rgba(16, 185, 129, 0.15)',
+              color: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Megaphone size={22} />
+          </div>
           <div>
-            <h1>Marketing Campaigns</h1>
-            <p>{meta ? `${meta.total} campaigns` : 'Loading…'}</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Marketing Campaigns</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {meta ? `${meta.total} total campaigns` : 'Loading…'}
+            </p>
           </div>
         </div>
         <PermissionGuard permission="crm-campaigns.write">
@@ -52,29 +70,68 @@ export default function CampaignsPage() {
 
       {/* Table */}
       <div className="campaign-table-wrap">
-        <div className="campaign-table-header">
-          <span>Campaign</span><span>Channel</span><span>Budget</span>
-          <span>Dates</span><span>Leads</span><span>Conversions</span><span>ROI</span><span></span>
-        </div>
-        {isLoading ? (
-          <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
-        ) : campaigns.length === 0 ? (
-          <div className="table-empty"><Megaphone size={40} /><p>No campaigns found</p></div>
-        ) : (
-          campaigns.map((c: CampaignItem) => (
-            <CampaignRow key={c.id} campaign={c} onEdit={() => setEditingCampaign(c)} />
-          ))
+        <TableScrollWrapper className="tenant-table-scroll">
+          <div className="campaign-table-inner">
+            <div className="campaign-table-header">
+              <span>Campaign</span><span>Channel</span><span>Budget</span>
+              <span>Dates</span><span>Leads</span><span>Conversions</span><span>ROI</span><span></span>
+            </div>
+            {isLoading ? (
+              <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
+            ) : campaigns.length === 0 ? (
+              <div className="table-empty"><Megaphone size={40} /><p>No campaigns found</p></div>
+            ) : (
+              campaigns.map((c: CampaignItem) => (
+                <CampaignRow key={c.id} campaign={c} onEdit={() => setEditingCampaign(c)} />
+              ))
+            )}
+          </div>
+        </TableScrollWrapper>
+
+        {/* Pagination */}
+        {meta && meta.total >= 10 && (
+          <div className="campaign-pagination billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="campaign-page-size">Rows per page:</label>
+                <select
+                  id="campaign-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="page-btns">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                title="Previous page"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="page-num-display">
+                Page {meta.page} of {Math.max(meta.totalPages, 1)}
+              </span>
+              <button
+                disabled={page >= meta.totalPages}
+                onClick={() => setPage(p => p + 1)}
+                title="Next page"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
-
-      {/* Pagination */}
-      {meta && meta.totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span>Page {page} of {meta.totalPages}</span>
-          <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
-        </div>
-      )}
 
       {/* Create Modal */}
       {showCreate && (
@@ -193,6 +250,7 @@ function CampaignFormModal({ campaign, properties, onClose }: {
   const [updateCampaign, { isLoading: isUpdating }] = useUpdateCampaignMutation();
   const isSaving = isCreating || isUpdating;
 
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({
     name: campaign?.name || '',
     propertyId: campaign?.property?.id || '',
@@ -205,6 +263,7 @@ function CampaignFormModal({ campaign, properties, onClose }: {
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
 
   const handleSubmit = async () => {
+    setHasAttemptedSubmit(true);
     if (!form.name.trim()) {
       toast.error('Campaign name is required');
       return;
@@ -249,75 +308,122 @@ function CampaignFormModal({ campaign, properties, onClose }: {
   };
 
   return (
-    <div className="crm-modal-overlay">
+    <div className="crm-modal-overlay" onClick={onClose}>
       <div className="crm-modal camp-form-modal" onClick={e => e.stopPropagation()}>
         <div className="camp-modal-header">
-          <div className="camp-modal-icon">
-            {isEdit ? <Edit3 size={20} /> : <Megaphone size={20} />}
+          <div className="camp-modal-header-left">
+            <div className="camp-modal-icon">
+              {isEdit ? <Edit3 size={18} /> : <Megaphone size={18} />}
+            </div>
+            <div>
+              <h2>{isEdit ? 'Edit Campaign' : 'New Marketing Campaign'}</h2>
+              <p className="camp-modal-subtitle">
+                {isEdit ? 'Update campaign channel, budget, and schedule' : 'Configure campaign channel, target budget, and schedule'}
+              </p>
+            </div>
           </div>
-          <h2>{isEdit ? 'Edit Campaign' : 'New Marketing Campaign'}</h2>
-        </div>
-
-        <div className="form-group">
-          <label>Campaign Name *</label>
-          <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Summer Promo 2026" autoFocus />
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label>Channel</label>
-            <select className="form-input" value={form.channel} onChange={e => set('channel', e.target.value)}>
-              <option value="email">Email</option>
-              <option value="facebook">Facebook</option>
-              <option value="google_ads">Google Ads</option>
-              <option value="portal">Portal</option>
-              <option value="instagram">Instagram</option>
-              <option value="sms">SMS</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label><DollarSign size={11} /> Budget</label>
-            <input className="form-input" type="number" value={form.budget} onChange={e => set('budget', e.target.value)} placeholder="0" min="0" />
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label>Property (optional)</label>
-          <select className="form-input" value={form.propertyId} onChange={e => set('propertyId', e.target.value)}>
-            <option value="">All Properties</option>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label><Calendar size={11} /> Start Date</label>
-            <input className="form-input" type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label><Calendar size={11} /> End Date</label>
-            <input className="form-input" type="date" value={form.endDate} onChange={e => set('endDate', e.target.value)} />
-          </div>
-        </div>
-
-        {isEdit && (
-          <div className="form-group">
-            <label>Status</label>
-            <select className="form-input" value={form.status} onChange={e => set('status', e.target.value)}>
-              <option value="active">Active</option>
-              <option value="paused">Paused</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
-        )}
-
-        <div className="modal-actions">
-          <button className="btn-secondary" onClick={onClose}><X size={14} /> Cancel</button>
-          <button className="btn-primary" onClick={handleSubmit} disabled={isSaving || !form.name.trim()}>
-            <Save size={14} /> {isSaving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Campaign'}
+          <button type="button" className="crm-modal-close" onClick={onClose} aria-label="Close">
+            <X size={16} />
           </button>
         </div>
+
+        <form
+          className="camp-modal-body"
+          noValidate
+          onSubmit={e => {
+            e.preventDefault();
+            handleSubmit();
+          }}
+        >
+          <div className="camp-field">
+            <label>Campaign Name <span className="req-star">*</span></label>
+            <input
+              className={`camp-input${hasAttemptedSubmit && !form.name.trim() ? ' input-error' : ''}`}
+              value={form.name}
+              onChange={e => set('name', e.target.value)}
+              placeholder="e.g. Summer Promo 2026"
+              autoFocus
+            />
+            {hasAttemptedSubmit && !form.name.trim() && (
+              <span className="field-error-text">Campaign name is required</span>
+            )}
+          </div>
+
+          <div className="camp-form-grid-2">
+            <div className="camp-field">
+              <label>Channel</label>
+              <select className="camp-input" value={form.channel} onChange={e => set('channel', e.target.value)}>
+                <option value="email">Email</option>
+                <option value="facebook">Facebook</option>
+                <option value="google_ads">Google Ads</option>
+                <option value="portal">Portal</option>
+                <option value="instagram">Instagram</option>
+                <option value="sms">SMS</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="camp-field">
+              <label><DollarSign size={13} /> Budget</label>
+              <input
+                className="camp-input"
+                type="number"
+                value={form.budget}
+                onChange={e => set('budget', e.target.value)}
+                placeholder="0.00"
+                min="0"
+              />
+            </div>
+          </div>
+
+          <div className="camp-field">
+            <label>Property <span className="camp-optional">(optional)</span></label>
+            <select className="camp-input" value={form.propertyId} onChange={e => set('propertyId', e.target.value)}>
+              <option value="">All Properties</option>
+              {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+
+          <div className="camp-form-grid-2">
+            <div className="camp-field">
+              <label><Calendar size={13} /> Start Date</label>
+              <input
+                className="camp-input"
+                type="date"
+                value={form.startDate}
+                onChange={e => set('startDate', e.target.value)}
+              />
+            </div>
+            <div className="camp-field">
+              <label><Calendar size={13} /> End Date</label>
+              <input
+                className="camp-input"
+                type="date"
+                value={form.endDate}
+                onChange={e => set('endDate', e.target.value)}
+              />
+            </div>
+          </div>
+
+          {isEdit && (
+            <div className="camp-field">
+              <label>Status</label>
+              <select className="camp-input" value={form.status} onChange={e => set('status', e.target.value)}>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          )}
+
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              <X size={14} /> Cancel
+            </button>
+            <button type="submit" className="btn-primary" disabled={isSaving}>
+              <Save size={14} /> {isSaving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Campaign'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

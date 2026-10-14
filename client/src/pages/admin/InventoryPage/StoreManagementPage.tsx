@@ -4,9 +4,9 @@ import { useGetStoresQuery, useCreateStoreMutation, useUpdateStoreMutation, useG
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  Store, Plus, Loader2, Inbox, XCircle, Building2, Package, Box,
-  MapPin, Edit3, ToggleLeft, ToggleRight, Search, Warehouse,
-  DollarSign, BarChart3, ChevronRight, ArrowUpDown, Filter,
+  Store, Plus, Loader2, XCircle, Building2, Package,
+  MapPin, Edit3, Search, Warehouse,
+  DollarSign, ArrowUpDown, Filter,
   Layers, ShieldCheck, Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -25,6 +25,8 @@ export default function StoreManagementPage() {
   const canWrite = usePermission('inventory-stores.write');
   const [showCreate, setShowCreate] = useState(false);
   const [editStore, setEditStore] = useState<any>(null);
+  const [createErrors, setCreateErrors] = useState<{ propertyId?: boolean; name?: boolean }>({});
+  const [editErrors, setEditErrors] = useState<{ name?: boolean }>({});
   const filterProperty = useSelectedPropertyFilter();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'items' | 'value'>('name');
@@ -53,9 +55,16 @@ export default function StoreManagementPage() {
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyIdVal = ((fd.get('propertyId') as string) || '').trim();
+    const nameVal = ((fd.get('name') as string) || '').trim();
+    if (!propertyIdVal || !nameVal) {
+      setCreateErrors({ propertyId: !propertyIdVal, name: !nameVal });
+      return;
+    }
+    setCreateErrors({});
     try {
       await createStore({
-        propertyId: fd.get('propertyId'), name: fd.get('name'),
+        propertyId: propertyIdVal, name: nameVal,
         location: fd.get('location') || undefined,
         storeType: fd.get('storeType') || undefined,
       }).unwrap();
@@ -70,10 +79,16 @@ export default function StoreManagementPage() {
     e.preventDefault();
     if (!editStore) return;
     const fd = new FormData(e.currentTarget);
+    const nameVal = ((fd.get('name') as string) || '').trim();
+    if (!nameVal) {
+      setEditErrors({ name: true });
+      return;
+    }
+    setEditErrors({});
     try {
       await updateStore({
         id: editStore.id,
-        name: fd.get('name') as string,
+        name: nameVal,
         location: fd.get('location') as string || undefined,
         storeType: fd.get('storeType') as string || undefined,
         isActive: fd.get('isActive') === 'true',
@@ -116,44 +131,32 @@ export default function StoreManagementPage() {
   return (
     <div className="maint-page">
       {/* ── Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        marginBottom: 24, flexWrap: 'wrap', gap: 12,
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <h1 style={{
-              fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
-              display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Warehouse size={18} color="#fff" />
-              </div>
-              Store Management
-            </h1>
-            {activeProperty ? (
-              <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
-                🏢 {activeProperty.name}
-              </span>
-            ) : (
-              <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-                🌐 All Properties
-              </span>
-            )}
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Warehouse size={22} /></div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{ margin: 0 }}>Store Management</h1>
+              {activeProperty ? (
+                <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
+                  🏢 {activeProperty.name}
+                </span>
+              ) : (
+                <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
+                  🌐 All Properties
+                </span>
+              )}
+            </div>
+            <p>{stores.length} total stores across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}</p>
           </div>
-          <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            {stores.length} store{stores.length !== 1 ? 's' : ''} across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}
-          </p>
         </div>
-        <PermissionGuard permission="inventory-stores.write">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
-            <Plus size={14} /> New Store
-          </button>
-        </PermissionGuard>
+        <div className="header-actions">
+          <PermissionGuard permission="inventory-stores.write">
+            <button className="btn btn-primary btn-sm" onClick={() => { setCreateErrors({}); setShowCreate(true); }} style={{ borderRadius: 10 }}>
+              <Plus size={14} /> New Store
+            </button>
+          </PermissionGuard>
+        </div>
       </div>
 
       {/* ── Stats ── */}
@@ -290,7 +293,7 @@ export default function StoreManagementPage() {
           </span>
           {!searchTerm && (
             <PermissionGuard permission="inventory-stores.write">
-              <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ marginTop: 8, borderRadius: 10 }}>
+              <button className="btn btn-primary btn-sm" onClick={() => { setCreateErrors({}); setShowCreate(true); }} style={{ marginTop: 8, borderRadius: 10 }}>
                 <Plus size={14} /> Create First Store
               </button>
             </PermissionGuard>
@@ -338,7 +341,7 @@ export default function StoreManagementPage() {
                     opacity: isActive ? 1 : 0.6,
                     cursor: canWrite ? 'pointer' : 'default',
                   }}
-                    onClick={() => canWrite && setEditStore(store)}
+                    onClick={() => { if (canWrite) { setEditErrors({}); setEditStore(store); } }}
                   >
                     {/* Top Row: Icon + Name + Status */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
@@ -460,17 +463,32 @@ export default function StoreManagementPage() {
                 <XCircle size={20} />
               </button>
             </div>
-            <form onSubmit={handleCreate}>
+            <form noValidate onSubmit={handleCreate}>
               <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
-                <div className="form-group"><label>Property *</label>
-                  <select name="propertyId" required defaultValue={filterProperty || ''} style={{ borderRadius: 10 }}>
+                <div className="form-group">
+                  <label>Property <span style={{ color: '#f87171' }}>*</span></label>
+                  <select
+                    name="propertyId"
+                    className={createErrors.propertyId ? 'maint-input-error' : ''}
+                    defaultValue={filterProperty || ''}
+                    onChange={() => setCreateErrors(prev => ({ ...prev, propertyId: false }))}
+                    style={{ borderRadius: 10 }}
+                  >
                     <option value="">Select property...</option>
                     {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  {createErrors.propertyId && <span className="maint-error-text">Property is required</span>}
                 </div>
-                <div className="form-group"><label>Store Name *</label>
-                  <input name="name" required placeholder="e.g. Main Warehouse, Floor 3 Supply Room"
-                    style={{ borderRadius: 10 }} />
+                <div className="form-group">
+                  <label>Store Name <span style={{ color: '#f87171' }}>*</span></label>
+                  <input
+                    name="name"
+                    className={createErrors.name ? 'maint-input-error' : ''}
+                    placeholder="e.g. Main Warehouse, Floor 3 Supply Room"
+                    onChange={() => setCreateErrors(prev => ({ ...prev, name: false }))}
+                    style={{ borderRadius: 10 }}
+                  />
+                  {createErrors.name && <span className="maint-error-text">Store name is required</span>}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group"><label>Store Type</label>
@@ -518,7 +536,7 @@ export default function StoreManagementPage() {
                 <XCircle size={20} />
               </button>
             </div>
-            <form onSubmit={handleEdit}>
+            <form noValidate onSubmit={handleEdit}>
               <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
                 {/* Store info header */}
                 <div style={{
@@ -532,8 +550,16 @@ export default function StoreManagementPage() {
                   </span>
                 </div>
 
-                <div className="form-group"><label>Store Name *</label>
-                  <input name="name" required defaultValue={editStore.name} style={{ borderRadius: 10 }} />
+                <div className="form-group">
+                  <label>Store Name <span style={{ color: '#f87171' }}>*</span></label>
+                  <input
+                    name="name"
+                    className={editErrors.name ? 'maint-input-error' : ''}
+                    defaultValue={editStore.name}
+                    onChange={() => setEditErrors({})}
+                    style={{ borderRadius: 10 }}
+                  />
+                  {editErrors.name && <span className="maint-error-text">Store name is required</span>}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group"><label>Store Type</label>

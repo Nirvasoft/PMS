@@ -31,7 +31,7 @@ function getContext(req: Request): RequestContext {
 // ─── Public Routes ─────────────────────────────
 
 // Company info for login page — returns count and auto-fills if single company
-authRouter.get('/company/info', asyncHandler(async (req: Request, res: Response) => {
+authRouter.get('/company/info', asyncHandler(async (_req: Request, res: Response) => {
   const companies = await prisma.company.findMany({
     where: { isActive: true },
     select: { code: true, name: true, logoUrl: true },

@@ -337,7 +337,7 @@ export default function AssignPermissionPage() {
   const { data: permsData } = useGetPermissionsQuery();
   const [updateRole, { isLoading: saving }] = useUpdateRoleMutation();
 
-  const [roleId, setRoleId] = useState(() => searchParams.get('roleId') ?? '');
+  const [roleId] = useState(() => searchParams.get('roleId') ?? '');
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<Set<string>>(new Set());
   const [selectedFloorNumbers, setSelectedFloorNumbers] = useState<Set<number>>(new Set());

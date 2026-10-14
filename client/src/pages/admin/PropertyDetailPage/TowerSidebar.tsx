@@ -1,4 +1,4 @@
-import { Building2, ChevronRight, Plus, Pencil, Settings2 } from 'lucide-react';
+import { Building2, ChevronRight, Plus, Pencil } from 'lucide-react';
 import type { Tower } from '../../../store/api/unitsApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 

@@ -712,7 +712,6 @@ export const workflowEngine = new WorkflowEngine();
 
 const WORK_START_HOUR = 9;   // 9:00 AM
 const WORK_END_HOUR = 18;    // 6:00 PM
-const WORK_HOURS_PER_DAY = WORK_END_HOUR - WORK_START_HOUR; // 9 hours
 
 /**
  * Calculate a deadline counting only business hours (Mon-Fri 9:00-18:00).

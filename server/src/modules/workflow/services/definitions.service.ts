@@ -251,7 +251,6 @@ export class DefinitionsService {
     }
 
     // ── 4. Reachability from start ───────────
-    const reachableFromStart = new Set<string>();
     const bfs = (startId: string, adjacency: Map<string, string[]>) => {
       const visited = new Set<string>();
       const queue = [startId];

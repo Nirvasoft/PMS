@@ -144,7 +144,7 @@ function matchesCron(date: Date, parts: string[]): boolean {
   );
 }
 
-function matchesField(value: number, field: string, min: number, max: number): boolean {
+function matchesField(value: number, field: string, _min: number, _max: number): boolean {
   if (field === '*') return true;
 
   // Handle step (*/n)

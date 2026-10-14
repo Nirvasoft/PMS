@@ -4,7 +4,7 @@ import { useGetHkZonesQuery, useCreateHkZoneMutation } from '../../../store/api/
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  MapPin, Plus, Loader2, Inbox, XCircle, Building2,
+  MapPin, Plus, Loader2, XCircle, Building2,
   Search, Filter, Layers, Ruler, StickyNote, Map,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -33,13 +33,24 @@ export default function ZoneManagementPage() {
 
   const zones = zonesData?.data || [];
   const properties = propsData?.data || [];
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyId = (fd.get('propertyId') as string) || '';
+    const name = ((fd.get('name') as string) || '').trim();
+    const errs: Record<string, string> = {};
+    if (!propertyId) errs.propertyId = 'Property is required';
+    if (!name) errs.name = 'Zone name is required';
+    if (Object.keys(errs).length > 0) {
+      setFormErrors(errs);
+      return;
+    }
+    setFormErrors({});
     try {
       await createZone({
-        propertyId: fd.get('propertyId'), name: fd.get('name'),
+        propertyId, name,
         zoneType: fd.get('zoneType') || undefined, floor: fd.get('floor') || undefined,
         areaSqm: parseFloat(fd.get('areaSqm') as string) || undefined,
         notes: fd.get('notes') || undefined,
@@ -69,7 +80,7 @@ export default function ZoneManagementPage() {
   }, {});
 
   // Zone type counts
-  const typeCounts = zones.reduce((acc: Record<string, number>, z: any) => {
+  const typeCounts: Record<string, number> = zones.reduce((acc: Record<string, number>, z: any) => {
     const t = z.zoneType || 'other';
     acc[t] = (acc[t] || 0) + 1;
     return acc;
@@ -80,30 +91,16 @@ export default function ZoneManagementPage() {
   return (
     <div className="maint-page">
       {/* ── Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        marginBottom: 24, flexWrap: 'wrap', gap: 12,
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Map size={18} color="#fff" />
-            </div>
-            Zone Management
-          </h1>
-          <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            {zones.length} zone{zones.length !== 1 ? 's' : ''} across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}
-          </p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Map size={22} /></div>
+          <div>
+            <h1>Zone Management</h1>
+            <p>{zones.length} total zones across {Object.keys(grouped).length} propert{Object.keys(grouped).length !== 1 ? 'ies' : 'y'}</p>
+          </div>
         </div>
         <PermissionGuard permission="housekeeping-zones.write">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
+          <button className="btn btn-primary btn-sm" onClick={() => { setFormErrors({}); setShowCreate(true); }}>
             <Plus size={14} /> New Zone
           </button>
         </PermissionGuard>
@@ -294,16 +291,18 @@ export default function ZoneManagementPage() {
               </h2>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowCreate(false)}><XCircle size={20} /></button>
             </div>
-            <form onSubmit={handleCreate}>
+            <form onSubmit={handleCreate} noValidate>
               <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
                 <div className="form-group"><label>Property *</label>
-                  <select name="propertyId" required style={{ borderRadius: 10 }}>
+                  <select name="propertyId" className={formErrors.propertyId ? 'maint-input-error' : ''} onChange={() => setFormErrors((p) => ({ ...p, propertyId: '' }))} style={{ borderRadius: 10 }}>
                     <option value="">Select property...</option>
                     {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  {formErrors.propertyId && <span className="maint-error-text">{formErrors.propertyId}</span>}
                 </div>
                 <div className="form-group"><label>Zone Name *</label>
-                  <input name="name" required placeholder="e.g. Main Lobby" style={{ borderRadius: 10 }} />
+                  <input name="name" placeholder="e.g. Main Lobby" className={formErrors.name ? 'maint-input-error' : ''} onChange={() => setFormErrors((p) => ({ ...p, name: '' }))} style={{ borderRadius: 10 }} />
+                  {formErrors.name && <span className="maint-error-text">{formErrors.name}</span>}
                 </div>
                 <div className="form-group"><label>Zone Type</label>
                   <select name="zoneType" style={{ borderRadius: 10 }}>

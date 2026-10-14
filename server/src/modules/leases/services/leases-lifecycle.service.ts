@@ -164,7 +164,7 @@ export class LeasesLifecycleService {
   }
 
   // ── Terminate ────────────────────────────
-  async terminate(id: string, companyId: string, dto: { terminationDate: string; reason: string; terminateSchedules?: boolean }, terminatedBy: string) {
+  async terminate(id: string, companyId: string, dto: { terminationDate: string; reason: string; terminateSchedules?: boolean }, _terminatedBy: string) {
     const lease = await prisma.lease.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!lease) throw AppError.notFound('Lease');
     if (lease.status !== 'active') throw new AppError(400, 'NOT_ACTIVE', 'Only active leases can be terminated');

@@ -11,6 +11,7 @@ import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { useConfirm, useAlertDialog } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 import {
   Users, TrendingUp, TrendingDown, Clock, BarChart3, MapPin, Activity,
   ArrowUpRight, ArrowDownRight, Wifi, WifiOff, Radio, Calendar,
@@ -75,6 +76,7 @@ export default function FootfallAnalyticsPage() {
   const [deleteSensor] = useDeleteFootfallSensorMutation();
   const [toggleSensor] = useToggleFootfallSensorMutation();
   const [sensorModal, setSensorModal] = useState<'create' | 'edit' | null>(null);
+  const [sensorSubmitted, setSensorSubmitted] = useState(false);
   const [editingSensor, setEditingSensor] = useState<any>(null);
   const [sensorForm, setSensorForm] = useState({
     sensorId: '', name: '', location: '', zone: '', floor: '',
@@ -84,6 +86,7 @@ export default function FootfallAnalyticsPage() {
   const openCreateSensor = () => {
     setSensorForm({ sensorId: '', name: '', location: '', zone: '', floor: '', sensorType: 'stereo', vendor: '', apiEndpoint: '', apiKey: '' });
     setEditingSensor(null);
+    setSensorSubmitted(false);
     setSensorModal('create');
   };
 
@@ -94,10 +97,13 @@ export default function FootfallAnalyticsPage() {
       vendor: s.vendor || '', apiEndpoint: s.apiEndpoint || '', apiKey: '',
     });
     setEditingSensor(s);
+    setSensorSubmitted(false);
     setSensorModal('edit');
   };
 
   const handleSaveSensor = async () => {
+    setSensorSubmitted(true);
+    if (!sensorForm.name.trim() || (sensorModal === 'create' && !sensorForm.sensorId.trim())) return;
     try {
       if (sensorModal === 'create') {
         await createSensor({ ...sensorForm, propertyId: selectedPropId }).unwrap();
@@ -108,6 +114,7 @@ export default function FootfallAnalyticsPage() {
         await updateSensor({ id: editingSensor.id, data: payload }).unwrap();
       }
       setSensorModal(null);
+      setSensorSubmitted(false);
     } catch (e: any) {
       alertDialog(e?.data?.errors?.[0]?.message || 'Failed to save sensor');
     }
@@ -170,15 +177,15 @@ export default function FootfallAnalyticsPage() {
   return (
     <div className="page-content" style={{ maxWidth: 1400, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Users size={24} style={{ color: 'hsl(200, 75%, 55%)' }} />
-            Footfall Analytics
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0', fontSize: 14 }}>
-            Visitor traffic across zones and time periods
-          </p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Users size={22} />
+          </div>
+          <div>
+            <h1>Footfall Analytics</h1>
+            <p>Visitor traffic across zones and time periods</p>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
@@ -440,16 +447,17 @@ export default function FootfallAnalyticsPage() {
           {trend?.daily?.length > 0 && (
             <div className="card" style={{ padding: 24 }}>
               <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>Recent 10 Days</h3>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <div className="mall-table-wrap">
+                <TableScrollWrapper>
+                <table className="mall-table">
                   <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
-                      <th style={thStyle}>Date</th>
-                      <th style={thStyle}>Day</th>
-                      <th style={{ ...thStyle, textAlign: 'right' }}>Entries</th>
-                      <th style={{ ...thStyle, textAlign: 'right' }}>Exits</th>
-                      <th style={{ ...thStyle, textAlign: 'right' }}>Net</th>
-                      <th style={thStyle}>vs Avg</th>
+                    <tr>
+                      <th>Date</th>
+                      <th>Day</th>
+                      <th className="text-right">Entries</th>
+                      <th className="text-right">Exits</th>
+                      <th className="text-right">Net</th>
+                      <th>vs Avg</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -457,15 +465,15 @@ export default function FootfallAnalyticsPage() {
                       const dayName = new Date(d.date).toLocaleDateString('en', { weekday: 'short' });
                       const vsAvg = trend.avgDaily > 0 ? ((d.entries - trend.avgDaily) / trend.avgDaily * 100) : 0;
                       return (
-                        <tr key={d.date} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={tdStyle}>{d.date}</td>
-                          <td style={tdStyle}>{dayName}</td>
-                          <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>{formatNum(d.entries)}</td>
-                          <td style={{ ...tdStyle, textAlign: 'right' }}>{formatNum(d.exits)}</td>
-                          <td style={{ ...tdStyle, textAlign: 'right', color: d.net >= 0 ? 'hsl(150, 65%, 45%)' : 'hsl(0, 65%, 55%)' }}>
+                        <tr key={d.date}>
+                          <td>{d.date}</td>
+                          <td>{dayName}</td>
+                          <td className="text-right" style={{ fontWeight: 500 }}>{formatNum(d.entries)}</td>
+                          <td className="text-right">{formatNum(d.exits)}</td>
+                          <td className="text-right" style={{ color: d.net >= 0 ? 'hsl(150, 65%, 45%)' : 'hsl(0, 65%, 55%)' }}>
                             {d.net >= 0 ? '+' : ''}{formatNum(d.net)}
                           </td>
-                          <td style={tdStyle}>
+                          <td>
                             <span style={{
                               fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
                               color: vsAvg >= 0 ? 'hsl(150, 65%, 45%)' : 'hsl(0, 65%, 55%)',
@@ -479,6 +487,7 @@ export default function FootfallAnalyticsPage() {
                     })}
                   </tbody>
                 </table>
+                </TableScrollWrapper>
               </div>
             </div>
           )}
@@ -786,14 +795,30 @@ export default function FootfallAnalyticsPage() {
               {sensorModal === 'create' && (
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
                   Sensor ID *
-                  <input value={sensorForm.sensorId} onChange={e => setSensorForm({ ...sensorForm, sensorId: e.target.value })}
-                    placeholder="Unique sensor ID" style={inputStyle} />
+                  <input
+                    className={sensorSubmitted && !sensorForm.sensorId.trim() ? 'mall-input-error' : ''}
+                    value={sensorForm.sensorId}
+                    onChange={e => setSensorForm({ ...sensorForm, sensorId: e.target.value })}
+                    placeholder="Unique sensor ID"
+                    style={inputStyle}
+                  />
+                  {sensorSubmitted && !sensorForm.sensorId.trim() && (
+                    <span className="mall-error-text">Sensor ID is required</span>
+                  )}
                 </label>
               )}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
                 Name *
-                <input value={sensorForm.name} onChange={e => setSensorForm({ ...sensorForm, name: e.target.value })}
-                  placeholder="Sensor name" style={inputStyle} />
+                <input
+                  className={sensorSubmitted && !sensorForm.name.trim() ? 'mall-input-error' : ''}
+                  value={sensorForm.name}
+                  onChange={e => setSensorForm({ ...sensorForm, name: e.target.value })}
+                  placeholder="Sensor name"
+                  style={inputStyle}
+                />
+                {sensorSubmitted && !sensorForm.name.trim() && (
+                  <span className="mall-error-text">Sensor name is required</span>
+                )}
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 500 }}>
                 Location
@@ -843,7 +868,7 @@ export default function FootfallAnalyticsPage() {
                 padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-color)',
                 background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13,
               }}>Cancel</button>
-              <button onClick={handleSaveSensor} disabled={!sensorForm.name || (sensorModal === 'create' && !sensorForm.sensorId)} style={{
+              <button onClick={handleSaveSensor} style={{
                 padding: '8px 16px', borderRadius: 8, border: 'none',
                 background: 'hsl(200, 75%, 55%)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600,
               }}>
@@ -902,8 +927,6 @@ const navBtnStyle: React.CSSProperties = {
   color: 'var(--text-primary)', cursor: 'pointer', display: 'flex',
   alignItems: 'center', justifyContent: 'center',
 };
-const thStyle: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' };
-const tdStyle: React.CSSProperties = { padding: '10px 12px' };
 const inputStyle: React.CSSProperties = {
   padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-color)',
   background: 'var(--card-bg)', color: 'var(--text-primary)', fontSize: 13,

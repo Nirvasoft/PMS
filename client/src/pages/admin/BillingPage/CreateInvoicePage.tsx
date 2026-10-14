@@ -275,12 +275,12 @@ export default function CreateInvoicePage() {
 
       <div className="page-header" style={{ marginBottom: 28 }}>
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'var(--primary-subtle)', color: 'var(--primary)' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <FileText size={22} />
           </div>
           <div>
-            <h1>Create Invoice</h1>
-            <p>Create a manual ad-hoc invoice for a tenant</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Create Invoice</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Create a manual ad-hoc invoice for a tenant</p>
           </div>
         </div>
       </div>

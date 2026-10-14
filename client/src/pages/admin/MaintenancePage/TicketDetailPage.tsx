@@ -146,13 +146,17 @@ export default function TicketDetailPage() {
   return (
     <div className="maint-page">
       {/* Header */}
-      <div className="page-header-row">
-        <div className="page-header-left">
+      <div className="page-header">
+        <div className="page-title-row">
           <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/maintenance')}>
-            <ArrowLeft size={16} /> Back
+            <ArrowLeft size={16} />
           </button>
+          <div className="page-icon-lg">
+            <Wrench size={22} />
+          </div>
           <div>
-            <div className="ticket-detail-title">
+            <h1>{ticket.title}</h1>
+            <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span className="font-mono">{ticket.ticketNumber}</span>
               <span className="priority-badge" style={{ '--badge-color': priority.color } as React.CSSProperties}>
                 {ticket.priority}
@@ -160,13 +164,12 @@ export default function TicketDetailPage() {
               <span className="status-badge" style={{ '--badge-color': status.color } as React.CSSProperties}>
                 {status.label}
               </span>
-              {ticket.isUrgent && <AlertTriangle size={16} className="urgent-icon" />}
-            </div>
-            <h1 style={{ fontSize: '1.25rem', marginTop: 4 }}>{ticket.title}</h1>
+              {ticket.isUrgent && <AlertTriangle size={14} className="urgent-icon" />}
+            </p>
           </div>
         </div>
         <PermissionGuard permission="maintenance-tickets.write">
-          <div className="page-header-right">
+          <div className="header-actions">
             {ticket.status === 'open' && (
               <>
                 <button className="btn btn-secondary" onClick={() => setShowAssignModal(true)}>
@@ -764,9 +767,12 @@ function AssignModal({ ticketId, propertyId, onClose }: { ticketId: string; prop
   const { data: techData } = useGetTechniciansQuery({ propertyId, isAvailable: 'true' });
   const techs = techData?.data || [];
   const [form, setForm] = useState({ technicianId: '', scheduledStart: '' });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.technicianId || !form.scheduledStart) return;
     try {
       await assignTicket({ id: ticketId, data: form }).unwrap();
       toast.success('Ticket assigned');
@@ -780,11 +786,15 @@ function AssignModal({ ticketId, propertyId, onClose }: { ticketId: string; prop
     <div className="modal-backdrop">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header"><h2>Assign Ticket</h2><button className="btn-icon" onClick={onClose}><XCircle size={20} /></button></div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="modal-body">
             <div className="form-group">
-              <label>Technician *</label>
-              <select required value={form.technicianId} onChange={(e) => setForm((f) => ({ ...f, technicianId: e.target.value }))}>
+              <label>Technician <span style={{ color: '#f87171' }}>*</span></label>
+              <select
+                className={hasAttemptedSubmit && !form.technicianId ? 'maint-input-error' : ''}
+                value={form.technicianId}
+                onChange={(e) => setForm((f) => ({ ...f, technicianId: e.target.value }))}
+              >
                 <option value="">Select technician</option>
                 {techs.map((t) => (
                   <option key={t.userId} value={t.userId}>
@@ -792,10 +802,21 @@ function AssignModal({ ticketId, propertyId, onClose }: { ticketId: string; prop
                   </option>
                 ))}
               </select>
+              {hasAttemptedSubmit && !form.technicianId && (
+                <span className="maint-error-text">Technician is required</span>
+              )}
             </div>
             <div className="form-group">
-              <label>Scheduled Start *</label>
-              <input type="datetime-local" required value={form.scheduledStart} onChange={(e) => setForm((f) => ({ ...f, scheduledStart: e.target.value }))} />
+              <label>Scheduled Start <span style={{ color: '#f87171' }}>*</span></label>
+              <input
+                type="datetime-local"
+                className={hasAttemptedSubmit && !form.scheduledStart ? 'maint-input-error' : ''}
+                value={form.scheduledStart}
+                onChange={(e) => setForm((f) => ({ ...f, scheduledStart: e.target.value }))}
+              />
+              {hasAttemptedSubmit && !form.scheduledStart && (
+                <span className="maint-error-text">Scheduled start is required</span>
+              )}
             </div>
           </div>
           <div className="modal-footer">
@@ -813,9 +834,12 @@ function AssignModal({ ticketId, propertyId, onClose }: { ticketId: string; prop
 function EscalateModal({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
   const [escalate, { isLoading }] = useEscalateTicketMutation();
   const [form, setForm] = useState({ escalateTo: '', reason: '' });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.reason.trim()) return;
     try {
       const payload: Record<string, unknown> = {
         reason: form.reason.trim(),
@@ -833,11 +857,20 @@ function EscalateModal({ ticketId, onClose }: { ticketId: string; onClose: () =>
     <div className="modal-backdrop">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header"><h2>Escalate Ticket</h2><button className="btn-icon" onClick={onClose}><XCircle size={20} /></button></div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="modal-body">
             <div className="form-group">
-              <label>Reason *</label>
-              <textarea rows={3} required value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} placeholder="Why is this being escalated?" />
+              <label>Reason <span style={{ color: '#f87171' }}>*</span></label>
+              <textarea
+                rows={3}
+                className={hasAttemptedSubmit && !form.reason.trim() ? 'maint-input-error' : ''}
+                value={form.reason}
+                onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+                placeholder="Why is this being escalated?"
+              />
+              {hasAttemptedSubmit && !form.reason.trim() && (
+                <span className="maint-error-text">Escalation reason is required</span>
+              )}
             </div>
           </div>
           <div className="modal-footer">
@@ -853,9 +886,12 @@ function EscalateModal({ ticketId, onClose }: { ticketId: string; onClose: () =>
 function CancelModal({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
   const [cancelTicket, { isLoading }] = useCancelTicketMutation();
   const [reason, setReason] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!reason.trim()) return;
     try {
       await cancelTicket({ id: ticketId, reason }).unwrap();
       toast.success('Ticket cancelled');
@@ -869,11 +905,20 @@ function CancelModal({ ticketId, onClose }: { ticketId: string; onClose: () => v
     <div className="modal-backdrop">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header"><h2>Cancel Ticket</h2><button className="btn-icon" onClick={onClose}><XCircle size={20} /></button></div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="modal-body">
             <div className="form-group">
-              <label>Reason *</label>
-              <textarea rows={3} required value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this ticket being cancelled?" />
+              <label>Reason <span style={{ color: '#f87171' }}>*</span></label>
+              <textarea
+                rows={3}
+                className={hasAttemptedSubmit && !reason.trim() ? 'maint-input-error' : ''}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Why is this ticket being cancelled?"
+              />
+              {hasAttemptedSubmit && !reason.trim() && (
+                <span className="maint-error-text">Cancellation reason is required</span>
+              )}
             </div>
           </div>
           <div className="modal-footer">

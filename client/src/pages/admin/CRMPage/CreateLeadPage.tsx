@@ -16,7 +16,7 @@ export default function CreateLeadPage() {
   const [createLead, { isLoading }] = useCreateLeadMutation();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
-  const { data: usersData } = useGetUsersQuery({ page: 1, limit: 200 });
+  const { data: usersData } = useGetUsersQuery({ page: '1', limit: '200' });
   const users = usersData?.data || [];
   const { data: unitTypesData } = useGetUnitTypesQuery();
   const unitTypes = unitTypesData?.data || [];

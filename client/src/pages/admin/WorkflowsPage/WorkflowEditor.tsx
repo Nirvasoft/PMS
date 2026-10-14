@@ -428,7 +428,7 @@ function NodeConfigPanel({ node, readOnly, onChange }: { node: GraphNode; readOn
 }
 
 /* ── Add Edge Row ── */
-function AddEdgeRow({ nodes, edges, onAdd }: { nodes: GraphNode[]; edges: GraphEdge[]; onAdd: (s: string, t: string) => void }) {
+function AddEdgeRow({ nodes, edges: _edges, onAdd }: { nodes: GraphNode[]; edges: GraphEdge[]; onAdd: (s: string, t: string) => void }) {
   const [source, setSource] = useState('');
   const [target, setTarget] = useState('');
 

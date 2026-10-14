@@ -249,28 +249,13 @@ export default function MeterSetupPage() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <Gauge size={22} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h1 style={{ margin: 0 }}>Meter Setup</h1>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  padding: '2px 9px',
-                  borderRadius: 12,
-                  background: 'rgba(59, 130, 246, 0.12)',
-                  color: '#3b82f6',
-                  border: '1px solid rgba(59, 130, 246, 0.25)',
-                }}
-              >
-                {totalCount} Total Meter{totalCount === 1 ? '' : 's'}{selectedFloorLabel ? ` · ${selectedFloorLabel}` : ''}
-              </span>
-            </div>
-            <p style={{ margin: '4px 0 0' }}>
-              Register and configure electricity and utility meters across your properties
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Meter Setup</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {`${totalCount} total meters${selectedFloorLabel ? ` · ${selectedFloorLabel}` : ''}`}
             </p>
           </div>
           <PermissionGuard permission="meter.create">
@@ -404,7 +389,7 @@ export default function MeterSetupPage() {
               <th className="text-right">Rate</th>
               <th className="text-right">Maintenance Fee</th>
               <th>Usage Type</th>
-              <th className="text-center">Actions</th>
+              <th className="text-center"></th>
             </tr>
           </thead>
           <tbody>
@@ -446,7 +431,7 @@ export default function MeterSetupPage() {
         </TableScrollWrapper>
 
         {/* Pagination */}
-        {filteredMeters.length > 0 && (
+        {filteredMeters.length >= 10 && (
           <div className="billing-pagination">
             <div className="pagination-left">
               <div className="page-size-selector">

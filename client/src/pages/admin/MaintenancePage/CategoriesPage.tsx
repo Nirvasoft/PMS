@@ -13,6 +13,7 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 
 // Map icon string names to Lucide components
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -43,8 +44,12 @@ export default function CategoriesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editCategory, setEditCategory] = useState<MaintenanceCategory | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
   const categories = categoriesData?.data || [];
+  const totalPages = Math.max(1, Math.ceil(categories.length / limit));
+  const paginatedCategories = categories.slice((page - 1) * limit, page * limit);
 
   const handleDelete = async (cat: MaintenanceCategory) => {
     const ticketCount = cat._count?.tickets || 0;
@@ -72,7 +77,7 @@ export default function CategoriesPage() {
           <div className="page-icon-lg"><Tags size={22} /></div>
           <div>
             <h1>Maintenance Categories</h1>
-            <p>Manage ticket categories for your maintenance operations</p>
+            <p>{categories.length} total categories</p>
           </div>
         </div>
         <div className="header-actions">
@@ -99,74 +104,113 @@ export default function CategoriesPage() {
         </div>
       ) : (
         <div className="maint-table-wrap">
-          <table className="maint-table">
-            <thead>
-              <tr>
-                <th style={{ width: 40 }}></th>
-                <th>Name</th>
-                <th>Description</th>
-                <th className="text-center">Tickets</th>
-                <th>Type</th>
-                <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categories.map((cat) => {
-                const isSystem = cat.companyId === null;
-                return (
-                  <tr key={cat.id} className={isSystem ? 'cat-row-system' : ''}>
-                    <td className="text-center">
-                      <span className="cat-icon-cell">
-                        {cat.icon && ICON_MAP[cat.icon] ? ICON_MAP[cat.icon] : <Tags size={16} />}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="cat-name">{cat.name}</span>
-                      {cat.children.length > 0 && (
-                        <span className="cat-children-count">
-                          {cat.children.length} sub
+          <TableScrollWrapper>
+            <table className="maint-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 40 }}></th>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th className="text-center">Tickets</th>
+                  <th>Type</th>
+                  <th style={{ width: 80, textAlign: 'center' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedCategories.map((cat) => {
+                  const isSystem = cat.companyId === null;
+                  return (
+                    <tr key={cat.id} className={isSystem ? 'cat-row-system' : ''}>
+                      <td className="text-center">
+                        <span className="cat-icon-cell">
+                          {cat.icon && ICON_MAP[cat.icon] ? ICON_MAP[cat.icon] : <Tags size={16} />}
                         </span>
-                      )}
-                    </td>
-                    <td><span className="cell-secondary">{cat.description || '—'}</span></td>
-                    <td className="text-center">
-                      <span className="cat-ticket-count">{cat._count?.tickets || 0}</span>
-                    </td>
-                    <td>
-                      {isSystem ? (
-                        <span className="cat-type-badge system"><Lock size={10} /> System</span>
-                      ) : (
-                        <span className="cat-type-badge custom">Custom</span>
-                      )}
-                    </td>
-                    <td>
-                      {isSystem ? (
-                        <div className="sla-row-actions">
-                          <span className="cell-secondary" title="System categories cannot be modified" style={{ fontSize: 11 }}>—</span>
-                        </div>
-                      ) : (
-                        <PermissionGuard permission="maintenance-tickets.write">
+                      </td>
+                      <td>
+                        <span className="cat-name">{cat.name}</span>
+                        {cat.children.length > 0 && (
+                          <span className="cat-children-count">
+                            {cat.children.length} sub
+                          </span>
+                        )}
+                      </td>
+                      <td><span className="cell-secondary">{cat.description || '—'}</span></td>
+                      <td className="text-center">
+                        <span className="cat-ticket-count">{cat._count?.tickets || 0}</span>
+                      </td>
+                      <td>
+                        {isSystem ? (
+                          <span className="cat-type-badge system"><Lock size={10} /> System</span>
+                        ) : (
+                          <span className="cat-type-badge custom">Custom</span>
+                        )}
+                      </td>
+                      <td>
+                        {isSystem ? (
                           <div className="sla-row-actions">
-                            <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => setEditCategory(cat)}>
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              className="btn btn-ghost btn-sm btn-danger-ghost"
-                              title="Delete"
-                              disabled={deletingId === cat.id}
-                              onClick={() => handleDelete(cat)}
-                            >
-                              {deletingId === cat.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
-                            </button>
+                            <span className="cell-secondary" title="System categories cannot be modified" style={{ fontSize: 11 }}>—</span>
                           </div>
-                        </PermissionGuard>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        ) : (
+                          <PermissionGuard permission="maintenance-tickets.write">
+                            <div className="sla-row-actions">
+                              <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => setEditCategory(cat)}>
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                className="btn btn-ghost btn-sm btn-danger-ghost"
+                                title="Delete"
+                                disabled={deletingId === cat.id}
+                                onClick={() => handleDelete(cat)}
+                              >
+                                {deletingId === cat.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+                              </button>
+                            </div>
+                          </PermissionGuard>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
+
+          {categories.length >= 10 && (
+            <div className="maint-pagination">
+              <div className="pagination-left">
+                <div className="page-size-selector">
+                  <span>Rows per page:</span>
+                  <select
+                    value={limit}
+                    onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+              <div className="page-btns">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  title="Previous Page"
+                >
+                  &lt;
+                </button>
+                <span className="page-num-display">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  title="Next Page"
+                >
+                  &gt;
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -197,12 +241,15 @@ function CategoryModal({ mode, initialData, onClose }: {
     icon: initialData?.icon || '',
     description: initialData?.description || '',
   });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.name.trim()) return;
     try {
       const payload = {
-        name: form.name,
+        name: form.name.trim(),
         icon: form.icon || undefined,
         description: form.description || undefined,
       };
@@ -230,16 +277,21 @@ function CategoryModal({ mode, initialData, onClose }: {
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="maint-form-grid cols-1">
             <div className="maint-field">
               <label>Name <span style={{ color: '#f87171' }}>*</span></label>
               <input
-                type="text" required maxLength={150}
+                type="text"
+                maxLength={150}
+                className={hasAttemptedSubmit && !form.name.trim() ? 'maint-input-error' : ''}
                 placeholder="e.g. Pool Maintenance"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
+              {hasAttemptedSubmit && !form.name.trim() && (
+                <span className="maint-error-text">Category name is required</span>
+              )}
             </div>
           </div>
           <div className="maint-form-grid cols-1">

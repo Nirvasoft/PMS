@@ -6,7 +6,7 @@ import {
 } from '../../../store/api/workflowApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
 import toast from 'react-hot-toast';
-import { UserCheck, ArrowRightLeft, Search, X, Paperclip, Upload } from 'lucide-react';
+import { UserCheck, ArrowRightLeft, Search, X, Paperclip } from 'lucide-react';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 export default function MyTasksPage() {

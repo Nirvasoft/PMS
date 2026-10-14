@@ -31,6 +31,7 @@ import { TowerSidebar } from './TowerSidebar';
 import { TowerFormModal } from './TowerFormModal';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { ZONE_OPTIONS } from './zoneOptions';
 import './UnitsTab.css';
 
@@ -122,12 +123,13 @@ export default function UnitsTab() {
   /* list / grid data — send comma-separated statuses for multi-select */
   const statusParam = statusFilter.length > 0 ? statusFilter.join(',') : undefined;
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = viewMode === 'grid' ? 16 : 10;
+  const [pageSize, setPageSize] = useState(10);
+  const PAGE_SIZE = viewMode === 'grid' ? 16 : pageSize;
 
   /* Reset to page 1 whenever the query filters or view (page size) change */
   useEffect(() => {
     setPage(1);
-  }, [propertyId, selectedTowerId, statusParam, unitTypeFilter, floorFilter, searchQuery, viewMode]);
+  }, [propertyId, selectedTowerId, statusParam, unitTypeFilter, floorFilter, searchQuery, viewMode, pageSize]);
 
   /* Multi-select (List view) — persists across pages so "select all" can span the whole filtered
      result set; cleared whenever the filters themselves change (the selection would no longer match). */
@@ -531,48 +533,45 @@ export default function UnitsTab() {
           {/* ── List View ── */}
           {viewMode === 'list' && (
             <div className="unit-list-view">
-              {listLoading
-                ? <div className="units-loading"><Building2 size={24} /><span>Loading…</span></div>
-                : <>
-                    {selectedIds.length > 0 && (
-                      <BulkStatusBar
-                        count={selectedIds.length}
-                        total={totalMatching}
-                        isLoading={bulkUpdating}
-                        onClear={() => setSelectedIds([])}
-                        onApply={async (status) => {
-                          try {
-                            const res = await bulkUpdateStatus({ propertyId: propertyId!, unitIds: selectedIds, status }).unwrap();
-                            if (res.data.updated.length > 0) {
-                              toast.success(`${res.data.updated.length} unit${res.data.updated.length === 1 ? '' : 's'} updated to ${status.replace(/_/g, ' ')}`);
-                            }
-                            if (res.data.failed.length > 0) {
-                              toast.error(`${res.data.failed.length} unit${res.data.failed.length === 1 ? '' : 's'} could not be updated: ${res.data.failed[0].reason}`);
-                            }
-                            setSelectedIds([]);
-                          } catch (e: any) {
-                            toast.error(e?.data?.errors?.[0]?.message || 'Bulk update failed');
-                          }
-                        }}
-                      />
-                    )}
-                    <div className="ul-header">
-                      {hasEligibleStatus
-                        ? (
-                          <input
-                            type="checkbox"
-                            className="ul-checkbox"
-                            checked={allMatchingSelected}
-                            disabled={selectAllLoading}
-                            ref={(el) => {
-                              if (el) el.indeterminate = !allMatchingSelected && selectedIds.length > 0;
-                            }}
-                            onChange={handleToggleSelectAll}
-                            title={allMatchingSelected ? 'Clear selection' : 'Select all matching Available/Reserved units'}
-                          />
-                        )
-                        : <span className="ul-checkbox-spacer" />
+              <div className="unit-table-wrap">
+                {selectedIds.length > 0 && (
+                  <BulkStatusBar
+                    count={selectedIds.length}
+                    total={totalMatching}
+                    isLoading={bulkUpdating}
+                    onClear={() => setSelectedIds([])}
+                    onApply={async (status) => {
+                      try {
+                        const res = await bulkUpdateStatus({ propertyId: propertyId!, unitIds: selectedIds, status }).unwrap();
+                        if (res.data.updated.length > 0) {
+                          toast.success(`${res.data.updated.length} unit${res.data.updated.length === 1 ? '' : 's'} updated to ${status.replace(/_/g, ' ')}`);
+                        }
+                        if (res.data.failed.length > 0) {
+                          toast.error(`${res.data.failed.length} unit${res.data.failed.length === 1 ? '' : 's'} could not be updated: ${res.data.failed[0].reason}`);
+                        }
+                        setSelectedIds([]);
+                      } catch (e: any) {
+                        toast.error(e?.data?.errors?.[0]?.message || 'Bulk update failed');
                       }
+                    }}
+                  />
+                )}
+                <TableScrollWrapper className="tenant-table-scroll">
+                  <div className="unit-table-inner">
+                    <div className={`ul-header${hasEligibleStatus ? ' with-select' : ''}`}>
+                      {hasEligibleStatus && (
+                        <input
+                          type="checkbox"
+                          className="ul-checkbox"
+                          checked={allMatchingSelected}
+                          disabled={selectAllLoading}
+                          ref={(el) => {
+                            if (el) el.indeterminate = !allMatchingSelected && selectedIds.length > 0;
+                          }}
+                          onChange={handleToggleSelectAll}
+                          title={allMatchingSelected ? 'Clear selection' : 'Select all matching Available/Reserved units'}
+                        />
+                      )}
                       <span>P-Unit No.</span>
                       <span>Type</span>
                       <span>Floor</span>
@@ -580,32 +579,81 @@ export default function UnitsTab() {
                       <span>Bed / Bath</span>
                       <span>Status</span>
                       <span>Furnishing</span>
-                      <span>Action</span>
+                      <span></span>
                     </div>
-                    {(listData?.data || []).length === 0
-                      ? <EmptyState message={hasFilters ? 'No units match the current filters' : 'No units yet'} />
-                      : (listData?.data || []).map((unit) => (
-                          <UnitListRow
-                            key={unit.id}
-                            unit={unit}
-                            selectionEnabled={hasEligibleStatus}
-                            selected={selectedIds.includes(unit.id)}
-                            onToggleSelect={() => toggleSelected(unit.id)}
-                            onClick={() => dispatch(selectUnit(unit.id))}
-                            onDelete={async () => {
-                              if (!(await confirmDialog(`Delete unit ${unit.unitNumber}?`, { danger: true, confirmText: 'Delete' }))) return;
-                              try {
-                                await deleteUnit({ propertyId: propertyId!, unitId: unit.id }).unwrap();
-                                toast.success('Deleted');
-                              } catch (e: any) {
-                                toast.error(e?.data?.errors?.[0]?.message || 'Cannot delete');
-                              }
-                            }}
-                          />
-                        ))
-                    }
-                  </>
-              }
+
+                    {listLoading ? (
+                      <div className="units-loading"><Building2 size={24} /><span>Loading…</span></div>
+                    ) : (listData?.data || []).length === 0 ? (
+                      <EmptyState message={hasFilters ? 'No units match the current filters' : 'No units yet'} />
+                    ) : (
+                      (listData?.data || []).map((unit) => (
+                        <UnitListRow
+                          key={unit.id}
+                          unit={unit}
+                          selectionEnabled={hasEligibleStatus}
+                          selected={selectedIds.includes(unit.id)}
+                          onToggleSelect={() => toggleSelected(unit.id)}
+                          onClick={() => dispatch(selectUnit(unit.id))}
+                          onDelete={async () => {
+                            if (!(await confirmDialog(`Delete unit ${unit.unitNumber}?`, { danger: true, confirmText: 'Delete' }))) return;
+                            try {
+                              await deleteUnit({ propertyId: propertyId!, unitId: unit.id }).unwrap();
+                              toast.success('Deleted');
+                            } catch (e: any) {
+                              toast.error(e?.data?.errors?.[0]?.message || 'Cannot delete');
+                            }
+                          }}
+                        />
+                      ))
+                    )}
+                  </div>
+                </TableScrollWrapper>
+
+                {/* Pagination Toolbar (Tenants List format) */}
+                {meta && meta.total >= 10 && (
+                  <div className="ut-pagination tenant-pagination billing-pagination">
+                    <div className="pagination-left">
+                      <div className="page-size-selector">
+                        <label htmlFor="unit-page-size">Rows per page:</label>
+                        <select
+                          id="unit-page-size"
+                          value={pageSize}
+                          onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                          }}
+                        >
+                          <option value={10}>10</option>
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="page-btns">
+                      <button
+                        disabled={page === 1}
+                        onClick={() => setPage((p) => p - 1)}
+                        title="Previous page"
+                      >
+                        <ChevronLeft size={15} />
+                      </button>
+                      <span className="page-num-display">
+                        Page {page} of {meta.totalPages}
+                      </span>
+                      <button
+                        disabled={page >= meta.totalPages}
+                        onClick={() => setPage((p) => p + 1)}
+                        title="Next page"
+                      >
+                        <ChevronRight size={15} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -623,19 +671,21 @@ export default function UnitsTab() {
             </div>
           )}
 
-          {/* ── Pagination (list / grid) ── */}
-          {(viewMode === 'list' || viewMode === 'grid') && meta && meta.totalPages > 1 && (
-            <div className="ut-pagination">
-              <span className="ut-page-info">
-                Showing {(meta.page - 1) * meta.limit + 1}–{Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
-              </span>
-              <div className="ut-page-btns">
-                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-                  <ChevronLeft size={15} /> Previous
+          {/* ── Pagination (grid view) ── */}
+          {viewMode === 'grid' && meta && meta.totalPages > 1 && (
+            <div className="ut-pagination tenant-pagination billing-pagination">
+              <div className="pagination-left">
+                <span className="page-num-display">
+                  Showing {(meta.page - 1) * meta.limit + 1}–{Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
+                </span>
+              </div>
+              <div className="page-btns">
+                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} title="Previous page">
+                  <ChevronLeft size={15} />
                 </button>
-                <span className="ut-page-num">Page {meta.page} of {meta.totalPages}</span>
-                <button disabled={page === meta.totalPages} onClick={() => setPage((p) => p + 1)}>
-                  Next <ChevronRight size={15} />
+                <span className="page-num-display">Page {page} of {meta.totalPages}</span>
+                <button disabled={page >= meta.totalPages} onClick={() => setPage((p) => p + 1)} title="Next page">
+                  <ChevronRight size={15} />
                 </button>
               </div>
             </div>
@@ -781,10 +831,12 @@ function UnitListRow({ unit, selectionEnabled, selected, onToggleSelect, onClick
   /* Bulk status change only targets Available/Reserved, and only once the user has
      explicitly filtered to one of those statuses — so no checkbox otherwise. */
   const selectable = selectionEnabled && (unit.status === 'available' || unit.status === 'reserved');
+  const statusColor = STATUS_COLOR[unit.status] || '#6b7280';
+
   return (
-    <div className={`ul-row ${selected ? 'selected' : ''}`} onClick={onClick}>
-      {selectable
-        ? (
+    <div className={`ul-row${selectionEnabled ? ' with-select' : ''}${selected ? ' selected' : ''}`} onClick={onClick}>
+      {selectionEnabled && (
+        selectable ? (
           <input
             type="checkbox"
             className="ul-checkbox"
@@ -792,28 +844,46 @@ function UnitListRow({ unit, selectionEnabled, selected, onToggleSelect, onClick
             onClick={(e) => e.stopPropagation()}
             onChange={onToggleSelect}
           />
+        ) : (
+          <span className="ul-checkbox-spacer" />
         )
-        : <span className="ul-checkbox-spacer" />
-      }
+      )}
       <div className="ul-unitno">
-        <span className="ul-dot" style={{ background: STATUS_COLOR[unit.status] }} />
+        <span className="ul-dot" style={{ background: statusColor }} />
         <span>{unit.unitNumber}</span>
         {unit.tower && <span className="ul-tower-tag">{unit.tower.name}</span>}
       </div>
-      <span className="capitalize">{unit.unitType.replace(/_/g, ' ')}</span>
-      <span>{unit.floorLabel ?? (unit.floorNumber != null ? `${unit.floorNumber}F` : '—')}</span>
-      <span>{unit.areaSqft ? `${unit.areaSqft} ft²` : '—'}</span>
-      <span>{unit.bedroomCount}bd · {unit.bathroomCount}ba</span>
-      <span className="ul-status" style={{ color: STATUS_COLOR[unit.status] }}>
-        <span className="ul-sdot" style={{ background: STATUS_COLOR[unit.status] }} />
-        {unit.status.replace(/_/g, ' ')}
-      </span>
-      <span className="capitalize ul-furn">{unit.furnishing.replace(/_/g, ' ')}</span>
-      <PermissionGuard permission="unit.delete">
-        <button className="ul-del" onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete unit">
-          <Trash2 size={13} />
-        </button>
-      </PermissionGuard>
+      <div>
+        <span className="ul-type-badge">{unit.unitType.replace(/_/g, ' ')}</span>
+      </div>
+      <div className="ul-cell-muted">{unit.floorLabel ?? (unit.floorNumber != null ? `${unit.floorNumber}F` : '—')}</div>
+      <div className="ul-cell-muted">{unit.areaSqft ? `${unit.areaSqft} ft²` : '—'}</div>
+      <div className="ul-cell-muted">{unit.bedroomCount}bd · {unit.bathroomCount}ba</div>
+      <div>
+        <span
+          className="ul-status-badge"
+          style={{
+            color: statusColor,
+            background: statusColor + '18',
+            borderColor: statusColor + '40',
+          }}
+        >
+          <span className="ul-sdot" style={{ background: statusColor }} />
+          {unit.status.replace(/_/g, ' ')}
+        </span>
+      </div>
+      <div className="capitalize ul-furn">{unit.furnishing.replace(/_/g, ' ')}</div>
+      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+        <PermissionGuard permission="unit.delete">
+          <button
+            className="ul-del"
+            onClick={onDelete}
+            title="Delete unit"
+          >
+            <Trash2 size={13} />
+          </button>
+        </PermissionGuard>
+      </div>
     </div>
   );
 }

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Landmark, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   useGetStatementLinesQuery, useGetReconciliationSummaryQuery,
-  useImportStatementMutation, useMatchLineMutation,
+  useImportStatementMutation,
   useExcludeLineMutation, useUnmatchLineMutation, useGetBalanceQuery,
 } from '../../../store/api/bankingApi';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -20,13 +22,14 @@ export default function ReconciliationPage() {
   const { bankAccountId } = useParams<{ bankAccountId: string }>();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
   const [statusFilter, setStatusFilter] = useState('');
   const [showImport, setShowImport] = useState(false);
 
   const { data: balance } = useGetBalanceQuery(bankAccountId!);
   const { data: summary } = useGetReconciliationSummaryQuery(bankAccountId!);
   const { data: result, isLoading } = useGetStatementLinesQuery({
-    bankAccountId: bankAccountId!, page, limit: 50,
+    bankAccountId: bankAccountId!, page, limit,
     ...(statusFilter ? { matchStatus: statusFilter } : {}),
   });
   const [excludeLine] = useExcludeLineMutation();
@@ -48,16 +51,23 @@ export default function ReconciliationPage() {
 
   return (
     <div className="gl-page">
-      <button className="btn-sm" onClick={() => navigate('/admin/banking')} style={{marginBottom:12}}>← Bank Accounts</button>
-
-      {balance && (
-        <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:20}}>
-          <h2 style={{margin:0}}>{balance.bankName} — {balance.accountName}</h2>
-          <span style={{fontSize:'1.3rem',fontWeight:700,color:'var(--success, #22c55e)',fontVariantNumeric:'tabular-nums'}}>
-            {balance.currency} {fmtAmt(Number(balance.currentBalance))}
-          </span>
+      <div className="page-header">
+        <div className="page-title-row">
+          <button className="btn-sm" onClick={() => navigate('/admin/banking')} title="Back to Bank Accounts" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <ArrowLeft size={16} />
+          </button>
+          <div className="page-icon-lg">
+            <Landmark size={22} />
+          </div>
+          <div>
+            <h1>{balance ? `${balance.bankName} — ${balance.accountName}` : 'Bank Reconciliation'}</h1>
+            <p>{meta.total} total statement lines{balance ? ` · Balance: ${balance.currency} ${fmtAmt(Number(balance.currentBalance))}` : ''}</p>
+          </div>
         </div>
-      )}
+        <PermissionGuard permission="finance-banking.write">
+          <button className="btn-primary" onClick={() => setShowImport(true)}>📥 Import Statement</button>
+        </PermissionGuard>
+      </div>
 
       {/* Reconciliation Summary */}
       {summary && (
@@ -82,75 +92,93 @@ export default function ReconciliationPage() {
       )}
 
       <div className="gl-toolbar">
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="">All Status</option>
           <option value="unmatched">Unmatched</option>
           <option value="auto_matched">Auto-matched</option>
           <option value="manually_matched">Manually Matched</option>
           <option value="excluded">Excluded</option>
         </select>
-        <div style={{ flex: 1 }} />
-        <PermissionGuard permission="finance-banking.write">
-          <button className="btn-primary" onClick={() => setShowImport(true)}>📥 Import Statement</button>
-        </PermissionGuard>
       </div>
 
       {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
         <div className="gl-table-wrap">
-          <table className="gl-table">
-            <thead>
-              <tr>
-                <th>Date</th><th>Description</th><th>Reference</th>
-                <th style={{textAlign:'right'}}>Credit</th><th style={{textAlign:'right'}}>Debit</th>
-                <th>Status</th><th>Confidence</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map(line => (
-                <tr key={line.id}>
-                  <td>{fmtDate(line.transactionDate)}</td>
-                  <td style={{maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{line.description || '—'}</td>
-                  <td style={{fontSize:'0.8rem',color:'var(--text-secondary)'}}>{line.reference || '—'}</td>
-                  <td className="amount positive">{Number(line.creditAmount) > 0 ? fmtAmt(Number(line.creditAmount)) : ''}</td>
-                  <td className="amount negative">{Number(line.debitAmount) > 0 ? fmtAmt(Number(line.debitAmount)) : ''}</td>
-                  <td>
-                    <span className={`gl-badge ${STATUS_COLORS[line.matchStatus] || 'draft'}`}>
-                      {line.matchStatus.replace(/_/g, ' ')}
-                    </span>
-                  </td>
-                  <td style={{fontVariantNumeric:'tabular-nums',color:'var(--text-secondary)'}}>
-                    {line.matchConfidence ? `${line.matchConfidence}%` : '—'}
-                  </td>
-                  <td style={{display:'flex',gap:4}}>
-                    <PermissionGuard permission="finance-banking.write">
-                      {line.matchStatus === 'unmatched' && (
-                        <button className="btn-sm" onClick={() => handleExclude(line.id)} title="Exclude">✕</button>
-                      )}
-                      {(line.matchStatus === 'auto_matched' || line.matchStatus === 'manually_matched') && (
-                        <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Unmatch">↩</button>
-                      )}
-                      {line.matchStatus === 'excluded' && (
-                        <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Restore">♻</button>
-                      )}
-                    </PermissionGuard>
-                  </td>
+          <TableScrollWrapper>
+            <table className="gl-table">
+              <thead>
+                <tr>
+                  <th>Date</th><th>Description</th><th>Reference</th>
+                  <th style={{textAlign:'right'}}>Credit</th><th style={{textAlign:'right'}}>Debit</th>
+                  <th>Status</th><th>Confidence</th><th></th>
                 </tr>
-              ))}
-              {lines.length === 0 && (
-                <tr><td colSpan={8} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>
-                  No statement lines. Import a bank statement to get started.
-                </td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {lines.map(line => (
+                  <tr key={line.id}>
+                    <td>{fmtDate(line.transactionDate)}</td>
+                    <td style={{maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{line.description || '—'}</td>
+                    <td style={{fontSize:'0.8rem',color:'var(--text-secondary)'}}>{line.reference || '—'}</td>
+                    <td className="amount positive">{Number(line.creditAmount) > 0 ? fmtAmt(Number(line.creditAmount)) : ''}</td>
+                    <td className="amount negative">{Number(line.debitAmount) > 0 ? fmtAmt(Number(line.debitAmount)) : ''}</td>
+                    <td>
+                      <span className={`gl-badge ${STATUS_COLORS[line.matchStatus] || 'draft'}`}>
+                        {line.matchStatus.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td style={{fontVariantNumeric:'tabular-nums',color:'var(--text-secondary)'}}>
+                      {line.matchConfidence ? `${line.matchConfidence}%` : '—'}
+                    </td>
+                    <td>
+                      <div style={{display:'flex',gap:4}}>
+                        <PermissionGuard permission="finance-banking.write">
+                          {line.matchStatus === 'unmatched' && (
+                            <button className="btn-sm" onClick={() => handleExclude(line.id)} title="Exclude">✕</button>
+                          )}
+                          {(line.matchStatus === 'auto_matched' || line.matchStatus === 'manually_matched') && (
+                            <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Unmatch">↩</button>
+                          )}
+                          {line.matchStatus === 'excluded' && (
+                            <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Restore">♻</button>
+                          )}
+                        </PermissionGuard>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {lines.length === 0 && (
+                  <tr><td colSpan={8} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>
+                    No statement lines. Import a bank statement to get started.
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
 
-      {meta.totalPages > 1 && (
-        <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:16}}>
-          <button className="btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span style={{padding:'6px 12px',color:'var(--text-secondary)',fontSize:'0.85rem'}}>Page {meta.page} of {meta.totalPages}</span>
-          <button className="btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
+          {meta.total >= 10 && (
+            <div className="gl-pagination">
+              <div className="pagination-left">
+                <div className="page-size-selector">
+                  <span>Rows per page:</span>
+                  <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+              <div className="page-btns">
+                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} title="Previous Page">
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="page-num-display">
+                  Page {meta.page} of {Math.max(1, meta.totalPages)}
+                </span>
+                <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)} title="Next Page">
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -161,6 +189,7 @@ export default function ReconciliationPage() {
 
 function ImportStatementModal({ bankAccountId, onClose }: { bankAccountId: string; onClose: () => void }) {
   const [importStatement, { isLoading }] = useImportStatementMutation();
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({
     fromDate: '', toDate: '', filename: 'manual-import',
   });
@@ -184,6 +213,8 @@ function ImportStatementModal({ bankAccountId, onClose }: { bankAccountId: strin
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.fromDate || !form.toDate || !csvText.trim()) return;
     const lines = parseCSV(csvText);
     if (lines.length === 0) { alertDialog('No valid lines found'); return; }
     try {
@@ -199,22 +230,46 @@ function ImportStatementModal({ bankAccountId, onClose }: { bankAccountId: strin
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:750}}>
         <h3>📥 Import Bank Statement</h3>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>From Date</label>
-              <input type="date" value={form.fromDate} onChange={e => setForm({...form, fromDate: e.target.value})} required />
+              <label>From Date <span className="req">*</span></label>
+              <input
+                type="date"
+                className={hasAttemptedSubmit && !form.fromDate ? 'gl-input-error' : ''}
+                value={form.fromDate}
+                onChange={e => setForm({...form, fromDate: e.target.value})}
+              />
+              {hasAttemptedSubmit && !form.fromDate && (
+                <span className="gl-error-text">From date is required</span>
+              )}
             </div>
             <div className="gl-form-group">
-              <label>To Date</label>
-              <input type="date" value={form.toDate} onChange={e => setForm({...form, toDate: e.target.value})} required />
+              <label>To Date <span className="req">*</span></label>
+              <input
+                type="date"
+                className={hasAttemptedSubmit && !form.toDate ? 'gl-input-error' : ''}
+                value={form.toDate}
+                onChange={e => setForm({...form, toDate: e.target.value})}
+              />
+              {hasAttemptedSubmit && !form.toDate && (
+                <span className="gl-error-text">To date is required</span>
+              )}
             </div>
           </div>
           <div className="gl-form-group">
-            <label>CSV Data (Date, Description, Reference, Debit, Credit, Balance)</label>
-            <textarea value={csvText} onChange={e => setCsvText(e.target.value)} rows={10}
+            <label>CSV Data (Date, Description, Reference, Debit, Credit, Balance) <span className="req">*</span></label>
+            <textarea
+              className={hasAttemptedSubmit && !csvText.trim() ? 'gl-input-error' : ''}
+              value={csvText}
+              onChange={e => setCsvText(e.target.value)}
+              rows={10}
               placeholder={'date,description,reference,debit,credit,balance\n2026-01-15,Rent payment from Unit A1,REC-001,0,5000,55000\n2026-01-16,Utility bill payment,UTL-2026-01,1200,0,53800'}
-              style={{fontFamily:'monospace',fontSize:'0.8rem'}} />
+              style={{fontFamily:'monospace',fontSize:'0.8rem'}}
+            />
+            {hasAttemptedSubmit && !csvText.trim() && (
+              <span className="gl-error-text">CSV data is required</span>
+            )}
           </div>
           <p style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>
             Paste CSV data with header: date, description, reference, debit, credit, balance

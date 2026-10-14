@@ -86,7 +86,7 @@ export const WorkflowNode = memo(({ data, selected }: NodeProps) => {
         </div>
 
         {/* SLA badge for approval */}
-        {d.nodeType === 'approval' && d.config?.sla && (
+        {d.nodeType === 'approval' && Boolean(d.config?.sla) && (
           <div style={{
             fontSize: 9, background: `${color}20`, color: color,
             borderRadius: 4, padding: '1px 6px', marginTop: 4, display: 'inline-block',

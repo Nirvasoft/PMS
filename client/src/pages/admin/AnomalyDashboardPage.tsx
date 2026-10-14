@@ -7,11 +7,12 @@ import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import './MaintenancePage/MaintenancePage.css';
 import {
-  AlertTriangle, Activity, Building2, DollarSign, TrendingDown, Clock,
-  CheckCircle, XCircle, Eye, EyeOff, RefreshCw, Search, Filter, X,
-  ChevronDown, ChevronRight, ChevronLeft, Zap, Users, ShieldAlert,
-  BarChart3, ArrowUpRight, ArrowDownRight, Layers, Calendar, Ban,
+  AlertTriangle, Building2, DollarSign, TrendingDown, Clock,
+  CheckCircle, Eye, RefreshCw, Search, X,
+  ChevronDown, ChevronRight, ChevronLeft, Zap, ShieldAlert,
+  ArrowUpRight, ArrowDownRight, Layers, Calendar, Ban,
 } from 'lucide-react';
 
 // ─── Constants ───────────────────────────────────────────
@@ -62,6 +63,7 @@ export default function AnomalyDashboardPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Active property from the sidebar — follows the same pattern as Parking Overview.
@@ -74,7 +76,7 @@ export default function AnomalyDashboardPage() {
   useEffect(() => { setPage(1); }, [selectedProperty]);
 
   // Build query params
-  const queryParams: any = { page };
+  const queryParams: any = { page, limit };
   if (statusFilter === 'active') queryParams.acknowledged = 'false';
   else if (statusFilter === 'acknowledged') queryParams.acknowledged = 'true';
   if (selectedProperty) queryParams.propertyId = selectedProperty;
@@ -87,7 +89,6 @@ export default function AnomalyDashboardPage() {
 
   const allAnomalies = anomaliesRes?.data || [];
   const total = anomaliesRes?.total || 0;
-  const limit = anomaliesRes?.limit || 50;
   const totalPages = Math.ceil(total / limit) || 1;
 
   // Client-side filters (type + search + false_positive)
@@ -142,15 +143,15 @@ export default function AnomalyDashboardPage() {
   return (
     <div className="page-content" style={{ maxWidth: 1400, margin: '0 auto' }}>
       {/* ═══ Header ═══ */}
-      <div style={S.header}>
-        <div>
-          <h1 style={S.title}>
-            <ShieldAlert size={24} style={{ marginRight: 8, verticalAlign: 'middle' }} />
-            Anomaly Dashboard
-          </h1>
-          <p style={S.subtitle}>
-            AI-powered anomaly detection across billing, occupancy, and payments
-          </p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <ShieldAlert size={22} />
+          </div>
+          <div>
+            <h1>Anomaly Dashboard</h1>
+            <p>{total} total anomalies · AI-powered anomaly detection across billing, occupancy, and payments</p>
+          </div>
         </div>
         <PermissionGuard permission="reports-anomalies.write">
           <button
@@ -444,25 +445,38 @@ export default function AnomalyDashboardPage() {
       )}
 
       {/* ═══ Pagination ═══ */}
-      {totalPages > 1 && (
-        <div style={S.pagination}>
-          <button
-            style={{ ...S.pageBtn, opacity: page <= 1 ? 0.4 : 1 }}
-            disabled={page <= 1}
-            onClick={() => setPage(p => p - 1)}
-          >
-            <ChevronLeft size={16} /> Previous
-          </button>
-          <span style={S.pageInfo}>
-            Page {page} of {totalPages} • {total} total
-          </span>
-          <button
-            style={{ ...S.pageBtn, opacity: page >= totalPages ? 0.4 : 1 }}
-            disabled={page >= totalPages}
-            onClick={() => setPage(p => p + 1)}
-          >
-            Next <ChevronRight size={16} />
-          </button>
+      {total >= 10 && (
+        <div className="maint-pagination">
+          <div className="maint-pagination-left">
+            <span>Rows per page:</span>
+            <select
+              value={limit}
+              onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+            >
+              {[10, 20, 50, 100].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+          <div className="maint-pagination-right">
+            <button
+              className="maint-page-btn"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="maint-page-info">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              className="maint-page-btn"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -513,10 +527,6 @@ function DetailItem({ label, value, valueColor }: { label: string; value: string
 // ─── Inline Styles ───────────────────────────────────────
 
 const S: Record<string, React.CSSProperties> = {
-  // Header
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 24, fontWeight: 700, margin: 0 },
-  subtitle: { color: 'var(--text-secondary)', margin: '4px 0 0', fontSize: 14 },
   detectBtn: {
     display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10,
     border: 'none', background: 'linear-gradient(135deg, #ef4444, #f97316)', color: '#fff',
@@ -654,18 +664,6 @@ const S: Record<string, React.CSSProperties> = {
     color: 'var(--text-secondary)', fontWeight: 500, fontSize: 13, cursor: 'pointer',
     transition: 'all 0.15s',
   },
-
-  // Pagination
-  pagination: {
-    display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16,
-    marginTop: 24, padding: '16px 0',
-  },
-  pageBtn: {
-    display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8,
-    border: '1px solid var(--border-color)', background: 'var(--card-bg)',
-    color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer',
-  },
-  pageInfo: { fontSize: 13, color: 'var(--text-secondary)' },
 
   // Fetch overlay
   fetchOverlay: {

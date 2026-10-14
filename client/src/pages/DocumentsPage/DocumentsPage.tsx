@@ -15,11 +15,11 @@ import {
   useGetDocumentPreviewQuery,
   useGetDocumentAccessLogsQuery,
 } from '../../store/api/documentsApi';
-import type { DocumentItem, FolderItem, AccessLogItem } from '../../store/api/documentsApi';
+import type { DocumentItem, FolderItem } from '../../store/api/documentsApi';
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import {
   Upload, Search, Filter, FolderPlus, FileText, Image, FileSpreadsheet,
-  File, Trash2, Download, Eye, Share2, Clock, ChevronRight, X, Plus, Tag,
+  File, Trash2, Download, Eye, Share2, Clock, ChevronLeft, ChevronRight, X, Plus,
   AlertTriangle, History, FolderOpen, MoreVertical, Edit3, Copy, Check,
   ZoomIn, ZoomOut, Maximize2, RotateCw, Save, Lock, Link, Shield, Activity,
 } from 'lucide-react';
@@ -49,6 +49,7 @@ export default function DocumentsPage() {
   const [category, setCategory] = useState('');
   const [folderId, setFolderId] = useState<string | undefined>();
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -74,7 +75,7 @@ export default function DocumentsPage() {
   };
 
   const params: Record<string, string> = {
-    page: String(page), limit: '20', sort: 'createdAt', order: 'desc',
+    page: String(page), limit: String(limit), sort: 'createdAt', order: 'desc',
   };
   if (search) params.search = search;
   if (category) params.category = category;
@@ -103,10 +104,10 @@ export default function DocumentsPage() {
       {/* Header */}
       <div className="page-header">
         <div className="header-left">
-          <FolderOpen size={28} className="header-icon" />
+          <div className="page-icon-lg"><FolderOpen size={22} /></div>
           <div>
             <h1>Document Vault</h1>
-            <p className="subtitle">Manage all your documents, contracts, and files</p>
+            <p className="subtitle">{meta?.total ?? documents.length} total documents</p>
           </div>
         </div>
         <div className="header-actions">
@@ -221,11 +222,26 @@ export default function DocumentsPage() {
               </div>
 
               {/* Pagination */}
-              {meta && meta.totalPages > 1 && (
-                <div className="pagination">
-                  <button disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
-                  <span className="page-info">Page {page} of {meta.totalPages}</span>
-                  <button disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next</button>
+              {meta && meta.total >= 10 && (
+                <div className="pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    <span>Rows per page:</span>
+                    <select
+                      value={limit}
+                      onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                      style={{
+                        background: 'var(--bg-secondary)', color: 'var(--text-primary)',
+                        border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px', fontSize: '0.78rem',
+                      }}
+                    >
+                      {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    <button disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={14} /></button>
+                    <span className="page-info">Page {page} of {meta.totalPages || 1}</span>
+                    <button disabled={page >= (meta.totalPages || 1)} onClick={() => setPage(page + 1)}><ChevronRight size={14} /></button>
+                  </div>
                 </div>
               )}
             </>
@@ -567,6 +583,7 @@ function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: st
   const [propertyId, setPropertyId] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -584,7 +601,8 @@ function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: st
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (files.length === 0) { toast.error('Please select a file'); return; }
+    setHasAttemptedSubmit(true);
+    if (files.length === 0) return;
 
     for (const file of files) {
       const formData = new FormData();
@@ -615,9 +633,9 @@ function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: st
           <button className="icon-btn" onClick={onClose}><X size={18} /></button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div
-            className={`drop-zone ${dragActive ? 'active' : ''} ${files.length > 0 ? 'has-file' : ''}`}
+            className={`drop-zone ${dragActive ? 'active' : ''} ${files.length > 0 ? 'has-file' : ''} ${hasAttemptedSubmit && files.length === 0 ? 'doc-input-error' : ''}`}
             onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
             onDragLeave={() => setDragActive(false)}
             onDrop={handleDrop}
@@ -648,6 +666,9 @@ function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: st
               </>
             )}
           </div>
+          {hasAttemptedSubmit && files.length === 0 && (
+            <span className="doc-error-text" style={{ padding: '0 24px', marginBottom: 8 }}>Please select at least one file to upload</span>
+          )}
 
           <div className="form-grid">
             <div className="form-group">
@@ -695,7 +716,7 @@ function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: st
 
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading || files.length === 0}>
+            <button type="submit" className="btn-primary" disabled={isLoading}>
               {isLoading ? 'Uploading...' : `Upload ${files.length > 0 ? `(${files.length})` : ''}`}
             </button>
           </div>
@@ -711,9 +732,11 @@ function UploadModal({ onClose, folderId }: { onClose: () => void; folderId?: st
 function NewFolderModal({ onClose }: { onClose: () => void }) {
   const [createFolder, { isLoading }] = useCreateFolderMutation();
   const [name, setName] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
     if (!name.trim()) return;
     try {
       await createFolder({ name: name.trim() }).unwrap();
@@ -729,14 +752,22 @@ function NewFolderModal({ onClose }: { onClose: () => void }) {
           <h2><FolderPlus size={20} /> New Folder</h2>
           <button className="icon-btn" onClick={onClose}><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="form-group" style={{ padding: '0 24px' }}>
-            <label>Folder Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Contracts 2025" autoFocus />
+            <label>Folder Name *</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Contracts 2025"
+              autoFocus
+              className={hasAttemptedSubmit && !name.trim() ? 'doc-input-error' : ''}
+            />
+            {hasAttemptedSubmit && !name.trim() && <span className="doc-error-text">Folder name is required</span>}
           </div>
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading || !name.trim()}>Create</button>
+            <button type="submit" className="btn-primary" disabled={isLoading}>Create</button>
           </div>
         </form>
       </div>
@@ -843,9 +874,12 @@ function EditDocumentModal({ doc, onClose, onUpdated }: {
   const [tagsStr, setTagsStr] = useState((doc.tags || []).join(', '));
   const [expiryDate, setExpiryDate] = useState(doc.expiryDate ? doc.expiryDate.split('T')[0] : '');
   const [propertyId, setPropertyId] = useState(doc.propertyId || '');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!name.trim()) return;
     try {
       const tags = tagsStr.split(',').map((t) => t.trim()).filter(Boolean);
       const result = await updateDocument({
@@ -875,7 +909,7 @@ function EditDocumentModal({ doc, onClose, onUpdated }: {
           <button className="icon-btn" onClick={onClose}><X size={18} /></button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           {/* Read-only file info */}
           <div className="edit-file-info">
             {getFileIcon(doc.mimeType)}
@@ -887,14 +921,15 @@ function EditDocumentModal({ doc, onClose, onUpdated }: {
 
           <div className="form-grid">
             <div className="form-group full-width">
-              <label>Display Name</label>
+              <label>Display Name *</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Document display name"
-                required
+                className={hasAttemptedSubmit && !name.trim() ? 'doc-input-error' : ''}
               />
+              {hasAttemptedSubmit && !name.trim() && <span className="doc-error-text">Display name is required</span>}
             </div>
 
             <div className="form-group">
@@ -958,7 +993,7 @@ function EditDocumentModal({ doc, onClose, onUpdated }: {
 
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading || !name.trim()}>
+            <button type="submit" className="btn-primary" disabled={isLoading}>
               <Save size={14} /> {isLoading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
@@ -1130,10 +1165,13 @@ function RenameFolderModal({ folder, onClose }: {
 }) {
   const [updateFolder, { isLoading }] = useUpdateFolderMutation();
   const [name, setName] = useState(folder.name);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || name.trim() === folder.name) { onClose(); return; }
+    setHasAttemptedSubmit(true);
+    if (!name.trim()) return;
+    if (name.trim() === folder.name) { onClose(); return; }
     try {
       await updateFolder({ id: folder.id, data: { name: name.trim() } }).unwrap();
       toast.success('Folder renamed');
@@ -1148,24 +1186,25 @@ function RenameFolderModal({ folder, onClose }: {
           <h2><Edit3 size={20} /> Rename Folder</h2>
           <button className="icon-btn" onClick={onClose}><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="form-group" style={{ padding: '16px 24px' }}>
-            <label>Folder Name</label>
+            <label>Folder Name *</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Folder name"
               autoFocus
-              required
+              className={hasAttemptedSubmit && !name.trim() ? 'doc-input-error' : ''}
             />
+            {hasAttemptedSubmit && !name.trim() && <span className="doc-error-text">Folder name is required</span>}
             <div className="rename-path-hint">
               Current path: <code>{folder.path}</code>
             </div>
           </div>
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading || !name.trim()}>
+            <button type="submit" className="btn-primary" disabled={isLoading}>
               <Save size={14} /> {isLoading ? 'Saving...' : 'Rename'}
             </button>
           </div>

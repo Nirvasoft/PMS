@@ -45,6 +45,7 @@ export default function IncidentDetailPage() {
   const [updateIncident] = useUpdateSecurityIncidentMutation();
   const [showResolve, setShowResolve] = useState(false);
   const [showStatusChange, setShowStatusChange] = useState(false);
+  const [resolveError, setResolveError] = useState('');
 
   if (isLoading) {
     return (
@@ -77,11 +78,17 @@ export default function IncidentDetailPage() {
   const handleResolve = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const resolution = ((fd.get('resolution') as string) || '').trim();
+    if (!resolution) {
+      setResolveError('Resolution is required');
+      return;
+    }
+    setResolveError('');
     try {
       await resolveIncident({
         id: inc.id,
         data: {
-          resolution: fd.get('resolution') as string,
+          resolution,
           policeReportNo: (fd.get('policeReportNo') as string) || undefined,
         },
       }).unwrap();
@@ -313,12 +320,15 @@ export default function IncidentDetailPage() {
                 <XCircle size={20} />
               </button>
             </div>
-            <form onSubmit={handleResolve}>
+            <form onSubmit={handleResolve} noValidate>
               <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
                 <div className="form-group">
                   <label>Resolution *</label>
-                  <textarea name="resolution" required rows={4}
-                    placeholder="Describe how the incident was resolved..." />
+                  <textarea name="resolution" rows={4}
+                    placeholder="Describe how the incident was resolved..."
+                    className={resolveError ? 'maint-input-error' : ''}
+                    onChange={() => setResolveError('')} />
+                  {resolveError && <span className="maint-error-text">{resolveError}</span>}
                 </div>
                 <div className="form-group">
                   <label>Police Report No.</label>

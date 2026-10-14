@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import {
@@ -8,10 +8,9 @@ import {
   useGetEntityMapQuery, useDeleteEntityMapMutation,
 } from '../../store/api/integrationsApi';
 import {
-  Plug, Plus, X, RefreshCw, Zap, Trash2, Activity,
-  CheckCircle2, AlertCircle, Clock, Settings2, ChevronDown, ChevronUp,
-  Cloud, CreditCard, FileSignature, Building2, Edit, Map, Database,
-  Loader2, Search,
+  Plug, Plus, RefreshCw, Zap, Trash2, Activity,
+  CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronUp,
+  Edit, Map, Database, Loader2, Search,
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
@@ -37,10 +36,6 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
   disabled:   { bg: 'var(--accent-subtle)', color: 'var(--text-muted)', label: 'Disabled' },
 };
 
-const CAT_ICONS: Record<string, any> = {
-  ERP: Building2, Accounting: Cloud, 'E-Sign': FileSignature, Payment: CreditCard, BMS: Settings2,
-};
-
 export default function IntegrationsPage() {
   const { data: res, isLoading } = useGetIntegrationsQuery();
   const [createIntegration, { isLoading: isCreating }] = useCreateIntegrationMutation();
@@ -51,8 +46,10 @@ export default function IntegrationsPage() {
   const confirmDialog = useConfirm();
 
   const [showCreate, setShowCreate] = useState(false);
+  const [createSubmitted, setCreateSubmitted] = useState(false);
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const [showEdit, setShowEdit] = useState<any | null>(null);
+  const [editSubmitted, setEditSubmitted] = useState(false);
   const [showEntityMap, setShowEntityMap] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState({ integrationType: 'v6erp', name: '', description: '', syncFrequency: 'daily' });
   const [editForm, setEditForm] = useState({
@@ -68,15 +65,16 @@ export default function IntegrationsPage() {
   const integrations = res?.data || [];
 
   const handleCreate = async () => {
+    setCreateSubmitted(true);
     const trimmedName = createForm.name.trim();
     if (!trimmedName) {
-      toast.error('Display Name is required');
       return;
     }
     try {
       await createIntegration({ ...createForm, name: trimmedName }).unwrap();
       toast.success('Integration created successfully');
       setShowCreate(false);
+      setCreateSubmitted(false);
       setTypeDropdownOpen(false);
       setCreateForm({ integrationType: 'v6erp', name: '', description: '', syncFrequency: 'daily' });
     } catch (err: any) {
@@ -125,6 +123,7 @@ export default function IntegrationsPage() {
   };
 
   const openEdit = (intg: any) => {
+    setEditSubmitted(false);
     setEditForm({
       name:            intg.name          || '',
       description:     intg.description   || '',
@@ -139,9 +138,9 @@ export default function IntegrationsPage() {
 
   const handleEdit = async () => {
     if (!showEdit) return;
+    setEditSubmitted(true);
     const trimmedName = editForm.name.trim();
     if (!trimmedName) {
-      toast.error('Display Name is required');
       return;
     }
 
@@ -185,6 +184,7 @@ export default function IntegrationsPage() {
 
       toast.success('Integration updated successfully');
       setShowEdit(null);
+      setEditSubmitted(false);
     } catch (err: any) {
       toast.error(err?.data?.message || err?.message || 'Failed to update integration');
     }
@@ -192,13 +192,18 @@ export default function IntegrationsPage() {
 
   return (
     <div className="page-content">
-      <div className="intg-header">
-        <div>
-          <h1><Plug size={24} /> Integrations</h1>
-          <p className="mall-page-subtitle">Connect external ERP, accounting, and payment systems</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Plug size={22} />
+          </div>
+          <div>
+            <h1>Integrations</h1>
+            <p>{integrations.length} total integrations · Connect external ERP, accounting, and payment systems</p>
+          </div>
         </div>
         <PermissionGuard permission="developer-integrations.write">
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          <button className="btn btn-primary" onClick={() => { setShowCreate(true); setCreateSubmitted(false); }}>
             <Plus size={16} /> Add Integration
           </button>
         </PermissionGuard>
@@ -442,7 +447,13 @@ export default function IntegrationsPage() {
                 </label>
                 <label style={{ gridColumn: '1 / -1' }}>
                   <span>Display Name *</span>
-                  <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g. Xero — Acme Holdings" />
+                  <input
+                    value={createForm.name}
+                    className={createSubmitted && !createForm.name.trim() ? 'mall-input-error' : ''}
+                    onChange={e => setCreateForm({ ...createForm, name: e.target.value })}
+                    placeholder="e.g. Xero — Acme Holdings"
+                  />
+                  {createSubmitted && !createForm.name.trim() && <span className="mall-error-text">Display name is required</span>}
                 </label>
                 <label>
                   <span>Sync Frequency</span>
@@ -459,9 +470,9 @@ export default function IntegrationsPage() {
               </div>
             </div>
             <div className="mall-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleCreate} disabled={!createForm.name}>
-                <Plus size={14} /> Create
+              <button className="btn btn-ghost" onClick={() => { setShowCreate(false); setCreateSubmitted(false); }}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleCreate} disabled={isCreating}>
+                <Plus size={14} /> {isCreating ? 'Creating...' : 'Create'}
               </button>
             </div>
           </div>
@@ -511,7 +522,12 @@ export default function IntegrationsPage() {
               <div className="mall-form-grid">
                 <label style={{ gridColumn: '1 / -1' }}>
                   <span>Display Name *</span>
-                  <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                  <input
+                    value={editForm.name}
+                    className={editSubmitted && !editForm.name.trim() ? 'mall-input-error' : ''}
+                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                  {editSubmitted && !editForm.name.trim() && <span className="mall-error-text">Display name is required</span>}
                 </label>
                 <label>
                   <span>Sync Frequency</span>
@@ -631,8 +647,8 @@ export default function IntegrationsPage() {
               <button
                 className="btn btn-primary"
                 onClick={handleEdit}
-                disabled={isUpdating || !editForm.name.trim()}
-                style={{ opacity: (isUpdating || !editForm.name.trim()) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
+                disabled={isUpdating}
+                style={{ opacity: isUpdating ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 {isUpdating ? <RefreshCw size={14} className="spin" /> : <Edit size={14} />}
                 {isUpdating ? 'Saving...' : 'Save Changes'}

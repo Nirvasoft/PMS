@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TrendingUp } from 'lucide-react';
 import { useGetPnLQuery } from '../../../store/api/glApi';
 import './GLPage.css';
 
@@ -58,7 +59,7 @@ export default function ProfitAndLossPage() {
   }
   const { data: pnl, isLoading } = useGetPnLQuery(queryParams);
 
-  const comparison = pnl?.comparison;
+  const comparison = (pnl as any)?.comparison;
 
   // Prepare chart data if comparison is available
   const chartData = comparison ? [
@@ -69,7 +70,17 @@ export default function ProfitAndLossPage() {
 
   return (
     <div className="gl-page">
-      <h2>Profit & Loss Statement</h2>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <TrendingUp size={22} />
+          </div>
+          <div>
+            <h1>Profit & Loss Statement</h1>
+            <p>{(pnl?.income.length ?? 0) + (pnl?.expense.length ?? 0)} total accounts</p>
+          </div>
+        </div>
+      </div>
       <div className="gl-toolbar" style={{ flexWrap: 'wrap', gap: 8 }}>
         <label>From</label>
         <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />

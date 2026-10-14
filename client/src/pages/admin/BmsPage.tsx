@@ -2,17 +2,18 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   useGetBmsSummaryQuery, useGetBmsDevicesQuery, useGetBmsMetaQuery,
   useCreateBmsDeviceMutation, useDeleteBmsDeviceMutation, usePollBmsDeviceMutation,
-  useUpdateBmsDeviceMutation, useGetBmsReadingsQuery, useGetBmsFaultsQuery,
+  useGetBmsReadingsQuery, useGetBmsFaultsQuery,
 } from '../../store/api/integrationsApi';
 import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 import {
-  Server, Plus, RefreshCw, Trash2, Wifi, WifiOff, AlertTriangle,
-  Thermometer, Zap, Droplets, Shield, ArrowUpDown, Activity, X,
-  Search, LayoutGrid, List, ChevronRight, Settings, Clock, Signal,
-  CheckCircle, XCircle, Eye, BarChart3, AlertCircle, Gauge, Power, Check,
+  Server, Plus, RefreshCw, Trash2, Wifi, AlertTriangle,
+  Thermometer, Zap, Droplets, Shield, ArrowUpDown, X,
+  Search, LayoutGrid, List, ChevronRight, Clock, Signal,
+  CheckCircle, XCircle, Eye, BarChart3, AlertCircle, Power, Check,
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════
@@ -42,7 +43,6 @@ const PROTOCOL_DESC: Record<string, string> = {
 
 function getCfg(type: string) { return TYPE_CFG[type] || { icon: Server, color: '#64748b', gradient: 'linear-gradient(135deg, #64748b, #94a3b8)', label: type }; }
 function getStatus(d: any) { return d.faultActive ? 'fault' : !d.isActive ? 'offline' : 'online'; }
-function fmt(s: string) { return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
 function ago(s: string | null) {
   if (!s) return 'Never';
   const m = Math.floor((Date.now() - new Date(s).getTime()) / 60000);
@@ -98,20 +98,15 @@ export default function BmsPage() {
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1440 }}>
       {/* ── HEADER ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 14,
-            background: 'var(--gradient-primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
-            boxShadow: '0 4px 14px rgba(59,130,246,0.35)',
-          }}><Server size={24} /></div>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Server size={22} />
+          </div>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
-              Building Management System
-            </h1>
-            <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: 13 }}>
-              {stats.totalDevices} device{stats.totalDevices !== 1 ? 's' : ''} across {propList.length} propert{propList.length !== 1 ? 'ies' : 'y'}
+            <h1>Building Management System</h1>
+            <p>
+              {stats.totalDevices} total device{stats.totalDevices !== 1 ? 's' : ''} across {propList.length} propert{propList.length !== 1 ? 'ies' : 'y'}
             </p>
           </div>
         </div>
@@ -215,11 +210,34 @@ export default function BmsPage() {
           ))}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 100px 130px 90px 90px 70px', padding: '6px 14px', fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>
-            <span>Device</span><span>Type</span><span>Protocol</span><span>Property</span><span>Status</span><span>Last Seen</span><span></span>
-          </div>
-          {filtered.map((d: any) => <ListRow key={d.id} d={d} onPoll={() => handlePoll(d.id)} onDelete={() => handleDelete(d.id)} onSelect={() => setSelDevice(d)} polling={polling} />)}
+        <div className="intg-table-wrap">
+          <TableScrollWrapper>
+            <table className="intg-table">
+              <thead>
+                <tr>
+                  <th>Device</th>
+                  <th>Type</th>
+                  <th>Protocol</th>
+                  <th>Property</th>
+                  <th>Status</th>
+                  <th>Last Seen</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((d: any) => (
+                  <ListRow
+                    key={d.id}
+                    d={d}
+                    onPoll={() => handlePoll(d.id)}
+                    onDelete={() => handleDelete(d.id)}
+                    onSelect={() => setSelDevice(d)}
+                    polling={polling}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
         </div>
       )}
 
@@ -291,7 +309,6 @@ function DeviceCard({ d, onPoll, onDelete, onSelect, polling }: any) {
   const cfg = getCfg(d.deviceType);
   const Icon = cfg.icon;
   const st = getStatus(d);
-  const sc = statusCfg[st];
   const readings = d.latestReadings || [];
 
   return (
@@ -390,39 +407,36 @@ function ListRow({ d, onPoll, onDelete, onSelect, polling }: any) {
   const st = getStatus(d);
 
   return (
-    <div onClick={onSelect} style={{
-      display: 'grid', gridTemplateColumns: '1.4fr 100px 100px 130px 90px 90px 70px',
-      padding: '10px 14px', ...cardBase, cursor: 'pointer', alignItems: 'center', fontSize: 12,
-      borderRadius: 10,
-    }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--text-secondary)'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: `${cfg.color}12`, color: cfg.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={15} />
+    <tr onClick={onSelect} style={{ cursor: 'pointer' }}>
+      <td>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: `${cfg.color}12`, color: cfg.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon size={15} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{d.deviceName}</div>
+            {d.ipAddress && <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{d.ipAddress}</div>}
+          </div>
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{d.deviceName}</div>
-          {d.ipAddress && <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{d.ipAddress}</div>}
-        </div>
-      </div>
-      <span style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' as const, fontSize: 11 }}>{cfg.label}</span>
-      <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{PROTOCOL_LABELS[d.protocol] || d.protocol}</span>
-      <span style={{ color: 'var(--text-secondary)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{d.property?.name || '—'}</span>
-      <StatusBadge status={st} small />
-      <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{ago(d.lastSeenAt)}</span>
-      <PermissionGuard permission="developer-bms.write">
-        <div style={{ display: 'flex', gap: 3 }} onClick={e => e.stopPropagation()}>
-          <button onClick={() => onPoll()} disabled={polling} style={{ ...smallBtn, background: `${cfg.color}0d`, color: cfg.color, padding: '3px 6px' }}>
-            <RefreshCw size={11} className={polling ? 'spin' : ''} />
-          </button>
-          <button onClick={() => onDelete()} style={{ ...smallBtn, background: '#ef444408', color: '#ef4444', padding: '3px 6px' }}>
-            <Trash2 size={11} />
-          </button>
-        </div>
-      </PermissionGuard>
-    </div>
+      </td>
+      <td style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' as const }}>{cfg.label}</td>
+      <td style={{ color: 'var(--text-secondary)' }}>{PROTOCOL_LABELS[d.protocol] || d.protocol}</td>
+      <td style={{ color: 'var(--text-secondary)' }}>{d.property?.name || '—'}</td>
+      <td><StatusBadge status={st} small /></td>
+      <td style={{ color: 'var(--text-secondary)' }}>{ago(d.lastSeenAt)}</td>
+      <td onClick={e => e.stopPropagation()}>
+        <PermissionGuard permission="developer-bms.write">
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={() => onPoll()} disabled={polling} style={{ ...smallBtn, background: `${cfg.color}0d`, color: cfg.color, padding: '4px 8px' }}>
+              <RefreshCw size={12} className={polling ? 'spin' : ''} />
+            </button>
+            <button onClick={() => onDelete()} style={{ ...smallBtn, background: '#ef444408', color: '#ef4444', padding: '4px 8px' }}>
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </PermissionGuard>
+      </td>
+    </tr>
   );
 }
 
@@ -456,6 +470,7 @@ function StatusBadge({ status, small }: { status: string; small?: boolean }) {
 function AddDeviceWizard({ properties, activeProperty, meta, onClose }: { properties: any[]; activeProperty: string; meta: any; onClose: () => void }) {
   const [createDevice, { isLoading }] = useCreateBmsDeviceMutation();
   const [step, setStep] = useState(1);
+  const [step1Submitted, setStep1Submitted] = useState(false);
   // Bound to the sidebar's Active Property; only "All Properties" allows picking one here.
   const propertyLocked = !!activeProperty;
   const [form, setForm] = useState({
@@ -478,8 +493,6 @@ function AddDeviceWizard({ properties, activeProperty, meta, onClose }: { proper
 
   const types = meta?.deviceTypes || Object.keys(TYPE_CFG);
   const protocols = meta?.protocols || Object.keys(PROTOCOL_LABELS);
-
-  const canNext = step === 1 ? (form.propertyId && form.deviceName) : step === 2 ? true : true;
 
   const handleSubmit = async () => {
     try { await createDevice(form).unwrap(); onClose(); } catch {}
@@ -532,8 +545,13 @@ function AddDeviceWizard({ properties, activeProperty, meta, onClose }: { proper
           {step === 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <Field label="Property" required>
-                <select value={form.propertyId} disabled={propertyLocked} onChange={e => setForm(f => ({ ...f, propertyId: e.target.value }))}
-                  required style={fieldInput}>
+                <select
+                  className={step1Submitted && !form.propertyId ? 'mall-input-error' : ''}
+                  value={form.propertyId}
+                  disabled={propertyLocked}
+                  onChange={e => setForm(f => ({ ...f, propertyId: e.target.value }))}
+                  style={fieldInput}
+                >
                   {propertyLocked ? (
                     <option value={form.propertyId}>{properties.find((p: any) => p.id === form.propertyId)?.name || 'Loading…'}</option>
                   ) : (
@@ -543,11 +561,18 @@ function AddDeviceWizard({ properties, activeProperty, meta, onClose }: { proper
                     </>
                   )}
                 </select>
+                {step1Submitted && !form.propertyId && <span className="mall-error-text">Property is required</span>}
               </Field>
               <Field label="Device Name" required>
-                <input value={form.deviceName} onChange={e => setForm(f => ({ ...f, deviceName: e.target.value }))}
-                  required placeholder="e.g. AHU B1 Controller" style={fieldInput}
-                  autoFocus />
+                <input
+                  className={step1Submitted && !form.deviceName.trim() ? 'mall-input-error' : ''}
+                  value={form.deviceName}
+                  onChange={e => setForm(f => ({ ...f, deviceName: e.target.value }))}
+                  placeholder="e.g. AHU B1 Controller"
+                  style={fieldInput}
+                  autoFocus
+                />
+                {step1Submitted && !form.deviceName.trim() && <span className="mall-error-text">Device name is required</span>}
               </Field>
               {/* Subtle help text */}
               <div style={{
@@ -691,9 +716,16 @@ function AddDeviceWizard({ properties, activeProperty, meta, onClose }: { proper
             {step === 1 ? 'Cancel' : '← Back'}
           </button>
           {step < 3 ? (
-            <button onClick={() => setStep(step + 1)} disabled={!canNext} style={{
-              ...primaryBtn, opacity: canNext ? 1 : 0.5, cursor: canNext ? 'pointer' : 'not-allowed',
-            }}>
+            <button
+              onClick={() => {
+                if (step === 1) {
+                  setStep1Submitted(true);
+                  if (!form.propertyId || !form.deviceName.trim()) return;
+                }
+                setStep(step + 1);
+              }}
+              style={primaryBtn}
+            >
               Next <ChevronRight size={15} />
             </button>
           ) : (

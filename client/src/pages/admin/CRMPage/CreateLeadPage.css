@@ -59,3 +59,48 @@
   gap: 4px;
 }
 
+/* ── Light Mode Overrides ── */
+[data-theme="light"] .create-lead-page .back-btn {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: var(--border, #cbd5e1);
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme="light"] .create-lead-page .back-btn:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .create-lead-page .cl-section {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #cbd5e1);
+  box-shadow: var(--shadow-md, 0 6px 20px -3px rgba(15, 23, 42, 0.10), 0 3px 8px -2px rgba(15, 23, 42, 0.06));
+}
+
+[data-theme="light"] .create-lead-page .cl-section h3 {
+  border-bottom-color: var(--border-subtle, #dbe4ef);
+}
+
+[data-theme="light"] .create-lead-page .form-field input,
+[data-theme="light"] .create-lead-page .form-field select {
+  background: var(--bg-primary, #f8fafc);
+  border-color: var(--border, #cbd5e1);
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme="light"] .create-lead-page .form-field input:focus,
+[data-theme="light"] .create-lead-page .form-field select:focus {
+  border-color: var(--accent, #059669);
+  box-shadow: 0 0 0 3px var(--accent-glow, rgba(5, 150, 105, 0.16));
+}
+
+[data-theme="light"] .create-lead-page .form-field select option {
+  background: var(--surface, #ffffff);
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme="light"] .create-lead-page .cl-radio-options {
+  background: var(--bg-primary, #f8fafc);
+  border-color: var(--border, #cbd5e1);
+}
+
+

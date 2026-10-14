@@ -6,9 +6,35 @@
 .back-btn { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-muted); font-size: 0.8rem; cursor: pointer; }
 .back-btn:hover { background: rgba(255,255,255,0.08); }
 
-.ct-type-toggle { display: flex; gap: 0; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; overflow: hidden; width: fit-content; }
-.ct-type-toggle button { display: flex; align-items: center; gap: 7px; padding: 10px 24px; background: none; border: none; color: var(--text-muted); font-size: 0.88rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
-.ct-type-toggle button.active { background: #6c5ce7; color: white; }
+.ct-type-toggle {
+  display: flex;
+  gap: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  overflow: hidden;
+  width: fit-content;
+}
+.ct-type-toggle button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 24px;
+  background: none;
+  border: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.10);
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ct-type-toggle button:last-child { border-right: none; }
+.ct-type-toggle button:hover:not(.active) { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); }
+.ct-type-toggle button.active {
+  background: var(--gradient-accent, linear-gradient(135deg, #059669, #10b981)) !important;
+  color: #ffffff !important;
+}
 
 .duplicate-warning { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; background: rgba(243,156,18,0.1); border: 1px solid rgba(243,156,18,0.3); border-radius: 12px; }
 .duplicate-warning svg { color: #f39c12; flex-shrink: 0; margin-top: 2px; }
@@ -27,21 +53,29 @@
 .form-field { display: flex; flex-direction: column; gap: 4px; }
 .form-field label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .form-field input, .form-field select {
-  padding: 9px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 8px; color: var(--text-primary); font-size: 0.84rem; outline: none; transition: border-color 0.15s;
+  padding: 9px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px; color: var(--text-primary); font-size: 0.84rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
 }
-.form-field input:focus, .form-field select:focus { border-color: rgba(108,92,231,0.5); }
-.form-field select option { background: #1a1f2e; }
+.form-field input:focus, .form-field select:focus { border-color: var(--accent, #10b981); box-shadow: 0 0 0 3px var(--accent-glow, rgba(16, 185, 129, 0.14)); }
+.form-field input:disabled, .form-field select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-muted);
+}
+.form-field select option { background: #12231d; }
 
 .tags-input-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .tags-list { display: flex; flex-wrap: wrap; gap: 5px; }
-.ct-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: rgba(108,92,231,0.15); border-radius: 5px; font-size: 0.75rem; color: #a29bfe; }
+.ct-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: rgba(16, 185, 129, 0.14); border-radius: 5px; font-size: 0.75rem; color: var(--accent, #10b981); font-weight: 600; }
 .ct-tag button { background: none; border: none; color: inherit; cursor: pointer; font-size: 0.9rem; padding: 0; }
 .tag-input-wrap { display: flex; gap: 6px; }
-.tag-input-wrap input { flex: 1; padding: 7px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); font-size: 0.8rem; outline: none; }
-.tag-input-wrap button { padding: 7px 12px; background: rgba(108,92,231,0.2); border: none; border-radius: 8px; color: #a29bfe; font-size: 0.78rem; cursor: pointer; }
+.tag-input-wrap input { flex: 1; padding: 7px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: var(--text-primary); font-size: 0.8rem; outline: none; }
+.tag-input-wrap input:focus { border-color: var(--accent, #10b981); box-shadow: 0 0 0 3px var(--accent-glow, rgba(16, 185, 129, 0.14)); }
+.tag-input-wrap button { padding: 7px 12px; background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; color: var(--accent, #10b981); font-size: 0.78rem; font-weight: 600; cursor: pointer; }
 
-.ct-notes { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); font-size: 0.84rem; outline: none; resize: vertical; box-sizing: border-box; }
+.ct-notes { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: var(--text-primary); font-size: 0.84rem; outline: none; resize: vertical; box-sizing: border-box; }
+.ct-notes:focus { border-color: var(--accent, #10b981); box-shadow: 0 0 0 3px var(--accent-glow, rgba(16, 185, 129, 0.14)); }
 
 .ct-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
 
@@ -85,4 +119,52 @@
   align-items: center;
   gap: 4px;
 }
+
+/* ── Light Mode ── */
+[data-theme="light"] .ct-type-toggle {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+[data-theme="light"] .ct-type-toggle button {
+  color: #475569;
+  border-right: 1px solid #cbd5e1;
+}
+[data-theme="light"] .ct-type-toggle button:last-child {
+  border-right: none;
+}
+[data-theme="light"] .ct-type-toggle button:hover:not(.active) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+[data-theme="light"] .ct-type-toggle button.active {
+  background: var(--gradient-accent, linear-gradient(135deg, #047857, #059669)) !important;
+  color: #ffffff !important;
+}
+[data-theme="light"] .ct-section h3 {
+  border-bottom-color: #e2e8f0;
+  color: #475569;
+}
+[data-theme="light"] .form-field input,
+[data-theme="light"] .form-field select,
+[data-theme="light"] .tag-input-wrap input,
+[data-theme="light"] .ct-notes {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: var(--text-primary, #0f172a);
+}
+[data-theme="light"] .form-field input:disabled,
+[data-theme="light"] .form-field select:disabled {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #64748b;
+  opacity: 1;
+  cursor: not-allowed;
+}
+[data-theme="light"] .form-field select option {
+  background: #ffffff;
+  color: var(--text-primary, #0f172a);
+}
+
+
 

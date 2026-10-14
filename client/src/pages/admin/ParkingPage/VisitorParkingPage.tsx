@@ -64,24 +64,26 @@ export default function VisitorParkingPage() {
   return (
     <div className="parking-page">
       <div className="page-header">
-        <div className="page-header-row" style={{ alignItems: 'center' }}>
-          <div className="page-title-row">
-            <div className="page-icon-lg"><Ticket size={22} /></div>
-            <div>
-              <h1>Visitor Parking Passes</h1>
-              <p>{data?.meta ? `${data.meta.total} passes` : 'Loading…'}</p>
-            </div>
+        <div className="page-title-row">
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
+            <Ticket size={22} />
           </div>
-          <PermissionGuard permission="parking-visitors.write">
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowIssue(true)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <Plus size={15} /> Issue Pass
-            </button>
-          </PermissionGuard>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Visitor Parking Passes</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {data?.meta ? `${data.meta.total} total passes` : 'Loading…'}
+            </p>
+          </div>
         </div>
+        <PermissionGuard permission="parking-visitors.write">
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowIssue(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Plus size={15} /> Issue Pass
+          </button>
+        </PermissionGuard>
       </div>
 
       <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>
@@ -314,6 +316,7 @@ function IssuePassModal({ properties, activeProperty, onClose }: { properties: a
     visitorName: '', visitorVehiclePlate: '',
     validFrom: '', validTo: '', maxHours: '4',
   });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   // Bound to the sidebar's Active Property; only "All Properties" allows picking one here.
@@ -330,6 +333,8 @@ function IssuePassModal({ properties, activeProperty, onClose }: { properties: a
   }, [propertyLocked, activeProperty]);
 
   const handleSubmit = async () => {
+    setHasAttemptedSubmit(true);
+    if (!form.propertyId || !form.visitorName.trim() || !form.validFrom || !form.validTo) return;
     try {
       await issuePass({
         propertyId: form.propertyId,
@@ -354,7 +359,12 @@ function IssuePassModal({ properties, activeProperty, onClose }: { properties: a
         <h2>Issue Visitor Pass</h2>
         <div className="form-group">
           <label>Property *</label>
-          <select className="form-input" value={form.propertyId} disabled={propertyLocked} onChange={e => set('propertyId', e.target.value)}>
+          <select
+            className={`form-input ${hasAttemptedSubmit && !form.propertyId ? 'input-error' : ''}`}
+            value={form.propertyId}
+            disabled={propertyLocked}
+            onChange={e => set('propertyId', e.target.value)}
+          >
             {propertyLocked ? (
               <option value={activeProperty}>{lockedPropertyName || 'Loading…'}</option>
             ) : (
@@ -364,14 +374,50 @@ function IssuePassModal({ properties, activeProperty, onClose }: { properties: a
               </>
             )}
           </select>
+          {hasAttemptedSubmit && !form.propertyId && (
+            <span className="field-error-text">Property is required</span>
+          )}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div className="form-group"><label>Visitor Name *</label><input className="form-input" value={form.visitorName} onChange={e => set('visitorName', e.target.value)} placeholder="Jane Smith" /></div>
+          <div className="form-group">
+            <label>Visitor Name *</label>
+            <input
+              className={`form-input ${hasAttemptedSubmit && !form.visitorName.trim() ? 'input-error' : ''}`}
+              value={form.visitorName}
+              onChange={e => set('visitorName', e.target.value)}
+              placeholder="Jane Smith"
+            />
+            {hasAttemptedSubmit && !form.visitorName.trim() && (
+              <span className="field-error-text">Visitor name is required</span>
+            )}
+          </div>
           <div className="form-group"><label>Vehicle Plate</label><input className="form-input" value={form.visitorVehiclePlate} onChange={e => set('visitorVehiclePlate', e.target.value)} placeholder="ABC-123" /></div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div className="form-group"><label>Valid From *</label><input className="form-input" type="datetime-local" value={form.validFrom} onChange={e => set('validFrom', e.target.value)} /></div>
-          <div className="form-group"><label>Valid To *</label><input className="form-input" type="datetime-local" value={form.validTo} onChange={e => set('validTo', e.target.value)} /></div>
+          <div className="form-group">
+            <label>Valid From *</label>
+            <input
+              className={`form-input ${hasAttemptedSubmit && !form.validFrom ? 'input-error' : ''}`}
+              type="datetime-local"
+              value={form.validFrom}
+              onChange={e => set('validFrom', e.target.value)}
+            />
+            {hasAttemptedSubmit && !form.validFrom && (
+              <span className="field-error-text">Valid from date is required</span>
+            )}
+          </div>
+          <div className="form-group">
+            <label>Valid To *</label>
+            <input
+              className={`form-input ${hasAttemptedSubmit && !form.validTo ? 'input-error' : ''}`}
+              type="datetime-local"
+              value={form.validTo}
+              onChange={e => set('validTo', e.target.value)}
+            />
+            {hasAttemptedSubmit && !form.validTo && (
+              <span className="field-error-text">Valid to date is required</span>
+            )}
+          </div>
         </div>
         <div className="form-group" style={{ maxWidth: 160 }}>
           <label>Max Hours</label>
@@ -379,7 +425,7 @@ function IssuePassModal({ properties, activeProperty, onClose }: { properties: a
         </div>
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={isLoading || !form.propertyId || !form.visitorName || !form.validFrom || !form.validTo} onClick={handleSubmit}>
+          <button className="btn-primary" disabled={isLoading} onClick={handleSubmit}>
             {isLoading ? 'Issuing…' : 'Issue Pass'}
           </button>
         </div>

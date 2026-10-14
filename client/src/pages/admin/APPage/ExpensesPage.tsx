@@ -11,6 +11,7 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { CURRENCIES } from '../../../constants/currencies';
 import './APPage.css';
 
@@ -25,7 +26,9 @@ export default function ExpensesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [showCreate, setShowCreate] = useState(false);
+  const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
 
   // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
@@ -40,7 +43,7 @@ export default function ExpensesPage() {
     status: statusFilter || undefined,
     category: categoryFilter || undefined,
     propertyId: selectedProperty || undefined,
-    page: String(page), limit: '20',
+    page: String(page), limit: String(limit),
   });
   const [createExpense, { isLoading: creating }] = useCreateExpenseMutation();
   const [approveExpense] = useApproveExpenseMutation();
@@ -65,8 +68,11 @@ export default function ExpensesPage() {
   });
 
   const handleCreate = async () => {
+    setHasAttemptedCreate(true);
     if (!form.propertyId) return toast.error('Please select a property from the sidebar first');
-    if (!form.description || !form.amount) return toast.error('Description and amount are required');
+    if (!form.expenseDate || !(parseFloat(form.amount) > 0) || !form.description.trim()) {
+      return toast.error('Please fill in all required fields');
+    }
     try {
       await createExpense({
         ...form,
@@ -74,6 +80,7 @@ export default function ExpensesPage() {
       }).unwrap();
       toast.success('Expense submitted');
       setShowCreate(false);
+      setHasAttemptedCreate(false);
       setForm({ expenseDate: format(new Date(), 'yyyy-MM-dd'), category: 'maintenance', description: '', amount: '', currency: 'USD', propertyId: selectedProperty, receiptUrl: '', glAccountCode: '' });
     } catch { toast.error('Failed to submit expense'); }
   };
@@ -85,13 +92,22 @@ export default function ExpensesPage() {
   return (
     <div className="ap-page">
       <div className="page-header">
-        <h1><Receipt size={24} /> Expenses</h1>
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Receipt size={22} />
+          </div>
+          <div>
+            <h1>Expenses</h1>
+            <p>{meta?.total ?? expenses.length} total expenses</p>
+          </div>
+        </div>
         <PermissionGuard permission="ap-expenses.write">
           <button
             className="ap-btn primary"
             onClick={() => {
               const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
               setForm((f) => ({ ...f, currency: propertyCurrency || 'USD', propertyId: selectedProperty }));
+              setHasAttemptedCreate(false);
               setShowCreate(true);
             }}
             disabled={!selectedProperty}
@@ -142,56 +158,73 @@ export default function ExpensesPage() {
 
       {/* Table */}
       <div className="ap-table-wrap">
-        <table className="ap-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Category</th>
-              <th>Description</th>
-              <th>Amount</th>
-              <th>Submitted By</th>
-              <th>Property</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>Loading...</td></tr>
-            ) : expenses.length === 0 ? (
-              <tr><td colSpan={8}><div className="ap-empty"><Receipt size={40} /><p>No expenses found</p></div></td></tr>
-            ) : expenses.map((exp: any) => (
-              <tr key={exp.id}>
-                <td>{format(new Date(exp.expenseDate), 'dd MMM yyyy')}</td>
-                <td>
-                  <span className="ap-status" style={{ background: '#ede9fe', color: '#5b21b6', textTransform: 'capitalize' }}>
-                    <Tag size={12} style={{ marginRight: 4 }} />{exp.category.replace(/_/g, ' ')}
-                  </span>
-                </td>
-                <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</td>
-                <td className="amount-neutral">{fmt(exp.amount)} {exp.currency}</td>
-                <td>{exp.submitter?.profile ? `${exp.submitter.profile.firstName} ${exp.submitter.profile.lastName}` : exp.submitter?.email}</td>
-                <td>{exp.property?.name || '—'}</td>
-                <td><span className={`ap-status ${exp.status}`}>{exp.status}</span></td>
-                <td>
-                  {exp.status === 'pending' && (
-                    <PermissionGuard permission="ap-expenses.write">
-                      <button className="ap-btn sm success" onClick={() => handleApprove(exp.id)}>
-                        <CheckCircle size={14} /> Approve
-                      </button>
-                    </PermissionGuard>
-                  )}
-                </td>
+        <TableScrollWrapper>
+          <table className="ap-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Submitted By</th>
+                <th>Property</th>
+                <th>Status</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {meta && meta.totalPages > 1 && (
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>Loading...</td></tr>
+              ) : expenses.length === 0 ? (
+                <tr><td colSpan={8}><div className="ap-empty"><Receipt size={40} /><p>No expenses found</p></div></td></tr>
+              ) : expenses.map((exp: any) => (
+                <tr key={exp.id}>
+                  <td>{format(new Date(exp.expenseDate), 'dd MMM yyyy')}</td>
+                  <td>
+                    <span className="ap-status" style={{ background: 'rgba(139, 92, 246, 0.14)', color: '#a78bfa', textTransform: 'capitalize' }}>
+                      <Tag size={12} style={{ marginRight: 4 }} />{exp.category.replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</td>
+                  <td className="amount-neutral">{fmt(exp.amount)} {exp.currency}</td>
+                  <td>{exp.submitter?.profile ? `${exp.submitter.profile.firstName} ${exp.submitter.profile.lastName}` : exp.submitter?.email}</td>
+                  <td>{exp.property?.name || '—'}</td>
+                  <td><span className={`ap-status ${exp.status}`}>{exp.status}</span></td>
+                  <td>
+                    {exp.status === 'pending' && (
+                      <PermissionGuard permission="ap-expenses.write">
+                        <button className="ap-btn sm success" onClick={() => handleApprove(exp.id)}>
+                          <CheckCircle size={14} /> Approve
+                        </button>
+                      </PermissionGuard>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
+        {meta && (meta.total ?? 0) >= 10 && (
           <div className="ap-pagination">
-            <span>Showing {(page - 1) * 20 + 1}–{Math.min(page * 20, meta.total)} of {meta.total}</span>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="ap-btn sm ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft size={14} /></button>
-              <button className="ap-btn sm ghost" disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)}><ChevronRight size={14} /></button>
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <span>Rows per page:</span>
+                <select value={limit} onChange={e => { setLimit(Number(e.target.value)); setPage(1); }}>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+            <div className="page-btns">
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} title="Previous Page">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="page-num-display">Page {page} of {meta.totalPages || 1}</span>
+              <button disabled={page >= (meta.totalPages || 1)} onClick={() => setPage(p => p + 1)} title="Next Page">
+                <ChevronRight size={16} />
+              </button>
             </div>
           </div>
         )}
@@ -203,23 +236,42 @@ export default function ExpensesPage() {
           <div className="ap-modal" onClick={e => e.stopPropagation()}>
             <div className="ap-modal-header">
               <h2><Plus size={18} /> Submit Expense</h2>
-              <button className="ap-btn icon-only ghost" onClick={() => setShowCreate(false)}><X size={18} /></button>
+              <button className="ap-btn icon-only ghost" onClick={() => { setShowCreate(false); setHasAttemptedCreate(false); }}><X size={18} /></button>
             </div>
             <div className="ap-modal-body">
               <div className="ap-form-grid">
                 <div className="ap-form-group">
-                  <label>Expense Date *</label>
-                  <input type="date" value={form.expenseDate} onChange={e => setForm(f => ({ ...f, expenseDate: e.target.value }))} />
+                  <label>Expense Date <span className="req">*</span></label>
+                  <input
+                    type="date"
+                    className={hasAttemptedCreate && !form.expenseDate ? 'ap-input-error' : ''}
+                    value={form.expenseDate}
+                    onChange={e => setForm(f => ({ ...f, expenseDate: e.target.value }))}
+                  />
+                  {hasAttemptedCreate && !form.expenseDate && (
+                    <span className="ap-error-text">Expense date is required</span>
+                  )}
                 </div>
                 <div className="ap-form-group">
-                  <label>Category *</label>
+                  <label>Category <span className="req">*</span></label>
                   <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
                     {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
                   </select>
                 </div>
                 <div className="ap-form-group">
-                  <label>Amount *</label>
-                  <input type="number" min={0.01} step={0.01} value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" />
+                  <label>Amount <span className="req">*</span></label>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    className={hasAttemptedCreate && !(parseFloat(form.amount) > 0) ? 'ap-input-error' : ''}
+                    value={form.amount}
+                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                  {hasAttemptedCreate && !(parseFloat(form.amount) > 0) && (
+                    <span className="ap-error-text">Please enter a valid amount</span>
+                  )}
                 </div>
                 <div className="ap-form-group">
                   <label>Currency</label>
@@ -240,13 +292,21 @@ export default function ExpensesPage() {
                   <input value={form.glAccountCode} onChange={e => setForm(f => ({ ...f, glAccountCode: e.target.value }))} placeholder="5200" />
                 </div>
                 <div className="ap-form-group full-width">
-                  <label>Description *</label>
-                  <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Office supplies purchase for Q1..." />
+                  <label>Description <span className="req">*</span></label>
+                  <textarea
+                    className={hasAttemptedCreate && !form.description.trim() ? 'ap-input-error' : ''}
+                    value={form.description}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="Office supplies purchase for Q1..."
+                  />
+                  {hasAttemptedCreate && !form.description.trim() && (
+                    <span className="ap-error-text">Description is required</span>
+                  )}
                 </div>
               </div>
             </div>
             <div className="ap-modal-footer">
-              <button className="ap-btn ghost" onClick={() => setShowCreate(false)}>Cancel</button>
+              <button className="ap-btn ghost" onClick={() => { setShowCreate(false); setHasAttemptedCreate(false); }}>Cancel</button>
               <button className="ap-btn primary" onClick={handleCreate} disabled={creating}>
                 {creating ? 'Submitting...' : 'Submit Expense'}
               </button>

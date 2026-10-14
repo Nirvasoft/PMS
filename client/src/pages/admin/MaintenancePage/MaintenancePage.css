@@ -6,22 +6,22 @@
 
 /* ── Page Header ─────────────────────────────── */
 .maint-page .page-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 28px; flex-wrap: wrap; gap: 16px;
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
 }
 .maint-page .page-title-row { display: flex; align-items: center; gap: 14px; }
 .maint-page .page-title-row h1 {
-  margin: 0; font-size: 22px; font-weight: 800;
+  margin: 0; font-size: 1.5rem; font-weight: 800;
   color: var(--text-primary); letter-spacing: -0.3px;
 }
 .maint-page .page-title-row p {
-  margin: 2px 0 0; font-size: 13px; color: var(--text-tertiary);
+  margin: 2px 0 0; font-size: 0.82rem; color: var(--text-muted);
 }
 .maint-page .page-icon-lg {
-  width: 44px; height: 44px; border-radius: 12px;
+  width: 46px; height: 46px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 18%, transparent), color-mix(in srgb, #8b5cf6 14%, transparent));
-  color: var(--primary);
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent);
 }
 .maint-page .header-actions {
   display: flex; gap: 10px; align-items: center;
@@ -226,33 +226,81 @@
 .sla-chip.breached  { background: color-mix(in srgb, #ef4444 14%, transparent); color: #f87171; animation: pulse-sla 2s ease-in-out infinite; }
 @keyframes pulse-sla { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
 
-/* ── Data Table ──────────────────────────────── */
+/* ── Data Table (Matches Tenants Table Design) ────────────────── */
 .maint-table-wrap {
-  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 16px; overflow: hidden;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .maint-table { width: 100%; border-collapse: collapse; }
-.maint-table thead tr { background: rgba(255,255,255,0.03); }
+.maint-table thead tr {
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  height: 40px;
+}
 .maint-table th {
-  padding: 13px 16px; font-size: 10.5px; font-weight: 700;
-  color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.08em;
-  text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 0 16px;
+  height: 40px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
   white-space: nowrap;
 }
 .maint-table td {
-  padding: 14px 16px; font-size: 13px; color: var(--text-primary);
-  border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: middle;
+  padding: 0 16px;
+  height: 48px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  vertical-align: middle;
 }
-.maint-table tbody tr { transition: background 0.12s; cursor: pointer; }
-.maint-table tbody tr:last-child td { border-bottom: none; }
-.maint-table tbody tr:hover { background: rgba(255,255,255,0.025); }
+.maint-table tbody tr {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.15s ease;
+  height: 48px;
+  cursor: pointer;
+}
+.maint-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
+.maint-table tbody tr:last-child { border-bottom: none; }
+.maint-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+
+/* Light Mode Table Overrides */
+[data-theme="light"] .maint-table-wrap {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .maint-table thead tr {
+  background: #059669;
+  border-bottom: 2px solid #047857;
+}
+[data-theme="light"] .maint-table th {
+  color: #FFFFFF;
+}
+[data-theme="light"] .maint-table tbody tr {
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+[data-theme="light"] .maint-table tbody tr:nth-child(even) {
+  background: #FFFFFF;
+}
+[data-theme="light"] .maint-table tbody tr:hover {
+  background: #E8EEF5;
+}
+[data-theme="light"] .maint-table td {
+  color: #334155;
+}
 
 .cell-mono {
   font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px;
   color: var(--text-secondary); background: rgba(255,255,255,0.04);
   padding: 2px 8px; border-radius: 6px; display: inline-block;
 }
-.cell-primary { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+.cell-primary { font-weight: 600; font-size: 0.82rem; color: var(--text-primary); }
 .cell-secondary { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; }
 
 .ticket-title-cell {
@@ -265,28 +313,82 @@
 }
 .urgent-icon { color: #f97316; flex-shrink: 0; }
 
-/* ── Pagination ──────────────────────────────── */
+/* ── Pagination (Matches Tenants Pagination) ─────────────────── */
 .maint-pagination {
-  padding: 14px 20px; border-top: 1px solid rgba(255,255,255,0.04);
-  display: flex; justify-content: space-between; align-items: center;
-  margin-top: 16px;
+  padding: 12px 18px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
 }
-.maint-pagination .page-info { font-size: 12px; color: var(--text-tertiary); }
-.maint-pagination .page-btns { display: flex; gap: 6px; }
+.maint-pagination .pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.maint-pagination .page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.maint-pagination .page-size-selector select {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+}
+.maint-pagination .page-info { font-size: 0.78rem; color: var(--text-muted); }
+.maint-pagination .page-btns { display: flex; align-items: center; gap: 8px; }
+.maint-pagination .page-num-display {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
 .maint-pagination .page-btns button,
 .maint-pagination > button {
   display: flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 6px 14px; border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
-  color: var(--text-primary); cursor: pointer; font-size: 12px; font-weight: 600;
+  width: 30px; height: 30px; padding: 0; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-input);
+  color: var(--text-primary); cursor: pointer; font-size: 0.78rem; font-weight: 600;
   transition: all 0.15s;
 }
 .maint-pagination .page-btns button:hover:not(:disabled),
-.maint-pagination > button:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+.maint-pagination > button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .maint-pagination .page-btns button:disabled,
-.maint-pagination > button:disabled { opacity: 0.3; cursor: default; }
+.maint-pagination > button:disabled { opacity: 0.35; cursor: not-allowed; }
 .maint-pagination > span {
-  font-size: 12px; color: var(--text-tertiary); font-weight: 500;
+  font-size: 0.78rem; color: var(--text-muted); font-weight: 500;
+}
+[data-theme="light"] .maint-pagination {
+  border-top-color: #E2E8F0;
+}
+
+/* ── Red Border Validation ────────────────────── */
+.maint-field .maint-input-error,
+.form-group .maint-input-error,
+input.maint-input-error,
+select.maint-input-error,
+textarea.maint-input-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15) !important;
+}
+.maint-error-text {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: #ef4444;
+  font-weight: 500;
 }
 
 /* ── Kanban Board ────────────────────────────── */

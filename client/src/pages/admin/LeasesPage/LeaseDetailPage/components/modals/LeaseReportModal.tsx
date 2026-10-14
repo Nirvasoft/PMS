@@ -165,19 +165,20 @@ export function LeaseReportModal({ lease, onClose }: LeaseReportModalProps) {
     : '';
 
   // Tenant Data (Lessee / ငှားရမ်းသူ)
+  const tenantAny = lease.tenant as any;
   const tenantAddressFormatted = [
-    lease.tenant?.addressLine1,
-    lease.tenant?.addressLine2,
-    lease.tenant?.city,
-    lease.tenant?.state,
-    lease.tenant?.postalCode,
-    lease.tenant?.country,
+    tenantAny?.addressLine1,
+    tenantAny?.addressLine2,
+    tenantAny?.city,
+    tenantAny?.state,
+    tenantAny?.postalCode,
+    tenantAny?.country,
   ].filter(Boolean).join(', ');
 
   const lesseeName = ra.companyName || lease.tenant?.displayName || lease.tenant?.companyName || [lease.tenant?.firstName, lease.tenant?.lastName].filter(Boolean).join(' ') || '';
   const lesseeAddress = ra.customerAddress || tenantAddressFormatted || '';
-  const lesseeSignedName = ra.customerSignedName || lease.tenant?.contactPersonName || lease.tenant?.displayName || '';
-  const lesseeNirc = ra.customerNirc || (lease.tenant as any)?.idNumber || '';
+  const lesseeSignedName = ra.customerSignedName || tenantAny?.contactPersonName || lease.tenant?.displayName || '';
+  const lesseeNirc = ra.customerNirc || tenantAny?.idNumber || '';
 
   const matchedLead = leadsData?.data?.find(
     (l) =>

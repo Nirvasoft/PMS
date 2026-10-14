@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGetTaxConfigsQuery, useCreateTaxConfigMutation, useGetChargeTypesQuery } from '../../../store/api/billingApi';
-import { Calculator, Plus, X, Percent, Calendar, Tag } from 'lucide-react';
+import { Calculator, Plus, X, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -16,12 +16,27 @@ export default function TaxConfigPage() {
   const taxes = taxData?.data || [];
   const chargeTypes = chargeTypesData?.data || [];
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const [showForm, setShowForm] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({
-    taxName: '', taxRate: 0.09, appliesTo: [] as string[],
+    taxName: '', taxRate: '0.09', appliesTo: [] as string[],
     effectiveFrom: new Date().toISOString().split('T')[0],
     effectiveTo: '',
   });
+
+  const rateNum = Number(form.taxRate);
+  const isNameInvalid = !form.taxName.trim();
+  const isRateInvalid = form.taxRate.trim() === '' || isNaN(rateNum) || rateNum <= 0 || rateNum > 1;
+  const isFromInvalid = !form.effectiveFrom;
+
+  const openCreate = () => {
+    setHasAttemptedSubmit(false);
+    setForm({ taxName: '', taxRate: '0.09', appliesTo: [], effectiveFrom: new Date().toISOString().split('T')[0], effectiveTo: '' });
+    setShowForm(true);
+  };
 
   const toggleCharge = (code: string) => {
     setForm(prev => ({
@@ -34,35 +49,45 @@ export default function TaxConfigPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (isNameInvalid || isRateInvalid || isFromInvalid) return;
     try {
       await createTax({
-        taxName: form.taxName,
-        taxRate: form.taxRate,
+        taxName: form.taxName.trim(),
+        taxRate: rateNum,
         appliesTo: form.appliesTo.length > 0 ? form.appliesTo : undefined,
         effectiveFrom: form.effectiveFrom,
         effectiveTo: form.effectiveTo || undefined,
       }).unwrap();
       setShowForm(false);
-      setForm({ taxName: '', taxRate: 0.09, appliesTo: [], effectiveFrom: new Date().toISOString().split('T')[0], effectiveTo: '' });
+      setHasAttemptedSubmit(false);
+      setForm({ taxName: '', taxRate: '0.09', appliesTo: [], effectiveFrom: new Date().toISOString().split('T')[0], effectiveTo: '' });
     } catch (err: any) {
       alertDialog(err?.data?.errors?.[0]?.message || 'Failed to create tax config');
     }
   };
+
+  const totalItems = taxes.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const startIndex = (page - 1) * pageSize;
+  const paginatedTaxes = taxes.slice(startIndex, startIndex + pageSize);
 
   return (
     <div className="billing-page">
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(245,158,11,0.12)', color: '#fbbf24' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <Calculator size={22} />
           </div>
           <div style={{ flex: 1 }}>
-            <h1>Tax Configuration</h1>
-            <p>Manage GST, VAT, and other tax rates applied to charges</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Tax Configuration</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {`${taxes.length} total tax configs`}
+            </p>
           </div>
           <PermissionGuard permission="billing-settings.write">
-            <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Plus size={14} /> New Tax Config
             </button>
           </PermissionGuard>
@@ -91,7 +116,7 @@ export default function TaxConfigPage() {
                 <Calculator size={20} style={{ marginBottom: 8, opacity: 0.5 }} /><br />
                 No tax configurations yet. Create one to apply taxes to invoices.
               </td></tr>
-            ) : taxes.map((tax: any) => (
+            ) : paginatedTaxes.map((tax: any) => (
               <tr key={tax.id}>
                 <td>
                   <div className="cell-primary">{tax.taxName}</div>
@@ -132,6 +157,49 @@ export default function TaxConfigPage() {
           </tbody>
         </table>
         </TableScrollWrapper>
+
+        {totalItems >= 10 && (
+          <div className="billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="tc-page-size">Rows per page:</label>
+                <select
+                  id="tc-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="page-btns">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                title="Previous page"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="page-num-display">
+                Page {page} of {Math.max(totalPages, 1)}
+              </span>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                title="Next page"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Create Form Modal */}
@@ -142,30 +210,53 @@ export default function TaxConfigPage() {
               <h2><Calculator size={18} /> New Tax Configuration</h2>
               <button className="modal-close" onClick={() => setShowForm(false)}><X size={18} /></button>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="inv-field">
                     <label>Tax Name <span className="req">*</span></label>
-                    <input required placeholder="e.g. GST, VAT, SST" value={form.taxName}
-                      onChange={e => setForm({ ...form, taxName: e.target.value })} />
+                    <input
+                      placeholder="e.g. GST, VAT, SST"
+                      value={form.taxName}
+                      onChange={e => setForm({ ...form, taxName: e.target.value })}
+                      className={hasAttemptedSubmit && isNameInvalid ? 'inv-input-error' : ''}
+                    />
+                    {hasAttemptedSubmit && isNameInvalid && (
+                      <span className="inv-error-text">Tax name is required</span>
+                    )}
                   </div>
                   <div className="inv-field">
                     <label>Tax Rate (decimal) <span className="req">*</span></label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input type="number" required min={0} max={1} step={0.001}
+                      <input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.001}
                         value={form.taxRate}
-                        onChange={e => setForm({ ...form, taxRate: Number(e.target.value) })}
-                        style={{ flex: 1 }} />
+                        onChange={e => setForm({ ...form, taxRate: e.target.value })}
+                        className={hasAttemptedSubmit && isRateInvalid ? 'inv-input-error' : ''}
+                        style={{ flex: 1 }}
+                      />
                       <span style={{ fontSize: 16, fontWeight: 700, color: '#fbbf24', whiteSpace: 'nowrap' }}>
-                        = {(form.taxRate * 100).toFixed(1)}%
+                        = {((isNaN(rateNum) ? 0 : rateNum) * 100).toFixed(1)}%
                       </span>
                     </div>
+                    {hasAttemptedSubmit && isRateInvalid && (
+                      <span className="inv-error-text">Valid tax rate (0–1) is required</span>
+                    )}
                   </div>
                   <div className="inv-field">
                     <label>Effective From <span className="req">*</span></label>
-                    <input type="date" required value={form.effectiveFrom}
-                      onChange={e => setForm({ ...form, effectiveFrom: e.target.value })} />
+                    <input
+                      type="date"
+                      value={form.effectiveFrom}
+                      onChange={e => setForm({ ...form, effectiveFrom: e.target.value })}
+                      className={hasAttemptedSubmit && isFromInvalid ? 'inv-input-error' : ''}
+                    />
+                    {hasAttemptedSubmit && isFromInvalid && (
+                      <span className="inv-error-text">Effective from date is required</span>
+                    )}
                   </div>
                   <div className="inv-field">
                     <label>Effective To (optional)</label>

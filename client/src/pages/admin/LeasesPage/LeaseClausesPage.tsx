@@ -21,6 +21,7 @@ export default function LeaseClausesPage() {
   const [create, { isLoading: creating }] = useCreateLeaseClauseMutation();
   const [del] = useDeleteLeaseClauseMutation();
   const [showForm, setShowForm] = useState(false);
+  const [attempted, setAttempted] = useState(false);
   const [catFilter, setCatFilter] = useState('');
   const [form, setForm] = useState({
     title: '', content: '', category: 'general', isStandard: false,
@@ -30,11 +31,13 @@ export default function LeaseClausesPage() {
   const filtered = catFilter ? clauses.filter((c) => c.category === catFilter) : clauses;
 
   const handleCreate = async () => {
-    if (!form.title.trim() || !form.content.trim()) { toast.error('Title and content required'); return; }
+    setAttempted(true);
+    if (!form.title.trim() || !form.content.trim()) { toast.error('Title and content are required'); return; }
     try {
       await create({ ...form, category: form.category || null }).unwrap();
       toast.success('Clause created');
       setShowForm(false);
+      setAttempted(false);
       setForm({ title: '', content: '', category: 'general', isStandard: false });
     } catch (e: any) {
       toast.error(e?.data?.errors?.[0]?.message || 'Failed');
@@ -66,7 +69,7 @@ export default function LeaseClausesPage() {
           <p className="lc-subtitle">Manage reusable lease clauses. Standard clauses are auto-included in new templates.</p>
         </div>
         <PermissionGuard permission="leases.update">
-          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
+          <button className="btn-primary" onClick={() => { setShowForm(!showForm); setAttempted(false); }}>
             <Plus size={14} /> New Clause
           </button>
         </PermissionGuard>
@@ -87,8 +90,16 @@ export default function LeaseClausesPage() {
           <div className="lc-form-fields">
             <div className="field-row">
               <div className="field" style={{ flex: 2 }}>
-                <label>Title *</label>
-                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Pet Policy" />
+                <label>Title <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  className={attempted && !form.title.trim() ? 'input-error' : ''}
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="e.g. Pet Policy"
+                />
+                {attempted && !form.title.trim() && (
+                  <span className="field-error-text">Title is required</span>
+                )}
               </div>
               <div className="field" style={{ flex: 1 }}>
                 <label>Category</label>
@@ -98,8 +109,17 @@ export default function LeaseClausesPage() {
               </div>
             </div>
             <div className="field">
-              <label>Content *</label>
-              <textarea rows={4} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="Full clause text…" />
+              <label>Content <span style={{ color: '#ef4444' }}>*</span></label>
+              <textarea
+                rows={4}
+                className={attempted && !form.content.trim() ? 'input-error' : ''}
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
+                placeholder="Full clause text…"
+              />
+              {attempted && !form.content.trim() && (
+                <span className="field-error-text">Content is required</span>
+              )}
             </div>
             <div className="field checkbox-field">
               <label><input type="checkbox" checked={form.isStandard} onChange={(e) => setForm({ ...form, isStandard: e.target.checked })} /> Standard clause (auto-included in templates)</label>
@@ -109,7 +129,7 @@ export default function LeaseClausesPage() {
             <button className="btn-primary" onClick={handleCreate} disabled={creating}>
               {creating ? 'Creating…' : 'Create Clause'}
             </button>
-            <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn-ghost" onClick={() => { setShowForm(false); setAttempted(false); }}>Cancel</button>
           </div>
         </div>
       )}

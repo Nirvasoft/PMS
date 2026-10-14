@@ -120,7 +120,6 @@ function calculateNextRun(cronExpr: string, isEnabled: boolean, now: Date = new 
 
 export default function BillingDashboardPage() {
   const navigate = useNavigate();
-  const today = new Date();
 
   // Fetch summary & recent invoices — scoped to the sidebar's Active Property when one is chosen.
   const activePropertyFilter = useSelectedPropertyFilter();
@@ -182,12 +181,12 @@ export default function BillingDashboardPage() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'var(--primary-subtle)', color: 'var(--primary)' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <LayoutDashboard size={22} />
           </div>
           <div>
-            <h1>Billing Dashboard</h1>
-            <p>Overview of billing activity and outstanding invoices</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Billing Dashboard</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Overview of billing activity and outstanding invoices</p>
           </div>
         </div>
       </div>

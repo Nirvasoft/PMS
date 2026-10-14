@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetGtoSubmissionsQuery, useGetGtoSummaryQuery, useVerifyGtoMutation,
   useGetGtoPendingAlertsQuery,
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
-import { AlertTriangle, Clock, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, Clock, CheckCircle, ChevronDown, ChevronUp, DollarSign } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -50,10 +51,15 @@ export default function GtoManagementPage() {
 
   return (
     <div className="page-content">
-      <div className="mall-page-header">
-        <div>
-          <h1>GTO Management</h1>
-          <p className="mall-page-subtitle">Gross Turnover submissions and percentage rent tracking</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <DollarSign size={22} />
+          </div>
+          <div>
+            <h1>GTO Management</h1>
+            <p>{submissions.length} total submissions</p>
+          </div>
         </div>
       </div>
 
@@ -176,6 +182,7 @@ export default function GtoManagementPage() {
         <div className="mall-loading">Loading submissions...</div>
       ) : (
         <div className="mall-table-wrap">
+          <TableScrollWrapper>
           <table className="mall-table">
             <thead>
               <tr>
@@ -187,7 +194,7 @@ export default function GtoManagementPage() {
                 <th className="text-right">% Rent</th>
                 <th className="text-right">Total Due</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -240,6 +247,7 @@ export default function GtoManagementPage() {
               )}
             </tbody>
           </table>
+          </TableScrollWrapper>
         </div>
       )}
 

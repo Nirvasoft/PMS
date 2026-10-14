@@ -12,6 +12,7 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 
 const PRIORITIES = ['P1', 'P2', 'P3', 'P4'];
 const PRIORITY_COLORS: Record<string, string> = {
@@ -60,7 +61,7 @@ export default function SlaConfigPage() {
           </div>
           <div>
             <h1>SLA Configuration</h1>
-            <p>Define response and resolution targets by priority and category</p>
+            <p>{configs.length} total SLA configs</p>
           </div>
         </div>
         <div className="header-actions">
@@ -112,70 +113,72 @@ export default function SlaConfigPage() {
         </div>
       ) : (
         <div className="maint-table-wrap">
-          <table className="maint-table">
-            <thead>
-              <tr>
-                <th>Priority</th>
-                <th>Category</th>
-                <th>Property</th>
-                <th>Response Time</th>
-                <th>Resolution Time</th>
-                <th>Working Hours Only</th>
-                <th>Escalation Contact</th>
-                <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {grouped.map((group) =>
-                group.configs.length === 0 ? null : group.configs.map((c, idx) => (
-                  <tr key={c.id}>
-                    {idx === 0 && (
-                      <td rowSpan={group.configs.length}>
-                        <span className={`maint-priority ${group.priority.toLowerCase()}`}>
-                          {group.priority}
+          <TableScrollWrapper>
+            <table className="maint-table">
+              <thead>
+                <tr>
+                  <th>Priority</th>
+                  <th>Category</th>
+                  <th>Property</th>
+                  <th>Response Time</th>
+                  <th>Resolution Time</th>
+                  <th>Working Hours Only</th>
+                  <th>Escalation Contact</th>
+                  <th style={{ width: 80, textAlign: 'center' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {grouped.map((group) =>
+                  group.configs.length === 0 ? null : group.configs.map((c, idx) => (
+                    <tr key={c.id}>
+                      {idx === 0 && (
+                        <td rowSpan={group.configs.length}>
+                          <span className={`maint-priority ${group.priority.toLowerCase()}`}>
+                            {group.priority}
+                          </span>
+                        </td>
+                      )}
+                      <td><span className="cell-secondary">{c.category?.name || 'All Categories'}</span></td>
+                      <td><span className="cell-secondary">{c.propertyId ? 'Specific' : 'All Properties'}</span></td>
+                      <td><span className="sla-hours">{c.responseHours}h</span></td>
+                      <td><span className="sla-hours">{c.resolutionHours}h</span></td>
+                      <td><span className="cell-secondary">{c.workingHoursOnly ? '✓ Yes' : '—'}</span></td>
+                      <td>
+                        <span className="cell-secondary">
+                          {c.escalationContact
+                            ? (c.escalationContact.profile
+                              ? `${c.escalationContact.profile.firstName} ${c.escalationContact.profile.lastName}`
+                              : c.escalationContact.email)
+                            : '—'}
                         </span>
                       </td>
-                    )}
-                    <td><span className="cell-secondary">{c.category?.name || 'All Categories'}</span></td>
-                    <td><span className="cell-secondary">{c.propertyId ? 'Specific' : 'All Properties'}</span></td>
-                    <td><span className="sla-hours">{c.responseHours}h</span></td>
-                    <td><span className="sla-hours">{c.resolutionHours}h</span></td>
-                    <td><span className="cell-secondary">{c.workingHoursOnly ? '✓ Yes' : '—'}</span></td>
-                    <td>
-                      <span className="cell-secondary">
-                        {c.escalationContact
-                          ? (c.escalationContact.profile
-                            ? `${c.escalationContact.profile.firstName} ${c.escalationContact.profile.lastName}`
-                            : c.escalationContact.email)
-                          : '—'}
-                      </span>
-                    </td>
-                    <td>
-                      <PermissionGuard permission="maintenance-sla.write">
-                        <div className="sla-row-actions">
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            title="Edit"
-                            onClick={() => setEditConfig(c)}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-sm btn-danger-ghost"
-                            title="Delete"
-                            disabled={deletingId === c.id}
-                            onClick={() => handleDelete(c)}
-                          >
-                            {deletingId === c.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
-                          </button>
-                        </div>
-                      </PermissionGuard>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                      <td>
+                        <PermissionGuard permission="maintenance-sla.write">
+                          <div className="sla-row-actions">
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              title="Edit"
+                              onClick={() => setEditConfig(c)}
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              className="btn btn-ghost btn-sm btn-danger-ghost"
+                              title="Delete"
+                              disabled={deletingId === c.id}
+                              onClick={() => handleDelete(c)}
+                            >
+                              {deletingId === c.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+                            </button>
+                          </div>
+                        </PermissionGuard>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
         </div>
       )}
 
@@ -222,9 +225,15 @@ function SlaConfigModal({ mode, initialData, categories, onClose }: {
     resolutionHours: String(initialData?.resolutionHours || '72'),
     workingHoursOnly: initialData?.workingHoursOnly || false,
   });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  const invalidResponse = !form.responseHours || parseInt(form.responseHours) < 1;
+  const invalidResolution = !form.resolutionHours || parseInt(form.resolutionHours) < 1;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (invalidResponse || invalidResolution) return;
     try {
       const payload = {
         propertyId: form.propertyId || undefined,
@@ -258,7 +267,7 @@ function SlaConfigModal({ mode, initialData, categories, onClose }: {
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="maint-form-grid cols-1">
             <div className="maint-field">
               <label>Priority <span style={{ color: '#f87171' }}>*</span></label>
@@ -293,11 +302,29 @@ function SlaConfigModal({ mode, initialData, categories, onClose }: {
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Response Time (hours) <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="number" required min="1" value={form.responseHours} onChange={(e) => setForm((f) => ({ ...f, responseHours: e.target.value }))} />
+              <input
+                type="number"
+                min="1"
+                className={hasAttemptedSubmit && invalidResponse ? 'maint-input-error' : ''}
+                value={form.responseHours}
+                onChange={(e) => setForm((f) => ({ ...f, responseHours: e.target.value }))}
+              />
+              {hasAttemptedSubmit && invalidResponse && (
+                <span className="maint-error-text">Valid response time is required</span>
+              )}
             </div>
             <div className="maint-field">
               <label>Resolution Time (hours) <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="number" required min="1" value={form.resolutionHours} onChange={(e) => setForm((f) => ({ ...f, resolutionHours: e.target.value }))} />
+              <input
+                type="number"
+                min="1"
+                className={hasAttemptedSubmit && invalidResolution ? 'maint-input-error' : ''}
+                value={form.resolutionHours}
+                onChange={(e) => setForm((f) => ({ ...f, resolutionHours: e.target.value }))}
+              />
+              {hasAttemptedSubmit && invalidResolution && (
+                <span className="maint-error-text">Valid resolution time is required</span>
+              )}
             </div>
           </div>
           <div style={{ marginTop: '12px' }}>

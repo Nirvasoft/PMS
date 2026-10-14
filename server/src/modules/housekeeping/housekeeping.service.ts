@@ -182,14 +182,14 @@ export function createHousekeepingService({ prisma }: { prisma: PrismaClient }) 
     });
   }
 
-  async function startTask(companyId: string, taskId: string) {
+  async function startTask(_companyId: string, taskId: string) {
     return prisma.cleaningTask.update({
       where: { id: taskId },
       data: { status: 'in_progress', startedAt: new Date() },
     });
   }
 
-  async function completeTask(companyId: string, taskId: string, data: any) {
+  async function completeTask(_companyId: string, taskId: string, data: any) {
     return prisma.cleaningTask.update({
       where: { id: taskId },
       data: {

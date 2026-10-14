@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Landmark } from 'lucide-react';
 import { useGetBalanceSheetQuery } from '../../../store/api/glApi';
 import './GLPage.css';
 
@@ -26,7 +27,17 @@ export default function BalanceSheetPage() {
 
   return (
     <div className="gl-page">
-      <h2>Balance Sheet</h2>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Landmark size={22} />
+          </div>
+          <div>
+            <h1>Balance Sheet</h1>
+            <p>{(bs?.assets.length ?? 0) + (bs?.liabilities.length ?? 0) + (bs?.equity.length ?? 0)} total accounts</p>
+          </div>
+        </div>
+      </div>
       <div className="gl-toolbar">
         <label>As of Date</label>
         <input type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} />

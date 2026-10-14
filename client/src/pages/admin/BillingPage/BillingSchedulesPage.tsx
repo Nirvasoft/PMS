@@ -38,6 +38,7 @@ const emptyForm: ScheduleForm = {
 
 export default function BillingSchedulesPage() {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState('active');
   const [search, setSearch] = useState('');
   const selectedProperty = useSelectedPropertyFilter();
@@ -62,7 +63,7 @@ export default function BillingSchedulesPage() {
     propertyId: selectedProperty || undefined,
     search: debouncedSearch || undefined,
     page,
-    limit: 5,
+    limit: pageSize,
   });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
@@ -297,12 +298,14 @@ export default function BillingSchedulesPage() {
     <div className="billing-page">
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'var(--primary-subtle)', color: 'var(--primary)' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <CalendarClock size={22} />
           </div>
           <div style={{ flex: 1 }}>
-            <h1>Billing Schedules</h1>
-            <p>Recurring charge schedules for leases</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Billing Schedules</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {meta ? `${meta.total} total schedules` : 'Recurring charge schedules for leases'}
+            </p>
           </div>
           <PermissionGuard permission="billing-schedules.write">
             <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -320,13 +323,6 @@ export default function BillingSchedulesPage() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
-          <select className="filter-select" value={selectedProperty} disabled>
-            {!selectedProperty && <option value="">All Properties</option>}
-            {selectedProperty && (
-              <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
-            )}
-          </select>
           <select className="filter-select" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
             <option value="">All Statuses</option>
             <option value="active">Active</option>
@@ -338,7 +334,7 @@ export default function BillingSchedulesPage() {
       </div>
 
       <div className="billing-table-wrap" style={{ marginTop: 24 }}>
-        <TableScrollWrapper>
+        <TableScrollWrapper className="schedules-scroll">
           <table className="billing-table">
           <thead>
             <tr>
@@ -351,7 +347,7 @@ export default function BillingSchedulesPage() {
               <th style={{ width: 120 }}>Next Billing</th>
               <th style={{ width: 100 }}>Status</th>
               <th className="text-center" style={{ width: 70 }}>Invoices</th>
-              <th className="text-center" style={{ width: 100 }}>Actions</th>
+              <th className="text-center" style={{ width: 100 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -451,14 +447,31 @@ export default function BillingSchedulesPage() {
         </table>
         </TableScrollWrapper>
 
-        {meta && meta.totalPages > 1 && (
+        {meta && meta.total >= 10 && (
           <div className="billing-pagination">
-            <span className="page-info">Page {meta.page} of {meta.totalPages}</span>
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="sched-page-size">Rows per page:</label>
+                <select
+                  id="sched-page-size"
+                  value={pageSize}
+                  onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
             <div className="page-btns">
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+              <button disabled={page === 1} onClick={() => setPage(p => p - 1)} title="Previous page">
                 <ChevronLeft size={15} />
               </button>
-              <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>
+              <span className="page-num-display">
+                Page {meta.page} of {Math.max(meta.totalPages, 1)}
+              </span>
+              <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)} title="Next page">
                 <ChevronRight size={15} />
               </button>
             </div>

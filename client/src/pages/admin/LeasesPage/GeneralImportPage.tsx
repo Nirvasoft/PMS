@@ -37,6 +37,7 @@ export default function GeneralImportPage() {
     IMPORT_OPTIONS.some((o) => o.value === initialType) ? initialType : 'meter'
   );
   const [file, setFile] = useState<File | null>(null);
+  const [hasAttemptedFile, setHasAttemptedFile] = useState(false);
   const [preview, setPreview] = useState<GeneralImportPreview | null>(null);
   const [result, setResult] = useState<GeneralImportResult | null>(null);
 
@@ -57,7 +58,11 @@ export default function GeneralImportPage() {
 
   const requireReady = (needFile: boolean): boolean => {
     if (!propertyId) { toast.error('Select a property first'); return false; }
-    if (needFile && !file) { toast.error('Choose an Excel file first'); return false; }
+    if (needFile && !file) {
+      setHasAttemptedFile(true);
+      toast.error('Choose an Excel file first');
+      return false;
+    }
     return true;
   };
 
@@ -110,12 +115,28 @@ export default function GeneralImportPage() {
 
   return (
     <div className="general-import-page">
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 0 }}>
         <div className="page-title-row">
-          <div className="page-icon-lg"><FileUp size={22} /></div>
+          <div
+            className="page-icon-lg"
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 12,
+              background: 'rgba(16, 185, 129, 0.15)',
+              color: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FileUp size={22} />
+          </div>
           <div>
-            <h1>General Import</h1>
-            <p>Import meters, units, leases, tenants, leads, invoices and charges from an Excel file</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>General Import</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              Import meters, units, leases, tenants, leads, invoices and charges from an Excel file
+            </p>
           </div>
         </div>
       </div>
@@ -138,7 +159,7 @@ export default function GeneralImportPage() {
           <input
             id="gi-file-text"
             type="text"
-            className="gi-file-text"
+            className={`gi-file-text${hasAttemptedFile && !file ? ' input-error' : ''}`}
             readOnly
             value={file?.name ?? ''}
             placeholder="No file chosen — click to browse (.xlsx)"
@@ -153,7 +174,9 @@ export default function GeneralImportPage() {
             accept=".xlsx"
             hidden
             onChange={(e) => {
-              setFile(e.target.files?.[0] ?? null);
+              const selected = e.target.files?.[0] ?? null;
+              setFile(selected);
+              if (selected) setHasAttemptedFile(false);
               resetOutput();
               e.target.value = '';
             }}

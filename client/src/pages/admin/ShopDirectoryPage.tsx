@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetShopsQuery, useGetTenantMixQuery, useUpsertShopProfileMutation,
@@ -49,6 +49,7 @@ export default function ShopDirectoryPage() {
   const [detailShop, setDetailShop] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
   const [showCreateShop, setShowCreateShop] = useState(false);
+  const [createSubmitted, setCreateSubmitted] = useState(false);
   const [createForm, setCreateForm] = useState<any>({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion', shopZone: 'atrium' });
   const [unitSearch, setUnitSearch] = useState('');
   const [showLeaseEdit, setShowLeaseEdit] = useState(false);
@@ -168,7 +169,8 @@ export default function ShopDirectoryPage() {
   };
 
   const handleCreateShop = async () => {
-    if (!createForm.unitId) return;
+    setCreateSubmitted(true);
+    if (!createForm.unitId || !createForm.brandName?.trim()) return;
     try {
       await upsertProfile({
         unitId: createForm.unitId,
@@ -181,6 +183,7 @@ export default function ShopDirectoryPage() {
         },
       }).unwrap();
       setShowCreateShop(false);
+      setCreateSubmitted(false);
       setCreateForm({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion', shopZone: 'atrium' });
     } catch (e) { console.error(e); }
   };
@@ -201,13 +204,18 @@ export default function ShopDirectoryPage() {
     <div className="page-content">
       {/* Header */}
       <div className="shop-dir-header">
-        <div className="shop-dir-title-row">
-          <div>
-            <h1>Shop Directory</h1>
-            <p className="mall-page-subtitle">Manage shop profiles, brands, and trade categories</p>
+        <div className="page-header">
+          <div className="page-title-row">
+            <div className="page-icon-lg">
+              <Store size={22} />
+            </div>
+            <div>
+              <h1>Shop Directory</h1>
+              <p>{allShops.length} total shops</p>
+            </div>
           </div>
           <PermissionGuard permission="mall-shops.write">
-            <button className="btn btn-primary" onClick={() => setShowCreateShop(true)}>
+            <button className="btn btn-primary" onClick={() => { setCreateSubmitted(false); setShowCreateShop(true); }}>
               <Plus size={16} /> Add Shop
             </button>
           </PermissionGuard>
@@ -1031,7 +1039,7 @@ export default function ShopDirectoryPage() {
                   <label style={{ gridColumn: '1 / -1' }}>
                     <span>Search & Select Unit *</span>
                     <div className="shop-unit-picker">
-                      <div className="shop-unit-picker-input">
+                      <div className={`shop-unit-picker-input ${createSubmitted && !createForm.unitId ? 'mall-input-error' : ''}`}>
                         <Search size={14} />
                         <input
                           type="text"
@@ -1046,6 +1054,9 @@ export default function ShopDirectoryPage() {
                           }}><X size={14} /></button>
                         )}
                       </div>
+                      {createSubmitted && !createForm.unitId && (
+                        <span className="mall-error-text">Unit is required</span>
+                      )}
                       {createForm.unitId ? (
                         <div className="shop-unit-picker-selected">
                           ✓ Selected: <strong>{createForm.shopNumber}</strong>
@@ -1090,8 +1101,16 @@ export default function ShopDirectoryPage() {
                     <input value={createForm.shopNumber} onChange={e => setCreateForm({ ...createForm, shopNumber: e.target.value })} placeholder="Auto from unit" />
                   </label>
                   <label>
-                    <span>Brand Name</span>
-                    <input value={createForm.brandName} onChange={e => setCreateForm({ ...createForm, brandName: e.target.value })} placeholder="e.g. Starbucks" />
+                    <span>Brand Name *</span>
+                    <input
+                      className={createSubmitted && !createForm.brandName?.trim() ? 'mall-input-error' : ''}
+                      value={createForm.brandName}
+                      onChange={e => setCreateForm({ ...createForm, brandName: e.target.value })}
+                      placeholder="e.g. Starbucks"
+                    />
+                    {createSubmitted && !createForm.brandName?.trim() && (
+                      <span className="mall-error-text">Brand name is required</span>
+                    )}
                   </label>
                   <label>
                     <span>Trade Category</span>
@@ -1117,7 +1136,7 @@ export default function ShopDirectoryPage() {
               <button
                 className="btn btn-primary"
                 onClick={handleCreateShop}
-                disabled={!createForm.unitId || isSaving}
+                disabled={isSaving}
               >
                 {isSaving ? 'Creating...' : '+ Create Shop'}
               </button>

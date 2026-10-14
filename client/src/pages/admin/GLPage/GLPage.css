@@ -1,9 +1,61 @@
-/* ─── General Ledger Module ─────────────────────── */
+/* ─── General Ledger & Finance Module ───────────── */
 /* Fully theme-aware: uses CSS variables from index.css */
 
-.gl-page { padding: 24px; max-width: 1200px; margin: 0 auto; }
+.gl-page,
+.banking-page {
+  padding: 28px 32px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
 .gl-page h2 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 20px; }
 .gl-page h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin: 16px 0 8px; }
+
+/* ─── Page Header ──────────────────────────────── */
+.gl-page .page-header,
+.banking-page .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.gl-page .page-title-row,
+.banking-page .page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gl-page .page-title-row h1,
+.banking-page .page-title-row h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.gl-page .page-title-row p,
+.banking-page .page-title-row p {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.gl-page .page-icon-lg,
+.banking-page .page-icon-lg {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 
 /* ─── Toolbar / Filters ────────────────────────── */
 .gl-toolbar {
@@ -21,28 +73,159 @@
 .gl-toolbar input:focus, .gl-toolbar select:focus { border-color: var(--accent); outline: none; }
 .gl-toolbar select option { background: var(--surface); color: var(--text-primary); }
 
-/* ─── Table ────────────────────────────────────── */
-.gl-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+/* ─── Table — Matches Tenants Page Design ──────── */
+.gl-table-wrap {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .gl-table {
-  width: 100%; border-collapse: collapse; font-size: 0.85rem;
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  font-size: 0.82rem;
 }
+
+.gl-table thead tr {
+  background: rgba(255, 255, 255, 0.03);
+  height: 40px;
+}
+
 .gl-table th {
-  padding: 12px 14px; text-align: left; font-weight: 600; font-size: 0.75rem;
-  text-transform: uppercase; letter-spacing: 0.05em;
-  background: var(--surface-hover); color: var(--text-secondary);
-  border-bottom: 2px solid var(--border); white-space: nowrap;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+  height: 40px;
+  box-sizing: border-box;
 }
+
 .gl-table td {
-  padding: 10px 14px; border-bottom: 1px solid var(--border);
-  color: var(--text-primary); white-space: nowrap;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  vertical-align: middle;
+  height: 48px;
+  box-sizing: border-box;
+  white-space: nowrap;
 }
-.gl-table tr:hover td { background: var(--surface-hover); }
+
+.gl-table tbody tr {
+  height: 48px;
+  transition: background 0.12s;
+}
+
+.gl-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.gl-table tbody tr:nth-child(odd) {
+  background: transparent;
+}
+
+.gl-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.gl-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.045) !important;
+}
+
 .gl-table .amount { text-align: right; font-variant-numeric: tabular-nums; }
 .gl-table .amount.positive { color: var(--success, #22c55e); }
 .gl-table .amount.negative { color: var(--danger, #ef4444); }
 .gl-table tfoot td {
   font-weight: 700; border-top: 2px solid var(--border);
   background: var(--surface-hover);
+}
+
+/* ─── Pagination ───────────────────────────────── */
+.gl-pagination {
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.gl-pagination .pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.gl-pagination .page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary, var(--text-muted));
+}
+
+.gl-pagination .page-size-selector select {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.gl-pagination .page-size-selector select:focus {
+  border-color: var(--primary);
+}
+
+.gl-pagination .page-num-display {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 6px;
+}
+
+.gl-pagination .page-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gl-pagination .page-btns button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gl-pagination .page-btns button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.gl-pagination .page-btns button:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* ─── Cards ────────────────────────────────────── */
@@ -119,6 +302,10 @@
   display: block; font-size: 0.8rem; font-weight: 500;
   color: var(--text-secondary); margin-bottom: 4px;
 }
+.gl-form-group label .req {
+  color: #f87171;
+  margin-left: 2px;
+}
 .gl-form-group input, .gl-form-group select, .gl-form-group textarea {
   width: 100%; padding: 8px 12px; border-radius: 8px;
   border: 1px solid var(--border); background: var(--bg-primary);
@@ -126,6 +313,25 @@
 }
 .gl-form-group select option { background: var(--surface); color: var(--text-primary); }
 .gl-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* Validation Error Styles */
+.gl-form-group input.gl-input-error,
+.gl-form-group select.gl-input-error,
+.gl-form-group textarea.gl-input-error,
+.je-line-row input.gl-input-error,
+.je-line-row select.gl-input-error {
+  border-color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.gl-error-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: #ef4444;
+  margin-top: 2px;
+  display: block;
+}
 
 /* ─── JE Line Editor ──────────────────────────── */
 .je-line-editor { margin-top: 16px; }
@@ -181,12 +387,96 @@
 .report-balanced.yes { background: rgba(34,197,94,0.12); color: #16a34a; }
 .report-balanced.no { background: rgba(239,68,68,0.12); color: #dc2626; }
 
+/* ─── Light Mode ───────────────────────────────── */
+[data-theme="light"] .gl-table-wrap {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 20px -3px rgba(15, 23, 42, 0.10), 0 3px 8px -2px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .gl-table-wrap .gl-table {
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+[data-theme="light"] .gl-table thead tr {
+  background: var(--accent, #059669) !important;
+}
+
+[data-theme="light"] .gl-table th {
+  background: var(--accent, #059669) !important;
+  color: #ffffff !important;
+  font-weight: 650 !important;
+  border-bottom: 1px solid #047857 !important;
+}
+
+[data-theme="light"] .gl-table td {
+  border-bottom-color: var(--border-subtle) !important;
+}
+
+[data-theme="light"] .gl-table tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+[data-theme="light"] .gl-table tbody tr:nth-child(even) {
+  background: #F8FAFC !important;
+}
+
+[data-theme="light"] .gl-table tbody tr:nth-child(odd) {
+  background: #FFFFFF !important;
+}
+
+[data-theme="light"] .gl-table tbody tr:hover {
+  background: #E8EEF5 !important;
+}
+
+[data-theme="light"] .gl-form-group input.gl-input-error,
+[data-theme="light"] .gl-form-group select.gl-input-error,
+[data-theme="light"] .gl-form-group textarea.gl-input-error,
+[data-theme="light"] .je-line-row input.gl-input-error,
+[data-theme="light"] .je-line-row select.gl-input-error {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
+}
+
+[data-theme="light"] .gl-error-text {
+  color: #dc2626;
+}
+
+[data-theme="light"] .gl-pagination {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+}
+
+[data-theme="light"] .gl-pagination .page-size-selector select {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #111827;
+}
+
+[data-theme="light"] .gl-pagination .page-size-selector select option {
+  background: #ffffff;
+  color: #111827;
+}
+
+[data-theme="light"] .gl-pagination .page-btns button {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: #ffffff;
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .gl-pagination .page-btns button:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: var(--primary);
+}
+
 /* ─── Animations ───────────────────────────────── */
 @keyframes glFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* ─── Responsive ───────────────────────────────── */
 @media (max-width: 768px) {
-  .gl-page { padding: 12px; }
+  .gl-page, .banking-page { padding: 12px; }
   .gl-form-row { grid-template-columns: 1fr; }
   .je-line-row { grid-template-columns: 1fr; }
   .gl-stats { grid-template-columns: 1fr 1fr; }

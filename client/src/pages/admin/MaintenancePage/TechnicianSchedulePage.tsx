@@ -92,7 +92,7 @@ export default function TechnicianSchedulePage() {
           </div>
           <div>
             <h1>Technician Schedule</h1>
-            <p>View and manage technician workload and schedules</p>
+            <p>{techs.length} total technicians</p>
           </div>
         </div>
         <div className="header-actions">
@@ -225,17 +225,20 @@ export default function TechnicianSchedulePage() {
   );
 }
 
-function TechProfileModal({ techs, onClose }: { techs: any[]; onClose: () => void }) {
+function TechProfileModal({ techs: _techs, onClose }: { techs: any[]; onClose: () => void }) {
   const [upsertProfile, { isLoading }] = useUpsertTechProfileMutation();
   const [form, setForm] = useState({
     userId: '', skills: '', hourlyRate: '', maxConcurrentJobs: '3', isAvailable: true,
   });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.userId.trim()) return;
     try {
       await upsertProfile({
-        userId: form.userId,
+        userId: form.userId.trim(),
         data: {
           skills: form.skills.split(',').map((s) => s.trim()).filter(Boolean),
           hourlyRate: parseFloat(form.hourlyRate) || undefined,
@@ -260,11 +263,20 @@ function TechProfileModal({ techs, onClose }: { techs: any[]; onClose: () => voi
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="maint-form-grid cols-1">
             <div className="maint-field">
               <label>Select User <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="text" required placeholder="User ID (UUID)" value={form.userId} onChange={(e) => setForm((f) => ({ ...f, userId: e.target.value }))} />
+              <input
+                type="text"
+                className={hasAttemptedSubmit && !form.userId.trim() ? 'maint-input-error' : ''}
+                placeholder="User ID (UUID)"
+                value={form.userId}
+                onChange={(e) => setForm((f) => ({ ...f, userId: e.target.value }))}
+              />
+              {hasAttemptedSubmit && !form.userId.trim() && (
+                <span className="maint-error-text">User ID is required</span>
+              )}
             </div>
           </div>
           <div className="maint-form-grid cols-1">

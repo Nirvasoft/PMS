@@ -6,13 +6,14 @@ import {
 import type { GatewayTransaction } from '../../../store/api/bankingApi';
 import {
   Zap, Search, ChevronLeft, ChevronRight, X,
-  CreditCard, DollarSign, AlertTriangle, RefreshCw,
+  CreditCard, DollarSign, AlertTriangle,
   CheckCircle2, XCircle, Clock, RotateCcw, ExternalLink,
   Wallet, Globe, ArrowDownRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 import '../BillingPage/BillingPage.css';
 
@@ -34,17 +35,19 @@ const STATUS_MAP: Record<string, { label: string; color: string; bg: string; ico
 
 export default function GatewayTransactionsPage() {
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [gateway, setGateway] = useState('');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [detailTxn, setDetailTxn] = useState<GatewayTransaction | null>(null);
   const [refundModal, setRefundModal] = useState<GatewayTransaction | null>(null);
   const [refundReason, setRefundReason] = useState('');
+  const [hasAttemptedRefund, setHasAttemptedRefund] = useState(false);
 
   const { data: txnsData, isFetching } = useGetGatewayTransactionsQuery({
     gateway: gateway || undefined,
     status: status || undefined,
-    page, limit: 20,
+    page, limit,
   });
   const { data: summary } = useGetGatewaySummaryQuery();
   const [refundPayment, { isLoading: refunding }] = useRefundGatewayPaymentMutation();
@@ -64,12 +67,14 @@ export default function GatewayTransactionsPage() {
   }, [txns, search]);
 
   const handleRefund = async () => {
+    setHasAttemptedRefund(true);
     if (!refundModal || !refundReason.trim()) return;
     try {
       await refundPayment({ id: refundModal.id, reason: refundReason }).unwrap();
       toast.success('Payment refunded successfully');
       setRefundModal(null);
       setRefundReason('');
+      setHasAttemptedRefund(false);
     } catch (err: any) {
       toast.error(err?.data?.errors?.[0]?.message || 'Failed to refund payment');
     }
@@ -80,12 +85,12 @@ export default function GatewayTransactionsPage() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(99,91,255,0.12)', color: '#635bff' }}>
+          <div className="page-icon-lg">
             <Zap size={22} />
           </div>
           <div style={{ flex: 1 }}>
             <h1>Payment Gateway Transactions</h1>
-            <p>Track online payments via Stripe, PayPal, and PayTabs</p>
+            <p>{meta?.total ?? filtered.length} total transactions</p>
           </div>
         </div>
       </div>
@@ -168,103 +173,115 @@ export default function GatewayTransactionsPage() {
 
       {/* Table */}
       <div className="billing-table-wrap" style={{ marginTop: 0 }}>
-        <table className="billing-table">
-          <thead>
-            <tr>
-              <th style={{ width: 100 }}>Gateway</th>
-              <th style={{ width: 180 }}>Tenant</th>
-              <th style={{ width: 130 }}>Invoice</th>
-              <th className="text-right" style={{ width: 110 }}>Amount</th>
-              <th className="text-right" style={{ width: 80 }}>Fee</th>
-              <th style={{ width: 90 }}>Method</th>
-              <th style={{ width: 100 }}>Status</th>
-              <th style={{ width: 140 }}>Date</th>
-              <th className="text-center" style={{ width: 80 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
+        <TableScrollWrapper>
+          <table className="billing-table">
+            <thead>
               <tr>
-                <td colSpan={9}>
-                  <div className="billing-empty">{isFetching ? 'Loading…' : 'No transactions found.'}</div>
-                </td>
+                <th style={{ width: 100 }}>Gateway</th>
+                <th style={{ width: 180 }}>Tenant</th>
+                <th style={{ width: 130 }}>Invoice</th>
+                <th className="text-right" style={{ width: 110 }}>Amount</th>
+                <th className="text-right" style={{ width: 80 }}>Fee</th>
+                <th style={{ width: 90 }}>Method</th>
+                <th style={{ width: 100 }}>Status</th>
+                <th style={{ width: 140 }}>Date</th>
+                <th className="text-center" style={{ width: 80 }}></th>
               </tr>
-            ) : filtered.map(txn => {
-              const gw = GATEWAY_MAP[txn.gateway] || GATEWAY_MAP.stripe;
-              const st = STATUS_MAP[txn.gatewayStatus] || STATUS_MAP.initiated;
-              const GwIcon = gw.icon;
-              const StIcon = st.icon;
-
-              return (
-                <tr key={txn.id} onClick={() => setDetailTxn(txn)} style={{ cursor: 'pointer' }}>
-                  <td>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                      padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                      background: gw.bg, color: gw.color,
-                    }}>
-                      <GwIcon size={12} /> {gw.label}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="cell-primary">{getTenantName(txn)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{txn.payerEmail || '—'}</div>
-                  </td>
-                  <td>
-                    {txn.invoice ? (
-                      <span style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 13 }}>
-                        {txn.invoice.invoiceNumber}
-                      </span>
-                    ) : '—'}
-                  </td>
-                  <td className="text-right">
-                    <span className="cell-amount">{formatCurrency(txn.amount, txn.currency)}</span>
-                  </td>
-                  <td className="text-right">
-                    <span style={{ fontSize: 12, color: Number(txn.feeAmount) > 0 ? '#f59e0b' : 'var(--text-tertiary)' }}>
-                      {Number(txn.feeAmount) > 0 ? formatCurrency(txn.feeAmount, txn.currency) : '—'}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: 12, textTransform: 'capitalize' }}>
-                      {txn.paymentMethod || '—'}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                      padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                      background: st.bg, color: st.color,
-                    }}>
-                      <StIcon size={11} /> {st.label}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: 13 }}>{format(new Date(txn.initiatedAt), 'MMM d, yyyy')}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{format(new Date(txn.initiatedAt), 'HH:mm')}</div>
-                  </td>
-                  <td className="text-center" onClick={e => e.stopPropagation()}>
-                    {txn.gatewayStatus === 'completed' && (
-                      <PermissionGuard permission="finance-gateway.write">
-                        <button className="action-btn" onClick={() => { setRefundModal(txn); setRefundReason(''); }}
-                          title="Refund" style={{ color: '#8b5cf6' }}>
-                          <RotateCcw size={14} />
-                        </button>
-                      </PermissionGuard>
-                    )}
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={9}>
+                    <div className="billing-empty">{isFetching ? 'Loading…' : 'No transactions found.'}</div>
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ) : filtered.map(txn => {
+                const gw = GATEWAY_MAP[txn.gateway] || GATEWAY_MAP.stripe;
+                const st = STATUS_MAP[txn.gatewayStatus] || STATUS_MAP.initiated;
+                const GwIcon = gw.icon;
+                const StIcon = st.icon;
 
-        {meta && meta.totalPages > 1 && (
+                return (
+                  <tr key={txn.id} onClick={() => setDetailTxn(txn)} style={{ cursor: 'pointer' }}>
+                    <td>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                        background: gw.bg, color: gw.color,
+                      }}>
+                        <GwIcon size={12} /> {gw.label}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="cell-primary">{getTenantName(txn)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{txn.payerEmail || '—'}</div>
+                    </td>
+                    <td>
+                      {txn.invoice ? (
+                        <span style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 13 }}>
+                          {txn.invoice.invoiceNumber}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="text-right">
+                      <span className="cell-amount">{formatCurrency(txn.amount, txn.currency)}</span>
+                    </td>
+                    <td className="text-right">
+                      <span style={{ fontSize: 12, color: Number(txn.feeAmount) > 0 ? '#f59e0b' : 'var(--text-tertiary)' }}>
+                        {Number(txn.feeAmount) > 0 ? formatCurrency(txn.feeAmount, txn.currency) : '—'}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: 12, textTransform: 'capitalize' }}>
+                        {txn.paymentMethod || '—'}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                        background: st.bg, color: st.color,
+                      }}>
+                        <StIcon size={11} /> {st.label}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: 13 }}>{format(new Date(txn.initiatedAt), 'MMM d, yyyy')}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{format(new Date(txn.initiatedAt), 'HH:mm')}</div>
+                    </td>
+                    <td className="text-center" onClick={e => e.stopPropagation()}>
+                      {txn.gatewayStatus === 'completed' && (
+                        <PermissionGuard permission="finance-gateway.write">
+                          <button className="action-btn" onClick={() => { setRefundModal(txn); setRefundReason(''); setHasAttemptedRefund(false); }}
+                            title="Refund" style={{ color: '#8b5cf6' }}>
+                            <RotateCcw size={14} />
+                          </button>
+                        </PermissionGuard>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
+
+        {meta && meta.total >= 10 && (
           <div className="billing-pagination">
-            <span className="page-info">Page {meta.page} of {meta.totalPages} · {meta.total} transactions</span>
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <span>Rows per page:</span>
+                <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
             <div className="page-btns">
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}><ChevronLeft size={15} /></button>
-              <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)}><ChevronRight size={15} /></button>
+              <button disabled={page === 1} onClick={() => setPage(p => p - 1)} title="Previous Page"><ChevronLeft size={14} /></button>
+              <span className="page-num-display">Page {meta.page} of {Math.max(1, meta.totalPages)}</span>
+              <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)} title="Next Page"><ChevronRight size={14} /></button>
             </div>
           </div>
         )}
@@ -336,7 +353,7 @@ export default function GatewayTransactionsPage() {
               <button className="btn btn-secondary" onClick={() => setDetailTxn(null)}>Close</button>
               {detailTxn.gatewayStatus === 'completed' && (
                 <PermissionGuard permission="finance-gateway.write">
-                  <button className="btn btn-primary" onClick={() => { setRefundModal(detailTxn); setRefundReason(''); setDetailTxn(null); }}
+                  <button className="btn btn-primary" onClick={() => { setRefundModal(detailTxn); setRefundReason(''); setHasAttemptedRefund(false); setDetailTxn(null); }}
                     style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <RotateCcw size={14} /> Refund
                   </button>
@@ -381,14 +398,22 @@ export default function GatewayTransactionsPage() {
 
               <div className="inv-field">
                 <label>Refund Reason <span className="req">*</span></label>
-                <textarea rows={3} placeholder="Enter reason for refund…"
-                  value={refundReason} onChange={e => setRefundReason(e.target.value)} />
+                <textarea
+                  rows={3}
+                  className={hasAttemptedRefund && !refundReason.trim() ? 'inv-input-error' : ''}
+                  placeholder="Enter reason for refund…"
+                  value={refundReason}
+                  onChange={e => setRefundReason(e.target.value)}
+                />
+                {hasAttemptedRefund && !refundReason.trim() && (
+                  <span className="inv-error-text">Refund reason is required</span>
+                )}
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setRefundModal(null)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleRefund}
-                disabled={refunding || !refundReason.trim()}
+                disabled={refunding}
                 style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
                 {refunding ? 'Processing…' : 'Confirm Refund'}
               </button>

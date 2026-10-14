@@ -11,7 +11,7 @@ import {
   ArrowLeft, Building2, MapPin, DollarSign, Info, Check,
   Waves, Dumbbell, Flame, TreePine, Leaf, CircleDot, Activity,
   UserCheck, Users, Monitor, Mail, Wind, UtensilsCrossed, ShoppingBag,
-  Camera, Key, Shield, Car, Zap, ArrowUp, Lock, Battery, ImagePlus, X, Upload, Search, Navigation,
+  Camera, Key, Shield, Car, Zap, ArrowUp, Lock, Battery, X, Upload, Search, Navigation,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';

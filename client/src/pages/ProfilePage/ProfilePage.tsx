@@ -15,6 +15,7 @@ export default function ProfilePage() {
     firstName: '', lastName: '', phone: '', timezone: '', address: '',
   });
   const [saving, setSaving] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -37,6 +38,8 @@ export default function ProfilePage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitted(true);
+    if (!form.firstName.trim() || !form.lastName.trim()) return;
     if (!user?.id) return;
     setSaving(true);
     try {
@@ -98,8 +101,15 @@ export default function ProfilePage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <h1><User size={24} /> My Profile</h1>
-        <p className="text-muted">Manage your personal information and account settings</p>
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <User size={22} />
+          </div>
+          <div>
+            <h1>My Profile</h1>
+            <p>Manage your personal information and account settings</p>
+          </div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 32, alignItems: 'start' }}>
@@ -168,17 +178,25 @@ export default function ProfilePage() {
         </div>
 
         {/* Right — Edit Form */}
-        <form onSubmit={handleSave} className="settings-form">
+        <form onSubmit={handleSave} className="settings-form" noValidate>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className="form-group">
               <label><User size={14} /> First Name *</label>
-              <input className="input-full" required value={form.firstName}
-                onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+              <input
+                className={`input-full${submitted && !form.firstName.trim() ? ' maint-input-error' : ''}`}
+                value={form.firstName}
+                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+              />
+              {submitted && !form.firstName.trim() && <span className="maint-error-text">First name is required</span>}
             </div>
             <div className="form-group">
               <label><User size={14} /> Last Name *</label>
-              <input className="input-full" required value={form.lastName}
-                onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+              <input
+                className={`input-full${submitted && !form.lastName.trim() ? ' maint-input-error' : ''}`}
+                value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+              />
+              {submitted && !form.lastName.trim() && <span className="maint-error-text">Last name is required</span>}
             </div>
           </div>
 

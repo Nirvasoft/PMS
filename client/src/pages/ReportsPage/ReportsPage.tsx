@@ -7,10 +7,10 @@ import {
 } from '../../store/api/dashboardApi';
 import type { SavedReport, WidgetData } from '../../store/api/dashboardApi';
 import {
-  FileText, Plus, Trash2, X, Search, Filter, Clock,
+  FileText, Trash2, X, Search, Clock,
   BarChart3, PieChart as PieChartIcon, TrendingUp, Activity,
-  Building2, DollarSign, Wrench, Shield, Calendar,
-  Play, ChevronRight, Download, Save,
+  Building2, DollarSign, Wrench, Calendar,
+  Play, ChevronLeft, ChevronRight, Download, Save,
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -18,6 +18,8 @@ import {
 } from 'recharts';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../components/DialogProvider';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
+import '../admin/MaintenancePage/MaintenancePage.css';
 import './ReportsPage.css';
 
 // ═══════════════════════════════════════════════════
@@ -126,12 +128,14 @@ export default function ReportsPage() {
   return (
     <div className="reports-page">
       {/* Header */}
-      <div className="reports-header">
-        <div className="header-left">
-          <BarChart3 size={24} className="header-icon" />
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <BarChart3 size={22} />
+          </div>
           <div>
             <h1>Reports</h1>
-            <p className="subtitle">Generate, view, and manage analytical reports</p>
+            <p>{REPORT_TYPES.length} report types · Generate, view, and manage analytical reports</p>
           </div>
         </div>
       </div>
@@ -424,9 +428,9 @@ function KpiReportView({ data }: { data: any }) {
 function LineReportView({ data }: { data: any }) {
   return (
     <ResponsiveContainer width="100%" height={360}>
-      <LineChart>
+      <LineChart data={data.series[0]?.data}>
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-        <XAxis dataKey="x" data={data.series[0]?.data} tick={{ fill: '#8b95a5', fontSize: 12 }} />
+        <XAxis dataKey="x" tick={{ fill: '#8b95a5', fontSize: 12 }} />
         <YAxis tick={{ fill: '#8b95a5', fontSize: 12 }} />
         <Tooltip contentStyle={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }} />
         <Legend wrapperStyle={{ color: '#8b95a5' }} />
@@ -499,16 +503,18 @@ function GaugeReportView({ data }: { data: any }) {
 function TableReportView({ data }: { data: any }) {
   return (
     <div className="report-table-wrapper">
-      <table className="report-table">
-        <thead>
-          <tr>{data.columns?.map((col: string) => <th key={col}>{col}</th>)}</tr>
-        </thead>
-        <tbody>
-          {data.rows?.map((row: string[], ri: number) => (
-            <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
-          ))}
-        </tbody>
-      </table>
+      <TableScrollWrapper>
+        <table className="report-table">
+          <thead>
+            <tr>{data.columns?.map((col: string) => <th key={col}>{col}</th>)}</tr>
+          </thead>
+          <tbody>
+            {data.rows?.map((row: string[], ri: number) => (
+              <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScrollWrapper>
     </div>
   );
 }
@@ -522,15 +528,17 @@ function RawDataTable({ data }: { data: WidgetData }) {
   if (data.type === 'kpi_card') {
     return (
       <div className="report-table-wrapper">
-        <table className="report-table">
-          <thead><tr><th>Metric</th><th>Value</th></tr></thead>
-          <tbody>
-            <tr><td>{data.label}</td><td>{data.value}{data.unit}</td></tr>
-            {data.breakdown && Object.entries(data.breakdown).map(([k, v]) => (
-              <tr key={k}><td>{k.replace(/_/g, ' ')}</td><td>{Number(v).toLocaleString()}</td></tr>
-            ))}
-          </tbody>
-        </table>
+        <TableScrollWrapper>
+          <table className="report-table">
+            <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>{data.label}</td><td>{data.value}{data.unit}</td></tr>
+              {data.breakdown && Object.entries(data.breakdown).map(([k, v]) => (
+                <tr key={k}><td>{k.replace(/_/g, ' ')}</td><td>{Number(v).toLocaleString()}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
     );
   }
@@ -540,14 +548,16 @@ function RawDataTable({ data }: { data: WidgetData }) {
     if (!series) return <p className="no-data-msg">No data available</p>;
     return (
       <div className="report-table-wrapper">
-        <table className="report-table">
-          <thead><tr><th>{data.type === 'line_chart' ? 'Period' : 'Category'}</th><th>{series.name}</th></tr></thead>
-          <tbody>
-            {series.data.map((pt) => (
-              <tr key={pt.x}><td>{pt.x}</td><td>{Number(pt.y).toLocaleString()}</td></tr>
-            ))}
-          </tbody>
-        </table>
+        <TableScrollWrapper>
+          <table className="report-table">
+            <thead><tr><th>{data.type === 'line_chart' ? 'Period' : 'Category'}</th><th>{series.name}</th></tr></thead>
+            <tbody>
+              {series.data.map((pt) => (
+                <tr key={pt.x}><td>{pt.x}</td><td>{Number(pt.y).toLocaleString()}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
     );
   }
@@ -555,14 +565,16 @@ function RawDataTable({ data }: { data: WidgetData }) {
   if (data.type === 'pie_chart' && 'data' in data) {
     return (
       <div className="report-table-wrapper">
-        <table className="report-table">
-          <thead><tr><th>Category</th><th>Value</th></tr></thead>
-          <tbody>
-            {data.data.map((d) => (
-              <tr key={d.name}><td>{d.name}</td><td>{Number(d.value).toLocaleString()}</td></tr>
-            ))}
-          </tbody>
-        </table>
+        <TableScrollWrapper>
+          <table className="report-table">
+            <thead><tr><th>Category</th><th>Value</th></tr></thead>
+            <tbody>
+              {data.data.map((d) => (
+                <tr key={d.name}><td>{d.name}</td><td>{Number(d.value).toLocaleString()}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
     );
   }
@@ -575,7 +587,8 @@ function RawDataTable({ data }: { data: WidgetData }) {
 // ═══════════════════════════════════════════════════
 function SavedReportsList({ onRun }: { onRun: (r: SavedReport) => void }) {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useListReportsQuery({ page, limit: 15 });
+  const [limit, setLimit] = useState(15);
+  const { data, isLoading } = useListReportsQuery({ page, limit });
   const [deleteReport] = useDeleteReportMutation();
   const confirmDialog = useConfirm();
 
@@ -638,11 +651,38 @@ function SavedReportsList({ onRun }: { onRun: (r: SavedReport) => void }) {
             })}
           </div>
 
-          {meta && meta.totalPages > 1 && (
-            <div className="pagination">
-              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button>
-              <span>Page {page} of {meta.totalPages}</span>
-              <button disabled={page >= meta.totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
+          {meta && meta.total >= 10 && (
+            <div className="maint-pagination">
+              <div className="maint-pagination-left">
+                <span>Rows per page:</span>
+                <select
+                  value={limit}
+                  onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                >
+                  {[10, 15, 25, 50].map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="maint-pagination-right">
+                <button
+                  className="maint-page-btn"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="maint-page-info">
+                  Page {page} of {meta.totalPages}
+                </span>
+                <button
+                  className="maint-page-btn"
+                  disabled={page >= meta.totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
           )}
         </>
@@ -664,10 +704,12 @@ function SaveReportModal({
   onClose: () => void;
 }) {
   const [name, setName] = useState(defaultName);
+  const [submitted, setSubmitted] = useState(false);
   const [createReport, { isLoading }] = useCreateReportMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitted(true);
     if (!name.trim()) return;
     try {
       await createReport({
@@ -687,16 +729,18 @@ function SaveReportModal({
           <h2><Save size={20} /> Save Report</h2>
           <button className="icon-btn" onClick={onClose}><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="form-group" style={{ padding: '0 24px' }}>
-            <label>Report Name</label>
+            <label>Report Name *</label>
             <input
               type="text"
+              className={submitted && !name.trim() ? 'mall-input-error' : ''}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Monthly Occupancy — Q1 2025"
               autoFocus
             />
+            {submitted && !name.trim() && <span className="mall-error-text">Report name is required</span>}
           </div>
           <div className="form-group" style={{ padding: '0 24px' }}>
             <label>Report Type</label>
@@ -704,7 +748,7 @@ function SaveReportModal({
           </div>
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading || !name.trim()}>
+            <button type="submit" className="btn-primary" disabled={isLoading}>
               <Save size={14} /> {isLoading ? 'Saving...' : 'Save'}
             </button>
           </div>

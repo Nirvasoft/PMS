@@ -1,8 +1,6 @@
 import cron from 'node-cron';
 import { prisma, setTenantContext } from '../../common/database';
 import { logger } from '../../common/logger';
-import { emitNotification } from '../../common/socket';
-import { tenantsService } from './tenants.service';
 
 /**
  * Runs daily at 1 AM.

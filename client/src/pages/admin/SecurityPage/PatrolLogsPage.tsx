@@ -15,10 +15,12 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 export default function PatrolLogsPage() {
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [tab, setTab] = useState<'logs' | 'checkpoints' | 'schedules'>('logs');
   const [showModal, setShowModal] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const { data: logsData, isLoading } = useGetPatrolLogsQuery({ page, limit: 50 });
+  const { data: logsData, isLoading } = useGetPatrolLogsQuery({ page, limit });
   const { data: checkpointsData } = useGetPatrolCheckpointsQuery({});
   const { data: propsData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data: statsData } = useGetSecurityStatsQuery({});
@@ -37,9 +39,19 @@ export default function PatrolLogsPage() {
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyId = (fd.get('propertyId') as string) || '';
+    const name = ((fd.get('name') as string) || '').trim();
+    const errs: Record<string, string> = {};
+    if (!propertyId) errs.propertyId = 'Property is required';
+    if (!name) errs.name = 'Checkpoint name is required';
+    if (Object.keys(errs).length > 0) {
+      setFormErrors(errs);
+      return;
+    }
+    setFormErrors({});
     try {
       await createCheckpoint({
-        propertyId: fd.get('propertyId'), name: fd.get('name'),
+        propertyId, name,
         location: fd.get('location') || undefined, floor: fd.get('floor') || undefined,
         sortOrder: parseInt(fd.get('sortOrder') as string) || 0,
       }).unwrap();
@@ -54,6 +66,21 @@ export default function PatrolLogsPage() {
 
   return (
     <div className="maint-page">
+      {/* ── Header ── */}
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Shield size={22} /></div>
+          <div><h1>Patrol Management</h1><p>{checkpoints.length} checkpoints · {meta?.total ?? logs.length} total logs</p></div>
+        </div>
+        <div className="header-actions">
+          <PermissionGuard permission="security-patrol.write">
+            <button className="btn btn-primary btn-sm" onClick={() => { setFormErrors({}); setShowModal(true); }}>
+              <Plus size={14} /> Add Checkpoint
+            </button>
+          </PermissionGuard>
+        </div>
+      </div>
+
       {/* ── Stats Row ── */}
       <div className="maint-stats-row">
         <div className="maint-stat-card blue">
@@ -92,21 +119,6 @@ export default function PatrolLogsPage() {
             </div>
           </>
         )}
-      </div>
-
-      {/* ── Header ── */}
-      <div className="page-header">
-        <div className="page-title-row">
-          <div className="page-icon-lg"><Shield size={20} /></div>
-          <div><h1>Patrol Management</h1><p>{checkpoints.length} checkpoints · {meta?.total ?? 0} logs</p></div>
-        </div>
-        <div className="header-actions">
-          <PermissionGuard permission="security-patrol.write">
-            <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
-              <Plus size={14} /> Add Checkpoint
-            </button>
-          </PermissionGuard>
-        </div>
       </div>
 
       {/* ── Tab Bar ── */}
@@ -200,11 +212,26 @@ export default function PatrolLogsPage() {
               })}
             </div>
 
-            {meta && meta.totalPages > 1 && (
+            {meta && meta.total >= 10 && (
               <div className="maint-pagination">
-                <button disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={14} /> Previous</button>
-                <span>Page {page} of {meta.totalPages}</span>
-                <button disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next <ChevronRight size={14} /></button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>Rows per page:</span>
+                  <select
+                    value={limit}
+                    onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                    style={{
+                      background: 'var(--bg-secondary)', color: 'var(--text-primary)',
+                      border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px', fontSize: '0.78rem',
+                    }}
+                  >
+                    {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={14} /></button>
+                  <span>Page {page} of {meta.totalPages || 1}</span>
+                  <button disabled={page >= (meta.totalPages || 1)} onClick={() => setPage(page + 1)}><ChevronRight size={14} /></button>
+                </div>
               </div>
             )}
           </>
@@ -284,11 +311,14 @@ export default function PatrolLogsPage() {
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <h2><QrCode size={18} /> New Checkpoint</h2>
-            <form onSubmit={handleCreate}>
+            <form onSubmit={handleCreate} noValidate>
               <div className="form-group"><label>Property *</label>
-                <select name="propertyId" required><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                <select name="propertyId" className={formErrors.propertyId ? 'maint-input-error' : ''} onChange={() => setFormErrors((p) => ({ ...p, propertyId: '' }))}><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                {formErrors.propertyId && <span className="maint-error-text">{formErrors.propertyId}</span>}
               </div>
-              <div className="form-group"><label>Checkpoint Name *</label><input name="name" required placeholder="Main Gate" /></div>
+              <div className="form-group"><label>Checkpoint Name *</label><input name="name" placeholder="Main Gate" className={formErrors.name ? 'maint-input-error' : ''} onChange={() => setFormErrors((p) => ({ ...p, name: '' }))} />
+                {formErrors.name && <span className="maint-error-text">{formErrors.name}</span>}
+              </div>
               <div className="form-group"><label>Location</label><input name="location" placeholder="Ground floor, east wing" /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group"><label>Floor</label><input name="floor" placeholder="G" /></div>

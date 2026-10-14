@@ -7,7 +7,7 @@ import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../stor
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Palette, Save, Eye, Image, Type, Mail, Phone,
-  ToggleLeft, ToggleRight, Building2,
+  ToggleLeft, Building2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -38,8 +38,13 @@ export default function PortalBrandingPage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <h1><Palette size={24} /> Portal Branding</h1>
-        <p className="text-muted">Customize the tenant portal appearance for each property</p>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Palette size={22} /></div>
+          <div>
+            <h1>Portal Branding</h1>
+            <p>Customize the tenant portal appearance for each property</p>
+          </div>
+        </div>
       </div>
 
       {/* Property Selector */}

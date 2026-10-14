@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Package, ArrowLeft } from 'lucide-react';
 import {
   useGetAssetQuery, useTransferAssetMutation, useDisposeAssetMutation,
   useGetDepreciationScheduleQuery,
 } from '../../../store/api/assetsApi';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -28,12 +30,24 @@ export default function AssetDetailPage() {
 
   return (
     <div className="gl-page">
-      <button className="btn-sm" onClick={() => navigate('/admin/assets')} style={{marginBottom:12}}>← Back to Assets</button>
-      <h2>{asset.name}</h2>
-      <div style={{display:'flex',gap:8,marginBottom:20}}>
-        <span className={`gl-badge ${asset.status === 'active' ? 'open' : asset.status === 'disposed' ? 'reversed' : 'closed'}`}>{asset.status}</span>
-        <span className={`gl-type-chip ${asset.category === 'building' ? 'asset' : 'liability'}`}>{asset.category.replace(/_/g, ' ')}</span>
-        <span style={{color:'var(--text-muted)',fontSize:'0.85rem'}}>#{asset.assetNumber}</span>
+      <div className="page-header">
+        <div className="page-title-row">
+          <button className="btn-sm" onClick={() => navigate('/admin/assets')} title="Back to Assets" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <ArrowLeft size={16} />
+          </button>
+          <div className="page-icon-lg">
+            <Package size={22} />
+          </div>
+          <div>
+            <h1>{asset.name}</h1>
+            <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <span>#{asset.assetNumber}</span>
+              <span>·</span>
+              <span className={`gl-badge ${asset.status === 'active' ? 'open' : asset.status === 'disposed' ? 'reversed' : 'closed'}`}>{asset.status}</span>
+              <span className={`gl-type-chip ${asset.category === 'building' ? 'asset' : 'liability'}`}>{asset.category.replace(/_/g, ' ')}</span>
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -107,21 +121,23 @@ export default function AssetDetailPage() {
         <h3 style={{margin:'0 0 12px'}}>Depreciation Schedule ({schedule.length} entries)</h3>
         {schedule.length > 0 ? (
           <div className="gl-table-wrap">
-            <table className="gl-table">
-              <thead>
-                <tr><th>Date</th><th>Period</th><th style={{textAlign:'right'}}>Amount</th><th style={{textAlign:'right'}}>NBV After</th></tr>
-              </thead>
-              <tbody>
-                {schedule.map(e => (
-                  <tr key={e.id}>
-                    <td>{fmtDate(e.depreciationDate)}</td>
-                    <td>{e.fiscalPeriod?.name || '—'}</td>
-                    <td className="amount negative">{fmtAmt(Number(e.amount))}</td>
-                    <td className="amount">{fmtAmt(Number(e.netBookValueAfter))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <TableScrollWrapper>
+              <table className="gl-table">
+                <thead>
+                  <tr><th>Date</th><th>Period</th><th style={{textAlign:'right'}}>Amount</th><th style={{textAlign:'right'}}>NBV After</th></tr>
+                </thead>
+                <tbody>
+                  {schedule.map(e => (
+                    <tr key={e.id}>
+                      <td>{fmtDate(e.depreciationDate)}</td>
+                      <td>{e.fiscalPeriod?.name || '—'}</td>
+                      <td className="amount negative">{fmtAmt(Number(e.amount))}</td>
+                      <td className="amount">{fmtAmt(Number(e.netBookValueAfter))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
           </div>
         ) : <p style={{color:'var(--text-muted)',textAlign:'center',padding:20}}>No depreciation entries yet</p>}
       </div>
@@ -131,17 +147,19 @@ export default function AssetDetailPage() {
         <div className="gl-card">
           <h3 style={{margin:'0 0 12px'}}>Transfer History</h3>
           <div className="gl-table-wrap">
-            <table className="gl-table">
-              <thead><tr><th>Date</th><th>Reason</th></tr></thead>
-              <tbody>
-                {asset.transfers.map((t: any) => (
-                  <tr key={t.id}>
-                    <td>{fmtDate(t.transferDate)}</td>
-                    <td>{t.reason || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <TableScrollWrapper>
+              <table className="gl-table">
+                <thead><tr><th>Date</th><th>Reason</th></tr></thead>
+                <tbody>
+                  {asset.transfers.map((t: any) => (
+                    <tr key={t.id}>
+                      <td>{fmtDate(t.transferDate)}</td>
+                      <td>{t.reason || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
           </div>
         </div>
       )}
@@ -163,11 +181,14 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function TransferModal({ assetId, onClose }: { assetId: string; onClose: () => void }) {
   const [transferAsset, { isLoading }] = useTransferAssetMutation();
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({ transferDate: new Date().toISOString().split('T')[0], reason: '' });
   const alertDialog = useAlertDialog();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.transferDate) return;
     try {
       await transferAsset({ id: assetId, data: form }).unwrap();
       onClose();
@@ -178,10 +199,18 @@ function TransferModal({ assetId, onClose }: { assetId: string; onClose: () => v
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:500}}>
         <h3>Transfer Asset</h3>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-group">
-            <label>Transfer Date</label>
-            <input type="date" value={form.transferDate} onChange={e => setForm({...form, transferDate: e.target.value})} required />
+            <label>Transfer Date <span className="req">*</span></label>
+            <input
+              type="date"
+              className={hasAttemptedSubmit && !form.transferDate ? 'gl-input-error' : ''}
+              value={form.transferDate}
+              onChange={e => setForm({...form, transferDate: e.target.value})}
+            />
+            {hasAttemptedSubmit && !form.transferDate && (
+              <span className="gl-error-text">Transfer date is required</span>
+            )}
           </div>
           <div className="gl-form-group">
             <label>Reason</label>
@@ -199,11 +228,14 @@ function TransferModal({ assetId, onClose }: { assetId: string; onClose: () => v
 
 function DisposeModal({ assetId, onClose }: { assetId: string; onClose: () => void }) {
   const [disposeAsset, { isLoading }] = useDisposeAssetMutation();
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({ disposalDate: new Date().toISOString().split('T')[0], disposalAmount: 0 });
   const alertDialog = useAlertDialog();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.disposalDate) return;
     try {
       await disposeAsset({ id: assetId, data: form }).unwrap();
       onClose();
@@ -214,10 +246,18 @@ function DisposeModal({ assetId, onClose }: { assetId: string; onClose: () => vo
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:500}}>
         <h3>Dispose Asset</h3>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-group">
-            <label>Disposal Date</label>
-            <input type="date" value={form.disposalDate} onChange={e => setForm({...form, disposalDate: e.target.value})} required />
+            <label>Disposal Date <span className="req">*</span></label>
+            <input
+              type="date"
+              className={hasAttemptedSubmit && !form.disposalDate ? 'gl-input-error' : ''}
+              value={form.disposalDate}
+              onChange={e => setForm({...form, disposalDate: e.target.value})}
+            />
+            {hasAttemptedSubmit && !form.disposalDate && (
+              <span className="gl-error-text">Disposal date is required</span>
+            )}
           </div>
           <div className="gl-form-group">
             <label>Sale Amount</label>

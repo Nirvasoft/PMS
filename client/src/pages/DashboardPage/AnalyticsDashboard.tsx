@@ -1,7 +1,9 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { ResponsiveGridLayout } from 'react-grid-layout';
+import { useState, useCallback, useRef, useMemo, useEffect, type ReactNode } from 'react';
+import { ResponsiveGridLayout as RGLResponsive } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+
+const ResponsiveGridLayout = RGLResponsive as any;
 
 import {
   useGetDashboardLayoutQuery,
@@ -11,7 +13,6 @@ import {
   useResetDashboardLayoutMutation,
 } from '../../store/api/dashboardApi';
 import type { LayoutItem, WidgetData, KpiCardData, LineChartData, BarChartData, PieChartData, GaugeData, DataTableData, HeatmapData, WidgetCatalogItem } from '../../store/api/dashboardApi';
-import { useGetMyPropertyScopeQuery } from '../../store/api/propertiesApi';
 import { useAppSelector, useAppDispatch } from '../../store';
 import { setDatePreset, toggleEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } from '../../store/slices/dashboardSlice';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
@@ -24,7 +25,6 @@ import {
   TrendingUp, TrendingDown, Minus, Plus, X, Settings2, RotateCcw,
   Calendar, LayoutGrid, GripVertical, Trash2, Search,
   BarChart3, PieChart as PieChartIcon, Table2, Gauge, Activity,
-  Building2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../components/DialogProvider';
@@ -95,7 +95,6 @@ export default function AnalyticsDashboard() {
   const { data: layoutData, isLoading: layoutLoading } = useGetDashboardLayoutQuery('main');
   const [saveLayout] = useSaveDashboardLayoutMutation();
   const [resetLayout] = useResetDashboardLayoutMutation();
-  const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const confirmDialog = useConfirm();
 
   // Measure container width (replaces library's useContainerWidth for reliability)
@@ -118,13 +117,9 @@ export default function AnalyticsDashboard() {
   const [drillDownData, setDrillDownData] = useState<{ widgetCode: string; drillKey?: string } | null>(null);
 
   const layout = (layoutData?.data?.layout || []) as LayoutItem[];
-  const properties = (propertiesData as any)?.data || [];
   // Widget data follows the sidebar's "Active Property" selector — not independently
   // choosable here, so every module reads the same scope.
   const selectedPropertyId = useSelectedPropertyFilter() || undefined;
-  const selectedPropertyName = selectedPropertyId
-    ? properties.find((p: any) => p.id === selectedPropertyId)?.name || 'Selected'
-    : 'All Properties';
 
   const handlePreset = (preset: string) => {
     const range = getDateRange(preset);
@@ -225,15 +220,6 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
         <div className="header-controls">
-          {/* Property picker — follows the sidebar's "Active Property" selector, not
-              independently choosable here, so every module reads the same scope. */}
-          <div className="property-picker-wrapper">
-            <div className={`property-picker-btn ${selectedPropertyId ? 'filtered' : ''}`} title="Switch the Active Property from the sidebar">
-              <Building2 size={14} />
-              <span>{selectedPropertyName}</span>
-            </div>
-          </div>
-
           {/* Date presets */}
           <div className="date-presets">
             <Calendar size={14} />
@@ -291,7 +277,7 @@ export default function AnalyticsDashboard() {
             compactType="vertical"
             margin={[12, 12]}
             containerPadding={[0, 0]}
-            onLayoutChange={(newLayout) => handleLayoutChange(newLayout)}
+            onLayoutChange={(newLayout: any) => handleLayoutChange(newLayout)}
             useCSSTransforms
           >
             {layout.map((item) => (
@@ -640,7 +626,7 @@ function AddWidgetPanel({ onAdd, onClose }: {
   const [search, setSearch] = useState('');
   const catalog = catalogData?.data || {};
 
-  const CATEGORY_ICONS: Record<string, JSX.Element> = {
+  const CATEGORY_ICONS: Record<string, ReactNode> = {
     property: <BarChart3 size={16} />,
     finance: <Activity size={16} />,
     maintenance: <Settings2 size={16} />,
@@ -648,7 +634,7 @@ function AddWidgetPanel({ onAdd, onClose }: {
     security: <Gauge size={16} />,
   };
 
-  const TYPE_ICONS: Record<string, JSX.Element> = {
+  const TYPE_ICONS: Record<string, ReactNode> = {
     kpi_card: <BarChart3 size={14} />,
     line_chart: <Activity size={14} />,
     bar_chart: <BarChart3 size={14} />,

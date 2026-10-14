@@ -6,7 +6,7 @@ import {
 } from '../../store/api/communityApi';
 import toast from 'react-hot-toast';
 import {
-  Megaphone, BarChart3, MessageSquare, Pin, Eye, Bell,
+  Megaphone, BarChart3, MessageSquare, Pin, Eye,
   CheckCircle2, Clock, Star, ChevronDown, ChevronUp, X,
   AlertTriangle, AlertCircle, Info,
 } from 'lucide-react';
@@ -166,7 +166,6 @@ export default function PortalCommunity() {
             (polls || []).map((poll: any) => {
               const userVoted = !!poll.userVote;
               const showResults = poll.canViewResults;
-              const maxVotes = Math.max(...(poll.options || []).map((o: any) => o.voteCount || 0), 1);
               return (
                 <div key={poll.id} className="portal-poll-card">
                   <div className="portal-poll-header">

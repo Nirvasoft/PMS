@@ -234,7 +234,7 @@ export class ReceiptsService {
 
   // ── Reverse Receipt ─────────────────────────
 
-  async reverse(id: string, companyId: string, reason: string, userId: string) {
+  async reverse(id: string, companyId: string, reason: string, _userId: string) {
     const receipt = await prisma.receipt.findFirst({
       where: { id, companyId },
       include: { allocations: true },

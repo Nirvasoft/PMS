@@ -1,13 +1,11 @@
 import { prisma } from '../../common/database';
 import { sequenceService } from '../../common/sequence.service';
 import { AppError } from '../../common/errors';
-import { taxService } from './tax.service';
 import { logger } from '../../common/logger';
 import { billingNotifications } from './billingNotifications.service';
 import { workflowEngine } from '../workflow/services/engine.service';
 import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
-import { formatTenantName } from './billing.utils';
 import { calcLeaseTermMonths } from '../leases/services/helpers';
 
 /** Adds computed `outstandingAmount` to an invoice object */
@@ -1129,13 +1127,6 @@ export class InvoicesService {
     const day = Math.min(billingDay, maxDay);
 
     return new Date(targetYear, targetMonth, day);
-  }
-
-  private computePeriodEnd(periodFrom: Date, billingCycle: string, billingDay: number): Date {
-    const nextStart = this.computeNextBillingDate(periodFrom, billingDay, billingCycle);
-    const periodEnd = new Date(nextStart);
-    periodEnd.setDate(periodEnd.getDate() - 1);
-    return periodEnd;
   }
 }
 

@@ -6,9 +6,10 @@ import {
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { useAlertDialog } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 import {
   ShoppingCart, Terminal, RefreshCw, Upload, ChevronDown, ChevronUp,
-  CheckCircle, AlertTriangle, XCircle, DollarSign, CreditCard, Globe, Banknote,
+  CheckCircle, AlertTriangle, DollarSign, CreditCard, Globe, Banknote,
 } from 'lucide-react';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -33,6 +34,7 @@ export default function PosIntegrationPage() {
   const alertDialog = useAlertDialog();
 
   const [showIngestModal, setShowIngestModal] = useState(false);
+  const [ingestSubmitted, setIngestSubmitted] = useState(false);
   const [ingestForm, setIngestForm] = useState({
     unitId: '', posSystem: '', salesDate: now.toISOString().split('T')[0],
     cashSales: '', cardSales: '', onlineSales: '', otherSales: '',
@@ -41,6 +43,8 @@ export default function PosIntegrationPage() {
   const [showHistory, setShowHistory] = useState(true);
 
   const handleIngest = async () => {
+    setIngestSubmitted(true);
+    if (!ingestForm.unitId || !ingestForm.salesDate) return;
     try {
       const res = await ingestSales({
         propertyId,
@@ -54,6 +58,7 @@ export default function PosIntegrationPage() {
       }).unwrap();
       setIngestResult(res.data);
       setShowIngestModal(false);
+      setIngestSubmitted(false);
     } catch (e: any) {
       alertDialog(e?.data?.errors?.[0]?.message || 'Ingest failed');
     }
@@ -66,6 +71,7 @@ export default function PosIntegrationPage() {
       cashSales: '', cardSales: '', onlineSales: '', otherSales: '',
     });
     setIngestResult(null);
+    setIngestSubmitted(false);
     setShowIngestModal(true);
   };
 
@@ -88,10 +94,15 @@ export default function PosIntegrationPage() {
 
   return (
     <div className="page-content">
-      <div className="condo-page-header">
-        <div>
-          <h1>POS Integration</h1>
-          <p className="condo-page-subtitle">Connect POS systems for automated GTO sales data ingestion</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Terminal size={22} />
+          </div>
+          <div>
+            <h1>POS Integration</h1>
+            <p>{posCount} total POS-enabled shops</p>
+          </div>
         </div>
         <PermissionGuard permission="mall-pos.write">
           <button
@@ -190,6 +201,7 @@ export default function PosIntegrationPage() {
           </div>
         ) : (
           <div className="condo-table-wrap">
+            <TableScrollWrapper>
             <table className="condo-table">
               <thead>
                 <tr>
@@ -199,7 +211,7 @@ export default function PosIntegrationPage() {
                   <th>POS System</th>
                   <th>Store ID</th>
                   <th>Category</th>
-                  <th>Actions</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -240,6 +252,7 @@ export default function PosIntegrationPage() {
                 ))}
               </tbody>
             </table>
+            </TableScrollWrapper>
           </div>
         )}
       </div>
@@ -273,6 +286,7 @@ export default function PosIntegrationPage() {
         </div>
         {showHistory && (
           <div className="condo-table-wrap">
+            <TableScrollWrapper>
             <table className="condo-table">
               <thead>
                 <tr>
@@ -354,6 +368,7 @@ export default function PosIntegrationPage() {
                 ))}
               </tbody>
             </table>
+            </TableScrollWrapper>
           </div>
         )}
       </div>
@@ -380,19 +395,36 @@ export default function PosIntegrationPage() {
             <div style={{ padding: '16px 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <label style={labelStyle}>
                 Shop *
-                <select value={ingestForm.unitId} onChange={e => {
-                  const shop = posShops.find((s: any) => s.unitId === e.target.value);
-                  setIngestForm({ ...ingestForm, unitId: e.target.value, posSystem: shop?.posSystem || '' });
-                }} style={fldStyle}>
+                <select
+                  className={ingestSubmitted && !ingestForm.unitId ? 'mall-input-error' : ''}
+                  value={ingestForm.unitId}
+                  onChange={e => {
+                    const shop = posShops.find((s: any) => s.unitId === e.target.value);
+                    setIngestForm({ ...ingestForm, unitId: e.target.value, posSystem: shop?.posSystem || '' });
+                  }}
+                  style={fldStyle}
+                >
                   <option value="">Select shop...</option>
                   {posShops.map((s: any) => (
                     <option key={s.unitId} value={s.unitId}>{s.unitNumber} — {s.brandName || s.tenant || 'N/A'}</option>
                   ))}
                 </select>
+                {ingestSubmitted && !ingestForm.unitId && (
+                  <span className="mall-error-text">Shop is required</span>
+                )}
               </label>
               <label style={labelStyle}>
                 Sales Date *
-                <input type="date" value={ingestForm.salesDate} onChange={e => setIngestForm({ ...ingestForm, salesDate: e.target.value })} style={fldStyle} />
+                <input
+                  type="date"
+                  className={ingestSubmitted && !ingestForm.salesDate ? 'mall-input-error' : ''}
+                  value={ingestForm.salesDate}
+                  onChange={e => setIngestForm({ ...ingestForm, salesDate: e.target.value })}
+                  style={fldStyle}
+                />
+                {ingestSubmitted && !ingestForm.salesDate && (
+                  <span className="mall-error-text">Sales date is required</span>
+                )}
               </label>
               <label style={labelStyle}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Banknote size={12} /> Cash Sales</span>
@@ -424,7 +456,7 @@ export default function PosIntegrationPage() {
               <button onClick={() => setShowIngestModal(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
               <button
                 onClick={handleIngest}
-                disabled={!ingestForm.unitId || !ingestForm.salesDate || isIngesting}
+                disabled={isIngesting}
                 style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'hsl(260, 65%, 55%)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
               >
                 {isIngesting ? 'Ingesting...' : 'Ingest Sales'}

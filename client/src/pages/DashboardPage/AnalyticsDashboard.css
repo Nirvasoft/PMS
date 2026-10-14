@@ -326,6 +326,47 @@
   box-shadow: 0 2px 12px rgba(0,0,0,0.2);
 }
 
+/* ─── Light Mode Enhanced Shadows ─────────────── */
+[data-theme="light"] .analytics-dashboard,
+[data-theme="light"] .widget-grid {
+  background: #F0F4FA;
+}
+
+[data-theme="light"] .dashboard-header {
+  background: #F0F4FA;
+  border-bottom-color: #dbe4ef;
+}
+
+[data-theme="light"] .rgl-grid > .react-grid-item {
+  border-radius: 14px;
+  background: #FFFFFF;
+  box-shadow: 0 6px 20px -3px rgba(15, 23, 42, 0.10), 0 3px 8px -2px rgba(15, 23, 42, 0.06);
+  transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="light"] .rgl-grid > .react-grid-item:hover {
+  box-shadow: 0 14px 34px -4px rgba(15, 23, 42, 0.15), 0 6px 14px -2px rgba(15, 23, 42, 0.08);
+  transform: translateY(-2px);
+}
+
+[data-theme="light"] .widget-container {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  box-shadow: 0 6px 20px -3px rgba(15, 23, 42, 0.10), 0 3px 8px -2px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .widget-container:hover {
+  border-color: var(--accent);
+  box-shadow: 0 14px 34px -4px rgba(15, 23, 42, 0.15), 0 6px 14px -2px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .widget-skeleton,
+[data-theme="light"] .empty-dashboard {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  box-shadow: 0 6px 20px -3px rgba(15, 23, 42, 0.08), 0 3px 8px -2px rgba(15, 23, 42, 0.04);
+}
+
 .widget-edit-bar {
   position: absolute;
   top: 6px;

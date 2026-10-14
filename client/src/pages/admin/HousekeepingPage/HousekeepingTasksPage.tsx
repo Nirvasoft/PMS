@@ -12,7 +12,7 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import {
   Sparkles, Loader2, Plus, Play, CheckCircle2,
   Calendar, Users, MapPin, ClipboardList, XCircle,
-  Clock, Timer, TrendingUp, LayoutGrid, Star, Repeat,
+  Clock, Timer, TrendingUp, Star,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -97,12 +97,25 @@ export default function HousekeepingTasksPage() {
     } catch { toast.error('Failed to complete task'); }
   };
 
+  const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({});
+  const [scheduleErrors, setScheduleErrors] = useState<Record<string, string>>({});
+
   const handleCreateZone = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyId = (fd.get('propertyId') as string) || '';
+    const name = ((fd.get('name') as string) || '').trim();
+    const errs: Record<string, string> = {};
+    if (!propertyId) errs.propertyId = 'Property is required';
+    if (!name) errs.name = 'Zone name is required';
+    if (Object.keys(errs).length > 0) {
+      setZoneErrors(errs);
+      return;
+    }
+    setZoneErrors({});
     try {
       await createZone({
-        propertyId: fd.get('propertyId'), name: fd.get('name'),
+        propertyId, name,
         zoneType: fd.get('zoneType') || undefined, floor: fd.get('floor') || undefined,
         areaSqm: parseFloat(fd.get('areaSqm') as string) || undefined,
       }).unwrap();
@@ -113,10 +126,22 @@ export default function HousekeepingTasksPage() {
   const handleCreateSchedule = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyId = (fd.get('propertyId') as string) || '';
+    const zoneId = (fd.get('zoneId') as string) || '';
+    const name = ((fd.get('name') as string) || '').trim();
+    const errs: Record<string, string> = {};
+    if (!propertyId) errs.propertyId = 'Property is required';
+    if (!zoneId) errs.zoneId = 'Zone is required';
+    if (!name) errs.name = 'Schedule name is required';
+    if (Object.keys(errs).length > 0) {
+      setScheduleErrors(errs);
+      return;
+    }
+    setScheduleErrors({});
     try {
       await createSchedule({
-        propertyId: fd.get('propertyId'), zoneId: fd.get('zoneId'),
-        name: fd.get('name'), frequencyType: fd.get('frequencyType'),
+        propertyId, zoneId,
+        name, frequencyType: fd.get('frequencyType'),
         scheduledTime: fd.get('scheduledTime') || undefined,
         durationMinutes: parseInt(fd.get('durationMinutes') as string) || undefined,
         cleaningType: fd.get('cleaningType') || undefined,
@@ -144,6 +169,33 @@ export default function HousekeepingTasksPage() {
 
   return (
     <div className="maint-page">
+      {/* ── Header ── */}
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Sparkles size={22} /></div>
+          <div>
+            <h1>Housekeeping</h1>
+            <p>{tasks.length} total tasks · {schedules.length} schedules · {zones.length} zones</p>
+          </div>
+        </div>
+        <div className="header-actions">
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleGenerateTasks}
+            disabled={generating}
+          >
+            {generating ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} color="#6366f1" />}
+            Generate Today's Tasks
+          </button>
+          <PermissionGuard permission="housekeeping-zones.write">
+            <button className="btn btn-secondary btn-sm" onClick={() => { setZoneErrors({}); setShowZoneModal(true); }}><MapPin size={14} /> Add Zone</button>
+          </PermissionGuard>
+          <PermissionGuard permission="housekeeping-schedules.write">
+            <button className="btn btn-primary btn-sm" onClick={() => { setScheduleErrors({}); setShowScheduleModal(true); }}><Plus size={14} /> Add Schedule</button>
+          </PermissionGuard>
+        </div>
+      </div>
+
       {/* ── Stats Row ── */}
       {stats?.today && (
         <div style={{
@@ -190,48 +242,6 @@ export default function HousekeepingTasksPage() {
           </div>
         </div>
       )}
-
-      {/* ── Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        marginBottom: 16, flexWrap: 'wrap', gap: 12,
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #10b981, #6366f1)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Sparkles size={18} color="#fff" />
-            </div>
-            Housekeeping
-          </h1>
-          <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            Tasks, schedules & zones
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleGenerateTasks}
-            disabled={generating}
-            style={{ borderRadius: 10, display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            {generating ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} color="#6366f1" />}
-            Generate Today's Tasks
-          </button>
-          <PermissionGuard permission="housekeeping-zones.write">
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowZoneModal(true)} style={{ borderRadius: 10 }}><MapPin size={14} /> Add Zone</button>
-          </PermissionGuard>
-          <PermissionGuard permission="housekeeping-schedules.write">
-            <button className="btn btn-primary btn-sm" onClick={() => setShowScheduleModal(true)} style={{ borderRadius: 10 }}><Plus size={14} /> Add Schedule</button>
-          </PermissionGuard>
-        </div>
-      </div>
 
       {/* ── Tab Bar ── */}
       <div className="maint-filters" style={{ gap: '4px' }}>
@@ -404,11 +414,14 @@ export default function HousekeepingTasksPage() {
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <h2><MapPin size={18} /> New Zone</h2>
-            <form onSubmit={handleCreateZone}>
+            <form onSubmit={handleCreateZone} noValidate>
               <div className="form-group"><label>Property *</label>
-                <select name="propertyId" required defaultValue={filterProperty || ''}><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                <select name="propertyId" defaultValue={filterProperty || ''} className={zoneErrors.propertyId ? 'maint-input-error' : ''} onChange={() => setZoneErrors((p) => ({ ...p, propertyId: '' }))}><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                {zoneErrors.propertyId && <span className="maint-error-text">{zoneErrors.propertyId}</span>}
               </div>
-              <div className="form-group"><label>Zone Name *</label><input name="name" required placeholder="Lobby" /></div>
+              <div className="form-group"><label>Zone Name *</label><input name="name" placeholder="Lobby" className={zoneErrors.name ? 'maint-input-error' : ''} onChange={() => setZoneErrors((p) => ({ ...p, name: '' }))} />
+                {zoneErrors.name && <span className="maint-error-text">{zoneErrors.name}</span>}
+              </div>
               <div className="form-group"><label>Type</label>
                 <select name="zoneType"><option value="">Select...</option>{ZONE_TYPES.map((t) => <option key={t} value={t}>{ZONE_ICONS[t]} {t}</option>)}</select>
               </div>
@@ -430,17 +443,21 @@ export default function HousekeepingTasksPage() {
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <h2><Calendar size={18} /> New Schedule</h2>
-            <form onSubmit={handleCreateSchedule}>
+            <form onSubmit={handleCreateSchedule} noValidate>
               <div className="form-group"><label>Property *</label>
-                <select name="propertyId" required defaultValue={filterProperty || ''}><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                <select name="propertyId" defaultValue={filterProperty || ''} className={scheduleErrors.propertyId ? 'maint-input-error' : ''} onChange={() => setScheduleErrors((p) => ({ ...p, propertyId: '' }))}><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                {scheduleErrors.propertyId && <span className="maint-error-text">{scheduleErrors.propertyId}</span>}
               </div>
               <div className="form-group"><label>Zone *</label>
-                <select name="zoneId" required><option value="">Select...</option>{zones.map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}</select>
+                <select name="zoneId" className={scheduleErrors.zoneId ? 'maint-input-error' : ''} onChange={() => setScheduleErrors((p) => ({ ...p, zoneId: '' }))}><option value="">Select...</option>{zones.map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}</select>
+                {scheduleErrors.zoneId && <span className="maint-error-text">{scheduleErrors.zoneId}</span>}
               </div>
-              <div className="form-group"><label>Schedule Name *</label><input name="name" required placeholder="Daily Lobby Cleaning" /></div>
+              <div className="form-group"><label>Schedule Name *</label><input name="name" placeholder="Daily Lobby Cleaning" className={scheduleErrors.name ? 'maint-input-error' : ''} onChange={() => setScheduleErrors((p) => ({ ...p, name: '' }))} />
+                {scheduleErrors.name && <span className="maint-error-text">{scheduleErrors.name}</span>}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group"><label>Frequency *</label>
-                  <select name="frequencyType" required>
+                  <select name="frequencyType">
                     <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
                   </select>
                 </div>

@@ -6,7 +6,7 @@ import {
   useGetViewingsQuery, useScheduleViewingMutation, useCompleteViewingMutation,
   useRescheduleViewingMutation,
   useDeleteLeadMutation,
-  useGetCalendarStatusQuery, useDisconnectCalendarMutation,
+  useGetCalendarStatusQuery,
   useBlacklistLeadMutation, useUnblacklistLeadMutation,
   type LeadViewing, type LeadActivityItem,
 } from '../../../store/api/crmApi';
@@ -321,7 +321,7 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
   const [isEditing, setIsEditing] = useState(false);
   const [updateLead, { isLoading: isSaving }] = useUpdateLeadMutation();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const { data: usersData } = useGetUsersQuery({ page: 1, limit: 200 });
+  const { data: usersData } = useGetUsersQuery({ page: '1', limit: '200' });
   const { data: unitTypesData } = useGetUnitTypesQuery();
   const properties = propertiesData?.data || [];
   const users = usersData?.data || [];
@@ -766,7 +766,6 @@ function ViewingsTab({ leadId }: { leadId: string }) {
   const [completeViewing] = useCompleteViewingMutation();
   const [rescheduleViewing] = useRescheduleViewingMutation();
   const { data: calendarStatus } = useGetCalendarStatusQuery();
-  const [disconnectCalendar] = useDisconnectCalendarMutation();
   const [showSchedule, setShowSchedule] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<LeadViewing | null>(null);
   const viewings = data?.data || [];

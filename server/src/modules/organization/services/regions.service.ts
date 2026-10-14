@@ -1,5 +1,4 @@
 import { prisma } from '../../../common/database';
-import { AppError } from '../../../common/errors';
 
 export class RegionsService {
   async findAll(companyId: string) {

@@ -13,7 +13,6 @@ const DEFAULT_SLA: Record<string, { responseHours: number; resolutionHours: numb
 /** Working-day config (Mon-Fri, 8:00-18:00) */
 const WORK_START_HOUR = 8;
 const WORK_END_HOUR = 18;
-const WORK_HOURS_PER_DAY = WORK_END_HOUR - WORK_START_HOUR; // 10
 
 /**
  * Add hours to a date, respecting working hours if requested.

@@ -8,10 +8,12 @@ import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   CreditCard, Search, Plus, ShieldCheck, ShieldOff, ShieldAlert,
-  Tag, User, Building2, AlertTriangle, X,
+  Tag, User, Building2, AlertTriangle, X, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import '../MaintenancePage/MaintenancePage.css';
 
 const STATUSES = ['', 'active', 'suspended', 'cancelled', 'lost'];
 const CARD_TYPES = ['', 'rfid', 'nfc', 'qr', 'barcode'];
@@ -71,11 +73,14 @@ export default function AccessCardsPage() {
   };
 
   return (
-    <div className="page-content">
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1><CreditCard size={24} /> Resident Access Cards</h1>
-          <p className="text-muted">Manage access cards, fobs, and NFC tags for residents</p>
+    <div className="page-content maint-page">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><CreditCard size={22} /></div>
+          <div>
+            <h1>Resident Access Cards</h1>
+            <p>{meta?.total ?? stats?.total ?? items.length} total cards</p>
+          </div>
         </div>
         <PermissionGuard permission="community-access-cards.write">
           <button className="btn btn-primary" onClick={() => setShowIssueForm(true)}>
@@ -173,88 +178,91 @@ export default function AccessCardsPage() {
       {isLoading ? (
         <div className="loading-inline"><div className="loading-spinner" /> Loading cards...</div>
       ) : (
-        <div className="data-table-wrapper">
-          <table className="data-table" id="access-cards-table">
-            <thead>
-              <tr>
-                <th>Card Number</th>
-                <th>Type</th>
-                <th>Resident</th>
-                <th>Property</th>
-                <th>Issued</th>
-                <th>Expires</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 30, opacity: 0.5 }}>No access cards found</td></tr>
-              ) : items.map(card => (
-                <tr key={card.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <CreditCard size={14} style={{ opacity: 0.4 }} />
-                      <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{card.cardNumber}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="status-badge" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontSize: '0.7rem' }}>
-                      <Tag size={10} /> {cardTypeLabel(card.cardType)}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <User size={12} style={{ opacity: 0.4 }} />
-                      {card.resident ? `${card.resident.firstName} ${card.resident.lastName}` : '—'}
-                    </div>
-                    {card.resident?.residentType && (
-                      <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>{card.resident.residentType}</span>
-                    )}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Building2 size={12} style={{ opacity: 0.4 }} />
-                      {card.property?.name || '—'}
-                    </div>
-                  </td>
-                  <td style={{ fontSize: '0.82rem' }}>
-                    {new Date(card.issuedAt).toLocaleDateString()}
-                  </td>
-                  <td style={{ fontSize: '0.82rem' }}>
-                    {card.expiresAt ? (
-                      <span style={{ color: new Date(card.expiresAt) < new Date() ? 'var(--danger, #ef4444)' : undefined }}>
-                        {new Date(card.expiresAt).toLocaleDateString()}
-                      </span>
-                    ) : (
-                      <span style={{ opacity: 0.4 }}>—</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`status-badge ${statusColor(card.status)}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                      {statusIcon(card.status)} {card.status}
-                    </span>
-                  </td>
-                  <td>
-                    <PermissionGuard permission="community-access-cards.write">
-                      <button className="btn btn-sm" onClick={() => setEditCard(card)}>Edit</button>
-                    </PermissionGuard>
-                  </td>
+        <div className="maint-table-wrap">
+          <TableScrollWrapper>
+            <table className="maint-table" id="access-cards-table">
+              <thead>
+                <tr>
+                  <th>Card Number</th>
+                  <th>Type</th>
+                  <th>Resident</th>
+                  <th>Property</th>
+                  <th>Issued</th>
+                  <th>Expires</th>
+                  <th>Status</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {meta && meta.total > meta.limit && (
-        <div className="pagination" style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</button>
-          <span className="text-muted" style={{ padding: '6px 12px' }}>
-            Page {meta.page} of {Math.ceil(meta.total / meta.limit)}
-          </span>
-          <button className="btn btn-sm" disabled={page >= Math.ceil(meta.total / meta.limit)} onClick={() => setPage(p => p + 1)}>Next</button>
+              </thead>
+              <tbody>
+                {items.length === 0 ? (
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 30, opacity: 0.5 }}>No access cards found</td></tr>
+                ) : items.map(card => (
+                  <tr key={card.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <CreditCard size={14} style={{ opacity: 0.4 }} />
+                        <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{card.cardNumber}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="status-badge" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontSize: '0.7rem' }}>
+                        <Tag size={10} /> {cardTypeLabel(card.cardType)}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <User size={12} style={{ opacity: 0.4 }} />
+                        {card.resident ? `${card.resident.firstName} ${card.resident.lastName}` : '—'}
+                      </div>
+                      {card.resident?.residentType && (
+                        <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>{card.resident.residentType}</span>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Building2 size={12} style={{ opacity: 0.4 }} />
+                        {card.property?.name || '—'}
+                      </div>
+                    </td>
+                    <td style={{ fontSize: '0.82rem' }}>
+                      {new Date(card.issuedAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ fontSize: '0.82rem' }}>
+                      {card.expiresAt ? (
+                        <span style={{ color: new Date(card.expiresAt) < new Date() ? 'var(--danger, #ef4444)' : undefined }}>
+                          {new Date(card.expiresAt).toLocaleDateString()}
+                        </span>
+                      ) : (
+                        <span style={{ opacity: 0.4 }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`status-badge ${statusColor(card.status)}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        {statusIcon(card.status)} {card.status}
+                      </span>
+                    </td>
+                    <td>
+                      <PermissionGuard permission="community-access-cards.write">
+                        <button className="btn btn-sm" onClick={() => setEditCard(card)}>Edit</button>
+                      </PermissionGuard>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
+          {meta && meta.total >= 10 && (
+            <div className="maint-pagination">
+              <div className="maint-pagination-left">
+                <span>Rows per page: {meta.limit}</span>
+              </div>
+              <div className="maint-pagination-right">
+                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft size={16} /></button>
+                <span className="maint-page-info">Page {meta.page} of {Math.max(1, Math.ceil(meta.total / meta.limit))}</span>
+                <button disabled={page >= Math.ceil(meta.total / meta.limit)} onClick={() => setPage(p => p + 1)}><ChevronRight size={16} /></button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -272,6 +280,7 @@ function IssueCardModal({ properties, onClose, onSubmit }: {
     cardType: 'rfid', expiresAt: '', notes: '',
   });
   const [residentSearch, setResidentSearch] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
   // Fetch residents for selected property
   const { data: residentsData } = useGetResidentsForProperty(form.propertyId);
@@ -290,13 +299,18 @@ function IssueCardModal({ properties, onClose, onSubmit }: {
 
         <div className="form-group">
           <label>Property *</label>
-          <select value={form.propertyId} onChange={(e) => setForm({ ...form, propertyId: e.target.value, residentId: '' })} className="form-select">
+          <select
+            value={form.propertyId}
+            onChange={(e) => setForm({ ...form, propertyId: e.target.value, residentId: '' })}
+            className={`form-select ${submitted && !form.propertyId ? 'maint-input-error' : ''}`}
+          >
             <option value="">Select property...</option>
             {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          {submitted && !form.propertyId && <span className="maint-error-text">Property is required</span>}
         </div>
 
-        {form.propertyId && (
+        {(form.propertyId || submitted) && (
           <div className="form-group">
             <label>Resident *</label>
             <input
@@ -306,19 +320,31 @@ function IssueCardModal({ properties, onClose, onSubmit }: {
               onChange={(e) => setResidentSearch(e.target.value)}
               style={{ marginBottom: 4 }}
             />
-            <select value={form.residentId} onChange={(e) => setForm({ ...form, residentId: e.target.value })} className="form-select">
+            <select
+              value={form.residentId}
+              onChange={(e) => setForm({ ...form, residentId: e.target.value })}
+              className={`form-select ${submitted && !form.residentId ? 'maint-input-error' : ''}`}
+            >
               <option value="">Select resident...</option>
               {filteredResidents.map((r: any) => (
                 <option key={r.id} value={r.id}>{r.firstName} {r.lastName} ({r.residentType})</option>
               ))}
             </select>
+            {submitted && !form.residentId && <span className="maint-error-text">Resident is required</span>}
           </div>
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="form-group">
             <label>Card Number *</label>
-            <input type="text" value={form.cardNumber} onChange={(e) => setForm({ ...form, cardNumber: e.target.value })} placeholder="e.g. RF-00123" />
+            <input
+              type="text"
+              value={form.cardNumber}
+              onChange={(e) => setForm({ ...form, cardNumber: e.target.value })}
+              placeholder="e.g. RF-00123"
+              className={submitted && !form.cardNumber.trim() ? 'maint-input-error' : ''}
+            />
+            {submitted && !form.cardNumber.trim() && <span className="maint-error-text">Card number is required</span>}
           </div>
           <div className="form-group">
             <label>Card Type</label>
@@ -345,15 +371,18 @@ function IssueCardModal({ properties, onClose, onSubmit }: {
           <button className="btn" onClick={onClose}>Cancel</button>
           <button
             className="btn btn-primary"
-            disabled={!form.residentId || !form.propertyId || !form.cardNumber}
-            onClick={() => onSubmit({
-              residentId: form.residentId,
-              propertyId: form.propertyId,
-              cardNumber: form.cardNumber,
-              cardType: form.cardType,
-              expiresAt: form.expiresAt || undefined,
-              notes: form.notes || undefined,
-            })}
+            onClick={() => {
+              setSubmitted(true);
+              if (!form.propertyId || !form.residentId || !form.cardNumber.trim()) return;
+              onSubmit({
+                residentId: form.residentId,
+                propertyId: form.propertyId,
+                cardNumber: form.cardNumber.trim(),
+                cardType: form.cardType,
+                expiresAt: form.expiresAt || undefined,
+                notes: form.notes || undefined,
+              });
+            }}
           >
             Issue Card
           </button>

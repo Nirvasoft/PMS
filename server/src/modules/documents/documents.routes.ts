@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import path from 'path';
 import { asyncHandler } from '../../middleware';
 import { documentsService } from './services/documents.service';
 import { foldersService } from './services/folders.service';

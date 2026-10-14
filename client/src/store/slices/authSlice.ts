@@ -4,8 +4,8 @@ interface AuthUser {
   id: string;
   email: string;
   companyId: string;
-  companyCode: string;
-  companyName: string;
+  companyCode?: string;
+  companyName?: string;
   roles: string[];
   permissions: string[];
   mustChangePassword: boolean;

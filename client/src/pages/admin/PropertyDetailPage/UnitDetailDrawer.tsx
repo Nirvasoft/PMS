@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, type ReactNode } from 'react';
 import { useAppDispatch } from '../../../store';
 import { closeDrawer } from '../../../store/slices/unitsSlice';
 import {
@@ -12,9 +12,9 @@ import { useGetFloorSetupsQuery, useGetPropertyQuery } from '../../../store/api/
 import { CATEGORIES as METER_CATEGORIES, METER_TYPES } from '../BillingPage/MeterSetupPage';
 import { ZONE_OPTIONS } from './zoneOptions';
 import {
-  X, Zap, Droplets, Wind, Star, ChevronRight, Settings2,
-  Activity, Clock, Thermometer, Plus, Trash2, Pencil, Check,
-  Upload, FileImage, ExternalLink, FileText, CalendarDays, AlertCircle,
+  X, Zap, Droplets, Wind,
+  Activity, Thermometer, Plus, Trash2, Pencil, Check,
+  Upload, FileImage, ExternalLink, CalendarDays, AlertCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -33,7 +33,7 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   not_for_rent: ['available', 'maintenance'],
 };
 
-const METER_ICONS: Record<string, JSX.Element> = {
+const METER_ICONS: Record<string, ReactNode> = {
   electricity: <Zap size={14} />,
   water:       <Droplets size={14} />,
   gas:         <Wind size={14} />,
@@ -128,7 +128,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId });
   const currencyOptions = currencyRatesData?.data || [];
 
-  const { data: unitChargesData, refetch: refetchCharges } = useGetUnitChargesQuery({ propertyId, unitId });
+  const { data: unitChargesData } = useGetUnitChargesQuery({ propertyId, unitId });
   const unitCharges = unitChargesData?.data || [];
   const [addUnitCharge] = useAddUnitChargeMutation();
   const [updateUnitCharge] = useUpdateUnitChargeMutation();
@@ -1331,7 +1331,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
           {/* ═══ HISTORY TAB ═══ */}
           {activeTab === 'history' && (() => {
-            type HistoryEvent = { id: string; at: string; filterStart: string; filterEnd: string; meterType?: string; node: JSX.Element };
+            type HistoryEvent = { id: string; at: string; filterStart: string; filterEnd: string; meterType?: string; node: ReactNode };
 
             const statusEvents: HistoryEvent[] = unit.statusHistory.map((h) => ({
               id: `status-${h.id}`,
@@ -1566,7 +1566,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
       {/* ── Billing Schedule Sync Confirm Modal ── */}
       {syncConfirmPending && (() => {
-        const { chargeId, chargeTypeId, amount, oldAmount, chargeName } = syncConfirmPending;
+        const { chargeId, chargeTypeId, amount, chargeName } = syncConfirmPending;
         const affectedSchedules = unitBillingSchedules.filter(
           (s: any) => s.status === 'active' && s.chargeType?.id === chargeTypeId
         );

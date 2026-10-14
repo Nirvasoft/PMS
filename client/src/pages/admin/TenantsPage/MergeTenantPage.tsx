@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetTenantsQuery, useMergeTenantsMutation, useGetTenantQuery, useGetLeaseHistoryQuery,
-  type TenantListItem,
 } from '../../../store/api/tenantsApi';
 import {
   ArrowLeft, GitMerge, Search, User, Building2, X,

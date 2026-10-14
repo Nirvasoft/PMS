@@ -6,7 +6,9 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import {
   DoorOpen, Loader2, Inbox, ShieldAlert, ShieldCheck, ShieldX,
   Key, Clock, Building2, CreditCard, User, AlertTriangle,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 const EVENT_TYPES = [
   { value: '', label: 'All Events' },
@@ -36,6 +38,7 @@ function fullName(user: any) {
 export default function AccessEventsPage() {
   const [eventType, setEventType] = useState('');
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
   // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
@@ -50,7 +53,7 @@ export default function AccessEventsPage() {
     propertyId: selectedProperty || undefined,
     eventType: eventType || undefined,
     page,
-    limit: 50,
+    limit,
   });
   const { data: statsData } = useGetSecurityStatsQuery({});
 
@@ -61,9 +64,6 @@ export default function AccessEventsPage() {
   // Count events by type in current page
   const grantedCount = events.filter((e: any) => e.eventType === 'access_granted').length;
   const deniedCount = events.filter((e: any) => e.eventType === 'access_denied').length;
-  const alertCount = events.filter((e: any) =>
-    ['door_forced', 'tailgate', 'lockdown'].includes(e.eventType)
-  ).length;
 
   return (
     <div className="maint-page">
@@ -73,7 +73,7 @@ export default function AccessEventsPage() {
           <div className="page-icon-lg"><DoorOpen size={22} /></div>
           <div>
             <h1>Access Control Events</h1>
-            <p>Real-time access logs from door readers, card scanners & gates</p>
+            <p>{meta?.total ?? events.length} total events</p>
           </div>
         </div>
       </div>
@@ -133,8 +133,8 @@ export default function AccessEventsPage() {
           </p>
         </div>
       ) : (
-        <>
-          <div className="maint-table-wrap">
+        <div className="maint-table-wrap">
+          <TableScrollWrapper>
             <table className="maint-table">
               <thead>
                 <tr>
@@ -222,20 +222,31 @@ export default function AccessEventsPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScrollWrapper>
 
-          {meta && meta.totalPages > 1 && (
+          {meta && meta.total >= 10 && (
             <div className="maint-pagination">
-              <span className="page-info">
-                Page {meta.page} of {meta.totalPages} ({meta.total} events)
-              </span>
-              <div className="page-btns">
-                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</button>
-                <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)}>Next</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>Rows per page:</span>
+                <select
+                  value={limit}
+                  onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                  style={{
+                    background: 'var(--bg-secondary)', color: 'var(--text-primary)',
+                    border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px', fontSize: '0.78rem',
+                  }}
+                >
+                  {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}><ChevronLeft size={14} /></button>
+                <span>Page {meta.page} of {meta.totalPages || 1}</span>
+                <button disabled={page >= (meta.totalPages || 1)} onClick={() => setPage(p => p + 1)}><ChevronRight size={14} /></button>
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

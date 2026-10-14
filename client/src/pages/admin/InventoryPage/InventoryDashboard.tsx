@@ -9,10 +9,10 @@ import {
 } from '../../../store/api/inventoryApi';
 import {
   Package, Loader2, AlertTriangle, ArrowRight, BarChart3,
-  TrendingDown, TrendingUp, Box, Store, Activity,
+  TrendingDown, Box, Store, Activity,
   ClipboardList, DollarSign, ArrowUpCircle, ArrowDownCircle, RefreshCw,
-  Layers, ShieldCheck, Warehouse, FileText, ChevronRight, Zap,
-  CircleDot, PackageOpen, PackageCheck, Gauge,
+  Layers, ShieldCheck, Warehouse, FileText,
+  PackageCheck, Gauge,
 } from 'lucide-react';
 
 const MOVEMENT_ICONS: Record<string, { icon: typeof Activity; color: string; bg: string; label: string }> = {
@@ -101,40 +101,26 @@ export default function InventoryDashboard() {
   return (
     <div className="maint-page">
       {/* ── Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        marginBottom: 24, flexWrap: 'wrap', gap: 12,
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <h1 style={{
-              fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
-              display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Package size={18} color="#fff" />
-              </div>
-              Inventory Dashboard
-            </h1>
-            {activeProperty ? (
-              <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
-                🏢 {activeProperty.name}
-              </span>
-            ) : (
-              <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-                🌐 All Properties
-              </span>
-            )}
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Package size={22} /></div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{ margin: 0 }}>Inventory Dashboard</h1>
+              {activeProperty ? (
+                <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
+                  🏢 {activeProperty.name}
+                </span>
+              ) : (
+                <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
+                  🌐 All Properties
+                </span>
+              )}
+            </div>
+            <p>Stock levels, movements & procurement at a glance</p>
           </div>
-          <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            Stock levels, movements & procurement at a glance
-          </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="header-actions">
           <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/inventory/items')}
             style={{ borderRadius: 10 }}>
             <Box size={14} /> Catalog

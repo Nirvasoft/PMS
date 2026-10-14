@@ -194,7 +194,7 @@ class VisitorsService {
   /**
    * Walk-in request (security creates, waits for host approval).
    */
-  async requestWalkIn(companyId: string, guardUserId: string, data: {
+  async requestWalkIn(companyId: string, _guardUserId: string, data: {
     propertyId: string;
     hostUnitId: string;
     visitorName: string;
@@ -359,7 +359,7 @@ class VisitorsService {
   // ── Helpers ──────────────────────────────────
 
   private async checkBlacklist(
-    companyId: string, name?: string, ic?: string, mobile?: string,
+    companyId: string, _name?: string, ic?: string, mobile?: string,
   ) {
     const conditions: any[] = [];
     if (ic) conditions.push({ visitorIc: ic, isActive: true });

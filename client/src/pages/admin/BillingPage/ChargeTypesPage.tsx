@@ -132,12 +132,14 @@ export default function ChargeTypesPage() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <DollarSign size={22} />
           </div>
           <div style={{ flex: 1 }}>
-            <h1>Charge Types</h1>
-            <p>Manage charge categories used across billing and invoicing</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Charge Types</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {`${chargeTypes.length} total charge types`}
+            </p>
           </div>
           <PermissionGuard permission="billing-charge-types.write">
             <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -230,7 +232,7 @@ export default function ChargeTypesPage() {
               <th className="text-center" style={{ width: 90 }}>Taxable</th>
               <th className="text-right" style={{ width: 120 }}>Default Tax</th>
               <th style={{ width: 110 }}>Status</th>
-              <th className="text-center" style={{ width: 80 }}>Actions</th>
+              <th className="text-center" style={{ width: 80 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -305,7 +307,7 @@ export default function ChargeTypesPage() {
         </TableScrollWrapper>
 
         {/* Pagination */}
-        {totalItems > 0 && (
+        {totalItems >= 10 && (
           <div className="billing-pagination">
             <div className="pagination-left">
               <div className="page-size-selector">
@@ -324,9 +326,6 @@ export default function ChargeTypesPage() {
                   <option value={100}>100</option>
                 </select>
               </div>
-              <span className="page-info">
-                Showing {totalItems === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + pageSize, totalItems)} of {totalItems}
-              </span>
             </div>
 
             <div className="page-btns">

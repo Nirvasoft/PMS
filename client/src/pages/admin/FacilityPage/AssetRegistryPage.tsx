@@ -9,10 +9,12 @@ import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Box, Plus, Search, Loader2, XCircle, Wrench, AlertTriangle,
-  CheckCircle2, ShieldAlert, Clock, Settings2, Shield, ChevronDown, ChevronUp,
+  CheckCircle2, ShieldAlert, Clock, Shield, ChevronDown, ChevronUp,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 const ASSET_TYPES: Record<string, { label: string; icon: string }> = {
   hvac: { label: 'HVAC', icon: '❄️' },
@@ -70,7 +72,7 @@ export default function AssetRegistryPage() {
     { skip: !showServiceDue },
   );
   const { data: warrantyExpData } = useGetWarrantyExpiringAssetsQuery(
-    { propertyId: selectedProperty || undefined },
+    {},
     { skip: !showWarrantyExpiring },
   );
   const serviceDueAssets = serviceDueData?.data || [];
@@ -84,7 +86,7 @@ export default function AssetRegistryPage() {
           <div className="page-icon-lg"><Box size={22} /></div>
           <div>
             <h1>Asset Registry</h1>
-            <p>Track and manage facility assets and equipment</p>
+            <p>{meta?.total ?? assets.length} total assets</p>
           </div>
         </div>
         <div className="header-actions">
@@ -226,8 +228,8 @@ export default function AssetRegistryPage() {
           </PermissionGuard>
         </div>
       ) : (
-        <>
-          <div className="maint-table-wrap">
+        <div className="maint-table-wrap">
+          <TableScrollWrapper>
             <table className="maint-table">
               <thead>
                 <tr>
@@ -294,18 +296,43 @@ export default function AssetRegistryPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScrollWrapper>
 
-          {meta && meta.totalPages > 1 && (
+          {meta && meta.total >= 10 && (
             <div className="maint-pagination">
-              <span className="page-info">Page {meta.page} of {meta.totalPages} ({meta.total} assets)</span>
-              <div className="page-btns">
-                <button disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}>Previous</button>
-                <button disabled={filters.page >= meta.totalPages} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}>Next</button>
+              <div className="maint-pagination-left">
+                <span>Rows per page:</span>
+                <select
+                  value={filters.limit}
+                  onChange={(e) => setFilters(f => ({ ...f, limit: Number(e.target.value), page: 1 }))}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+              <div className="maint-pagination-right">
+                <button
+                  className="maint-page-btn"
+                  disabled={filters.page <= 1}
+                  onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="maint-page-info">
+                  Page {meta.page} of {meta.totalPages || 1}
+                </span>
+                <button
+                  className="maint-page-btn"
+                  disabled={filters.page >= (meta.totalPages || 1)}
+                  onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {showCreateModal && (
@@ -324,6 +351,7 @@ function CreateAssetModal({ properties, onClose }: {
   properties: any[]; onClose: () => void;
 }) {
   const [createAsset, { isLoading }] = useCreateFacilityAssetMutation();
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({
     propertyId: '', assetNumber: '', name: '', assetType: 'hvac',
     make: '', model: '', serialNumber: '',
@@ -335,6 +363,8 @@ function CreateAssetModal({ properties, onClose }: {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.propertyId || !form.assetNumber.trim() || !form.name.trim()) return;
     try {
       await createAsset({
         propertyId: form.propertyId,
@@ -373,18 +403,25 @@ function CreateAssetModal({ properties, onClose }: {
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit} style={{ maxHeight: '70vh', overflowY: 'auto', padding: '0 24px 24px' }}>
+        <form noValidate onSubmit={handleSubmit} style={{ maxHeight: '70vh', overflowY: 'auto', padding: '0 24px 24px' }}>
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Property <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.propertyId} onChange={(e) => setForm(f => ({ ...f, propertyId: e.target.value }))}>
+              <select
+                className={hasAttemptedSubmit && !form.propertyId ? 'maint-input-error' : ''}
+                value={form.propertyId}
+                onChange={(e) => setForm(f => ({ ...f, propertyId: e.target.value }))}
+              >
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              {hasAttemptedSubmit && !form.propertyId && (
+                <span className="maint-error-text">Property is required</span>
+              )}
             </div>
             <div className="maint-field">
               <label>Asset Type <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.assetType} onChange={(e) => setForm(f => ({ ...f, assetType: e.target.value }))}>
+              <select value={form.assetType} onChange={(e) => setForm(f => ({ ...f, assetType: e.target.value }))}>
                 {Object.entries(ASSET_TYPES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
               </select>
             </div>
@@ -393,11 +430,29 @@ function CreateAssetModal({ properties, onClose }: {
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Asset Number <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="text" required value={form.assetNumber} onChange={(e) => setForm(f => ({ ...f, assetNumber: e.target.value }))} placeholder="e.g. HVAC-B1-01" />
+              <input
+                type="text"
+                className={hasAttemptedSubmit && !form.assetNumber.trim() ? 'maint-input-error' : ''}
+                value={form.assetNumber}
+                onChange={(e) => setForm(f => ({ ...f, assetNumber: e.target.value }))}
+                placeholder="e.g. HVAC-B1-01"
+              />
+              {hasAttemptedSubmit && !form.assetNumber.trim() && (
+                <span className="maint-error-text">Asset number is required</span>
+              )}
             </div>
             <div className="maint-field">
               <label>Name <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="text" required value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Air Handling Unit — Basement 1" />
+              <input
+                type="text"
+                className={hasAttemptedSubmit && !form.name.trim() ? 'maint-input-error' : ''}
+                value={form.name}
+                onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Air Handling Unit — Basement 1"
+              />
+              {hasAttemptedSubmit && !form.name.trim() && (
+                <span className="maint-error-text">Name is required</span>
+              )}
             </div>
           </div>
 

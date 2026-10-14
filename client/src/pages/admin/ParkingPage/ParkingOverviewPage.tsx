@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useState, useEffect } from 'react';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useGetUnitsQuery, type UnitListItem } from '../../../store/api/unitsApi';
 import {
@@ -9,9 +8,10 @@ import {
   useGetOccupancyAllQuery, useGetZonesAllQuery, useGetSlotsAllQuery,
   type ParkingZone, type ParkingSlot, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
-import { Car, LayoutGrid, Plus, Layers, Grid3X3, Pencil, Trash2 } from 'lucide-react';
+import { Car, LayoutGrid, Plus, Layers, Grid3X3, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ParkingPage.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -28,22 +28,8 @@ export default function ParkingOverviewPage() {
   const [unitId, setUnitId] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'slots' | 'zones'>('overview');
 
-  const { data: propertiesData } = useGetMyPropertyScopeQuery();
-  const properties = propertiesData?.data || [];
-  // Locked to the sidebar's Active Property; only when "All Properties" is active
-  // can a property be chosen here, for this page only.
-  const activeProperty = useSelectedPropertyFilter();
-  const propertyLocked = !!activeProperty;
-  const [manualPropertyId, setManualPropertyId] = useState('');
-  const selectedProperty = propertyLocked ? activeProperty : manualPropertyId;
-  const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
-
-  // Clears the manual pick back to "Select Property" if the sidebar leaves "All Properties".
-  const prevPropertyLockedRef = useRef(propertyLocked);
-  useEffect(() => {
-    if (!propertyLocked && prevPropertyLockedRef.current) setManualPropertyId('');
-    prevPropertyLockedRef.current = propertyLocked;
-  }, [propertyLocked]);
+  const selectedProperty = useSelectedPropertyFilter();
+  const propertyLocked = !!selectedProperty;
 
   // Reset downstream filters whenever the active property changes.
   useEffect(() => {
@@ -74,62 +60,46 @@ export default function ParkingOverviewPage() {
   return (
     <div className="parking-page">
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <div className="page-title-row">
-          <div className="page-icon-lg"><Car size={22} /></div>
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
+            <Car size={22} />
+          </div>
           <div>
-            <h1>Parking Management</h1>
-            <p>Manage zones, slots, and occupancy</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Parking Management</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Manage zones, slots, and occupancy</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div className="parking-filter-field">
-            <label>Properties</label>
-            <select
-              className="filter-select"
-              value={selectedProperty}
-              disabled={propertyLocked}
-              onChange={(e) => setManualPropertyId(e.target.value)}
-              style={{ minWidth: 200 }}
-            >
-              {propertyLocked ? (
-                <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>
-              ) : (
-                <>
-                  <option value="">All Properties</option>
-                  {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </>
-              )}
-            </select>
-          </div>
+      </div>
 
-          <div className="parking-filter-field">
-            <label>Parking</label>
-            <select
-              className="filter-select"
-              value={selectedType}
-              onChange={(e) => handleTypeChange(e.target.value)}
-              disabled={!selectedProperty || parkingTypes.length === 0}
-              style={{ minWidth: 160 }}
-            >
-              {parkingTypes.length === 0 && <option value="">-</option>}
-              {parkingTypes.map((t: ParkingUnitType) => <option key={t.code} value={t.code}>{t.name}</option>)}
-            </select>
-          </div>
+      {/* Parking & Park Unit Filters below Title */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 20 }}>
+        <div className="parking-filter-field">
+          <label>Parking</label>
+          <select
+            className="filter-select"
+            value={selectedType}
+            onChange={(e) => handleTypeChange(e.target.value)}
+            disabled={!selectedProperty || parkingTypes.length === 0}
+            style={{ minWidth: 160 }}
+          >
+            {parkingTypes.length === 0 && <option value="">-</option>}
+            {parkingTypes.map((t: ParkingUnitType) => <option key={t.code} value={t.code}>{t.name}</option>)}
+          </select>
+        </div>
 
-          <div className="parking-filter-field">
-            <label>Park Unit</label>
-            <select
-              className="filter-select"
-              value={selectedUnit}
-              onChange={(e) => setUnitId(e.target.value)}
-              disabled={!selectedType || parkUnits.length === 0}
-              style={{ minWidth: 160 }}
-            >
-              {parkUnits.length === 0 && <option value="">-</option>}
-              {parkUnits.map((u: UnitListItem) => <option key={u.id} value={u.id}>{unitLabel(u)}</option>)}
-            </select>
-          </div>
+        <div className="parking-filter-field">
+          <label>Park Unit</label>
+          <select
+            className="filter-select"
+            value={selectedUnit}
+            onChange={(e) => setUnitId(e.target.value)}
+            disabled={!selectedType || parkUnits.length === 0}
+            style={{ minWidth: 160 }}
+          >
+            {parkUnits.length === 0 && <option value="">-</option>}
+            {parkUnits.map((u: UnitListItem) => <option key={u.id} value={u.id}>{unitLabel(u)}</option>)}
+          </select>
         </div>
       </div>
 
@@ -365,13 +335,14 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
   const [zoneFilter, setZoneFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [showBulk, setShowBulk] = useState(false);
   const [editingSlot, setEditingSlot] = useState<ParkingSlot | null>(null);
   const [deletingSlot, setDeletingSlot] = useState<ParkingSlot | null>(null);
 
   const { data: zonesData } = useGetZonesQuery({ propertyId, unitId }, { refetchOnMountOrArgChange: true });
   const { data, isLoading } = useGetSlotsQuery(
-    { propertyId, unitId, zoneId: zoneFilter || undefined, status: statusFilter || undefined, page, limit: 50 },
+    { propertyId, unitId, zoneId: zoneFilter || undefined, status: statusFilter || undefined, page, limit: pageSize },
     { refetchOnMountOrArgChange: true },
   );
   const [bulkCreate] = useBulkCreateSlotsMutation();
@@ -439,53 +410,74 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
       </div>
 
       <div className="slot-table-wrap">
-        <div className="slot-table-header">
-          <span>Slot #</span><span>Zone</span>
-          <span>Status</span><span>Monthly Rate</span><span>Actions</span>
-        </div>
-        {isLoading ? (
-          <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
-        ) : slots.length === 0 ? (
-          <div className="table-empty"><Grid3X3 size={40} /><p>No slots found</p></div>
-        ) : (
-          slots.map((slot: ParkingSlot) => (
-            <div key={slot.id} className="slot-row">
-              <div style={{ fontWeight: 600 }}>{slot.slotNumber}</div>
-              <div>{slot.zone?.name || '—'}</div>
-              <div>
-                <span className="slot-status-badge" style={{ background: (STATUS_COLORS[slot.status] || '#666') + '18', color: STATUS_COLORS[slot.status] || '#666' }}>
-                  {slot.status}
-                </span>
-              </div>
-              <div>{slot.monthlyRate ? `$${Number(slot.monthlyRate).toLocaleString()}` : '—'}</div>
-              <PermissionGuard permission="parking-overview.write">
-                <div className="row-actions">
-                  <button
-                    className="btn-icon-sm"
-                    title={slotInUse(slot) ? `Slot is ${slot.status} — cannot edit` : 'Edit slot'}
-                    disabled={slotInUse(slot)}
-                    onClick={() => setEditingSlot(slot)}
-                  ><Pencil size={14} /></button>
-                  <button
-                    className="btn-icon-sm btn-icon-danger"
-                    title={slotInUse(slot) ? `Slot is ${slot.status} — cannot delete` : 'Delete slot'}
-                    disabled={slotInUse(slot)}
-                    onClick={() => setDeletingSlot(slot)}
-                  ><Trash2 size={14} /></button>
-                </div>
-              </PermissionGuard>
+        <TableScrollWrapper className="tenant-table-scroll">
+          <div className="slot-table-inner">
+            <div className="slot-table-header">
+              <span>Slot #</span><span>Zone</span>
+              <span>Status</span><span>Monthly Rate</span><span></span>
             </div>
-          ))
+            {isLoading ? (
+              <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
+            ) : slots.length === 0 ? (
+              <div className="table-empty"><Grid3X3 size={40} /><p>No slots found</p></div>
+            ) : (
+              slots.map((slot: ParkingSlot) => (
+                <div key={slot.id} className="slot-row">
+                  <div style={{ fontWeight: 600 }}>{slot.slotNumber}</div>
+                  <div>{slot.zone?.name || '—'}</div>
+                  <div>
+                    <span className="slot-status-badge" style={{ background: (STATUS_COLORS[slot.status] || '#666') + '18', color: STATUS_COLORS[slot.status] || '#666' }}>
+                      {slot.status}
+                    </span>
+                  </div>
+                  <div>{slot.monthlyRate ? `$${Number(slot.monthlyRate).toLocaleString()}` : '—'}</div>
+                  <PermissionGuard permission="parking-overview.write">
+                    <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                      <button
+                        className="btn-icon-sm"
+                        title={slotInUse(slot) ? `Slot is ${slot.status} — cannot edit` : 'Edit slot'}
+                        disabled={slotInUse(slot)}
+                        onClick={() => setEditingSlot(slot)}
+                      ><Pencil size={14} /></button>
+                      <button
+                        className="btn-icon-sm btn-icon-danger"
+                        title={slotInUse(slot) ? `Slot is ${slot.status} — cannot delete` : 'Delete slot'}
+                        disabled={slotInUse(slot)}
+                        onClick={() => setDeletingSlot(slot)}
+                      ><Trash2 size={14} /></button>
+                    </div>
+                  </PermissionGuard>
+                </div>
+              ))
+            )}
+          </div>
+        </TableScrollWrapper>
+
+        {meta && meta.total >= 10 && (
+          <div className="parking-pagination billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <span>Rows per page:</span>
+                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+            <div className="page-btns">
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} title="Previous Page">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="page-num-display">Page {page} of {meta.totalPages}</span>
+              <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)} title="Next Page">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
-
-      {meta && meta.totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span>Page {page} of {meta.totalPages}</span>
-          <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
-        </div>
-      )}
 
       {showBulk && <BulkCreateModal zones={zones} onClose={() => setShowBulk(false)} onSubmit={handleBulkCreate} />}
       {editingSlot && (
@@ -509,9 +501,10 @@ function SlotsManager({ propertyId, unitId }: { propertyId: string; unitId: stri
 function SlotsManagerAll() {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const { data, isLoading } = useGetSlotsAllQuery(
-    { status: statusFilter || undefined, page, limit: 50 },
+    { status: statusFilter || undefined, page, limit: pageSize },
     { refetchOnMountOrArgChange: true },
   );
 
@@ -531,38 +524,59 @@ function SlotsManagerAll() {
       </div>
 
       <div className="slot-table-wrap">
-        <div className="slot-table-header" style={{ gridTemplateColumns: '1.2fr 1.4fr 1fr 1fr 1fr' }}>
-          <span>Slot #</span><span>Property</span><span>Zone</span>
-          <span>Status</span><span>Monthly Rate</span>
-        </div>
-        {isLoading ? (
-          <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
-        ) : slots.length === 0 ? (
-          <div className="table-empty"><Grid3X3 size={40} /><p>No slots found</p></div>
-        ) : (
-          slots.map((slot) => (
-            <div key={slot.id} className="slot-row" style={{ gridTemplateColumns: '1.2fr 1.4fr 1fr 1fr 1fr' }}>
-              <div style={{ fontWeight: 600 }}>{slot.slotNumber}</div>
-              <div>{slot.property?.name || '—'}</div>
-              <div>{slot.zone?.name || '—'}</div>
-              <div>
-                <span className="slot-status-badge" style={{ background: (STATUS_COLORS[slot.status] || '#666') + '18', color: STATUS_COLORS[slot.status] || '#666' }}>
-                  {slot.status}
-                </span>
-              </div>
-              <div>{slot.monthlyRate ? `$${Number(slot.monthlyRate).toLocaleString()}` : '—'}</div>
+        <TableScrollWrapper className="tenant-table-scroll">
+          <div className="slot-table-inner">
+            <div className="slot-table-header" style={{ gridTemplateColumns: '1.2fr 1.4fr 1fr 1fr 1fr' }}>
+              <span>Slot #</span><span>Property</span><span>Zone</span>
+              <span>Status</span><span>Monthly Rate</span>
             </div>
-          ))
+            {isLoading ? (
+              <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
+            ) : slots.length === 0 ? (
+              <div className="table-empty"><Grid3X3 size={40} /><p>No slots found</p></div>
+            ) : (
+              slots.map((slot) => (
+                <div key={slot.id} className="slot-row" style={{ gridTemplateColumns: '1.2fr 1.4fr 1fr 1fr 1fr' }}>
+                  <div style={{ fontWeight: 600 }}>{slot.slotNumber}</div>
+                  <div>{slot.property?.name || '—'}</div>
+                  <div>{slot.zone?.name || '—'}</div>
+                  <div>
+                    <span className="slot-status-badge" style={{ background: (STATUS_COLORS[slot.status] || '#666') + '18', color: STATUS_COLORS[slot.status] || '#666' }}>
+                      {slot.status}
+                    </span>
+                  </div>
+                  <div>{slot.monthlyRate ? `$${Number(slot.monthlyRate).toLocaleString()}` : '—'}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </TableScrollWrapper>
+
+        {meta && meta.total >= 10 && (
+          <div className="parking-pagination billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <span>Rows per page:</span>
+                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+            <div className="page-btns">
+              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} title="Previous Page">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="page-num-display">Page {page} of {meta.totalPages}</span>
+              <button disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)} title="Next Page">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
-
-      {meta && meta.totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span>Page {page} of {meta.totalPages}</span>
-          <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
-        </div>
-      )}
     </div>
   );
 }
@@ -573,6 +587,7 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
   const [form, setForm] = useState({
     zoneId: '', prefix: '', rangeStart: '1', rangeEnd: '10', monthlyRate: '',
   });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const previewSlots = [];
@@ -580,6 +595,18 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
   const end = Math.min(parseInt(form.rangeEnd) || 1, start + 4);
   for (let i = start; i <= end; i++) previewSlots.push(`${form.prefix}${String(i).padStart(3, '0')}`);
   if ((parseInt(form.rangeEnd) || 1) > end) previewSlots.push('…');
+
+  const handleSubmit = () => {
+    setHasAttemptedSubmit(true);
+    if (!form.prefix.trim()) return;
+    onSubmit({
+      zoneId: form.zoneId || undefined,
+      prefix: form.prefix,
+      rangeStart: parseInt(form.rangeStart),
+      rangeEnd: parseInt(form.rangeEnd),
+      monthlyRate: form.monthlyRate ? Number(form.monthlyRate) : undefined,
+    });
+  };
 
   return (
     <div className="crm-modal-overlay">
@@ -595,7 +622,15 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
           <div className="form-group">
             <label>Prefix *</label>
-            <input className="form-input" value={form.prefix} onChange={e => set('prefix', e.target.value)} placeholder="A-" />
+            <input
+              className={`form-input ${hasAttemptedSubmit && !form.prefix.trim() ? 'input-error' : ''}`}
+              value={form.prefix}
+              onChange={e => set('prefix', e.target.value)}
+              placeholder="A-"
+            />
+            {hasAttemptedSubmit && !form.prefix.trim() && (
+              <span className="field-error-text">Prefix is required</span>
+            )}
           </div>
           <div className="form-group">
             <label>From</label>
@@ -617,13 +652,7 @@ function BulkCreateModal({ zones, onClose, onSubmit }: {
         )}
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={!form.prefix} onClick={() => onSubmit({
-            zoneId: form.zoneId || undefined,
-            prefix: form.prefix,
-            rangeStart: parseInt(form.rangeStart),
-            rangeEnd: parseInt(form.rangeEnd),
-            monthlyRate: form.monthlyRate ? Number(form.monthlyRate) : undefined,
-          })}>
+          <button className="btn-primary" onClick={handleSubmit}>
             Create Slots
           </button>
         </div>
@@ -642,6 +671,21 @@ function EditSlotModal({ slot, zones, onClose, onSubmit }: {
   const [monthlyRate, setMonthlyRate] = useState(slot.monthlyRate ? String(slot.monthlyRate) : '');
   const [hourlyRate, setHourlyRate] = useState(slot.hourlyRate ? String(slot.hourlyRate) : '');
   const [notes, setNotes] = useState(slot.notes || '');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  const handleSubmit = () => {
+    setHasAttemptedSubmit(true);
+    if (!slotNumber.trim()) return;
+    onSubmit({
+      slotNumber,
+      zoneId: zoneId || null,
+      slotType,
+      size,
+      monthlyRate: monthlyRate ? Number(monthlyRate) : undefined,
+      hourlyRate: hourlyRate ? Number(hourlyRate) : undefined,
+      notes: notes || null,
+    });
+  };
 
   return (
     <div className="crm-modal-overlay">
@@ -650,7 +694,14 @@ function EditSlotModal({ slot, zones, onClose, onSubmit }: {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="form-group">
             <label>Slot Number *</label>
-            <input className="form-input" value={slotNumber} onChange={e => setSlotNumber(e.target.value)} />
+            <input
+              className={`form-input ${hasAttemptedSubmit && !slotNumber.trim() ? 'input-error' : ''}`}
+              value={slotNumber}
+              onChange={e => setSlotNumber(e.target.value)}
+            />
+            {hasAttemptedSubmit && !slotNumber.trim() && (
+              <span className="field-error-text">Slot number is required</span>
+            )}
           </div>
           <div className="form-group">
             <label>Zone</label>
@@ -691,15 +742,7 @@ function EditSlotModal({ slot, zones, onClose, onSubmit }: {
         </div>
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={!slotNumber} onClick={() => onSubmit({
-            slotNumber,
-            zoneId: zoneId || null,
-            slotType,
-            size,
-            monthlyRate: monthlyRate ? Number(monthlyRate) : undefined,
-            hourlyRate: hourlyRate ? Number(hourlyRate) : undefined,
-            notes: notes || null,
-          })}>
+          <button className="btn-primary" onClick={handleSubmit}>
             Save Changes
           </button>
         </div>
@@ -860,12 +903,30 @@ function CreateZoneModal({ zone, onClose, onSubmit }: { zone?: ParkingZone; onCl
   const [name, setName] = useState(zone?.name || '');
   const [code, setCode] = useState(zone?.code || '');
   const [zoneType, setZoneType] = useState(zone?.zoneType || 'covered');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  const handleSubmit = () => {
+    setHasAttemptedSubmit(true);
+    if (!name.trim()) return;
+    onSubmit({ name, code: code || undefined, zoneType });
+  };
 
   return (
     <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()}>
         <h2>{zone ? 'Edit Parking Zone' : 'New Parking Zone'}</h2>
-        <div className="form-group"><label>Zone Name *</label><input className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="Level B1" /></div>
+        <div className="form-group">
+          <label>Zone Name *</label>
+          <input
+            className={`form-input ${hasAttemptedSubmit && !name.trim() ? 'input-error' : ''}`}
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Level B1"
+          />
+          {hasAttemptedSubmit && !name.trim() && (
+            <span className="field-error-text">Zone name is required</span>
+          )}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="form-group"><label>Code</label><input className="form-input" value={code} onChange={e => setCode(e.target.value)} placeholder="B1" /></div>
           <div className="form-group">
@@ -879,7 +940,7 @@ function CreateZoneModal({ zone, onClose, onSubmit }: { zone?: ParkingZone; onCl
         </div>
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={!name} onClick={() => onSubmit({ name, code: code || undefined, zoneType })}>{zone ? 'Save Changes' : 'Create'}</button>
+          <button className="btn-primary" onClick={handleSubmit}>{zone ? 'Save Changes' : 'Create'}</button>
         </div>
       </div>
     </div>

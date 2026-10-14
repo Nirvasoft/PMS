@@ -234,7 +234,7 @@ export class DocumentsService {
     companyId: string,
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
     changeNotes: string | undefined,
-    uploadedBy: string,
+    _uploadedBy: string,
   ) {
     const doc = await prisma.document.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!doc) throw new AppError(404, 'DOCUMENT_NOT_FOUND', 'Document not found');

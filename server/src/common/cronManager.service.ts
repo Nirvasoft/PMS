@@ -502,7 +502,6 @@ export const SYSTEM_CRON_REGISTRY: CronJobDefinition[] = [
     defaultCron: '0 8 * * *', // Daily 8:00 AM
     supportsManualTrigger: true,
     runner: async () => {
-      const today = new Date();
       const documents = await prisma.document.findMany({
         where: { expiryDate: { not: null }, deletedAt: null, status: { not: 'archived' } },
         select: { id: true },

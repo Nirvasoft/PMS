@@ -337,7 +337,7 @@ export class AuthService {
     companyId: string,
     context: RequestContext,
   ): Promise<AuthTokens> {
-    const { family, deviceId, rememberMe } = await tokenService.validateRefreshToken(refreshToken, userId);
+    const { deviceId, rememberMe } = await tokenService.validateRefreshToken(refreshToken, userId);
 
     // Revoke old token
     await tokenService.revokeRefreshToken(refreshToken, userId, 'rotated');

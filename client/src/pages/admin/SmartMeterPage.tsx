@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useGetSmartDevicesQuery, useGetMeterReadingsQuery, useAddMeterReadingMutation,
@@ -12,6 +12,7 @@ import {
   Zap, Wifi, WifiOff, Activity, Gauge, Plus, X, AlertTriangle, Wrench,
   RefreshCw, Loader2, Settings, FileText, Receipt,
 } from 'lucide-react';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 export default function SmartMeterPage() {
   const alertDialog = useAlertDialog();
@@ -22,6 +23,7 @@ export default function SmartMeterPage() {
 
   const [selectedMeter, setSelectedMeter] = useState<string>('');
   const [showAddReading, setShowAddReading] = useState(false);
+  const [readingSubmitted, setReadingSubmitted] = useState(false);
   const [readingForm, setReadingForm] = useState({ readingValue: '', readingAt: new Date().toISOString().slice(0, 16) });
 
   const { data: readingsRes } = useGetMeterReadingsQuery(
@@ -39,6 +41,7 @@ export default function SmartMeterPage() {
 
   // Modals
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [invoiceSubmitted, setInvoiceSubmitted] = useState(false);
   const [showDeviceConfigModal, setShowDeviceConfigModal] = useState<{ meterId: string; existing?: any } | null>(null);
   const [invoiceForm, setInvoiceForm] = useState({ from: '', to: '' });
   const [deviceForm, setDeviceForm] = useState({
@@ -52,13 +55,16 @@ export default function SmartMeterPage() {
   const [invoiceResult, setInvoiceResult] = useState<any>(null);
 
   const handleAddReading = async () => {
+    setReadingSubmitted(true);
     if (!selectedMeter || !readingForm.readingValue) return;
     await addReading({ meterId: selectedMeter, data: { ...readingForm, readingValue: Number(readingForm.readingValue), source: 'manual' } });
     setShowAddReading(false);
+    setReadingSubmitted(false);
     setReadingForm({ readingValue: '', readingAt: new Date().toISOString().slice(0, 16) });
   };
 
   const handleGenerateInvoice = async () => {
+    setInvoiceSubmitted(true);
     if (!invoiceForm.from || !invoiceForm.to) return;
     // Find the unitId from the selected meter's device
     const device = devices.find((d: any) => d.meterId === selectedMeter);
@@ -114,10 +120,13 @@ export default function SmartMeterPage() {
 
   return (
     <div className="page-content">
-      <div className="condo-page-header">
-        <div>
-          <h1>Smart Meter Management</h1>
-          <p className="condo-page-subtitle">IoT meter devices, readings & consumption tracking</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Zap size={22} /></div>
+          <div>
+            <h1>Smart Meter Management</h1>
+            <p>{devices.length} total devices</p>
+          </div>
         </div>
         <button
           className="btn btn-sm"
@@ -217,34 +226,36 @@ export default function SmartMeterPage() {
               </div>
               {offlineResult.offlineDevices?.length > 0 && (
                 <div className="condo-table-wrap">
-                  <table className="condo-table">
-                    <thead>
-                      <tr>
-                        <th>Serial No</th>
-                        <th>Type</th>
-                        <th>Unit</th>
-                        <th>Protocol</th>
-                        <th>Last Polled</th>
-                        <th>Error</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {offlineResult.offlineDevices.map((d: any) => (
-                        <tr key={d.deviceId}>
-                          <td style={{ fontWeight: 600 }}>{d.serial}</td>
-                          <td><span className="condo-type-tag">{d.type}</span></td>
-                          <td>{d.unit}</td>
-                          <td><span className="condo-protocol-tag">{d.protocol}</span></td>
-                          <td style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.8rem' }}>
-                            {d.lastPolled ? new Date(d.lastPolled).toLocaleString() : 'Never'}
-                          </td>
-                          <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {d.error || '—'}
-                          </td>
+                  <TableScrollWrapper>
+                    <table className="condo-table">
+                      <thead>
+                        <tr>
+                          <th>Serial No</th>
+                          <th>Type</th>
+                          <th>Unit</th>
+                          <th>Protocol</th>
+                          <th>Last Polled</th>
+                          <th>Error</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {offlineResult.offlineDevices.map((d: any) => (
+                          <tr key={d.deviceId}>
+                            <td style={{ fontWeight: 600 }}>{d.serial}</td>
+                            <td><span className="condo-type-tag">{d.type}</span></td>
+                            <td>{d.unit}</td>
+                            <td><span className="condo-protocol-tag">{d.protocol}</span></td>
+                            <td style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.8rem' }}>
+                              {d.lastPolled ? new Date(d.lastPolled).toLocaleString() : 'Never'}
+                            </td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {d.error || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TableScrollWrapper>
                 </div>
               )}
             </div>
@@ -257,85 +268,87 @@ export default function SmartMeterPage() {
               <span className="condo-card-badge">{devices.length} devices</span>
             </div>
             <div className="condo-table-wrap">
-              <table className="condo-table">
-                <thead>
-                  <tr>
-                    <th>Serial No</th>
-                    <th>Type</th>
-                    <th>Unit</th>
-                    <th>Protocol</th>
-                    <th>Status</th>
-                    <th>Last Reading</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {devices.length === 0 ? (
-                    <tr><td colSpan={7} className="condo-table-empty">No smart meter devices configured</td></tr>
-                  ) : devices.map((d: any) => (
-                    <tr key={d.id} className={selectedMeter === d.meterId ? 'module-row-active' : ''}>
-                      <td style={{ fontWeight: 600 }}>{d.meter?.meterSerialNo || '—'}</td>
-                      <td><span className="condo-type-tag">{d.meter?.meterType || '—'}</span></td>
-                      <td>{d.meter?.unit?.unitNumber || '—'}</td>
-                      <td><span className="condo-protocol-tag">{d.protocol}</span></td>
-                      <td>
-                        <span className={`condo-status-badge condo-status-${d.connectionStatus}`}>
-                          {d.connectionStatus === 'online' && <Wifi size={12} style={{ marginRight: 4 }} />}
-                          {d.connectionStatus}
-                        </span>
-                      </td>
-                      <td>{d.lastReadingAt ? new Date(d.lastReadingAt).toLocaleDateString() : '—'}</td>
-                      <td>
-                        <button
-                          className={`condo-btn-sm ${selectedMeter === d.meterId ? 'condo-btn-active' : ''}`}
-                          onClick={() => setSelectedMeter(d.meterId)}
-                        >
-                          View Readings
-                        </button>
-                        <PermissionGuard permission="condo-meters.write">
-                          <button
-                            className="condo-btn-sm"
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6,
-                              background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
-                              color: '#fff', border: 'none', fontWeight: 600,
-                              opacity: syncingMeterId === d.meterId ? 0.7 : 1,
-                            }}
-                            disabled={syncingMeterId === d.meterId}
-                            onClick={async () => {
-                              setSyncingMeterId(d.meterId);
-                              try {
-                                await syncMeter(d.meterId).unwrap();
-                              } catch (e: any) {
-                                alertDialog(e?.data?.errors?.[0]?.message || 'Sync failed');
-                              } finally {
-                                setSyncingMeterId(null);
-                              }
-                            }}
-                          >
-                            {syncingMeterId === d.meterId ? (
-                              <><Loader2 size={12} className="spin" /> Syncing</>
-                            ) : (
-                              <><RefreshCw size={12} /> Sync</>
-                            )}
-                          </button>
-                          <button
-                            className="condo-btn-sm"
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6,
-                              border: '1px solid var(--border-color)', background: 'transparent',
-                              color: 'var(--text-primary)', fontWeight: 500,
-                            }}
-                            onClick={() => openDeviceConfig(d)}
-                          >
-                            <Settings size={12} /> Config
-                          </button>
-                        </PermissionGuard>
-                      </td>
+              <TableScrollWrapper>
+                <table className="condo-table">
+                  <thead>
+                    <tr>
+                      <th>Serial No</th>
+                      <th>Type</th>
+                      <th>Unit</th>
+                      <th>Protocol</th>
+                      <th>Status</th>
+                      <th>Last Reading</th>
+                      <th></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {devices.length === 0 ? (
+                      <tr><td colSpan={7} className="condo-table-empty">No smart meter devices configured</td></tr>
+                    ) : devices.map((d: any) => (
+                      <tr key={d.id} className={selectedMeter === d.meterId ? 'module-row-active' : ''}>
+                        <td style={{ fontWeight: 600 }}>{d.meter?.meterSerialNo || '—'}</td>
+                        <td><span className="condo-type-tag">{d.meter?.meterType || '—'}</span></td>
+                        <td>{d.meter?.unit?.unitNumber || '—'}</td>
+                        <td><span className="condo-protocol-tag">{d.protocol}</span></td>
+                        <td>
+                          <span className={`condo-status-badge condo-status-${d.connectionStatus}`}>
+                            {d.connectionStatus === 'online' && <Wifi size={12} style={{ marginRight: 4 }} />}
+                            {d.connectionStatus}
+                          </span>
+                        </td>
+                        <td>{d.lastReadingAt ? new Date(d.lastReadingAt).toLocaleDateString() : '—'}</td>
+                        <td>
+                          <button
+                            className={`condo-btn-sm ${selectedMeter === d.meterId ? 'condo-btn-active' : ''}`}
+                            onClick={() => setSelectedMeter(d.meterId)}
+                          >
+                            View Readings
+                          </button>
+                          <PermissionGuard permission="condo-meters.write">
+                            <button
+                              className="condo-btn-sm"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6,
+                                background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
+                                color: '#fff', border: 'none', fontWeight: 600,
+                                opacity: syncingMeterId === d.meterId ? 0.7 : 1,
+                              }}
+                              disabled={syncingMeterId === d.meterId}
+                              onClick={async () => {
+                                setSyncingMeterId(d.meterId);
+                                try {
+                                  await syncMeter(d.meterId).unwrap();
+                                } catch (e: any) {
+                                  alertDialog(e?.data?.errors?.[0]?.message || 'Sync failed');
+                                } finally {
+                                  setSyncingMeterId(null);
+                                }
+                              }}
+                            >
+                              {syncingMeterId === d.meterId ? (
+                                <><Loader2 size={12} className="spin" /> Syncing</>
+                              ) : (
+                                <><RefreshCw size={12} /> Sync</>
+                              )}
+                            </button>
+                            <button
+                              className="condo-btn-sm"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 6,
+                                border: '1px solid var(--border-color)', background: 'transparent',
+                                color: 'var(--text-primary)', fontWeight: 500,
+                              }}
+                              onClick={() => openDeviceConfig(d)}
+                            >
+                              <Settings size={12} /> Config
+                            </button>
+                          </PermissionGuard>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableScrollWrapper>
             </div>
           </div>
 
@@ -356,46 +369,49 @@ export default function SmartMeterPage() {
                       onClick={() => {
                         setInvoiceForm({ from: '', to: '' });
                         setInvoiceResult(null);
+                        setInvoiceSubmitted(false);
                         setShowInvoiceModal(true);
                       }}
                     >
                       <Receipt size={14} /> Generate Invoice
                     </button>
-                    <button className="btn btn-primary btn-sm" onClick={() => setShowAddReading(true)}>
+                    <button className="btn btn-primary btn-sm" onClick={() => { setReadingSubmitted(false); setShowAddReading(true); }}>
                       <Plus size={14} style={{ marginRight: 4 }} />Add Reading
                     </button>
                   </div>
                 </PermissionGuard>
               </div>
               <div className="condo-table-wrap">
-                <table className="condo-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Reading</th>
-                      <th>Unit</th>
-                      <th>Consumption</th>
-                      <th>Source</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {readings.length === 0 ? (
-                      <tr><td colSpan={5} className="condo-table-empty">No readings yet</td></tr>
-                    ) : readings.map((r: any) => (
-                      <tr key={r.id}>
-                        <td>{new Date(r.readingAt).toLocaleDateString()}</td>
-                        <td style={{ fontWeight: 600 }}>{Number(r.readingValue).toFixed(2)}</td>
-                        <td>{r.readingUnit}</td>
-                        <td>{r.consumption ? <span className="text-success">{Number(r.consumption).toFixed(2)}</span> : '—'}</td>
-                        <td>
-                          <span className={`condo-status-badge condo-status-${r.source === 'smart_meter' ? 'active' : 'pending'}`}>
-                            {r.source}
-                          </span>
-                        </td>
+                <TableScrollWrapper>
+                  <table className="condo-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Reading</th>
+                        <th>Unit</th>
+                        <th>Consumption</th>
+                        <th>Source</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {readings.length === 0 ? (
+                        <tr><td colSpan={5} className="condo-table-empty">No readings yet</td></tr>
+                      ) : readings.map((r: any) => (
+                        <tr key={r.id}>
+                          <td>{new Date(r.readingAt).toLocaleDateString()}</td>
+                          <td style={{ fontWeight: 600 }}>{Number(r.readingValue).toFixed(2)}</td>
+                          <td>{r.readingUnit}</td>
+                          <td>{r.consumption ? <span className="text-success">{Number(r.consumption).toFixed(2)}</span> : '—'}</td>
+                          <td>
+                            <span className={`condo-status-badge condo-status-${r.source === 'smart_meter' ? 'active' : 'pending'}`}>
+                              {r.source}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScrollWrapper>
               </div>
             </div>
           )}
@@ -406,14 +422,16 @@ export default function SmartMeterPage() {
               <div className="condo-modal condo-modal-sm" onClick={e => e.stopPropagation()}>
                 <div className="condo-modal-header">
                   <h3>Add Manual Reading</h3>
-                  <button className="condo-modal-close" onClick={() => setShowAddReading(false)}><X size={18} /></button>
+                  <button className="condo-modal-close" onClick={() => { setShowAddReading(false); setReadingSubmitted(false); }}><X size={18} /></button>
                 </div>
                 <div className="condo-modal-body">
                   <div className="condo-form-grid" style={{ gridTemplateColumns: '1fr' }}>
-                    <label>Reading Value
+                    <label>Reading Value *
                       <input type="number" value={readingForm.readingValue}
+                        className={readingSubmitted && !readingForm.readingValue ? 'mall-input-error' : ''}
                         onChange={e => setReadingForm(p => ({ ...p, readingValue: e.target.value }))}
                         placeholder="Enter reading value" />
+                      {readingSubmitted && !readingForm.readingValue && <span className="mall-error-text">Reading value is required</span>}
                     </label>
                     <label>Reading Date/Time
                       <input type="datetime-local" value={readingForm.readingAt}
@@ -422,7 +440,7 @@ export default function SmartMeterPage() {
                   </div>
                 </div>
                 <div className="condo-modal-footer">
-                  <button className="btn btn-ghost" onClick={() => setShowAddReading(false)}>Cancel</button>
+                  <button className="btn btn-ghost" onClick={() => { setShowAddReading(false); setReadingSubmitted(false); }}>Cancel</button>
                   <button className="btn btn-primary" onClick={handleAddReading}>Add Reading</button>
                 </div>
               </div>
@@ -437,7 +455,7 @@ export default function SmartMeterPage() {
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Receipt size={18} /> Generate Utility Invoice
                   </h3>
-                  <button className="condo-modal-close" onClick={() => setShowInvoiceModal(false)}><X size={18} /></button>
+                  <button className="condo-modal-close" onClick={() => { setShowInvoiceModal(false); setInvoiceSubmitted(false); }}><X size={18} /></button>
                 </div>
                 <div className="condo-modal-body">
                   {invoiceResult ? (
@@ -461,26 +479,29 @@ export default function SmartMeterPage() {
                       <div className="condo-form-grid">
                         <label>Period From *
                           <input type="date" value={invoiceForm.from}
+                            className={invoiceSubmitted && !invoiceForm.from ? 'mall-input-error' : ''}
                             onChange={e => setInvoiceForm(f => ({ ...f, from: e.target.value }))} />
+                          {invoiceSubmitted && !invoiceForm.from && <span className="mall-error-text">Period from is required</span>}
                         </label>
                         <label>Period To *
                           <input type="date" value={invoiceForm.to}
+                            className={invoiceSubmitted && !invoiceForm.to ? 'mall-input-error' : ''}
                             onChange={e => setInvoiceForm(f => ({ ...f, to: e.target.value }))} />
+                          {invoiceSubmitted && !invoiceForm.to && <span className="mall-error-text">Period to is required</span>}
                         </label>
                       </div>
                     </>
                   )}
                 </div>
                 <div className="condo-modal-footer">
-                  <button className="btn btn-ghost" onClick={() => setShowInvoiceModal(false)}>
+                  <button className="btn btn-ghost" onClick={() => { setShowInvoiceModal(false); setInvoiceSubmitted(false); }}>
                     {invoiceResult ? 'Close' : 'Cancel'}
                   </button>
                   {!invoiceResult && (
                     <button
                       className="btn btn-primary"
                       onClick={handleGenerateInvoice}
-                      disabled={!invoiceForm.from || !invoiceForm.to || invoiceGenerating}
-                      style={{ opacity: (!invoiceForm.from || !invoiceForm.to) ? 0.5 : 1 }}
+                      disabled={invoiceGenerating}
                     >
                       {invoiceGenerating ? (
                         <><Loader2 size={14} className="spin" style={{ marginRight: 4 }} /> Generating...</>

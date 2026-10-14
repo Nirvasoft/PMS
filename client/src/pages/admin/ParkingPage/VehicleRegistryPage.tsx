@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import {
   useGetVehiclesQuery, useAddVehicleMutation,
   useUpdateVehicleMutation, useDeactivateVehicleMutation,
@@ -6,14 +6,14 @@ import {
 } from '../../../store/api/parkingApi';
 import { useGetTenantsQuery, type TenantListItem } from '../../../store/api/tenantsApi';
 import {
-  Car, Plus, Search, Edit3, Trash2, X, Save, Tag, Wifi,
-  ChevronDown, AlertTriangle, Truck, Bike,
+  Car, Plus, Search, Edit3, Trash2, Save, Wifi,
+  AlertTriangle, Truck, Bike,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import './ParkingPage.css';
 
-const VEHICLE_TYPES: Record<string, { label: string; icon: JSX.Element; color: string }> = {
+const VEHICLE_TYPES: Record<string, { label: string; icon: ReactNode; color: string }> = {
   car:        { label: 'Car',        icon: <Car size={14} />,   color: '#3b82f6' },
   suv:        { label: 'SUV',        icon: <Car size={14} />,   color: '#8b5cf6' },
   motorcycle: { label: 'Motorcycle', icon: <Bike size={14} />,  color: '#f59e0b' },
@@ -61,10 +61,17 @@ export default function VehicleRegistryPage() {
 
   return (
     <div className="parking-page">
-      <div className="vr-page-header">
-        <div>
-          <h1 className="page-title">Vehicle Registry</h1>
-          <p className="page-subtitle">Manage tenant vehicles, RFID tags, and registrations</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
+            <Car size={22} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Vehicle Registry</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              Manage tenant vehicles, RFID tags, and registrations
+            </p>
+          </div>
         </div>
       </div>
 
@@ -217,7 +224,7 @@ export default function VehicleRegistryPage() {
 // ── Vehicle Card ─────────────────────────────
 
 function VehicleCard({
-  vehicle: v, tenantId, onEdit, onDelete, inactive,
+  vehicle: v, tenantId: _tenantId, onEdit, onDelete, inactive,
 }: {
   vehicle: TenantVehicle;
   tenantId: string;
@@ -302,12 +309,13 @@ function VehicleFormModal({
     vehicleType: vehicle?.vehicleType || 'car',
     rfidTagNo: vehicle?.rfidTagNo || '',
   });
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
   const handleSubmit = async () => {
+    setHasAttemptedSubmit(true);
     if (!form.plateNumber.trim()) {
-      toast.error('Plate number is required');
       return;
     }
     try {
@@ -346,12 +354,15 @@ function VehicleFormModal({
         <div className="form-group">
           <label>Plate Number *</label>
           <input
-            className="form-input vr-plate-input"
+            className={`form-input vr-plate-input ${hasAttemptedSubmit && !form.plateNumber.trim() ? 'input-error' : ''}`}
             value={form.plateNumber}
             onChange={e => set('plateNumber', e.target.value.toUpperCase())}
             placeholder="ABC-1234"
             autoFocus
           />
+          {hasAttemptedSubmit && !form.plateNumber.trim() && (
+            <span className="field-error-text">Plate number is required</span>
+          )}
         </div>
 
         <div className="form-row">
@@ -390,7 +401,7 @@ function VehicleFormModal({
 
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSubmit} disabled={isSaving || !form.plateNumber.trim()}>
+          <button className="btn-primary" onClick={handleSubmit} disabled={isSaving}>
             <Save size={14} />
             {isSaving ? 'Saving…' : isEdit ? 'Update Vehicle' : 'Register Vehicle'}
           </button>

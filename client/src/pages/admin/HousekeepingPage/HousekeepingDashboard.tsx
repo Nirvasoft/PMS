@@ -10,7 +10,6 @@ import {
   Sparkles, Loader2, CheckCircle2, Clock, AlertTriangle,
   Play, XCircle, MapPin, Star, BarChart3, Calendar,
   ClipboardCheck, ArrowRight, TrendingUp, Gauge, Timer,
-  Layers, Users, Zap, CircleDot,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -86,35 +85,19 @@ export default function HousekeepingDashboard() {
   return (
     <div className="maint-page">
       {/* ── Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        marginBottom: 24, flexWrap: 'wrap', gap: 12,
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Sparkles size={18} color="#fff" />
-            </div>
-            Housekeeping Dashboard
-          </h1>
-          <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            Today's overview · {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Sparkles size={22} /></div>
+          <div>
+            <h1>Housekeeping Dashboard</h1>
+            <p>Today's overview · {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/housekeeping')}
-            style={{ borderRadius: 10 }}>
+        <div className="header-actions">
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/housekeeping')}>
             <Calendar size={14} /> Tasks & Schedules
           </button>
-          <button className="btn btn-primary btn-sm" onClick={() => navigate('/admin/housekeeping/inspections')}
-            style={{ borderRadius: 10 }}>
+          <button className="btn btn-primary btn-sm" onClick={() => navigate('/admin/housekeeping/inspections')}>
             <ClipboardCheck size={14} /> Inspections
           </button>
         </div>
@@ -333,7 +316,7 @@ export default function HousekeepingDashboard() {
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8, paddingTop: 4 }}>
-                {zones.slice(0, 8).map((zone: any, i: number) => {
+                {zones.slice(0, 8).map((zone: any) => {
                   const zt = ZONE_TYPE_COLORS[zone.zoneType] || ZONE_TYPE_COLORS.other;
                   return (
                     <div key={zone.id} style={{

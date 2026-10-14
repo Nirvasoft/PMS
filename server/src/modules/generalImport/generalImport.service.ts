@@ -2,7 +2,6 @@ import ExcelJS from 'exceljs';
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { unitsService, metersService } from '../units/units.service';
-import { leasesService } from '../leases/services/leases.service';
 import { calcLeaseTermMonths, nextLeaseNumber } from '../leases/services/helpers';
 import { glService } from '../gl/gl.service';
 import { billingSchedulesService } from '../billing/billingSchedules.service';
@@ -45,7 +44,6 @@ const METER_TYPES = ['mepe', 'sub_meter', 'ct_meter', 'water_meter'];
 const METER_CATEGORIES = ['lighting', 'water', 'aircon', 'aircon_lighting', 'lighting_telenor'];
 const USAGE_TYPES = ['tenant_used', 'common_used', 'office_used'];
 const CALC_TYPES = ['per_unit', 'fixed'];
-const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'];
 
 const COLUMNS: Record<ImportType, ColumnDef[]> = {
   tenant: [
@@ -1519,7 +1517,7 @@ export const generalImportService = {
         groups.get(groupKey)!.push(r);
       }
 
-      for (const [groupKey, groupRows] of groups.entries()) {
+      for (const [_groupKey, groupRows] of groups.entries()) {
         const headerRow = groupRows[0];
         const d = headerRow.data;
         const leaseNum = (d.leaseNumber || '').trim();

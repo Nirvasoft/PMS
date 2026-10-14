@@ -4,10 +4,10 @@ import {
   useGetLeadStatsQuery, useGetLeadsQuery,
   type LeadListItem,
 } from '../../../store/api/crmApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { Target, Plus, Search, X, ShieldOff } from 'lucide-react';
+import { Target, Plus, Search, X, ShieldOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './CRMPage.css';
 
 const STAGE_META: Record<string, { label: string; color: string }> = {
@@ -38,23 +38,54 @@ export default function LeadPipelinePage() {
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const debouncedSearch = useDebouncedValue(search, 300);
 
+  useEffect(() => {
+    setPage(1);
+  }, [propertyFilter, debouncedSearch, stageFilter, priorityFilter]);
+
   const { data: statsData } = useGetLeadStatsQuery({ propertyId: propertyFilter || undefined });
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const { data: leadsData, isFetching } = useGetLeadsQuery({
+    propertyId: propertyFilter || undefined,
+    search: debouncedSearch || undefined,
+    stage: stageFilter || undefined,
+    priority: priorityFilter || undefined,
+    page,
+    limit: pageSize,
+  });
 
   const stats = statsData?.data;
-  const properties = propertiesData?.data || [];
+  const leads = leadsData?.data || [];
+  const meta = leadsData?.meta;
+  const hasFilters = !!(search || stageFilter || priorityFilter);
 
   return (
     <div className="crm-pipeline-page">
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg"><Target size={22} /></div>
+          <div
+            className="page-icon-lg"
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 12,
+              background: 'rgba(16, 185, 129, 0.15)',
+              color: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Target size={22} />
+          </div>
           <div>
-            <h1>Lead Pipeline</h1>
-            <p>Manage your CRM leasing pipeline</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Lead Pipeline</h1>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {meta ? `${meta.total} total leads` : 'Loading…'}
+            </p>
           </div>
         </div>
         <PermissionGuard permission="crm-leads.write">
@@ -98,15 +129,9 @@ export default function LeadPipelinePage() {
           />
           {search && <button onClick={() => setSearch('')} title="Clear search"><X size={14} /></button>}
         </div>
-        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
-        <select className="filter-select" value={propertyFilter} disabled>
-          {propertyFilter && (
-            <option value={propertyFilter}>{properties.find((p: any) => p.id === propertyFilter)?.name || ''}</option>
-          )}
-        </select>
         <select className="filter-select" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
           <option value="">All Statuses</option>
-          {Object.entries(STAGE_META).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}
+          {Object.entries(STAGE_META).map(([value, m]) => <option key={value} value={value}>{m.label}</option>)}
         </select>
         <select className="filter-select" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
           <option value="">All Priorities</option>
@@ -116,88 +141,95 @@ export default function LeadPipelinePage() {
         </select>
       </div>
 
-      <LeadListView
-        key={`${propertyFilter}|${debouncedSearch}|${stageFilter}|${priorityFilter}`}
-        propertyId={propertyFilter}
-        search={debouncedSearch}
-        stage={stageFilter}
-        priority={priorityFilter}
-        onClickLead={(id) => navigate(`/admin/crm/leads/${id}`)}
-      />
-    </div>
-  );
-}
+      {/* Table */}
+      <div className="lead-table-wrap">
+        <TableScrollWrapper className="tenant-table-scroll">
+          <div className="lead-table-inner">
+            <div className="lead-table-header">
+              <span>Date</span>
+              <span>Lead Number</span>
+              <span>Lease Number</span>
+              <span>Name</span>
+              <span>Stage</span>
+              <span>Priority</span>
+            </div>
 
-// ── Lead List View ──────────────────────────────
-
-const LEADS_PER_PAGE = 10;
-
-function LeadListView({ propertyId, search, stage, priority, onClickLead }: {
-  propertyId: string; search: string; stage: string; priority: string;
-  onClickLead: (id: string) => void;
-}) {
-  const [page, setPage] = useState(1);
-  const { data, isFetching } = useGetLeadsQuery({
-    propertyId: propertyId || undefined,
-    search: search || undefined,
-    stage: stage || undefined,
-    priority: priority || undefined,
-    page,
-    limit: LEADS_PER_PAGE,
-  });
-
-  const leads = data?.data || [];
-  const totalPages = data?.meta?.totalPages || 1;
-
-  if (isFetching && leads.length === 0) {
-    return <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>;
-  }
-
-  if (leads.length === 0) {
-    return <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-tertiary)', fontSize: '13px' }}>No leads match your filters</div>;
-  }
-
-  return (
-    <>
-    <div className="lead-table-wrap">
-      <div className="lead-table-header">
-        <span>Date</span>
-        <span>Lead Number</span>
-        <span>Lease Number</span>
-        <span>Name</span>
-        <span>Property</span>
-        <span>Stage</span>
-        <span>Priority</span>
-      </div>
-      {leads.map((lead) => {
-        const meta = STAGE_META[lead.stage];
-        return (
-          <div key={lead.id} className="lead-row" onClick={() => onClickLead(lead.id)}>
-            <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
-            <span>{lead.leadNumber || '–'}</span>
-            <span>{lead.convertedLease?.leaseNumber || '–'}</span>
-            <span className="lc-name">
-              {leadDisplayName(lead)}
-              {lead.isBlacklisted && <span className="blacklist-chip"><ShieldOff size={9} /> Blacklisted</span>}
-            </span>
-            <span>{lead.property?.name || '–'}</span>
-            <span>
-              <span className="stage-chip" style={{ background: `${meta?.color || '#666'}18`, color: meta?.color || '#666' }}>
-                {meta?.label || lead.stage}
-              </span>
-            </span>
-            <span><span className={`priority-chip ${lead.priority}`}>{lead.priority}</span></span>
+            {isFetching && leads.length === 0 ? (
+              <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
+            ) : leads.length === 0 ? (
+              <div className="table-empty">
+                <Target size={40} />
+                <p>No leads found{hasFilters ? ' — try clearing filters' : ''}</p>
+              </div>
+            ) : (
+              leads.map((lead) => {
+                const stageMeta = STAGE_META[lead.stage];
+                return (
+                  <div key={lead.id} className="lead-row" onClick={() => navigate(`/admin/crm/leads/${lead.id}`)}>
+                    <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
+                    <span>{lead.leadNumber || '–'}</span>
+                    <span>{lead.convertedLease?.leaseNumber || '–'}</span>
+                    <span className="lc-name">
+                      {leadDisplayName(lead)}
+                      {lead.isBlacklisted && <span className="blacklist-chip"><ShieldOff size={9} /> Blacklisted</span>}
+                    </span>
+                    <span>
+                      <span className="stage-chip" style={{ background: `${stageMeta?.color || '#666'}18`, color: stageMeta?.color || '#666' }}>
+                        {stageMeta?.label || lead.stage}
+                      </span>
+                    </span>
+                    <span><span className={`priority-chip ${lead.priority}`}>{lead.priority}</span></span>
+                  </div>
+                );
+              })
+            )}
           </div>
-        );
-      })}
-    </div>
-    {totalPages > 1 && (
-      <div className="pagination">
-        <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
-        <span>Page {page} of {totalPages}</span>
-        <button disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Next →</button>
+        </TableScrollWrapper>
+
+        {meta && meta.total >= 10 && (
+          <div className="lead-pagination billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <label htmlFor="lead-page-size">Rows per page:</label>
+                <select
+                  id="lead-page-size"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="page-btns">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+                title="Previous page"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="page-num-display">
+                Page {meta.page} of {Math.max(meta.totalPages, 1)}
+              </span>
+              <button
+                disabled={page >= meta.totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                title="Next page"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-    )}
-    </>
+    </div>
   );
 }
+

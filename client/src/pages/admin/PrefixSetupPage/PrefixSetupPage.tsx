@@ -4,14 +4,6 @@ import {
   Save,
   Plus,
   RotateCcw,
-  Receipt,
-  ClipboardList,
-  Wrench,
-  Package,
-  Target,
-  Building2,
-  Car,
-  Shield,
   Lock,
   Info,
 } from 'lucide-react';
@@ -42,14 +34,14 @@ interface DocTypeDef {
 }
 
 const MODULE_TABS = [
-  { id: 'organization', label: 'Organization', icon: Building2 },
-  { id: 'leasing', label: 'Leasing', icon: ClipboardList },
-  { id: 'crm', label: 'CRM', icon: Target },
-  { id: 'billing', label: 'Billing', icon: Receipt },
-  { id: 'maintenance', label: 'Maintenance', icon: Wrench },
-  { id: 'inventory', label: 'Inventory', icon: Package },
-  { id: 'parking', label: 'Parking', icon: Car },
-  { id: 'security', label: 'Security', icon: Shield },
+  { id: 'organization', label: 'Organization' },
+  { id: 'leasing', label: 'Leasing' },
+  { id: 'crm', label: 'CRM' },
+  { id: 'billing', label: 'Billing' },
+  { id: 'maintenance', label: 'Maintenance' },
+  { id: 'inventory', label: 'Inventory' },
+  { id: 'parking', label: 'Parking' },
+  { id: 'security', label: 'Security' },
 ];
 
 const PMS_DOCUMENT_TYPES: DocTypeDef[] = [
@@ -465,12 +457,11 @@ export default function PrefixSetupPage() {
         </div>
       </div>
 
-      {/* ── Module Tabs Bar (Button Style outside table card like Role & Permission) ─ */}
+      {/* ── Module Tabs Bar (Pill Button Style) ─ */}
       <div className="prefix-tabs-bar">
         {MODULE_TABS.map((tab) => {
           const count = rows.filter((r) => r.module === tab.id).length;
           const isActive = activeTab === tab.id;
-          const Icon = tab.icon;
 
           return (
             <button
@@ -479,7 +470,6 @@ export default function PrefixSetupPage() {
               className={`perm-tab-btn ${isActive ? 'active' : ''}`}
               onClick={() => handleTabChange(tab.id)}
             >
-              <Icon size={14} />
               <span>{tab.label}</span>
               <span className="perm-tab-badge">{count}</span>
             </button>
@@ -693,8 +683,8 @@ export default function PrefixSetupPage() {
                           <button
                             type="button"
                             className={`prefix-btn-reset-text ${(!isModified || isTenantLocked) ? 'is-default' : ''}`}
-                            onClick={() => !isTenantLocked && handleResetRow(row)}
-                            disabled={isTenantLocked}
+                            onClick={() => isModified && !isTenantLocked && handleResetRow(row)}
+                            disabled={!isModified || isTenantLocked}
                             title={isTenantLocked ? "Locked: Managed by V6 ERP" : isModified ? `Reset ${row.label} to default settings` : `${row.label} is already using default settings`}
                           >
                             Reset

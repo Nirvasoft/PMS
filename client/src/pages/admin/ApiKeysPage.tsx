@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import {
@@ -6,11 +6,11 @@ import {
   useCreateApiKeyMutation, useDeleteApiKeyMutation, useRevokeApiKeyMutation,
 } from '../../store/api/integrationsApi';
 import {
-  Key, Plus, X, Trash2, Copy, ShieldOff, ShieldCheck,
-  Clock, CheckCircle2, Loader2,
+  Key, Plus, Trash2, Copy, ShieldOff, Loader2,
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 export default function ApiKeysPage() {
   const { data: res, isLoading } = useGetApiKeysQuery();
@@ -21,6 +21,7 @@ export default function ApiKeysPage() {
   const confirmDialog = useConfirm();
 
   const [showCreate, setShowCreate] = useState(false);
+  const [createSubmitted, setCreateSubmitted] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState({ name: '', scopes: [] as string[], rateLimitRpm: 100, expiresAt: '' });
 
@@ -35,13 +36,9 @@ export default function ApiKeysPage() {
   };
 
   const handleCreate = async () => {
+    setCreateSubmitted(true);
     const trimmedName = createForm.name.trim();
-    if (!trimmedName) {
-      toast.error('Key Name is required');
-      return;
-    }
-    if (createForm.scopes.length === 0) {
-      toast.error('Please select at least one scope');
+    if (!trimmedName || createForm.scopes.length === 0) {
       return;
     }
 
@@ -56,6 +53,7 @@ export default function ApiKeysPage() {
       const generatedKey = result?.data?.key || result?.key;
       setNewKey(generatedKey);
       setShowCreate(false);
+      setCreateSubmitted(false);
       setCreateForm({ name: '', scopes: [], rateLimitRpm: 100, expiresAt: '' });
       toast.success('API key generated successfully');
     } catch (err: any) {
@@ -70,13 +68,18 @@ export default function ApiKeysPage() {
 
   return (
     <div className="page-content">
-      <div className="intg-header">
-        <div>
-          <h1><Key size={24} /> API Keys</h1>
-          <p className="mall-page-subtitle">Manage developer API keys for programmatic access</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Key size={22} />
+          </div>
+          <div>
+            <h1>API Keys</h1>
+            <p>{apiKeys.length} total API keys · Manage developer API keys for programmatic access</p>
+          </div>
         </div>
         <PermissionGuard permission="developer-api-keys.write">
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          <button className="btn btn-primary" onClick={() => { setShowCreate(true); setCreateSubmitted(false); }}>
             <Plus size={16} /> Create API Key
           </button>
         </PermissionGuard>
@@ -94,86 +97,88 @@ export default function ApiKeysPage() {
         </div>
       ) : (
         <div className="intg-table-wrap">
-          <table className="intg-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Key Prefix</th>
-                <th>Scopes</th>
-                <th>Rate Limit</th>
-                <th>Status</th>
-                <th>Last Used</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {apiKeys.map((ak: any) => (
-                <tr key={ak.id} className={!ak.isActive ? 'intg-row-revoked' : ''}>
-                  <td><strong>{ak.name}</strong></td>
-                  <td><code className="intg-key-prefix">{ak.keyPrefix}•••</code></td>
-                  <td>
-                    <div className="intg-events-wrap">
-                      {ak.scopes.slice(0, 2).map((s: string) => (
-                        <span key={s} className="intg-event-badge">{s}</span>
-                      ))}
-                      {ak.scopes.length > 2 && <span className="intg-event-badge more">+{ak.scopes.length - 2}</span>}
-                    </div>
-                  </td>
-                  <td>{ak.rateLimitRpm} rpm</td>
-                  <td>
-                    {ak.isActive ? (
-                      <span className="intg-wh-status active">● Active</span>
-                    ) : (
-                      <span className="intg-wh-status inactive">○ Revoked</span>
-                    )}
-                  </td>
-                  <td className="intg-date-cell">{ak.lastUsedAt ? new Date(ak.lastUsedAt).toLocaleDateString() : '—'}</td>
-                  <td className="intg-date-cell">{new Date(ak.createdAt).toLocaleDateString()}</td>
-                  <td>
-                    <PermissionGuard permission="developer-api-keys.write">
-                      <div className="intg-row-actions">
-                        {ak.isActive && (
+          <TableScrollWrapper>
+            <table className="intg-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Key Prefix</th>
+                  <th>Scopes</th>
+                  <th>Rate Limit</th>
+                  <th>Status</th>
+                  <th>Last Used</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {apiKeys.map((ak: any) => (
+                  <tr key={ak.id} className={!ak.isActive ? 'intg-row-revoked' : ''}>
+                    <td><strong>{ak.name}</strong></td>
+                    <td><code className="intg-key-prefix">{ak.keyPrefix}•••</code></td>
+                    <td>
+                      <div className="intg-events-wrap">
+                        {ak.scopes.slice(0, 2).map((s: string) => (
+                          <span key={s} className="intg-event-badge">{s}</span>
+                        ))}
+                        {ak.scopes.length > 2 && <span className="intg-event-badge more">+{ak.scopes.length - 2}</span>}
+                      </div>
+                    </td>
+                    <td>{ak.rateLimitRpm} rpm</td>
+                    <td>
+                      {ak.isActive ? (
+                        <span className="intg-wh-status active">● Active</span>
+                      ) : (
+                        <span className="intg-wh-status inactive">○ Revoked</span>
+                      )}
+                    </td>
+                    <td className="intg-date-cell">{ak.lastUsedAt ? new Date(ak.lastUsedAt).toLocaleDateString() : '—'}</td>
+                    <td className="intg-date-cell">{new Date(ak.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      <PermissionGuard permission="developer-api-keys.write">
+                        <div className="intg-row-actions">
+                          {ak.isActive && (
+                            <button
+                              className="intg-action-btn-sm"
+                              onClick={async () => {
+                                if (await confirmDialog('Revoke this key? It will immediately stop working.', { danger: true, confirmText: 'Revoke' })) {
+                                  try {
+                                    await revokeApiKey(ak.id).unwrap();
+                                    toast.success('API key revoked');
+                                  } catch (err: any) {
+                                    toast.error(err?.data?.message || err?.message || 'Failed to revoke API key');
+                                  }
+                                }
+                              }}
+                              title="Revoke"
+                            >
+                              <ShieldOff size={13} />
+                            </button>
+                          )}
                           <button
-                            className="intg-action-btn-sm"
+                            className="intg-action-btn-sm danger"
                             onClick={async () => {
-                              if (await confirmDialog('Revoke this key? It will immediately stop working.', { danger: true, confirmText: 'Revoke' })) {
+                              if (await confirmDialog('Delete this key permanently?', { danger: true, confirmText: 'Delete' })) {
                                 try {
-                                  await revokeApiKey(ak.id).unwrap();
-                                  toast.success('API key revoked');
+                                  await deleteApiKey(ak.id).unwrap();
+                                  toast.success('API key deleted');
                                 } catch (err: any) {
-                                  toast.error(err?.data?.message || err?.message || 'Failed to revoke API key');
+                                  toast.error(err?.data?.message || err?.message || 'Failed to delete API key');
                                 }
                               }
                             }}
-                            title="Revoke"
+                            title="Delete"
                           >
-                            <ShieldOff size={13} />
+                            <Trash2 size={13} />
                           </button>
-                        )}
-                        <button
-                          className="intg-action-btn-sm danger"
-                          onClick={async () => {
-                            if (await confirmDialog('Delete this key permanently?', { danger: true, confirmText: 'Delete' })) {
-                              try {
-                                await deleteApiKey(ak.id).unwrap();
-                                toast.success('API key deleted');
-                              } catch (err: any) {
-                                toast.error(err?.data?.message || err?.message || 'Failed to delete API key');
-                              }
-                            }
-                          }}
-                          title="Delete"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </PermissionGuard>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        </div>
+                      </PermissionGuard>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScrollWrapper>
         </div>
       )}
 
@@ -183,7 +188,7 @@ export default function ApiKeysPage() {
           <div className="mall-modal" onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3>Create API Key</h3>
-              <button className="mall-modal-close" onClick={() => !isCreating && setShowCreate(false)}>✕</button>
+              <button className="mall-modal-close" onClick={() => { if (!isCreating) { setShowCreate(false); setCreateSubmitted(false); } }}>✕</button>
             </div>
             <div className="mall-modal-body">
               <div className="mall-form-grid">
@@ -191,10 +196,12 @@ export default function ApiKeysPage() {
                   <span>Key Name *</span>
                   <input
                     value={createForm.name}
+                    className={createSubmitted && !createForm.name.trim() ? 'mall-input-error' : ''}
                     onChange={e => setCreateForm({ ...createForm, name: e.target.value })}
                     placeholder="e.g. My Integration Key"
                     disabled={isCreating}
                   />
+                  {createSubmitted && !createForm.name.trim() && <span className="mall-error-text">Key name is required</span>}
                 </label>
                 <label>
                   <span>Rate Limit (rpm)</span>
@@ -217,9 +224,9 @@ export default function ApiKeysPage() {
               </div>
               <div className="intg-events-section">
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 600, margin: '16px 0 10px', color: 'var(--text-primary)' }}>
-                  Scopes ({createForm.scopes.length} selected)
+                  Scopes * ({createForm.scopes.length} selected)
                 </h4>
-                <div className="intg-scopes-grid">
+                <div className={`intg-scopes-grid ${createSubmitted && createForm.scopes.length === 0 ? 'mall-input-error' : ''}`} style={{ borderRadius: 8 }}>
                   {allScopes.map((scope: string) => (
                     <label key={scope} className="intg-event-check">
                       <input
@@ -232,14 +239,15 @@ export default function ApiKeysPage() {
                     </label>
                   ))}
                 </div>
+                {createSubmitted && createForm.scopes.length === 0 && <span className="mall-error-text">Select at least one scope</span>}
               </div>
             </div>
             <div className="mall-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowCreate(false)} disabled={isCreating}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => { setShowCreate(false); setCreateSubmitted(false); }} disabled={isCreating}>Cancel</button>
               <button
                 className="btn btn-primary"
                 onClick={handleCreate}
-                disabled={isCreating || !createForm.name.trim() || createForm.scopes.length === 0}
+                disabled={isCreating}
                 style={{ display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 {isCreating ? <Loader2 size={14} className="spin" /> : <Key size={14} />}

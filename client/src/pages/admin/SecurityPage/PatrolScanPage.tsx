@@ -5,13 +5,15 @@ import {
 } from '../../../store/api/securityApi';
 import {
   QrCode, Loader2, CheckCircle2, MapPin, Clock,
-  Camera, Send, Shield, AlertTriangle,
+  Send, Shield, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 export default function PatrolScanPage() {
   const [qrCode, setQrCode] = useState('');
+  const [scanError, setScanError] = useState('');
   const [notes, setNotes] = useState('');
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<any>(null);
@@ -39,7 +41,11 @@ export default function PatrolScanPage() {
   }, []);
 
   const handleScan = async () => {
-    if (!qrCode.trim()) { toast.error('Enter or scan a QR code'); return; }
+    if (!qrCode.trim()) {
+      setScanError('Checkpoint QR code is required');
+      return;
+    }
+    setScanError('');
     setScanning(true);
     try {
       const result = await scanCheckpoint({
@@ -74,7 +80,7 @@ export default function PatrolScanPage() {
       {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(99,102,241,0.15)' }}><QrCode size={22} color="#818cf8" /></div>
+          <div className="page-icon-lg"><QrCode size={22} /></div>
           <div>
             <h1>Patrol Checkpoint Scan</h1>
             <p>Scan QR codes at patrol checkpoints to log your rounds</p>
@@ -105,21 +111,22 @@ export default function PatrolScanPage() {
 
         {/* QR Input */}
         <div className="scan-input-group">
-          <div className="scan-input-wrap">
+          <div className="scan-input-wrap" style={scanError ? { borderColor: '#ef4444', boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.12)' } : undefined}>
             <QrCode size={16} color="var(--text-tertiary)" />
             <input ref={inputRef} className="scan-input"
               placeholder="CHKPT-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              value={qrCode} onChange={(e) => setQrCode(e.target.value)}
+              value={qrCode} onChange={(e) => { setQrCode(e.target.value); if (scanError) setScanError(''); }}
               onKeyDown={(e) => e.key === 'Enter' && handleScan()}
               autoFocus />
           </div>
+          {scanError && <span className="maint-error-text">{scanError}</span>}
           <textarea className="scan-notes"
             placeholder="Optional notes (e.g. 'All clear', 'Door left open')..."
             value={notes} onChange={(e) => setNotes(e.target.value)}
             rows={2} />
           <PermissionGuard permission="security-patrol-scan.write">
             <button className="btn btn-primary scan-btn" onClick={handleScan}
-              disabled={isSending || scanning || !qrCode.trim()}>
+              disabled={isSending || scanning}>
               {(isSending || scanning) ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
               {(isSending || scanning) ? 'Scanning...' : 'Log Checkpoint'}
             </button>
@@ -152,46 +159,48 @@ export default function PatrolScanPage() {
           </div>
         ) : (
           <div className="maint-table-wrap">
-            <table className="maint-table">
-              <thead>
-                <tr>
-                  <th>Checkpoint</th>
-                  <th>Location</th>
-                  <th>Guard</th>
-                  <th>Time</th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentLogs.map((log: any) => (
-                  <tr key={log.id}>
-                    <td style={{ fontWeight: 600 }}>{log.checkpoint?.name || '—'}</td>
-                    <td>
-                      <span className="cell-secondary">
-                        {log.checkpoint?.location || '—'}
-                        {log.checkpoint?.floor && ` · F${log.checkpoint.floor}`}
-                      </span>
-                    </td>
-                    <td>
-                      {log.guard?.profile
-                        ? `${log.guard.profile.firstName} ${log.guard.profile.lastName}`
-                        : '—'}
-                    </td>
-                    <td>
-                      <span className="ace-time">
-                        <Clock size={11} />
-                        {new Date(log.scannedAt).toLocaleString(undefined, {
-                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-                        })}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="cell-secondary">{log.notes || '—'}</span>
-                    </td>
+            <TableScrollWrapper>
+              <table className="maint-table">
+                <thead>
+                  <tr>
+                    <th>Checkpoint</th>
+                    <th>Location</th>
+                    <th>Guard</th>
+                    <th>Time</th>
+                    <th>Notes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {recentLogs.map((log: any) => (
+                    <tr key={log.id}>
+                      <td style={{ fontWeight: 600 }}>{log.checkpoint?.name || '—'}</td>
+                      <td>
+                        <span className="cell-secondary">
+                          {log.checkpoint?.location || '—'}
+                          {log.checkpoint?.floor && ` · F${log.checkpoint.floor}`}
+                        </span>
+                      </td>
+                      <td>
+                        {log.guard?.profile
+                          ? `${log.guard.profile.firstName} ${log.guard.profile.lastName}`
+                          : '—'}
+                      </td>
+                      <td>
+                        <span className="ace-time">
+                          <Clock size={11} />
+                          {new Date(log.scannedAt).toLocaleString(undefined, {
+                            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                          })}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="cell-secondary">{log.notes || '—'}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
           </div>
         )}
       </div>

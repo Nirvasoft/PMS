@@ -8,11 +8,12 @@ import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Receipt, Plus, Loader2, XCircle, PieChart, DollarSign,
-  Pencil, Trash2,
+  Pencil, Trash2, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { CURRENCIES } from '../../../constants/currencies';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 const COST_CATEGORIES: Record<string, { label: string; color: string }> = {
   cleaning: { label: 'Cleaning', color: '#3b82f6' },
@@ -61,6 +62,7 @@ export default function CamCostPage() {
   const [deleteCamCost, { isLoading: deleting }] = useDeleteCamCostMutation();
 
   const costs = costsData?.data || [];
+  const meta = costsData?.meta;
   const summary = summaryData?.data;
 
   const handleDelete = async (id: string) => {
@@ -91,7 +93,7 @@ export default function CamCostPage() {
           <div className="page-icon-lg"><Receipt size={22} /></div>
           <div>
             <h1>CAM Costs</h1>
-            <p>Common Area Maintenance cost tracking and allocation</p>
+            <p>{meta?.total ?? costs.length} total entries</p>
           </div>
         </div>
         <div className="header-actions">
@@ -200,63 +202,100 @@ export default function CamCostPage() {
           </div>
         ) : (
           <div className="maint-table-wrap">
-            <table className="maint-table">
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th>Description</th>
-                  <th>Property</th>
-                  <th>Amount</th>
-                  <th>Source</th>
-                  <th>Created</th>
-                  <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {costs.map((c: any) => (
-                  <tr key={c.id} style={{ cursor: 'default' }}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{
-                          width: '8px', height: '8px', borderRadius: '50%',
-                          background: COST_CATEGORIES[c.costCategory]?.color || '#94a3b8',
-                        }} />
-                        <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>
-                          {COST_CATEGORIES[c.costCategory]?.label || c.costCategory}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                        {c.description}
-                      </span>
-                    </td>
-                    <td><span className="cell-secondary">{c.property?.name}</span></td>
-                    <td>
-                      <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                        {c.currency} {Number(c.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="cell-mono">{c.sourceType || 'manual'}</span>
-                    </td>
-                    <td><span className="cell-secondary">{new Date(c.createdAt).toLocaleDateString()}</span></td>
-                    <td>
-                      <PermissionGuard permission="facility-cam.write">
-                        <div className="sla-row-actions">
-                          <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(c)}>
-                            <Pencil size={14} />
-                          </button>
-                          <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Delete" onClick={() => setDeleteConfirm(c.id)}>
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </PermissionGuard>
-                    </td>
+            <TableScrollWrapper>
+              <table className="maint-table">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Property</th>
+                    <th>Amount</th>
+                    <th>Source</th>
+                    <th>Created</th>
+                    <th style={{ width: 80, textAlign: 'center' }}></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {costs.map((c: any) => (
+                    <tr key={c.id} style={{ cursor: 'default' }}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{
+                            width: '8px', height: '8px', borderRadius: '50%',
+                            background: COST_CATEGORIES[c.costCategory]?.color || '#94a3b8',
+                          }} />
+                          <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>
+                            {COST_CATEGORIES[c.costCategory]?.label || c.costCategory}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                          {c.description}
+                        </span>
+                      </td>
+                      <td><span className="cell-secondary">{c.property?.name}</span></td>
+                      <td>
+                        <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                          {c.currency} {Number(c.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="cell-mono">{c.sourceType || 'manual'}</span>
+                      </td>
+                      <td><span className="cell-secondary">{new Date(c.createdAt).toLocaleDateString()}</span></td>
+                      <td>
+                        <PermissionGuard permission="facility-cam.write">
+                          <div className="sla-row-actions">
+                            <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(c)}>
+                              <Pencil size={14} />
+                            </button>
+                            <button className="btn btn-ghost btn-sm btn-danger-ghost" title="Delete" onClick={() => setDeleteConfirm(c.id)}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </PermissionGuard>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
+
+            {meta && meta.total >= 10 && (
+              <div className="maint-pagination">
+                <div className="maint-pagination-left">
+                  <span>Rows per page:</span>
+                  <select
+                    value={filters.limit}
+                    onChange={(e) => setFilters(f => ({ ...f, limit: Number(e.target.value), page: 1 }))}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+                <div className="maint-pagination-right">
+                  <button
+                    className="maint-page-btn"
+                    disabled={filters.page <= 1}
+                    onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="maint-page-info">
+                    Page {meta.page} of {meta.totalPages || 1}
+                  </span>
+                  <button
+                    className="maint-page-btn"
+                    disabled={filters.page >= (meta.totalPages || 1)}
+                    onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -312,6 +351,7 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
   const [createCamCost, { isLoading: creating }] = useCreateCamCostMutation();
   const [updateCamCost, { isLoading: updating }] = useUpdateCamCostMutation();
   const isLoading = creating || updating;
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const [form, setForm] = useState({
     propertyId: entry?.propertyId || '',
@@ -326,6 +366,8 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.propertyId || !form.description.trim() || !form.amount || Number(form.amount) <= 0) return;
     const payload = {
       propertyId: form.propertyId,
       costCategory: form.costCategory,
@@ -361,11 +403,14 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form noValidate onSubmit={handleSubmit}>
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Property <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.propertyId} disabled={isEdit}
+              <select
+                className={hasAttemptedSubmit && !form.propertyId ? 'maint-input-error' : ''}
+                value={form.propertyId}
+                disabled={isEdit}
                 onChange={(e) => {
                   const propertyId = e.target.value;
                   const propertyCurrency = properties.find((p: any) => p.id === propertyId)?.currency;
@@ -375,11 +420,14 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              {hasAttemptedSubmit && !form.propertyId && (
+                <span className="maint-error-text">Property is required</span>
+              )}
               {isEdit && <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '2px' }}>Property cannot be changed</span>}
             </div>
             <div className="maint-field">
               <label>Category <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.costCategory} onChange={(e) => setForm(f => ({ ...f, costCategory: e.target.value }))}>
+              <select value={form.costCategory} onChange={(e) => setForm(f => ({ ...f, costCategory: e.target.value }))}>
                 {Object.entries(COST_CATEGORIES).map(([k, v]) => (
                   <option key={k} value={k}>{v.label}</option>
                 ))}
@@ -390,17 +438,33 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
           <div className="maint-form-grid cols-1">
             <div className="maint-field">
               <label>Description <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="text" required value={form.description}
+              <input
+                type="text"
+                className={hasAttemptedSubmit && !form.description.trim() ? 'maint-input-error' : ''}
+                value={form.description}
                 onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="e.g. Monthly cleaning services — January 2025" />
+                placeholder="e.g. Monthly cleaning services — January 2025"
+              />
+              {hasAttemptedSubmit && !form.description.trim() && (
+                <span className="maint-error-text">Description is required</span>
+              )}
             </div>
           </div>
 
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Amount <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="number" required min="0" step="0.01" value={form.amount}
-                onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className={hasAttemptedSubmit && (!form.amount || Number(form.amount) <= 0) ? 'maint-input-error' : ''}
+                value={form.amount}
+                onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))}
+              />
+              {hasAttemptedSubmit && (!form.amount || Number(form.amount) <= 0) && (
+                <span className="maint-error-text">Valid amount is required</span>
+              )}
             </div>
             <div className="maint-field">
               <label>Currency</label>

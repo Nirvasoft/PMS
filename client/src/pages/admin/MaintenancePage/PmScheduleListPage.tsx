@@ -10,12 +10,13 @@ import { useGetCategoriesQuery } from '../../../store/api/maintenanceApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  CalendarClock, Plus, Search, Loader2, XCircle, Inbox,
-  Play, Pause, Zap, RotateCcw, Clock, CheckCircle2,
+  CalendarClock, Plus, Search, Loader2, XCircle,
+  Play, Pause, Zap, Clock,
   AlertTriangle, Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import TableScrollWrapper from '../../../components/TableScrollWrapper';
 
 const FREQUENCIES: Record<string, string> = {
   daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly',
@@ -95,7 +96,7 @@ export default function PmScheduleListPage() {
           <div className="page-icon-lg"><CalendarClock size={22} /></div>
           <div>
             <h1>Preventive Maintenance</h1>
-            <p>Schedule recurring maintenance for assets and equipment</p>
+            <p>{meta?.total ?? schedules.length} total schedules</p>
           </div>
         </div>
         <div className="header-actions">
@@ -178,86 +179,115 @@ export default function PmScheduleListPage() {
       ) : (
         <>
           <div className="maint-table-wrap">
-            <table className="maint-table">
-              <thead>
-                <tr>
-                  <th>Schedule Name</th>
-                  <th>Property</th>
-                  <th>Frequency</th>
-                  <th>Next Due</th>
-                  <th>Priority</th>
-                  <th>Assigned To</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {schedules.map((s: any) => (
-                  <tr key={s.id} onClick={() => navigate(`/admin/maintenance/pm/${s.id}`)}>
-                    <td>
-                      <div className="ticket-title-cell">
-                        <span className="title-text">{s.name}</span>
-                      </div>
-                    </td>
-                    <td><span className="cell-secondary">{s.property?.name}</span></td>
-                    <td>
-                      <span className="maint-status open">{FREQUENCIES[s.frequencyType] || s.frequencyType}</span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span className="cell-secondary">{new Date(s.nextDueDate).toLocaleDateString()}</span>
-                        {s.status === 'active' && <DueDateBadge daysUntilDue={s.daysUntilDue} />}
-                      </div>
-                    </td>
-                    <td><span className={`maint-priority ${s.priority?.toLowerCase()}`}>{s.priority}</span></td>
-                    <td>
-                      <span className="cell-secondary">
-                        {s.assignedTo?.profile
-                          ? `${s.assignedTo.profile.firstName} ${s.assignedTo.profile.lastName}`
-                          : s.assignedRole || '—'}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`maint-status ${s.status === 'active' ? 'in_progress' : s.status === 'paused' ? 'pending_parts' : 'closed'}`}>
-                        {s.status}
-                      </span>
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <PermissionGuard permission="maintenance-pm.write">
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          {s.status === 'active' && (
-                            <>
-                              <button className="btn btn-ghost btn-sm" title="Pause" onClick={() => handlePause(s.id)}>
-                                <Pause size={14} />
-                              </button>
-                              <button className="btn btn-ghost btn-sm" title="Generate WO" onClick={() => handleGenerate(s.id)}>
-                                <Zap size={14} />
-                              </button>
-                            </>
-                          )}
-                          {s.status === 'paused' && (
-                            <button className="btn btn-ghost btn-sm" title="Resume" onClick={() => handleResume(s.id)}>
-                              <Play size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </PermissionGuard>
-                    </td>
+            <TableScrollWrapper>
+              <table className="maint-table">
+                <thead>
+                  <tr>
+                    <th>Schedule Name</th>
+                    <th>Property</th>
+                    <th>Frequency</th>
+                    <th>Next Due</th>
+                    <th>Priority</th>
+                    <th>Assigned To</th>
+                    <th>Status</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {schedules.map((s: any) => (
+                    <tr key={s.id} onClick={() => navigate(`/admin/maintenance/pm/${s.id}`)}>
+                      <td>
+                        <div className="ticket-title-cell">
+                          <span className="title-text">{s.name}</span>
+                        </div>
+                      </td>
+                      <td><span className="cell-secondary">{s.property?.name}</span></td>
+                      <td>
+                        <span className="maint-status open">{FREQUENCIES[s.frequencyType] || s.frequencyType}</span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span className="cell-secondary">{new Date(s.nextDueDate).toLocaleDateString()}</span>
+                          {s.status === 'active' && <DueDateBadge daysUntilDue={s.daysUntilDue} />}
+                        </div>
+                      </td>
+                      <td><span className={`maint-priority ${s.priority?.toLowerCase()}`}>{s.priority}</span></td>
+                      <td>
+                        <span className="cell-secondary">
+                          {s.assignedTo?.profile
+                            ? `${s.assignedTo.profile.firstName} ${s.assignedTo.profile.lastName}`
+                            : s.assignedRole || '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`maint-status ${s.status === 'active' ? 'in_progress' : s.status === 'paused' ? 'pending_parts' : 'closed'}`}>
+                          {s.status}
+                        </span>
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <PermissionGuard permission="maintenance-pm.write">
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {s.status === 'active' && (
+                              <>
+                                <button className="btn btn-ghost btn-sm" title="Pause" onClick={() => handlePause(s.id)}>
+                                  <Pause size={14} />
+                                </button>
+                                <button className="btn btn-ghost btn-sm" title="Generate WO" onClick={() => handleGenerate(s.id)}>
+                                  <Zap size={14} />
+                                </button>
+                              </>
+                            )}
+                            {s.status === 'paused' && (
+                              <button className="btn btn-ghost btn-sm" title="Resume" onClick={() => handleResume(s.id)}>
+                                <Play size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </PermissionGuard>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
 
-          {meta && meta.totalPages > 1 && (
-            <div className="maint-pagination">
-              <span className="page-info">Page {meta.page} of {meta.totalPages} ({meta.total} schedules)</span>
-              <div className="page-btns">
-                <button disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}>Previous</button>
-                <button disabled={filters.page >= meta.totalPages} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}>Next</button>
+            {meta && meta.total >= 10 && (
+              <div className="maint-pagination">
+                <div className="pagination-left">
+                  <div className="page-size-selector">
+                    <span>Rows per page:</span>
+                    <select
+                      value={filters.limit}
+                      onChange={(e) => setFilters(f => ({ ...f, limit: Number(e.target.value), page: 1 }))}
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="page-btns">
+                  <button
+                    disabled={filters.page <= 1}
+                    onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
+                    title="Previous Page"
+                  >
+                    &lt;
+                  </button>
+                  <span className="page-num-display">
+                    Page {meta.page} of {meta.totalPages || 1}
+                  </span>
+                  <button
+                    disabled={filters.page >= meta.totalPages}
+                    onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
+                    title="Next Page"
+                  >
+                    &gt;
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </>
       )}
 
@@ -286,13 +316,16 @@ function CreateScheduleModal({ categories, properties, onClose }: {
   });
   const [checklist, setChecklist] = useState<Array<{ item: string; isRequired: boolean }>>([]);
   const [newItem, setNewItem] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    if (!form.propertyId || !form.name.trim() || !form.nextDueDate) return;
     try {
       await createSchedule({
         propertyId: form.propertyId,
-        name: form.name,
+        name: form.name.trim(),
         description: form.description || undefined,
         categoryId: form.categoryId || undefined,
         frequencyType: form.frequencyType,
@@ -336,14 +369,21 @@ function CreateScheduleModal({ categories, properties, onClose }: {
           </h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><XCircle size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit} style={{ maxHeight: '70vh', overflowY: 'auto', padding: '0 24px 24px' }}>
+        <form onSubmit={handleSubmit} noValidate style={{ maxHeight: '70vh', overflowY: 'auto', padding: '0 24px 24px' }}>
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Property <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.propertyId} onChange={(e) => setForm(f => ({ ...f, propertyId: e.target.value }))}>
+              <select
+                className={hasAttemptedSubmit && !form.propertyId ? 'maint-input-error' : ''}
+                value={form.propertyId}
+                onChange={(e) => setForm(f => ({ ...f, propertyId: e.target.value }))}
+              >
                 <option value="">Select property</option>
                 {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              {hasAttemptedSubmit && !form.propertyId && (
+                <span className="maint-error-text">Property is required</span>
+              )}
             </div>
             <div className="maint-field">
               <label>Category</label>
@@ -357,7 +397,16 @@ function CreateScheduleModal({ categories, properties, onClose }: {
           <div className="maint-form-grid cols-1">
             <div className="maint-field">
               <label>Schedule Name <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="text" required value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g., Monthly AC Filter Replacement" />
+              <input
+                type="text"
+                className={hasAttemptedSubmit && !form.name.trim() ? 'maint-input-error' : ''}
+                value={form.name}
+                onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g., Monthly AC Filter Replacement"
+              />
+              {hasAttemptedSubmit && !form.name.trim() && (
+                <span className="maint-error-text">Schedule name is required</span>
+              )}
             </div>
           </div>
 
@@ -371,7 +420,7 @@ function CreateScheduleModal({ categories, properties, onClose }: {
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Frequency <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={form.frequencyType} onChange={(e) => setForm(f => ({ ...f, frequencyType: e.target.value }))}>
+              <select value={form.frequencyType} onChange={(e) => setForm(f => ({ ...f, frequencyType: e.target.value }))}>
                 {Object.entries(FREQUENCIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
@@ -393,7 +442,15 @@ function CreateScheduleModal({ categories, properties, onClose }: {
           <div className="maint-form-grid">
             <div className="maint-field">
               <label>Next Due Date <span style={{ color: '#f87171' }}>*</span></label>
-              <input type="date" required value={form.nextDueDate} onChange={(e) => setForm(f => ({ ...f, nextDueDate: e.target.value }))} />
+              <input
+                type="date"
+                className={hasAttemptedSubmit && !form.nextDueDate ? 'maint-input-error' : ''}
+                value={form.nextDueDate}
+                onChange={(e) => setForm(f => ({ ...f, nextDueDate: e.target.value }))}
+              />
+              {hasAttemptedSubmit && !form.nextDueDate && (
+                <span className="maint-error-text">Next due date is required</span>
+              )}
             </div>
             <div className="maint-field">
               <label>Advance Days (create WO N days before)</label>

@@ -722,7 +722,6 @@ export class UnitsService {
     // Store using local storage (same as documents pattern)
     const fs = await import('fs/promises');
     const path = await import('path');
-    const crypto = await import('crypto');
     const uploadDir = path.join(process.cwd(), 'uploads', 'units', propertyId, unitId);
     await fs.mkdir(uploadDir, { recursive: true });
     const ext = path.extname(file.originalname);

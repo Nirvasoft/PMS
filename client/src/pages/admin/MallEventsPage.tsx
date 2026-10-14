@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  useGetMallEventsQuery, useCreateMallEventMutation, useUpdateMallEventMutation,
+  useGetMallEventsQuery, useCreateMallEventMutation,
   useGetMallEventDetailQuery, useCreateBoothMutation, useUpdateBoothMutation, useInvoiceBoothMutation,
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
-import { Calendar, Plus, MapPin, Tag, Edit3, X, Receipt, CheckCircle, DollarSign } from 'lucide-react';
+import { Calendar, Plus, MapPin, Tag, Edit3, Receipt, CheckCircle } from 'lucide-react';
 import { useAlertDialog } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 const EVENT_TYPES = ['campaign', 'event', 'roadshow', 'sale', 'exhibition'];
 const STATUSES = ['planned', 'active', 'completed', 'cancelled'];
@@ -20,8 +21,10 @@ export default function MallEventsPage() {
 
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [eventSubmitted, setEventSubmitted] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [showBooth, setShowBooth] = useState(false);
+  const [boothSubmitted, setBoothSubmitted] = useState(false);
   const [formData, setFormData] = useState<any>({
     title: '', eventType: 'event', category: '', startDate: '', endDate: '',
     venue: '', organizer: '', estimatedFootfall: '', budget: '', isPublic: true,
@@ -47,6 +50,8 @@ export default function MallEventsPage() {
   const detail = detailData?.data;
 
   const handleCreateEvent = async () => {
+    setEventSubmitted(true);
+    if (!formData.title?.trim() || !formData.startDate || !formData.endDate) return;
     try {
       await createEvent({
         propertyId, ...formData,
@@ -54,11 +59,14 @@ export default function MallEventsPage() {
         budget: formData.budget ? Number(formData.budget) : undefined,
       }).unwrap();
       setShowCreate(false);
+      setEventSubmitted(false);
     } catch (e) { console.error(e); }
   };
 
   const handleCreateBooth = async () => {
     if (!selectedEvent) return;
+    setBoothSubmitted(true);
+    if (!boothData.boothNumber?.trim()) return;
     try {
       await createBooth({
         eventId: selectedEvent,
@@ -70,6 +78,7 @@ export default function MallEventsPage() {
         },
       }).unwrap();
       setShowBooth(false);
+      setBoothSubmitted(false);
     } catch (e) { console.error(e); }
   };
 
@@ -115,13 +124,18 @@ export default function MallEventsPage() {
 
   return (
     <div className="page-content">
-      <div className="mall-page-header">
-        <div>
-          <h1>Events & Promotions</h1>
-          <p className="mall-page-subtitle">Manage mall events, campaigns, and booth rentals</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <Calendar size={22} />
+          </div>
+          <div>
+            <h1>Events & Promotions</h1>
+            <p>{eventsData?.total ?? events.length} total events</p>
+          </div>
         </div>
         <PermissionGuard permission="mall-events.write">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+          <button className="btn btn-primary btn-sm" onClick={() => { setEventSubmitted(false); setShowCreate(true); }}>
             <Plus size={14} style={{ marginRight: 4 }} />New Event
           </button>
         </PermissionGuard>
@@ -189,7 +203,7 @@ export default function MallEventsPage() {
           <div className="mall-card-header">
             <h3>{detail.title}</h3>
             <PermissionGuard permission="mall-events.write">
-              <button className="mall-btn-sm" onClick={() => setShowBooth(true)}>
+              <button className="mall-btn-sm" onClick={() => { setBoothSubmitted(false); setShowBooth(true); }}>
                 <Plus size={12} style={{ marginRight: 4 }} />Add Booth
               </button>
             </PermissionGuard>
@@ -203,6 +217,7 @@ export default function MallEventsPage() {
             </div>
             {detail.booths?.length > 0 && (
               <div className="mall-table-wrap" style={{ marginTop: 12 }}>
+                <TableScrollWrapper>
                 <table className="mall-table">
                   <thead>
                     <tr>
@@ -263,6 +278,7 @@ export default function MallEventsPage() {
                     ))}
                   </tbody>
                 </table>
+                </TableScrollWrapper>
               </div>
             )}
           </div>
@@ -279,19 +295,42 @@ export default function MallEventsPage() {
             </div>
             <div className="mall-modal-body">
               <div className="mall-form-grid">
-                <label>Title
-                  <input value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+                <label>Title *
+                  <input
+                    className={eventSubmitted && !formData.title?.trim() ? 'mall-input-error' : ''}
+                    value={formData.title}
+                    onChange={e => setFormData({ ...formData, title: e.target.value })}
+                  />
+                  {eventSubmitted && !formData.title?.trim() && (
+                    <span className="mall-error-text">Title is required</span>
+                  )}
                 </label>
                 <label>Event Type
                   <select value={formData.eventType} onChange={e => setFormData({ ...formData, eventType: e.target.value })}>
                     {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </label>
-                <label>Start Date
-                  <input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} />
+                <label>Start Date *
+                  <input
+                    type="date"
+                    className={eventSubmitted && !formData.startDate ? 'mall-input-error' : ''}
+                    value={formData.startDate}
+                    onChange={e => setFormData({ ...formData, startDate: e.target.value })}
+                  />
+                  {eventSubmitted && !formData.startDate && (
+                    <span className="mall-error-text">Start date is required</span>
+                  )}
                 </label>
-                <label>End Date
-                  <input type="date" value={formData.endDate} onChange={e => setFormData({ ...formData, endDate: e.target.value })} />
+                <label>End Date *
+                  <input
+                    type="date"
+                    className={eventSubmitted && !formData.endDate ? 'mall-input-error' : ''}
+                    value={formData.endDate}
+                    onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                  />
+                  {eventSubmitted && !formData.endDate && (
+                    <span className="mall-error-text">End date is required</span>
+                  )}
                 </label>
                 <label>Venue
                   <input value={formData.venue} onChange={e => setFormData({ ...formData, venue: e.target.value })} placeholder="e.g. Atrium Level 1" />
@@ -325,8 +364,15 @@ export default function MallEventsPage() {
             </div>
             <div className="mall-modal-body">
               <div className="mall-form-grid">
-                <label>Booth Number
-                  <input value={boothData.boothNumber} onChange={e => setBoothData({ ...boothData, boothNumber: e.target.value })} />
+                <label>Booth Number *
+                  <input
+                    className={boothSubmitted && !boothData.boothNumber?.trim() ? 'mall-input-error' : ''}
+                    value={boothData.boothNumber}
+                    onChange={e => setBoothData({ ...boothData, boothNumber: e.target.value })}
+                  />
+                  {boothSubmitted && !boothData.boothNumber?.trim() && (
+                    <span className="mall-error-text">Booth number is required</span>
+                  )}
                 </label>
                 <label>Location
                   <input value={boothData.boothLocation} onChange={e => setBoothData({ ...boothData, boothLocation: e.target.value })} />

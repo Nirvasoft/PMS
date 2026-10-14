@@ -150,7 +150,7 @@ class BankingService {
 
   // ── Statement Lines ─────────────────────────
 
-  async getStatementLines(companyId: string, bankAccountId: string, params: any) {
+  async getStatementLines(_companyId: string, bankAccountId: string, params: any) {
     const where: any = { bankAccountId };
     if (params.importId) where.importId = params.importId;
     if (params.matchStatus) where.matchStatus = params.matchStatus;

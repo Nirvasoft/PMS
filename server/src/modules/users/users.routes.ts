@@ -5,7 +5,7 @@ import { rolesService } from './services/roles.service';
 import { permissionsService } from './services/permissions.service';
 import { departmentsService } from './services/departments.service';
 import { positionsService } from './services/positions.service';
-import { avatarUpload, csvUpload, getFileUrl, saveUploadedFileToSpaces } from '../../common/upload';
+import { avatarUpload, csvUpload, saveUploadedFileToSpaces } from '../../common/upload';
 import { prisma } from '../../common/database';
 import { requirePermission } from '../auth/guards/roleGuard';
 import { AppError } from '../../common/errors';

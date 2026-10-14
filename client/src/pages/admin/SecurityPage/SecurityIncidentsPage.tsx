@@ -37,12 +37,15 @@ export default function SecurityIncidentsPage() {
   const [severity, setSeverity] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [showCreate, setShowCreate] = useState(false);
   const [resolveId, setResolveId] = useState<string | null>(null);
+  const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
+  const [resolveErrors, setResolveErrors] = useState<Record<string, string>>({});
   const navigate = useNavigate();
 
   const { data: incData, isLoading } = useGetSecurityIncidentsQuery({
-    severity: severity || undefined, status: status || undefined, page, limit: 20,
+    severity: severity || undefined, status: status || undefined, page, limit,
   });
   const { data: statsData } = useGetSecurityStatsQuery({});
   const { data: propsData } = useGetPropertiesQuery({ page: 1, limit: 100 });
@@ -57,12 +60,26 @@ export default function SecurityIncidentsPage() {
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyId = (fd.get('propertyId') as string) || '';
+    const title = ((fd.get('title') as string) || '').trim();
+    const description = ((fd.get('description') as string) || '').trim();
+    const incidentAt = (fd.get('incidentAt') as string) || '';
+    const errs: Record<string, string> = {};
+    if (!propertyId) errs.propertyId = 'Property is required';
+    if (!title) errs.title = 'Title is required';
+    if (!description) errs.description = 'Description is required';
+    if (!incidentAt) errs.incidentAt = 'Date/Time is required';
+    if (Object.keys(errs).length > 0) {
+      setCreateErrors(errs);
+      return;
+    }
+    setCreateErrors({});
     try {
       await createIncident({
-        propertyId: fd.get('propertyId'), incidentType: fd.get('incidentType'),
-        severity: fd.get('severity'), title: fd.get('title'),
-        description: fd.get('description'), locationDetail: fd.get('locationDetail') || undefined,
-        incidentAt: new Date(fd.get('incidentAt') as string).toISOString(),
+        propertyId, incidentType: fd.get('incidentType'),
+        severity: fd.get('severity'), title,
+        description, locationDetail: fd.get('locationDetail') || undefined,
+        incidentAt: new Date(incidentAt).toISOString(),
         policeReportNo: fd.get('policeReportNo') || undefined,
         followUpRequired: fd.get('followUpRequired') === 'on',
       }).unwrap();
@@ -73,10 +90,16 @@ export default function SecurityIncidentsPage() {
   const handleResolve = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const resolution = ((fd.get('resolution') as string) || '').trim();
+    if (!resolution) {
+      setResolveErrors({ resolution: 'Resolution is required' });
+      return;
+    }
+    setResolveErrors({});
     try {
       await resolveIncident({
         id: resolveId!,
-        data: { resolution: fd.get('resolution'), policeReportNo: fd.get('policeReportNo') || undefined },
+        data: { resolution, policeReportNo: fd.get('policeReportNo') || undefined },
       }).unwrap();
       toast.success('Incident resolved'); setResolveId(null);
     } catch { toast.error('Failed'); }
@@ -88,6 +111,21 @@ export default function SecurityIncidentsPage() {
 
   return (
     <div className="maint-page">
+      {/* ── Header ── */}
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Shield size={22} /></div>
+          <div><h1>Security Incidents</h1><p>{meta?.total ?? incidents.length} total incidents</p></div>
+        </div>
+        <div className="header-actions">
+          <PermissionGuard permission="security-incidents.write">
+            <button className="btn btn-primary btn-sm" onClick={() => { setCreateErrors({}); setShowCreate(true); }}>
+              <Plus size={14} /> Report Incident
+            </button>
+          </PermissionGuard>
+        </div>
+      </div>
+
       {/* ── Stats Row ── */}
       {stats && (
         <div className="maint-stats-row">
@@ -135,21 +173,6 @@ export default function SecurityIncidentsPage() {
           )}
         </div>
       )}
-
-      {/* ── Header ── */}
-      <div className="page-header">
-        <div className="page-title-row">
-          <div className="page-icon-lg"><Shield size={20} /></div>
-          <div><h1>Security Incidents</h1><p>{meta?.total ?? 0} incidents</p></div>
-        </div>
-        <div className="header-actions">
-          <PermissionGuard permission="security-incidents.write">
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> Report Incident
-            </button>
-          </PermissionGuard>
-        </div>
-      </div>
 
       {/* ── Filters ── */}
       <div className="maint-filters">
@@ -238,7 +261,7 @@ export default function SecurityIncidentsPage() {
                   </span>
                   {(inc.status === 'open' || inc.status === 'investigating') && (
                     <PermissionGuard permission="security-incidents.write">
-                      <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); setResolveId(inc.id); }} style={{ fontSize: '11px' }}>
+                      <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); setResolveErrors({}); setResolveId(inc.id); }} style={{ fontSize: '11px' }}>
                         <CheckCircle2 size={11} /> Resolve
                       </button>
                     </PermissionGuard>
@@ -251,11 +274,26 @@ export default function SecurityIncidentsPage() {
       )}
 
       {/* ── Pagination ── */}
-      {meta && meta.totalPages > 1 && (
+      {meta && meta.total >= 10 && (
         <div className="maint-pagination">
-          <button disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={14} /> Previous</button>
-          <span>Page {page} of {meta.totalPages}</span>
-          <button disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next <ChevronRight size={14} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>Rows per page:</span>
+            <select
+              value={limit}
+              onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+              style={{
+                background: 'var(--bg-secondary)', color: 'var(--text-primary)',
+                border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px', fontSize: '0.78rem',
+              }}
+            >
+              {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={14} /></button>
+            <span>Page {page} of {meta.totalPages || 1}</span>
+            <button disabled={page >= (meta.totalPages || 1)} onClick={() => setPage(page + 1)}><ChevronRight size={14} /></button>
+          </div>
         </div>
       )}
 
@@ -264,13 +302,14 @@ export default function SecurityIncidentsPage() {
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <h2><Shield size={18} /> Report Security Incident</h2>
-            <form onSubmit={handleCreate}>
+            <form onSubmit={handleCreate} noValidate>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group"><label>Property *</label>
-                  <select name="propertyId" required><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                  <select name="propertyId" className={createErrors.propertyId ? 'maint-input-error' : ''} onChange={() => setCreateErrors((p) => ({ ...p, propertyId: '' }))}><option value="">Select...</option>{properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                  {createErrors.propertyId && <span className="maint-error-text">{createErrors.propertyId}</span>}
                 </div>
                 <div className="form-group"><label>Type *</label>
-                  <select name="incidentType" required>{TYPES.map((t) => <option key={t} value={t}>{TYPE_ICONS[t]} {t.replace('_', ' ')}</option>)}</select>
+                  <select name="incidentType">{TYPES.map((t) => <option key={t} value={t}>{TYPE_ICONS[t]} {t.replace('_', ' ')}</option>)}</select>
                 </div>
                 <div className="form-group"><label>Severity *</label>
                   <select name="severity" defaultValue="medium">
@@ -279,11 +318,16 @@ export default function SecurityIncidentsPage() {
                   </select>
                 </div>
                 <div className="form-group"><label>Date/Time *</label>
-                  <input name="incidentAt" type="datetime-local" required defaultValue={new Date().toISOString().slice(0, 16)} />
+                  <input name="incidentAt" type="datetime-local" defaultValue={new Date().toISOString().slice(0, 16)} className={createErrors.incidentAt ? 'maint-input-error' : ''} onChange={() => setCreateErrors((p) => ({ ...p, incidentAt: '' }))} />
+                  {createErrors.incidentAt && <span className="maint-error-text">{createErrors.incidentAt}</span>}
                 </div>
               </div>
-              <div className="form-group"><label>Title *</label><input name="title" required placeholder="Brief incident title" /></div>
-              <div className="form-group"><label>Description *</label><textarea name="description" rows={3} required placeholder="Detailed description..." /></div>
+              <div className="form-group"><label>Title *</label><input name="title" placeholder="Brief incident title" className={createErrors.title ? 'maint-input-error' : ''} onChange={() => setCreateErrors((p) => ({ ...p, title: '' }))} />
+                {createErrors.title && <span className="maint-error-text">{createErrors.title}</span>}
+              </div>
+              <div className="form-group"><label>Description *</label><textarea name="description" rows={3} placeholder="Detailed description..." className={createErrors.description ? 'maint-input-error' : ''} onChange={() => setCreateErrors((p) => ({ ...p, description: '' }))} />
+                {createErrors.description && <span className="maint-error-text">{createErrors.description}</span>}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group"><label>Location</label><input name="locationDetail" placeholder="Car Park B1, slot 045" /></div>
                 <div className="form-group"><label>Police Report #</label><input name="policeReportNo" /></div>
@@ -305,8 +349,10 @@ export default function SecurityIncidentsPage() {
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <h2><CheckCircle2 size={18} /> Resolve Incident</h2>
-            <form onSubmit={handleResolve}>
-              <div className="form-group"><label>Resolution *</label><textarea name="resolution" rows={3} required placeholder="Describe how the incident was resolved..." /></div>
+            <form onSubmit={handleResolve} noValidate>
+              <div className="form-group"><label>Resolution *</label><textarea name="resolution" rows={3} placeholder="Describe how the incident was resolved..." className={resolveErrors.resolution ? 'maint-input-error' : ''} onChange={() => setResolveErrors((p) => ({ ...p, resolution: '' }))} />
+                {resolveErrors.resolution && <span className="maint-error-text">{resolveErrors.resolution}</span>}
+              </div>
               <div className="form-group"><label>Police Report #</label><input name="policeReportNo" /></div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setResolveId(null)}>Cancel</button>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetPropertiesQuery, useDeletePropertyMutation, useGetPropertyStatsQuery,
@@ -13,10 +13,12 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import {
   Plus, LayoutGrid, List, Search, Filter, X, MapPin,
   Building2, Wrench, MoreVertical, Trash2, Eye, BarChart2, Home, Edit3, Save, Upload,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './PropertiesPage.css';
 
 /** ISO currency reference — same list as CurrencyRatesPage, code only */
@@ -93,7 +95,7 @@ function occupancyColor(rate: number): { color: string; gradient: string; glow: 
   };
 }
 
-const TYPE_ICONS: Record<string, JSX.Element> = {
+const TYPE_ICONS: Record<string, ReactNode> = {
   residential: <Home size={14} />,
   commercial: <Building2 size={14} />,
   retail: <BarChart2 size={14} />,
@@ -166,6 +168,7 @@ function buildEditForm(p: PropertyListItem): EditForm {
 // ─── Edit Drawer ──────────────────────────────
 function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose: () => void }) {
   const [form, setForm] = useState<EditForm>(() => buildEditForm(property));
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [updateProperty, { isLoading }] = useUpdatePropertyMutation();
   const { data: typesData } = useGetPropertyTypesQuery();
   const { data: branchesData } = useGetBranchesQuery();
@@ -173,6 +176,9 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
   const hasActiveLease = (statsData?.data?.activeLeases ?? 0) > 0;
   const types    = typesData?.data || [];
   const branches = branchesData?.data || [];
+
+  const nameError = hasAttemptedSave && !form.name.trim() ? 'Property name is required' : '';
+  const typeError = hasAttemptedSave && !form.propertyType ? 'Property type is required' : '';
 
   // Currency is locked after creation; double-clicking it either explains why
   // (active lease) or lets an admin unlock editing with today's passcode.
@@ -235,8 +241,8 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
   }));
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error('Property name is required'); return; }
-    if (!form.propertyType) { toast.error('Property type is required'); return; }
+    setHasAttemptedSave(true);
+    if (!form.name.trim() || !form.propertyType) return;
     const day = Number(form.billingDay);
     if (isNaN(day) || day < 1 || day > 28) { toast.error('Billing day must be between 1 and 28'); return; }
     try {
@@ -296,7 +302,13 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
             <div className="edit-grid">
               <div className="edit-field full">
                 <label>Property Name *</label>
-                <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Marina Bay Residences" />
+                <input
+                  className={nameError ? 'input-error' : ''}
+                  value={form.name}
+                  onChange={e => set('name', e.target.value)}
+                  placeholder="e.g. Marina Bay Residences"
+                />
+                {nameError && <span className="field-error-text">{nameError}</span>}
               </div>
               <div className="edit-field">
                 <label>Code</label>
@@ -304,13 +316,18 @@ function EditDrawer({ property, onClose }: { property: PropertyListItem; onClose
               </div>
               <div className="edit-field">
                 <label>Property Type *</label>
-                <select value={form.propertyType} onChange={e => set('propertyType', e.target.value)}>
+                <select
+                  className={typeError ? 'input-error' : ''}
+                  value={form.propertyType}
+                  onChange={e => set('propertyType', e.target.value)}
+                >
                   <option value="">Select type…</option>
                   {types.length > 0
                     ? types.map(t => <option key={t.id} value={t.code}>{t.name}</option>)
                     : ['residential','commercial','mixed_use','industrial','retail','hospitality','warehouse'].map(t =>
                         <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                 </select>
+                {typeError && <span className="field-error-text">{typeError}</span>}
               </div>
               <div className="edit-field">
                 <label>Legal Name</label>
@@ -639,6 +656,7 @@ export default function PropertiesPage() {
   const { listView, listFilters } = useAppSelector((s) => s.properties);
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [editingProperty, setEditingProperty] = useState<PropertyListItem | null>(null);
 
@@ -646,8 +664,8 @@ export default function PropertiesPage() {
   // the list narrows to just that one property instead of the full portfolio.
   const activePropertyFilter = useSelectedPropertyFilter();
 
-  // Reset pagination whenever the sidebar's Active Property changes.
-  useEffect(() => { setPage(1); }, [activePropertyFilter]);
+  // Reset pagination whenever the sidebar's Active Property or view/pageSize changes.
+  useEffect(() => { setPage(1); }, [activePropertyFilter, listView, pageSize]);
 
   const { data, isLoading } = useGetPropertiesQuery({
     search: listFilters.search || undefined,
@@ -655,7 +673,7 @@ export default function PropertiesPage() {
     propertyType: listFilters.propertyType || undefined,
     regionId: listFilters.regionId || undefined,
     page: activePropertyFilter ? 1 : page,
-    limit: activePropertyFilter ? 100 : 12,
+    limit: activePropertyFilter ? 100 : (listView === 'list' ? pageSize : 12),
   });
 
   const [deleteProperty] = useDeletePropertyMutation();
@@ -681,17 +699,31 @@ export default function PropertiesPage() {
   return (
     <div className="properties-page">
       <div className="properties-header">
-        <div className="header-left">
-          <Building2 size={24} className="header-icon" />
+        <div className="header-left" style={{ gap: 14 }}>
+          <div
+            className="page-icon-lg"
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 12,
+              background: 'rgba(16, 185, 129, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--accent)',
+              flexShrink: 0,
+            }}
+          >
+            <Building2 size={22} />
+          </div>
           <div>
-            <h1>Properties</h1>
-            <p className="subtitle">{meta?.total ?? 0} properties in portfolio</p>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Properties</h1>
+            <p className="subtitle" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {isLoading ? 'Loading…' : `${meta?.total ?? 0} total properties`}
+            </p>
           </div>
         </div>
         <div className="header-actions">
-          <button className="btn-secondary" onClick={() => setShowFilters(!showFilters)}>
-            <Filter size={15} /> Filters{(listFilters.status || listFilters.propertyType) ? ' •' : ''}
-          </button>
           <div className="view-toggle">
             <button className={listView === 'grid' ? 'active' : ''} onClick={() => dispatch(setListView('grid'))}><LayoutGrid size={16} /></button>
             <button className={listView === 'list' ? 'active' : ''} onClick={() => dispatch(setListView('list'))}><List size={16} /></button>
@@ -705,14 +737,19 @@ export default function PropertiesPage() {
       </div>
 
       <div className="properties-toolbar">
-        <div className="search-box">
-          <Search size={15} />
-          <input
-            type="text" placeholder="Search properties..."
-            value={listFilters.search}
-            onChange={(e) => { dispatch(setListFilter({ search: e.target.value })); setPage(1); }}
-          />
-          {listFilters.search && <button onClick={() => dispatch(setListFilter({ search: '' }))}><X size={14} /></button>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div className="search-box" style={{ flex: 1 }}>
+            <Search size={15} />
+            <input
+              type="text" placeholder="Search properties..."
+              value={listFilters.search}
+              onChange={(e) => { dispatch(setListFilter({ search: e.target.value })); setPage(1); }}
+            />
+            {listFilters.search && <button onClick={() => dispatch(setListFilter({ search: '' }))}><X size={14} /></button>}
+          </div>
+          <button className="btn-secondary" onClick={() => setShowFilters(!showFilters)}>
+            <Filter size={15} /> Filters{(listFilters.status || listFilters.propertyType) ? ' •' : ''}
+          </button>
         </div>
         {showFilters && (
           <div className="filter-bar">
@@ -768,20 +805,81 @@ export default function PropertiesPage() {
           ))}
         </div>
       ) : (
-        <div className="property-list-table">
-          <div className="list-header">
-            <span>Name</span><span>Type</span><span>Status</span><span>Units</span><span>City</span><span></span>
+        <div className="properties-list-container" style={{ padding: '20px 28px' }}>
+          <div className="properties-table-wrap positions-table-wrap billing-table-wrap">
+            <TableScrollWrapper className="properties-table-scroll positions-table-scroll">
+              <table className="audit-table billing-table positions-table properties-table" id="properties-table">
+                <thead>
+                  <tr>
+                    <th style={{ minWidth: 240, paddingLeft: 32 }}>Name</th>
+                    <th style={{ minWidth: 150 }}>Type</th>
+                    <th style={{ width: 150 }}>Status</th>
+                    <th style={{ width: 100 }}>Units</th>
+                    <th style={{ minWidth: 140 }}>City</th>
+                    <th style={{ width: 110, textAlign: 'center' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {properties.map((p) => (
+                    <PropertyRow
+                      key={p.id}
+                      property={p}
+                      onView={() => navigate(`/admin/properties/${p.id}`)}
+                      onEdit={() => setEditingProperty(p)}
+                      onDelete={() => handleDelete(p.id, p.name)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
+
+            {meta && meta.total >= 10 && (
+              <div className="properties-pagination positions-pagination billing-pagination">
+                <div className="pagination-left">
+                  <div className="page-size-selector">
+                    <label htmlFor="properties-page-size">Rows per page:</label>
+                    <select
+                      id="properties-page-size"
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setPage(1);
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="page-btns">
+                  <button
+                    disabled={page <= 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    title="Previous page"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  <span className="page-num-display">
+                    Page {page} of {meta.totalPages}
+                  </span>
+                  <button
+                    disabled={page >= meta.totalPages}
+                    onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+                    title="Next page"
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          {properties.map((p) => (
-            <PropertyRow key={p.id} property={p}
-              onView={() => navigate(`/admin/properties/${p.id}`)}
-              onEdit={() => setEditingProperty(p)}
-              onDelete={() => handleDelete(p.id, p.name)} />
-          ))}
         </div>
       )}
 
-      {meta && meta.totalPages > 1 && (
+      {listView === 'grid' && meta && meta.totalPages > 1 && (
         <div className="pagination">
           <button disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
           <span>{page} / {meta.totalPages}</span>
@@ -868,31 +966,59 @@ function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onEdit, onDel
   );
 }
 
-// ─── Property Row (List view) ─────────────────
+// ─── Property Row (List view Table Row) ───────
 function PropertyRow({ property: p, onView, onEdit, onDelete }: {
   property: PropertyListItem; onView: () => void; onEdit: () => void; onDelete: () => void;
 }) {
+  const statusClass =
+    p.status === 'active'
+      ? 'active'
+      : p.status === 'under_renovation'
+        ? 'pending'
+        : 'inactive';
+
   return (
-    <div className="list-row" onClick={onView}>
-      <div className="row-name">
-        <div className="row-avatar">
-          {p.coverImageUrl ? <img src={p.coverImageUrl} alt={p.name} /> : <Building2 size={16} />}
+    <tr className="table-row-clickable" onClick={onView}>
+      <td>
+        <div className="row-name">
+          <div className="row-avatar" style={{ width: 30, height: 30, borderRadius: 7 }}>
+            {p.coverImageUrl ? <img src={p.coverImageUrl} alt={p.name} /> : <Building2 size={15} />}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span className="name" style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</span>
+            {p.code && (
+              <span className="role-chip" style={{ fontSize: 11, padding: '1px 7px' }}>
+                {p.code}
+              </span>
+            )}
+          </div>
         </div>
-        <div><span className="name">{p.name}</span>{p.code && <span className="code"> {p.code}</span>}</div>
-      </div>
-      <span className="row-type">{p.propertyType.replace(/_/g, ' ')}</span>
-      <span className="row-status" style={{ color: STATUS_COLORS[p.status] }}>{p.status.replace(/_/g, ' ')}</span>
-      <span>{p.totalUnits}</span>
-      <span>{p.city || '—'}</span>
-      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-        <button title="View" onClick={onView}><Eye size={15} /></button>
-        <PermissionGuard permission="properties.update">
-          <button title="Edit" onClick={onEdit}><Edit3 size={15} /></button>
-        </PermissionGuard>
-        <PermissionGuard permission="properties.delete">
-          <button title="Delete" onClick={onDelete} className="danger"><Trash2 size={15} /></button>
-        </PermissionGuard>
-      </div>
-    </div>
+      </td>
+      <td>
+        <span className="row-type" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+          {TYPE_ICONS[p.propertyType] || <Building2 size={13} />}
+          {p.propertyType.replace(/_/g, ' ')}
+        </span>
+      </td>
+      <td>
+        <span className={`status-badge ${statusClass}`} style={{ textTransform: 'capitalize' }}>
+          {p.status.replace(/_/g, ' ')}
+        </span>
+      </td>
+      <td style={{ fontWeight: 600 }}>{p.totalUnits}</td>
+      <td className="text-secondary">{p.city || '—'}</td>
+      <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+        <div className="row-actions" style={{ justifyContent: 'center' }}>
+          <button title="View" onClick={onView}><Eye size={14} /></button>
+          <PermissionGuard permission="properties.update">
+            <button title="Edit" onClick={onEdit}><Edit3 size={14} /></button>
+          </PermissionGuard>
+          <PermissionGuard permission="properties.delete">
+            <button title="Delete" onClick={onDelete} className="danger"><Trash2 size={14} /></button>
+          </PermissionGuard>
+        </div>
+      </td>
+    </tr>
   );
 }
+

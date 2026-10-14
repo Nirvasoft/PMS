@@ -6,9 +6,9 @@ import {
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  Calendar, Plus, Loader2, Inbox, XCircle, MapPin, Users, Timer,
+  Calendar, Plus, Loader2, XCircle, MapPin, Users, Timer,
   Clock, CheckCircle2, Search, Filter, Repeat, Zap, ClipboardList,
-  Building2, Sparkles,
+  Building2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -42,6 +42,7 @@ export default function ScheduleManagementPage() {
 
   const [checklistItems, setChecklistItems] = useState<{ item: string; isRequired: boolean }[]>([]);
   const [newCheckItem, setNewCheckItem] = useState('');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const addCheckItem = () => {
     if (newCheckItem.trim()) {
@@ -49,15 +50,27 @@ export default function ScheduleManagementPage() {
       setNewCheckItem('');
     }
   };
-  const resetForm = () => { setChecklistItems([]); setNewCheckItem(''); };
+  const resetForm = () => { setChecklistItems([]); setNewCheckItem(''); setFormErrors({}); };
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyId = (fd.get('propertyId') as string) || '';
+    const zoneId = (fd.get('zoneId') as string) || '';
+    const name = ((fd.get('name') as string) || '').trim();
+    const errs: Record<string, string> = {};
+    if (!propertyId) errs.propertyId = 'Property is required';
+    if (!zoneId) errs.zoneId = 'Zone is required';
+    if (!name) errs.name = 'Schedule name is required';
+    if (Object.keys(errs).length > 0) {
+      setFormErrors(errs);
+      return;
+    }
+    setFormErrors({});
     try {
       await createSchedule({
-        propertyId: fd.get('propertyId'), zoneId: fd.get('zoneId'),
-        name: fd.get('name'), frequencyType: fd.get('frequencyType'),
+        propertyId, zoneId,
+        name, frequencyType: fd.get('frequencyType'),
         scheduledTime: fd.get('scheduledTime') || undefined,
         durationMinutes: parseInt(fd.get('durationMinutes') as string) || undefined,
         cleaningType: fd.get('cleaningType') || undefined,
@@ -77,10 +90,9 @@ export default function ScheduleManagementPage() {
   });
 
   const activeCount = schedules.filter((s: any) => s.status === 'active').length;
-  const pausedCount = schedules.filter((s: any) => s.status !== 'active').length;
 
   // Freq counts
-  const freqCounts = schedules.reduce((acc: Record<string, number>, s: any) => {
+  const freqCounts: Record<string, number> = schedules.reduce((acc: Record<string, number>, s: any) => {
     acc[s.frequencyType] = (acc[s.frequencyType] || 0) + 1;
     return acc;
   }, {});
@@ -88,30 +100,16 @@ export default function ScheduleManagementPage() {
   return (
     <div className="maint-page">
       {/* ── Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        marginBottom: 24, flexWrap: 'wrap', gap: 12,
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0,
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Calendar size={18} color="#fff" />
-            </div>
-            Schedule Management
-          </h1>
-          <p style={{ margin: '4px 0 0 46px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            {schedules.length} cleaning schedule{schedules.length !== 1 ? 's' : ''}
-          </p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><Calendar size={22} /></div>
+          <div>
+            <h1>Schedule Management</h1>
+            <p>{schedules.length} total schedules</p>
+          </div>
         </div>
         <PermissionGuard permission="housekeeping-schedules.write">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)} style={{ borderRadius: 10 }}>
+          <button className="btn btn-primary btn-sm" onClick={() => { resetForm(); setShowCreate(true); }}>
             <Plus size={14} /> New Schedule
           </button>
         </PermissionGuard>
@@ -305,28 +303,31 @@ export default function ScheduleManagementPage() {
               </h2>
               <button className="btn btn-ghost btn-sm" onClick={() => { setShowCreate(false); resetForm(); }}><XCircle size={20} /></button>
             </div>
-            <form onSubmit={handleCreate}>
+            <form onSubmit={handleCreate} noValidate>
               <div className="maint-modal-body" style={{ padding: '0 24px 16px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group"><label>Property *</label>
-                    <select name="propertyId" required style={{ borderRadius: 10 }}>
+                    <select name="propertyId" className={formErrors.propertyId ? 'maint-input-error' : ''} onChange={() => setFormErrors((p) => ({ ...p, propertyId: '' }))} style={{ borderRadius: 10 }}>
                       <option value="">Select...</option>
                       {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
+                    {formErrors.propertyId && <span className="maint-error-text">{formErrors.propertyId}</span>}
                   </div>
                   <div className="form-group"><label>Zone *</label>
-                    <select name="zoneId" required style={{ borderRadius: 10 }}>
+                    <select name="zoneId" className={formErrors.zoneId ? 'maint-input-error' : ''} onChange={() => setFormErrors((p) => ({ ...p, zoneId: '' }))} style={{ borderRadius: 10 }}>
                       <option value="">Select...</option>
                       {zones.map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}
                     </select>
+                    {formErrors.zoneId && <span className="maint-error-text">{formErrors.zoneId}</span>}
                   </div>
                 </div>
                 <div className="form-group"><label>Schedule Name *</label>
-                  <input name="name" required placeholder="e.g. Daily Lobby Cleaning" style={{ borderRadius: 10 }} />
+                  <input name="name" placeholder="e.g. Daily Lobby Cleaning" className={formErrors.name ? 'maint-input-error' : ''} onChange={() => setFormErrors((p) => ({ ...p, name: '' }))} style={{ borderRadius: 10 }} />
+                  {formErrors.name && <span className="maint-error-text">{formErrors.name}</span>}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="form-group"><label>Frequency *</label>
-                    <select name="frequencyType" required style={{ borderRadius: 10 }}>
+                    <select name="frequencyType" style={{ borderRadius: 10 }}>
                       {Object.entries(FREQ_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                     </select>
                   </div>

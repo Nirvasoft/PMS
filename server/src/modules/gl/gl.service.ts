@@ -79,7 +79,7 @@ class GlService {
     });
   }
 
-  async updateAccount(id: string, companyId: string, data: any) {
+  async updateAccount(id: string, _companyId: string, data: any) {
     return prisma.glAccount.update({
       where: { id },
       data: {

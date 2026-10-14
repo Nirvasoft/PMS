@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetKycRequirementsQuery, useCreateKycRequirementMutation, useDeleteKycRequirementMutation,
   type KycRequirement,
 } from '../../../store/api/tenantsApi';
 import {
-  ArrowLeft, Shield, Plus, Trash2, X, FileCheck, Users2, Building2, ChevronDown,
+  ArrowLeft, Shield, Plus, Trash2, FileCheck, Users2, Building2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -27,6 +27,7 @@ export default function KycRequirementsPage() {
   const confirmDialog = useConfirm();
 
   const [showForm, setShowForm] = useState(false);
+  const [attempted, setAttempted] = useState(false);
   const [form, setForm] = useState({
     tenantType: 'individual' as string,
     docType: 'passport',
@@ -40,7 +41,8 @@ export default function KycRequirementsPage() {
   const requirements = data?.data || [];
 
   const handleCreate = async () => {
-    if (!form.name.trim()) { toast.error('Name is required'); return; }
+    setAttempted(true);
+    if (!form.name.trim()) { toast.error('Display name is required'); return; }
     try {
       await create({
         ...form,
@@ -49,6 +51,7 @@ export default function KycRequirementsPage() {
       }).unwrap();
       toast.success('Requirement added');
       setShowForm(false);
+      setAttempted(false);
       setForm({ tenantType: 'individual', docType: 'passport', name: '', description: '', isRequired: true, validityDays: '', sortOrder: 0 });
     } catch (e: any) {
       toast.error(e?.data?.errors?.[0]?.message || 'Failed');
@@ -79,7 +82,7 @@ export default function KycRequirementsPage() {
           </p>
         </div>
         <PermissionGuard permission="tenants.kyc">
-          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
+          <button className="btn-primary" onClick={() => { setShowForm(!showForm); setAttempted(false); }}>
             <Plus size={14} /> Add Requirement
           </button>
         </PermissionGuard>
@@ -113,9 +116,16 @@ export default function KycRequirementsPage() {
               </select>
             </div>
             <div className="field" style={{ gridColumn: 'span 2' }}>
-              <label>Display Name *</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. NRIC / National ID" />
+              <label>Display Name <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                className={attempted && !form.name.trim() ? 'input-error' : ''}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. NRIC / National ID"
+              />
+              {attempted && !form.name.trim() && (
+                <span className="field-error-text">Display name is required</span>
+              )}
             </div>
             <div className="field" style={{ gridColumn: 'span 2' }}>
               <label>Description</label>
@@ -142,7 +152,7 @@ export default function KycRequirementsPage() {
             <button className="btn-primary" onClick={handleCreate} disabled={creating}>
               {creating ? 'Creating…' : 'Create Requirement'}
             </button>
-            <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn-ghost" onClick={() => { setShowForm(false); setAttempted(false); }}>Cancel</button>
           </div>
         </div>
       )}
@@ -169,7 +179,7 @@ export default function KycRequirementsPage() {
 }
 
 function ReqSection({ title, icon, items, onDelete }: {
-  title: string; icon: JSX.Element; items: KycRequirement[]; onDelete: (id: string, name: string) => void;
+  title: string; icon: ReactNode; items: KycRequirement[]; onDelete: (id: string, name: string) => void;
 }) {
   return (
     <div className="kyc-req-section">

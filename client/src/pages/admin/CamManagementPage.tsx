@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  useGetCamPoolsQuery, useCreateCamPoolMutation, useUpdateCamPoolMutation,
+  useGetCamPoolsQuery, useCreateCamPoolMutation,
   useGetCamBillingsQuery, useGetCamReconciliationsQuery,
   useGenerateCamBillingMutation, useRunCamReconciliationMutation,
 } from '../../store/api/mallApi';
@@ -9,6 +9,7 @@ import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import { Plus, BarChart3, Zap, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
 const POOL_TYPES = ['controllable', 'uncontrollable', 'capital'];
 const ALLOC_BASIS = ['gla', 'equal', 'zone', 'custom'];
@@ -21,9 +22,10 @@ export default function CamManagementPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [year, setYear] = useState(new Date().getFullYear());
   const [showCreate, setShowCreate] = useState(false);
+  const [createSubmitted, setCreateSubmitted] = useState(false);
   const [formData, setFormData] = useState<any>({
     name: '', poolType: 'controllable', allocationBasis: 'gla',
-    costCategories: '', year: new Date().getFullYear(), budgetedAmount: 0,
+    costCategories: '', year: new Date().getFullYear(), budgetedAmount: '',
   });
   const [genMonth, setGenMonth] = useState(new Date().getMonth() + 1);
   const [genLoading, setGenLoading] = useState(false);
@@ -51,6 +53,8 @@ export default function CamManagementPage() {
   const reconciliations = reconData?.data || [];
 
   const handleCreate = async () => {
+    setCreateSubmitted(true);
+    if (!formData.name?.trim() || formData.budgetedAmount === '' || Number(formData.budgetedAmount) <= 0) return;
     try {
       await createPool({
         propertyId,
@@ -59,15 +63,21 @@ export default function CamManagementPage() {
         budgetedAmount: Number(formData.budgetedAmount),
       }).unwrap();
       setShowCreate(false);
+      setCreateSubmitted(false);
     } catch (e) { console.error(e); }
   };
 
   return (
     <div className="page-content">
-      <div className="mall-page-header">
-        <div>
-          <h1>CAM Management</h1>
-          <p className="mall-page-subtitle">Common Area Maintenance cost pools, billing, and reconciliation</p>
+      <div className="page-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg">
+            <BarChart3 size={22} />
+          </div>
+          <div>
+            <h1>CAM Management</h1>
+            <p>{pools.length} total pools</p>
+          </div>
         </div>
         <div className="mall-header-actions">
           <select className="mall-filter-select" value={year} onChange={e => setYear(Number(e.target.value))}>
@@ -75,7 +85,7 @@ export default function CamManagementPage() {
           </select>
           {activeTab === 0 && (
             <PermissionGuard permission="mall-cam.write">
-              <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+              <button className="btn btn-primary btn-sm" onClick={() => { setCreateSubmitted(false); setShowCreate(true); }}>
                 <Plus size={14} style={{ marginRight: 4 }} />New Pool
               </button>
             </PermissionGuard>
@@ -187,6 +197,7 @@ export default function CamManagementPage() {
             </PermissionGuard>
           </div>
           <div className="mall-table-wrap">
+          <TableScrollWrapper>
           <table className="mall-table">
             <thead>
               <tr>
@@ -220,6 +231,7 @@ export default function CamManagementPage() {
               )}
             </tbody>
           </table>
+          </TableScrollWrapper>
           </div>
         </div>
       )}
@@ -247,6 +259,7 @@ export default function CamManagementPage() {
             </PermissionGuard>
           </div>
           <div className="mall-table-wrap">
+          <TableScrollWrapper>
           <table className="mall-table">
             <thead>
               <tr>
@@ -282,6 +295,7 @@ export default function CamManagementPage() {
               )}
             </tbody>
           </table>
+          </TableScrollWrapper>
           </div>
         </div>
       )}
@@ -296,8 +310,16 @@ export default function CamManagementPage() {
             </div>
             <div className="mall-modal-body">
               <div className="mall-form-grid">
-                <label>Pool Name
-                  <input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Controllable CAM" />
+                <label>Pool Name *
+                  <input
+                    className={createSubmitted && !formData.name?.trim() ? 'mall-input-error' : ''}
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g. Controllable CAM"
+                  />
+                  {createSubmitted && !formData.name?.trim() && (
+                    <span className="mall-error-text">Pool name is required</span>
+                  )}
                 </label>
                 <label>Pool Type
                   <select value={formData.poolType} onChange={e => setFormData({ ...formData, poolType: e.target.value })}>
@@ -312,8 +334,16 @@ export default function CamManagementPage() {
                 <label>Year
                   <input type="number" value={formData.year} onChange={e => setFormData({ ...formData, year: Number(e.target.value) })} />
                 </label>
-                <label>Budget Amount
-                  <input type="number" value={formData.budgetedAmount} onChange={e => setFormData({ ...formData, budgetedAmount: e.target.value })} />
+                <label>Budget Amount *
+                  <input
+                    type="number"
+                    className={createSubmitted && (formData.budgetedAmount === '' || Number(formData.budgetedAmount) <= 0) ? 'mall-input-error' : ''}
+                    value={formData.budgetedAmount}
+                    onChange={e => setFormData({ ...formData, budgetedAmount: e.target.value })}
+                  />
+                  {createSubmitted && (formData.budgetedAmount === '' || Number(formData.budgetedAmount) <= 0) && (
+                    <span className="mall-error-text">Valid budget amount is required</span>
+                  )}
                 </label>
                 <label>Cost Categories (comma-separated)
                   <input value={formData.costCategories} onChange={e => setFormData({ ...formData, costCategories: e.target.value })} placeholder="cleaning, security, utilities" />

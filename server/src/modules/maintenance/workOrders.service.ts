@@ -245,7 +245,7 @@ export class WorkOrdersService {
 
   // ── On Hold ────────────────────────────────
 
-  async onHold(id: string, companyId: string, reason: string, userId: string) {
+  async onHold(id: string, companyId: string, reason: string, _userId: string) {
     const wo = await prisma.workOrder.findFirst({ where: { id, companyId } });
     if (!wo) throw AppError.notFound('Work order');
     if (wo.status !== 'in_progress') {
@@ -272,7 +272,7 @@ export class WorkOrdersService {
 
   // ── Resume (from on-hold) ──────────────────
 
-  async resume(id: string, companyId: string, userId: string) {
+  async resume(id: string, companyId: string, _userId: string) {
     const wo = await prisma.workOrder.findFirst({ where: { id, companyId } });
     if (!wo) throw AppError.notFound('Work order');
     if (wo.status !== 'on_hold') {

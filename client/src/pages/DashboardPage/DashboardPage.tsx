@@ -110,15 +110,11 @@ export default function DashboardLayout() {
   const propertyDetailMatch = matchPath('/admin/properties/:id', location.pathname);
   const isPropertyDetailPage = !!propertyDetailMatch && location.pathname !== '/admin/properties/create';
   // The property ID from the URL — used to display the correct property in the sidebar
-  // when the user arrived at the detail page from the "All Properties" view (Redux stays
-  // on ALL_PROPERTIES so browser-back still shows the full list).
+  // when the user arrived at the detail page from the "All Properties" view.
   const urlPropertyId = isPropertyDetailPage ? (propertyDetailMatch?.params?.id ?? null) : null;
-  // Currency Setup is configured per property (rates, base currency) — "All Properties"
-  // has no meaningful data to show there, so hide it from the switcher too.
-  const isCurrencySetupPage = !!matchPath('/admin/billing/currency-rates', location.pathname);
-  const isMeterSetupPage = !!matchPath('/admin/billing/meter-setup', location.pathname);
-  const isPrefixSetupPage = !!matchPath('/admin/prefix-setup', location.pathname);
-  const hideAllPropertiesOption = isPropertyDetailPage || isCurrencySetupPage || isMeterSetupPage || isPrefixSetupPage;
+  // Only the main Dashboard (/dashboard) supports the "All Properties" option in the Active Property dropdown.
+  const isDashboardPage = !!matchPath('/dashboard', location.pathname);
+  const hideAllPropertiesOption = !isDashboardPage;
   const [logout] = useLogoutMutation();
   useRealtimeNotifications(); // Real-time WS notifications
 

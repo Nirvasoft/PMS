@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useLocation, matchPath } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store';
 import { setSelectedProperty } from '../store/slices/propertiesSlice';
 import { useGetMyPropertyScopeQuery } from '../store/api/propertiesApi';
@@ -37,12 +38,14 @@ export function useSelectedPropertyId(): string {
 }
 
 /**
- * Like useSelectedPropertyId(), but returns '' when the user has explicitly picked
- * "All Properties" in the sidebar — for filter pages that should show unfiltered,
- * all-properties data in that case instead of falling back to the first property.
+ * Like useSelectedPropertyId(), but returns '' when the user is on the Dashboard (/dashboard)
+ * and has explicitly picked "All Properties" in the sidebar. On all other pages, "All Properties"
+ * is hidden from the Active Property dropdown and falls back to the first property.
  */
 export function useSelectedPropertyFilter(): string {
+  const location = useLocation();
+  const isDashboardPage = !!matchPath('/dashboard', location.pathname);
   const rawSelected = useAppSelector((s) => s.properties.selectedPropertyId);
   const fallbackId = useSelectedPropertyId();
-  return rawSelected === ALL_PROPERTIES ? '' : fallbackId;
+  return isDashboardPage && rawSelected === ALL_PROPERTIES ? '' : fallbackId;
 }

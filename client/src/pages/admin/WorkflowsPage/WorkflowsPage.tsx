@@ -5,7 +5,7 @@ import {
   useDeprecateDefinitionMutation, useDeleteDefinitionMutation,
   useGetInstancesQuery, useCancelInstanceMutation, useGetInstanceQuery,
   useStartInstanceMutation,
-  type WorkflowDefinition, type WorkflowInstance,
+  type WorkflowDefinition,
 } from '../../../store/api/workflowApi';
 import WorkflowEditor from './WorkflowEditor';
 import toast from 'react-hot-toast';
