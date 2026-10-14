@@ -483,20 +483,37 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
   }
 
   if (type === 'invoice') {
-    const [existingInvoices, properties, tenants] = await Promise.all([
-      prisma.invoice.findMany({
-        where: { companyId },
-        select: {
-          invoiceNumber: true,
-          tenantId: true,
-          tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
-        },
-      }),
-      prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
-      prisma.tenant.findMany({
-        where: { companyId, deletedAt: null },
-        select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
-      }),
+    const fileInvNumbers = Array.from(
+      new Set(rows.map((r) => (r.data.invoiceNumber || '').trim()).filter(Boolean))
+    );
+    const fileTenantCodes = Array.from(
+      new Set(rows.map((r) => (r.data.tenantCode || '').trim()).filter(Boolean))
+    );
+
+    const [existingInvoices, tenants] = await Promise.all([
+      fileInvNumbers.length > 0
+        ? prisma.invoice.findMany({
+            where: {
+              companyId,
+              invoiceNumber: { in: fileInvNumbers, mode: 'insensitive' },
+            },
+            select: {
+              invoiceNumber: true,
+              tenantId: true,
+              tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
+            },
+          })
+        : Promise.resolve([]),
+      fileTenantCodes.length > 0
+        ? prisma.tenant.findMany({
+            where: {
+              companyId,
+              deletedAt: null,
+              code: { in: fileTenantCodes, mode: 'insensitive' },
+            },
+            select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
+          })
+        : Promise.resolve([]),
     ]);
 
     const knownInvoices = new Set<string>();
@@ -1094,15 +1111,31 @@ export const generalImportService = {
         }
       }
     } else if (type === 'invoice') {
-      const [existingInvoices, properties, tenants, chargeTypes] = await Promise.all([
-        prisma.invoice.findMany({
-          where: { companyId },
-          select: {
-            invoiceNumber: true,
-            tenantId: true,
-            tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
-          },
-        }),
+      const fileInvNumbers = Array.from(
+        new Set(valid.map((r) => (r.data.invoiceNumber || '').trim()).filter(Boolean))
+      );
+      const fileUnitCandidates = Array.from(
+        new Set(
+          valid
+            .map((r) => (r.data.unitNumber || r.data.unit || r.data.unitPeriod || '').trim().split(/[\(\s]/)[0].trim())
+            .filter(Boolean)
+        )
+      );
+
+      const [existingInvoices, properties, tenants, chargeTypes, matchedUnits] = await Promise.all([
+        fileInvNumbers.length > 0
+          ? prisma.invoice.findMany({
+              where: {
+                companyId,
+                invoiceNumber: { in: fileInvNumbers, mode: 'insensitive' },
+              },
+              select: {
+                invoiceNumber: true,
+                tenantId: true,
+                tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
+              },
+            })
+          : Promise.resolve([]),
         prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
         prisma.tenant.findMany({
           where: { companyId, deletedAt: null },
@@ -1112,7 +1145,41 @@ export const generalImportService = {
           where: { OR: [{ companyId }, { companyId: null }] },
           select: { id: true, code: true, name: true },
         }),
+        fileUnitCandidates.length > 0
+          ? prisma.unit.findMany({
+              where: {
+                deletedAt: null,
+                unitNumber: { in: fileUnitCandidates, mode: 'insensitive' },
+              },
+              select: { id: true, propertyId: true, unitNumber: true },
+            })
+          : Promise.resolve([]),
       ]);
+
+      const matchedUnitIds = matchedUnits.map((u) => u.id);
+      const matchedLeases = matchedUnitIds.length > 0
+        ? await prisma.lease.findMany({
+            where: {
+              companyId,
+              deletedAt: null,
+              unitId: { in: matchedUnitIds },
+              status: { in: ['active', 'draft', 'pending'] },
+            },
+            select: { id: true, tenantId: true, unitId: true },
+          })
+        : [];
+
+      const unitByPropAndNum = new Map<string, string>();
+      for (const u of matchedUnits) {
+        unitByPropAndNum.set(`${u.propertyId}|${u.unitNumber.trim().toLowerCase()}`, u.id);
+      }
+
+      const leaseByTenantAndUnit = new Map<string, string>();
+      for (const l of matchedLeases) {
+        if (!leaseByTenantAndUnit.has(`${l.tenantId}|${l.unitId}`)) {
+          leaseByTenantAndUnit.set(`${l.tenantId}|${l.unitId}`, l.id);
+        }
+      }
 
       const knownInvoices = new Set<string>();
       const knownInvTenant = new Set<string>();
@@ -1216,19 +1283,13 @@ export const generalImportService = {
 
           const unitRaw = (d.unitNumber || d.unit || d.unitPeriod || '').trim();
           if (unitRaw) {
-            const unitCandidate = unitRaw.split(/[\(\s]/)[0].trim();
+            const unitCandidate = unitRaw.split(/[\(\s]/)[0].trim().toLowerCase();
             if (unitCandidate) {
-              const u = await prisma.unit.findFirst({
-                where: { propertyId: targetPropertyId, unitNumber: { equals: unitCandidate, mode: 'insensitive' } },
-                select: { id: true },
-              });
-              if (u) {
-                resolvedUnitId = u.id;
-                const activeLease = await prisma.lease.findFirst({
-                  where: { tenantId: targetTenantId, unitId: u.id, status: { in: ['active', 'draft', 'pending'] } },
-                  select: { id: true },
-                });
-                if (activeLease) resolvedLeaseId = activeLease.id;
+              const uid = unitByPropAndNum.get(`${targetPropertyId}|${unitCandidate}`);
+              if (uid) {
+                resolvedUnitId = uid;
+                const lid = leaseByTenantAndUnit.get(`${targetTenantId}|${uid}`);
+                if (lid) resolvedLeaseId = lid;
               }
             }
           }
