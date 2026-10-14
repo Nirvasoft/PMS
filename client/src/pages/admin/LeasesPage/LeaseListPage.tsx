@@ -80,6 +80,11 @@ export default function LeaseListPage() {
             <Archive size={14} /> Clauses
           </button>
           <PermissionGuard permission="leases.create">
+            <button className="btn-ghost" onClick={() => navigate('/admin/leases/general-import?type=lease')}>
+              <Import size={14} /> Import Lease
+            </button>
+          </PermissionGuard>
+          <PermissionGuard permission="leases.create">
             <button className="btn-import-lead" onClick={() => setShowImportModal(true)}>
               <Import size={14} /> Import Lead
             </button>

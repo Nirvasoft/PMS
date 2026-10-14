@@ -6,7 +6,7 @@ interface ApiResponse<T> {
   data: T;
 }
 
-export type GeneralImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice';
+export type GeneralImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice' | 'charge';
 
 export interface GeneralImportPreview {
   type: GeneralImportType;
@@ -31,6 +31,10 @@ export interface GeneralImportResult {
   linkSkipped: number;
   notes: { rowNo: number; message: string }[];
   failed: { rowNo: number; errors: string[] }[];
+  skippedLeases?: number;
+  unitChargesCount?: number;
+  billingSchedulesCount?: number;
+  unitStatusUpdated?: number;
 }
 
 interface Args { propertyId: string; type: GeneralImportType; formData: FormData }

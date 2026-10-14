@@ -21,8 +21,8 @@ const PERMISSIONS: Record<string, { read: string | string[]; create: string | st
   lead: { read: 'crm-leads.read', create: ['crm-leads.create', 'crm-leads.write'] },
   invoice: { read: ['billing-invoices.read', 'billing.read'], create: ['billing-invoices.write', 'billing.create'] },
   charge: {
-    read: ['billing-charge-types.read', 'billing.read', 'charge-category.read', 'meter.read'],
-    create: ['billing-charge-types.write', 'billing.create', 'charge-category.create', 'meter.create'],
+    read: ['billing-charge-types.read', 'billing.read', 'charge-category.read', 'meter.read', 'leases.read'],
+    create: ['billing-charge-types.write', 'billing.create', 'charge-category.create', 'meter.create', 'leases.create'],
   },
 };
 

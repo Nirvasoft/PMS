@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { FileUp, Eye, Upload, Download, FolderOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -28,9 +29,13 @@ function errMessage(e: unknown, fallback: string): string {
 }
 
 export default function GeneralImportPage() {
+  const [searchParams] = useSearchParams();
+  const initialType = (searchParams.get('type') as GeneralImportType) || 'meter';
   const propertyId = useSelectedPropertyId();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [importType, setImportType] = useState<GeneralImportType>('meter');
+  const [importType, setImportType] = useState<GeneralImportType>(
+    IMPORT_OPTIONS.some((o) => o.value === initialType) ? initialType : 'meter'
+  );
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<GeneralImportPreview | null>(null);
   const [result, setResult] = useState<GeneralImportResult | null>(null);
@@ -224,12 +229,23 @@ export default function GeneralImportPage() {
                   : importType === 'invoice'
                   ? 'Invoice and Tenant already exist'
                   : importType === 'lease'
-                  ? 'Lease Number and Tenant already exist'
+                  ? (result.skippedLeases !== undefined && result.skippedLeases > 0
+                      ? `${result.skippedLeases} lease(s) already exist`
+                      : 'Lease Number and Tenant already exist')
                   : 'Charges Code already exists'})</li>
             )}
             {importType === 'meter' && (
               <li><span className="gi-ok">{result.linked}</span> unit connection(s) inserted into utility_meters
                 {result.linkSkipped > 0 && <>, <span className="gi-skip">{result.linkSkipped}</span> skipped</>}</li>
+            )}
+            {importType === 'lease' && result.unitChargesCount !== undefined && result.unitChargesCount > 0 && (
+              <li><span className="gi-ok">{result.unitChargesCount}</span> charge(s) added to unit_charges</li>
+            )}
+            {importType === 'lease' && result.billingSchedulesCount !== undefined && result.billingSchedulesCount > 0 && (
+              <li><span className="gi-ok">{result.billingSchedulesCount}</span> schedule(s) created in billing_schedules</li>
+            )}
+            {importType === 'lease' && result.unitStatusUpdated !== undefined && result.unitStatusUpdated > 0 && (
+              <li><span className="gi-ok">{result.unitStatusUpdated}</span> unit status(es) updated (occupied / reserved)</li>
             )}
             {result.failed.length > 0 && <li><span className="gi-bad">{result.failed.length}</span> row(s) failed</li>}
           </ul>
