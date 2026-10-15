@@ -121,18 +121,18 @@ export class PropertiesService {
 
   // ── Create ────────────────────────────────────
   async create(dto: Record<string, unknown>, companyId: string, userId: string) {
-    if (dto.code && String(dto.code).trim()) {
-      const code = String(dto.code).trim().toUpperCase();
-      const existing = await prisma.property.findUnique({
-        where: { uq_property_code_company: { code, companyId } },
-      });
-      if (existing) {
-        throw new AppError(409, 'PROPERTY_CODE_EXISTS', `Property code "${code}" is already in use`);
-      }
-      dto.code = code;
-    } else {
-      dto.code = undefined;
+    const rawCode = dto.code ? String(dto.code).trim() : '';
+    if (!rawCode) {
+      throw new AppError(400, 'PROPERTY_CODE_REQUIRED', 'Property code is required');
     }
+    const code = rawCode.toUpperCase();
+    const existing = await prisma.property.findUnique({
+      where: { uq_property_code_company: { code, companyId } },
+    });
+    if (existing) {
+      throw new AppError(409, 'PROPERTY_CODE_EXISTS', `Property code "${code}" is already in use`);
+    }
+    dto.code = code;
 
     // Validate limits
     const company = await prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } });

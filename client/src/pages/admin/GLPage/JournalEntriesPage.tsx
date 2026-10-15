@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BookOpen, ChevronLeft, ChevronRight, Eye, X } from 'lucide-react';
 import {
   useGetJournalEntriesQuery, useCreateJournalEntryMutation,
   usePostJournalEntryMutation, useReverseJournalEntryMutation,
   useGetGlAccountsQuery,
 } from '../../../store/api/glApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
@@ -14,11 +15,23 @@ const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits:
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
 export default function JournalEntriesPage() {
+  const selectedPropertyId = useSelectedPropertyFilter();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const { data, isLoading } = useGetJournalEntriesQuery({ page, limit, status: statusFilter || undefined });
+  const [viewingEntry, setViewingEntry] = useState<any | null>(null);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedPropertyId]);
+
+  const { data, isLoading } = useGetJournalEntriesQuery({
+    page,
+    limit,
+    status: statusFilter || undefined,
+    propertyId: selectedPropertyId || undefined,
+  });
   const [postJE] = usePostJournalEntryMutation();
   const [reverseJE] = useReverseJournalEntryMutation();
   const confirmDialog = useConfirm();
@@ -29,11 +42,21 @@ export default function JournalEntriesPage() {
 
   const handlePost = async (id: string) => {
     if (!(await confirmDialog('Post this journal entry? This cannot be undone.'))) return;
-    try { await postJE(id).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error posting'); }
+    try {
+      await postJE(id).unwrap();
+      if (viewingEntry?.id === id) setViewingEntry(null);
+    } catch (err: any) {
+      alertDialog(err.data?.errors?.[0]?.message || 'Error posting');
+    }
   };
   const handleReverse = async (id: string) => {
     if (!(await confirmDialog('Reverse this posted journal entry?', { danger: true, confirmText: 'Reverse' }))) return;
-    try { await reverseJE(id).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error reversing'); }
+    try {
+      await reverseJE(id).unwrap();
+      if (viewingEntry?.id === id) setViewingEntry(null);
+    } catch (err: any) {
+      alertDialog(err.data?.errors?.[0]?.message || 'Error reversing');
+    }
   };
 
   return (
@@ -69,7 +92,7 @@ export default function JournalEntriesPage() {
               <thead>
                 <tr>
                   <th>JE #</th><th>Date</th><th>Type</th><th>Description</th>
-                  <th style={{textAlign:'right'}}>Debit</th><th style={{textAlign:'right'}}>Credit</th><th>Status</th><th></th>
+                  <th style={{textAlign:'right'}}>Debit</th><th style={{textAlign:'right'}}>Credit</th><th>Status</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -83,7 +106,15 @@ export default function JournalEntriesPage() {
                     <td className="amount">{fmtAmt(Number(je.totalCredit))}</td>
                     <td><span className={`gl-badge ${je.status}`}>{je.status}</span></td>
                     <td>
-                      <div style={{display:'flex',gap:6}}>
+                      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                        <button
+                          type="button"
+                          className="btn-sm je-view-btn"
+                          onClick={() => setViewingEntry(je)}
+                          title="View Journal Entry Details"
+                        >
+                          <Eye size={13} /> View
+                        </button>
                         <PermissionGuard permission="finance-journal.write">
                           {je.status === 'draft' && <button className="btn-sm btn-success" onClick={() => handlePost(je.id)}>Post</button>}
                           {je.status === 'posted' && <button className="btn-sm btn-danger" onClick={() => handleReverse(je.id)}>Reverse</button>}
@@ -127,12 +158,143 @@ export default function JournalEntriesPage() {
         </div>
       )}
 
-      {showCreate && <CreateJournalModal onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateJournalModal onClose={() => setShowCreate(false)} propertyId={selectedPropertyId} />}
+      {viewingEntry && (
+        <JournalEntryDetailModal
+          entry={viewingEntry}
+          onClose={() => setViewingEntry(null)}
+          onPost={handlePost}
+          onReverse={handleReverse}
+        />
+      )}
     </div>
   );
 }
 
-function CreateJournalModal({ onClose }: { onClose: () => void }) {
+function JournalEntryDetailModal({
+  entry,
+  onClose,
+  onPost,
+  onReverse,
+}: {
+  entry: any;
+  onClose: () => void;
+  onPost: (id: string) => void;
+  onReverse: (id: string) => void;
+}) {
+  const lines: any[] = entry.lines || [];
+  const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0) || Number(entry.totalDebit) || 0;
+  const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0) || Number(entry.totalCredit) || 0;
+
+  return (
+    <div className="gl-modal-overlay" onClick={onClose}>
+      <div className="gl-modal je-detail-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 820 }}>
+        <div className="je-detail-header">
+          <div>
+            <div className="je-detail-title-row">
+              <h3>{entry.journalNumber}</h3>
+              <span className={`gl-badge ${entry.status}`}>{entry.status}</span>
+              <span className="gl-type-chip asset">{entry.entryType}</span>
+            </div>
+            <p className="je-detail-subtitle">{entry.description}</p>
+          </div>
+          <button type="button" className="je-detail-close" onClick={onClose} title="Close">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="je-detail-meta-grid">
+          <div className="je-detail-meta-item">
+            <span className="meta-label">Entry Date</span>
+            <span className="meta-value">{fmtDate(entry.entryDate)}</span>
+          </div>
+          <div className="je-detail-meta-item">
+            <span className="meta-label">Fiscal Period</span>
+            <span className="meta-value">{entry.fiscalPeriod?.name || '—'}</span>
+          </div>
+          <div className="je-detail-meta-item">
+            <span className="meta-label">Total Debit</span>
+            <span className="meta-value">{fmtAmt(totalDebit)}</span>
+          </div>
+          <div className="je-detail-meta-item">
+            <span className="meta-label">Total Credit</span>
+            <span className="meta-value">{fmtAmt(totalCredit)}</span>
+          </div>
+        </div>
+
+        <div className="gl-table-wrap" style={{ marginTop: 16 }}>
+          <TableScrollWrapper>
+            <table className="gl-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 48 }}>#</th>
+                  <th>Account Code</th>
+                  <th>Account Name</th>
+                  <th>Description</th>
+                  <th style={{ textAlign: 'right' }}>Debit</th>
+                  <th style={{ textAlign: 'right' }}>Credit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line: any, idx: number) => (
+                  <tr key={line.id || idx}>
+                    <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
+                    <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{line.account?.code || '—'}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>{line.account?.name || '—'}</span>
+                        {line.account?.accountType && (
+                          <span className={`gl-type-chip ${line.account.accountType}`} style={{ fontSize: '0.65rem' }}>
+                            {line.account.accountType}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{line.description || '—'}</td>
+                    <td className="amount">{Number(line.debit) > 0 ? fmtAmt(Number(line.debit)) : '—'}</td>
+                    <td className="amount">{Number(line.credit) > 0 ? fmtAmt(Number(line.credit)) : '—'}</td>
+                  </tr>
+                ))}
+                {lines.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+                      No journal lines found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={4} style={{ textAlign: 'right' }}>Total</td>
+                  <td className="amount">{fmtAmt(totalDebit)}</td>
+                  <td className="amount">{fmtAmt(totalCredit)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </TableScrollWrapper>
+        </div>
+
+        <div className="gl-modal-actions" style={{ marginTop: 22 }}>
+          <PermissionGuard permission="finance-journal.write">
+            {entry.status === 'draft' && (
+              <button type="button" className="btn-sm btn-success" onClick={() => onPost(entry.id)}>
+                Post Entry
+              </button>
+            )}
+            {entry.status === 'posted' && (
+              <button type="button" className="btn-sm btn-danger" onClick={() => onReverse(entry.id)}>
+                Reverse Entry
+              </button>
+            )}
+          </PermissionGuard>
+          <button type="button" className="btn-secondary" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; propertyId?: string }) {
   const { data: accounts = [] } = useGetGlAccountsQuery({});
   const [createJE, { isLoading }] = useCreateJournalEntryMutation();
   const alertDialog = useAlertDialog();
@@ -163,7 +325,14 @@ function CreateJournalModal({ onClose }: { onClose: () => void }) {
     if (!form.entryDate || !form.description.trim() || hasInvalidLines) return;
     if (!isBalanced) { alertDialog('Journal entry must be balanced (Total Debit = Total Credit)'); return; }
     try {
-      await createJE({ ...form, lines: lines.filter(l => l.accountCode) }).unwrap();
+      await createJE({
+        ...form,
+        propertyId: propertyId || undefined,
+        lines: lines.filter(l => l.accountCode).map(l => ({
+          ...l,
+          propertyId: propertyId || undefined,
+        })),
+      }).unwrap();
       onClose();
     } catch (err: any) {
       alertDialog(err.data?.errors?.[0]?.message || err.data?.message || 'Error creating journal entry');

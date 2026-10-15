@@ -356,6 +356,96 @@
 .je-totals .balanced { color: var(--success, #22c55e); }
 .je-totals .unbalanced { color: var(--danger, #ef4444); }
 
+/* ─── Journal Entry Detail Modal & View Button ─── */
+.je-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.je-view-btn:hover {
+  border-color: var(--accent, #10b981);
+  color: var(--accent, #10b981);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.je-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.je-detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.je-detail-title-row h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.je-detail-subtitle {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+.je-detail-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.je-detail-close:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.je-detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+}
+.je-detail-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.je-detail-meta-item .meta-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.je-detail-meta-item .meta-value {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ─── Financial Report Sections ────────────────── */
 .report-section {
   background: var(--surface); border: 1px solid var(--border);
@@ -480,4 +570,5 @@
   .gl-form-row { grid-template-columns: 1fr; }
   .je-line-row { grid-template-columns: 1fr; }
   .gl-stats { grid-template-columns: 1fr 1fr; }
+  .je-detail-meta-grid { grid-template-columns: 1fr 1fr; }
 }

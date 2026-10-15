@@ -333,6 +333,23 @@ select optgroup option {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+input::placeholder,
+textarea::placeholder {
+  font-weight: 400 !important;
+  color: rgba(148, 163, 184, 0.55) !important;
+  -webkit-text-fill-color: rgba(148, 163, 184, 0.55) !important;
+  opacity: 1 !important;
+}
+
+select.is-placeholder {
+  font-weight: 400 !important;
+  color: rgba(148, 163, 184, 0.55) !important;
+}
+select.is-placeholder option {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
 [data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
 [data-theme="light"] select,
 [data-theme="light"] textarea {
@@ -343,8 +360,19 @@ select optgroup option {
 
 [data-theme="light"] input::placeholder,
 [data-theme="light"] textarea::placeholder {
-  color: var(--text-muted);
-  opacity: 0.9;
+  font-weight: 400 !important;
+  color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+[data-theme="light"] select.is-placeholder {
+  font-weight: 400 !important;
+  color: #9ca3af !important;
+}
+[data-theme="light"] select.is-placeholder option {
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 /* ─── Light Mode: Search Inputs & Search Boxes (Unified & Matching) ─── */
@@ -408,8 +436,9 @@ select optgroup option {
 [data-theme="light"] .ut-search input::placeholder,
 [data-theme="light"] .reports-toolbar .search-box input::placeholder,
 [data-theme="light"] .maint-filters .search-box input::placeholder {
-  color: var(--text-muted) !important;
-  opacity: 0.9;
+  font-weight: 400 !important;
+  color: #9ca3af !important;
+  opacity: 1 !important;
 }
 
 [data-theme="light"] .search-box svg,
@@ -1407,7 +1436,8 @@ input.input-full:focus {
   transition: border-color 0.15s;
 }
 .combobox-control:focus-within { border-color: var(--accent); }
-.combobox.is-disabled .combobox-control { opacity: 0.5; cursor: not-allowed; }
+.combobox.is-disabled .combobox-control { opacity: 1; cursor: default; }
+.combobox.is-disabled .combobox-caret { opacity: 0.45; }
 
 .combobox-input {
   flex: 1;
@@ -1420,7 +1450,24 @@ input.input-full:focus {
   font-size: 0.84rem;
   font-family: inherit;
 }
-.combobox-input::placeholder { color: var(--text-muted); }
+.combobox-input:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.combobox-input:disabled:not(:placeholder-shown) {
+  color: var(--text-primary);
+  -webkit-text-fill-color: var(--text-primary);
+}
+.combobox-input::placeholder {
+  font-weight: 400 !important;
+  color: rgba(148, 163, 184, 0.55) !important;
+  -webkit-text-fill-color: rgba(148, 163, 184, 0.55) !important;
+}
+[data-theme="light"] .combobox-input::placeholder {
+  font-weight: 400 !important;
+  color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
+}
 
 .combobox-caret { color: var(--text-muted); flex-shrink: 0; }
 .combobox-clear {
@@ -6909,6 +6956,18 @@ select.input-full:focus {
   border-color: rgba(0,0,0,0.12);
   background: rgba(0,0,0,0.03);
   color: var(--text-muted);
+}
+[data-theme="light"] .cl-step.active .step-dot,
+[data-theme="light"] .cl-step.done .step-dot {
+  background: var(--accent, #059669) !important;
+  border-color: var(--accent, #059669) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+}
+[data-theme="light"] .cl-step.active .step-label,
+[data-theme="light"] .cl-step.done .step-label {
+  color: var(--accent, #059669) !important;
+  font-weight: 700 !important;
 }
 [data-theme="light"] .step-line {
   background: rgba(0,0,0,0.08);

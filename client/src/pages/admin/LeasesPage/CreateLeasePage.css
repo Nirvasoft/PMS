@@ -168,28 +168,35 @@
   opacity: 0.65;
 }
 
+.form-field .combobox-control,
 .ra-field .combobox-control {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.10);
   min-height: 38px;
 }
+.form-field .combobox-control:focus-within,
 .ra-field .combobox-control:focus-within {
   border-color: var(--accent, #34d399);
 }
+[data-theme="light"] .form-field .combobox-control,
 [data-theme="light"] .ra-field .combobox-control {
   background: #ffffff;
   border: 1px solid #b8d5c8;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
+[data-theme="light"] .form-field .combobox-control:hover,
 [data-theme="light"] .ra-field .combobox-control:hover {
   border-color: #78a892;
 }
+[data-theme="light"] .form-field .combobox-control:focus-within,
 [data-theme="light"] .ra-field .combobox-control:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
+.form-field .combobox-input,
+[data-theme="light"] .form-field .combobox-input,
 .ra-field .combobox-input,
 [data-theme="light"] .ra-field .combobox-input {
   border: none !important;
@@ -197,6 +204,51 @@
   box-shadow: none !important;
   padding: 8px 12px !important;
   border-radius: 0 !important;
+  color: var(--text-primary) !important;
+  opacity: 1 !important;
+}
+
+.form-field .combobox-input:disabled:not(:placeholder-shown),
+[data-theme="light"] .form-field .combobox-input:disabled:not(:placeholder-shown),
+.ra-field .combobox-input:disabled:not(:placeholder-shown),
+[data-theme="light"] .ra-field .combobox-input:disabled:not(:placeholder-shown) {
+  color: var(--text-primary) !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+}
+
+.form-field .combobox-input::placeholder,
+.ra-field .combobox-input::placeholder {
+  font-weight: 400 !important;
+  color: rgba(148, 163, 184, 0.55) !important;
+  -webkit-text-fill-color: rgba(148, 163, 184, 0.55) !important;
+  opacity: 1 !important;
+}
+
+[data-theme="light"] .form-field .combobox-input::placeholder,
+[data-theme="light"] .ra-field .combobox-input::placeholder {
+  font-weight: 400 !important;
+  color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+/* Light Mode — Green Step Tabs (Unit & Tenant, Lease Dates, etc.) */
+[data-theme="light"] .cl-step.active .step-dot,
+[data-theme="light"] .cl-step.done .step-dot {
+  background: var(--accent, #059669) !important;
+  border-color: var(--accent, #059669) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+}
+
+[data-theme="light"] .cl-step.active .step-label,
+[data-theme="light"] .cl-step.done .step-label {
+  color: var(--accent, #059669) !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="light"] .create-lease-page .btn-primary {
+  background: var(--gradient-primary, linear-gradient(135deg, #10b981, #059669)) !important;
 }
 
 .form-grid-3 {

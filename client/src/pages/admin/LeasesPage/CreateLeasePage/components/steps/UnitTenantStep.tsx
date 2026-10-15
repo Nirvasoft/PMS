@@ -78,10 +78,13 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
   );
   const selectedUnitArea = selectedUnitData?.data?.areaSqft ?? null;
 
-  // Auto-fill floorNumber and unitCode from unit detail if not yet set
+  // Auto-fill floorNumber and unitCode from unit detail when a unit is selected
   useEffect(() => {
-    if (!form.floorNumber && selectedUnitData?.data?.floorNumber != null) {
-      set('floorNumber', String(selectedUnitData.data.floorNumber));
+    if (form.unitId && selectedUnitData?.data?.floorNumber != null) {
+      const unitFloor = String(selectedUnitData.data.floorNumber);
+      if (form.floorNumber !== unitFloor) {
+        set('floorNumber', unitFloor);
+      }
     }
     if (form.unitId && !form.unitCode && selectedUnitData?.data?.unitNumber) {
       set('unitCode', selectedUnitData.data.unitNumber);
@@ -125,13 +128,21 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
   );
 
   const tenantOptions = useMemo(() => {
-    const list = (tenantsData?.data || []).map((t) => ({
-      id: t.id,
-      label: (t.tenantType === 'company' || t.tenantType === 'corporate')
-        ? (t.companyName || t.displayName)
-        : (t.lastName || t.displayName),
-      sublabel: [t.email, t.mobile].filter(Boolean).join(' · ') || undefined,
-    }));
+    const list = (tenantsData?.data || []).map((t) => {
+      const isCompany = t.tenantType === 'company' || t.tenantType === 'corporate';
+      if (isCompany) {
+        return {
+          id: t.id,
+          label: t.firstName || t.companyName || t.displayName,
+          sublabel: t.firstName ? (t.companyName || t.lastName || undefined) : (t.lastName || undefined),
+        };
+      }
+      return {
+        id: t.id,
+        label: t.firstName || t.lastName || t.displayName,
+        sublabel: t.firstName ? (t.lastName || undefined) : undefined,
+      };
+    });
     if (form.tenantId && !list.some((t) => t.id === form.tenantId)) {
       list.unshift({
         id: form.tenantId,
@@ -169,10 +180,7 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
       <h3>Select Unit &amp; Tenant</h3>
       <div className="form-grid-2">
         <div className="form-field">
-          <label htmlFor="lease-property">
-            Property ID *
-            {propertyLocked && <span className="hint"> (locked to the active property)</span>}
-          </label>
+          <label htmlFor="lease-property">Property ID *</label>
           <ComboBox
             id="lease-property"
             value={form.propertyId}
@@ -199,6 +207,7 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             id="lease-floor"
             value={form.floorNumber}
             disabled={!form.propertyId}
+            className={!form.floorNumber ? 'is-placeholder' : ''}
             onChange={(e) => {
               set('floorNumber', e.target.value);
               if (form.unitId) { set('unitId', ''); set('unitCode', ''); }
@@ -223,14 +232,20 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             selectedLabel={form.unitCode}
             onChange={(v) => {
               const opt = unitOptions.find(u => u.id === v);
+              const matchedUnit = (unitsData?.data || []).find(u => u.id === v);
               set('unitId', v);
               set('unitCode', opt?.label || '');
+              if (matchedUnit?.floorNumber != null) {
+                set('floorNumber', String(matchedUnit.floorNumber));
+              } else if (!v) {
+                set('floorNumber', '');
+              }
             }}
             options={unitOptions}
             onSearch={setUnitSearch}
             loading={unitsLoading}
-            disabled={!form.propertyId || form.floorNumber === ''}
-            placeholder={!form.propertyId ? 'Select a property first' : form.floorNumber === '' ? 'Select a floor first' : 'Search unit number…'}
+            disabled={!form.propertyId}
+            placeholder={!form.propertyId ? 'Select a property first' : 'Search unit number…'}
             emptyText="No available units"
           />
         </div>
@@ -239,7 +254,8 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
           <input
             id="lease-unit-area"
             type="text"
-            value={selectedUnitArea != null ? selectedUnitArea.toLocaleString() : '-'}
+            value={selectedUnitArea != null ? selectedUnitArea.toLocaleString() : ''}
+            placeholder="-"
             readOnly
             tabIndex={-1}
           />
@@ -259,14 +275,18 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
             onSearch={setTenantSearch}
             loading={tenantsLoading}
             disabled={!form.propertyId}
-            placeholder={!form.propertyId ? 'Select a property first' : 'Search name, email or phone…'}
+            placeholder={!form.propertyId ? 'Select a property first' : 'Search id or name'}
             emptyText="No KYC-verified tenants found for this property"
           />
         </div>
         {templates.length > 0 && (
           <div className="form-field">
             <label>Lease Template <span className="optional">(optional)</span></label>
-            <select value={form.templateId} onChange={(e) => set('templateId', e.target.value)}>
+            <select
+              value={form.templateId}
+              className={!form.templateId ? 'is-placeholder' : ''}
+              onChange={(e) => set('templateId', e.target.value)}
+            >
               <option value="">No template</option>
               {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>

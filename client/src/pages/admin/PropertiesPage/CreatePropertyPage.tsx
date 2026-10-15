@@ -337,7 +337,7 @@ export default function CreatePropertyPage() {
   }));
 
   const canNext = (): boolean => {
-    if (step === 1) return !!(form.name.trim() && form.propertyType);
+    if (step === 1) return !!(form.name.trim() && form.code.trim() && form.propertyType);
     if (step === 3) {
       const floorsOk = !!(form.totalFloors && Number(form.totalFloors) >= 1 && Number(form.totalFloors) <= 100);
       const maxYear = new Date().getFullYear() + 5;
@@ -352,7 +352,7 @@ export default function CreatePropertyPage() {
     const payload: Record<string, unknown> = {
       name: form.name.trim(),
       propertyType: form.propertyType,
-      code:           form.code          || undefined,
+      code:           form.code.trim(),
       legalName:      form.legalName     || undefined,
       registrationNo: form.registrationNo|| undefined,
       description:    form.description   || undefined,
@@ -433,7 +433,7 @@ export default function CreatePropertyPage() {
                 <input placeholder="e.g. Marina Bay Residences" value={form.name} onChange={e => set('name', e.target.value)} />
               </div>
               <div className="cp-field">
-                <label>Property Code <span className="opt">(optional)</span></label>
+                <label>Property Code *</label>
                 <input placeholder="e.g. MBR-001" value={form.code} onChange={e => set('code', e.target.value)} />
               </div>
               <div className="cp-field">
@@ -733,7 +733,7 @@ export default function CreatePropertyPage() {
             </button>
           ) : (
             <PermissionGuard permission="properties.create">
-              <button className="cp-btn-submit" onClick={handleSubmit} disabled={isLoading || !form.name.trim() || !form.propertyType || !form.currency}>
+              <button className="cp-btn-submit" onClick={handleSubmit} disabled={isLoading || !form.name.trim() || !form.code.trim() || !form.propertyType || !form.currency}>
                 {isLoading ? 'Creating…' : '+ Create Property'}
               </button>
             </PermissionGuard>

@@ -48,6 +48,7 @@ export const createJournalEntrySchema = z.object({
     entryDate: z.string(),
     description: z.string().min(1).max(500),
     entryType: z.string().optional(),
+    propertyId: z.string().uuid().optional(),
     lines: z.array(journalLineSchema).min(2),
   }),
 });

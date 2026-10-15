@@ -269,6 +269,7 @@ class GlService {
     if (params.entryType) where.entryType = params.entryType;
     if (params.status) where.status = params.status;
     if (params.fiscalPeriodId) where.fiscalPeriodId = params.fiscalPeriodId;
+    if (params.propertyId) where.lines = { some: { propertyId: params.propertyId } };
     if (params.from || params.to) {
       where.entryDate = {};
       if (params.from) where.entryDate.gte = new Date(params.from);
@@ -280,7 +281,7 @@ class GlService {
     const [data, total] = await Promise.all([
       prisma.journalEntry.findMany({
         where,
-        include: { lines: { include: { account: { select: { code: true, name: true } } }, orderBy: { sortOrder: 'asc' } }, fiscalPeriod: { select: { name: true } } },
+        include: { lines: { include: { account: { select: { code: true, name: true, accountType: true } } }, orderBy: { sortOrder: 'asc' } }, fiscalPeriod: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -337,7 +338,7 @@ class GlService {
         description: line.description || '',
         debit: line.debit || 0,
         credit: line.credit || 0,
-        propertyId: line.propertyId || null,
+        propertyId: line.propertyId || data.propertyId || null,
         departmentId: line.departmentId || null,
         sortOrder: lines.length,
       });

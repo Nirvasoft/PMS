@@ -76,22 +76,20 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 38px;
-  padding: 0 14px;
+  height: auto;
+  padding: 8px 14px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 10px;
   flex: 1;
   min-width: 240px;
   max-width: 380px;
-  box-sizing: border-box;
 }
 
 .tenant-list-page .search-box input,
 .search-box input {
   flex: 1;
-  height: 100%;
-  padding: 0;
+  height: auto;
   background: none;
   border: none;
   outline: none;
@@ -111,13 +109,6 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-}
-
-.tenant-list-page .tenant-filters .btn-ghost {
-  height: 38px;
-  padding: 0 14px;
-  border-radius: 10px;
-  box-sizing: border-box;
 }
 
 .tenant-list-page .filter-bar {
@@ -477,6 +468,10 @@
 }
 
 /* Light mode support */
+[data-theme="light"] .tenant-active-leases {
+  color: var(--text-primary, #0f172a);
+}
+
 [data-theme="light"] .tenant-table-wrap {
   background: #ffffff;
   border-color: rgba(0, 0, 0, 0.08);
