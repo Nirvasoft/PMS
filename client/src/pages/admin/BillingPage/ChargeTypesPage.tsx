@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   useGetChargeTypesQuery, useCreateChargeTypeMutation, useUpdateChargeTypeMutation,
   useGetChargeCategoriesQuery,
   type ChargeType,
 } from '../../../store/api/billingApi';
-import { DollarSign, Plus, X, Tag, Check, Pencil, Lock, Search, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useGetGlAccountsQuery, type GlAccount } from '../../../store/api/glApi';
+import { DollarSign, Plus, X, Tag, Check, Pencil, Lock, Search, RotateCcw, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
@@ -14,6 +15,7 @@ import './BillingPage.css';
 export default function ChargeTypesPage() {
   const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery();
   const { data: categoriesData } = useGetChargeCategoriesQuery();
+  const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery({});
   const [createChargeType, { isLoading: creating }] = useCreateChargeTypeMutation();
   const [updateChargeType, { isLoading: updating }] = useUpdateChargeTypeMutation();
   const alertDialog = useAlertDialog();
@@ -26,6 +28,31 @@ export default function ChargeTypesPage() {
   const [editing, setEditing] = useState<ChargeType | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  // Chart of Accounts Lookup Modal state
+  const [showCoaModal, setShowCoaModal] = useState(false);
+  const [coaSearch, setCoaSearch] = useState('');
+  const [coaTypeFilter, setCoaTypeFilter] = useState('');
+
+  const selectedGlAccount = useMemo(
+    () => glAccounts.find((a) => a.code === form.glAccountCode.trim()),
+    [glAccounts, form.glAccountCode]
+  );
+
+  const filteredGlAccounts = useMemo(() => {
+    const q = coaSearch.trim().toLowerCase();
+    return glAccounts.filter((acc) => {
+      if (acc.isActive === false) return false;
+      if (coaTypeFilter && acc.accountType !== coaTypeFilter) return false;
+      if (q) {
+        const codeMatch = acc.code.toLowerCase().includes(q);
+        const nameMatch = acc.name.toLowerCase().includes(q);
+        const typeMatch = acc.accountType.toLowerCase().includes(q);
+        if (!codeMatch && !nameMatch && !typeMatch) return false;
+      }
+      return true;
+    });
+  }, [glAccounts, coaSearch, coaTypeFilter]);
 
   // Search and filter state
   const [search, setSearch] = useState('');
@@ -57,7 +84,7 @@ export default function ChargeTypesPage() {
     });
     setShowForm(true);
   };
-  const closeForm = () => { setHasAttemptedSubmit(false); setShowForm(false); setEditing(null); setForm(emptyForm); };
+  const closeForm = () => { setHasAttemptedSubmit(false); setShowCoaModal(false); setShowForm(false); setEditing(null); setForm(emptyForm); };
 
   const isCodeMissing = hasAttemptedSubmit && !form.code.trim();
   const isNameMissing = hasAttemptedSubmit && !form.name.trim();
@@ -397,8 +424,52 @@ export default function ChargeTypesPage() {
                   </div>
                   <div className="inv-field">
                     <label>GL Account Code</label>
-                    <input placeholder="e.g. 4100" value={form.glAccountCode}
-                      onChange={e => setForm({ ...form, glAccountCode: e.target.value })} />
+                    <div className="coa-input-group">
+                      <input
+                        className="coa-bound-input"
+                        placeholder="Select from Chart of Accounts…"
+                        value={form.glAccountCode}
+                        readOnly
+                        tabIndex={-1}
+                        onClick={() => {
+                          setCoaSearch('');
+                          setCoaTypeFilter('');
+                          setShowCoaModal(true);
+                        }}
+                      />
+                      {form.glAccountCode && (
+                        <button
+                          type="button"
+                          className="coa-clear-inline-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setForm({ ...form, glAccountCode: '' });
+                          }}
+                          title="Clear GL Account Code"
+                          aria-label="Clear GL Account Code"
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="coa-lookup-btn"
+                        onClick={() => {
+                          setCoaSearch('');
+                          setCoaTypeFilter('');
+                          setShowCoaModal(true);
+                        }}
+                        title="Search Chart of Accounts"
+                        aria-label="Search Chart of Accounts"
+                      >
+                        <Search size={15} />
+                      </button>
+                    </div>
+                    {selectedGlAccount && (
+                      <span className="coa-selected-hint">
+                        {selectedGlAccount.name} ({selectedGlAccount.accountType})
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -425,6 +496,141 @@ export default function ChargeTypesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Chart of Accounts Lookup Modal */}
+      {showCoaModal && (
+        <div className="modal-overlay coa-lookup-overlay" onClick={() => setShowCoaModal(false)}>
+          <div className="modal-content coa-lookup-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>
+                <BookOpen size={18} /> Chart of Accounts
+              </h2>
+              <button type="button" className="modal-close" onClick={() => setShowCoaModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="coa-lookup-toolbar">
+              <div className="coa-lookup-search-wrap">
+                <Search size={15} className="coa-lookup-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search by account code or name…"
+                  value={coaSearch}
+                  onChange={e => setCoaSearch(e.target.value)}
+                  autoFocus
+                />
+                {coaSearch && (
+                  <button
+                    type="button"
+                    className="coa-lookup-clear-btn"
+                    onClick={() => setCoaSearch('')}
+                    title="Clear search"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <select
+                className="coa-lookup-type-select"
+                value={coaTypeFilter}
+                onChange={e => setCoaTypeFilter(e.target.value)}
+              >
+                <option value="">All Types</option>
+                <option value="asset">Asset</option>
+                <option value="liability">Liability</option>
+                <option value="equity">Equity</option>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+              </select>
+            </div>
+
+            <div className="modal-body coa-lookup-body">
+              {loadingGlAccounts ? (
+                <div className="coa-lookup-empty">Loading Chart of Accounts…</div>
+              ) : filteredGlAccounts.length === 0 ? (
+                <div className="coa-lookup-empty">
+                  No GL accounts found matching your search.
+                </div>
+              ) : (
+                <div className="coa-lookup-list">
+                  <table className="billing-table coa-lookup-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 110 }}>Code</th>
+                        <th>Account Name</th>
+                        <th style={{ width: 110 }}>Type</th>
+                        <th style={{ width: 100 }} className="text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredGlAccounts.map((acc: GlAccount) => {
+                        const isSelected = form.glAccountCode.trim() === acc.code;
+                        return (
+                          <tr
+                            key={acc.id}
+                            className={`coa-lookup-row ${isSelected ? 'selected' : ''}`}
+                            onClick={() => {
+                              setForm({ ...form, glAccountCode: acc.code });
+                              setShowCoaModal(false);
+                            }}
+                          >
+                            <td>
+                              <span className="cell-mono">{acc.code}</span>
+                            </td>
+                            <td>
+                              <div className="cell-primary" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>{acc.name}</span>
+                                {acc.isControl && (
+                                  <span className="coa-control-tag">Control</span>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`coa-type-badge ${acc.accountType}`}>
+                                {acc.accountType}
+                              </span>
+                            </td>
+                            <td className="text-center">
+                              <button
+                                type="button"
+                                className={`coa-select-btn ${isSelected ? 'active' : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setForm({ ...form, glAccountCode: acc.code });
+                                  setShowCoaModal(false);
+                                }}
+                              >
+                                {isSelected ? (
+                                  <>
+                                    <Check size={13} /> Selected
+                                  </>
+                                ) : (
+                                  'Select'
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 'auto' }}>
+                Showing {filteredGlAccounts.length} of {glAccounts.length} accounts
+              </span>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowCoaModal(false)}>
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

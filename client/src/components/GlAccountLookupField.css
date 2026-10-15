@@ -1,0 +1,38 @@
+/* Minimal input alignment for GlAccountLookupField inside form-field / edit-field;
+   All Chart of Accounts modal & table styles come directly from BillingPage.css + index.css
+   so the modal is 100% identical to Charge Types. */
+.form-field .coa-input-group input.coa-bound-input,
+.edit-field .coa-input-group input.coa-bound-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 68px !important;
+  cursor: pointer;
+  user-select: none;
+}
+
+.coa-lookup-modal .coa-lookup-search-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.coa-lookup-modal .coa-lookup-search-icon {
+  position: absolute !important;
+  left: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.coa-lookup-modal .coa-lookup-search-wrap input {
+  width: 100% !important;
+  height: 36px !important;
+  box-sizing: border-box !important;
+  padding: 0 32px 0 36px !important;
+}
+
+.coa-lookup-modal .coa-lookup-type-select {
+  height: 36px !important;
+  padding: 0 12px !important;
+}

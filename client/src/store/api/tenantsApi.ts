@@ -18,6 +18,7 @@ export interface TenantListItem {
   tags: string[];
   source: string | null;
   currency: string | null;
+  glAccountCode?: string | null;
   activeLeases: number;
   propertyName: string | null;
   createdAt: string;
@@ -100,6 +101,7 @@ export interface TenantDetail {
   tags: string[];
   source: string | null;
   currency: string | null;
+  glAccountCode?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

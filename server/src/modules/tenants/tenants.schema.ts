@@ -40,6 +40,7 @@ export const createTenantSchema = z.object({
   tags: z.array(z.string()).optional(),
   source: z.string().max(50).optional().nullable(),
   currency: z.string().max(3).optional().nullable(),
+  glAccountCode: z.string().max(50).optional().nullable(),
 });
 
 export const updateTenantSchema = createTenantSchema.partial();

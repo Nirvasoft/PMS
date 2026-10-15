@@ -8,6 +8,7 @@ import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { ArrowLeft, User, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import GlAccountLookupField from '../../../components/GlAccountLookupField';
 import './CreateTenantPage.css';
 
 type TenantType = 'individual' | 'company';
@@ -43,7 +44,7 @@ export default function CreateTenantPage() {
     // common
     email: '', phone: '', mobile: '',
     addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '',
-    source: '', currency: '',
+    source: '', currency: '', glAccountCode: '',
     tags: [] as string[],
     notes: '',
   });
@@ -107,6 +108,7 @@ export default function CreateTenantPage() {
       postalCode: form.postalCode || null, country: form.country || null,
       source: form.source || null, tags: form.tags,
       currency: form.currency,
+      glAccountCode: form.glAccountCode || null,
       notes: form.notes || null,
       // Stamp the home property so the tenant appears in the correct property's list immediately
       propertyId: activePropertyId || null,
@@ -254,6 +256,12 @@ export default function CreateTenantPage() {
               onChange={(v) => set('currency', v)}
               options={[['','Select currency…'], ...currencyOptions.map((c) => [c.currency, c.currency] as [string, string])]}
               error={isCurrencyMissing ? 'Currency is required' : undefined}
+            />
+            <GlAccountLookupField
+              label="GL Account Code"
+              value={form.glAccountCode}
+              onChange={(v) => set('glAccountCode', v)}
+              wrapperClassName="form-field"
             />
           </div>
         </div>

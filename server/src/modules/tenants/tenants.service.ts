@@ -165,7 +165,21 @@ export class TenantsService {
       rejected:  kycDocs.filter((d) => d.status === 'rejected').length,
     };
 
-    return { ...tenant, displayName: displayName(tenant), kycSummary };
+    // Ensure glAccountCode is populated even if in-memory Prisma client predates the column
+    let glAccountCode: string | null = (tenant as any).glAccountCode ?? null;
+    if ((tenant as any).glAccountCode === undefined) {
+      try {
+        const rows = await prisma.$queryRawUnsafe<Array<{ glAccountCode: string | null }>>(
+          `SELECT "gl_account_code" AS "glAccountCode" FROM "tenants" WHERE "id" = $1::uuid LIMIT 1`,
+          id,
+        );
+        glAccountCode = rows[0]?.glAccountCode ?? null;
+      } catch {
+        glAccountCode = null;
+      }
+    }
+
+    return { ...tenant, glAccountCode, displayName: displayName(tenant), kycSummary };
   }
 
   // ── Create ─────────────────────────────────
@@ -181,7 +195,7 @@ export class TenantsService {
     // propertyId is not part of the createTenantSchema (it's infrastructure, not user input)
     const propertyId = typeof dto.propertyId === 'string' ? dto.propertyId : undefined;
     const parsedData = createTenantSchema.parse(dto);
-    const { tags = [], ...rest } = parsedData;
+    const { tags = [], glAccountCode, ...rest } = parsedData;
 
     if (!rest.currency) throw new AppError(400, 'CURRENCY_REQUIRED', 'Currency is required');
 
@@ -245,11 +259,23 @@ export class TenantsService {
       data: { companyId, tags, ...(propertyId ? { propertyId } : {}), ...rest },
     });
 
+    if (glAccountCode !== undefined) {
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "tenants" SET "gl_account_code" = $1 WHERE "id" = $2::uuid`,
+          glAccountCode || null,
+          tenant.id,
+        );
+      } catch (err) {
+        logger.warn('Failed to persist tenant gl_account_code', { err, tenantId: tenant.id });
+      }
+    }
+
     // Initialize KYC checklist
     await this.initKycChecklist(tenant.id, tenantType, companyId);
 
     webhookTenantCreated(tenant);
-    return { ...tenant, displayName: displayName(tenant) };
+    return { ...tenant, glAccountCode: glAccountCode || null, displayName: displayName(tenant) };
   }
 
   // ── Update ─────────────────────────────────
@@ -258,7 +284,7 @@ export class TenantsService {
     if (!tenant) throw AppError.notFound('Tenant');
 
     const parsedData = updateTenantSchema.parse(dto);
-    const { tags, ...rest } = parsedData;
+    const { tags, glAccountCode, ...rest } = parsedData;
 
     // Currency is locked once saved — the client disables the field once set, this is the
     // server-side backstop (mirrors units.service.ts update()).
@@ -288,10 +314,27 @@ export class TenantsService {
       if (dup) throw new AppError(409, 'DUPLICATE_TENANT', `A tenant with code "${rest.firstName}" already exists`, { existingId: dup.id });
     }
 
-    return prisma.tenant.update({
+    const updated = await prisma.tenant.update({
       where: { id },
       data: { ...rest, ...(tags !== undefined ? { tags } : {}) },
     });
+
+    if (glAccountCode !== undefined) {
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "tenants" SET "gl_account_code" = $1 WHERE "id" = $2::uuid`,
+          glAccountCode || null,
+          id,
+        );
+      } catch (err) {
+        logger.warn('Failed to update tenant gl_account_code', { err, tenantId: id });
+      }
+    }
+
+    return {
+      ...updated,
+      glAccountCode: glAccountCode !== undefined ? (glAccountCode || null) : ((updated as any).glAccountCode ?? null),
+    };
   }
 
   // ── Soft delete ─────────────────────────────

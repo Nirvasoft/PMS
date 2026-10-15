@@ -23,6 +23,7 @@ import {
 import { useGetDocumentsQuery, useUploadDocumentMutation, useDeleteDocumentMutation, type DocumentItem } from '../../../store/api/documentsApi';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
+import GlAccountLookupField from '../../../components/GlAccountLookupField';
 import toast from 'react-hot-toast';
 import './TenantDetailPage.css';
 
@@ -301,6 +302,7 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
     f.city = tenant.city || ''; f.state = tenant.state || ''; f.postalCode = tenant.postalCode || '';
     f.country = tenant.country || ''; f.source = tenant.source || ''; f.notes = tenant.notes || '';
     f.currency = tenant.currency || '';
+    f.glAccountCode = tenant.glAccountCode || '';
     setForm(f);
     setTags([...(tenant.tags || [])]);
     setEditing(true);
@@ -435,6 +437,12 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
               disabled={!!tenant.currency}
               title={tenant.currency ? 'Currency is locked once saved and cannot be changed' : ''}
               options={[['','— Select —'], ...currencyOptions.map((c) => [c.currency, c.currency] as [string, string])]} />
+            <GlAccountLookupField
+              label="GL Account Code"
+              value={form.glAccountCode || ''}
+              onChange={(v) => set('glAccountCode', v)}
+              wrapperClassName="edit-field"
+            />
             {tenant.tenantType === 'individual' && (
               <>
                 <EditField label="Father Name" value={form.fatherName} onChange={(v) => set('fatherName', v)} />
@@ -530,15 +538,16 @@ function ProfileTab({ tenant, tenantId }: { tenant: any; tenantId: string }) {
       </div>
 
       {/* Contact details */}
-      {(tenant.email || tenant.phone || tenant.mobile || tenant.source || tenant.currency) && (
+      {(tenant.email || tenant.phone || tenant.mobile || tenant.source || tenant.currency || tenant.glAccountCode) && (
         <div className="info-card">
           <h4>Contact Details</h4>
           <div className="info-rows">
-            {tenant.email    && <InfoRow label="Email"    value={tenant.email} noTransform />}
-            {tenant.phone    && <InfoRow label="Phone"    value={tenant.phone} />}
-            {tenant.mobile   && <InfoRow label="Mobile"   value={tenant.mobile} />}
-            {tenant.source   && <InfoRow label="Source"   value={tenant.source.replace(/_/g, ' ')} />}
-            {tenant.currency && <InfoRow label="Currency" value={tenant.currency} />}
+            {tenant.email         && <InfoRow label="Email"           value={tenant.email} noTransform />}
+            {tenant.phone         && <InfoRow label="Phone"           value={tenant.phone} />}
+            {tenant.mobile        && <InfoRow label="Mobile"          value={tenant.mobile} />}
+            {tenant.source        && <InfoRow label="Source"          value={tenant.source.replace(/_/g, ' ')} />}
+            {tenant.currency      && <InfoRow label="Currency"        value={tenant.currency} />}
+            {tenant.glAccountCode && <InfoRow label="GL Account Code" value={tenant.glAccountCode} noTransform />}
           </div>
         </div>
       )}
