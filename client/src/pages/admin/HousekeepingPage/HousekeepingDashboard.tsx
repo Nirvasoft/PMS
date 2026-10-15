@@ -104,127 +104,117 @@ export default function HousekeepingDashboard() {
       </div>
 
       {/* ── Hero Stats ── */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))',
-        gap: 12, marginBottom: 20,
-      }}>
+      <div className="hk-hero-stats">
         {/* Completion */}
-        <div style={{
-          borderRadius: 14, padding: '16px 18px', position: 'relative', overflow: 'hidden',
-          background: `linear-gradient(135deg, ${ringColor}12, ${ringColor}06)`,
-          border: `1px solid ${ringColor}25`,
-        }}>
+        <div
+          className="hk-hero-stat-card"
+          style={{ '--stat-accent': ringColor } as React.CSSProperties}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 7, background: `${ringColor}18`, color: ringColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <TrendingUp size={14} />
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: `${ringColor}18`, color: ringColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <TrendingUp size={15} />
             </div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Completion</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Completion</span>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.03em', color: ringColor }}>{completion}%</div>
-          <div style={{ height: 4, borderRadius: 2, background: 'var(--surface-hover)', marginTop: 6 }}>
-            <div style={{ height: '100%', borderRadius: 2, width: `${completion}%`, background: ringColor, transition: 'width 0.6s' }} />
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.03em', color: ringColor }}>{completion}%</div>
+          <div style={{ height: 5, borderRadius: 3, background: 'var(--surface-elevated)', marginTop: 8, overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 3, width: `${completion}%`, background: ringColor, transition: 'width 0.6s' }} />
           </div>
         </div>
         {/* Pending */}
-        <div style={{
-          borderRadius: 14, padding: '16px 18px', overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(107,114,128,0.06), rgba(107,114,128,0.02))',
-          border: '1px solid rgba(107,114,128,0.12)',
-        }}>
+        <div
+          className="hk-hero-stat-card"
+          style={{ '--stat-accent': '#64748b' } as React.CSSProperties}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(107,114,128,0.12)', color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Clock size={14} />
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(100,116,139,0.14)', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Clock size={15} />
             </div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Pending</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Pending</span>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.03em' }}>{pending}</div>
-          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>awaiting start</div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>{pending}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, fontWeight: 500 }}>awaiting start</div>
         </div>
         {/* In Progress */}
-        <div style={{
-          borderRadius: 14, padding: '16px 18px', overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.03))',
-          border: '1px solid rgba(99,102,241,0.15)',
-        }}>
+        <div
+          className="hk-hero-stat-card"
+          style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(99,102,241,0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Play size={14} />
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(99,102,241,0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Play size={15} />
             </div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>In Progress</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>In Progress</span>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#6366f1' }}>{inProgress}</div>
-          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>active now</div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#6366f1' }}>{inProgress}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, fontWeight: 500 }}>active now</div>
         </div>
         {/* Completed */}
-        <div style={{
-          borderRadius: 14, padding: '16px 18px', overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.03))',
-          border: '1px solid rgba(16,185,129,0.15)',
-        }}>
+        <div
+          className="hk-hero-stat-card"
+          style={{ '--stat-accent': '#10b981' } as React.CSSProperties}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(16,185,129,0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircle2 size={14} />
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(16,185,129,0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle2 size={15} />
             </div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Completed</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Completed</span>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#10b981' }}>{completed}</div>
-          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>tasks done</div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#10b981' }}>{completed}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, fontWeight: 500 }}>tasks done</div>
         </div>
         {/* Missed */}
-        <div style={{
-          borderRadius: 14, padding: '16px 18px', overflow: 'hidden',
-          background: missed > 0 ? 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.03))' : 'linear-gradient(135deg, rgba(107,114,128,0.04), rgba(107,114,128,0.02))',
-          border: `1px solid ${missed > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.1)'}`,
-        }}>
+        <div
+          className="hk-hero-stat-card"
+          style={{ '--stat-accent': missed > 0 ? '#ef4444' : '#64748b' } as React.CSSProperties}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 7, background: missed > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.1)', color: missed > 0 ? '#ef4444' : '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <XCircle size={14} />
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: missed > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(100,116,139,0.12)', color: missed > 0 ? '#ef4444' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <XCircle size={15} />
             </div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Missed</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Missed</span>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.03em', color: missed > 0 ? '#ef4444' : 'var(--text-primary)' }}>{missed}</div>
-          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{missed === 0 ? 'none missed ✓' : 'need attention'}</div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.03em', color: missed > 0 ? '#ef4444' : 'var(--text-primary)' }}>{missed}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, fontWeight: 500 }}>{missed === 0 ? 'none missed ✓' : 'need attention'}</div>
         </div>
       </div>
 
       {/* ── Main Grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="hk-dash-main-grid">
         {/* Left */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+        <div className="hk-dash-col">
           {/* Today's Progress */}
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">
-              <h3><BarChart3 size={15} /> Today's Progress</h3>
-              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>{totalTasks} total</span>
+              <h3><BarChart3 size={16} /> Today's Progress</h3>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, padding: '3px 9px', borderRadius: 8, background: 'var(--surface-hover)' }}>
+                {totalTasks} total
+              </span>
             </div>
             {/* Circular ring + stats */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 24, padding: '8px 0' }}>
-              <svg width={92} height={92} style={{ flexShrink: 0 }}>
-                <circle cx={46} cy={46} r={ringR} fill="none" stroke="var(--surface-hover)" strokeWidth={6} />
-                <circle cx={46} cy={46} r={ringR} fill="none" stroke={ringColor} strokeWidth={6}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, padding: '6px 0' }}>
+              <svg width={96} height={96} style={{ flexShrink: 0 }}>
+                <circle cx={48} cy={48} r={ringR} fill="none" stroke="var(--surface-elevated)" strokeWidth={7} />
+                <circle cx={48} cy={48} r={ringR} fill="none" stroke={ringColor} strokeWidth={7}
                   strokeDasharray={ringC} strokeDashoffset={ringOffset}
-                  strokeLinecap="round" transform="rotate(-90 46 46)"
+                  strokeLinecap="round" transform="rotate(-90 48 48)"
                   style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
-                <text x={46} y={42} textAnchor="middle" fontSize={18} fontWeight={800}
+                <text x={48} y={44} textAnchor="middle" fontSize={18} fontWeight={800}
                   fill={ringColor}>{completion}%</text>
-                <text x={46} y={56} textAnchor="middle" fontSize={9} fill="var(--text-tertiary)">complete</text>
+                <text x={48} y={58} textAnchor="middle" fontSize={9.5} fontWeight={600} fill="var(--text-tertiary)">complete</text>
               </svg>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, flex: 1 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, flex: 1 }}>
                 {[
                   { label: 'Done', val: completed, color: '#10b981' },
                   { label: 'Active', val: inProgress, color: '#6366f1' },
-                  { label: 'Pending', val: pending, color: '#6b7280' },
+                  { label: 'Pending', val: pending, color: '#64748b' },
                   { label: 'Missed', val: missed, color: '#ef4444' },
                 ].map(s => (
-                  <div key={s.label} style={{
-                    padding: '8px 10px', borderRadius: 8,
-                    border: '1px solid var(--border-subtle)',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                  }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                  <div key={s.label} className="hk-mini-stat-box">
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 800 }}>{s.val}</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{s.label}</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>{s.val}</div>
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text-tertiary)' }}>{s.label}</div>
                     </div>
                   </div>
                 ))}
@@ -235,59 +225,55 @@ export default function HousekeepingDashboard() {
           {/* Active Tasks */}
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Sparkles size={15} /> Active & Pending
+              <h3>
+                <Sparkles size={16} /> Active & Pending
                 {todayTasks.filter((t: any) => t.status !== 'completed').length > 0 && (
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: 'rgba(99,102,241,0.12)', color: '#6366f1' }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(99,102,241,0.14)', color: '#6366f1' }}>
                     {todayTasks.filter((t: any) => t.status !== 'completed').length}
                   </span>
                 )}
               </h3>
-              <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/housekeeping')}>
+              <button className="hk-card-link-btn" onClick={() => navigate('/admin/housekeeping')}>
                 View All <ArrowRight size={12} />
               </button>
             </div>
             {todayTasks.filter((t: any) => t.status !== 'completed').length === 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 8 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="hk-dash-empty-box">
+                <div style={{ width: 46, height: 46, borderRadius: 12, background: 'rgba(16,185,129,0.12)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <CheckCircle2 size={22} />
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>All tasks completed!</span>
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Great work today</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>All tasks completed!</span>
+                <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Great work today</span>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {todayTasks.filter((t: any) => t.status !== 'completed').slice(0, 8).map((task: any, idx: number, arr: any[]) => {
+              <div>
+                {todayTasks.filter((t: any) => t.status !== 'completed').slice(0, 8).map((task: any) => {
                   const st = STATUS_STYLE[task.status] || STATUS_STYLE.pending;
                   return (
-                    <div key={task.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 10, padding: '9px 4px',
-                      borderBottom: idx < arr.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                      borderLeft: `3px solid ${st.color}`, paddingLeft: 12, borderRadius: '0 0 0 0',
-                    }}>
+                    <div key={task.id} className="hk-dash-item-row" style={{ borderLeft: `3px solid ${st.color}` }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {task.schedule?.name || task.zone?.name || 'Task'}
                         </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          {task.zone && <><MapPin size={9} /> {task.zone.name}</>}
-                          {task.scheduledTime && <> · <Timer size={9} /> {task.scheduledTime}</>}
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                          {task.zone && <><MapPin size={10} /> {task.zone.name}</>}
+                          {task.scheduledTime && <> · <Timer size={10} /> {task.scheduledTime}</>}
                         </div>
                       </div>
-                      <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: st.bg, color: st.color, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: st.bg, color: st.color, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {st.label}
                       </span>
                       <PermissionGuard permission="housekeeping-tasks.write">
                         {task.status === 'pending' && (
                           <button onClick={() => handleStart(task.id)} title="Start"
-                            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.08)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                            <Play size={11} />
+                            style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(99,102,241,0.25)', background: 'rgba(99,102,241,0.1)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                            <Play size={12} />
                           </button>
                         )}
                         {task.status === 'in_progress' && (
                           <button onClick={() => handleComplete(task.id)} title="Complete"
-                            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.08)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                            <CheckCircle2 size={11} />
+                            style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                            <CheckCircle2 size={12} />
                           </button>
                         )}
                       </PermissionGuard>
@@ -300,35 +286,36 @@ export default function HousekeepingDashboard() {
         </div>
 
         {/* Right */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+        <div className="hk-dash-col">
           {/* Zones */}
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">
-              <h3><MapPin size={15} /> Zones ({zones.length})</h3>
-              <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/housekeeping/zones')}>
+              <h3><MapPin size={16} /> Zones ({zones.length})</h3>
+              <button className="hk-card-link-btn" onClick={() => navigate('/admin/housekeeping/zones')}>
                 Manage <ArrowRight size={12} />
               </button>
             </div>
             {zones.length === 0 ? (
-              <div className="hk-dash-empty">
-                <MapPin size={20} color="var(--text-tertiary)" />
-                <span>No zones configured</span>
+              <div className="hk-dash-empty-box">
+                <MapPin size={22} color="var(--text-tertiary)" />
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>No zones configured</span>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8, paddingTop: 4 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
                 {zones.slice(0, 8).map((zone: any) => {
                   const zt = ZONE_TYPE_COLORS[zone.zoneType] || ZONE_TYPE_COLORS.other;
                   return (
-                    <div key={zone.id} style={{
-                      padding: '8px 10px', borderRadius: 10,
-                      border: `1px solid ${zt.color}20`,
-                      background: zt.bg,
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}>
-                      <MapPin size={12} style={{ color: zt.color, flexShrink: 0 }} />
+                    <div
+                      key={zone.id}
+                      className="hk-dash-zone-card"
+                      onClick={() => navigate('/admin/housekeeping/zones')}
+                    >
+                      <div style={{ width: 28, height: 28, borderRadius: 8, background: zt.bg, color: zt.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <MapPin size={13} />
+                      </div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{zone.name}</div>
-                        <div style={{ fontSize: 9, color: 'var(--text-tertiary)', display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{zone.name}</div>
+                        <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-tertiary)', display: 'flex', gap: 4, alignItems: 'center', marginTop: 1 }}>
                           {zone.zoneType && <span style={{ textTransform: 'capitalize' }}>{zone.zoneType.replace('_', ' ')}</span>}
                           {zone.floor && <span>· F{zone.floor}</span>}
                         </div>
@@ -337,8 +324,11 @@ export default function HousekeepingDashboard() {
                   );
                 })}
                 {zones.length > 8 && (
-                  <div style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', cursor: 'pointer' }}
-                    onClick={() => navigate('/admin/housekeeping/zones')}>
+                  <div
+                    className="hk-dash-zone-card"
+                    style={{ justifyContent: 'center', fontSize: 11.5, fontWeight: 700, color: 'var(--accent)' }}
+                    onClick={() => navigate('/admin/housekeeping/zones')}
+                  >
                     +{zones.length - 8} more
                   </div>
                 )}
@@ -349,70 +339,67 @@ export default function HousekeepingDashboard() {
           {/* Recent Inspections */}
           <div className="hk-dash-card">
             <div className="hk-dash-card-header">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <ClipboardCheck size={15} /> Inspections
+              <h3>
+                <ClipboardCheck size={16} /> Inspections
                 {inspections.length > 0 && avgInspScore > 0 && (
                   <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10,
-                    background: `${SCORE_COLORS[Math.round(avgInspScore)] || '#10b981'}15`,
+                    fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                    background: `${SCORE_COLORS[Math.round(avgInspScore)] || '#10b981'}18`,
                     color: SCORE_COLORS[Math.round(avgInspScore)] || '#10b981',
                   }}>
                     avg {avgInspScore.toFixed(1)}/5
                   </span>
                 )}
               </h3>
-              <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/housekeeping/inspections')}>
+              <button className="hk-card-link-btn" onClick={() => navigate('/admin/housekeeping/inspections')}>
                 View All <ArrowRight size={12} />
               </button>
             </div>
             {inspections.length === 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 8 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 11, background: 'rgba(107,114,128,0.08)', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="hk-dash-empty-box">
+                <div style={{ width: 44, height: 44, borderRadius: 11, background: 'rgba(100,116,139,0.1)', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <ClipboardCheck size={20} />
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>No inspections yet</span>
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Schedule inspections to track quality</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>No inspections yet</span>
+                <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Schedule inspections to track quality</span>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {inspections.map((insp: any, idx: number) => {
+              <div>
+                {inspections.map((insp: any) => {
                   const sc = SCORE_COLORS[insp.overallScore] || 'var(--text-tertiary)';
                   return (
-                    <div key={insp.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 10, padding: '9px 4px',
-                      borderBottom: idx < inspections.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                    }}>
+                    <div key={insp.id} className="hk-dash-item-row">
                       <div style={{
-                        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                        background: `${sc}15`, color: sc,
+                        width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                        background: `${sc}18`, color: sc,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontWeight: 800, fontSize: 13,
                       }}>
                         {insp.overallScore || '—'}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {insp.zone?.name || insp.property?.name || 'General'}
                         </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+                        <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', marginTop: 1 }}>
                           {new Date(insp.inspectionDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                         </div>
                       </div>
                       {insp.actionRequired && (
                         <div style={{
-                          display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700,
-                          padding: '2px 6px', borderRadius: 6,
-                          background: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+                          display: 'flex', alignItems: 'center', gap: 3, fontSize: 9.5, fontWeight: 700,
+                          padding: '2px 7px', borderRadius: 6,
+                          background: 'rgba(245,158,11,0.14)', color: '#d97706',
                         }}>
-                          <AlertTriangle size={9} /> Action
+                          <AlertTriangle size={10} /> Action
                         </div>
                       )}
                       <div style={{ display: 'flex', gap: 2 }}>
                         {[1,2,3,4,5].map(s => (
-                          <Star key={s} size={10}
+                          <Star key={s} size={11}
                             fill={s <= (insp.overallScore || 0) ? sc : 'none'}
-                            stroke={s <= (insp.overallScore || 0) ? sc : 'var(--text-tertiary)'}
-                            strokeWidth={1.5}
+                            stroke={s <= (insp.overallScore || 0) ? sc : 'var(--border)'}
+                            strokeWidth={1.6}
                           />
                         ))}
                       </div>
@@ -424,27 +411,27 @@ export default function HousekeepingDashboard() {
           </div>
 
           {/* Summary */}
-          <div className="hk-dash-card" style={{ padding: '14px 18px' }}>
-            <div className="hk-dash-card-header" style={{ marginBottom: 10 }}>
-              <h3><Gauge size={15} /> Summary</h3>
+          <div className="hk-dash-card">
+            <div className="hk-dash-card-header">
+              <h3><Gauge size={16} /> Summary</h3>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               {[
-                { label: 'Zones', value: stats?.zones ?? zones.length, icon: MapPin, color: '#6366f1' },
-                { label: 'Schedules', value: stats?.schedules ?? schedules.length, icon: Calendar, color: '#10b981' },
-                { label: 'Inspections', value: (inspResp?.data || []).length, icon: ClipboardCheck, color: '#f59e0b' },
+                { label: 'Zones', value: stats?.zones ?? zones.length, icon: MapPin, color: '#6366f1', path: '/admin/housekeeping/zones' },
+                { label: 'Schedules', value: stats?.schedules ?? schedules.length, icon: Calendar, color: '#10b981', path: '/admin/housekeeping/schedules' },
+                { label: 'Inspections', value: (inspResp?.data || []).length, icon: ClipboardCheck, color: '#f59e0b', path: '/admin/housekeeping/inspections' },
               ].map((item, i) => (
-                <div key={i} style={{
-                  padding: '10px 12px', borderRadius: 10,
-                  border: '1px solid var(--border-subtle)',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}>
-                  <div style={{ width: 26, height: 26, borderRadius: 7, background: `${item.color}12`, color: item.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <item.icon size={12} />
+                <div
+                  key={i}
+                  className="hk-mini-stat-box clickable"
+                  onClick={() => navigate(item.path)}
+                >
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `${item.color}16`, color: item.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <item.icon size={14} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em' }}>{item.value}</div>
-                    <div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{item.label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>{item.value}</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text-tertiary)' }}>{item.label}</div>
                   </div>
                 </div>
               ))}

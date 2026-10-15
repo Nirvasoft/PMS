@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useGetUnitsQuery, type UnitListItem } from '../../../store/api/unitsApi';
 import {
@@ -19,12 +19,15 @@ const STATUS_COLORS: Record<string, string> = {
   blocked: '#ef4444', maintenance: '#6b7280',
 };
 
-function unitLabel(u: { unitNumber: string; floorLabel: string | null }) {
-  return u.floorLabel ? `${u.unitNumber} · ${u.floorLabel}` : u.unitNumber;
+function getFloorLabel(u: { floorLabel: string | null; floorNumber: number | null }) {
+  if (u.floorLabel && u.floorLabel.trim()) return u.floorLabel.trim();
+  if (u.floorNumber != null) return `Floor ${u.floorNumber}`;
+  return '-';
 }
 
 export default function ParkingOverviewPage() {
   const [parkingType, setParkingType] = useState('');
+  const [floor, setFloor] = useState('');
   const [unitId, setUnitId] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'slots' | 'zones'>('overview');
 
@@ -34,6 +37,7 @@ export default function ParkingOverviewPage() {
   // Reset downstream filters whenever the active property changes.
   useEffect(() => {
     setParkingType('');
+    setFloor('');
     setUnitId('');
   }, [selectedProperty]);
 
@@ -51,9 +55,41 @@ export default function ParkingOverviewPage() {
     { skip: !selectedProperty || !selectedType, refetchOnMountOrArgChange: true },
   );
   const parkUnits = parkUnitsData?.data || [];
-  const selectedUnit = unitId || parkUnits[0]?.id || '';
 
-  const handleTypeChange = (type: string) => { setParkingType(type); setUnitId(''); };
+  const floorOptions = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const u of parkUnits) {
+      const label = getFloorLabel(u);
+      const num = u.floorNumber ?? Number.MAX_SAFE_INTEGER;
+      if (!map.has(label) || num < map.get(label)!) {
+        map.set(label, num);
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+      .map(([label]) => label);
+  }, [parkUnits]);
+
+  const selectedFloor = floor && floorOptions.includes(floor) ? floor : (floorOptions[0] || '');
+
+  const filteredUnits = useMemo(
+    () => (selectedFloor ? parkUnits.filter((u) => getFloorLabel(u) === selectedFloor) : parkUnits),
+    [parkUnits, selectedFloor],
+  );
+
+  const selectedUnit =
+    unitId && filteredUnits.some((u) => u.id === unitId) ? unitId : (filteredUnits[0]?.id || '');
+
+  const handleTypeChange = (type: string) => {
+    setParkingType(type);
+    setFloor('');
+    setUnitId('');
+  };
+
+  const handleFloorChange = (fl: string) => {
+    setFloor(fl);
+    setUnitId('');
+  };
 
   const scopeReady = !!(selectedProperty && selectedType && selectedUnit);
 
@@ -72,7 +108,7 @@ export default function ParkingOverviewPage() {
         </div>
       </div>
 
-      {/* Parking & Park Unit Filters below Title */}
+      {/* Parking, Floor Label & Floor Unit Filters below Title */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 20 }}>
         <div className="parking-filter-field">
           <label>Parking</label>
@@ -89,16 +125,30 @@ export default function ParkingOverviewPage() {
         </div>
 
         <div className="parking-filter-field">
-          <label>Park Unit</label>
+          <label>Floor Label</label>
+          <select
+            className="filter-select"
+            value={selectedFloor}
+            onChange={(e) => handleFloorChange(e.target.value)}
+            disabled={!selectedType || floorOptions.length === 0}
+            style={{ minWidth: 160 }}
+          >
+            {floorOptions.length === 0 && <option value="">-</option>}
+            {floorOptions.map((fl) => <option key={fl} value={fl}>{fl}</option>)}
+          </select>
+        </div>
+
+        <div className="parking-filter-field">
+          <label>Unit</label>
           <select
             className="filter-select"
             value={selectedUnit}
             onChange={(e) => setUnitId(e.target.value)}
-            disabled={!selectedType || parkUnits.length === 0}
+            disabled={!selectedFloor || filteredUnits.length === 0}
             style={{ minWidth: 160 }}
           >
-            {parkUnits.length === 0 && <option value="">-</option>}
-            {parkUnits.map((u: UnitListItem) => <option key={u.id} value={u.id}>{unitLabel(u)}</option>)}
+            {filteredUnits.length === 0 && <option value="">-</option>}
+            {filteredUnits.map((u: UnitListItem) => <option key={u.id} value={u.id}>{u.unitNumber}</option>)}
           </select>
         </div>
       </div>
@@ -845,7 +895,7 @@ function ZonesManager({ propertyId, unitId }: { propertyId: string; unitId: stri
             </PermissionGuard>
           </div>
         ))}
-        {zones.length === 0 && <div style={{ color: 'var(--text-tertiary)', padding: 40, textAlign: 'center' }}>No zones yet — add one to organize your parking</div>}
+        {zones.length === 0 && <div style={{ color: 'var(--text-tertiary)', padding: 40, textAlign: 'center' }}>No zones yet. Add one to organize your parking</div>}
       </div>
 
       {showCreate && (

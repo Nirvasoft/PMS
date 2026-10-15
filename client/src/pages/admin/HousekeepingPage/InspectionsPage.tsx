@@ -141,54 +141,36 @@ export default function InspectionsPage() {
       </div>
 
       {/* ── Stats ── */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))',
-        gap: 12, marginBottom: 20,
-      }}>
-        <div style={{
-          borderRadius: 14, padding: '16px 18px', overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.03))',
-          border: '1px solid rgba(99,102,241,0.15)',
-        }}>
+      <div className="hk-hero-stats">
+        <div className="hk-hero-stat-card" style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(99,102,241,0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ClipboardCheck size={13} /></div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total</span>
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#6366f1' }}>{inspections.length}</div>
         </div>
 
-        <div style={{
-          borderRadius: 14, padding: '16px 18px', overflow: 'hidden',
-          background: `linear-gradient(135deg, ${SCORE_COLORS[Math.round(avgScore)] || '#10b981'}08, transparent)`,
-          border: `1px solid ${SCORE_COLORS[Math.round(avgScore)] || '#10b981'}18`,
-        }}>
+        <div className="hk-hero-stat-card" style={{ '--stat-accent': SCORE_COLORS[Math.round(avgScore)] || '#10b981' } as React.CSSProperties}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: `${SCORE_COLORS[Math.round(avgScore)] || '#10b981'}15`, color: SCORE_COLORS[Math.round(avgScore)] || '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Star size={13} /></div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Avg Score</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Avg Score</span>
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: SCORE_COLORS[Math.round(avgScore)] || '#10b981' }}>{avgScore.toFixed(1)}<span style={{ fontSize: 11, fontWeight: 600 }}>/5</span></div>
           <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{SCORE_LABELS[Math.round(avgScore)] || '—'}</div>
         </div>
 
-        <div style={{
-          borderRadius: 14, padding: '16px 18px', overflow: 'hidden',
-          background: actionCount > 0 ? 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.03))' : 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)',
-          border: `1px solid ${actionCount > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.12)'}`,
-        }}>
+        <div className="hk-hero-stat-card" style={{ '--stat-accent': actionCount > 0 ? '#ef4444' : '#10b981' } as React.CSSProperties}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: actionCount > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.12)', color: actionCount > 0 ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><AlertTriangle size={13} /></div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Action Req.</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Action Req.</span>
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: actionCount > 0 ? '#ef4444' : '#10b981' }}>{actionCount}</div>
           <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{actionCount === 0 ? 'all clear ✓' : 'need follow-up'}</div>
         </div>
 
         {/* Score distribution mini */}
-        <div style={{
-          borderRadius: 14, padding: '16px 18px', overflow: 'hidden',
-          background: 'var(--surface-card)', border: '1px solid var(--border-subtle)',
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8 }}>Score Distribution</div>
+        <div className="hk-hero-stat-card" style={{ '--stat-accent': '#10b981' } as React.CSSProperties}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8 }}>Score Distribution</div>
           <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 36 }}>
             {[1, 2, 3, 4, 5].map(s => {
               const pct = inspections.length > 0 ? (scoreDist[s] / inspections.length) * 100 : 0;
@@ -198,7 +180,7 @@ export default function InspectionsPage() {
                     width: '100%', borderRadius: 3, minHeight: 4,
                     height: `${Math.max(pct, 8)}%`,
                     background: SCORE_COLORS[s],
-                    opacity: scoreDist[s] > 0 ? 0.7 : 0.15,
+                    opacity: scoreDist[s] > 0 ? 0.75 : 0.2,
                     transition: 'height 0.5s',
                   }} />
                   <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--text-tertiary)' }}>{s}★</span>
@@ -248,9 +230,8 @@ export default function InspectionsPage() {
             const sc = SCORE_COLORS[insp.overallScore || 0] || 'var(--text-tertiary)';
 
             return (
-              <div key={insp.id} style={{
-                borderRadius: 14, padding: '18px 20px', cursor: 'pointer', transition: 'all 0.2s',
-                background: `${sc}06`, border: `1px solid ${sc}18`,
+              <div key={insp.id} className="hk-dash-card" style={{
+                cursor: 'pointer', transition: 'all 0.2s',
                 borderLeft: `4px solid ${sc}`,
               }}
                 onClick={() => setDetailInsp(insp)}>

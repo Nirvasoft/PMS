@@ -116,43 +116,28 @@ export default function ScheduleManagementPage() {
       </div>
 
       {/* ── Stats ── */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-        gap: 10, marginBottom: 20,
-      }}>
-        <div style={{
-          borderRadius: 14, padding: '14px 16px', overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.03))',
-          border: '1px solid rgba(99,102,241,0.15)',
-        }}>
+      <div className="hk-hero-stats">
+        <div className="hk-hero-stat-card" style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(99,102,241,0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Calendar size={13} /></div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total</span>
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#6366f1' }}>{schedules.length}</div>
         </div>
-        <div style={{
-          borderRadius: 14, padding: '14px 16px', overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.03))',
-          border: '1px solid rgba(16,185,129,0.15)',
-        }}>
+        <div className="hk-hero-stat-card" style={{ '--stat-accent': '#10b981' } as React.CSSProperties}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(16,185,129,0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CheckCircle2 size={13} /></div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Active</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Active</span>
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>{activeCount}</div>
         </div>
         {Object.entries(freqCounts).slice(0, 3).map(([type, count]) => {
           const meta = FREQ_META[type] || FREQ_META.daily;
           return (
-            <div key={type} style={{
-              borderRadius: 14, padding: '14px 16px', overflow: 'hidden',
-              background: `linear-gradient(135deg, ${meta.bg}, transparent)`,
-              border: `1px solid ${meta.color}20`,
-            }}>
+            <div key={type} className="hk-hero-stat-card" style={{ '--stat-accent': meta.color } as React.CSSProperties}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <div style={{ width: 26, height: 26, borderRadius: 7, background: `${meta.color}15`, color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><meta.icon size={13} /></div>
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{meta.label}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{meta.label}</span>
               </div>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: meta.color }}>{count}</div>
             </div>
@@ -212,9 +197,8 @@ export default function ScheduleManagementPage() {
             const isActive = s.status === 'active';
 
             return (
-              <div key={s.id} style={{
-                borderRadius: 14, padding: '18px 20px', position: 'relative', overflow: 'hidden',
-                background: freq.bg, border: `1px solid ${freq.color}18`,
+              <div key={s.id} className="hk-dash-card" style={{
+                position: 'relative',
                 borderLeft: `4px solid ${freq.color}`,
                 opacity: isActive ? 1 : 0.65, transition: 'all 0.2s',
               }}>

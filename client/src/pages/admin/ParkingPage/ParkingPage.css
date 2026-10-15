@@ -10,6 +10,7 @@
   --surface-base: var(--surface);
   --text-tertiary: var(--text-muted);
   --border-default: var(--border);
+  --accent-primary: var(--accent);
 }
 
 .parking-page {
@@ -960,7 +961,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-primary), #8b5cf6);
+  background: linear-gradient(135deg, #10b981, #059669);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -69,6 +69,11 @@
   --sidebar-width: 260px;
 
   /* Aliases for Phase 6 components */
+  --primary: var(--accent);
+  --primary-hover: var(--accent-hover);
+  --border-primary: var(--border);
+  --text-tertiary: var(--text-muted);
+  --bg-tertiary: var(--surface-hover);
   --card-bg: var(--surface);
   --border-color: var(--border);
   --bg-body: var(--bg-primary);
@@ -134,6 +139,11 @@
   --scrollbar-thumb: var(--border);
 
   /* Aliases for Phase 6 components */
+  --primary: var(--accent);
+  --primary-hover: var(--accent-hover);
+  --border-primary: var(--border);
+  --text-tertiary: var(--text-muted);
+  --bg-tertiary: var(--surface-hover);
   --card-bg: var(--surface);
   --border-color: var(--border);
   --bg-body: var(--bg-primary);
@@ -506,10 +516,14 @@ div:focus-within > .currency-addon {
 [data-theme="light"] .inv-stat-card,
 [data-theme="light"] .portal-stat-card,
 [data-theme="light"] .gl-stat-card,
-[data-theme="light"] .ug-stat-card,
+  [data-theme="light"] .ug-stat-card,
 [data-theme="light"] .wfi-stat-card,
 [data-theme="light"] .occupancy-donut-card,
-[data-theme="light"] .zone-card {
+[data-theme="light"] .zone-card,
+[data-theme="light"] .hk-dash-card,
+[data-theme="light"] .hk-hero-stat-card,
+[data-theme="light"] .md-stat-card,
+[data-theme="light"] .md-chart-card {
   background: #FFFFFF !important;
   border: 1px solid var(--border) !important;
   box-shadow: 0 6px 20px -3px rgba(15, 23, 42, 0.10), 0 3px 8px -2px rgba(15, 23, 42, 0.06) !important;
@@ -530,7 +544,9 @@ div:focus-within > .currency-addon {
 [data-theme="light"] .ug-stat-card:hover,
 [data-theme="light"] .wfi-stat-card:hover,
 [data-theme="light"] .occupancy-donut-card:hover,
-[data-theme="light"] .zone-card:hover {
+[data-theme="light"] .zone-card:hover,
+[data-theme="light"] .hk-hero-stat-card:hover,
+[data-theme="light"] .md-stat-card:hover {
   box-shadow: 0 14px 34px -4px rgba(15, 23, 42, 0.15), 0 6px 14px -2px rgba(15, 23, 42, 0.08) !important;
   transform: translateY(-2px);
 }

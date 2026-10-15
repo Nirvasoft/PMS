@@ -107,20 +107,13 @@ export default function ZoneManagementPage() {
       </div>
 
       {/* ── Stats ── */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-        gap: 10, marginBottom: 20,
-      }}>
-        <div style={{
-          borderRadius: 14, padding: '14px 16px', overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.03))',
-          border: '1px solid rgba(99,102,241,0.15)',
-        }}>
+      <div className="hk-hero-stats">
+        <div className="hk-hero-stat-card" style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(99,102,241,0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <MapPin size={13} />
             </div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total Zones</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total Zones</span>
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#6366f1' }}>{zones.length}</div>
         </div>
@@ -128,14 +121,10 @@ export default function ZoneManagementPage() {
         {Object.entries(typeCounts).slice(0, 4).map(([type, count]) => {
           const meta = ZONE_META[type] || ZONE_META.other;
           return (
-            <div key={type} style={{
-              borderRadius: 14, padding: '14px 16px', overflow: 'hidden',
-              background: `linear-gradient(135deg, ${meta.bg}, transparent)`,
-              border: `1px solid ${meta.color}20`,
-            }}>
+            <div key={type} className="hk-hero-stat-card" style={{ '--stat-accent': meta.color } as React.CSSProperties}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontSize: 16 }}>{meta.emoji}</span>
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
                   {type.replace('_', ' ')}
                 </span>
               </div>
@@ -145,16 +134,12 @@ export default function ZoneManagementPage() {
         })}
 
         {totalArea > 0 && (
-          <div style={{
-            borderRadius: 14, padding: '14px 16px', overflow: 'hidden',
-            background: 'linear-gradient(135deg, rgba(16,185,129,0.08), transparent)',
-            border: '1px solid rgba(16,185,129,0.15)',
-          }}>
+          <div className="hk-hero-stat-card" style={{ '--stat-accent': '#10b981' } as React.CSSProperties}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(16,185,129,0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Ruler size={13} />
               </div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total Area</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total Area</span>
             </div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>{totalArea.toLocaleString()} <span style={{ fontSize: 10, fontWeight: 600 }}>sqm</span></div>
           </div>
@@ -222,9 +207,8 @@ export default function ZoneManagementPage() {
               {((group as any).zones as any[]).map((zone: any) => {
                 const meta = ZONE_META[zone.zoneType] || ZONE_META.other;
                 return (
-                  <div key={zone.id} style={{
-                    borderRadius: 14, padding: '16px 18px',
-                    background: meta.bg, border: `1px solid ${meta.color}18`,
+                  <div key={zone.id} className="hk-dash-card" style={{
+                    borderTop: `3px solid ${meta.color}`,
                     transition: 'all 0.2s', cursor: 'default',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>

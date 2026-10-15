@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
+import { useState, useEffect } from 'react';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useGetGateLogsQuery } from '../../../store/api/parkingApi';
 import { Activity, ShieldCheck, ShieldAlert, LogIn, LogOut, ChevronLeft, ChevronRight, Car } from 'lucide-react';
@@ -8,25 +7,10 @@ import './ParkingPage.css';
 import { format } from 'date-fns';
 
 export default function GateAccessLogsPage() {
-  // Gate logs are fetched from a property-scoped endpoint (no "all properties" variant
-  // exists), so this locks to the sidebar's Active Property like Parking Management —
-  // only when "All Properties" is active can a property be picked here.
-  const activeProperty = useSelectedPropertyFilter();
-  const propertyLocked = !!activeProperty;
-  const { data: propertiesData } = useGetMyPropertyScopeQuery();
-  const properties = propertiesData?.data || [];
-  const [manualPropertyId, setManualPropertyId] = useState('');
-  const propertyId = propertyLocked ? activeProperty : manualPropertyId;
+  const propertyId = useSelectedPropertyFilter();
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-
-  // Clears the manual pick back to "Select Property" if the sidebar leaves "All Properties".
-  const prevPropertyLockedRef = useRef(propertyLocked);
-  useEffect(() => {
-    if (!propertyLocked && prevPropertyLockedRef.current) setManualPropertyId('');
-    prevPropertyLockedRef.current = propertyLocked;
-  }, [propertyLocked]);
 
   // Reset pagination whenever the active property changes.
   useEffect(() => { setPage(1); }, [propertyId]);
@@ -57,24 +41,6 @@ export default function GateAccessLogsPage() {
               {meta ? `${meta.total} total logs` : 'Real-time RFID barrier access events'}
             </p>
           </div>
-        </div>
-        <div className="billing-filters" style={{ marginBottom: 0 }}>
-          <select
-            className="filter-select"
-            value={propertyId}
-            disabled={propertyLocked}
-            onChange={(e) => setManualPropertyId(e.target.value)}
-            style={{ minWidth: 220 }}
-          >
-            {propertyLocked ? (
-              <option value={propertyId}>{properties.find((p) => p.id === propertyId)?.name || 'Loading…'}</option>
-            ) : (
-              <>
-                <option value="">Select Property</option>
-                {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </>
-            )}
-          </select>
         </div>
       </div>
 

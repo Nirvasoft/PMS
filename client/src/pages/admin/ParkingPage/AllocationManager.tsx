@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetAllocationsQuery, useCreateAllocationMutation, useCancelAllocationMutation,
   useUpdateAllocationMutation, useGetVehiclesQuery,
   useGetSlotsQuery, useGetParkingTypesQuery, useGetZonesQuery, type ParkingAllocation, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
-import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -22,6 +21,14 @@ function ordinalSuffix(n: number): string {
   return 'th';
 }
 
+function getTodayDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function AllocationManager() {
   const confirmDialog = useConfirm();
   const selectedProperty = useSelectedPropertyFilter();
@@ -30,14 +37,12 @@ export default function AllocationManager() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingAlloc, setEditingAlloc] = useState<ParkingAllocation | null>(null);
 
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data, isLoading } = useGetAllocationsQuery({ propertyId: selectedProperty || undefined, page, limit: pageSize });
 
   // Reset pagination whenever the sidebar's Active Property changes.
   useEffect(() => { setPage(1); }, [selectedProperty]);
   const [cancelAllocation] = useCancelAllocationMutation();
 
-  const properties = propertiesData?.data || [];
   const allocations = data?.data || [];
   const meta = data?.meta;
 
@@ -76,15 +81,6 @@ export default function AllocationManager() {
         </PermissionGuard>
       </div>
 
-      <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>
-        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
-        <select className="filter-select" value={selectedProperty} disabled>
-          {selectedProperty && (
-            <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
-          )}
-        </select>
-      </div>
-
       <div className="alloc-table-wrap">
         <TableScrollWrapper className="tenant-table-scroll">
           <div className="alloc-table-inner">
@@ -98,7 +94,7 @@ export default function AllocationManager() {
               <div className="table-empty"><Car size={40} /><p>No allocations found</p></div>
             ) : (
               allocations.map((a: ParkingAllocation) => {
-                const tenantName = a.tenant.tenantType !== 'individual' ? a.tenant.companyName : `${a.tenant.firstName} ${a.tenant.lastName}`;
+                const tenantName = a.tenant.tenantType !== 'individual' ? a.tenant.companyName : (a.tenant.lastName || '—');
                 return (
                   <div key={a.id} className="alloc-row">
                     <div>
@@ -168,7 +164,7 @@ export default function AllocationManager() {
         )}
       </div>
 
-      {showCreate && <CreateAllocationModal properties={properties} activeProperty={selectedProperty} onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateAllocationModal activeProperty={selectedProperty} onClose={() => setShowCreate(false)} />}
       {editingAlloc && (
         <EditAllocationModal
           allocation={editingAlloc}
@@ -237,7 +233,7 @@ function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAlloc
 
   const tenantName = allocation.tenant.tenantType !== 'individual'
     ? allocation.tenant.companyName
-    : `${allocation.tenant.firstName} ${allocation.tenant.lastName}`;
+    : (allocation.tenant.lastName || '—');
 
   return (
     <div className="crm-modal-overlay">
@@ -350,16 +346,10 @@ function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAlloc
 
 // ── Create Allocation Modal ────────────────
 
-function CreateAllocationModal({ properties, activeProperty, onClose }: { properties: any[]; activeProperty: string; onClose: () => void }) {
+function CreateAllocationModal({ activeProperty, onClose }: { activeProperty: string; onClose: () => void }) {
   const [createAllocation, { isLoading }] = useCreateAllocationMutation();
-  // /properties requires properties.read, which a parking-only role may lack — use the
-  // permission-free /properties/my-scope endpoint so the locked field still resolves
-  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
-  const { data: scopeData } = useGetMyPropertyScopeQuery();
-  const lockedPropertyName = (scopeData?.data || []).find((p: any) => p.id === activeProperty)?.name;
-  const propertyLocked = !!activeProperty;
+  const propertyId = activeProperty;
 
-  const [propertyId, setPropertyId] = useState(activeProperty || '');
   const [parkingType, setParkingType] = useState('');
   const [zoneId, setZoneId] = useState('');
   const { data: typesData } = useGetParkingTypesQuery(propertyId, { skip: !propertyId });
@@ -372,26 +362,25 @@ function CreateAllocationModal({ properties, activeProperty, onClose }: { proper
   );
   const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 100 });
 
-  const [form, setForm] = useState({ slotId: '', tenantId: '', startDate: '', endDate: '', monthlyRate: '' });
+  const [form, setForm] = useState({
+    slotId: '',
+    tenantId: '',
+    startDate: getTodayDateString(),
+    endDate: '',
+    monthlyRate: '',
+  });
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const handlePropertyChange = (id: string) => { setPropertyId(id); setParkingType(''); setZoneId(''); set('slotId', ''); };
   const handleTypeChange = (type: string) => { setParkingType(type); setZoneId(''); set('slotId', ''); };
   const handleZoneChange = (id: string) => { setZoneId(id); set('slotId', ''); };
 
-  // Bound to the sidebar's Active Property; only "All Properties" allows picking one here.
-  // Clears back to "Select property" if the sidebar is switched to "All Properties".
-  const prevPropertyLockedRef = useRef(propertyLocked);
   useEffect(() => {
-    if (propertyLocked) {
-      if (propertyId !== activeProperty) handlePropertyChange(activeProperty);
-    } else if (prevPropertyLockedRef.current) {
-      handlePropertyChange('');
-    }
-    prevPropertyLockedRef.current = propertyLocked;
+    setParkingType('');
+    setZoneId('');
+    set('slotId', '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyLocked, activeProperty]);
+  }, [propertyId]);
 
   const slots = slotsData?.data || [];
   const tenants = tenantsData?.data || [];
@@ -429,19 +418,6 @@ function CreateAllocationModal({ properties, activeProperty, onClose }: { proper
         </div>
         <div className="form-row">
           <div className="form-group">
-            <label>Property</label>
-            <select className="form-input" value={propertyId} disabled={propertyLocked} onChange={e => handlePropertyChange(e.target.value)}>
-              {propertyLocked ? (
-                <option value={activeProperty}>{lockedPropertyName || 'Loading…'}</option>
-              ) : (
-                <>
-                  <option value="">— Select property —</option>
-                  {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </>
-              )}
-            </select>
-          </div>
-          <div className="form-group">
             <label>Parking Type</label>
             <select
               className="form-input"
@@ -453,8 +429,6 @@ function CreateAllocationModal({ properties, activeProperty, onClose }: { proper
               {parkingTypes.map((t: ParkingUnitType) => <option key={t.code} value={t.code}>{t.name}</option>)}
             </select>
           </div>
-        </div>
-        <div className="form-row">
           <div className="form-group">
             <label>Zone</label>
             <select
@@ -467,20 +441,20 @@ function CreateAllocationModal({ properties, activeProperty, onClose }: { proper
               {zones.map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}
             </select>
           </div>
-          <div className="form-group">
-            <label>Available Slot *</label>
-            <select
-              className={`form-input ${hasAttemptedSubmit && !form.slotId ? 'input-error' : ''}`}
-              value={form.slotId}
-              onChange={e => set('slotId', e.target.value)}
-            >
-              <option value="">— Select slot —</option>
-              {slots.map((s: any) => <option key={s.id} value={s.id}>{s.slotNumber} ({s.zone?.name || 'No zone'})</option>)}
-            </select>
-            {hasAttemptedSubmit && !form.slotId && (
-              <span className="field-error-text">Available slot is required</span>
-            )}
-          </div>
+        </div>
+        <div className="form-group">
+          <label>Available Slot *</label>
+          <select
+            className={`form-input ${hasAttemptedSubmit && !form.slotId ? 'input-error' : ''}`}
+            value={form.slotId}
+            onChange={e => set('slotId', e.target.value)}
+          >
+            <option value="">— Select slot —</option>
+            {slots.map((s: any) => <option key={s.id} value={s.id}>{s.slotNumber} ({s.zone?.name || 'No zone'})</option>)}
+          </select>
+          {hasAttemptedSubmit && !form.slotId && (
+            <span className="field-error-text">Available slot is required</span>
+          )}
         </div>
         <div className="form-group">
           <label>Tenant *</label>
@@ -490,7 +464,7 @@ function CreateAllocationModal({ properties, activeProperty, onClose }: { proper
             onChange={e => set('tenantId', e.target.value)}
           >
             <option value="">— Select tenant —</option>
-            {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType !== 'individual' ? t.companyName : `${t.firstName} ${t.lastName}`}</option>)}
+            {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType !== 'individual' ? t.companyName : (t.lastName || '—')}</option>)}
           </select>
           {hasAttemptedSubmit && !form.tenantId && (
             <span className="field-error-text">Tenant is required</span>

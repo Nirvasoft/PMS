@@ -21,6 +21,13 @@ const VEHICLE_TYPES: Record<string, { label: string; icon: ReactNode; color: str
   van:        { label: 'Van',        icon: <Truck size={14} />, color: '#06b6d4' },
 };
 
+function getTenantLabel(t: TenantListItem): string {
+  if (t.tenantType !== 'individual') {
+    return t.companyName || t.displayName || '—';
+  }
+  return t.lastName || t.displayName || '—';
+}
+
 export default function VehicleRegistryPage() {
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [tenantSearch, setTenantSearch] = useState('');
@@ -93,24 +100,27 @@ export default function VehicleRegistryPage() {
             ) : tenants.length === 0 ? (
               <div className="vr-tenant-empty">No tenants found</div>
             ) : (
-              tenants.map((t: TenantListItem) => (
-                <button
-                  key={t.id}
-                  className={`vr-tenant-item ${selectedTenantId === t.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedTenantId(t.id)}
-                >
-                  <div className="vti-avatar">
-                    {t.avatarUrl
-                      ? <img src={t.avatarUrl} alt="" />
-                      : <span>{(t.displayName?.[0] || '?').toUpperCase()}</span>
-                    }
-                  </div>
-                  <div className="vti-info">
-                    <div className="vti-name">{t.displayName}</div>
-                    <div className="vti-meta">{t.tenantType} {t.email ? `· ${t.email}` : ''}</div>
-                  </div>
-                </button>
-              ))
+              tenants.map((t: TenantListItem) => {
+                const tenantLabel = getTenantLabel(t);
+                return (
+                  <button
+                    key={t.id}
+                    className={`vr-tenant-item ${selectedTenantId === t.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedTenantId(t.id)}
+                  >
+                    <div className="vti-avatar">
+                      {t.avatarUrl
+                        ? <img src={t.avatarUrl} alt="" />
+                        : <span>{(tenantLabel[0] || '?').toUpperCase()}</span>
+                      }
+                    </div>
+                    <div className="vti-info">
+                      <div className="vti-name">{tenantLabel}</div>
+                      <div className="vti-meta">{t.tenantType} {t.email ? `· ${t.email}` : ''}</div>
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
@@ -129,7 +139,7 @@ export default function VehicleRegistryPage() {
               <div className="vr-toolbar">
                 <div className="vr-toolbar-left">
                   <h2 className="vr-tenant-title">
-                    {selectedTenant?.displayName || 'Tenant'}
+                    {selectedTenant ? getTenantLabel(selectedTenant) : 'Tenant'}
                     <span className="vr-vehicle-count">{activeVehicles.length} vehicle{activeVehicles.length !== 1 ? 's' : ''}</span>
                   </h2>
                 </div>

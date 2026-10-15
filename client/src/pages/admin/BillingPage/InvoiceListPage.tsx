@@ -435,9 +435,8 @@ export default function InvoiceListPage() {
                 return (
                   <tr
                     key={inv.id}
-                    className="clickable"
+                    className={`clickable${isSelected ? ' row-selected' : ''}`}
                     onClick={() => navigate(`/admin/billing/invoices/${inv.id}`)}
-                    style={isSelected ? { background: 'rgba(99,102,241,0.06)' } : undefined}
                   >
                     <td style={{ paddingLeft: 12 }} onClick={e => e.stopPropagation()}>
                       <input
@@ -562,11 +561,10 @@ export default function InvoiceListPage() {
               {/* V6 ERP Bulk Push — only issued invoices will be forwarded */}
               {isV6Active && (
                 <button
-                  className="bulk-btn"
+                  className="bulk-btn v6-erp"
                   onClick={handleBulkSendToV6Erp}
                   disabled={bulkProcessing || pushingToV6}
                   title="Send selected issued invoices to V6 ERP"
-                  style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
                 >
                   <UploadCloud size={14} /> Send to V6 ERP
                 </button>

@@ -198,45 +198,42 @@ export default function HousekeepingTasksPage() {
 
       {/* ── Stats Row ── */}
       {stats?.today && (
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
-          gap: 10, marginBottom: 20,
-        }}>
-          <div style={{ borderRadius: 14, padding: '14px 16px', background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.03))', border: '1px solid rgba(99,102,241,0.15)' }}>
+        <div className="hk-hero-stats">
+          <div className="hk-hero-stat-card" style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(99,102,241,0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ClipboardList size={13} /></div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Today</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(99,102,241,0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ClipboardList size={14} /></div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Today</span>
             </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#6366f1' }}>{stats.today.total}</div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#6366f1' }}>{stats.today.total}</div>
           </div>
-          <div style={{ borderRadius: 14, padding: '14px 16px', background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.03))', border: '1px solid rgba(16,185,129,0.15)' }}>
+          <div className="hk-hero-stat-card" style={{ '--stat-accent': '#10b981' } as React.CSSProperties}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(16,185,129,0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CheckCircle2 size={13} /></div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Done</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(16,185,129,0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CheckCircle2 size={14} /></div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Done</span>
             </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>{stats.today.completed}</div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#10b981' }}>{stats.today.completed}</div>
           </div>
-          <div style={{ borderRadius: 14, padding: '14px 16px', background: 'linear-gradient(135deg, rgba(234,179,8,0.08), rgba(234,179,8,0.03))', border: '1px solid rgba(234,179,8,0.15)' }}>
+          <div className="hk-hero-stat-card" style={{ '--stat-accent': '#eab308' } as React.CSSProperties}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(234,179,8,0.15)', color: '#eab308', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Timer size={13} /></div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Active</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(234,179,8,0.15)', color: '#eab308', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Timer size={14} /></div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Active</span>
             </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#eab308' }}>{stats.today.inProgress}</div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#eab308' }}>{stats.today.inProgress}</div>
           </div>
-          <div style={{ borderRadius: 14, padding: '14px 16px', background: stats.today.missed > 0 ? 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.03))' : 'linear-gradient(135deg, rgba(107,114,128,0.04), transparent)', border: `1px solid ${stats.today.missed > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.1)'}` }}>
+          <div className="hk-hero-stat-card" style={{ '--stat-accent': stats.today.missed > 0 ? '#ef4444' : '#64748b' } as React.CSSProperties}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 7, background: stats.today.missed > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.1)', color: stats.today.missed > 0 ? '#ef4444' : '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><XCircle size={13} /></div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Missed</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: stats.today.missed > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(100,116,139,0.12)', color: stats.today.missed > 0 ? '#ef4444' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><XCircle size={14} /></div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Missed</span>
             </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: stats.today.missed > 0 ? '#ef4444' : 'var(--text-primary)' }}>{stats.today.missed}</div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: stats.today.missed > 0 ? '#ef4444' : 'var(--text-primary)' }}>{stats.today.missed}</div>
           </div>
-          <div style={{ borderRadius: 14, padding: '14px 16px', background: `linear-gradient(135deg, ${completionColor}10, transparent)`, border: `1px solid ${completionColor}20` }}>
+          <div className="hk-hero-stat-card" style={{ '--stat-accent': completionColor } as React.CSSProperties}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 7, background: `${completionColor}18`, color: completionColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrendingUp size={13} /></div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Rate</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: `${completionColor}18`, color: completionColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrendingUp size={14} /></div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Rate</span>
             </div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: completionColor }}>{completionPct}%</div>
-            <div style={{ height: 3, borderRadius: 2, background: 'var(--surface-hover)', marginTop: 4 }}>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: completionColor }}>{completionPct}%</div>
+            <div style={{ height: 4, borderRadius: 2, background: 'var(--surface-elevated)', marginTop: 6, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${completionPct}%`, borderRadius: 2, background: completionColor, transition: 'width 0.5s' }} />
             </div>
           </div>
@@ -277,17 +274,7 @@ export default function HousekeepingTasksPage() {
               const theme = STATUS_THEME[t.status] || STATUS_THEME.pending;
               const Icon = theme.icon;
               return (
-                <div key={t.id} style={{
-                  background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-                  borderRadius: '14px', padding: '18px', position: 'relative', overflow: 'hidden',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
-                >
-                  {/* Top accent */}
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: theme.color, opacity: 0.6 }} />
-
+                <div key={t.id} className="hk-dash-card" style={{ position: 'relative', borderTop: `3px solid ${theme.color}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                       <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: theme.bg, color: theme.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>
@@ -297,7 +284,7 @@ export default function HousekeepingTasksPage() {
                         <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{t.zone?.name || 'Unknown Zone'}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
                           {t.zone?.floor && `Floor ${t.zone.floor}`}
-                          {t.schedule?.cleaningType && <span style={{ marginLeft: t.zone?.floor ? '8px' : 0, padding: '1px 6px', borderRadius: '4px', background: 'rgba(99,102,241,0.1)', color: '#818cf8', fontSize: '10px', fontWeight: 600 }}>{t.schedule.cleaningType}</span>}
+                          {t.schedule?.cleaningType && <span style={{ marginLeft: t.zone?.floor ? '8px' : 0, padding: '1px 6px', borderRadius: '4px', background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontSize: '10px', fontWeight: 600 }}>{t.schedule.cleaningType}</span>}
                         </div>
                       </div>
                     </div>
@@ -308,9 +295,9 @@ export default function HousekeepingTasksPage() {
 
                   {/* Info row */}
                   <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px', flexWrap: 'wrap' }}>
-                    {t.scheduledTime && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={11} style={{ opacity: 0.5 }} /> {t.scheduledTime}</span>}
-                    {t.schedule?.name && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={11} style={{ opacity: 0.5 }} /> {t.schedule.name}</span>}
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Users size={11} style={{ opacity: 0.5 }} /> {assignee}</span>
+                    {t.scheduledTime && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={11} style={{ opacity: 0.6 }} /> {t.scheduledTime}</span>}
+                    {t.schedule?.name && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={11} style={{ opacity: 0.6 }} /> {t.schedule.name}</span>}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Users size={11} style={{ opacity: 0.6 }} /> {assignee}</span>
                   </div>
 
                   {/* Actions */}
@@ -343,16 +330,7 @@ export default function HousekeepingTasksPage() {
               const freq = FREQ_BADGES[s.frequencyType] || FREQ_BADGES.daily;
               const assignee = s.assignedTo?.profile ? `${s.assignedTo.profile.firstName} ${s.assignedTo.profile.lastName}` : 'Unassigned';
               return (
-                <div key={s.id} style={{
-                  background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-                  borderRadius: '14px', padding: '18px', position: 'relative', overflow: 'hidden',
-                  transition: 'transform 0.2s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
-                >
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${freq.color}, transparent)`, opacity: 0.5 }} />
-
+                <div key={s.id} className="hk-dash-card" style={{ position: 'relative', borderTop: `3px solid ${freq.color}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                     <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{s.name}</div>
                     <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 700, background: s.status === 'active' ? 'rgba(16,185,129,0.12)' : 'rgba(107,114,128,0.12)', color: s.status === 'active' ? '#10b981' : '#6b7280', textTransform: 'uppercase' }}>
@@ -362,8 +340,8 @@ export default function HousekeepingTasksPage() {
 
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
                     <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: freq.bg, color: freq.color }}>{s.frequencyType}</span>
-                    {s.cleaningType && <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>{s.cleaningType}</span>}
-                    {s.scheduledTime && <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>⏰ {s.scheduledTime}</span>}
+                    {s.cleaningType && <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'rgba(99,102,241,0.12)', color: '#6366f1' }}>{s.cleaningType}</span>}
+                    {s.scheduledTime && <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-secondary)' }}>⏰ {s.scheduledTime}</span>}
                   </div>
 
                   <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-tertiary)' }}>
@@ -383,21 +361,14 @@ export default function HousekeepingTasksPage() {
         zones.length === 0 ? <div className="maint-empty"><MapPin size={32} /><p>No zones</p></div> : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px' }}>
             {zones.map((z: any) => (
-              <div key={z.id} style={{
-                background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-                borderRadius: '14px', padding: '18px', display: 'flex', gap: '14px', alignItems: 'center',
-                transition: 'transform 0.2s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
-              >
+              <div key={z.id} className="hk-dash-card" style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
                 <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>
                   {ZONE_ICONS[z.zoneType] || '📍'}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{z.name}</div>
                   <div style={{ display: 'flex', gap: '10px', fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                    {z.zoneType && <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(168,85,247,0.1)', color: '#c084fc', fontWeight: 600 }}>{z.zoneType}</span>}
+                    {z.zoneType && <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(168,85,247,0.1)', color: '#a855f7', fontWeight: 600 }}>{z.zoneType}</span>}
                     {z.floor && <span>Floor {z.floor}</span>}
                     {z.areaSqm && <span>{Number(z.areaSqm).toLocaleString()} sqm</span>}
                   </div>
