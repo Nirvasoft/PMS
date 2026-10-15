@@ -244,12 +244,8 @@ export class BillingSchedulesService {
 
   /**
    * Updates the billing schedule records that were already created at lease-creation
-   * time (one per leaseCharge) so they are ready for future recurring billing runs.
-   *
-   * Called on activation when paymentType = 'fully'.  The first period has already
-   * been directly invoiced by invoicesService.createFromLease, so we advance each
-   * schedule's nextBillingDate by one full billing period so the cron/Run Billing
-   * won't re-invoice the same period.
+   * time (one per leaseCharge) so they are ready for recurring billing runs starting
+   * from the first billing period (startDate).
    *
    * Also ensures the billingCycle on each schedule matches the lease's billingCycle —
    * relevant when a charge's category has monthly=true but the lease runs on a
@@ -257,13 +253,18 @@ export class BillingSchedulesService {
    */
   async updateChargeSchedulesFromLease(lease: any): Promise<void> {
     // Find billing schedules created for this lease (both draft and active)
-    const schedules = await prisma.billingSchedule.findMany({
+    const allSchedules = await prisma.billingSchedule.findMany({
       where: { leaseId: lease.id, status: { in: ['draft', 'active'] } },
       include: {
         chargeType: {
           select: { id: true, code: true, category: true },
         },
       },
+    });
+    // Exclude RENT and SECURITY_DEPOSIT schedules so we only update additional leaseCharge schedules
+    const schedules = allSchedules.filter((s) => {
+      const code = (s.chargeType?.code || '').toUpperCase();
+      return code !== 'RENT' && code !== 'SECURITY_DEPOSIT';
     });
     if (schedules.length === 0) return;
 
@@ -291,16 +292,13 @@ export class BillingSchedulesService {
         const isMonthlyCategory = monthlyCategoryCodes.has(categoryCode);
         const effectiveCycle    = isMonthlyCategory ? 'monthly' : leaseBillingCycle;
 
-        // Next billing date MUST depend on THIS schedule's effectiveCycle!
-        const nextBillingDate = this.computeNextBillingDateFromStart(startDate, effectiveCycle, leaseBillingDay);
-
         return prisma.billingSchedule.update({
           where: { id: schedule.id },
           data: {
             status:          'active',   // promote draft → active (now visible in billing schedule list)
             billingCycle:    effectiveCycle,
             billingDay:      leaseBillingDay,
-            nextBillingDate,
+            nextBillingDate: startDate,  // Charges are not included in Direct Invoices on activation; start from Period 1
           },
         });
       })

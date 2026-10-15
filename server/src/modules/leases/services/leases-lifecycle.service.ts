@@ -107,23 +107,23 @@ export class LeasesLifecycleService {
     } catch (_e) {}
 
     // paymentType = 'fully':
-    //   • Create one direct invoice per charge (Rent, Deposit, each lease charge)
-    //   • Update existing billing schedule records: correct billingCycle + nextBillingDate
-    //     advanced by 1 period so recurring runs don't re-invoice the first period.
+    //   • Create direct invoice for Base Rent (+ Security Deposit if configured)
+    //   • Promote draft charge schedules → active starting from Period 1 (startDate)
     //
     // paymentType = 'partially' (or any other):
-    //   • Create billing schedules (Rent, Deposit, SERVICE_CHARGE) as before.
+    //   • Create direct invoice for partial rent (+ Security Deposit if configured)
+    //   • Create remaining Rent billing schedule + promote draft charge schedules → active
     const paymentType = (lease as any).paymentType || 'fully';
 
     try {
       if (paymentType === 'fully') {
-        // 1. Direct invoices — one combined (Rent+Deposit) + one per leaseCharge
+        // 1. Direct invoice — Base Rent (+ Security Deposit if configured)
         const invoices = await invoicesService.createFromLease(lease, activatedBy);
         logger.info(`Direct invoices created for lease ${lease.leaseNumber}: ${invoices.length} invoice(s) — ${invoices.map((i: any) => i.invoiceNumber).join(', ')}`);
 
-        // 2. Promote draft charge schedules → active, set correct cycle + nextBillingDate
+        // 2. Promote draft charge schedules → active, set correct cycle + nextBillingDate = startDate
         await billingSchedulesService.updateChargeSchedulesFromLease(lease);
-        logger.info(`Billing schedules activated for lease ${lease.leaseNumber} (fully paid, nextBillingDate advanced by 1 period)`);
+        logger.info(`Billing schedules activated for lease ${lease.leaseNumber} (fully paid, starting from period 1)`);
       } else {
         // Partial payment:
         // 1. Direct invoice for partial rent (+ security deposit if configured)

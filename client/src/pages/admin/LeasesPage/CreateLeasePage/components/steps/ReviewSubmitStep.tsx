@@ -1,5 +1,5 @@
 import { skipToken } from '@reduxjs/toolkit/query';
-import { useGetUnitQuery } from '../../../../../../store/api/unitsApi';
+import { useGetUnitQuery, useGetUnitChargesQuery } from '../../../../../../store/api/unitsApi';
 import { useGetChargeTypesQuery } from '../../../../../../store/api/billingApi';
 import { PREDEFINED_TYPE_LABELS, calcLeaseTermMonths, calcPartialBreakdown, type FormState } from '../../types';
 
@@ -21,12 +21,35 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
   const { data: unitData } = useGetUnitQuery(
     form.propertyId && form.unitId ? { propertyId: form.propertyId, unitId: form.unitId } : skipToken,
   );
+  const { data: unitChargesData } = useGetUnitChargesQuery(
+    form.propertyId && form.unitId ? { propertyId: form.propertyId, unitId: form.unitId } : skipToken,
+  );
   const unitArea = unitData?.data?.areaSqft ?? null;
+  const unitCharges = unitChargesData?.data || [];
   const ra = form.rentalAgreement;
 
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const chargeTypes = chargeTypesData?.data || [];
   const chargeTypeName = (id: string) => chargeTypes.find((t) => t.id === id)?.name || 'Unknown charge';
+
+  const renderChargeCalcBadge = (c: FormState['leaseCharges'][number]) => {
+    const matchedUnitCharge = unitCharges.find((uc) => uc.chargeType?.id === c.chargeTypeId);
+    const calcType = c.calculationType ?? matchedUnitCharge?.calculationType ?? 'fixed';
+    const rateVal = c.rate ?? matchedUnitCharge?.rate ?? null;
+    const isPerSqft = calcType === 'per_sqft';
+    return (
+      <>
+        <span className={`lease-charge-calc-badge ${isPerSqft ? 'per-sqft' : 'fixed'}`}>
+          {isPerSqft ? 'Per Sqft' : 'Fixed'}
+        </span>
+        {isPerSqft && rateVal != null && unitArea != null && (
+          <span className="lease-charge-calc-formula">
+            ({form.currency} {Number(rateVal).toLocaleString()} / sqft × {Number(unitArea).toLocaleString()} sqft)
+          </span>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="step-content">
@@ -84,12 +107,6 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
                       <td className="text-right">{form.currency} {dep.toLocaleString()}</td>
                     </tr>
                   )}
-                  {form.leaseCharges.map((c) => (
-                    <tr key={c.chargeTypeId}>
-                      <td>{chargeTypeName(c.chargeTypeId)}</td>
-                      <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
-                    </tr>
-                  ))}
                 </tbody>
               </table>
 
@@ -112,7 +129,10 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
                   )}
                   {form.leaseCharges.map((c) => (
                     <tr key={c.chargeTypeId}>
-                      <td>{chargeTypeName(c.chargeTypeId)}</td>
+                      <td>
+                        <span>{chargeTypeName(c.chargeTypeId)}</span>
+                        <span style={{ marginLeft: 8 }}>{renderChargeCalcBadge(c)}</span>
+                      </td>
                       <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
                     </tr>
                   ))}
@@ -150,14 +170,6 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
                     <td className="text-right">{form.currency} {dep.toLocaleString()}</td>
                   </tr>
                 )}
-                {form.leaseCharges.map((c) => (
-                  <tr key={c.chargeTypeId}>
-                    <td>{chargeTypeName(c.chargeTypeId)}</td>
-                    <td className="text-right">1</td>
-                    <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
-                    <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
-                  </tr>
-                ))}
               </tbody>
             </table>
 
@@ -166,7 +178,7 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
                 <div className="review-subhead">
                   Billing Schedules{' '}
                   <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-muted)' }}>
-                    (recurring charges from period 2 onward)
+                    (recurring charges from period 1 onward)
                   </span>
                 </div>
                 <table className="charges-table">
@@ -174,7 +186,10 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
                   <tbody>
                     {form.leaseCharges.map((c) => (
                       <tr key={c.chargeTypeId}>
-                        <td>{chargeTypeName(c.chargeTypeId)}</td>
+                        <td>
+                          <span>{chargeTypeName(c.chargeTypeId)}</span>
+                          <span style={{ marginLeft: 8 }}>{renderChargeCalcBadge(c)}</span>
+                        </td>
                         <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
                       </tr>
                     ))}
@@ -192,12 +207,17 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
       ) : (
         <table className="charges-table">
           <thead>
-            <tr><th>Charge</th><th className="text-right">Amount</th></tr>
+            <tr>
+              <th>Charge</th>
+              <th>Calculation Type</th>
+              <th className="text-right">Amount</th>
+            </tr>
           </thead>
           <tbody>
             {form.leaseCharges.map((c) => (
               <tr key={c.chargeTypeId}>
                 <td>{chargeTypeName(c.chargeTypeId)}</td>
+                <td>{renderChargeCalcBadge(c)}</td>
                 <td className="text-right">{form.currency} {Number(c.amount).toLocaleString()}</td>
               </tr>
             ))}

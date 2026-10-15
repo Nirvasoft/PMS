@@ -5,14 +5,12 @@ import {
   useGetBillingDashboardSummaryQuery,
   useRunBillingMutation,
 } from '../../../store/api/billingApi';
-import { useGetCronJobsQuery } from '../../../store/api/integrationsApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   LayoutDashboard, FileText, AlertTriangle, Clock, DollarSign,
   Play, ArrowRight, TrendingUp, Receipt, CalendarClock, CheckCircle,
-  Settings, RefreshCw,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
@@ -31,95 +29,9 @@ const formatCurrency = (amount: number, currency = 'USD') => {
   }
 };
 
-function getHumanSchedule(expr: string, tz: string): string {
-  const parts = expr.trim().split(/\s+/);
-  if (parts.length === 5) {
-    const [min, hour, dom, mon, dow] = parts;
-    if (min === '*' && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
-      return 'Every minute';
-    }
-    if (min.startsWith('*/') && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
-      return `Every ${min.replace('*/', '')} minutes`;
-    }
-    if (min === '0' && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
-      return 'Hourly at :00';
-    }
-    if (!isNaN(Number(min)) && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
-      return `Hourly at :${min.padStart(2, '0')}`;
-    }
-    if (hour.startsWith('*/') && dom === '*' && mon === '*' && dow === '*') {
-      return `Every ${hour.replace('*/', '')} hours at :${min.padStart(2, '0')}`;
-    }
-    if (!isNaN(Number(min)) && !isNaN(Number(hour)) && dom === '*' && mon === '*' && dow === '*') {
-      const h = Number(hour);
-      const m = Number(min);
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      const displayH = h % 12 === 0 ? 12 : h % 12;
-      return `Runs daily at ${displayH}:${m.toString().padStart(2, '0')} ${ampm}`;
-    }
-    if (!isNaN(Number(min)) && !isNaN(Number(hour)) && !isNaN(Number(dom)) && mon === '*' && dow === '*') {
-      const h = Number(hour);
-      const m = Number(min);
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      const displayH = h % 12 === 0 ? 12 : h % 12;
-      return `Runs monthly on Day ${dom} at ${displayH}:${m.toString().padStart(2, '0')} ${ampm}`;
-    }
-  }
-  return `Runs on schedule: ${expr} (${tz})`;
-}
-
-function calculateNextRun(cronExpr: string, isEnabled: boolean, now: Date = new Date()): string {
-  if (!isEnabled) {
-    return 'Job is paused';
-  }
-  const parts = cronExpr.trim().split(/\s+/);
-  if (parts.length === 5) {
-    const [minStr, hourStr, domStr, monStr, dowStr] = parts;
-    // 1. Daily: "min hour * * *"
-    if (!isNaN(Number(minStr)) && !isNaN(Number(hourStr)) && domStr === '*' && monStr === '*' && dowStr === '*') {
-      const min = Number(minStr);
-      const hour = Number(hourStr);
-      const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, min, 0, 0);
-      if (target.getTime() <= now.getTime()) {
-        target.setDate(target.getDate() + 1);
-      }
-      return format(target, 'MMM d, yyyy HH:mm');
-    }
-    // 2. Interval: "*/X * * * *"
-    if (minStr.startsWith('*/') && hourStr === '*' && domStr === '*' && monStr === '*' && dowStr === '*') {
-      const step = Number(minStr.replace('*/', '')) || 15;
-      const currentMin = now.getMinutes();
-      const nextMin = Math.floor(currentMin / step) * step + step;
-      const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0);
-      target.setMinutes(nextMin);
-      return format(target, 'MMM d, yyyy HH:mm');
-    }
-    // 3. Hourly: "min * * * *"
-    if (!isNaN(Number(minStr)) && hourStr === '*' && domStr === '*' && monStr === '*' && dowStr === '*') {
-      const min = Number(minStr);
-      const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), min, 0, 0);
-      if (target.getTime() <= now.getTime()) {
-        target.setHours(target.getHours() + 1);
-      }
-      return format(target, 'MMM d, yyyy HH:mm');
-    }
-    // 4. Monthly: "min hour dom * *"
-    if (!isNaN(Number(minStr)) && !isNaN(Number(hourStr)) && !isNaN(Number(domStr)) && monStr === '*' && dowStr === '*') {
-      const min = Number(minStr);
-      const hour = Number(hourStr);
-      const dom = Number(domStr);
-      let target = new Date(now.getFullYear(), now.getMonth(), dom, hour, min, 0, 0);
-      if (target.getTime() <= now.getTime()) {
-        target = new Date(now.getFullYear(), now.getMonth() + 1, dom, hour, min, 0, 0);
-      }
-      return format(target, 'MMM d, yyyy HH:mm');
-    }
-  }
-  return 'Scheduled';
-}
-
 export default function BillingDashboardPage() {
   const navigate = useNavigate();
+  const today = new Date();
 
   // Fetch summary & recent invoices — scoped to the sidebar's Active Property when one is chosen.
   const activePropertyFilter = useSelectedPropertyFilter();
@@ -134,15 +46,8 @@ export default function BillingDashboardPage() {
     limit: 10,
   });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
-  const { data: cronJobsRes, refetch: refetchCronJobs } = useGetCronJobsQuery();
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();
-
-  const billingJob = useMemo(() => {
-    const list = cronJobsRes?.data;
-    if (!Array.isArray(list)) return null;
-    return list.find((j: any) => j.jobKey === 'billing.daily') || null;
-  }, [cronJobsRes]);
 
   const isFetching = isFetchingInvoices || isFetchingSummary;
   const summary = summaryData?.data;
@@ -163,7 +68,6 @@ export default function BillingDashboardPage() {
     try {
       const result = await runBilling().unwrap();
       alertDialog(`Generated ${result.data.generated} invoices from ${result.data.processed} schedules.${result.data.errors.length > 0 ? '\n\nErrors:\n' + result.data.errors.join('\n') : ''}`);
-      refetchCronJobs();
     } catch (err: any) {
       alertDialog(err?.data?.errors?.[0]?.message || 'Failed to run billing');
     }
@@ -240,121 +144,30 @@ export default function BillingDashboardPage() {
         </div>
       </div>
 
-      {/* Scheduled Job Status (Dynamic from Cron Engine) */}
+      {/* Scheduled Job Status */}
       <div className="inv-form-section" style={{ marginBottom: 24, padding: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div
-              className="bsc-icon"
-              style={{
-                background: (billingJob?.isEnabled ?? true) ? 'rgba(6,182,212,0.12)' : 'rgba(148, 163, 184, 0.12)',
-                color: (billingJob?.isEnabled ?? true) ? '#22d3ee' : 'var(--text-muted)',
-                width: 42,
-                height: 42,
-                borderRadius: 10,
-              }}
-            >
-              <CalendarClock size={20} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="bsc-icon" style={{ background: 'rgba(6,182,212,0.12)', color: '#22d3ee', width: 36, height: 36 }}>
+              <CalendarClock size={18} />
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
-                  {billingJob?.name || 'Daily Recurring Billing'}
-                </span>
-                {(billingJob?.isEnabled ?? true) ? (
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    padding: '2px 8px',
-                    borderRadius: 12,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    color: '#10b981',
-                    border: '1px solid rgba(16, 185, 129, 0.25)',
-                  }}>
-                    <span className="live-dot" style={{ margin: 0, width: 6, height: 6 }} /> Active
-                  </span>
-                ) : (
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    padding: '2px 8px',
-                    borderRadius: 12,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: 'rgba(148, 163, 184, 0.12)',
-                    color: 'var(--text-muted)',
-                    border: '1px solid var(--border-subtle)',
-                  }}>
-                    Paused
-                  </span>
-                )}
-                {billingJob?.isRunning && (
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '2px 8px',
-                    borderRadius: 12,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: 'rgba(96, 165, 250, 0.15)',
-                    color: '#60a5fa',
-                  }}>
-                    <RefreshCw size={11} className="animate-spin" /> In Progress
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span>
-                  {getHumanSchedule(billingJob?.cronExpression || '0 2 * * *', billingJob?.timezone || 'Asia/Yangon')}
-                </span>
-                <span style={{ color: 'var(--border)' }}>—</span>
-                <span>
-                  Next run: <strong style={{ color: 'var(--text-primary)' }}>{calculateNextRun(billingJob?.cronExpression || '0 2 * * *', billingJob?.isEnabled ?? true)}</strong>
-                </span>
-                {billingJob?.lastRunAt && (
-                  <>
-                    <span style={{ color: 'var(--border)' }}>•</span>
-                    <span style={{ color: 'var(--text-muted)' }}>
-                      Last run: {format(new Date(billingJob.lastRunAt), 'MMM d, HH:mm')}
-                      {billingJob.lastStatus === 'success' ? (
-                        <span style={{ color: '#10b981', marginLeft: 4, fontWeight: 500 }}>(Success)</span>
-                      ) : billingJob.lastStatus === 'failed' ? (
-                        <span style={{ color: '#f87171', marginLeft: 4, fontWeight: 500 }}>(Failed)</span>
-                      ) : null}
-                    </span>
-                  </>
-                )}
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>Daily Billing Job</div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                <span className="live-dot" /> Runs daily at 2:00 AM — next run: {format(addDays(today, 1), 'MMM d, yyyy')} 02:00
               </div>
             </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <PermissionGuard permission="billing-dashboard.write">
             <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => navigate('/admin/developer/cron-jobs')}
-              title="Manage cron schedules and frequency in Cron Jobs Setup"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '0.45rem 0.75rem' }}
+              className="btn btn-primary"
+              onClick={handleRunBilling}
+              disabled={runningBilling}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             >
-              <Settings size={14} />
-              <span>Configure Schedule</span>
+              <Play size={14} /> {runningBilling ? 'Running…' : 'Run Now'}
             </button>
-            <PermissionGuard permission="billing-dashboard.write">
-              <button
-                className="btn btn-primary"
-                onClick={handleRunBilling}
-                disabled={runningBilling || billingJob?.isRunning}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '0.45rem 0.85rem' }}
-              >
-                <Play size={14} /> {runningBilling || billingJob?.isRunning ? 'Running…' : 'Run Now'}
-              </button>
-            </PermissionGuard>
-          </div>
+          </PermissionGuard>
         </div>
       </div>
 

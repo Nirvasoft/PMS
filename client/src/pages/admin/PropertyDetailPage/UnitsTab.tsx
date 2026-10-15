@@ -1001,6 +1001,7 @@ function CreateUnitModal({
   const isUnitTypeMissing = hasAttemptedSubmit && !form.unitType;
   const isFloorLabelMissing = hasAttemptedSubmit && !form.floorLabel.trim();
   const isCurrencyMissing = hasAttemptedSubmit && !form.currency;
+  const isAreaMissing = hasAttemptedSubmit && (!form.areaSqft || Number(form.areaSqft) <= 0);
 
   const handleSubmit = async () => {
     setHasAttemptedSubmit(true);
@@ -1009,6 +1010,7 @@ function CreateUnitModal({
     if (!form.unitType) missing.push('P-Unit Type');
     if (!form.floorLabel.trim()) missing.push('Floor Label');
     if (!form.currency) missing.push('Currency');
+    if (!form.areaSqft || Number(form.areaSqft) <= 0) missing.push('Area');
 
     if (missing.length > 0) {
       toast.error('Please fill in all required fields');
@@ -1245,12 +1247,28 @@ function CreateUnitModal({
           {/* Row 5: Area (sqft) + Area (sqm) */}
           <div className="cu-grid">
             <div className="cu-field">
-              <label>Area (sqft)</label>
-              <input type="number" min={0} placeholder="e.g. 850" value={form.areaSqft} onChange={(e) => setAreaSqft(e.target.value)} />
+              <label>Area (sqft) *</label>
+              <input
+                type="number"
+                min={0}
+                placeholder="e.g. 850"
+                value={form.areaSqft}
+                onChange={(e) => setAreaSqft(e.target.value)}
+                className={isAreaMissing ? 'cu-input-error' : ''}
+              />
+              {isAreaMissing && <span className="cu-error-text">Area is required</span>}
             </div>
             <div className="cu-field">
-              <label>Area (sqm)</label>
-              <input type="number" min={0} placeholder="e.g. 79" value={form.areaSqm} onChange={(e) => setAreaSqm(e.target.value)} />
+              <label>Area (sqm) *</label>
+              <input
+                type="number"
+                min={0}
+                placeholder="e.g. 79"
+                value={form.areaSqm}
+                onChange={(e) => setAreaSqm(e.target.value)}
+                className={isAreaMissing ? 'cu-input-error' : ''}
+              />
+              {isAreaMissing && <span className="cu-error-text">Area is required</span>}
             </div>
           </div>
 

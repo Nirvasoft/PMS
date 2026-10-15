@@ -161,7 +161,6 @@ import IntegrationsPage from './pages/admin/IntegrationsPage';
 import WebhooksPage from './pages/admin/WebhooksPage';
 import ApiKeysPage from './pages/admin/ApiKeysPage';
 import BmsPage from './pages/admin/BmsPage';
-import CronJobsPage from './pages/admin/CronJobsPage/CronJobsPage';
 import ExecutiveDashboardPage from './pages/admin/ExecutiveDashboardPage';
 import BiReportsPage from './pages/admin/BiReportsPage';
 import AnomalyDashboardPage from './pages/admin/AnomalyDashboardPage';
@@ -427,7 +426,6 @@ function AppRoutes() {
           <Route path="/admin/developer/webhooks" element={<WebhooksPage />} />
           <Route path="/admin/developer/api-keys" element={<ApiKeysPage />} />
           <Route path="/admin/developer/bms" element={<BmsPage />} />
-          <Route path="/admin/developer/cron-jobs" element={<CronJobsPage />} />
 
           {/* System Admin */}
           <Route path="/admin/system/companies" element={<AdminCompaniesPage />} />

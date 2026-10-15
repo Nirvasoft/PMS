@@ -4,7 +4,7 @@ import { baseQueryWithReauth } from './baseQuery';
 export const integrationsApi = createApi({
   reducerPath: 'integrationsApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Integrations', 'SyncLogs', 'Webhooks', 'Deliveries', 'ApiKeys', 'BmsDevices', 'EntityMap', 'CronJobs', 'CronJobLogs'],
+  tagTypes: ['Integrations', 'SyncLogs', 'Webhooks', 'Deliveries', 'ApiKeys', 'BmsDevices', 'EntityMap'],
   endpoints: (builder) => ({
 
     // ── Integrations ──
@@ -165,31 +165,6 @@ export const integrationsApi = createApi({
       query: (id) => ({ url: `/bms/devices/${id}/poll`, method: 'POST' }),
       invalidatesTags: ['BmsDevices'],
     }),
-
-    // ── Cron Jobs Management ──
-    getCronJobs: builder.query<any, void>({
-      query: () => '/developer/cron-jobs',
-      providesTags: ['CronJobs'],
-    }),
-    updateCronJob: builder.mutation<any, { jobKey: string; data: { cronExpression?: string; timezone?: string; isEnabled?: boolean } }>({
-      query: ({ jobKey, data }) => ({
-        url: `/developer/cron-jobs/${jobKey}`,
-        method: 'PATCH',
-        body: data,
-      }),
-      invalidatesTags: ['CronJobs'],
-    }),
-    runCronJobNow: builder.mutation<any, string>({
-      query: (jobKey) => ({
-        url: `/developer/cron-jobs/${jobKey}/run-now`,
-        method: 'POST',
-      }),
-      invalidatesTags: ['CronJobs', 'CronJobLogs'],
-    }),
-    getCronJobLogs: builder.query<any, { jobKey: string; page?: number; limit?: number }>({
-      query: ({ jobKey, page = 1, limit = 20 }) => `/developer/cron-jobs/${jobKey}/logs?page=${page}&limit=${limit}`,
-      providesTags: ['CronJobLogs'],
-    }),
   }),
 });
 
@@ -230,10 +205,5 @@ export const {
   useGetBmsReadingsQuery,
   useGetBmsFaultsQuery,
   usePollBmsDeviceMutation,
-  // Cron Jobs
-  useGetCronJobsQuery,
-  useUpdateCronJobMutation,
-  useRunCronJobNowMutation,
-  useGetCronJobLogsQuery,
 } = integrationsApi;
 

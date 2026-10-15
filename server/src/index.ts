@@ -27,10 +27,14 @@ import { generalImportRouter } from './modules/generalImport/generalImport.route
 import { seedUnitTypes } from './modules/units/units.service';
 import { tenantsRouter, kycRequirementsRouter } from './modules/tenants/tenants.routes';
 import { leasesRouter, leaseTemplatesRouter, leaseClausesRouter } from './modules/leases/leases.routes';
+import { startEscalationJob } from './modules/leases/cron/escalation.job';
+import { startRenewalJob } from './modules/leases/cron/renewal.job';
 import { workflowDefinitionsRouter, workflowInstancesRouter, workflowTasksRouter } from './modules/workflow/workflow.routes';
 import { notificationsRouter, templatesRouter } from './modules/notifications/notifications.routes';
 import { documentsRouter, documentFoldersRouter, sharedDocumentsRouter } from './modules/documents/documents.routes';
+import { startDocumentExpiryJob } from './modules/documents/documentExpiry';
 import { dashboardRouter, reportsRouter } from './modules/dashboard/dashboard.routes';
+import { startKycExpiryJob } from './modules/tenants/kycExpiry';
 import { dashboardService } from './modules/dashboard/dashboard.service';
 import { leadsRouter, campaignsRouter, calendarRouter } from './modules/crm/crm.routes';
 import {
@@ -44,6 +48,9 @@ import {
   billingRunRouter, penaltyConfigsRouter, taxConfigsRouter, meterSetupRouter, currencyRatesRouter,
 } from './modules/billing/billing.routes';
 
+import { startDailyBillingJob } from './modules/billing/cron/dailyBilling.job';
+import { startPenaltyCheckJob } from './modules/billing/cron/penaltyCheck.job';
+import { startOverdueTransitionJob } from './modules/billing/cron/overdueTransition.job';
 import {
   receiptsRouter, arReportsRouter, refundsRouter,
   tenantCreditsRouter, tenantStatementRouter, creditsRouter,
@@ -61,11 +68,24 @@ import {
   maintenanceStatsRouter, maintenanceSlaConfigsRouter, maintenanceSlaReportRouter,
 } from './modules/maintenance/maintenance.routes';
 import { categoriesService as maintenanceCategoriesService } from './modules/maintenance/categories.service';
+import { startSlaMonitorJob } from './modules/maintenance/cron/slaMonitor.job';
+import { startTicketLifecycleJobs } from './modules/maintenance/cron/ticketLifecycle.job';
 import { pmSchedulesRouter, pmWorkOrdersRouter, pmUpcomingRouter } from './modules/preventive-maintenance/pm.routes';
+import { startPmGeneratorJob } from './modules/preventive-maintenance/cron/pmGenerator.job';
 import { facilityAssetsRouter, facilityCamRouter, facilityStatsRouter, facilityUtilityRouter } from './modules/facility/facility.routes';
+import { startFacilityAlertJob } from './modules/facility/cron/facilityAlert.job';
 import { inventoryRoutes } from './modules/inventory/inventory.routes';
 import { housekeepingRoutes } from './modules/housekeeping/housekeeping.routes';
+import { startHousekeepingTaskCron } from './modules/housekeeping/cron/taskGenerator.job';
+import { startGtoReminderJob } from './modules/mall/cron/gtoReminder.job';
+import { startCamBillingJob } from './modules/mall/cron/camBilling.job';
+import { startFootfallSyncJob } from './modules/mall/cron/footfallSync.job';
+import { startSmartMeterPollingJob } from './modules/condo/cron/meterPolling.job';
+import { startWebhookRetryJob } from './common/webhookRetry';
+import { startPermissionOverrideExpiryJob } from './modules/users/cron/permissionOverrideExpiry.job';
 import { startNotificationQueueJob } from './modules/notifications/cron/notificationQueue.job';
+import { startScheduledNotificationJob } from './modules/notifications/cron/scheduledNotification.job';
+import { startViewingReminderJob } from './modules/crm/cron/viewingReminder.job';
 import { securityRoutes } from './modules/security/security.routes';
 import { portalRouter, adminQuickActionsRouter, adminPortalAnalyticsRouter, adminAccessCardsRouter, adminPortalBrandingRouter } from './modules/portal/portal.routes';
 import { visitorsRouter, portalVisitorsRouter, blacklistRouter } from './modules/visitors/visitors.routes';
@@ -77,8 +97,6 @@ import { condoRouter } from './modules/condo/condo.routes';
 import { biRouter } from './modules/bi/bi.routes';
 import { integrationsRouter, developerRouter } from './modules/integrations/integrations.routes';
 import { bmsRouter } from './modules/integrations/bms.routes';
-import { cronJobsRouter } from './modules/system/cronJobs.routes';
-import { cronManager } from './common/cronManager.service';
 
 async function bootstrap() {
   const app = express();
@@ -299,7 +317,6 @@ async function bootstrap() {
 
   // Module 6.3 — Enterprise Integrations
   app.use('/api/v1/integrations', integrationsRouter);
-  app.use('/api/v1/developer/cron-jobs', cronJobsRouter);
   app.use('/api/v1/developer', developerRouter);
   app.use('/api/v1/bms', bmsRouter);
 
@@ -326,15 +343,40 @@ async function bootstrap() {
   startSlaEscalationJob();
   startWorkflowDelayResumeJob();
 
-  // Start notification queue worker (10s interval)
-  try { startNotificationQueueJob(); } catch (e) { logger.warn('Notification queue processor skipped'); }
+  // Start document expiry cron job
+  startDocumentExpiryJob();
+  startKycExpiryJob();
 
-  // Initialize unified dynamic cron manager engine (loads & manages all 20+ PMS jobs)
-  try {
-    await cronManager.init();
-  } catch (e: any) {
-    logger.error('Failed to initialize dynamic cron manager:', e);
-  }
+  // Start lease cron jobs
+  startEscalationJob();
+  startRenewalJob();
+  const { startPhase2CronStubs } = await import('./modules/properties/cron/phase2Crons');
+  startPhase2CronStubs();
+
+  // Start billing cron jobs
+  startDailyBillingJob();
+  startPenaltyCheckJob();
+  startOverdueTransitionJob();
+
+  // Start maintenance cron jobs
+  try { startSlaMonitorJob(); } catch (e) { logger.warn('Maintenance SLA monitor skipped — tables not ready'); }
+  try { startTicketLifecycleJobs(); } catch (e) { logger.warn('Ticket lifecycle crons skipped — tables not ready'); }
+  try { startPmGeneratorJob(); } catch (e) { logger.warn('PM generator cron skipped — tables not ready'); }
+  try { startFacilityAlertJob(); } catch (e) { logger.warn('Facility alert cron skipped — tables not ready'); }
+  try { startHousekeepingTaskCron(); } catch (e) { logger.warn('Housekeeping task cron skipped — tables not ready'); }
+  try { startGtoReminderJob(); } catch (e) { logger.warn('GTO reminder cron skipped — tables not ready'); }
+  try { startCamBillingJob(); } catch (e) { logger.warn('CAM billing cron skipped — tables not ready'); }
+  try { startFootfallSyncJob(); } catch (e) { logger.warn('Footfall sync cron skipped — tables not ready'); }
+  try { startSmartMeterPollingJob(); } catch (e) { logger.warn('Smart meter polling cron skipped — tables not ready'); }
+  try { startWebhookRetryJob(); } catch (e) { logger.warn('Webhook retry cron skipped'); }
+  try { startPermissionOverrideExpiryJob(); } catch (e) { logger.warn('Permission override expiry cron skipped'); }
+
+  // Start notification queue + scheduler cron jobs
+  try { startNotificationQueueJob(); } catch (e) { logger.warn('Notification queue processor skipped'); }
+  try { startScheduledNotificationJob(); } catch (e) { logger.warn('Scheduled notification processor skipped'); }
+
+  // Start CRM cron jobs
+  try { startViewingReminderJob(); } catch (e) { logger.warn('Viewing reminder cron skipped'); }
 
   // Start server
   httpServer.listen(config.port, () => {

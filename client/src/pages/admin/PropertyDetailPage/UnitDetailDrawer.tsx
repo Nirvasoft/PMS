@@ -78,17 +78,35 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [readingValue, setReadingValue] = useState('');
   const [readingStartDate, setReadingStartDate] = useState('');
   const [readingEndDate, setReadingEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [readingFormErrors, setReadingFormErrors] = useState<Record<string, string>>({});
   const [addingCharge, setAddingCharge] = useState(false);
-  const [chargeForm, setChargeForm] = useState({ chargeTypeId: '', amount: '' });
+  const [chargeForm, setChargeForm] = useState<{
+    chargeTypeId: string;
+    calculationType: 'fixed' | 'per_sqft';
+    rate: string;
+    amount: string;
+  }>({ chargeTypeId: '', calculationType: 'fixed', rate: '', amount: '' });
+  const [chargeFormErrors, setChargeFormErrors] = useState<Record<string, string>>({});
   const [savingCharge, setSavingCharge] = useState(false);
   const [editingChargeId, setEditingChargeId] = useState<string | null>(null);
-  const [chargeEditForm, setChargeEditForm] = useState({ chargeTypeId: '', amount: '' });
+  const [chargeEditForm, setChargeEditForm] = useState<{
+    chargeTypeId: string;
+    calculationType: 'fixed' | 'per_sqft';
+    rate: string;
+    amount: string;
+  }>({ chargeTypeId: '', calculationType: 'fixed', rate: '', amount: '' });
+  const [chargeEditFormErrors, setChargeEditFormErrors] = useState<Record<string, string>>({});
   const [savingChargeEdit, setSavingChargeEdit] = useState(false);
 
   // Billing-schedule sync confirm modal
   const [syncConfirmPending, setSyncConfirmPending] = useState<{
-    chargeId: string; chargeTypeId: string; amount: number;
-    oldAmount: number; chargeName: string;
+    chargeId: string;
+    chargeTypeId: string;
+    calculationType: 'fixed' | 'per_sqft';
+    rate: number | null;
+    amount: number;
+    oldAmount: number;
+    chargeName: string;
   } | null>(null);
 
   const { data, isLoading, isError, error } = useGetUnitQuery({ propertyId, unitId });
@@ -144,11 +162,19 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   // ── Edit form state ─────────────────────────
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [editUsePrefix, setEditUsePrefix] = useState(false);
+  const [hasAttemptedEditSave, setHasAttemptedEditSave] = useState(false);
   // True when a floor number is selected in edit mode but has no floor setup entry
   const editFloorHasNoSetup = !!editForm.floorNumber && !floorSetups.find((f) => f.floorNumber === Number(editForm.floorNumber));
 
+  const isEditFloorLabelMissing = hasAttemptedEditSave && !String(editForm.floorLabel ?? '').trim();
+  const isEditUnitNumberMissing = hasAttemptedEditSave && !String(editForm.unitNumber ?? '').trim();
+  const isEditUnitTypeMissing = hasAttemptedEditSave && !String(editForm.unitType ?? '').trim();
+  const isEditCurrencyMissing = hasAttemptedEditSave && !unit?.currency && !String(editForm.currency ?? '').trim();
+  const isEditAreaMissing = hasAttemptedEditSave && (!String(editForm.areaSqft ?? '').trim() || Number(editForm.areaSqft) <= 0);
+
   const startEditing = useCallback(() => {
     if (!unit) return;
+    setHasAttemptedEditSave(false);
     const initFloorSetup = floorSetups.find((f) => f.floorNumber === (unit.floorNumber ?? 0));
     const initPrefix = initFloorSetup?.prefix ?? '';
     setEditUsePrefix(!!(initPrefix && unit.unitNumber?.startsWith(initPrefix)));
@@ -182,11 +208,22 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     setEditing(true);
   }, [unit, floorSetups]);
 
-  const cancelEditing = () => { setEditing(false); setEditForm({}); };
+  const cancelEditing = () => {
+    setEditing(false);
+    setHasAttemptedEditSave(false);
+    setEditForm({});
+  };
 
   const handleSave = async () => {
-    if (!String(editForm.floorLabel ?? '').trim()) {
-      toast.error('Floor label is required');
+    setHasAttemptedEditSave(true);
+    const missingFloorLabel = !String(editForm.floorLabel ?? '').trim();
+    const missingUnitNumber = !String(editForm.unitNumber ?? '').trim();
+    const missingUnitType = !String(editForm.unitType ?? '').trim();
+    const missingCurrency = !unit?.currency && !String(editForm.currency ?? '').trim();
+    const missingArea = !String(editForm.areaSqft ?? '').trim() || Number(editForm.areaSqft) <= 0;
+
+    if (missingFloorLabel || missingUnitNumber || missingUnitType || missingCurrency || missingArea) {
+      toast.error('Please fill in all required fields');
       return;
     }
     try {
@@ -339,7 +376,19 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   };
 
   const handleRecordReading = async () => {
-    if (!readingMeterId || !readingValue) return;
+    if (!readingMeterId) return;
+    const errs: Record<string, string> = {};
+    if (!String(readingValue ?? '').trim() || Number(readingValue) < 0) {
+      errs.readingValue = 'Reading value is required';
+    }
+    if (!readingEndDate) {
+      errs.readingEndDate = 'End Date is required';
+    }
+    if (Object.keys(errs).length > 0) {
+      setReadingFormErrors(errs);
+      return;
+    }
+    setReadingFormErrors({});
     try {
       await updateMeter({ propertyId, unitId, meterId: readingMeterId, data: {
         lastReading: Number(readingValue),
@@ -350,6 +399,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       setReadingMeterId(null);
       setReadingValue('');
       setReadingStartDate('');
+      setReadingFormErrors({});
     } catch (e: any) { toast.error(e?.data?.errors?.[0]?.message || 'Failed'); }
   };
 
@@ -380,27 +430,93 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   };
 
   // ── Unit Charges ─────────────────────────────
+  const unitAreaSqft = Number(unit?.areaSqft || 0);
+  const unitCurrency = unit?.currency || currencyOptions.find((cr) => cr.isBaseCurrency)?.currency || '';
+  const fmtChargeMoney = (val: number | string) => {
+    const formatted = Number(val || 0).toLocaleString();
+    return unitCurrency ? `${unitCurrency} ${formatted}` : formatted;
+  };
+  const computePerSqftAmount = (rateStr: string): string => {
+    if (rateStr === '') return '';
+    const r = Number(rateStr);
+    if (!Number.isFinite(r)) return '';
+    return String(Math.round(r * unitAreaSqft * 100) / 100);
+  };
+
   const handleAddCharge = async () => {
-    if (!chargeForm.chargeTypeId || !chargeForm.amount) return;
+    const isPerSqft = chargeForm.calculationType === 'per_sqft';
+    const errs: Record<string, string> = {};
+    if (!chargeForm.chargeTypeId) errs.chargeTypeId = 'Charge type is required';
+    if (isPerSqft) {
+      if (!String(chargeForm.rate ?? '').trim() || Number(chargeForm.rate) <= 0) {
+        errs.rate = 'Rate / sqft is required';
+      }
+    } else {
+      if (!String(chargeForm.amount ?? '').trim() || Number(chargeForm.amount) <= 0) {
+        errs.amount = 'Amount is required';
+      }
+    }
+    if (Object.keys(errs).length > 0) {
+      setChargeFormErrors(errs);
+      return;
+    }
+    setChargeFormErrors({});
+
+    const rateNum = isPerSqft ? Number(chargeForm.rate) : null;
+    const amountNum = isPerSqft
+      ? Math.round(Number(chargeForm.rate) * unitAreaSqft * 100) / 100
+      : Number(chargeForm.amount);
+
     setSavingCharge(true);
     try {
-      await addUnitCharge({ propertyId, unitId, data: { chargeTypeId: chargeForm.chargeTypeId, amount: Number(chargeForm.amount) } }).unwrap();
+      await addUnitCharge({
+        propertyId,
+        unitId,
+        data: {
+          chargeTypeId: chargeForm.chargeTypeId,
+          calculationType: chargeForm.calculationType,
+          rate: rateNum,
+          amount: amountNum,
+        },
+      }).unwrap();
       toast.success('Charge added');
-      setChargeForm({ chargeTypeId: '', amount: '' });
+      setChargeForm({ chargeTypeId: '', calculationType: 'fixed', rate: '', amount: '' });
+      setChargeFormErrors({});
       setAddingCharge(false);
     } catch (e: any) {
       toast.error(e?.data?.errors?.[0]?.message || 'Failed to add charge');
     } finally { setSavingCharge(false); }
   };
 
-  const handleChargeEdit = (c: { id: string; amount: string; chargeType: { id: string; name: string } }) => {
+  const handleChargeEdit = (c: {
+    id: string;
+    calculationType?: 'fixed' | 'per_sqft';
+    rate?: string | null;
+    amount: string;
+    chargeType: { id: string; name: string };
+  }) => {
+    const calcType = c.calculationType === 'per_sqft' ? 'per_sqft' : 'fixed';
+    const initRate = c.rate != null
+      ? String(Number(c.rate))
+      : (calcType === 'per_sqft' && unitAreaSqft > 0
+          ? String(Math.round((Number(c.amount) / unitAreaSqft) * 100) / 100)
+          : '');
     setEditingChargeId(c.id);
-    setChargeEditForm({ chargeTypeId: c.chargeType.id, amount: c.amount });
+    setChargeEditFormErrors({});
+    setChargeEditForm({
+      chargeTypeId: c.chargeType.id,
+      calculationType: calcType,
+      rate: initRate,
+      amount: String(Number(c.amount)),
+    });
     setAddingCharge(false);
   };
 
   // Executes the actual charge update (called directly or from confirm modal)
-  const executeChargeUpdate = async (chargeId: string, data: { chargeTypeId: string; amount: number; syncSchedules?: boolean }) => {
+  const executeChargeUpdate = async (
+    chargeId: string,
+    data: { chargeTypeId: string; calculationType: 'fixed' | 'per_sqft'; rate: number | null; amount: number; syncSchedules?: boolean },
+  ) => {
     setSavingChargeEdit(true);
     try {
       await updateUnitCharge({ propertyId, unitId, chargeId, data }).unwrap();
@@ -413,9 +529,29 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   };
 
   const handleChargeEditSave = async () => {
-    if (!editingChargeId || !chargeEditForm.chargeTypeId || !chargeEditForm.amount) return;
+    if (!editingChargeId) return;
+    const isPerSqft = chargeEditForm.calculationType === 'per_sqft';
+    const errs: Record<string, string> = {};
+    if (!chargeEditForm.chargeTypeId) errs.chargeTypeId = 'Charge type is required';
+    if (isPerSqft) {
+      if (!String(chargeEditForm.rate ?? '').trim() || Number(chargeEditForm.rate) <= 0) {
+        errs.rate = 'Rate / sqft is required';
+      }
+    } else {
+      if (!String(chargeEditForm.amount ?? '').trim() || Number(chargeEditForm.amount) <= 0) {
+        errs.amount = 'Amount is required';
+      }
+    }
+    if (Object.keys(errs).length > 0) {
+      setChargeEditFormErrors(errs);
+      return;
+    }
+    setChargeEditFormErrors({});
 
-    const newAmount = Number(chargeEditForm.amount);
+    const newRate = isPerSqft ? Number(chargeEditForm.rate) : null;
+    const newAmount = isPerSqft
+      ? Math.round(Number(chargeEditForm.rate) * unitAreaSqft * 100) / 100
+      : Number(chargeEditForm.amount);
     const newChargeTypeId = chargeEditForm.chargeTypeId;
 
     // Find original charge to detect if amount actually changed
@@ -435,6 +571,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       setSyncConfirmPending({
         chargeId: editingChargeId,
         chargeTypeId: newChargeTypeId,
+        calculationType: chargeEditForm.calculationType,
+        rate: newRate,
         amount: newAmount,
         oldAmount: Number(originalCharge?.amount ?? newAmount),
         chargeName,
@@ -443,7 +581,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     }
 
     // No affected schedules — save directly
-    await executeChargeUpdate(editingChargeId, { chargeTypeId: newChargeTypeId, amount: newAmount });
+    await executeChargeUpdate(editingChargeId, {
+      chargeTypeId: newChargeTypeId,
+      calculationType: chargeEditForm.calculationType,
+      rate: newRate,
+      amount: newAmount,
+    });
   };
 
   const handleDeleteCharge = async (chargeId: string) => {
@@ -551,7 +694,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
               <div className="edit-toggle-bar">
                 {editing ? (
                   <>
-                    <button className="btn-save-edit" onClick={handleSave} disabled={saving || !String(editForm.floorLabel ?? '').trim()}>
+                    <button className="btn-save-edit" onClick={handleSave} disabled={saving}>
                       <Check size={13} /> {saving ? 'Saving…' : 'Save'}
                     </button>
                     <button className="btn-cancel-edit" onClick={cancelEditing}>Cancel</button>
@@ -596,9 +739,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                         value={editForm.floorLabel ?? ''}
                         readOnly
                         placeholder=""
+                        className={isEditFloorLabelMissing ? 'input-error' : ''}
                         style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
                         onChange={(e) => ef('floorLabel', e.target.value)}
                       />
+                      {isEditFloorLabelMissing && <span className="field-warn">Floor label is required</span>}
                     </div>
                   </div>
 
@@ -612,7 +757,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                         return (
                           <>
                             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <span>Unit Number</span>
+                              <span>Unit Number *</span>
                               <span style={{ fontSize: '0.7rem', fontWeight: 400, color: fullNum.length >= 15 ? '#ef4444' : '#9ca3af', marginLeft: 'auto', paddingLeft: 8 }}>{fullNum.length}/15</span>
                               {editFloorPrefix && (
                                 <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8, cursor: 'pointer' }}>
@@ -649,17 +794,23 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                               <input
                                 value={editUsePrefix && editFloorPrefix ? suffix : fullNum}
                                 maxLength={editUsePrefix && editFloorPrefix ? maxSuffix : 15}
+                                className={isEditUnitNumberMissing ? 'input-error' : ''}
                                 onChange={(e) => ef('unitNumber', editUsePrefix && editFloorPrefix ? editFloorPrefix + e.target.value : e.target.value)}
                                 style={editUsePrefix && editFloorPrefix ? { paddingLeft: `calc(10px + ${editFloorPrefix.length}ch)` } : {}}
                               />
                             </div>
+                            {isEditUnitNumberMissing && <span className="field-warn">Unit number is required</span>}
                           </>
                         );
                       })()}
                     </div>
                     <div className="ef-field">
-                      <label>Unit Type</label>
-                      <select value={editForm.unitType} onChange={(e) => ef('unitType', e.target.value)}>
+                      <label>Unit Type *</label>
+                      <select
+                        value={editForm.unitType}
+                        className={isEditUnitTypeMissing ? 'input-error' : ''}
+                        onChange={(e) => ef('unitType', e.target.value)}
+                      >
                         {unitTypes.length > 0
                           ? ['residential', 'commercial', 'storage', 'parking'].map((cat) => (
                               <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
@@ -670,12 +821,14 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                             ))
                           : <option value={editForm.unitType}>{editForm.unitType}</option>}
                       </select>
+                      {isEditUnitTypeMissing && <span className="field-warn">Unit type is required</span>}
                     </div>
                     <div className="ef-field">
-                      <label>Currency</label>
+                      <label>Currency *</label>
                       <select
                         value={editForm.currency ?? ''}
                         disabled={!!unit.currency}
+                        className={isEditCurrencyMissing ? 'input-error' : ''}
                         title={unit.currency ? 'Currency is locked once saved and cannot be changed' : ''}
                         style={unit.currency ? { background: 'var(--bg-tertiary)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}}
                         onChange={(e) => ef('currency', e.target.value)}
@@ -687,6 +840,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                           </option>
                         ))}
                       </select>
+                      {isEditCurrencyMissing && <span className="field-warn">Currency is required</span>}
                     </div>
                     <div className="ef-field">
                       <label>Zone</label>
@@ -698,8 +852,22 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   </div>
 
                   <div className="ef-grid">
-                    <EditField label="Area (sqft)" type="number" value={editForm.areaSqft} onChange={efAreaSqft} />
-                    <EditField label="Area (sqm)" type="number" value={editForm.areaSqm} onChange={efAreaSqm} />
+                    <EditField
+                      label="Area (sqft) *"
+                      type="number"
+                      value={editForm.areaSqft}
+                      onChange={efAreaSqft}
+                      hasError={isEditAreaMissing}
+                      error={isEditAreaMissing ? 'Area is required' : undefined}
+                    />
+                    <EditField
+                      label="Area (sqm) *"
+                      type="number"
+                      value={editForm.areaSqm}
+                      onChange={efAreaSqm}
+                      hasError={isEditAreaMissing}
+                      error={isEditAreaMissing ? 'Area is required' : undefined}
+                    />
                     <EditField label="Bedrooms" type="number" value={editForm.bedroomCount} onChange={(v) => ef('bedroomCount', v)} />
                     <EditField label="Bathrooms" type="number" value={editForm.bathroomCount} onChange={(v) => ef('bathroomCount', v)} />
                   </div>
@@ -1017,10 +1185,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                             <span>Record Reading — {m.meterSerialNo}</span>
                           </div>
                           <div className="ef-field full-width">
-                            <label>Reading Value</label>
+                            <label>Reading Value <span className="req-star">*</span></label>
                             <input type="number" step="0.001" value={readingValue}
-                              onChange={(e) => setReadingValue(e.target.value)}
+                              className={readingFormErrors.readingValue ? 'input-error' : ''}
+                              onChange={(e) => { setReadingValue(e.target.value); setReadingFormErrors((p) => ({ ...p, readingValue: '' })); }}
                               placeholder="e.g. 1250.5" autoFocus />
+                            {readingFormErrors.readingValue && <span className="field-warn">{readingFormErrors.readingValue}</span>}
                           </div>
                           <div className="ef-field full-width">
                             <label>Start Date</label>
@@ -1028,13 +1198,15 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                               onChange={(e) => setReadingStartDate(e.target.value)} />
                           </div>
                           <div className="ef-field full-width">
-                            <label>End Date</label>
+                            <label>End Date <span className="req-star">*</span></label>
                             <input type="date" value={readingEndDate}
-                              onChange={(e) => setReadingEndDate(e.target.value)} />
+                              className={readingFormErrors.readingEndDate ? 'input-error' : ''}
+                              onChange={(e) => { setReadingEndDate(e.target.value); setReadingFormErrors((p) => ({ ...p, readingEndDate: '' })); }} />
+                            {readingFormErrors.readingEndDate && <span className="field-warn">{readingFormErrors.readingEndDate}</span>}
                           </div>
                           <div className="form-row">
                             <button className="btn-primary-sm" onClick={handleRecordReading}><Check size={12} /> Save</button>
-                            <button className="btn-ghost-sm" onClick={() => setReadingMeterId(null)}>Cancel</button>
+                            <button className="btn-ghost-sm" onClick={() => { setReadingMeterId(null); setReadingFormErrors({}); }}>Cancel</button>
                           </div>
                         </div>
                       ) : (
@@ -1090,6 +1262,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                               <button className="meter-action-btn" title="Record Reading"
                                 onClick={() => {
                                   setReadingMeterId(m.id);
+                                  setReadingFormErrors({});
                                   setReadingValue(m.lastReading != null ? String(m.lastReading) : '');
                                   setReadingStartDate(m.lastReadingStartDate ? m.lastReadingStartDate.split('T')[0] : '');
                                   setReadingEndDate(m.lastReadingDate ? m.lastReadingDate.split('T')[0] : new Date().toISOString().split('T')[0]);
@@ -1121,7 +1294,14 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
               {/* Add Charge button */}
               <PermissionGuard permission="unit.update">
-                <button className="btn-add-meter" onClick={() => { setAddingCharge(!addingCharge); setChargeForm({ chargeTypeId: '', amount: '' }); }}>
+                <button
+                  className="btn-add-meter"
+                  onClick={() => {
+                    setAddingCharge(!addingCharge);
+                    setChargeFormErrors({});
+                    setChargeForm({ chargeTypeId: '', calculationType: 'fixed', rate: '', amount: '' });
+                  }}
+                >
                   <Plus size={13} /> Add Charge
                 </button>
               </PermissionGuard>
@@ -1132,31 +1312,104 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   <div className="charge-inline-fields">
                     <select
                       value={chargeForm.chargeTypeId}
-                      onChange={(e) => setChargeForm({ ...chargeForm, chargeTypeId: e.target.value })}
+                      className={chargeFormErrors.chargeTypeId ? 'input-error' : ''}
+                      onChange={(e) => {
+                        setChargeForm({ ...chargeForm, chargeTypeId: e.target.value });
+                        setChargeFormErrors((p) => ({ ...p, chargeTypeId: '' }));
+                      }}
                     >
                       <option value="">Charge type…</option>
                       {chargeTypes.map((ct) => (
                         <option key={ct.id} value={ct.id}>{ct.name}</option>
                       ))}
                     </select>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Amount"
-                      value={chargeForm.amount}
-                      onChange={(e) => setChargeForm({ ...chargeForm, amount: e.target.value })}
-                    />
+                    <select
+                      className="charge-calc-select"
+                      value={chargeForm.calculationType}
+                      onChange={(e) => {
+                        const nextCalc = e.target.value as 'fixed' | 'per_sqft';
+                        setChargeFormErrors((p) => ({ ...p, rate: '', amount: '' }));
+                        if (nextCalc === 'per_sqft') {
+                          const nextRate = chargeForm.rate || chargeForm.amount;
+                          setChargeForm({
+                            ...chargeForm,
+                            calculationType: 'per_sqft',
+                            rate: nextRate,
+                            amount: computePerSqftAmount(nextRate),
+                          });
+                        } else {
+                          setChargeForm({
+                            ...chargeForm,
+                            calculationType: 'fixed',
+                            amount: chargeForm.amount || chargeForm.rate,
+                          });
+                        }
+                      }}
+                    >
+                      <option value="fixed">Fixed</option>
+                      <option value="per_sqft">Per Sqft</option>
+                    </select>
+                    {chargeForm.calculationType === 'per_sqft' ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={unitCurrency ? `Rate / sqft (${unitCurrency})` : 'Rate / sqft'}
+                        value={chargeForm.rate}
+                        className={chargeFormErrors.rate ? 'input-error' : ''}
+                        onChange={(e) => {
+                          const nextRate = e.target.value;
+                          setChargeFormErrors((p) => ({ ...p, rate: '' }));
+                          setChargeForm({
+                            ...chargeForm,
+                            rate: nextRate,
+                            amount: computePerSqftAmount(nextRate),
+                          });
+                        }}
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={unitCurrency ? `Amount (${unitCurrency})` : 'Amount'}
+                        value={chargeForm.amount}
+                        className={chargeFormErrors.amount ? 'input-error' : ''}
+                        onChange={(e) => {
+                          setChargeFormErrors((p) => ({ ...p, amount: '' }));
+                          setChargeForm({ ...chargeForm, amount: e.target.value });
+                        }}
+                      />
+                    )}
                   </div>
+                  {(chargeFormErrors.chargeTypeId || chargeFormErrors.rate || chargeFormErrors.amount) && (
+                    <span className="field-warn">
+                      {chargeFormErrors.chargeTypeId || chargeFormErrors.rate || chargeFormErrors.amount}
+                    </span>
+                  )}
+                  {chargeForm.calculationType === 'per_sqft' && (
+                    <div className="charge-calc-preview">
+                      {unitAreaSqft > 0 ? (
+                        <span>
+                          Total Amount: <strong>{fmtChargeMoney(chargeForm.amount || 0)}</strong>
+                          <span className="charge-calc-sub"> ({fmtChargeMoney(chargeForm.rate || 0)} / sqft × {unitAreaSqft.toLocaleString()} sqft)</span>
+                        </span>
+                      ) : (
+                        <span className="charge-calc-warn">
+                          Unit Area (sqft) is 0 — please set Area (sqft) in the Info tab
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="charge-inline-actions">
                     <button
                       className="btn-primary-sm"
                       onClick={handleAddCharge}
-                      disabled={!chargeForm.chargeTypeId || !chargeForm.amount || savingCharge}
+                      disabled={savingCharge}
                     >
                       <Check size={12} /> {savingCharge ? 'Saving…' : 'Save'}
                     </button>
-                    <button className="btn-ghost-sm" onClick={() => setAddingCharge(false)}>Cancel</button>
+                    <button className="btn-ghost-sm" onClick={() => { setAddingCharge(false); setChargeFormErrors({}); }}>Cancel</button>
                   </div>
                 </div>
               )}
@@ -1174,39 +1427,120 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                           <select
                             value={chargeEditForm.chargeTypeId}
                             disabled
-                            style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                            style={{ cursor: 'not-allowed' }}
                           >
                             <option value="">Charge type…</option>
                             {chargeTypes.map((ct) => (
                               <option key={ct.id} value={ct.id}>{ct.name}</option>
                             ))}
                           </select>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="Amount"
-                            value={chargeEditForm.amount}
-                            onChange={(e) => setChargeEditForm({ ...chargeEditForm, amount: e.target.value })}
-                          />
+                          <select
+                            className="charge-calc-select"
+                            value={chargeEditForm.calculationType}
+                            onChange={(e) => {
+                              const nextCalc = e.target.value as 'fixed' | 'per_sqft';
+                              setChargeEditFormErrors((p) => ({ ...p, rate: '', amount: '' }));
+                              if (nextCalc === 'per_sqft') {
+                                const nextRate = chargeEditForm.rate || chargeEditForm.amount;
+                                setChargeEditForm({
+                                  ...chargeEditForm,
+                                  calculationType: 'per_sqft',
+                                  rate: nextRate,
+                                  amount: computePerSqftAmount(nextRate),
+                                });
+                              } else {
+                                setChargeEditForm({
+                                  ...chargeEditForm,
+                                  calculationType: 'fixed',
+                                  amount: chargeEditForm.amount || chargeEditForm.rate,
+                                });
+                              }
+                            }}
+                          >
+                            <option value="fixed">Fixed</option>
+                            <option value="per_sqft">Per Sqft</option>
+                          </select>
+                          {chargeEditForm.calculationType === 'per_sqft' ? (
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder={unitCurrency ? `Rate / sqft (${unitCurrency})` : 'Rate / sqft'}
+                              value={chargeEditForm.rate}
+                              className={chargeEditFormErrors.rate ? 'input-error' : ''}
+                              onChange={(e) => {
+                                const nextRate = e.target.value;
+                                setChargeEditFormErrors((p) => ({ ...p, rate: '' }));
+                                setChargeEditForm({
+                                  ...chargeEditForm,
+                                  rate: nextRate,
+                                  amount: computePerSqftAmount(nextRate),
+                                });
+                              }}
+                            />
+                          ) : (
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder={unitCurrency ? `Amount (${unitCurrency})` : 'Amount'}
+                              value={chargeEditForm.amount}
+                              className={chargeEditFormErrors.amount ? 'input-error' : ''}
+                              onChange={(e) => {
+                                setChargeEditFormErrors((p) => ({ ...p, amount: '' }));
+                                setChargeEditForm({ ...chargeEditForm, amount: e.target.value });
+                              }}
+                            />
+                          )}
                         </div>
+                        {(chargeEditFormErrors.chargeTypeId || chargeEditFormErrors.rate || chargeEditFormErrors.amount) && (
+                          <span className="field-warn">
+                            {chargeEditFormErrors.chargeTypeId || chargeEditFormErrors.rate || chargeEditFormErrors.amount}
+                          </span>
+                        )}
+                        {chargeEditForm.calculationType === 'per_sqft' && (
+                          <div className="charge-calc-preview">
+                            {unitAreaSqft > 0 ? (
+                              <span>
+                                Total Amount: <strong>{fmtChargeMoney(chargeEditForm.amount || 0)}</strong>
+                                <span className="charge-calc-sub"> ({fmtChargeMoney(chargeEditForm.rate || 0)} / sqft × {unitAreaSqft.toLocaleString()} sqft)</span>
+                              </span>
+                            ) : (
+                              <span className="charge-calc-warn">
+                                Unit Area (sqft) is 0 — please set Area (sqft) in the Info tab
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <div className="charge-inline-actions">
                           <button
                             className="btn-primary-sm"
                             onClick={handleChargeEditSave}
-                            disabled={!chargeEditForm.chargeTypeId || !chargeEditForm.amount || savingChargeEdit}
+                            disabled={savingChargeEdit}
                           >
                             <Check size={12} /> {savingChargeEdit ? 'Saving…' : 'Save'}
                           </button>
-                          <button className="btn-ghost-sm" onClick={() => setEditingChargeId(null)}>Cancel</button>
+                          <button className="btn-ghost-sm" onClick={() => { setEditingChargeId(null); setChargeEditFormErrors({}); }}>Cancel</button>
                         </div>
                       </div>
                     ) : (
                       /* ── Normal Card View ── */
                       <>
                         <div className="charge-card-info">
-                          <span className="charge-card-name">{c.chargeType.name}</span>
-                          <span className="charge-card-amount">{Number(c.amount).toLocaleString()}</span>
+                          <div className="charge-card-header-row">
+                            <span className="charge-card-name">{c.chargeType.name}</span>
+                            <span className={`charge-calc-badge ${c.calculationType === 'per_sqft' ? 'per-sqft' : 'fixed'}`}>
+                              {c.calculationType === 'per_sqft' ? 'Per Sqft' : 'Fixed'}
+                            </span>
+                          </div>
+                          <div className="charge-card-amount-row">
+                            <span className="charge-card-amount">{fmtChargeMoney(c.amount)}</span>
+                            {c.calculationType === 'per_sqft' && (
+                              <span className="charge-card-formula">
+                                ({fmtChargeMoney(c.rate ?? 0)} / sqft × {unitAreaSqft.toLocaleString()} sqft)
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <PermissionGuard permission="unit.update">
                           <div className="charge-actions">
@@ -1398,8 +1732,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
             const chargeEvents: HistoryEvent[] = chargeHistory.map((h) => {
               const isModified = h.action === 'modified';
-              const amountNew = Number(h.amount).toLocaleString();
-              const amountOld = h.oldAmount ? Number(h.oldAmount).toLocaleString() : null;
+              const amountNew = fmtChargeMoney(h.amount);
+              const amountOld = h.oldAmount ? fmtChargeMoney(h.oldAmount) : null;
               return {
                 id: `charge-${h.id}`,
                 at: h.changedAt,
@@ -1566,7 +1900,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
       {/* ── Billing Schedule Sync Confirm Modal ── */}
       {syncConfirmPending && (() => {
-        const { chargeId, chargeTypeId, amount, chargeName } = syncConfirmPending;
+        const { chargeId, chargeTypeId, calculationType, rate, amount, chargeName } = syncConfirmPending;
         const affectedSchedules = unitBillingSchedules.filter(
           (s: any) => s.status === 'active' && s.chargeType?.id === chargeTypeId
         );
@@ -1593,9 +1927,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                           <span className="sync-schedule-tenant">{tenantName}</span>
                         </div>
                         <div className="sync-schedule-amount">
-                          <span className="sync-amount-old">{Number(s.amount).toLocaleString()}</span>
+                          <span className="sync-amount-old">{fmtChargeMoney(s.amount)}</span>
                           <span className="sync-amount-arrow">→</span>
-                          <span className="sync-amount-new">{amount.toLocaleString()}</span>
+                          <span className="sync-amount-new">{fmtChargeMoney(amount)}</span>
                         </div>
                       </div>
                     );
@@ -1607,14 +1941,14 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                 <button
                   className="btn-ghost"
                   disabled={savingChargeEdit}
-                  onClick={() => executeChargeUpdate(chargeId, { chargeTypeId, amount, syncSchedules: false })}
+                  onClick={() => executeChargeUpdate(chargeId, { chargeTypeId, calculationType, rate, amount, syncSchedules: false })}
                 >
                   Update Charge Only
                 </button>
                 <button
                   className="btn-primary"
                   disabled={savingChargeEdit}
-                  onClick={() => executeChargeUpdate(chargeId, { chargeTypeId, amount, syncSchedules: true })}
+                  onClick={() => executeChargeUpdate(chargeId, { chargeTypeId, calculationType, rate, amount, syncSchedules: true })}
                 >
                   {savingChargeEdit ? 'Saving…' : 'Update Billing Schedules Too'}
                 </button>
@@ -1743,8 +2077,8 @@ function InfoItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function EditField({ label, value, onChange, type = 'text', placeholder, maxLength }: {
-  label: string; value: string | number; onChange: (v: string) => void; type?: string; placeholder?: string; maxLength?: number;
+function EditField({ label, value, onChange, type = 'text', placeholder, maxLength, hasError, error }: {
+  label: string; value: string | number; onChange: (v: string) => void; type?: string; placeholder?: string; maxLength?: number; hasError?: boolean; error?: string;
 }) {
   return (
     <div className="ef-field">
@@ -1754,8 +2088,10 @@ function EditField({ label, value, onChange, type = 'text', placeholder, maxLeng
         value={value}
         placeholder={placeholder}
         maxLength={maxLength}
+        className={hasError ? 'input-error' : ''}
         onChange={(e) => onChange(e.target.value)}
       />
+      {error && <span className="field-warn">{error}</span>}
     </div>
   );
 }

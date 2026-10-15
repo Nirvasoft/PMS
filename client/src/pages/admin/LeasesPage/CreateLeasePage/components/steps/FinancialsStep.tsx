@@ -93,6 +93,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
       : skipToken,
   );
   const unitCharges = unitChargesData?.data || [];
+  const unitAreaSqft = Number(unitData?.data?.areaSqft || 0);
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const chargeTypes = chargeTypesData?.data || [];
   const chargeTypeName = (id: string) =>
@@ -107,7 +108,15 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
     if (!form.unitId || !unitChargesData) { return; }
     if (seededForUnit.current === form.unitId) return;
     seededForUnit.current = form.unitId;
-    set('leaseCharges', unitCharges.map((c) => ({ chargeTypeId: c.chargeType.id, amount: Number(c.amount).toFixed(2) })));
+    set(
+      'leaseCharges',
+      unitCharges.map((c) => ({
+        chargeTypeId: c.chargeType.id,
+        amount: Number(c.amount).toFixed(2),
+        calculationType: c.calculationType || 'fixed',
+        rate: c.rate != null ? String(Number(c.rate)) : null,
+      })),
+    );
   }, [form.unitId, unitChargesData]);
   useEffect(() => {
     if (!form.unitId) seededForUnit.current = null;
@@ -333,28 +342,47 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
 
       {/* ── Lease Charges ── */}
       {hasCharges && (
-        <div className="unit-charges-panel" style={{ marginTop: 12, maxHeight: 160, overflowY: 'auto' }}>
+        <div className="unit-charges-panel" style={{ marginTop: 12, maxHeight: 180, overflowY: 'auto' }}>
           <div className="unit-charges-panel-head" style={{ display: 'none' }}>Charges <span className="optional">(optional)</span></div>
           <table className="charges-table">
             <thead>
-              <tr><th>Charge</th><th className="text-right">Amount</th></tr>
+              <tr>
+                <th>Charge</th>
+                <th>Calculation Type</th>
+                <th className="text-right">Amount</th>
+              </tr>
             </thead>
             <tbody>
-              {form.leaseCharges.map((c) => (
-                <tr key={c.chargeTypeId}>
-                  <td>{chargeTypeName(c.chargeTypeId)}</td>
-                  <td className="text-right">
-                    <input
-                      className="charge-amount-input"
-                      type="text"
-                      inputMode="decimal"
-                      value={formatMoneyDisplay(c.amount)}
-                      onChange={(e) => editChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
-                      onBlur={(e) => commitChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
-                    />
-                  </td>
-                </tr>
-              ))}
+              {form.leaseCharges.map((c) => {
+                const uc = unitCharges.find((u) => u.chargeType.id === c.chargeTypeId);
+                const calcType = (c.calculationType || uc?.calculationType || 'fixed') === 'per_sqft' ? 'per_sqft' : 'fixed';
+                const rateVal = c.rate ?? (uc?.rate != null ? String(Number(uc.rate)) : null);
+                return (
+                  <tr key={c.chargeTypeId}>
+                    <td>{chargeTypeName(c.chargeTypeId)}</td>
+                    <td>
+                      <span className={`lease-charge-calc-badge ${calcType === 'per_sqft' ? 'per-sqft' : 'fixed'}`}>
+                        {calcType === 'per_sqft' ? 'Per Sqft' : 'Fixed'}
+                      </span>
+                      {calcType === 'per_sqft' && rateVal != null && (
+                        <span className="lease-charge-calc-formula">
+                          ({form.currency ? `${form.currency} ` : ''}{Number(rateVal).toLocaleString()} / sqft{unitAreaSqft > 0 ? ` × ${unitAreaSqft.toLocaleString()} sqft` : ''})
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-right">
+                      <input
+                        className="charge-amount-input"
+                        type="text"
+                        inputMode="decimal"
+                        value={formatMoneyDisplay(c.amount)}
+                        onChange={(e) => editChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
+                        onBlur={(e) => commitChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

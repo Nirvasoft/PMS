@@ -197,6 +197,8 @@ export interface UnitStats {
 export interface UnitCharge {
   id: string;
   unitId: string;
+  calculationType: 'fixed' | 'per_sqft';
+  rate: string | null;
   amount: string;
   chargeType: { id: string; code: string; name: string; category: string };
   createdAt: string;
@@ -359,7 +361,7 @@ export const unitsApi = createApi({
     }),
     updateUnit: builder.mutation<ApiResponse<UnitDetail>, { propertyId: string; unitId: string; data: Partial<CreateUnitDto> }>({
       query: ({ propertyId, unitId, data }) => ({ url: `/properties/${propertyId}/units/${unitId}`, method: 'PUT', body: data }),
-      invalidatesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }, 'Units', 'FloorPlan'],
+      invalidatesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }, { type: 'UnitCharges', id: unitId }, 'Units', 'FloorPlan'],
     }),
     deleteUnit: builder.mutation<void, { propertyId: string; unitId: string }>({
       query: ({ propertyId, unitId }) => ({ url: `/properties/${propertyId}/units/${unitId}`, method: 'DELETE' }),
@@ -453,11 +455,11 @@ export const unitsApi = createApi({
       query: ({ propertyId, unitId }) => `/properties/${propertyId}/units/${unitId}/charges`,
       providesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }],
     }),
-    addUnitCharge: builder.mutation<ApiResponse<UnitCharge>, { propertyId: string; unitId: string; data: { chargeTypeId: string; amount: number } }>({
+    addUnitCharge: builder.mutation<ApiResponse<UnitCharge>, { propertyId: string; unitId: string; data: { chargeTypeId: string; calculationType?: 'fixed' | 'per_sqft'; rate?: number | null; amount: number } }>({
       query: ({ propertyId, unitId, data }) => ({ url: `/properties/${propertyId}/units/${unitId}/charges`, method: 'POST', body: data }),
       invalidatesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }, { type: 'Units', id: unitId }],
     }),
-    updateUnitCharge: builder.mutation<ApiResponse<UnitCharge>, { propertyId: string; unitId: string; chargeId: string; data: { chargeTypeId?: string; amount?: number; syncSchedules?: boolean } }>({
+    updateUnitCharge: builder.mutation<ApiResponse<UnitCharge>, { propertyId: string; unitId: string; chargeId: string; data: { chargeTypeId?: string; calculationType?: 'fixed' | 'per_sqft'; rate?: number | null; amount?: number; syncSchedules?: boolean } }>({
       query: ({ propertyId, unitId, chargeId, data }) => ({ url: `/properties/${propertyId}/units/${unitId}/charges/${chargeId}`, method: 'PUT', body: data }),
       invalidatesTags: (_, __, { unitId }) => [{ type: 'UnitCharges', id: unitId }, { type: 'Units', id: unitId }],
     }),

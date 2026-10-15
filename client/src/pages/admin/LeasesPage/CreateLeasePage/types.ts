@@ -108,7 +108,7 @@ export interface FormState {
   rentAmount: string; currency: string; securityDeposit: string;
   escalationType: string; escalationValue: string; escalationFrequency: string;
   escalationMonth: string; escalationDay: string;
-  leaseCharges: { chargeTypeId: string; amount: string }[];
+  leaseCharges: { chargeTypeId: string; amount: string; calculationType?: 'fixed' | 'per_sqft'; rate?: string | null }[];
   clauses: { title: string; content: string }[];
   specialConditions: string; notes: string;
   rentalAgreement: RentalAgreement;

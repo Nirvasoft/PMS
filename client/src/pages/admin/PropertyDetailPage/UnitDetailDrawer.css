@@ -137,13 +137,17 @@
 }
 
 /* Validation styles */
-.req-star { color: #e74c3c; margin-left: 1px; }
+.req-star { color: #ef4444; margin-left: 1px; }
 .field-warn {
   display: flex; align-items: center; gap: 4px;
-  font-size: 0.68rem; color: #f39c12; margin-top: 2px;
+  font-size: 0.68rem; color: #ef4444; margin-top: 2px;
 }
 .field-warn::before { content: '⚠'; font-size: 0.65rem; }
-.input-error { border-color: #e74c3c !important; }
+.input-error,
+[data-theme="light"] .input-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.16) !important;
+}
 
 .meter-form {
   display: flex; flex-direction: column; gap: 6px;
@@ -351,8 +355,9 @@
   color: var(--text-muted);
 }
 [data-theme="light"] .drawer-tabs button.active {
-  color: #6c5ce7;
-  border-bottom-color: #6c5ce7;
+  color: var(--accent, #2e6b48);
+  border-bottom-color: var(--accent, #2e6b48);
+  font-weight: 700;
 }
 
 [data-theme="light"] .info-section h5 {
@@ -364,17 +369,26 @@
 }
 
 [data-theme="light"] .amenity-tag {
-  background: rgba(108,92,231,0.08);
-  color: #6c5ce7;
+  background: rgba(46, 107, 72, 0.1);
+  color: var(--accent, #2e6b48);
 }
 
-/* Meters */
+/* Meters & Charges Buttons */
 [data-theme="light"] .btn-add-meter {
-  background: rgba(0,0,0,0.03);
-  border-color: rgba(0,0,0,0.1);
+  background: rgba(46, 107, 72, 0.08);
+  border-color: rgba(46, 107, 72, 0.25);
+  color: var(--accent, #2e6b48);
+  font-weight: 600;
 }
 [data-theme="light"] .btn-add-meter:hover {
-  background: rgba(0,0,0,0.06);
+  background: rgba(46, 107, 72, 0.14);
+}
+[data-theme="light"] .btn-primary-sm {
+  background: var(--accent, #2e6b48);
+  color: #ffffff;
+}
+[data-theme="light"] .btn-primary-sm:hover:not(:disabled) {
+  background: #24583a;
 }
 
 [data-theme="light"] .meter-form {
@@ -415,7 +429,18 @@
   border-color: rgba(0,0,0,0.12);
 }
 [data-theme="light"] .meter-icon {
-  background: rgba(108,92,231,0.1);
+  background: rgba(46, 107, 72, 0.1);
+  color: var(--accent, #2e6b48);
+}
+[data-theme="light"] .meter-action-btn {
+  background: rgba(46, 107, 72, 0.1);
+  color: var(--accent, #2e6b48);
+}
+[data-theme="light"] .meter-action-btn:hover {
+  background: rgba(46, 107, 72, 0.18);
+}
+[data-theme="light"] .meter-checkbox input[type="checkbox"] {
+  accent-color: var(--accent, #2e6b48);
 }
 
 [data-theme="light"] .meter-delete {
@@ -428,6 +453,9 @@
 }
 [data-theme="light"] .history-dot-sm {
   border-color: rgba(255,255,255,0.8);
+}
+[data-theme="light"] .history-dot-meter {
+  background: var(--accent, #2e6b48);
 }
 
 [data-theme="light"] .smart-badge {
@@ -495,6 +523,10 @@
 }
 [data-theme="light"] .lease-card:hover { border-color: rgba(0,0,0,0.14); }
 [data-theme="light"] .lease-card.active { border-left-color: #059669; }
+[data-theme="light"] .lease-term {
+  background: rgba(46, 107, 72, 0.1);
+  color: var(--accent, #2e6b48);
+}
 
 /* Drawer overlay */
 [data-theme="light"] .drawer-overlay {
@@ -694,12 +726,20 @@
    LIGHT MODE — Edit Form + Floor Plan
    ═══════════════════════════════════════════════ */
 [data-theme="light"] .btn-start-edit {
-  border-color: rgba(108,92,231,0.25);
-  background: rgba(108,92,231,0.06);
-  color: #6c5ce7;
+  border-color: rgba(46, 107, 72, 0.28);
+  background: rgba(46, 107, 72, 0.08);
+  color: var(--accent, #2e6b48);
 }
 [data-theme="light"] .btn-start-edit:hover {
-  background: rgba(108,92,231,0.12);
+  background: rgba(46, 107, 72, 0.15);
+  color: var(--accent, #2e6b48);
+}
+[data-theme="light"] .btn-save-edit {
+  background: var(--accent, #2e6b48);
+  color: #ffffff;
+}
+[data-theme="light"] .btn-save-edit:hover:not(:disabled) {
+  background: #24583a;
 }
 [data-theme="light"] .btn-cancel-edit {
   border-color: rgba(0,0,0,0.1);
@@ -732,11 +772,11 @@
   background: rgba(0,0,0,0.02);
   color: var(--text-muted);
 }
-[data-theme="light"] .amenity-toggle:hover { border-color: rgba(108,92,231,0.25); }
+[data-theme="light"] .amenity-toggle:hover { border-color: rgba(46, 107, 72, 0.3); }
 [data-theme="light"] .amenity-toggle.active {
-  background: rgba(108,92,231,0.08);
-  border-color: rgba(108,92,231,0.3);
-  color: #6c5ce7;
+  background: rgba(46, 107, 72, 0.1);
+  border-color: rgba(46, 107, 72, 0.35);
+  color: var(--accent, #2e6b48);
 }
 
 [data-theme="light"] .fp-image {
@@ -747,15 +787,19 @@
   background: rgba(0,0,0,0.02);
   border-color: rgba(0,0,0,0.08);
 }
+[data-theme="light"] .fp-open-link {
+  color: var(--accent, #2e6b48);
+}
 [data-theme="light"] .btn-fp-replace,
 [data-theme="light"] .btn-fp-upload {
-  border-color: rgba(108,92,231,0.2);
-  background: rgba(108,92,231,0.06);
-  color: #6c5ce7;
+  border-color: rgba(46, 107, 72, 0.25);
+  background: rgba(46, 107, 72, 0.08);
+  color: var(--accent, #2e6b48);
 }
 [data-theme="light"] .btn-fp-replace:hover,
 [data-theme="light"] .btn-fp-upload:hover {
-  background: rgba(108,92,231,0.12);
+  background: rgba(46, 107, 72, 0.15);
+  color: var(--accent, #2e6b48);
 }
 
 /* ═══════════════════════════════════════════════
@@ -821,9 +865,42 @@ textarea.reason-error {
   justify-content: space-between;
   gap: 10px;
 }
-.charge-card-info { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.charge-card-info { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.charge-card-header-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .charge-card-name { font-size: 0.83rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.charge-calc-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+.charge-calc-badge.fixed {
+  background: rgba(148, 163, 184, 0.14);
+  color: #94a3b8;
+}
+.charge-calc-badge.per-sqft {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+}
+.charge-card-amount-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 .charge-card-amount { font-size: 0.78rem; color: #a29bfe; font-weight: 700; }
+.charge-card-formula {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
 
 /* Vertical icon stack — mirrors .meter-actions */
 .charge-actions {
@@ -860,6 +937,10 @@ textarea.reason-error {
   font-size: 0.76rem;
   outline: none;
 }
+.charge-inline-fields select.charge-calc-select {
+  flex: 0 0 88px;
+  width: 88px;
+}
 .charge-inline-fields input[type="number"] {
   width: 90px;
   flex-shrink: 0;
@@ -875,9 +956,29 @@ textarea.reason-error {
 .charge-inline-fields input[type="number"]:focus {
   border-color: rgba(108,92,231,0.5);
 }
+.charge-inline-fields select:disabled {
+  opacity: 0.65;
+}
 .charge-inline-fields select option {
   background: #1a1f2e;
   color: #ffffff;
+}
+.charge-calc-preview {
+  font-size: 0.72rem;
+  color: var(--text-secondary, #cbd5e1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.charge-calc-preview strong {
+  color: #34d399;
+}
+.charge-calc-sub {
+  color: var(--text-muted);
+}
+.charge-calc-warn {
+  color: #f59e0b;
 }
 .charge-inline-actions {
   display: flex;
@@ -894,7 +995,23 @@ textarea.reason-error {
   border-color: rgba(0, 0, 0, 0.12);
 }
 [data-theme="light"] .charge-card-amount {
-  color: #6c5ce7;
+  color: #111827;
+}
+[data-theme="light"] .charge-calc-badge.fixed {
+  background: rgba(15, 23, 42, 0.07);
+  color: #475569;
+}
+[data-theme="light"] .charge-calc-badge.per-sqft {
+  background: rgba(5, 150, 105, 0.12);
+  color: #059669;
+}
+[data-theme="light"] .charge-calc-preview {
+  background: rgba(5, 150, 105, 0.07);
+  border-color: rgba(5, 150, 105, 0.22);
+  color: var(--text-primary);
+}
+[data-theme="light"] .charge-calc-preview strong {
+  color: #059669;
 }
 
 [data-theme="light"] .charge-inline-form {
@@ -917,8 +1034,12 @@ textarea.reason-error {
   color: var(--text-primary);
 }
 [data-theme="light"] .charge-inline-fields select:disabled {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--text-muted);
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #111827;
+  -webkit-text-fill-color: #111827;
+  opacity: 1;
+  font-weight: 500;
 }
 
 /* ── Billing Schedule Sync Confirm Modal ── */

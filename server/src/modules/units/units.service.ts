@@ -300,6 +300,7 @@ export class UnitsService {
     autoConvertArea(unitData);
 
     if (!unitData.currency) throw new AppError(400, 'CURRENCY_REQUIRED', 'Currency is required');
+    if (!unitData.areaSqft || Number(unitData.areaSqft) <= 0) throw new AppError(400, 'AREA_REQUIRED', 'Area is required');
 
     // Check unique (case-insensitive)
     const existing = await prisma.unit.findFirst({ where: { unitNumber: { equals: unitData.unitNumber as string, mode: 'insensitive' }, propertyId, deletedAt: null } });
@@ -464,7 +465,27 @@ export class UnitsService {
       if (conflict) throw new AppError(409, 'UNIT_NUMBER_TAKEN', `Unit number "${unitData.unitNumber}" already exists`);
     }
 
-    return prisma.unit.update({ where: { id: unitId }, data: unitData as any });
+    const updatedUnit = await prisma.unit.update({ where: { id: unitId }, data: unitData as any });
+
+    // Recalculate any per_sqft unit charges when areaSqft changes
+    if (unitData.areaSqft !== undefined && Number(unitData.areaSqft) !== Number(unit.areaSqft)) {
+      const newArea = Number(unitData.areaSqft || 0);
+      const perSqftCharges = await prisma.unitCharge.findMany({
+        where: { unitId, calculationType: 'per_sqft' },
+      });
+      await Promise.all(
+        perSqftCharges.map((uc) => {
+          const rateVal = uc.rate != null ? Number(uc.rate) : Number(uc.amount);
+          const newAmount = Math.round(rateVal * newArea * 100) / 100;
+          return prisma.unitCharge.update({
+            where: { id: uc.id },
+            data: { amount: newAmount },
+          });
+        })
+      );
+    }
+
+    return updatedUnit;
   }
 
   // ── Status change ──────────────────────────
@@ -863,15 +884,32 @@ export class UnitChargesService {
     });
   }
 
-  async create(unitId: string, dto: { chargeTypeId: string; amount: number }, userId: string) {
+  async create(
+    unitId: string,
+    dto: { chargeTypeId: string; calculationType?: 'fixed' | 'per_sqft'; rate?: number | null; amount: number },
+    userId: string,
+  ) {
     const chargeType = await prisma.chargeType.findUnique({ where: { id: dto.chargeTypeId } });
     if (!chargeType) throw new AppError(404, 'NOT_FOUND', 'Charge type not found');
 
-    const unit = await prisma.unit.findUnique({ where: { id: unitId }, select: { id: true } });
+    const unit = await prisma.unit.findUnique({ where: { id: unitId }, select: { id: true, areaSqft: true } });
     if (!unit) throw new AppError(404, 'NOT_FOUND', 'Unit not found');
 
+    const calcType = dto.calculationType === 'per_sqft' ? 'per_sqft' : 'fixed';
+    const areaSqft = Number(unit.areaSqft || 0);
+    const rateVal = dto.rate != null ? Number(dto.rate) : Number(dto.amount);
+    const computedAmount = calcType === 'per_sqft'
+      ? Math.round(rateVal * areaSqft * 100) / 100
+      : Number(dto.amount);
+
     const charge = await prisma.unitCharge.create({
-      data: { unitId, chargeTypeId: dto.chargeTypeId, amount: dto.amount },
+      data: {
+        unitId,
+        chargeTypeId: dto.chargeTypeId,
+        calculationType: calcType,
+        rate: calcType === 'per_sqft' ? rateVal : null,
+        amount: computedAmount,
+      },
       include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
     });
 
@@ -882,7 +920,7 @@ export class UnitChargesService {
         chargeId: charge.id,
         action: 'added',
         chargeTypeId: dto.chargeTypeId,
-        amount: dto.amount,
+        amount: computedAmount,
         changedBy: userId,
       },
     });
@@ -893,7 +931,7 @@ export class UnitChargesService {
   async update(
     unitId: string,
     chargeId: string,
-    dto: { chargeTypeId?: string; amount?: number; syncSchedules?: boolean },
+    dto: { chargeTypeId?: string; calculationType?: 'fixed' | 'per_sqft'; rate?: number | null; amount?: number; syncSchedules?: boolean },
     userId: string,
   ) {
     const charge = await prisma.unitCharge.findFirst({ where: { id: chargeId, unitId } });
@@ -903,14 +941,35 @@ export class UnitChargesService {
       if (!ct) throw new AppError(404, 'NOT_FOUND', 'Charge type not found');
     }
 
+    const unit = await prisma.unit.findUnique({ where: { id: unitId }, select: { id: true, areaSqft: true } });
+    const areaSqft = Number(unit?.areaSqft || 0);
+
     const effectiveChargeTypeId = dto.chargeTypeId ?? charge.chargeTypeId;
-    const effectiveAmount = dto.amount ?? Number(charge.amount);
+    const effectiveCalcType = (dto.calculationType ?? charge.calculationType ?? 'fixed') === 'per_sqft' ? 'per_sqft' : 'fixed';
+
+    let effectiveRate: number | null = null;
+    let effectiveAmount = dto.amount ?? Number(charge.amount);
+
+    if (effectiveCalcType === 'per_sqft') {
+      effectiveRate = dto.rate != null
+        ? Number(dto.rate)
+        : (charge.rate != null ? Number(charge.rate) : effectiveAmount);
+      // If rate or calculationType was supplied, compute amount = rate * areaSqft
+      // (unless only amount was overridden from e.g. CreateLeasePage, in which case also back-compute rate if areaSqft > 0)
+      if (dto.rate != null || dto.calculationType !== undefined) {
+        effectiveAmount = Math.round(effectiveRate * areaSqft * 100) / 100;
+      } else if (dto.amount !== undefined && areaSqft > 0) {
+        effectiveRate = Math.round((Number(dto.amount) / areaSqft) * 100) / 100;
+      }
+    }
 
     const updated = await prisma.unitCharge.update({
       where: { id: chargeId },
       data: {
         ...(dto.chargeTypeId && { chargeTypeId: dto.chargeTypeId }),
-        ...(dto.amount !== undefined && { amount: dto.amount }),
+        calculationType: effectiveCalcType,
+        rate: effectiveRate,
+        amount: effectiveAmount,
       },
       include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
     });
@@ -930,14 +989,14 @@ export class UnitChargesService {
     });
 
     // Sync active billing schedules for this unit + charge type if requested
-    if (dto.syncSchedules && dto.amount !== undefined) {
+    if (dto.syncSchedules) {
       await prisma.billingSchedule.updateMany({
         where: {
           unitId,
           chargeTypeId: effectiveChargeTypeId,
           status: 'active',
         },
-        data: { amount: dto.amount },
+        data: { amount: effectiveAmount },
       });
     }
 
