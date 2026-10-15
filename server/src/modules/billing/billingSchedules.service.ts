@@ -188,7 +188,6 @@ export class BillingSchedulesService {
                 OR: [
                   { code: 'SECURITY_DEPOSIT' },
                   { code: 'security_deposit' },
-                  { name: { contains: 'deposit', mode: 'insensitive' } },
                 ],
               },
             },

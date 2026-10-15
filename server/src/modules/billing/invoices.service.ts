@@ -398,7 +398,6 @@ export class InvoicesService {
           OR: [
             { code: 'SECURITY_DEPOSIT' },
             { code: 'security_deposit' },
-            { name: { contains: 'deposit', mode: 'insensitive' } },
           ],
           AND: [{ OR: [{ companyId: null }, { companyId: lease.companyId }] }],
         },
@@ -654,7 +653,8 @@ export class InvoicesService {
       // Idempotency: check if this schedule already has an invoice for this period.
       // Scoped to tenant/property/unit/charge type (not just leaseId) — multiple ad-hoc
       // schedules commonly share a null leaseId and the same period, and must not be
-      // mistaken for each other's invoices.
+      // mistaken for each other's invoices. Also require periodFrom on the line itself
+      // so upfront direct invoices (where line.periodFrom is null) never block schedules.
       const existing = await prisma.invoice.findFirst({
         where: {
           tenantId: schedule.tenantId,
@@ -663,7 +663,7 @@ export class InvoicesService {
           periodFrom,
           invoiceType: 'invoice',
           status: { not: 'void' },
-          lines: { some: { chargeTypeId: schedule.chargeTypeId } },
+          lines: { some: { chargeTypeId: schedule.chargeTypeId, periodFrom } },
         },
       });
       if (existing) {

@@ -452,7 +452,7 @@ function AccountModal({
               <div className="modal-body coa-lookup-body">
                 {filteredDepts.length === 0 ? (
                   <div className="coa-lookup-empty">
-                    No Department Centers found. Create or seed them in Finance &gt; Department Centers.
+                    No Department Centers found. Create them in Finance &gt; Department Centers.
                   </div>
                 ) : (
                   <div className="coa-lookup-list">
@@ -567,7 +567,7 @@ function AccountModal({
               <div className="modal-body coa-lookup-body">
                 {filteredCosts.length === 0 ? (
                   <div className="coa-lookup-empty">
-                    No Cost Centers found. Create or seed them in Finance &gt; Cost Centers.
+                    No Cost Centers found. Create them in Finance &gt; Cost Centers.
                   </div>
                 ) : (
                   <div className="coa-lookup-list">

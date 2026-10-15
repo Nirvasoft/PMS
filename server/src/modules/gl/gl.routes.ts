@@ -69,11 +69,6 @@ glRouter.delete('/department-centers/:id', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
-glRouter.post('/department-centers/seed', asyncHandler(async (req, res) => {
-  const result = await glService.seedDefaultDepartmentCenters(req.user!.companyId);
-  res.json({ success: true, data: result });
-}));
-
 // ════════════════════════════════════════════════
 // COST CENTERS — /api/v1/gl/cost-centers
 // ════════════════════════════════════════════════
@@ -101,11 +96,6 @@ glRouter.put('/cost-centers/:id', validateRequest(updateCostCenterSchema), async
 glRouter.delete('/cost-centers/:id', asyncHandler(async (req, res) => {
   const data = await glService.deleteCostCenter(p(req, 'id'), req.user!.companyId);
   res.json({ success: true, data });
-}));
-
-glRouter.post('/cost-centers/seed', asyncHandler(async (req, res) => {
-  const result = await glService.seedDefaultCostCenters(req.user!.companyId);
-  res.json({ success: true, data: result });
 }));
 
 // ════════════════════════════════════════════════

@@ -42,24 +42,6 @@ const DEFAULT_COA = [
   { code: '5900', name: 'Other Expenses', type: 'expense', subtype: 'operating', normal: 'debit', control: false, parent: '5000' },
 ];
 
-const DEFAULT_DEPARTMENT_CENTERS = [
-  { code: 'DC-100', name: 'Property Operations', description: 'Core building and property operations', sortOrder: 1 },
-  { code: 'DC-200', name: 'Facility & Maintenance', description: 'Engineering, M&E, and preventive maintenance', sortOrder: 2 },
-  { code: 'DC-300', name: 'Leasing & Marketing', description: 'Tenant acquisition, CRM, and leasing administration', sortOrder: 3 },
-  { code: 'DC-400', name: 'Finance & Administration', description: 'Accounting, billing, HR, and corporate administration', sortOrder: 4 },
-  { code: 'DC-500', name: 'Security & Housekeeping', description: 'Security patrol, access control, and janitorial services', sortOrder: 5 },
-];
-
-const DEFAULT_COST_CENTERS = [
-  { code: 'CC-101', name: 'General Property Operations', deptCode: 'DC-100', description: 'Main property operational cost center', sortOrder: 1 },
-  { code: 'CC-102', name: 'Common Area Management (CAM)', deptCode: 'DC-100', description: 'Shared common area expenses and recoveries', sortOrder: 2 },
-  { code: 'CC-201', name: 'Repairs & Preventive Maintenance', deptCode: 'DC-200', description: 'Routine repairs, HVAC, elevator, and M&E upkeep', sortOrder: 3 },
-  { code: 'CC-202', name: 'Utilities & Energy', deptCode: 'DC-200', description: 'Electricity, water, and generator fuel costs', sortOrder: 4 },
-  { code: 'CC-301', name: 'Leasing & Promotions', deptCode: 'DC-300', description: 'Marketing campaigns, events, and broker commissions', sortOrder: 5 },
-  { code: 'CC-401', name: 'Head Office & Admin', deptCode: 'DC-400', description: 'Corporate overhead, software, and administrative costs', sortOrder: 6 },
-  { code: 'CC-501', name: 'Security & Cleaning Services', deptCode: 'DC-500', description: 'Guard services, waste management, and housekeeping supplies', sortOrder: 7 },
-];
-
 class GlService {
   // ── Department Centers ──────────────────────
 
@@ -120,29 +102,6 @@ class GlService {
     if (!existing) throw new Error('Department Center not found');
     await prisma.departmentCenter.delete({ where: { id } });
     return { deleted: true };
-  }
-
-  async seedDefaultDepartmentCenters(companyId: string) {
-    let createdCount = 0;
-    for (const dc of DEFAULT_DEPARTMENT_CENTERS) {
-      const exists = await prisma.departmentCenter.findFirst({
-        where: { companyId, code: dc.code },
-      });
-      if (!exists) {
-        await prisma.departmentCenter.create({
-          data: {
-            companyId,
-            code: dc.code,
-            name: dc.name,
-            description: dc.description,
-            sortOrder: dc.sortOrder,
-          },
-        });
-        createdCount++;
-      }
-    }
-    const total = await prisma.departmentCenter.count({ where: { companyId } });
-    return { seeded: createdCount > 0, created: createdCount, count: total };
   }
 
   // ── Cost Centers ────────────────────────────
@@ -210,35 +169,6 @@ class GlService {
     if (!existing) throw new Error('Cost Center not found');
     await prisma.costCenter.delete({ where: { id } });
     return { deleted: true };
-  }
-
-  async seedDefaultCostCenters(companyId: string) {
-    await this.seedDefaultDepartmentCenters(companyId);
-    const depts = await prisma.departmentCenter.findMany({ where: { companyId } });
-    const deptCodeToId: Record<string, string> = {};
-    for (const d of depts) deptCodeToId[d.code] = d.id;
-
-    let createdCount = 0;
-    for (const cc of DEFAULT_COST_CENTERS) {
-      const exists = await prisma.costCenter.findFirst({
-        where: { companyId, code: cc.code },
-      });
-      if (!exists) {
-        await prisma.costCenter.create({
-          data: {
-            companyId,
-            code: cc.code,
-            name: cc.name,
-            departmentCenterId: deptCodeToId[cc.deptCode] || null,
-            description: cc.description,
-            sortOrder: cc.sortOrder,
-          },
-        });
-        createdCount++;
-      }
-    }
-    const total = await prisma.costCenter.count({ where: { companyId } });
-    return { seeded: createdCount > 0, created: createdCount, count: total };
   }
 
   // ── Chart of Accounts ───────────────────────

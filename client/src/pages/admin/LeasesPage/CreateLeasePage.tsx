@@ -182,19 +182,27 @@ export default function CreateLeasePage() {
     try {
       const result = await createLease(payload).unwrap();
 
-      // Now that the lease exists, sync back any charge amounts the user edited
+      // Now that the lease exists, sync back any charge amounts or rates the user edited
       // in Financial Terms to the unit's own charge records.
       const baselineCharges = unitChargesData?.data || [];
       const changedCharges = form.leaseCharges.filter((c) => {
         const uc = baselineCharges.find((b) => b.chargeType.id === c.chargeTypeId);
-        return uc && Number(uc.amount) !== Number(c.amount);
+        if (!uc) return false;
+        const amountChanged = Number(uc.amount) !== Number(c.amount);
+        const isPerSqft = (c.calculationType || uc.calculationType) === 'per_sqft';
+        const rateChanged = isPerSqft && c.rate != null && Number(uc.rate ?? 0) !== Number(c.rate);
+        return amountChanged || rateChanged;
       });
       if (changedCharges.length > 0) {
         await Promise.allSettled(changedCharges.map((c) => {
           const uc = baselineCharges.find((b) => b.chargeType.id === c.chargeTypeId)!;
+          const isPerSqft = (c.calculationType || uc.calculationType) === 'per_sqft';
           return updateUnitCharge({
             propertyId: form.propertyId, unitId: form.unitId, chargeId: uc.id,
-            data: { amount: Number(c.amount) },
+            data: {
+              amount: Number(c.amount),
+              ...(isPerSqft && c.rate != null ? { calculationType: 'per_sqft', rate: Number(c.rate) } : {}),
+            },
           }).unwrap();
         }));
       }

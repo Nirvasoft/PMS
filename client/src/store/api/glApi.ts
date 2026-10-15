@@ -126,10 +126,6 @@ export const glApi = createApi({
       query: (id) => ({ url: `/gl/department-centers/${id}`, method: 'DELETE' }),
       invalidatesTags: ['DepartmentCenters', 'CostCenters', 'GlAccounts'],
     }),
-    seedDepartmentCenters: b.mutation<{ seeded: boolean; created: number; count: number }, void>({
-      query: () => ({ url: '/gl/department-centers/seed', method: 'POST' }),
-      invalidatesTags: ['DepartmentCenters'],
-    }),
 
     // ── Cost Centers ───────────────
     getCostCenters: b.query<CostCenter[], { isActive?: boolean; departmentCenterId?: string; search?: string } | void>({
@@ -148,10 +144,6 @@ export const glApi = createApi({
     deleteCostCenter: b.mutation<{ deleted: boolean }, string>({
       query: (id) => ({ url: `/gl/cost-centers/${id}`, method: 'DELETE' }),
       invalidatesTags: ['CostCenters', 'DepartmentCenters', 'GlAccounts'],
-    }),
-    seedCostCenters: b.mutation<{ seeded: boolean; created: number; count: number }, void>({
-      query: () => ({ url: '/gl/cost-centers/seed', method: 'POST' }),
-      invalidatesTags: ['CostCenters', 'DepartmentCenters'],
     }),
 
     // ── Chart of Accounts ──────────
@@ -244,8 +236,8 @@ export const glApi = createApi({
 });
 
 export const {
-  useGetDepartmentCentersQuery, useCreateDepartmentCenterMutation, useUpdateDepartmentCenterMutation, useDeleteDepartmentCenterMutation, useSeedDepartmentCentersMutation,
-  useGetCostCentersQuery, useCreateCostCenterMutation, useUpdateCostCenterMutation, useDeleteCostCenterMutation, useSeedCostCentersMutation,
+  useGetDepartmentCentersQuery, useCreateDepartmentCenterMutation, useUpdateDepartmentCenterMutation, useDeleteDepartmentCenterMutation,
+  useGetCostCentersQuery, useCreateCostCenterMutation, useUpdateCostCenterMutation, useDeleteCostCenterMutation,
   useGetGlAccountsQuery, useCreateGlAccountMutation, useUpdateGlAccountMutation, useSeedCOAMutation,
   useGetFiscalPeriodsQuery, useCreateFiscalPeriodMutation, useGenerateFiscalYearMutation,
   useCloseFiscalPeriodMutation, useReopenFiscalPeriodMutation,

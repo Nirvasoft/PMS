@@ -132,6 +132,31 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
     const normalized = Number(amount || 0).toFixed(2);
     set('leaseCharges', form.leaseCharges.map((c) => c.chargeTypeId === chargeTypeId ? { ...c, amount: normalized } : c));
   };
+  const editChargeRate = (chargeTypeId: string, rate: string) => {
+    const rateNum = Number(rate || 0);
+    const computedAmount = (Math.round(rateNum * unitAreaSqft * 100) / 100).toFixed(2);
+    set(
+      'leaseCharges',
+      form.leaseCharges.map((c) =>
+        c.chargeTypeId === chargeTypeId
+          ? { ...c, rate, amount: computedAmount, calculationType: 'per_sqft' }
+          : c,
+      ),
+    );
+  };
+  const commitChargeRate = (chargeTypeId: string, rate: string) => {
+    const rateNum = Number(rate || 0);
+    const normalizedRate = rate ? String(rateNum) : '0';
+    const computedAmount = (Math.round(rateNum * unitAreaSqft * 100) / 100).toFixed(2);
+    set(
+      'leaseCharges',
+      form.leaseCharges.map((c) =>
+        c.chargeTypeId === chargeTypeId
+          ? { ...c, rate: normalizedRate, amount: computedAmount, calculationType: 'per_sqft' }
+          : c,
+      ),
+    );
+  };
 
   // Preview escalation
   const previewEscalations = () => {
@@ -349,6 +374,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
               <tr>
                 <th>Charge</th>
                 <th>Calculation Type</th>
+                <th className="text-right">Rate</th>
                 <th className="text-right">Amount</th>
               </tr>
             </thead>
@@ -356,7 +382,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
               {form.leaseCharges.map((c) => {
                 const uc = unitCharges.find((u) => u.chargeType.id === c.chargeTypeId);
                 const calcType = (c.calculationType || uc?.calculationType || 'fixed') === 'per_sqft' ? 'per_sqft' : 'fixed';
-                const rateVal = c.rate ?? (uc?.rate != null ? String(Number(uc.rate)) : null);
+                const rateVal = c.rate ?? (uc?.rate != null ? String(Number(uc.rate)) : '');
                 return (
                   <tr key={c.chargeTypeId}>
                     <td>{chargeTypeName(c.chargeTypeId)}</td>
@@ -364,10 +390,24 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
                       <span className={`lease-charge-calc-badge ${calcType === 'per_sqft' ? 'per-sqft' : 'fixed'}`}>
                         {calcType === 'per_sqft' ? 'Per Sqft' : 'Fixed'}
                       </span>
-                      {calcType === 'per_sqft' && rateVal != null && (
+                      {calcType === 'per_sqft' && rateVal !== '' && (
                         <span className="lease-charge-calc-formula">
                           ({form.currency ? `${form.currency} ` : ''}{Number(rateVal).toLocaleString()} / sqft{unitAreaSqft > 0 ? ` × ${unitAreaSqft.toLocaleString()} sqft` : ''})
                         </span>
+                      )}
+                    </td>
+                    <td className="text-right">
+                      {calcType === 'per_sqft' ? (
+                        <input
+                          className="charge-amount-input"
+                          type="text"
+                          inputMode="decimal"
+                          value={formatMoneyDisplay(rateVal)}
+                          onChange={(e) => editChargeRate(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
+                          onBlur={(e) => commitChargeRate(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
+                        />
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
                       )}
                     </td>
                     <td className="text-right">
@@ -375,6 +415,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
                         className="charge-amount-input"
                         type="text"
                         inputMode="decimal"
+                        disabled={calcType === 'per_sqft'}
                         value={formatMoneyDisplay(c.amount)}
                         onChange={(e) => editChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}
                         onBlur={(e) => commitChargeAmount(c.chargeTypeId, sanitizeMoneyInput(e.target.value))}

@@ -98,6 +98,12 @@
   font-size: .82rem; text-align: right; outline: none; transition: border-color .15s, background .15s;
 }
 .charges-table .charge-amount-input:focus { border-color: rgba(108,92,231,.5); background: rgba(255,255,255,.09); }
+.charges-table .charge-amount-input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-muted);
+}
 .charge-add-btn {
   display: flex;
   align-items: center;
@@ -315,6 +321,13 @@
 [data-theme="light"] .charges-table .charge-amount-input:focus {
   border-color: var(--accent);
   background: #ffffff;
+}
+[data-theme="light"] .charges-table .charge-amount-input:disabled {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #64748b;
+  opacity: 1;
+  cursor: not-allowed;
 }
 [data-theme="light"] .review-ra-cols {
   background: rgba(0, 0, 0, 0.02);
