@@ -5872,3 +5872,43 @@ model Expense {
   @@index([status])
   @@map("expenses")
 }
+
+// ─────────────────────────────────────────────
+// CRON JOB CONFIGURATION & LOGS
+// ─────────────────────────────────────────────
+
+model CronJobConfig {
+  id             String    @id @default(uuid()) @db.Uuid
+  jobKey         String    @unique @map("job_key") @db.VarChar(100)
+  name           String    @db.VarChar(255)
+  category       String    @db.VarChar(50)
+  description    String    @db.Text
+  cronExpression String    @map("cron_expression") @db.VarChar(100)
+  timezone       String    @default("Asia/Yangon") @db.VarChar(60)
+  isEnabled      Boolean   @default(true) @map("is_enabled")
+  lastRunAt      DateTime? @map("last_run_at") @db.Timestamptz
+  lastStatus     String?   @map("last_status") @db.VarChar(30)
+  lastDurationMs Int?      @map("last_duration_ms")
+  lastError      String?   @map("last_error") @db.Text
+  updatedBy      String?   @map("updated_by") @db.VarChar(255)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("cron_job_configs")
+}
+
+model CronJobLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  jobKey      String    @map("job_key") @db.VarChar(100)
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  finishedAt  DateTime? @map("finished_at") @db.Timestamptz
+  durationMs  Int?      @map("duration_ms")
+  status      String    @db.VarChar(30)
+  triggeredBy String    @default("cron") @map("triggered_by") @db.VarChar(100)
+  message     String?   @db.Text
+  error       String?   @db.Text
+
+  @@index([jobKey, startedAt(sort: Desc)])
+  @@map("cron_job_logs")
+}
+

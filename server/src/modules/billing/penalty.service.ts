@@ -38,11 +38,27 @@ export class PenaltyService {
     const today = new Date();
     let applied = 0;
 
-    // Find ALL overdue invoices (both first-time and already-penalized for recalc)
+    // Pre-fetch active penalty configurations once (prevents N+1 queries across all invoices)
+    const activeConfigs = await prisma.penaltyConfiguration.findMany({
+      where: { isActive: true },
+    });
+    if (activeConfigs.length === 0) {
+      return 0;
+    }
+
+    const penaltyChargeTypes = await prisma.chargeType.findMany({
+      where: { code: 'LATE_PAYMENT_PENALTY' },
+    });
+    if (penaltyChargeTypes.length === 0) {
+      return 0;
+    }
+
+    // Find overdue invoices past due date (both first-time and already-penalized for recalc)
     const overdueInvoices = await prisma.invoice.findMany({
       where: {
         status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
         invoiceType: 'invoice',
+        dueDate: { lt: today },
       },
     });
 
@@ -54,7 +70,9 @@ export class PenaltyService {
 
       if (today <= graceEnd) continue; // Still within grace period
 
-      const config = await this.getPenaltyConfig(invoice.companyId, invoice.propertyId);
+      const config =
+        activeConfigs.find((c) => c.companyId === invoice.companyId && c.propertyId === invoice.propertyId) ||
+        activeConfigs.find((c) => c.companyId === invoice.companyId && c.propertyId === null);
       if (!config) continue;
 
       const daysOverdue = Math.ceil((today.getTime() - graceEnd.getTime()) / 86400000);
@@ -96,10 +114,10 @@ export class PenaltyService {
       // Skip if penalty hasn't changed (avoid unnecessary updates)
       if (!isFirstTime && penaltyAmount === Number(invoice.penaltyAmount)) continue;
 
-      // Get penalty charge type
-      const penaltyChargeType = await prisma.chargeType.findFirst({
-        where: { code: 'LATE_PAYMENT_PENALTY', OR: [{ companyId: null }, { companyId: invoice.companyId }] },
-      });
+      // Get penalty charge type from pre-fetched list
+      const penaltyChargeType =
+        penaltyChargeTypes.find((ct) => ct.companyId === invoice.companyId) ||
+        penaltyChargeTypes.find((ct) => ct.companyId === null);
       if (!penaltyChargeType) continue;
 
       const previousPenalty = Number(invoice.penaltyAmount) || 0;

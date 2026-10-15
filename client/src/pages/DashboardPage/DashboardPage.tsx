@@ -975,6 +975,10 @@ export default function DashboardLayout() {
                   <span>BMS Devices</span>
                 </NavLink>
               </PermissionGuard>
+              <NavLink to="/admin/developer/cron-jobs" className="nav-item" title="Cron Jobs">
+                <Clock size={18} />
+                <span>Cron Jobs</span>
+              </NavLink>
             </NavSection>
           </PermissionGuard>
 
