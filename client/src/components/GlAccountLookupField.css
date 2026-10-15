@@ -2,7 +2,8 @@
    All Chart of Accounts modal & table styles come directly from BillingPage.css + index.css
    so the modal is 100% identical to Charge Types. */
 .form-field .coa-input-group input.coa-bound-input,
-.edit-field .coa-input-group input.coa-bound-input {
+.edit-field .coa-input-group input.coa-bound-input,
+.gl-form-group .coa-input-group input.coa-bound-input {
   width: 100%;
   box-sizing: border-box;
   padding-right: 68px !important;

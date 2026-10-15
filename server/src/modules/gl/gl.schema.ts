@@ -1,8 +1,52 @@
 import { z } from 'zod';
 
+export const createDepartmentCenterSchema = z.object({
+  body: z.object({
+    code: z.string().min(1).max(50),
+    name: z.string().min(1).max(255),
+    description: z.string().nullable().optional(),
+    isActive: z.boolean().optional(),
+    sortOrder: z.number().int().optional(),
+  }),
+});
+
+export const updateDepartmentCenterSchema = z.object({
+  body: z.object({
+    code: z.string().min(1).max(50).optional(),
+    name: z.string().min(1).max(255).optional(),
+    description: z.string().nullable().optional(),
+    isActive: z.boolean().optional(),
+    sortOrder: z.number().int().optional(),
+  }),
+});
+
+export const createCostCenterSchema = z.object({
+  body: z.object({
+    code: z.string().min(1).max(50),
+    name: z.string().min(1).max(255),
+    departmentCenterId: z.string().uuid().nullable().optional(),
+    description: z.string().nullable().optional(),
+    isActive: z.boolean().optional(),
+    sortOrder: z.number().int().optional(),
+  }),
+});
+
+export const updateCostCenterSchema = z.object({
+  body: z.object({
+    code: z.string().min(1).max(50).optional(),
+    name: z.string().min(1).max(255).optional(),
+    departmentCenterId: z.string().uuid().nullable().optional(),
+    description: z.string().nullable().optional(),
+    isActive: z.boolean().optional(),
+    sortOrder: z.number().int().optional(),
+  }),
+});
+
 export const createAccountSchema = z.object({
   body: z.object({
     parentId: z.string().uuid().optional(),
+    departmentCenterId: z.string().uuid().nullable().optional(),
+    costCenterId: z.string().uuid().nullable().optional(),
     code: z.string().min(1).max(20),
     name: z.string().min(1).max(255),
     accountType: z.enum(['asset', 'liability', 'equity', 'income', 'expense']),
@@ -17,8 +61,10 @@ export const createAccountSchema = z.object({
 export const updateAccountSchema = z.object({
   body: z.object({
     name: z.string().min(1).max(255).optional(),
-    accountSubtype: z.string().max(50).optional(),
-    description: z.string().optional(),
+    departmentCenterId: z.string().uuid().nullable().optional(),
+    costCenterId: z.string().uuid().nullable().optional(),
+    accountSubtype: z.string().max(50).nullable().optional(),
+    description: z.string().nullable().optional(),
     isActive: z.boolean().optional(),
     sortOrder: z.number().int().optional(),
   }),

@@ -124,9 +124,11 @@ model Company {
   tenantCredits  TenantCredit[]
 
   // Relations — GL (Module 3.4)
-  glAccounts     GlAccount[]
-  fiscalPeriods  FiscalPeriod[]
-  journalEntries JournalEntry[]
+  glAccounts        GlAccount[]
+  departmentCenters DepartmentCenter[]
+  costCenters       CostCenter[]
+  fiscalPeriods     FiscalPeriod[]
+  journalEntries    JournalEntry[]
 
   // Relations — Budgets & Assets (Module 3.5)
   budgets     Budget[]
@@ -3274,33 +3276,81 @@ model TenantCredit {
 // GENERAL LEDGER (Module 3.4)
 // ─────────────────────────────────────────────
 
-model GlAccount {
-  id             String   @id @default(uuid()) @db.Uuid
-  companyId      String   @map("company_id") @db.Uuid
-  parentId       String?  @map("parent_id") @db.Uuid
-  code           String   @db.VarChar(50)
-  name           String   @db.VarChar(255)
-  accountType    String   @map("account_type") @db.VarChar(50)
-  // 'asset' | 'liability' | 'equity' | 'income' | 'expense'
-  accountSubtype String?  @map("account_subtype") @db.VarChar(50)
-  normalBalance  String   @map("normal_balance") @db.VarChar(6)
-  // 'debit' | 'credit'
-  isControl      Boolean  @default(false) @map("is_control")
-  isActive       Boolean  @default(true) @map("is_active")
-  description    String?  @db.Text
-  sortOrder      Int      @default(0) @map("sort_order") @db.SmallInt
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+model DepartmentCenter {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  code        String   @db.VarChar(50)
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  parent       GlAccount?         @relation("AccountTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children     GlAccount[]        @relation("AccountTree")
-  journalLines JournalEntryLine[]
-  budgets      Budget[]
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  costCenters CostCenter[]
+  glAccounts  GlAccount[]
+
+  @@unique([code, companyId])
+  @@index([companyId])
+  @@map("department_centers")
+}
+
+model CostCenter {
+  id                 String   @id @default(uuid()) @db.Uuid
+  companyId          String   @map("company_id") @db.Uuid
+  departmentCenterId String?  @map("department_center_id") @db.Uuid
+  code               String   @db.VarChar(50)
+  name               String   @db.VarChar(255)
+  description        String?  @db.Text
+  isActive           Boolean  @default(true) @map("is_active")
+  sortOrder          Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
+  glAccounts       GlAccount[]
+
+  @@unique([code, companyId])
+  @@index([companyId])
+  @@index([departmentCenterId])
+  @@map("cost_centers")
+}
+
+model GlAccount {
+  id                 String   @id @default(uuid()) @db.Uuid
+  companyId          String   @map("company_id") @db.Uuid
+  parentId           String?  @map("parent_id") @db.Uuid
+  departmentCenterId String?  @map("department_center_id") @db.Uuid
+  costCenterId       String?  @map("cost_center_id") @db.Uuid
+  code               String   @db.VarChar(50)
+  name               String   @db.VarChar(255)
+  accountType        String   @map("account_type") @db.VarChar(50)
+  // 'asset' | 'liability' | 'equity' | 'income' | 'expense'
+  accountSubtype     String?  @map("account_subtype") @db.VarChar(50)
+  normalBalance      String   @map("normal_balance") @db.VarChar(6)
+  // 'debit' | 'credit'
+  isControl          Boolean  @default(false) @map("is_control")
+  isActive           Boolean  @default(true) @map("is_active")
+  description        String?  @db.Text
+  sortOrder          Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent           GlAccount?         @relation("AccountTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children         GlAccount[]        @relation("AccountTree")
+  departmentCenter DepartmentCenter?  @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
+  costCenter       CostCenter?        @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  journalLines     JournalEntryLine[]
+  budgets          Budget[]
 
   @@unique([code, companyId])
   @@index([companyId])
   @@index([accountType])
+  @@index([departmentCenterId])
+  @@index([costCenterId])
   @@map("gl_accounts")
 }
 

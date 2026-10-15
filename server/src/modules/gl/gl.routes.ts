@@ -4,6 +4,8 @@ import { validateRequest } from '../../middleware/validateRequest';
 import { glService } from './gl.service';
 import {
   createAccountSchema, updateAccountSchema,
+  createDepartmentCenterSchema, updateDepartmentCenterSchema,
+  createCostCenterSchema, updateCostCenterSchema,
   createFiscalPeriodSchema,
   createJournalEntrySchema,
 } from './gl.schema';
@@ -36,6 +38,73 @@ glRouter.put('/accounts/:id', validateRequest(updateAccountSchema), asyncHandler
 
 glRouter.post('/accounts/seed', asyncHandler(async (req, res) => {
   const result = await glService.seedDefaultCOA(req.user!.companyId);
+  res.json({ success: true, data: result });
+}));
+
+// ════════════════════════════════════════════════
+// DEPARTMENT CENTERS — /api/v1/gl/department-centers
+// ════════════════════════════════════════════════
+
+glRouter.get('/department-centers', asyncHandler(async (req, res) => {
+  const isActiveParam = q(req, 'isActive');
+  const data = await glService.getDepartmentCenters(req.user!.companyId, {
+    isActive: isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : undefined,
+    search: q(req, 'search') || undefined,
+  });
+  res.json({ success: true, data });
+}));
+
+glRouter.post('/department-centers', validateRequest(createDepartmentCenterSchema), asyncHandler(async (req, res) => {
+  const data = await glService.createDepartmentCenter(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+glRouter.put('/department-centers/:id', validateRequest(updateDepartmentCenterSchema), asyncHandler(async (req, res) => {
+  const data = await glService.updateDepartmentCenter(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+glRouter.delete('/department-centers/:id', asyncHandler(async (req, res) => {
+  const data = await glService.deleteDepartmentCenter(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
+glRouter.post('/department-centers/seed', asyncHandler(async (req, res) => {
+  const result = await glService.seedDefaultDepartmentCenters(req.user!.companyId);
+  res.json({ success: true, data: result });
+}));
+
+// ════════════════════════════════════════════════
+// COST CENTERS — /api/v1/gl/cost-centers
+// ════════════════════════════════════════════════
+
+glRouter.get('/cost-centers', asyncHandler(async (req, res) => {
+  const isActiveParam = q(req, 'isActive');
+  const data = await glService.getCostCenters(req.user!.companyId, {
+    isActive: isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : undefined,
+    departmentCenterId: q(req, 'departmentCenterId') || undefined,
+    search: q(req, 'search') || undefined,
+  });
+  res.json({ success: true, data });
+}));
+
+glRouter.post('/cost-centers', validateRequest(createCostCenterSchema), asyncHandler(async (req, res) => {
+  const data = await glService.createCostCenter(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+glRouter.put('/cost-centers/:id', validateRequest(updateCostCenterSchema), asyncHandler(async (req, res) => {
+  const data = await glService.updateCostCenter(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+glRouter.delete('/cost-centers/:id', asyncHandler(async (req, res) => {
+  const data = await glService.deleteCostCenter(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
+glRouter.post('/cost-centers/seed', asyncHandler(async (req, res) => {
+  const result = await glService.seedDefaultCostCenters(req.user!.companyId);
   res.json({ success: true, data: result });
 }));
 

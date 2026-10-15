@@ -479,6 +479,18 @@ export default function DashboardLayout() {
                   <span>Chart of Accounts</span>
                 </NavLink>
               </PermissionGuard>
+              <PermissionGuard hideWhenDenied permission="finance-coa.read">
+                <NavLink to="/admin/gl/department-centers" className="nav-item" title="Department Centers">
+                  <GitBranch size={18} />
+                  <span>Department Centers</span>
+                </NavLink>
+              </PermissionGuard>
+              <PermissionGuard hideWhenDenied permission="finance-coa.read">
+                <NavLink to="/admin/gl/cost-centers" className="nav-item" title="Cost Centers">
+                  <Layers size={18} />
+                  <span>Cost Centers</span>
+                </NavLink>
+              </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="finance-journal.read">
                 <NavLink to="/admin/gl/journal-entries" className="nav-item" title="Journal Entries">
                   <ClipboardList size={18} />

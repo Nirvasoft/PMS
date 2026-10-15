@@ -1,11 +1,43 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
 
+interface DepartmentCenter {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+  _count?: { costCenters: number; glAccounts: number };
+}
+
+interface CostCenter {
+  id: string;
+  companyId: string;
+  departmentCenterId: string | null;
+  code: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+  departmentCenter?: { id: string; code: string; name: string } | null;
+  _count?: { glAccounts: number };
+}
+
 interface GlAccount {
   id: string; companyId: string; parentId: string | null;
+  departmentCenterId?: string | null;
+  costCenterId?: string | null;
   code: string; name: string; accountType: string; accountSubtype: string | null;
   normalBalance: string; isControl: boolean; isActive: boolean;
   description: string | null; sortOrder: number;
+  departmentCenter?: { id: string; code: string; name: string } | null;
+  costCenter?: { id: string; code: string; name: string } | null;
   children?: GlAccount[];
 }
 
@@ -74,8 +106,54 @@ interface CashFlow {
 export const glApi = createApi({
   reducerPath: 'glApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['GlAccounts', 'FiscalPeriods', 'JournalEntries', 'TrialBalance', 'PnL', 'BalanceSheet', 'CashFlow'],
+  tagTypes: ['GlAccounts', 'DepartmentCenters', 'CostCenters', 'FiscalPeriods', 'JournalEntries', 'TrialBalance', 'PnL', 'BalanceSheet', 'CashFlow'],
   endpoints: (b) => ({
+    // ── Department Centers ─────────
+    getDepartmentCenters: b.query<DepartmentCenter[], { isActive?: boolean; search?: string } | void>({
+      query: (params) => ({ url: '/gl/department-centers', params: (params || {}) as any }),
+      transformResponse: (r: any) => r.data,
+      providesTags: ['DepartmentCenters'],
+    }),
+    createDepartmentCenter: b.mutation<DepartmentCenter, Partial<DepartmentCenter>>({
+      query: (body) => ({ url: '/gl/department-centers', method: 'POST', body }),
+      invalidatesTags: ['DepartmentCenters', 'CostCenters', 'GlAccounts'],
+    }),
+    updateDepartmentCenter: b.mutation<DepartmentCenter, { id: string; data: Partial<DepartmentCenter> }>({
+      query: ({ id, data }) => ({ url: `/gl/department-centers/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['DepartmentCenters', 'CostCenters', 'GlAccounts'],
+    }),
+    deleteDepartmentCenter: b.mutation<{ deleted: boolean }, string>({
+      query: (id) => ({ url: `/gl/department-centers/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['DepartmentCenters', 'CostCenters', 'GlAccounts'],
+    }),
+    seedDepartmentCenters: b.mutation<{ seeded: boolean; created: number; count: number }, void>({
+      query: () => ({ url: '/gl/department-centers/seed', method: 'POST' }),
+      invalidatesTags: ['DepartmentCenters'],
+    }),
+
+    // ── Cost Centers ───────────────
+    getCostCenters: b.query<CostCenter[], { isActive?: boolean; departmentCenterId?: string; search?: string } | void>({
+      query: (params) => ({ url: '/gl/cost-centers', params: (params || {}) as any }),
+      transformResponse: (r: any) => r.data,
+      providesTags: ['CostCenters'],
+    }),
+    createCostCenter: b.mutation<CostCenter, Partial<CostCenter>>({
+      query: (body) => ({ url: '/gl/cost-centers', method: 'POST', body }),
+      invalidatesTags: ['CostCenters', 'DepartmentCenters', 'GlAccounts'],
+    }),
+    updateCostCenter: b.mutation<CostCenter, { id: string; data: Partial<CostCenter> }>({
+      query: ({ id, data }) => ({ url: `/gl/cost-centers/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['CostCenters', 'DepartmentCenters', 'GlAccounts'],
+    }),
+    deleteCostCenter: b.mutation<{ deleted: boolean }, string>({
+      query: (id) => ({ url: `/gl/cost-centers/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['CostCenters', 'DepartmentCenters', 'GlAccounts'],
+    }),
+    seedCostCenters: b.mutation<{ seeded: boolean; created: number; count: number }, void>({
+      query: () => ({ url: '/gl/cost-centers/seed', method: 'POST' }),
+      invalidatesTags: ['CostCenters', 'DepartmentCenters'],
+    }),
+
     // ── Chart of Accounts ──────────
     getGlAccounts: b.query<GlAccount[], { accountType?: string; tree?: boolean }>({
       query: (params) => ({ url: '/gl/accounts', params: params as any }),
@@ -84,11 +162,11 @@ export const glApi = createApi({
     }),
     createGlAccount: b.mutation<GlAccount, Partial<GlAccount>>({
       query: (body) => ({ url: '/gl/accounts', method: 'POST', body }),
-      invalidatesTags: ['GlAccounts'],
+      invalidatesTags: ['GlAccounts', 'DepartmentCenters', 'CostCenters'],
     }),
     updateGlAccount: b.mutation<GlAccount, { id: string; data: Partial<GlAccount> }>({
       query: ({ id, data }) => ({ url: `/gl/accounts/${id}`, method: 'PUT', body: data }),
-      invalidatesTags: ['GlAccounts'],
+      invalidatesTags: ['GlAccounts', 'DepartmentCenters', 'CostCenters'],
     }),
     seedCOA: b.mutation<{ seeded: boolean; count: number }, void>({
       query: () => ({ url: '/gl/accounts/seed', method: 'POST' }),
@@ -166,6 +244,8 @@ export const glApi = createApi({
 });
 
 export const {
+  useGetDepartmentCentersQuery, useCreateDepartmentCenterMutation, useUpdateDepartmentCenterMutation, useDeleteDepartmentCenterMutation, useSeedDepartmentCentersMutation,
+  useGetCostCentersQuery, useCreateCostCenterMutation, useUpdateCostCenterMutation, useDeleteCostCenterMutation, useSeedCostCentersMutation,
   useGetGlAccountsQuery, useCreateGlAccountMutation, useUpdateGlAccountMutation, useSeedCOAMutation,
   useGetFiscalPeriodsQuery, useCreateFiscalPeriodMutation, useGenerateFiscalYearMutation,
   useCloseFiscalPeriodMutation, useReopenFiscalPeriodMutation,
@@ -174,4 +254,4 @@ export const {
   useGetTrialBalanceQuery, useGetPnLQuery, useGetBalanceSheetQuery, useGetCashFlowQuery,
 } = glApi;
 
-export type { GlAccount, FiscalPeriod, JournalEntry, JournalEntryLine, TrialBalanceRow, TrialBalance, PnL, BalanceSheet, CashFlow };
+export type { DepartmentCenter, CostCenter, GlAccount, FiscalPeriod, JournalEntry, JournalEntryLine, TrialBalanceRow, TrialBalance, PnL, BalanceSheet, CashFlow };
