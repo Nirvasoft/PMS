@@ -249,9 +249,12 @@ async function findCandidateInvoicesForLeaseImport(
   companyId: string,
   unitIds: string[],
   leaseNumbers: string[],
+  validUnitTenantPairs: Set<string>,
+  chargeTypeById: Map<string, { id: string; code: string; name: string; category: string }>,
 ): Promise<LeaseCandidateInvoice[]> {
   if (unitIds.length === 0 && leaseNumbers.length === 0) return [];
 
+  const refLowerSet = new Set(leaseNumbers.map((s) => s.trim().toLowerCase()).filter(Boolean));
   const invById = new Map<string, Omit<LeaseCandidateInvoice, 'lines'>>();
   const invoiceSelect = {
     id: true,
@@ -269,7 +272,17 @@ async function findCandidateInvoicesForLeaseImport(
     paidAmount: true,
   } as const;
 
-  for (const uChunk of chunkArray(unitIds)) {
+  const isRelevantInvoice = (inv: Omit<LeaseCandidateInvoice, 'lines'>) => {
+    if (inv.unitId && inv.tenantId && validUnitTenantPairs.has(`${inv.unitId}|${inv.tenantId}`)) {
+      return true;
+    }
+    if (inv.secondRef && refLowerSet.size > 0 && refLowerSet.has(inv.secondRef.trim().toLowerCase())) {
+      return true;
+    }
+    return false;
+  };
+
+  for (const uChunk of chunkArray(unitIds, 250)) {
     const batch = await prisma.invoice.findMany({
       where: {
         companyId,
@@ -278,26 +291,27 @@ async function findCandidateInvoicesForLeaseImport(
       },
       select: invoiceSelect,
     });
-    for (const inv of batch) invById.set(inv.id, inv);
+    for (const inv of batch) {
+      if (isRelevantInvoice(inv)) {
+        invById.set(inv.id, inv);
+      }
+    }
   }
 
   // Only scan non-unit invoices with a secondRef and match in memory to avoid expensive UPPER(second_ref) IN (...) SQL scans
-  if (leaseNumbers.length > 0) {
-    const refLowerSet = new Set(leaseNumbers.map((s) => s.trim().toLowerCase()).filter(Boolean));
-    if (refLowerSet.size > 0) {
-      const refCandidates = await prisma.invoice.findMany({
-        where: {
-          companyId,
-          status: { not: 'void' },
-          unitId: null,
-          secondRef: { not: null },
-        },
-        select: invoiceSelect,
-      });
-      for (const inv of refCandidates) {
-        if (inv.secondRef && refLowerSet.has(inv.secondRef.trim().toLowerCase())) {
-          invById.set(inv.id, inv);
-        }
+  if (refLowerSet.size > 0) {
+    const refCandidates = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: { not: 'void' },
+        unitId: null,
+        secondRef: { not: null },
+      },
+      select: invoiceSelect,
+    });
+    for (const inv of refCandidates) {
+      if (inv.secondRef && refLowerSet.has(inv.secondRef.trim().toLowerCase())) {
+        invById.set(inv.id, inv);
       }
     }
   }
@@ -307,7 +321,7 @@ async function findCandidateInvoicesForLeaseImport(
 
   const linesByInvoiceId = new Map<string, LeaseCandidateInvoiceLine[]>();
   const rawInvoiceIds = rawInvoices.map((inv) => inv.id);
-  for (const idChunk of chunkArray(rawInvoiceIds)) {
+  for (const idChunk of chunkArray(rawInvoiceIds, 250)) {
     const chunkLines = await prisma.invoiceLine.findMany({
       where: { invoiceId: { in: idChunk } },
       select: {
@@ -321,7 +335,6 @@ async function findCandidateInvoicesForLeaseImport(
         lineTotal: true,
         periodFrom: true,
         periodTo: true,
-        chargeType: { select: { id: true, code: true, name: true, category: true } },
       },
     });
     for (const ln of chunkLines) {
@@ -330,7 +343,10 @@ async function findCandidateInvoicesForLeaseImport(
         arr = [];
         linesByInvoiceId.set(ln.invoiceId, arr);
       }
-      arr.push(ln);
+      arr.push({
+        ...ln,
+        chargeType: chargeTypeById.get(ln.chargeTypeId) ?? null,
+      });
     }
   }
 
@@ -1991,9 +2007,11 @@ export const generalImportService = {
         groups.get(groupKey)!.push(r);
       }
 
-      // Collect target unitIds and leaseNumbers for non-skipped groups so we only query relevant invoices & unitCharges
+      // Collect target unitIds, unit+tenant pairs, and leaseNumbers for non-skipped groups so we only query relevant invoices & unitCharges
       const targetUnitIdSet = new Set<string>();
       const targetLeaseNumSet = new Set<string>();
+      const targetUnitTenantPairSet = new Set<string>();
+      const chargeTypeById = new Map(chargeTypes.map((ct) => [ct.id, ct]));
       for (const [_groupKey, groupRows] of groups.entries()) {
         const d = groupRows[0].data;
         const leaseNum = (d.leaseNumber || '').trim();
@@ -2013,12 +2031,24 @@ export const generalImportService = {
           if (matched) targetPropertyId = matched;
         }
         const u = unitMap.get(unitKey(targetPropertyId, (d.unitNumber || '').trim()));
-        if (u) targetUnitIdSet.add(u.id);
+        const targetTenant = tenantMap.get(tCode) || (tName ? tenantByName.get(tName) : undefined);
+        if (u) {
+          targetUnitIdSet.add(u.id);
+          if (targetTenant) {
+            targetUnitTenantPairSet.add(`${u.id}|${targetTenant.id}`);
+          }
+        }
         if (leaseNum) targetLeaseNumSet.add(leaseNum);
       }
 
       const [existingCompanyInvoices, existingUnitCharges] = await Promise.all([
-        findCandidateInvoicesForLeaseImport(companyId, Array.from(targetUnitIdSet), Array.from(targetLeaseNumSet)),
+        findCandidateInvoicesForLeaseImport(
+          companyId,
+          Array.from(targetUnitIdSet),
+          Array.from(targetLeaseNumSet),
+          targetUnitTenantPairSet,
+          chargeTypeById,
+        ),
         findUnitChargesByUnitIds(Array.from(targetUnitIdSet)),
       ]);
 
@@ -2134,7 +2164,7 @@ export const generalImportService = {
       }
 
       const touchedPropertyIds = new Set<string>();
-      const LEASE_BATCH_SIZE = 500;
+      const LEASE_BATCH_SIZE = 250;
       let pendingLeaseBatch: PreparedLease[] = [];
 
       const applySideEffectsForInsertedLeases = async (insertedBatch: PreparedLease[]) => {
@@ -2195,8 +2225,8 @@ export const generalImportService = {
             data: { status: 'reserved' },
           }).catch(() => {});
         }
-        if (statusHistoryRows.length > 0) {
-          await prisma.unitStatusHistory.createMany({ data: statusHistoryRows }).catch(() => {});
+        for (const chunk of chunkArray(statusHistoryRows, 250)) {
+          await prisma.unitStatusHistory.createMany({ data: chunk }).catch(() => {});
         }
 
         // 3. Link unlinked invoices to their newly created leases (chunked updates)
@@ -2237,9 +2267,9 @@ export const generalImportService = {
         }
 
         if (newUnitChargesById.size > 0) {
-          await prisma.unitCharge.createMany({
-            data: Array.from(newUnitChargesById.values()),
-          }).catch(() => {});
+          for (const chunk of chunkArray(Array.from(newUnitChargesById.values()), 250)) {
+            await prisma.unitCharge.createMany({ data: chunk }).catch(() => {});
+          }
         }
 
         if (updatedUnitChargesById.size > 0) {
@@ -2266,14 +2296,14 @@ export const generalImportService = {
           }
         }
 
-        if (allChargeHistories.length > 0) {
-          await prisma.unitChargeHistory.createMany({ data: allChargeHistories }).catch(() => {});
+        for (const chunk of chunkArray(allChargeHistories, 250)) {
+          await prisma.unitChargeHistory.createMany({ data: chunk }).catch(() => {});
         }
 
         // 5. Batch billing schedules
         const allSchedules = insertedBatch.flatMap((item) => item.schedulesToCreate);
-        if (allSchedules.length > 0) {
-          await prisma.billingSchedule.createMany({ data: allSchedules }).catch(() => {});
+        for (const chunk of chunkArray(allSchedules, 250)) {
+          await prisma.billingSchedule.createMany({ data: chunk }).catch(() => {});
         }
       };
 
