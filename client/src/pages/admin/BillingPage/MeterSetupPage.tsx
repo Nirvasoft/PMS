@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   useGetMeterSetupsQuery, useCreateMeterSetupMutation, useUpdateMeterSetupMutation, useDeleteMeterSetupMutation,
+  useGetChargeTypesQuery,
   type MeterSetup,
 } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
@@ -44,6 +45,7 @@ const labelFor = (opts: readonly { value: string; label: string }[], value: stri
 export default function MeterSetupPage() {
   const { data: metersData, isFetching } = useGetMeterSetupsQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ limit: 100 });
+  const { data: chargeTypesData } = useGetChargeTypesQuery();
   // /properties requires properties.read, which a billing-only role may lack — use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
@@ -57,6 +59,7 @@ export default function MeterSetupPage() {
 
   const meters = metersData?.data || [];
   const properties = propertiesData?.data || [];
+  const chargeTypes = chargeTypesData?.data || [];
 
   // ── Search ──────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,7 +84,8 @@ export default function MeterSetupPage() {
       m.property.name.toLowerCase().includes(q) ||
       (m.floor?.floorLabel ?? '').toLowerCase().includes(q) ||
       m.meterNo.toLowerCase().includes(q) ||
-      labelFor(METER_TYPES, m.meterType).toLowerCase().includes(q)
+      labelFor(METER_TYPES, m.meterType).toLowerCase().includes(q) ||
+      (m.chargeType?.name ?? '').toLowerCase().includes(q)
     );
   });
 
@@ -114,7 +118,7 @@ export default function MeterSetupPage() {
 
   const emptyForm = {
     propertyId: '', floorId: '', meterType: '', meterNo: '', mainMeterId: '', horsePower: '', unitLostPct: '',
-    category: '', factor: '1', maintenanceFee: '', usageType: '', rate: '', calculationType: 'per_unit',
+    category: '', chargeTypeId: '', factor: '1', maintenanceFee: '', usageType: '', rate: '', calculationType: 'per_unit',
   };
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MeterSetup | null>(null);
@@ -166,6 +170,7 @@ export default function MeterSetupPage() {
       horsePower: m.horsePower ?? '',
       unitLostPct: m.unitLostPct ?? '',
       category: m.category,
+      chargeTypeId: m.chargeTypeId ?? '',
       factor: m.factor ?? '',
       maintenanceFee: m.maintenanceFee ?? '',
       usageType: m.usageType ?? '',
@@ -189,6 +194,7 @@ export default function MeterSetupPage() {
   const isMainMeterMissing = hasAttemptedSubmit && form.meterType === 'sub_meter' && !form.mainMeterId;
   const isMeterNoMissing = hasAttemptedSubmit && !form.meterNo.trim();
   const isCategoryMissing = hasAttemptedSubmit && !form.category;
+  const isChargeTypeMissing = hasAttemptedSubmit && !form.chargeTypeId;
   const isRateMissing = hasAttemptedSubmit && (form.rate === '' || form.rate == null || isNaN(Number(form.rate)) || Number(form.rate) < 0);
   const isCalculationMissing = hasAttemptedSubmit && !form.calculationType;
 
@@ -201,6 +207,7 @@ export default function MeterSetupPage() {
       (form.meterType === 'sub_meter' && !form.mainMeterId) ||
       !form.meterNo.trim() ||
       !form.category ||
+      !form.chargeTypeId ||
       form.rate === '' || form.rate == null || isNaN(Number(form.rate)) || Number(form.rate) < 0 ||
       !form.calculationType
     ) {
@@ -216,6 +223,7 @@ export default function MeterSetupPage() {
       horsePower: form.horsePower ? Number(form.horsePower) : undefined,
       unitLostPct: form.unitLostPct ? Number(form.unitLostPct) : undefined,
       category: form.category,
+      chargeTypeId: form.chargeTypeId,
       factor: form.factor ? Number(form.factor) : undefined,
       maintenanceFee: form.maintenanceFee ? Number(form.maintenanceFee) : undefined,
       usageType: form.usageType || undefined,
@@ -386,6 +394,7 @@ export default function MeterSetupPage() {
               <th>Meter Type</th>
               <th>Meter No</th>
               <th>Category</th>
+              <th>Charge Type</th>
               <th className="text-right">Rate</th>
               <th className="text-right">Maintenance Fee</th>
               <th>Usage Type</th>
@@ -394,17 +403,18 @@ export default function MeterSetupPage() {
           </thead>
           <tbody>
             {isFetching && meters.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
+              <tr><td colSpan={9} className="billing-empty">Loading…</td></tr>
             ) : meters.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">No meters set up yet</td></tr>
+              <tr><td colSpan={9} className="billing-empty">No meters set up yet</td></tr>
             ) : filteredMeters.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">No meters match your search</td></tr>
+              <tr><td colSpan={9} className="billing-empty">No meters match your search</td></tr>
             ) : paginatedMeters.map((m) => (
               <tr key={m.id}>
                 <td>{m.floor?.floorLabel ?? '—'}</td>
                 <td>{labelFor(METER_TYPES, m.meterType)}</td>
                 <td><span className="cell-mono">{m.meterNo}</span></td>
                 <td>{labelFor(CATEGORIES, m.category)}</td>
+                <td>{m.chargeType?.name ?? '—'}</td>
                 <td className="text-right">{m.rate != null && m.rate !== '' ? Number(m.rate).toFixed(2) : '—'}</td>
                 <td className="text-right">{m.maintenanceFee != null && m.maintenanceFee !== '' ? Number(m.maintenanceFee).toFixed(2) : '—'}</td>
                 <td>{m.usageType ? labelFor(USAGE_TYPES, m.usageType) : '—'}</td>
@@ -563,6 +573,18 @@ export default function MeterSetupPage() {
                       {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
                     {isCategoryMissing && <span className="inv-error-text">Category is required</span>}
+                  </div>
+                  <div className="inv-field">
+                    <label>Charge Type <span className="req">*</span></label>
+                    <select
+                      className={isChargeTypeMissing ? 'inv-input-error' : ''}
+                      value={form.chargeTypeId}
+                      onChange={(e) => setForm({ ...form, chargeTypeId: e.target.value })}
+                    >
+                      <option value="">Select charge type…</option>
+                      {chargeTypes.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                    </select>
+                    {isChargeTypeMissing && <span className="inv-error-text">Charge type is required</span>}
                   </div>
                   <div className="inv-field">
                     <label>Horse Power</label>

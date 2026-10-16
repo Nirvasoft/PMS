@@ -1693,9 +1693,19 @@
 }
 
 /* ── Validation Error Styles ─────────────────── */
+.inv-field .combobox-control {
+  border-radius: 10px;
+}
+.inv-field .combobox-input {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 10px 14px;
+}
 .inv-field input.inv-input-error,
 .inv-field select.inv-input-error,
 .inv-field textarea.inv-input-error,
+.inv-field.inv-field-error .combobox-control,
 .inv-lines-table input.inv-input-error,
 .inv-lines-table select.inv-input-error {
   border-color: #ef4444 !important;
@@ -1714,6 +1724,7 @@
 [data-theme="light"] .inv-field input.inv-input-error,
 [data-theme="light"] .inv-field select.inv-input-error,
 [data-theme="light"] .inv-field textarea.inv-input-error,
+[data-theme="light"] .inv-field.inv-field-error .combobox-control,
 [data-theme="light"] .inv-lines-table input.inv-input-error,
 [data-theme="light"] .inv-lines-table select.inv-input-error {
   border-color: #ef4444 !important;

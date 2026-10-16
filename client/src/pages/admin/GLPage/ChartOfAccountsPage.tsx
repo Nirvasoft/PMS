@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, Search, X, Check, GitBranch, Layers } from 'lucide-react';
+import { BookOpen, Search, X, Check, GitBranch, Layers, Pencil } from 'lucide-react';
 import {
   useGetGlAccountsQuery,
   useCreateGlAccountMutation,
   useUpdateGlAccountMutation,
-  useSeedCOAMutation,
   useGetDepartmentCentersQuery,
   useGetCostCentersQuery,
 } from '../../../store/api/glApi';
@@ -16,9 +15,159 @@ import '../BillingPage/BillingPage.css';
 import '../../../components/GlAccountLookupField.css';
 import './GLPage.css';
 
-function AccountNode({ account, accounts, onEdit }: { account: GlAccount; accounts: GlAccount[]; onEdit: (a: GlAccount) => void }) {
+const ACCOUNT_TYPE_GROUPS = [
+  {
+    group: '1',
+    label: 'Assets',
+    defaultAccountType: 'asset',
+    defaultNormalBalance: 'debit',
+    subtypes: [
+      { value: 'Non-Current Assets', accountType: 'asset', normalBalance: 'debit' },
+      { value: 'Accumulated Depreciation', accountType: 'asset', normalBalance: 'credit' },
+      { value: 'Current Assets', accountType: 'asset', normalBalance: 'debit' },
+      { value: 'Other Accounts Receivable', accountType: 'asset', normalBalance: 'debit' },
+      { value: 'Other Assets', accountType: 'asset', normalBalance: 'debit' },
+    ],
+  },
+  {
+    group: '2',
+    label: 'Liabilities',
+    defaultAccountType: 'liability',
+    defaultNormalBalance: 'credit',
+    subtypes: [
+      { value: 'Non-Current Liabilities', accountType: 'liability', normalBalance: 'credit' },
+      { value: 'Current Liabilities', accountType: 'liability', normalBalance: 'credit' },
+      { value: 'Other Accounts Payable', accountType: 'liability', normalBalance: 'credit' },
+    ],
+  },
+  {
+    group: '3',
+    label: 'Equity',
+    defaultAccountType: 'equity',
+    defaultNormalBalance: 'credit',
+    subtypes: [
+      { value: 'Capital', accountType: 'equity', normalBalance: 'credit' },
+      { value: 'Reserve', accountType: 'equity', normalBalance: 'credit' },
+      { value: 'Retained Earnings', accountType: 'equity', normalBalance: 'credit' },
+      { value: 'Net Profit', accountType: 'equity', normalBalance: 'credit' },
+    ],
+  },
+  {
+    group: '4',
+    label: 'Revenue',
+    defaultAccountType: 'income',
+    defaultNormalBalance: 'credit',
+    subtypes: [
+      { value: 'Sales', accountType: 'income', normalBalance: 'credit' },
+      { value: 'Other Revenue', accountType: 'income', normalBalance: 'credit' },
+    ],
+  },
+  {
+    group: '5',
+    label: 'Cost of Sales',
+    defaultAccountType: 'expense',
+    defaultNormalBalance: 'debit',
+    subtypes: [
+      { value: 'Opening Stocks', accountType: 'expense', normalBalance: 'debit' },
+      { value: 'Purchase', accountType: 'expense', normalBalance: 'debit' },
+      { value: 'Carriage Inwards', accountType: 'expense', normalBalance: 'debit' },
+      { value: 'Closing Stocks', accountType: 'expense', normalBalance: 'credit' },
+      { value: 'Cost of Sales', accountType: 'expense', normalBalance: 'debit' },
+    ],
+  },
+  {
+    group: '6',
+    label: 'Other Income & Tax',
+    defaultAccountType: 'income',
+    defaultNormalBalance: 'credit',
+    subtypes: [
+      { value: 'Income & Expenses', accountType: 'income', normalBalance: 'credit' },
+      { value: 'Income Tax', accountType: 'expense', normalBalance: 'debit' },
+      { value: 'Other Comprehensive Income', accountType: 'income', normalBalance: 'credit' },
+    ],
+  },
+  {
+    group: '7',
+    label: 'Expenses',
+    defaultAccountType: 'expense',
+    defaultNormalBalance: 'debit',
+    subtypes: [
+      { value: 'Cost & Expenses', accountType: 'expense', normalBalance: 'debit' },
+      { value: 'Direct Expenses', accountType: 'expense', normalBalance: 'debit' },
+      { value: 'Overheads', accountType: 'expense', normalBalance: 'debit' },
+    ],
+  },
+] as const;
+
+const LEGACY_SUBTYPE_MAP: Record<string, string> = {
+  current_asset: 'Current Assets',
+  fixed_asset: 'Non-Current Assets',
+  current_liability: 'Current Liabilities',
+  capital: 'Capital',
+  retained_earnings: 'Retained Earnings',
+  revenue: 'Sales',
+  other_income: 'Other Revenue',
+  operating: 'Overheads',
+};
+
+function normalizeSubtype(raw?: string | null): string {
+  if (!raw) return '';
+  return LEGACY_SUBTYPE_MAP[raw] || raw;
+}
+
+function resolveGroupForAccount(accountType?: string, accountSubtype?: string | null): string {
+  const normSub = normalizeSubtype(accountSubtype);
+  if (normSub) {
+    const matched = ACCOUNT_TYPE_GROUPS.find((g) => g.subtypes.some((s) => s.value === normSub));
+    if (matched) return matched.group;
+  }
+  switch (accountType) {
+    case 'asset':
+      return '1';
+    case 'liability':
+      return '2';
+    case 'equity':
+      return '3';
+    case 'income':
+      return '4';
+    case 'expense':
+      return '7';
+    default:
+      return '1';
+  }
+}
+
+function getGroupLabel(accountType?: string, accountSubtype?: string | null): string {
+  const grp = resolveGroupForAccount(accountType, accountSubtype);
+  return ACCOUNT_TYPE_GROUPS.find((g) => g.group === grp)?.label || accountType || '';
+}
+
+function matchesGroupOrDescendants(account: GlAccount, accounts: GlAccount[], filterGroup: string): boolean {
+  if (!filterGroup) return true;
+  if (resolveGroupForAccount(account.accountType, account.accountSubtype) === filterGroup) return true;
+  const children = accounts.filter((a) => a.parentId === account.id);
+  return children.some((c) => matchesGroupOrDescendants(c, accounts, filterGroup));
+}
+
+function AccountNode({
+  account,
+  accounts,
+  filterGroup,
+  onEdit,
+}: {
+  account: GlAccount;
+  accounts: GlAccount[];
+  filterGroup: string;
+  onEdit: (a: GlAccount) => void;
+}) {
   const [open, setOpen] = useState(true);
-  const children = accounts.filter(a => a.parentId === account.id);
+  const allChildren = accounts.filter(a => a.parentId === account.id);
+  const children = filterGroup
+    ? allChildren.filter(c => matchesGroupOrDescendants(c, accounts, filterGroup))
+    : allChildren;
+  const normSubtype = normalizeSubtype(account.accountSubtype);
+  const groupLabel = getGroupLabel(account.accountType, account.accountSubtype);
+
   return (
     <li>
       <div className="coa-node">
@@ -55,15 +204,34 @@ function AccountNode({ account, accounts, onEdit }: { account: GlAccount; accoun
             CC: {account.costCenter.code}
           </span>
         )}
-        <span className={`gl-type-chip ${account.accountType}`}>{account.accountType}</span>
+        {normSubtype && (
+          <span
+            className="gl-badge"
+            style={{
+              fontSize: '0.68rem',
+              background: 'rgba(255, 255, 255, 0.06)',
+              color: 'var(--text-secondary)',
+              textTransform: 'none',
+            }}
+          >
+            {normSubtype}
+          </span>
+        )}
+        <span className={`gl-type-chip ${account.accountType}`} style={{ textTransform: 'none' }}>
+          {groupLabel}
+        </span>
         {account.isControl && <span className="gl-badge closed" style={{fontSize:'0.65rem'}}>Control</span>}
         <PermissionGuard permission="finance-coa.write">
-          <button className="btn-sm" onClick={() => onEdit(account)} title="Edit">✏️</button>
+          <button className="btn-icon" onClick={() => onEdit(account)} title="Edit">
+            <Pencil size={14} />
+          </button>
         </PermissionGuard>
       </div>
       {open && children.length > 0 && (
         <ul className="coa-children">
-          {children.map(c => <AccountNode key={c.id} account={c} accounts={accounts} onEdit={onEdit} />)}
+          {children.map(c => (
+            <AccountNode key={c.id} account={c} accounts={accounts} filterGroup={filterGroup} onEdit={onEdit} />
+          ))}
         </ul>
       )}
     </li>
@@ -74,7 +242,6 @@ export default function ChartOfAccountsPage() {
   const { data: accounts = [], isLoading } = useGetGlAccountsQuery({});
   const { data: departmentCenters = [] } = useGetDepartmentCentersQuery();
   const { data: costCenters = [] } = useGetCostCentersQuery();
-  const [seedCOA] = useSeedCOAMutation();
   const [createAccount] = useCreateGlAccountMutation();
   const [updateAccount] = useUpdateGlAccountMutation();
   const [showModal, setShowModal] = useState(false);
@@ -82,7 +249,9 @@ export default function ChartOfAccountsPage() {
   const [filterType, setFilterType] = useState('');
 
   const rootAccounts = accounts.filter(a => !a.parentId);
-  const filtered = filterType ? rootAccounts.filter(a => a.accountType === filterType) : rootAccounts;
+  const filtered = filterType
+    ? rootAccounts.filter(a => matchesGroupOrDescendants(a, accounts, filterType))
+    : rootAccounts;
 
   const handleEdit = (a: GlAccount) => { setEditAccount(a); setShowModal(true); };
   const handleNew = () => { setEditAccount(null); setShowModal(true); };
@@ -101,7 +270,6 @@ export default function ChartOfAccountsPage() {
         </div>
         <PermissionGuard permission="finance-coa.write">
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn-sm" onClick={() => seedCOA()} title="Seed default accounts">🌱 Seed COA</button>
             <button className="btn-primary" onClick={handleNew}>+ Add Account</button>
           </div>
         </PermissionGuard>
@@ -110,20 +278,22 @@ export default function ChartOfAccountsPage() {
       <div className="gl-toolbar">
         <select value={filterType} onChange={e => setFilterType(e.target.value)}>
           <option value="">All Types</option>
-          <option value="asset">Asset</option>
-          <option value="liability">Liability</option>
-          <option value="equity">Equity</option>
-          <option value="income">Income</option>
-          <option value="expense">Expense</option>
+          {ACCOUNT_TYPE_GROUPS.map((g) => (
+            <option key={g.group} value={g.group}>
+              {g.label}
+            </option>
+          ))}
         </select>
       </div>
 
       {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
         <div className="gl-card">
           <ul className="coa-tree">
-            {filtered.map(a => <AccountNode key={a.id} account={a} accounts={accounts} onEdit={handleEdit} />)}
+            {filtered.map(a => (
+              <AccountNode key={a.id} account={a} accounts={accounts} filterGroup={filterType} onEdit={handleEdit} />
+            ))}
           </ul>
-          {filtered.length === 0 && <p style={{padding:20,textAlign:'center',color:'var(--text-muted)'}}>No accounts found. Click "Seed COA" to create default chart of accounts.</p>}
+          {filtered.length === 0 && <p style={{padding:20,textAlign:'center',color:'var(--text-muted)'}}>No accounts found. Click "+ Add Account" to create a new account.</p>}
         </div>
       )}
 
@@ -162,11 +332,18 @@ function AccountModal({
   const isEdit = !!account;
   const alertDialog = useAlertDialog();
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  const initialGroup = resolveGroupForAccount(account?.accountType, account?.accountSubtype);
+  const initialSubtype =
+    normalizeSubtype(account?.accountSubtype) ||
+    (!isEdit ? ACCOUNT_TYPE_GROUPS[0].subtypes[0].value : '');
+
+  const [typeGroup, setTypeGroup] = useState<string>(initialGroup);
   const [form, setForm] = useState({
     code: account?.code || '',
     name: account?.name || '',
     accountType: account?.accountType || 'asset',
-    accountSubtype: account?.accountSubtype || '',
+    accountSubtype: initialSubtype,
     normalBalance: account?.normalBalance || 'debit',
     parentId: account?.parentId || '',
     departmentCenterId: account?.departmentCenterId || '',
@@ -175,6 +352,32 @@ function AccountModal({
     description: account?.description || '',
     isActive: account?.isActive ?? true,
   });
+
+  const currentGroupObj =
+    ACCOUNT_TYPE_GROUPS.find((g) => g.group === typeGroup) || ACCOUNT_TYPE_GROUPS[0];
+
+  const handleGroupChange = (nextGroup: string) => {
+    setTypeGroup(nextGroup);
+    const grp = ACCOUNT_TYPE_GROUPS.find((g) => g.group === nextGroup);
+    if (!grp) return;
+    const firstSubtype = grp.subtypes[0];
+    setForm((prev) => ({
+      ...prev,
+      accountType: firstSubtype ? firstSubtype.accountType : grp.defaultAccountType,
+      accountSubtype: firstSubtype ? firstSubtype.value : '',
+      normalBalance: firstSubtype ? firstSubtype.normalBalance : grp.defaultNormalBalance,
+    }));
+  };
+
+  const handleSubtypeChange = (nextSubtype: string) => {
+    const subDef = currentGroupObj.subtypes.find((s) => s.value === nextSubtype);
+    setForm((prev) => ({
+      ...prev,
+      accountSubtype: nextSubtype,
+      accountType: !isEdit && subDef ? subDef.accountType : prev.accountType,
+      normalBalance: subDef ? subDef.normalBalance : prev.normalBalance,
+    }));
+  };
 
   const [showDeptLookup, setShowDeptLookup] = useState(false);
   const [deptSearch, setDeptSearch] = useState('');
@@ -199,16 +402,12 @@ function AccountModal({
 
   const filteredCosts = costCenters.filter((c) => {
     if (!c.isActive && c.id !== form.costCenterId) return false;
-    if (form.departmentCenterId && c.departmentCenterId && c.departmentCenterId !== form.departmentCenterId) {
-      return false;
-    }
     if (costSearch.trim()) {
       const q = costSearch.trim().toLowerCase();
       return (
         c.code.toLowerCase().includes(q) ||
         c.name.toLowerCase().includes(q) ||
-        (c.departmentCenter?.code || '').toLowerCase().includes(q) ||
-        (c.departmentCenter?.name || '').toLowerCase().includes(q)
+        (c.description || '').toLowerCase().includes(q)
       );
     }
     return true;
@@ -279,20 +478,42 @@ function AccountModal({
           <div className="gl-form-row">
             <div className="gl-form-group">
               <label>Account Type</label>
-              <select value={form.accountType} onChange={e => setForm({...form, accountType: e.target.value})} disabled={isEdit}>
-                <option value="asset">Asset</option><option value="liability">Liability</option>
-                <option value="equity">Equity</option><option value="income">Income</option>
-                <option value="expense">Expense</option>
+              <select
+                value={typeGroup}
+                onChange={e => handleGroupChange(e.target.value)}
+                disabled={isEdit}
+              >
+                {ACCOUNT_TYPE_GROUPS.map((g) => (
+                  <option key={g.group} value={g.group}>
+                    {g.label}
+                  </option>
+                ))}
               </select>
             </div>
+            <div className="gl-form-group">
+              <label>Subtype</label>
+              <select
+                value={form.accountSubtype}
+                onChange={e => handleSubtypeChange(e.target.value)}
+              >
+                {isEdit && !form.accountSubtype && (
+                  <option value="">— Select Subtype —</option>
+                )}
+                {currentGroupObj.subtypes.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.value}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="gl-form-row">
             <div className="gl-form-group">
               <label>Normal Balance</label>
               <select value={form.normalBalance} onChange={e => setForm({...form, normalBalance: e.target.value})} disabled={isEdit}>
                 <option value="debit">Debit</option><option value="credit">Credit</option>
               </select>
             </div>
-          </div>
-          <div className="gl-form-row">
             <div className="gl-form-group">
               <label>Parent Account</label>
               <select value={form.parentId} onChange={e => setForm({...form, parentId: e.target.value})} disabled={isEdit}>
@@ -301,10 +522,6 @@ function AccountModal({
                   <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
                 ))}
               </select>
-            </div>
-            <div className="gl-form-group">
-              <label>Subtype</label>
-              <input value={form.accountSubtype} onChange={e => setForm({...form, accountSubtype: e.target.value})} placeholder="e.g. current_asset" />
             </div>
           </div>
 
@@ -576,7 +793,7 @@ function AccountModal({
                         <tr>
                           <th style={{ width: 120 }}>Code</th>
                           <th>Cost Center Name</th>
-                          <th>Department Center</th>
+                          <th>Description</th>
                           <th style={{ width: 100 }} className="text-center">Action</th>
                         </tr>
                       </thead>
@@ -591,7 +808,6 @@ function AccountModal({
                                 setForm((f) => ({
                                   ...f,
                                   costCenterId: cc.id,
-                                  departmentCenterId: f.departmentCenterId || cc.departmentCenterId || '',
                                 }));
                                 setShowCostLookup(false);
                               }}
@@ -603,9 +819,7 @@ function AccountModal({
                                 <div className="cell-primary">{cc.name}</div>
                               </td>
                               <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                                {cc.departmentCenter
-                                  ? `${cc.departmentCenter.code} — ${cc.departmentCenter.name}`
-                                  : '—'}
+                                {cc.description || '—'}
                               </td>
                               <td className="text-center">
                                 <button
@@ -616,7 +830,6 @@ function AccountModal({
                                     setForm((f) => ({
                                       ...f,
                                       costCenterId: cc.id,
-                                      departmentCenterId: f.departmentCenterId || cc.departmentCenterId || '',
                                     }));
                                     setShowCostLookup(false);
                                   }}

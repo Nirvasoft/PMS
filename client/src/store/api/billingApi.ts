@@ -50,6 +50,7 @@ export interface MeterSetup {
   horsePower: string | null;
   unitLostPct: string | null;
   category: string;
+  chargeTypeId: string | null;
   factor: string | null;
   maintenanceFee: string | null;
   usageType: string | null;
@@ -58,6 +59,7 @@ export interface MeterSetup {
   isActive: boolean;
   property: { id: string; name: string; code: string | null };
   floor: { id: string; floorNumber: number; floorLabel: string } | null;
+  chargeType: { id: string; code: string; name: string; category: string } | null;
   mainMeter: { id: string; meterNo: string; meterType: string } | null;
 }
 

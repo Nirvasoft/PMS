@@ -32,7 +32,10 @@ export class ChargeCategoriesService {
     // so the list can show "this data from it" alongside each row.
     const counts = await prisma.chargeType.groupBy({
       by: ['category'],
-      where: { OR: [{ companyId: null }, { companyId }] },
+      where: {
+        OR: [{ companyId: null }, { companyId }],
+        NOT: { code: { in: ['SECURITY_DEPOSIT', 'security_deposit'] } },
+      },
       _count: { _all: true },
     });
     const countByCode = new Map(counts.map((c) => [c.category.toLowerCase(), c._count._all]));

@@ -5,9 +5,7 @@ import {
   useCreateCostCenterMutation,
   useUpdateCostCenterMutation,
   useDeleteCostCenterMutation,
-  useGetDepartmentCentersQuery,
   type CostCenter,
-  type DepartmentCenter,
 } from '../../../store/api/glApi';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -16,14 +14,12 @@ import './GLPage.css';
 
 export default function CostCentersPage() {
   const { data: costCenters = [], isLoading } = useGetCostCentersQuery();
-  const { data: departmentCenters = [] } = useGetDepartmentCentersQuery();
   const [createCostCenter] = useCreateCostCenterMutation();
   const [updateCostCenter] = useUpdateCostCenterMutation();
   const [deleteCostCenter] = useDeleteCostCenterMutation();
   const confirmDialog = useConfirm();
 
   const [search, setSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<CostCenter | null>(null);
@@ -31,15 +27,12 @@ export default function CostCentersPage() {
   const filtered = costCenters.filter((cc) => {
     if (statusFilter === 'active' && !cc.isActive) return false;
     if (statusFilter === 'inactive' && cc.isActive) return false;
-    if (deptFilter && cc.departmentCenterId !== deptFilter) return false;
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       return (
         cc.code.toLowerCase().includes(q) ||
         cc.name.toLowerCase().includes(q) ||
-        (cc.description || '').toLowerCase().includes(q) ||
-        (cc.departmentCenter?.code || '').toLowerCase().includes(q) ||
-        (cc.departmentCenter?.name || '').toLowerCase().includes(q)
+        (cc.description || '').toLowerCase().includes(q)
       );
     }
     return true;
@@ -100,7 +93,7 @@ export default function CostCentersPage() {
           />
           <input
             type="text"
-            placeholder="Search by code, name, or department center…"
+            placeholder="Search by code, name, or description…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: 34, paddingRight: search ? 30 : 12, boxSizing: 'border-box' }}
@@ -127,15 +120,6 @@ export default function CostCentersPage() {
           )}
         </div>
 
-        <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-          <option value="">All Department Centers</option>
-          {departmentCenters.map((dc) => (
-            <option key={dc.id} value={dc.id}>
-              {dc.code} — {dc.name}
-            </option>
-          ))}
-        </select>
-
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
           <option value="all">All Statuses</option>
           <option value="active">Active Only</option>
@@ -152,7 +136,6 @@ export default function CostCentersPage() {
               <tr>
                 <th style={{ width: 130 }}>Code</th>
                 <th>Cost Center Name</th>
-                <th>Department Center</th>
                 <th>Description</th>
                 <th style={{ width: 130, textAlign: 'center' }}>GL Accounts</th>
                 <th style={{ width: 110 }}>Status</th>
@@ -162,7 +145,7 @@ export default function CostCentersPage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
                     No cost centers found. Click &ldquo;+ Add Cost Center&rdquo; to get started.
                   </td>
                 </tr>
@@ -173,23 +156,6 @@ export default function CostCentersPage() {
                       <span className="coa-code">{cc.code}</span>
                     </td>
                     <td style={{ fontWeight: 600 }}>{cc.name}</td>
-                    <td>
-                      {cc.departmentCenter ? (
-                        <span
-                          className="gl-badge"
-                          style={{
-                            background: 'rgba(139, 92, 246, 0.14)',
-                            color: '#a78bfa',
-                            textTransform: 'none',
-                            fontWeight: 600,
-                          }}
-                        >
-                          {cc.departmentCenter.code} · {cc.departmentCenter.name}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)' }}>—</span>
-                      )}
-                    </td>
                     <td style={{ color: 'var(--text-secondary)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {cc.description || '—'}
                     </td>
@@ -244,7 +210,6 @@ export default function CostCentersPage() {
       {showModal && (
         <CostCenterModal
           item={editingItem}
-          departmentCenters={departmentCenters}
           onClose={() => setShowModal(false)}
           onCreate={createCostCenter}
           onUpdate={updateCostCenter}
@@ -256,13 +221,11 @@ export default function CostCentersPage() {
 
 function CostCenterModal({
   item,
-  departmentCenters,
   onClose,
   onCreate,
   onUpdate,
 }: {
   item: CostCenter | null;
-  departmentCenters: DepartmentCenter[];
   onClose: () => void;
   onCreate: any;
   onUpdate: any;
@@ -273,7 +236,6 @@ function CostCenterModal({
   const [form, setForm] = useState({
     code: item?.code || '',
     name: item?.name || '',
-    departmentCenterId: item?.departmentCenterId || '',
     description: item?.description || '',
     sortOrder: item?.sortOrder ?? 0,
     isActive: item?.isActive ?? true,
@@ -287,7 +249,6 @@ function CostCenterModal({
       const payload = {
         code: form.code.trim(),
         name: form.name.trim(),
-        departmentCenterId: form.departmentCenterId || null,
         description: form.description.trim() || null,
         sortOrder: Number(form.sortOrder) || 0,
         isActive: form.isActive,
@@ -341,33 +302,6 @@ function CostCenterModal({
             </div>
           </div>
 
-          <div className="gl-form-row">
-            <div className="gl-form-group">
-              <label>Department Center</label>
-              <select
-                value={form.departmentCenterId}
-                onChange={(e) => setForm({ ...form, departmentCenterId: e.target.value })}
-              >
-                <option value="">— None —</option>
-                {departmentCenters
-                  .filter((dc) => dc.isActive || dc.id === form.departmentCenterId)
-                  .map((dc) => (
-                    <option key={dc.id} value={dc.id}>
-                      {dc.code} — {dc.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div className="gl-form-group">
-              <label>Sort Order</label>
-              <input
-                type="number"
-                value={form.sortOrder}
-                onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value, 10) || 0 })}
-              />
-            </div>
-          </div>
-
           <div className="gl-form-group">
             <label>Description</label>
             <textarea
@@ -378,15 +312,25 @@ function CostCenterModal({
             />
           </div>
 
-          <div className="gl-form-group" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <label style={{ marginBottom: 0, display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <div className="gl-form-row">
+            <div className="gl-form-group">
+              <label>Sort Order</label>
               <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                type="number"
+                value={form.sortOrder}
+                onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value, 10) || 0 })}
               />
-              Active
-            </label>
+            </div>
+            <div className="gl-form-group" style={{ display: 'flex', alignItems: 'center', paddingTop: 22 }}>
+              <label style={{ marginBottom: 0, display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                />
+                Active
+              </label>
+            </div>
           </div>
 
           <div className="gl-modal-actions">

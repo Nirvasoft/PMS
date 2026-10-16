@@ -58,6 +58,7 @@ export function generateInvoiceHtml(inv: InvoiceDetail): string {
     items: items.map((item, iIdx) => ({
       ...item,
       subNo: `${idx + 1}.${iIdx + 1}`,
+      chargeTypeName: item.chargeType?.name || item.description || '',
       lineTotal: Number(item.lineTotal || item.amount || (Number(item.quantity) * Number(item.unitPrice))),
       quantity: Number(item.quantity),
       unitPrice: Number(item.unitPrice),
@@ -79,7 +80,7 @@ export function generateInvoiceHtml(inv: InvoiceDetail): string {
             <tr class="row-group">
               <td class="col-no ta-center">${g.no}</td>
               <td class="col-img"></td>
-              <td class="col-desc"><strong>${escapeHtml(item.description)}</strong></td>
+              <td class="col-desc"><strong>${escapeHtml(item.chargeTypeName)}</strong></td>
               <td class="col-sqft ta-right">${n2(item.quantity)}</td>
               <td class="col-rate ta-right">${n2(item.unitPrice)}</td>
               <td class="col-qty ta-right"></td>
@@ -92,7 +93,7 @@ export function generateInvoiceHtml(inv: InvoiceDetail): string {
           <tr class="row-sub">
             <td class="col-no"></td>
             <td class="col-img ta-center" style="font-size:11px;">${item.subNo}</td>
-            <td class="col-desc pl-14">${escapeHtml(item.description)}</td>
+            <td class="col-desc pl-14">${escapeHtml(item.chargeTypeName)}</td>
             <td class="col-sqft ta-right">${n2(item.quantity)}</td>
             <td class="col-rate ta-right">${n2(item.unitPrice)}</td>
             <td class="col-qty ta-right"></td>

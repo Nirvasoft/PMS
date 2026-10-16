@@ -233,7 +233,7 @@ const INVOICE_TEMPLATE = `
       <tr class="row-group">
         <td class="col-no ta-center">{{this.no}}</td>
         <td class="col-img"></td>
-        <td class="col-desc"><strong>{{this.items.[0].description}}</strong></td>
+        <td class="col-desc"><strong>{{this.items.[0].chargeTypeName}}</strong></td>
         <td class="col-sqft ta-right">{{n2 this.items.[0].quantity}}</td>
         <td class="col-rate ta-right">{{n2 this.items.[0].unitPrice}}</td>
         <td class="col-qty  ta-right"></td>
@@ -255,7 +255,7 @@ const INVOICE_TEMPLATE = `
       <tr class="row-sub">
         <td class="col-no"></td>
         <td class="col-img ta-center" style="font-size:11px;">{{this.subNo}}</td>
-        <td class="col-desc pl-14">{{this.description}}</td>
+        <td class="col-desc pl-14">{{this.chargeTypeName}}</td>
         <td class="col-sqft ta-right">{{n2 this.quantity}}</td>
         <td class="col-rate ta-right">{{n2 this.unitPrice}}</td>
         <td class="col-qty  ta-right"></td>
@@ -422,10 +422,11 @@ export class InvoicePdfService {
       isSingle: items.length === 1,
       items: items.map((item, iIdx) => ({
         ...item,
-        subNo:     `${idx + 1}.${iIdx + 1}`,
-        lineTotal: convert(Number(item.lineTotal)),
-        quantity:  Number(item.quantity),
-        unitPrice: convert(Number(item.unitPrice)),
+        subNo:          `${idx + 1}.${iIdx + 1}`,
+        chargeTypeName: item.chargeType?.name || item.description || '',
+        lineTotal:      convert(Number(item.lineTotal)),
+        quantity:       Number(item.quantity),
+        unitPrice:      convert(Number(item.unitPrice)),
       })),
       total: convert(items.reduce((s, l) => s + Number(l.lineTotal), 0)),
     }));

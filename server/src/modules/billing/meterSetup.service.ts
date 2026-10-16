@@ -12,6 +12,7 @@ export class MeterSetupService {
       include: {
         property: { select: { id: true, name: true, code: true } },
         floor: { select: { id: true, floorNumber: true, floorLabel: true } },
+        chargeType: { select: { id: true, code: true, name: true, category: true } },
         mainMeter: { select: { id: true, meterNo: true, meterType: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -30,6 +31,7 @@ export class MeterSetupService {
         horsePower: (dto.horsePower as number) ?? null,
         unitLostPct: (dto.unitLostPct as number) ?? null,
         category: dto.category as string,
+        chargeTypeId: (dto.chargeTypeId as string) ?? null,
         factor: (dto.factor as number) ?? null,
         maintenanceFee: (dto.maintenanceFee as number) ?? null,
         usageType: (dto.usageType as string) ?? null,
@@ -39,6 +41,7 @@ export class MeterSetupService {
       include: {
         property: { select: { id: true, name: true, code: true } },
         floor: { select: { id: true, floorNumber: true, floorLabel: true } },
+        chargeType: { select: { id: true, code: true, name: true, category: true } },
         mainMeter: { select: { id: true, meterNo: true, meterType: true } },
       },
     });
@@ -60,6 +63,7 @@ export class MeterSetupService {
     if (dto.horsePower !== undefined) updateData.horsePower = dto.horsePower;
     if (dto.unitLostPct !== undefined) updateData.unitLostPct = dto.unitLostPct;
     if (dto.category !== undefined) updateData.category = dto.category;
+    if (dto.chargeTypeId !== undefined) updateData.chargeTypeId = dto.chargeTypeId || null;
     if (dto.factor !== undefined) updateData.factor = dto.factor;
     if (dto.maintenanceFee !== undefined) updateData.maintenanceFee = dto.maintenanceFee;
     if (dto.usageType !== undefined) updateData.usageType = dto.usageType;
@@ -73,6 +77,7 @@ export class MeterSetupService {
       include: {
         property: { select: { id: true, name: true, code: true } },
         floor: { select: { id: true, floorNumber: true, floorLabel: true } },
+        chargeType: { select: { id: true, code: true, name: true, category: true } },
         mainMeter: { select: { id: true, meterNo: true, meterType: true } },
       },
     });

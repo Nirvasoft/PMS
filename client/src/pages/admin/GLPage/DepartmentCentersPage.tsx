@@ -137,7 +137,6 @@ export default function DepartmentCentersPage() {
                 <th style={{ width: 130 }}>Code</th>
                 <th>Department Center Name</th>
                 <th>Description</th>
-                <th style={{ width: 130, textAlign: 'center' }}>Cost Centers</th>
                 <th style={{ width: 130, textAlign: 'center' }}>GL Accounts</th>
                 <th style={{ width: 110 }}>Status</th>
                 <th style={{ width: 110, textAlign: 'right' }}>Actions</th>
@@ -146,7 +145,7 @@ export default function DepartmentCentersPage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
                     No department centers found. Click &ldquo;+ Add Department Center&rdquo; to get started.
                   </td>
                 </tr>
@@ -159,11 +158,6 @@ export default function DepartmentCentersPage() {
                     <td style={{ fontWeight: 600 }}>{dc.name}</td>
                     <td style={{ color: 'var(--text-secondary)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {dc.description || '—'}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className="gl-badge" style={{ background: 'rgba(59, 130, 246, 0.14)', color: '#60a5fa' }}>
-                        {dc._count?.costCenters ?? 0}
-                      </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span className="gl-badge" style={{ background: 'rgba(16, 185, 129, 0.14)', color: '#34d399' }}>

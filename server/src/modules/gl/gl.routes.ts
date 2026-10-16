@@ -36,11 +36,6 @@ glRouter.put('/accounts/:id', validateRequest(updateAccountSchema), asyncHandler
   res.json({ success: true, data });
 }));
 
-glRouter.post('/accounts/seed', asyncHandler(async (req, res) => {
-  const result = await glService.seedDefaultCOA(req.user!.companyId);
-  res.json({ success: true, data: result });
-}));
-
 // ════════════════════════════════════════════════
 // DEPARTMENT CENTERS — /api/v1/gl/department-centers
 // ════════════════════════════════════════════════

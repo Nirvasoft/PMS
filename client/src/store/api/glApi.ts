@@ -160,10 +160,6 @@ export const glApi = createApi({
       query: ({ id, data }) => ({ url: `/gl/accounts/${id}`, method: 'PUT', body: data }),
       invalidatesTags: ['GlAccounts', 'DepartmentCenters', 'CostCenters'],
     }),
-    seedCOA: b.mutation<{ seeded: boolean; count: number }, void>({
-      query: () => ({ url: '/gl/accounts/seed', method: 'POST' }),
-      invalidatesTags: ['GlAccounts'],
-    }),
 
     // ── Fiscal Periods ─────────────
     getFiscalPeriods: b.query<FiscalPeriod[], void>({
@@ -238,7 +234,7 @@ export const glApi = createApi({
 export const {
   useGetDepartmentCentersQuery, useCreateDepartmentCenterMutation, useUpdateDepartmentCenterMutation, useDeleteDepartmentCenterMutation,
   useGetCostCentersQuery, useCreateCostCenterMutation, useUpdateCostCenterMutation, useDeleteCostCenterMutation,
-  useGetGlAccountsQuery, useCreateGlAccountMutation, useUpdateGlAccountMutation, useSeedCOAMutation,
+  useGetGlAccountsQuery, useCreateGlAccountMutation, useUpdateGlAccountMutation,
   useGetFiscalPeriodsQuery, useCreateFiscalPeriodMutation, useGenerateFiscalYearMutation,
   useCloseFiscalPeriodMutation, useReopenFiscalPeriodMutation,
   useGetJournalEntriesQuery, useGetJournalEntryQuery,

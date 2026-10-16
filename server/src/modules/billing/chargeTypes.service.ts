@@ -10,6 +10,9 @@ export class ChargeTypesService {
           { companyId },        // company-specific
         ],
         isActive: true,
+        NOT: {
+          code: { in: ['SECURITY_DEPOSIT', 'security_deposit'] },
+        },
       },
       orderBy: [{ isSystem: 'desc' }, { category: 'asc' }, { name: 'asc' }],
     });

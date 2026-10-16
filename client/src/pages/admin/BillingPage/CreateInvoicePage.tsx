@@ -9,6 +9,7 @@ import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId'
 import { ArrowLeft, Plus, Trash2, FileText, ClipboardList, Building2, Send } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import ComboBox from '../../../components/ComboBox';
 import toast from 'react-hot-toast';
 import './BillingPage.css';
 
@@ -313,29 +314,27 @@ export default function CreateInvoicePage() {
               </select>
               {isPropertyMissing && <span className="inv-error-text">Property is required</span>}
             </div>
-            <div className="inv-field">
+            <div className={`inv-field ${isTenantMissing ? 'inv-field-error' : ''}`}>
               <label>Tenant <span className="req">*</span></label>
-              <select
-                className={isTenantMissing ? 'inv-input-error' : ''}
+              <ComboBox
+                id="invoice-tenant"
                 value={form.tenantId}
                 disabled={!form.propertyId}
-                onChange={e => setForm({ ...form, tenantId: e.target.value })}
-              >
-                <option value="">
-                  {!form.propertyId ? 'Select property first' : 'Select tenant'}
-                </option>
-                {tenants
-                  .map((t: any) => ({
-                    id: t.id,
-                    label: t.tenantType !== 'individual'
-                      ? (t.companyName || '').trim()
-                      : `${t.firstName || ''} ${t.lastName || ''}`.trim(),
-                  }))
-                  .filter(t => t.label !== '')
-                  .map(t => (
-                    <option key={t.id} value={t.id}>{t.label}</option>
-                  ))}
-              </select>
+                placeholder={!form.propertyId ? 'Select property first' : 'Select tenant'}
+                emptyText="No tenants found for this property"
+                options={tenants
+                  .map((t: any) => {
+                    const topLine = (t.lastName || t.companyName || t.displayName || t.firstName || '').trim();
+                    const firstName = (t.firstName || '').trim();
+                    return {
+                      id: t.id,
+                      label: topLine,
+                      sublabel: firstName && firstName !== topLine ? firstName : undefined,
+                    };
+                  })
+                  .filter(t => t.label !== '')}
+                onChange={val => setForm({ ...form, tenantId: val })}
+              />
               {isTenantMissing && <span className="inv-error-text">Tenant is required</span>}
             </div>
             <div className="inv-field">

@@ -1,47 +1,6 @@
 import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
 
-// ── Default COA seed data ─────────────────────
-const DEFAULT_COA = [
-  // Assets (1000–1999)
-  { code: '1000', name: 'Assets', type: 'asset', subtype: null, normal: 'debit', control: false },
-  { code: '1100', name: 'Accounts Receivable', type: 'asset', subtype: 'current_asset', normal: 'debit', control: true },
-  { code: '1200', name: 'Cash & Bank', type: 'asset', subtype: 'current_asset', normal: 'debit', control: false },
-  { code: '1210', name: 'Operating Bank Account', type: 'asset', subtype: 'current_asset', normal: 'debit', control: false, parent: '1200' },
-  { code: '1300', name: 'Prepaid Expenses', type: 'asset', subtype: 'current_asset', normal: 'debit', control: false },
-  { code: '1500', name: 'Fixed Assets', type: 'asset', subtype: 'fixed_asset', normal: 'debit', control: false },
-  { code: '1510', name: 'Building & Improvements', type: 'asset', subtype: 'fixed_asset', normal: 'debit', control: false, parent: '1500' },
-  { code: '1520', name: 'Furniture & Equipment', type: 'asset', subtype: 'fixed_asset', normal: 'debit', control: false, parent: '1500' },
-  { code: '1590', name: 'Accumulated Depreciation', type: 'asset', subtype: 'fixed_asset', normal: 'credit', control: false, parent: '1500' },
-  // Liabilities (2000–2999)
-  { code: '2000', name: 'Liabilities', type: 'liability', subtype: null, normal: 'credit', control: false },
-  { code: '2100', name: 'Accounts Payable', type: 'liability', subtype: 'current_liability', normal: 'credit', control: true },
-  { code: '2200', name: 'Tax Payable', type: 'liability', subtype: 'current_liability', normal: 'credit', control: false },
-  { code: '2300', name: 'Accrued Expenses', type: 'liability', subtype: 'current_liability', normal: 'credit', control: false },
-  { code: '2400', name: 'Security Deposits Held', type: 'liability', subtype: 'current_liability', normal: 'credit', control: false },
-  // Equity (3000–3999)
-  { code: '3000', name: 'Equity', type: 'equity', subtype: null, normal: 'credit', control: false },
-  { code: '3100', name: 'Paid-in Capital', type: 'equity', subtype: 'capital', normal: 'credit', control: false },
-  { code: '3200', name: 'Retained Earnings', type: 'equity', subtype: 'retained_earnings', normal: 'credit', control: false },
-  // Income (4000–4999)
-  { code: '4000', name: 'Revenue', type: 'income', subtype: null, normal: 'credit', control: false },
-  { code: '4100', name: 'Rental Income', type: 'income', subtype: 'revenue', normal: 'credit', control: false, parent: '4000' },
-  { code: '4200', name: 'Service Charge Income', type: 'income', subtype: 'revenue', normal: 'credit', control: false, parent: '4000' },
-  { code: '4300', name: 'Parking Income', type: 'income', subtype: 'revenue', normal: 'credit', control: false, parent: '4000' },
-  { code: '4400', name: 'Penalty & Late Fee Income', type: 'income', subtype: 'revenue', normal: 'credit', control: false, parent: '4000' },
-  { code: '4900', name: 'Other Income', type: 'income', subtype: 'other_income', normal: 'credit', control: false, parent: '4000' },
-  // Expenses (5000–5999)
-  { code: '5000', name: 'Operating Expenses', type: 'expense', subtype: null, normal: 'debit', control: false },
-  { code: '5100', name: 'Maintenance & Repairs', type: 'expense', subtype: 'operating', normal: 'debit', control: false, parent: '5000' },
-  { code: '5200', name: 'Utilities', type: 'expense', subtype: 'operating', normal: 'debit', control: false, parent: '5000' },
-  { code: '5300', name: 'Insurance', type: 'expense', subtype: 'operating', normal: 'debit', control: false, parent: '5000' },
-  { code: '5400', name: 'Property Tax', type: 'expense', subtype: 'operating', normal: 'debit', control: false, parent: '5000' },
-  { code: '5500', name: 'Management Fees', type: 'expense', subtype: 'operating', normal: 'debit', control: false, parent: '5000' },
-  { code: '5600', name: 'Depreciation Expense', type: 'expense', subtype: 'operating', normal: 'debit', control: false, parent: '5000' },
-  { code: '5700', name: 'Salaries & Wages', type: 'expense', subtype: 'operating', normal: 'debit', control: false, parent: '5000' },
-  { code: '5900', name: 'Other Expenses', type: 'expense', subtype: 'operating', normal: 'debit', control: false, parent: '5000' },
-];
-
 class GlService {
   // ── Department Centers ──────────────────────
 
@@ -241,52 +200,6 @@ class GlService {
         costCenter: { select: { id: true, code: true, name: true } },
       },
     });
-  }
-
-  async seedDefaultCOA(companyId: string) {
-    const existing = await prisma.glAccount.count({ where: { companyId } });
-    if (existing > 0) {
-      logger.info(`COA already seeded for company ${companyId}`);
-      return { seeded: false, count: existing };
-    }
-
-    // First pass: create accounts without parents
-    const codeToId: Record<string, string> = {};
-    for (const a of DEFAULT_COA.filter(a => !(a as any).parent)) {
-      const created = await prisma.glAccount.create({
-        data: {
-          companyId,
-          code: a.code,
-          name: a.name,
-          accountType: a.type,
-          accountSubtype: a.subtype,
-          normalBalance: a.normal,
-          isControl: a.control,
-        },
-      });
-      codeToId[a.code] = created.id;
-    }
-
-    // Second pass: create child accounts
-    for (const a of DEFAULT_COA.filter(a => (a as any).parent)) {
-      const parentCode = (a as any).parent;
-      const created = await prisma.glAccount.create({
-        data: {
-          companyId,
-          parentId: codeToId[parentCode] || null,
-          code: a.code,
-          name: a.name,
-          accountType: a.type,
-          accountSubtype: a.subtype,
-          normalBalance: a.normal,
-          isControl: a.control,
-        },
-      });
-      codeToId[a.code] = created.id;
-    }
-
-    logger.info(`Seeded ${DEFAULT_COA.length} GL accounts for company ${companyId}`);
-    return { seeded: true, count: DEFAULT_COA.length };
   }
 
   // ── Fiscal Periods ──────────────────────────
@@ -909,7 +822,9 @@ class GlService {
           break;
         default:
           // Check if related to fixed assets (investing) or equity (financing)
-          const hasFixedAssetLines = je.lines.some(l => l.account.accountSubtype === 'fixed_asset');
+          const hasFixedAssetLines = je.lines.some(
+            l => l.account.accountSubtype === 'fixed_asset' || l.account.accountSubtype === 'Non-Current Assets'
+          );
           const hasEquityLines = je.lines.some(l => l.account.accountType === 'equity');
 
           if (hasFixedAssetLines) {

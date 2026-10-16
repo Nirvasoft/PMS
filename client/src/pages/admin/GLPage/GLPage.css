@@ -124,7 +124,8 @@
   margin-left: 6px;
 }
 
-.gl-table .btn-icon {
+.gl-table .btn-icon,
+.coa-node .btn-icon {
   width: 28px;
   height: 28px;
   padding: 0;
