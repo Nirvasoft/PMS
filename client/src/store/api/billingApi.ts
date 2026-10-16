@@ -94,10 +94,10 @@ export interface BillingSchedule {
   invoiceCount: number;
   chargeType: { id: string; code: string; name: string; category: string };
   tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
-  unit: { id: string; unitNumber: string } | null;
+  unit: { id: string; unitNumber: string; floorNumber?: number | null; floorLabel?: string | null } | null;
   property: { id: string; name: string };
   leaseId: string | null;
-  lease: { id: string; leaseNumber: string } | null;
+  lease: { id: string; leaseNumber: string; leaseTermMonths?: number | null } | null;
 }
 
 export interface InvoiceLine {

@@ -81,7 +81,7 @@ unitsRouter.get('/', requirePermission('unit.read'), asyncHandler(async (req, re
     floor:     req.query.floor ? parseInt(req.query.floor as string) : undefined,
     search:    req.query.search as string,
     page:      parseInt(req.query.page as string) || 1,
-    limit:     Math.min(parseInt(req.query.limit as string) || 50, 200),
+    limit:     Math.min(parseInt(req.query.limit as string) || 50, 5000),
     floorScope: floorScope ?? undefined,
   });
   res.json({ success: true, ...result });

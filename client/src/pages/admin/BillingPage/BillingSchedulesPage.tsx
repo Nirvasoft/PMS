@@ -44,6 +44,7 @@ export default function BillingSchedulesPage() {
   const selectedProperty = useSelectedPropertyFilter();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [selectedSchedule, setSelectedSchedule] = useState<BillingSchedule | null>(null);
   const [form, setForm] = useState<ScheduleForm>(emptyForm);
   const [floorId, setFloorId] = useState('');
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
@@ -74,11 +75,11 @@ export default function BillingSchedulesPage() {
   const { data: floorsData } = useGetFloorSetupsQuery(form.propertyId ? { propertyId: form.propertyId } : skipToken);
   const floorNumber = floorsData?.data.find(f => f.id === floorId)?.floorNumber;
   const { data: unitsData } = useGetUnitsQuery(
-    form.propertyId ? { propertyId: form.propertyId, floor: floorNumber, limit: 200 } : skipToken,
+    form.propertyId ? { propertyId: form.propertyId, floor: floorNumber, limit: 5000 } : skipToken,
   );
   // Tenant choices come from the property's active leases, so a schedule is always tied to the lease it bills.
   const { data: leasesData } = useGetLeasesQuery(
-    form.propertyId ? { propertyId: form.propertyId, status: 'active', limit: 200 } : skipToken,
+    form.propertyId ? { propertyId: form.propertyId, status: 'active', limit: 5000 } : skipToken,
   );
 
   const [pauseSchedule] = usePauseScheduleMutation();
@@ -164,30 +165,50 @@ export default function BillingSchedulesPage() {
   );
   const deriveFloorId = (unitId: string) => {
     const unit = units.find(u => u.id === unitId);
-    const floor = unit ? floors.find(f => f.floorNumber === unit.floorNumber) : undefined;
+    const fn = unit?.floorNumber ?? (selectedSchedule?.unit?.id === unitId ? selectedSchedule.unit.floorNumber : undefined);
+    const fl = (unit as any)?.floorLabel ?? (selectedSchedule?.unit?.id === unitId ? selectedSchedule.unit.floorLabel : undefined);
+    const floor = fn != null
+      ? floors.find(f => f.floorNumber === fn)
+      : fl
+        ? floors.find(f => f.floorLabel.toLowerCase() === fl.toLowerCase())
+        : undefined;
     return floor?.id || '';
   };
 
   // Editing a schedule opens with floorId cleared (its floor isn't known yet), so once
-  // the property's floors/units have loaded, auto-bind the Floor field from the
+  // the property's floors have loaded, auto-bind the Floor field from the
   // schedule's own unit instead of leaving it on "Select floor".
   useEffect(() => {
-    if (editId && form.unitId && !floorId && floors.length && units.length) {
+    if (editId && form.unitId && !floorId && floors.length) {
       const fid = deriveFloorId(form.unitId);
       if (fid) setFloorId(fid);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editId, form.unitId, floors, units, floorId]);
+  }, [editId, form.unitId, floors, units, floorId, selectedSchedule]);
+
+  const isBaseRentCharge = (ct?: { code?: string; category?: string; name?: string } | null) => {
+    if (!ct) return false;
+    const code = (ct.code || '').toUpperCase();
+    const cat = (ct.category || '').toLowerCase();
+    const name = (ct.name || '').toLowerCase();
+    return code === 'RENT' || cat === 'rent' || name === 'rent' || name === 'base rent';
+  };
 
   const quantitySyncedRef = useRef(false);
   useEffect(() => {
     if (!showForm) { quantitySyncedRef.current = false; return; }
     if (!editId || !form.leaseId || quantitySyncedRef.current) return;
+    const ct = chargeTypes.find((c) => c.id === form.chargeTypeId) || selectedSchedule?.chargeType;
+    if (!isBaseRentCharge(ct)) {
+      quantitySyncedRef.current = true;
+      setForm((f) => ({ ...f, quantity: 1 }));
+      return;
+    }
     const lease = leases.find((l) => l.id === form.leaseId);
     if (!lease) return; // not loaded yet (or the lease is no longer active)
     quantitySyncedRef.current = true;
     setForm((f) => ({ ...f, quantity: lease.leaseTermMonths }));
-  }, [showForm, editId, form.leaseId, leases]);
+  }, [showForm, editId, form.leaseId, form.chargeTypeId, leases, chargeTypes, selectedSchedule]);
 
   const handleAction = async (id: string, action: 'pause' | 'resume' | 'cancel') => {
     if (action === 'cancel' && !(await confirmDialog('Cancel this billing schedule? No future invoices will be generated.', { danger: true, confirmText: 'Cancel Schedule' }))) return;
@@ -203,6 +224,7 @@ export default function BillingSchedulesPage() {
   const openCreate = () => {
     setHasAttemptedSubmit(false);
     setEditId(null);
+    setSelectedSchedule(null);
     setForm({ ...emptyForm, propertyId: selectedProperty });
     setFloorId('');
     setShowForm(true);
@@ -211,9 +233,13 @@ export default function BillingSchedulesPage() {
   const openEdit = (s: BillingSchedule) => {
     setHasAttemptedSubmit(false);
     setEditId(s.id);
+    setSelectedSchedule(s);
     setFloorId('');
-    // Mark as already synced so the lease-load effect doesn't overwrite the
-    // saved quantity with leaseTermMonths after leases finish loading.
+    const isRent = isBaseRentCharge(s.chargeType);
+    const savedQty = Number(s.quantity);
+    const effectiveQty = isRent
+      ? (savedQty > 1 ? savedQty : (s.lease?.leaseTermMonths || savedQty || 1))
+      : 1;
     quantitySyncedRef.current = true;
     setForm({
       chargeTypeId: s.chargeType.id,
@@ -222,7 +248,7 @@ export default function BillingSchedulesPage() {
       unitId: s.unit?.id || '',
       leaseId: s.leaseId || '',
       amount: Number(s.amount),
-      quantity: Number(s.quantity),
+      quantity: effectiveQty,
       currency: s.currency,
       billingCycle: s.billingCycle,
       billingDay: s.billingDay,
@@ -340,7 +366,8 @@ export default function BillingSchedulesPage() {
             <tr>
               <th style={{ width: 220 }}>Charge</th>
               <th style={{ width: 160 }}>Tenant</th>
-              <th style={{ width: 180 }}>Property / Unit</th>
+              <th style={{ width: 190 }}>Property / Floor / Unit</th>
+              <th className="text-center" style={{ width: 65 }}>Qty</th>
               <th className="text-right" style={{ width: 110 }}>Amount</th>
               <th style={{ width: 80 }}>Cycle</th>
               <th style={{ width: 110 }}>Start Date</th>
@@ -353,7 +380,7 @@ export default function BillingSchedulesPage() {
           <tbody>
             {schedules.length === 0 ? (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={11}>
                   <div className="billing-empty">
                     {isFetching ? 'Loading…' : 'No billing schedules found.'}
                   </div>
@@ -371,7 +398,23 @@ export default function BillingSchedulesPage() {
                     </td>
                     <td>
                       <div className="cell-primary">{s.property.name}</div>
-                      {s.unit && <div className="cell-secondary">Unit {s.unit.unitNumber}</div>}
+                      {s.unit && (
+                        <div className="cell-secondary">
+                          {s.unit.floorLabel
+                            ? `${s.unit.floorLabel} · `
+                            : s.unit.floorNumber != null
+                              ? `Floor ${s.unit.floorNumber} · `
+                              : ''}
+                          Unit {s.unit.unitNumber}
+                        </div>
+                      )}
+                    </td>
+                    <td className="text-center">
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>
+                        {isBaseRentCharge(s.chargeType)
+                          ? (Number(s.quantity) > 1 ? Number(s.quantity) : (s.lease?.leaseTermMonths ?? Number(s.quantity) ?? 1))
+                          : 1}
+                      </span>
                     </td>
                     <td className="text-right">
                       <span className="cell-amount">{formatCurrency(s.amount, s.currency)}</span>
@@ -495,7 +538,15 @@ export default function BillingSchedulesPage() {
                     <select
                       className={isChargeTypeMissing ? 'inv-input-error' : ''}
                       value={form.chargeTypeId}
-                      onChange={e => setForm({ ...form, chargeTypeId: e.target.value })}
+                      onChange={e => {
+                        const nextCtId = e.target.value;
+                        const nextCt = chargeTypes.find(ct => ct.id === nextCtId);
+                        const lease = leases.find(l => l.id === form.leaseId);
+                        const nextQty = isBaseRentCharge(nextCt)
+                          ? (lease?.leaseTermMonths ?? selectedSchedule?.lease?.leaseTermMonths ?? 1)
+                          : 1;
+                        setForm({ ...form, chargeTypeId: nextCtId, quantity: nextQty });
+                      }}
                     >
                       <option value="">Select charge type</option>
                       {chargeTypes.filter(ct => ct.isActive).map(ct => (
@@ -544,6 +595,9 @@ export default function BillingSchedulesPage() {
                       if (unitId) setFloorId(deriveFloorId(unitId));
                     }}>
                       <option value="">{form.propertyId ? 'No specific unit' : 'Select property first'}</option>
+                      {selectedSchedule?.unit && form.unitId === selectedSchedule.unit.id && !units.some(u => u.id === selectedSchedule.unit!.id) && (
+                        <option value={selectedSchedule.unit.id}>{selectedSchedule.unit.unitNumber}</option>
+                      )}
                       {units.map(u => <option key={u.id} value={u.id}>{u.unitNumber}</option>)}
                     </select>
                   </div>
@@ -556,19 +610,23 @@ export default function BillingSchedulesPage() {
                       onChange={e => {
                         const lease = leases.find(l => l.id === e.target.value);
                         const unitId = lease?.unit?.id || form.unitId;
+                        const currentCt = chargeTypes.find(ct => ct.id === form.chargeTypeId) || selectedSchedule?.chargeType;
                         setForm({
                           ...form,
                           leaseId: lease?.id || '',
                           tenantId: lease?.tenant.id || '',
                           unitId,
-                          quantity: lease?.leaseTermMonths ?? form.quantity,
+                          quantity: isBaseRentCharge(currentCt) ? (lease?.leaseTermMonths ?? form.quantity) : 1,
                         });
                         if (lease?.unit?.id) setFloorId(deriveFloorId(lease.unit.id));
                       }}
                     >
                       <option value="">
-                        {!form.propertyId ? 'Select property first' : filteredLeases.length > 0 ? 'Select tenant' : 'No active leases for this property/floor/unit'}
+                        {!form.propertyId ? 'Select property first' : (filteredLeases.length > 0 || (selectedSchedule && form.leaseId)) ? 'Select tenant' : 'No active leases for this property/floor/unit'}
                       </option>
+                      {selectedSchedule && form.leaseId && !filteredLeases.some(l => l.id === form.leaseId) && (
+                        <option value={form.leaseId}>{getTenantName(selectedSchedule)}</option>
+                      )}
                       {filteredLeases.map(l => (
                         <option key={l.id} value={l.id}>
                           {l.tenant.tenantType !== 'individual' ? l.tenant.companyName : l.tenant.lastName}

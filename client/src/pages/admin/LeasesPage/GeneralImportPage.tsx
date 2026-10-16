@@ -24,8 +24,14 @@ const IMPORT_OPTIONS: { value: GeneralImportType; label: string }[] = [
 ];
 
 function errMessage(e: unknown, fallback: string): string {
-  const err = e as { data?: { error?: { message?: string }; message?: string } };
-  return err?.data?.error?.message || err?.data?.message || fallback;
+  const err = e as {
+    data?: {
+      error?: { message?: string };
+      errors?: { message?: string }[];
+      message?: string;
+    };
+  };
+  return err?.data?.error?.message || err?.data?.errors?.[0]?.message || err?.data?.message || fallback;
 }
 
 export default function GeneralImportPage() {
@@ -226,9 +232,9 @@ export default function GeneralImportPage() {
               </tbody>
             </table>
           </div>
-          {preview.rows.length > 500 && (
+          {(preview.total > 500 || preview.rows.length > 500) && (
             <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#6b7280' }}>
-              Showing first 500 of {preview.rows.length} rows in preview. All valid rows will be imported.
+              Showing first 500 of {preview.total} rows in preview. All valid rows will be imported.
             </p>
           )}
         </div>
@@ -274,12 +280,18 @@ export default function GeneralImportPage() {
           </ul>
           {result.notes.length > 0 && (
             <ul className="gi-notes">
-              {result.notes.map((n, i) => <li key={i}>Row {n.rowNo}: {n.message}</li>)}
+              {result.notes.slice(0, 200).map((n, i) => <li key={i}>Row {n.rowNo}: {n.message}</li>)}
+              {result.notes.length > 200 && (
+                <li>...and {result.notes.length - 200} more note(s)</li>
+              )}
             </ul>
           )}
           {result.failed.length > 0 && (
             <ul className="gi-errors">
-              {result.failed.map((f) => <li key={f.rowNo}>Row {f.rowNo}: {f.errors.join('; ')}</li>)}
+              {result.failed.slice(0, 200).map((f) => <li key={f.rowNo}>Row {f.rowNo}: {f.errors.join('; ')}</li>)}
+              {result.failed.length > 200 && (
+                <li>...and {result.failed.length - 200} more error(s)</li>
+              )}
             </ul>
           )}
         </div>

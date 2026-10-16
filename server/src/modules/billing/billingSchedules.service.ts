@@ -12,6 +12,7 @@ export class BillingSchedulesService {
       unitId: lease.unitId,
       tenantId: lease.tenantId,
       leaseId: lease.id,
+      quantity: 1,
       currency: lease.currency || 'USD',
       currencyRate: lease.currencyRate,
       billingCycle: lease.billingCycle || 'monthly',
@@ -45,15 +46,15 @@ export class BillingSchedulesService {
       ];
     }
 
-    const [data, total] = await Promise.all([
+    const [rawData, total] = await Promise.all([
       prisma.billingSchedule.findMany({
         where,
         include: {
           chargeType: { select: { id: true, code: true, name: true, category: true } },
           tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
-          unit: { select: { id: true, unitNumber: true } },
+          unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
           property: { select: { id: true, name: true } },
-          lease: { select: { id: true, leaseNumber: true } },
+          lease: { select: { id: true, leaseNumber: true, leaseTermMonths: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -61,6 +62,36 @@ export class BillingSchedulesService {
       }),
       prisma.billingSchedule.count({ where }),
     ]);
+
+    // Resolve floorLabel from FloorSetup when unit.floorLabel is null
+    const propIdsNeedingFloors = [...new Set(
+      rawData
+        .filter((s) => s.unit && !s.unit.floorLabel && s.unit.floorNumber != null)
+        .map((s) => s.propertyId),
+    )];
+    const floorLookup = new Map<string, string>();
+    if (propIdsNeedingFloors.length > 0) {
+      const floorRows = await prisma.floorSetup.findMany({
+        where: { propertyId: { in: propIdsNeedingFloors } },
+        select: { propertyId: true, floorNumber: true, floorLabel: true },
+      });
+      for (const f of floorRows) {
+        floorLookup.set(`${f.propertyId}|${f.floorNumber}`, f.floorLabel);
+      }
+    }
+
+    const data = rawData.map((s) => {
+      if (!s.unit) return s;
+      const resolvedFloorLabel = s.unit.floorLabel
+        ?? (s.unit.floorNumber != null ? floorLookup.get(`${s.propertyId}|${s.unit.floorNumber}`) ?? null : null);
+      return {
+        ...s,
+        unit: {
+          ...s.unit,
+          floorLabel: resolvedFloorLabel,
+        },
+      };
+    });
 
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
@@ -111,8 +142,9 @@ export class BillingSchedulesService {
     if (!rentChargeType) return;
 
     const startDate  = new Date(lease.startDate);
+    const endDate    = lease.endDate ? new Date(lease.endDate) : null;
     const billingDay = lease.billingDay || 1;
-    const isProrated = startDate.getDate() !== billingDay;
+    const isProrated = startDate.getUTCDate() !== billingDay;
 
     // Idempotency: skip if a RENT schedule already exists for this lease
     const existing = await prisma.billingSchedule.findFirst({
@@ -122,12 +154,74 @@ export class BillingSchedulesService {
 
     const isPartial = lease.paymentType === 'partially';
     const deposit    = Number(lease.securityDeposit ?? 0);
-    const rentAmount = Number(lease.rentAmount);
+    const rentAmount = Number(lease.rentAmount ?? 0);
+
+    const termMonths = lease.leaseTermMonths || (
+      lease.endDate && lease.startDate
+        ? Math.max(1, Math.round((new Date(lease.endDate).getTime() - new Date(lease.startDate).getTime()) / (30.4375 * 86400000)))
+        : 12
+    );
+    const totalRent = Math.round(rentAmount * termMonths * 100) / 100;
+
+    // Check existing non-void Rent invoices for this lease / contract period
+    const existingRentInvoices = await prisma.invoice.findMany({
+      where: {
+        companyId: lease.companyId,
+        status: { not: 'void' },
+        OR: [
+          { leaseId: lease.id },
+          ...(lease.unitId && lease.tenantId
+            ? [{
+                unitId: lease.unitId,
+                tenantId: lease.tenantId,
+                invoiceDate: {
+                  gte: startDate,
+                  ...(endDate ? { lte: endDate } : {}),
+                },
+              }]
+            : []),
+        ],
+        lines: {
+          some: {
+            OR: [
+              { chargeType: { code: { in: ['RENT', 'rent'] } } },
+              { chargeType: { category: 'rent' } },
+            ],
+          },
+        },
+      },
+      include: {
+        lines: {
+          include: {
+            chargeType: { select: { code: true, category: true } },
+          },
+        },
+      },
+    });
+
+    let invoicedRentAmount = 0;
+    for (const inv of existingRentInvoices) {
+      for (const l of inv.lines) {
+        const code = (l.chargeType?.code || '').toUpperCase();
+        const cat = (l.chargeType?.category || '').toLowerCase();
+        if (code === 'RENT' || cat === 'rent') {
+          invoicedRentAmount += Number(l.amount ?? l.lineTotal ?? 0);
+        }
+      }
+    }
+
+    const partialAmount = isPartial && lease.partialAmount != null ? Number(lease.partialAmount) : 0;
+    const coveredRentAmount = Math.max(invoicedRentAmount, partialAmount);
 
     let scheduleRentAmount = rentAmount;
     let rentNextBillingDate = startDate;
+    let scheduleQty = termMonths || 1;
+    const hasPartialRent = isPartial || (coveredRentAmount > 0 && coveredRentAmount < totalRent);
 
-    if (isPartial) {
+    if (coveredRentAmount >= totalRent && totalRent > 0) {
+      // Full term rent already invoiced — no need to schedule Base Rent
+      scheduleRentAmount = 0;
+    } else if (hasPartialRent) {
       let cycleMonths = 1;
       switch (lease.billingCycle) {
         case 'monthly':     cycleMonths = 1;  break;
@@ -137,41 +231,38 @@ export class BillingSchedulesService {
         default:            cycleMonths = 1;  break;
       }
 
-      const termMonths = lease.leaseTermMonths || (
-        lease.endDate && lease.startDate
-          ? Math.max(1, Math.round((new Date(lease.endDate).getTime() - new Date(lease.startDate).getTime()) / (30.4375 * 86400000)))
-          : 12
-      );
       const totalCycles = Math.max(1, Math.ceil(termMonths / cycleMonths));
-      const totalRent = Math.round(rentAmount * termMonths * 100) / 100;
-      const partialAmount = lease.partialAmount != null ? Number(lease.partialAmount) : 0;
-      const remainingRent = Math.max(0, Math.round((totalRent - partialAmount) * 100) / 100);
-      const remainingCycles = Math.max(1, totalCycles - 1);
+      const remainingRent = Math.max(0, Math.round((totalRent - coveredRentAmount) * 100) / 100);
+      const coveredCycles = rentAmount > 0 ? Math.max(1, Math.floor(coveredRentAmount / (rentAmount * cycleMonths))) : 1;
+      scheduleQty = Math.max(1, termMonths - Math.floor(coveredRentAmount / (rentAmount || 1)));
+      scheduleRentAmount = remainingRent;
 
-      scheduleRentAmount = totalCycles > 1
-        ? Math.round((remainingRent / remainingCycles) * 100) / 100
-        : remainingRent;
-
-      // When there are remaining cycles and cycle 1 was covered by the upfront invoice,
-      // advance nextBillingDate by 1 full cycle so recurring billing doesn't re-bill cycle 1.
-      if (totalCycles > 1 && partialAmount > 0) {
-        rentNextBillingDate = this.computeNextBillingDateFromStart(startDate, lease.billingCycle || 'monthly', billingDay);
+      // Advance nextBillingDate past the covered cycle(s) so recurring billing starts on the next unpaid month
+      if (totalCycles > 1 && coveredRentAmount > 0) {
+        let nextDate = startDate;
+        for (let i = 0; i < coveredCycles; i++) {
+          nextDate = this.computeNextBillingDateFromStart(nextDate, lease.billingCycle || 'monthly', billingDay);
+        }
+        rentNextBillingDate = nextDate;
       }
     }
 
-    // 1. RENT schedule
-    if (scheduleRentAmount > 0 || !isPartial) {
+    // 1. RENT schedule (only when there is positive rent remaining to schedule)
+    if (scheduleRentAmount > 0 && (!endDate || rentNextBillingDate <= endDate)) {
+      const floorDisplay = lease.unit?.floorLabel || (lease.unit?.floorNumber != null ? `Floor ${lease.unit.floorNumber}` : '');
+      const unitLabel = `${floorDisplay ? `${floorDisplay} · ` : ''}Unit ${lease.unit?.unitNumber || ''}`;
       await prisma.billingSchedule.create({
         data: {
           ...this.leaseScheduleBase(lease, startDate, billingDay),
+          quantity: scheduleQty,
           nextBillingDate: rentNextBillingDate,
           chargeTypeId: rentChargeType.id,
-          description: isPartial
-            ? `Rent (Remaining Balance) — Unit ${lease.unit?.unitNumber || ''}`
-            : `Rent — Unit ${lease.unit?.unitNumber || ''}`,
+          description: hasPartialRent
+            ? `Rent (Remaining Balance) — ${unitLabel}`
+            : `Rent — ${unitLabel}`,
           amount: scheduleRentAmount,
-          isProrated: isPartial ? false : isProrated,
-          prorateStart: (!isPartial && isProrated) ? startDate : null,
+          isProrated: hasPartialRent ? false : isProrated,
+          prorateStart: (!hasPartialRent && isProrated) ? startDate : null,
         },
       });
     }
@@ -256,7 +347,7 @@ export class BillingSchedulesService {
       where: { leaseId: lease.id, status: { in: ['draft', 'active'] } },
       include: {
         chargeType: {
-          select: { id: true, code: true, category: true },
+          select: { id: true, code: true, name: true, category: true },
         },
       },
     });
@@ -281,23 +372,91 @@ export class BillingSchedulesService {
     const leaseBillingCycle = lease.billingCycle || 'monthly';
     const leaseBillingDay   = lease.billingDay   || 1;
     const startDate         = new Date(lease.startDate);
+    const endDate           = lease.endDate ? new Date(lease.endDate) : null;
+
+    // Check existing non-void invoices in the contract period for this lease/unit/tenant
+    const contractInvoices = await prisma.invoice.findMany({
+      where: {
+        companyId: lease.companyId,
+        status: { not: 'void' },
+        OR: [
+          { leaseId: lease.id },
+          ...(lease.unitId && lease.tenantId
+            ? [{
+                unitId: lease.unitId,
+                tenantId: lease.tenantId,
+                OR: [
+                  { periodFrom: { gte: startDate, ...(endDate ? { lte: endDate } : {}) } },
+                  { invoiceDate: { gte: startDate, ...(endDate ? { lte: endDate } : {}) } },
+                ],
+              }]
+            : []),
+        ],
+      },
+      select: {
+        invoiceDate: true,
+        periodFrom: true,
+        periodTo: true,
+        lines: {
+          select: {
+            chargeTypeId: true,
+            description: true,
+            periodFrom: true,
+            periodTo: true,
+            chargeType: { select: { id: true, code: true, name: true, category: true } },
+          },
+        },
+      },
+    });
 
     await prisma.$transaction(
       schedules.map((schedule) => {
-        // Billing cycle rule:
-        // • Category monthly=true  → always bill monthly (category setting wins over lease cycle)
-        // • Category monthly=false → use the lease's billingCycle (quarterly / semi-annual / annual)
         const categoryCode      = (schedule.chargeType?.category || '').toLowerCase();
         const isMonthlyCategory = monthlyCategoryCodes.has(categoryCode);
         const effectiveCycle    = isMonthlyCategory ? 'monthly' : leaseBillingCycle;
 
+        let latestPeriodFrom: Date | null = null;
+        let latestPeriodTo: Date | null = null;
+        let latestInvDate: Date | null = null;
+
+        for (const inv of contractInvoices) {
+          for (const ln of inv.lines) {
+            if (ln.chargeTypeId === schedule.chargeTypeId) {
+              const pf = ln.periodFrom || inv.periodFrom;
+              const pt = ln.periodTo || inv.periodTo;
+              if (pf && (!latestPeriodFrom || pf > latestPeriodFrom)) latestPeriodFrom = pf;
+              if (pt && (!latestPeriodTo || pt > latestPeriodTo)) latestPeriodTo = pt;
+              if (!pf && !pt && (!latestInvDate || inv.invoiceDate > latestInvDate)) latestInvDate = inv.invoiceDate;
+            }
+          }
+        }
+
+        let nextBillingDate = startDate;
+        if (latestPeriodFrom) {
+          const d1 = this.computeNextBillingDateFromStart(latestPeriodFrom, effectiveCycle, leaseBillingDay);
+          if (d1 > nextBillingDate) nextBillingDate = d1;
+        }
+        if (latestPeriodTo) {
+          const d2 = latestPeriodTo.getUTCDate() === 1
+            ? new Date(Date.UTC(latestPeriodTo.getUTCFullYear(), latestPeriodTo.getUTCMonth(), leaseBillingDay))
+            : this.computeNextBillingDateFromStart(latestPeriodTo, effectiveCycle, leaseBillingDay);
+          if (d2 > nextBillingDate) nextBillingDate = d2;
+        }
+        if (!latestPeriodFrom && !latestPeriodTo && latestInvDate) {
+          const d3 = this.computeNextBillingDateFromStart(latestInvDate, effectiveCycle, leaseBillingDay);
+          if (d3 > nextBillingDate) nextBillingDate = d3;
+        }
+
+        const isFullyInvoiced = endDate != null && nextBillingDate > endDate;
+
         return prisma.billingSchedule.update({
           where: { id: schedule.id },
           data: {
-            status:          'active',   // promote draft → active (now visible in billing schedule list)
+            status:          isFullyInvoiced ? 'completed' : 'active',
+            quantity:        1,
             billingCycle:    effectiveCycle,
             billingDay:      leaseBillingDay,
-            nextBillingDate: startDate,  // Charges are not included in Direct Invoices on activation; start from Period 1
+            nextBillingDate: isFullyInvoiced ? null : nextBillingDate,
           },
         });
       })
@@ -306,13 +465,13 @@ export class BillingSchedulesService {
 
   /**
    * Computes the next billing date that falls one full billing period after `startDate`,
-   * snapped to `billingDay` in that month.
+   * snapped to `billingDay` in that month (UTC-safe for @db.Date columns).
    * Safe against JavaScript date month-overflow bugs (e.g. Jan 31 + 1 month).
    */
-  private computeNextBillingDateFromStart(startDate: Date, billingCycle: string, billingDay: number): Date {
+  public computeNextBillingDateFromStart(startDate: Date, billingCycle: string, billingDay: number): Date {
     const d = new Date(startDate);
-    const startYear = d.getFullYear();
-    const startMonth = d.getMonth();
+    const startYear = d.getUTCFullYear();
+    const startMonth = d.getUTCMonth();
     let monthsToAdd = 1;
     switch (billingCycle) {
       case 'monthly':     monthsToAdd = 1;  break;
@@ -325,10 +484,10 @@ export class BillingSchedulesService {
     const totalMonths = startMonth + monthsToAdd;
     const targetYear = startYear + Math.floor(totalMonths / 12);
     const targetMonth = totalMonths % 12;
-    const maxDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+    const maxDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
     const day = Math.min(billingDay, maxDay);
 
-    return new Date(targetYear, targetMonth, day);
+    return new Date(Date.UTC(targetYear, targetMonth, day));
   }
 
   async update(id: string, companyId: string, dto: Record<string, unknown>) {
@@ -367,9 +526,9 @@ export class BillingSchedulesService {
       include: {
         chargeType: { select: { id: true, code: true, name: true, category: true } },
         tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true } },
-        unit: { select: { id: true, unitNumber: true } },
+        unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
         property: { select: { id: true, name: true } },
-        lease: { select: { id: true, leaseNumber: true } },
+        lease: { select: { id: true, leaseNumber: true, leaseTermMonths: true } },
       },
     });
   }

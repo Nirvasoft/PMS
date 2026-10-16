@@ -110,12 +110,19 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
     seededForUnit.current = form.unitId;
     set(
       'leaseCharges',
-      unitCharges.map((c) => ({
-        chargeTypeId: c.chargeType.id,
-        amount: Number(c.amount).toFixed(2),
-        calculationType: c.calculationType || 'fixed',
-        rate: c.rate != null ? String(Number(c.rate)) : null,
-      })),
+      unitCharges
+        .filter((c) => {
+          const code = (c.chargeType?.code || '').toUpperCase();
+          const cat = (c.chargeType?.category || '').toLowerCase();
+          const name = (c.chargeType?.name || '').toLowerCase();
+          return code !== 'RENT' && cat !== 'rent' && !/^U\d{4}/i.test(code) && name !== 'rent' && name !== 'base rent' && !name.includes('unit fee');
+        })
+        .map((c) => ({
+          chargeTypeId: c.chargeType.id,
+          amount: Number(c.amount).toFixed(2),
+          calculationType: c.calculationType || 'fixed',
+          rate: c.rate != null ? String(Number(c.rate)) : null,
+        })),
     );
   }, [form.unitId, unitChargesData]);
   useEffect(() => {

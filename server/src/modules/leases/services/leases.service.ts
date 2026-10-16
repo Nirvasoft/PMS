@@ -124,6 +124,13 @@ export class LeasesService {
         renewalLeases:      { select: { id: true, leaseNumber: true, status: true, startDate: true, endDate: true } },
         parentLease:        { select: { id: true, leaseNumber: true, status: true } },
         billingSchedules: {
+          where: {
+            status: { not: 'cancelled' },
+            chargeType: {
+              code: { notIn: ['RENT', 'rent', 'SECURITY_DEPOSIT', 'security_deposit'] },
+              category: { notIn: ['rent', 'deposit'] },
+            },
+          },
           select: {
             id: true, amount: true,
             chargeType: { select: { id: true, code: true, name: true, category: true } },
@@ -136,6 +143,15 @@ export class LeasesService {
 
     const tenant = lease.tenant;
     const { billingSchedules, ...leaseRest } = lease as any;
+    const nonRentLeaseCharges = (billingSchedules || []).filter((s: any) => {
+      const code = (s.chargeType?.code || '').trim().toUpperCase();
+      const cat = (s.chargeType?.category || '').trim().toLowerCase();
+      const name = (s.chargeType?.name || '').trim().toLowerCase();
+      if (code === 'RENT' || code === 'SECURITY_DEPOSIT') return false;
+      if (cat === 'rent' || cat === 'deposit') return false;
+      if (/^U\d{4}/i.test(code) || /\b(base\s*rent|unit\s*fee)\b/i.test(name)) return false;
+      return true;
+    });
 
     // rental_agreement, payment_type, partial_amount are read via raw SQL so they
     // work even if the generated Prisma client predates the columns.
@@ -188,7 +204,7 @@ export class LeasesService {
       shopName: resolvedShopName,
       tenant: { ...tenant, displayName: tenant.tenantType === 'company' ? tenant.companyName : `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() },
       daysUntilExpiry: daysUntilExpiry(lease.endDate),
-      leaseCharges: billingSchedules,
+      leaseCharges: nonRentLeaseCharges,
     };
   }
 
@@ -272,26 +288,44 @@ export class LeasesService {
     // They stay hidden from the Billing Schedules list until the lease is activated,
     // at which point updateChargeSchedulesFromLease promotes them to 'active'.
     if (Array.isArray(leaseCharges) && leaseCharges.length > 0) {
-      await prisma.billingSchedule.createMany({
-        data: leaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
-          companyId,
-          propertyId,
-          unitId,
-          tenantId,
-          leaseId: lease.id,
-          chargeTypeId: c.chargeTypeId,
-          amount: c.amount,
-          quantity: calcLeaseTermMonths(start, end) || 1,
-          currency: rest.currency || 'USD',
-          billingCycle: rest.billingCycle || 'monthly',
-          billingDay: rest.billingDay || 1,
-          paymentDueDays: rest.paymentDueDays || 7,
-          startDate: start,
-          endDate: end,
-          createdBy,
-          status: 'draft',   // hidden until lease activates
-        })),
+      const ctIds = leaseCharges.map((c: { chargeTypeId: string }) => c.chargeTypeId);
+      const cts = await prisma.chargeType.findMany({
+        where: { id: { in: ctIds } },
+        select: { id: true, code: true, name: true, category: true },
       });
+      const rentCtIds = new Set(
+        cts
+          .filter((ct) => {
+            const code = (ct.code || '').toUpperCase();
+            const cat = (ct.category || '').toLowerCase();
+            const name = (ct.name || '').toLowerCase();
+            return code === 'RENT' || cat === 'rent' || /^U\d{4}/i.test(code) || name === 'base rent' || name.includes('unit fee');
+          })
+          .map((ct) => ct.id),
+      );
+      const validLeaseCharges = leaseCharges.filter((c: { chargeTypeId: string }) => !rentCtIds.has(c.chargeTypeId));
+      if (validLeaseCharges.length > 0) {
+        await prisma.billingSchedule.createMany({
+          data: validLeaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
+            companyId,
+            propertyId,
+            unitId,
+            tenantId,
+            leaseId: lease.id,
+            chargeTypeId: c.chargeTypeId,
+            amount: c.amount,
+            quantity: 1,
+            currency: rest.currency || 'USD',
+            billingCycle: rest.billingCycle || 'monthly',
+            billingDay: rest.billingDay || 1,
+            paymentDueDays: rest.paymentDueDays || 7,
+            startDate: start,
+            endDate: end,
+            createdBy,
+            status: 'draft',   // hidden until lease activates
+          })),
+        });
+      }
     }
 
     // A lease reserves its unit as soon as it exists (draft), and stays
@@ -353,24 +387,43 @@ export class LeasesService {
 
       // Re-create new ones using already-fetched lease values (no extra DB round trip)
       if (leaseCharges.length > 0) {
-        await prisma.billingSchedule.createMany({
-          data: leaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
-            companyId,
-            propertyId: lease.propertyId,
-            unitId: lease.unitId,
-            tenantId: lease.tenantId,
-            leaseId: id,
-            chargeTypeId: c.chargeTypeId,
-            amount: c.amount,
-            currency: lease.currency,
-            billingCycle: lease.billingCycle,
-            billingDay: lease.billingDay,
-            paymentDueDays: lease.paymentDueDays,
-            startDate: start,
-            endDate: end,
-            status: 'draft',   // hidden until lease activates
-          })),
+        const ctIds = leaseCharges.map((c: { chargeTypeId: string }) => c.chargeTypeId);
+        const cts = await prisma.chargeType.findMany({
+          where: { id: { in: ctIds } },
+          select: { id: true, code: true, name: true, category: true },
         });
+        const rentCtIds = new Set(
+          cts
+            .filter((ct) => {
+              const code = (ct.code || '').toUpperCase();
+              const cat = (ct.category || '').toLowerCase();
+              const name = (ct.name || '').toLowerCase();
+              return code === 'RENT' || cat === 'rent' || /^U\d{4}/i.test(code) || name === 'base rent' || name.includes('unit fee');
+            })
+            .map((ct) => ct.id),
+        );
+        const validLeaseCharges = leaseCharges.filter((c: { chargeTypeId: string }) => !rentCtIds.has(c.chargeTypeId));
+        if (validLeaseCharges.length > 0) {
+          await prisma.billingSchedule.createMany({
+            data: validLeaseCharges.map((c: { chargeTypeId: string; amount: number }) => ({
+              companyId,
+              propertyId: lease.propertyId,
+              unitId: lease.unitId,
+              tenantId: lease.tenantId,
+              leaseId: id,
+              chargeTypeId: c.chargeTypeId,
+              amount: c.amount,
+              quantity: 1,
+              currency: lease.currency,
+              billingCycle: lease.billingCycle,
+              billingDay: lease.billingDay,
+              paymentDueDays: lease.paymentDueDays,
+              startDate: start,
+              endDate: end,
+              status: 'draft',   // hidden until lease activates
+            })),
+          });
+        }
       }
     } else {
       // Existing billing schedules carry their own copies of currency/billing
