@@ -1,20 +1,30 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from './logger';
 
+const isProd = process.env.NODE_ENV === 'production';
+
 export const prisma = new PrismaClient({
-  log: [
-    { level: 'query', emit: 'event' },
-    { level: 'error', emit: 'stdout' },
-    { level: 'warn', emit: 'stdout' },
-  ],
+  log: isProd
+    ? [
+        { level: 'error', emit: 'stdout' },
+        { level: 'warn', emit: 'stdout' },
+      ]
+    : [
+        { level: 'query', emit: 'event' },
+        { level: 'error', emit: 'stdout' },
+        { level: 'warn', emit: 'stdout' },
+      ],
 });
 
-// Log slow queries in development
-prisma.$on('query', (e) => {
-  if (e.duration > 100) {
-    logger.warn(`Slow query (${e.duration}ms): ${e.query}`);
-  }
-});
+// Log slow queries in development only
+if (!isProd) {
+  prisma.$on('query', (e) => {
+    if (e.duration > 100) {
+      const q = e.query.length > 300 ? `${e.query.slice(0, 300)}...` : e.query;
+      logger.warn(`Slow query (${e.duration}ms): ${q}`);
+    }
+  });
+}
 
 export async function connectDatabase(): Promise<void> {
   try {

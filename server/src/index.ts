@@ -92,6 +92,10 @@ import { cronManager } from './common/cronManager.service';
 async function bootstrap() {
   const app = express();
   const httpServer = http.createServer(app);
+  // Prevent 502/503 upstream connection resets behind DigitalOcean / Cloudflare proxies
+  httpServer.keepAliveTimeout = 65_000;
+  httpServer.headersTimeout = 66_000;
+  httpServer.requestTimeout = 300_000;
 
   // Global middleware
   app.use(helmet());

@@ -106,29 +106,99 @@ async function findActiveLeasesByUnitIds(companyId: string, unitIds: string[]) {
   return out;
 }
 
-async function findLeasesByNumbers(companyId: string, leaseNumbers: string[]) {
-  if (leaseNumbers.length === 0) return [];
-  const out: {
-    leaseNumber: string;
-    tenantId: string;
-    tenant: { id: string; code: string | null; firstName: string | null; lastName: string | null; companyName: string | null } | null;
-  }[] = [];
-  for (const chunk of chunkArray(leaseNumbers)) {
-    const batch = await prisma.lease.findMany({
-      where: {
-        companyId,
-        deletedAt: null,
-        leaseNumber: { in: chunk, mode: 'insensitive' },
-      },
-      select: {
-        leaseNumber: true,
-        tenantId: true,
-        tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
-      },
-    });
-    out.push(...batch);
+interface LeaseImportContext {
+  units: { id: string; unitNumber: string; floorNumber: number | null; floorLabel: string | null; propertyId: string; status: string }[];
+  tenants: { id: string; code: string | null; firstName: string | null; lastName: string | null; companyName: string | null; isBlacklisted: boolean }[];
+  properties: { id: string; code: string | null; name: string }[];
+  existingLeases: { leaseNumber: string; tenantId: string }[];
+  chargeTypes: { id: string; code: string; name: string; category: string }[];
+  floorSetups: { propertyId: string; floorNumber: number; floorLabel: string }[];
+  knownLeaseNumbers: Set<string>;
+  knownLeaseTenant: Set<string>;
+  propByCode: Map<string, string>;
+  propByName: Map<string, string>;
+  tenantMap: Map<string, LeaseImportContext['tenants'][number]>;
+  tenantByName: Map<string, LeaseImportContext['tenants'][number]>;
+  unitMap: Map<string, LeaseImportContext['units'][number]>;
+  chargeTypeByCode: Map<string, LeaseImportContext['chargeTypes'][number]>;
+}
+
+async function loadLeaseImportContext(companyId: string, includeFloors: boolean): Promise<LeaseImportContext> {
+  const [units, tenants, properties, existingLeases, chargeTypes, floorSetups] = await Promise.all([
+    prisma.unit.findMany({
+      where: { property: { companyId }, deletedAt: null },
+      select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true, propertyId: true, status: true },
+    }),
+    prisma.tenant.findMany({
+      where: { companyId, deletedAt: null },
+      select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
+    }),
+    prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
+    prisma.lease.findMany({
+      where: { companyId, deletedAt: null },
+      select: { leaseNumber: true, tenantId: true },
+    }),
+    prisma.chargeType.findMany({
+      where: { OR: [{ companyId }, { companyId: null }], isActive: true },
+      select: { id: true, code: true, name: true, category: true },
+    }),
+    includeFloors
+      ? prisma.floorSetup.findMany({
+          where: { property: { companyId } },
+          select: { propertyId: true, floorNumber: true, floorLabel: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const tenantById = new Map(tenants.map((t) => [t.id, t]));
+  const knownLeaseNumbers = new Set<string>();
+  const knownLeaseTenant = new Set<string>();
+  for (const l of existingLeases) {
+    if (!l.leaseNumber) continue;
+    const numStr = l.leaseNumber.trim().toLowerCase();
+    knownLeaseNumbers.add(numStr);
+    if (l.tenantId) {
+      knownLeaseTenant.add(`${numStr}|${l.tenantId.toLowerCase()}`);
+      const t = tenantById.get(l.tenantId);
+      if (t) {
+        if (t.code) knownLeaseTenant.add(`${numStr}|${t.code.trim().toLowerCase()}`);
+        if (t.companyName) knownLeaseTenant.add(`${numStr}|${t.companyName.trim().toLowerCase()}`);
+        const fullName = `${t.firstName || ''} ${t.lastName || ''}`.trim().toLowerCase();
+        if (fullName) knownLeaseTenant.add(`${numStr}|${fullName}`);
+        if (t.firstName) knownLeaseTenant.add(`${numStr}|${t.firstName.trim().toLowerCase()}`);
+      }
+    }
   }
-  return out;
+
+  const propByCode = new Map(properties.filter((p) => p.code).map((p) => [p.code!.toLowerCase(), p.id]));
+  const propByName = new Map(properties.map((p) => [p.name.toLowerCase(), p.id]));
+  const tenantMap = new Map(tenants.filter((t) => t.code).map((t) => [t.code!.toLowerCase(), t]));
+  const tenantByName = new Map(tenants.map((t) => [t.firstName ? t.firstName.toLowerCase() : '', t]));
+  for (const t of tenants) {
+    if (t.companyName) tenantByName.set(t.companyName.toLowerCase(), t);
+    const full = `${t.firstName || ''} ${t.lastName || ''}`.trim().toLowerCase();
+    if (full) tenantByName.set(full, t);
+  }
+
+  const unitMap = new Map(units.map((u) => [`${u.propertyId}|${u.unitNumber.toLowerCase()}`, u]));
+  const chargeTypeByCode = new Map(chargeTypes.map((c) => [c.code.trim().toLowerCase(), c]));
+
+  return {
+    units,
+    tenants,
+    properties,
+    existingLeases,
+    chargeTypes,
+    floorSetups,
+    knownLeaseNumbers,
+    knownLeaseTenant,
+    propByCode,
+    propByName,
+    tenantMap,
+    tenantByName,
+    unitMap,
+    chargeTypeByCode,
+  };
 }
 
 async function findUnitChargesByUnitIds(unitIds: string[]) {
@@ -211,16 +281,25 @@ async function findCandidateInvoicesForLeaseImport(
     for (const inv of batch) invById.set(inv.id, inv);
   }
 
-  for (const refChunk of chunkArray(leaseNumbers)) {
-    const batch = await prisma.invoice.findMany({
-      where: {
-        companyId,
-        status: { not: 'void' },
-        secondRef: { in: refChunk, mode: 'insensitive' },
-      },
-      select: invoiceSelect,
-    });
-    for (const inv of batch) invById.set(inv.id, inv);
+  // Only scan non-unit invoices with a secondRef and match in memory to avoid expensive UPPER(second_ref) IN (...) SQL scans
+  if (leaseNumbers.length > 0) {
+    const refLowerSet = new Set(leaseNumbers.map((s) => s.trim().toLowerCase()).filter(Boolean));
+    if (refLowerSet.size > 0) {
+      const refCandidates = await prisma.invoice.findMany({
+        where: {
+          companyId,
+          status: { not: 'void' },
+          unitId: null,
+          secondRef: { not: null },
+        },
+        select: invoiceSelect,
+      });
+      for (const inv of refCandidates) {
+        if (inv.secondRef && refLowerSet.has(inv.secondRef.trim().toLowerCase())) {
+          invById.set(inv.id, inv);
+        }
+      }
+    }
   }
 
   const rawInvoices = Array.from(invById.values());
@@ -546,7 +625,13 @@ function checkNumbers(d: Record<string, string>, keys: string[], labels: Record<
 }
 
 // Per-type validation. `ctx` holds lookups loaded once per request.
-async function validateRows(type: ImportType, propertyId: string, companyId: string, rows: ParsedRow[]): Promise<PreviewRow[]> {
+async function validateRows(
+  type: ImportType,
+  propertyId: string,
+  companyId: string,
+  rows: ParsedRow[],
+  preloadedLeaseCtx?: LeaseImportContext,
+): Promise<PreviewRow[]> {
   const out: PreviewRow[] = [];
 
   if (type === 'meter') {
@@ -879,50 +964,18 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
   }
 
   // lease
-  const fileLeaseNumbers = Array.from(
-    new Set(rows.map((r) => (r.data.leaseNumber || '').trim()).filter(Boolean))
-  );
-  const [units, tenants, properties, existingLeases, chargeTypes] = await Promise.all([
-    prisma.unit.findMany({ where: { property: { companyId }, deletedAt: null }, select: { id: true, unitNumber: true, propertyId: true, status: true } }),
-    prisma.tenant.findMany({
-      where: { companyId, deletedAt: null },
-      select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
-    }),
-    prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
-    findLeasesByNumbers(companyId, fileLeaseNumbers),
-    prisma.chargeType.findMany({
-      where: { OR: [{ companyId }, { companyId: null }], isActive: true },
-      select: { id: true, code: true, name: true, category: true },
-    }),
-  ]);
-
-  const knownLeaseNumbers = new Set<string>();
-  const knownLeaseTenant = new Set<string>();
-  for (const l of existingLeases) {
-    if (!l.leaseNumber) continue;
-    const numStr = l.leaseNumber.trim().toLowerCase();
-    knownLeaseNumbers.add(numStr);
-    if (l.tenantId) knownLeaseTenant.add(`${numStr}|${l.tenantId.toLowerCase()}`);
-    if (l.tenant?.code) knownLeaseTenant.add(`${numStr}|${l.tenant.code.trim().toLowerCase()}`);
-    if (l.tenant?.companyName) knownLeaseTenant.add(`${numStr}|${l.tenant.companyName.trim().toLowerCase()}`);
-    const fullName = `${l.tenant?.firstName || ''} ${l.tenant?.lastName || ''}`.trim().toLowerCase();
-    if (fullName) knownLeaseTenant.add(`${numStr}|${fullName}`);
-    if (l.tenant?.firstName) knownLeaseTenant.add(`${numStr}|${l.tenant.firstName.trim().toLowerCase()}`);
-  }
-
-  const propByCode = new Map(properties.filter((p) => p.code).map((p) => [p.code!.toLowerCase(), p.id]));
-  const propByName = new Map(properties.map((p) => [p.name.toLowerCase(), p.id]));
-  const tenantMap = new Map(tenants.filter((t) => t.code).map((t) => [t.code!.toLowerCase(), t]));
-  const tenantByName = new Map(tenants.map((t) => [t.firstName ? t.firstName.toLowerCase() : '', t]));
-  for (const t of tenants) {
-    if (t.companyName) tenantByName.set(t.companyName.toLowerCase(), t);
-    const full = `${t.firstName || ''} ${t.lastName || ''}`.trim().toLowerCase();
-    if (full) tenantByName.set(full, t);
-  }
-
+  const leaseCtx = preloadedLeaseCtx ?? await loadLeaseImportContext(companyId, false);
+  const {
+    knownLeaseNumbers,
+    knownLeaseTenant,
+    propByCode,
+    propByName,
+    tenantMap,
+    tenantByName,
+    unitMap,
+    chargeTypeByCode,
+  } = leaseCtx;
   const unitKey = (propId: string, uNum: string) => `${propId}|${uNum.toLowerCase()}`;
-  const unitMap = new Map(units.map((u) => [unitKey(u.propertyId, u.unitNumber), u]));
-  const chargeTypeByCode = new Map(chargeTypes.map((c) => [c.code.trim().toLowerCase(), c]));
 
   const ALLOWED_LEASE_STATUSES = ['draft', 'pending_approval', 'approved', 'active', 'expired', 'terminated', 'renewed', 'cancelled'];
 
@@ -1107,7 +1160,9 @@ export const generalImportService = {
   async import(type: string, propertyId: string, companyId: string, userId: string, buffer: Buffer) {
     const normType = (type === 'charges' ? 'charge' : type) as ImportType;
     assertType(normType);
-    const rows = await validateRows(normType, propertyId, companyId, await parseWorkbook(normType, buffer));
+    const parsedRows = await parseWorkbook(normType, buffer);
+    const preloadedLeaseCtx = normType === 'lease' ? await loadLeaseImportContext(companyId, true) : undefined;
+    const rows = await validateRows(normType, propertyId, companyId, parsedRows, preloadedLeaseCtx);
     const failed: { rowNo: number; errors: string[] }[] = rows
       .filter((r) => r.status === 'error')
       .map((r) => ({ rowNo: r.rowNo, errors: r.errors }));
@@ -1817,30 +1872,20 @@ export const generalImportService = {
         await flushInvoiceBatch(pendingBatch);
       }
     } else if (normType === 'lease') {
-      const fileLeaseNumbers = Array.from(
-        new Set(valid.map((r) => (r.data.leaseNumber || '').trim()).filter(Boolean))
-      );
-
-      const [units, tenants, properties, existingLeases, chargeTypes, floorSetups] = await Promise.all([
-        prisma.unit.findMany({
-          where: { property: { companyId }, deletedAt: null },
-          select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true, propertyId: true, status: true },
-        }),
-        prisma.tenant.findMany({
-          where: { companyId, deletedAt: null },
-          select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
-        }),
-        prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
-        findLeasesByNumbers(companyId, fileLeaseNumbers),
-        prisma.chargeType.findMany({
-          where: { OR: [{ companyId }, { companyId: null }], isActive: true },
-          select: { id: true, code: true, name: true, category: true },
-        }),
-        prisma.floorSetup.findMany({
-          where: { property: { companyId } },
-          select: { propertyId: true, floorNumber: true, floorLabel: true },
-        }),
-      ]);
+      const leaseCtx = preloadedLeaseCtx ?? await loadLeaseImportContext(companyId, true);
+      const {
+        chargeTypes,
+        floorSetups,
+        knownLeaseNumbers,
+        knownLeaseTenant,
+        propByCode,
+        propByName,
+        tenantMap,
+        tenantByName,
+        unitMap,
+        chargeTypeByCode,
+      } = leaseCtx;
+      const unitKey = (propId: string, uNum: string) => `${propId}|${uNum.toLowerCase()}`;
 
       const floorLabelMap = new Map<string, string>();
       for (const fs of floorSetups) {
@@ -1926,33 +1971,6 @@ export const generalImportService = {
         return candidate < baseStartDate ? baseStartDate : candidate;
       };
 
-      const knownLeaseNumbers = new Set<string>();
-      const knownLeaseTenant = new Set<string>();
-      for (const l of existingLeases) {
-        if (!l.leaseNumber) continue;
-        const numStr = l.leaseNumber.trim().toLowerCase();
-        knownLeaseNumbers.add(numStr);
-        if (l.tenantId) knownLeaseTenant.add(`${numStr}|${l.tenantId.toLowerCase()}`);
-        if (l.tenant?.code) knownLeaseTenant.add(`${numStr}|${l.tenant.code.trim().toLowerCase()}`);
-        if (l.tenant?.companyName) knownLeaseTenant.add(`${numStr}|${l.tenant.companyName.trim().toLowerCase()}`);
-        const fullName = `${l.tenant?.firstName || ''} ${l.tenant?.lastName || ''}`.trim().toLowerCase();
-        if (fullName) knownLeaseTenant.add(`${numStr}|${fullName}`);
-        if (l.tenant?.firstName) knownLeaseTenant.add(`${numStr}|${l.tenant.firstName.trim().toLowerCase()}`);
-      }
-
-      const propByCode = new Map(properties.filter((p) => p.code).map((p) => [p.code!.toLowerCase(), p.id]));
-      const propByName = new Map(properties.map((p) => [p.name.toLowerCase(), p.id]));
-      const tenantMap = new Map(tenants.filter((t) => t.code).map((t) => [t.code!.toLowerCase(), t]));
-      const tenantByName = new Map(tenants.map((t) => [t.firstName ? t.firstName.toLowerCase() : '', t]));
-      for (const t of tenants) {
-        if (t.companyName) tenantByName.set(t.companyName.toLowerCase(), t);
-        const full = `${t.firstName || ''} ${t.lastName || ''}`.trim().toLowerCase();
-        if (full) tenantByName.set(full, t);
-      }
-
-      const unitKey = (propId: string, uNum: string) => `${propId}|${uNum.toLowerCase()}`;
-      const unitMap = new Map(units.map((u) => [unitKey(u.propertyId, u.unitNumber), u]));
-      const chargeTypeByCode = new Map(chargeTypes.map((c) => [c.code.trim().toLowerCase(), c]));
       let rentChargeType = chargeTypes.find((c) => c.code.trim().toUpperCase() === 'RENT' || c.category === 'rent');
       if (!rentChargeType) {
         rentChargeType = await prisma.chargeType.findFirst({
@@ -2116,7 +2134,7 @@ export const generalImportService = {
       }
 
       const touchedPropertyIds = new Set<string>();
-      const LEASE_BATCH_SIZE = 200;
+      const LEASE_BATCH_SIZE = 500;
       let pendingLeaseBatch: PreparedLease[] = [];
 
       const applySideEffectsForInsertedLeases = async (insertedBatch: PreparedLease[]) => {
@@ -2181,10 +2199,10 @@ export const generalImportService = {
           await prisma.unitStatusHistory.createMany({ data: statusHistoryRows }).catch(() => {});
         }
 
-        // 3. Link unlinked invoices to their newly created leases (chunked parallel updates)
+        // 3. Link unlinked invoices to their newly created leases (chunked updates)
         const leasesWithUnlinked = insertedBatch.filter((item) => item.unlinkedInvoiceIds.length > 0);
-        for (let i = 0; i < leasesWithUnlinked.length; i += 25) {
-          const slice = leasesWithUnlinked.slice(i, i + 25);
+        for (let i = 0; i < leasesWithUnlinked.length; i += 10) {
+          const slice = leasesWithUnlinked.slice(i, i + 10);
           await Promise.all(
             slice.map((item) =>
               prisma.invoice.updateMany({
@@ -2195,7 +2213,7 @@ export const generalImportService = {
           );
         }
 
-        // 4. Batch unit charges (createMany for new, parallel update for modified DB rows) & unitChargeHistory
+        // 4. Batch unit charges (createMany for new, grouped updateMany by amount for modified DB rows) & unitChargeHistory
         const newUnitChargesById = new Map<string, { id: string; unitId: string; chargeTypeId: string; amount: number }>();
         const updatedUnitChargesById = new Map<string, { id: string; amount: number }>();
         const allChargeHistories = insertedBatch.flatMap((item) => item.unitChargeHistories);
@@ -2224,17 +2242,28 @@ export const generalImportService = {
           }).catch(() => {});
         }
 
-        const updatesArr = Array.from(updatedUnitChargesById.values());
-        for (let i = 0; i < updatesArr.length; i += 25) {
-          const slice = updatesArr.slice(i, i + 25);
-          await Promise.all(
-            slice.map((u) =>
-              prisma.unitCharge.update({
-                where: { id: u.id },
-                data: { amount: u.amount },
-              }).catch(() => {})
-            )
-          );
+        if (updatedUnitChargesById.size > 0) {
+          const idsByAmount = new Map<number, string[]>();
+          for (const u of updatedUnitChargesById.values()) {
+            let arr = idsByAmount.get(u.amount);
+            if (!arr) {
+              arr = [];
+              idsByAmount.set(u.amount, arr);
+            }
+            arr.push(u.id);
+          }
+          const amountEntries = Array.from(idsByAmount.entries());
+          for (let i = 0; i < amountEntries.length; i += 10) {
+            const slice = amountEntries.slice(i, i + 10);
+            await Promise.all(
+              slice.map(([amt, ids]) =>
+                prisma.unitCharge.updateMany({
+                  where: { id: { in: ids } },
+                  data: { amount: amt },
+                }).catch(() => {})
+              )
+            );
+          }
         }
 
         if (allChargeHistories.length > 0) {
