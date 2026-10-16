@@ -171,7 +171,7 @@ export default function PositionsPage() {
           <Search size={16} className="users-search-icon" />
           <input
             type="text"
-            placeholder="Search positions by name, department, level..."
+            placeholder="Search positions by name, division, level..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="users-search-input"
@@ -189,8 +189,8 @@ export default function PositionsPage() {
             value={departmentFilter}
             onChange={(e) => { setDepartmentFilter(e.target.value); setPage(1); }}
           >
-            <option value="">All Departments</option>
-            <option value="__unassigned__">All (Global / No Department)</option>
+            <option value="">All Divisions</option>
+            <option value="__unassigned__">All (Global / No Division)</option>
             {flatDepts.map(d => (
               <option key={d.id} value={d.id}>{'\u00A0\u00A0'.repeat(d.depth) + d.name}</option>
             ))}
@@ -242,10 +242,10 @@ export default function PositionsPage() {
                   onChange={e => setForm({ ...form, level: +e.target.value })} />
               </div>
               <div className="form-group">
-                <label>Department (optional)</label>
+                <label>Division (optional)</label>
                 <select className="input-full" value={form.departmentId}
                   onChange={e => setForm({ ...form, departmentId: e.target.value })}>
-                  <option value="">— All Departments —</option>
+                  <option value="">— All Divisions —</option>
                   {flatDepts.map(d => (
                     <option key={d.id} value={d.id}>{'  '.repeat(d.depth) + d.name}</option>
                   ))}
@@ -288,7 +288,7 @@ export default function PositionsPage() {
                 <tr>
                   <th style={{ minWidth: 200 }}>Position Name</th>
                   <th style={{ width: 120 }}>Level</th>
-                  <th style={{ minWidth: 180 }}>Department</th>
+                  <th style={{ minWidth: 180 }}>Division</th>
                   <th style={{ width: 160 }}>Approval</th>
                   <th style={{ width: 70, textAlign: 'center' }}></th>
                 </tr>

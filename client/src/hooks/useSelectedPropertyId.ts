@@ -39,13 +39,16 @@ export function useSelectedPropertyId(): string {
 
 /**
  * Like useSelectedPropertyId(), but returns '' when the user is on the Dashboard (/dashboard)
- * and has explicitly picked "All Properties" in the sidebar. On all other pages, "All Properties"
- * is hidden from the Active Property dropdown and falls back to the first property.
+ * or Properties list (/admin/properties) and has explicitly picked "All Properties" in the sidebar.
+ * On all other pages, "All Properties" is hidden from the Active Property dropdown and falls back
+ * to the first property.
  */
 export function useSelectedPropertyFilter(): string {
   const location = useLocation();
-  const isDashboardPage = !!matchPath('/dashboard', location.pathname);
+  const supportsAllProperties =
+    !!matchPath('/dashboard', location.pathname) ||
+    !!matchPath('/admin/properties', location.pathname);
   const rawSelected = useAppSelector((s) => s.properties.selectedPropertyId);
   const fallbackId = useSelectedPropertyId();
-  return isDashboardPage && rawSelected === ALL_PROPERTIES ? '' : fallbackId;
+  return supportsAllProperties && rawSelected === ALL_PROPERTIES ? '' : fallbackId;
 }

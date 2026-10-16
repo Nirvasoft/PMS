@@ -6,6 +6,7 @@ import {
 } from '../../../store/api/leasesApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
+import { useGetLeadsQuery } from '../../../store/api/crmApi';
 import ComboBox, { type ComboBoxOption } from '../../../components/ComboBox';
 import {
   ArrowLeft, CheckCircle, XCircle, PenLine, AlertTriangle,
@@ -14,6 +15,7 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { openLeaseFormPrintPreview, openLeasePreviewReport } from './utils/leasePrintPreview';
 import './LeaseDetailPage.css';
 
 // Tabs
@@ -29,8 +31,6 @@ import { TerminateModal } from './LeaseDetailPage/components/modals/TerminateMod
 import { RenewalModal } from './LeaseDetailPage/components/modals/RenewalModal';
 import { AmendModal } from './LeaseDetailPage/components/modals/AmendModal';
 import { EsignSendModal } from './LeaseDetailPage/components/modals/EsignSendModal';
-import { InvoicePreviewModal } from './LeaseDetailPage/components/modals/InvoicePreviewModal';
-import { LeaseReportModal } from './LeaseDetailPage/components/modals/LeaseReportModal';
 
 type Tab = 'overview' | 'terms' | 'amendments' | 'esign' | 'documents' | 'history';
 
@@ -49,11 +49,11 @@ export default function LeaseDetailPage() {
   const [showAmendModal,     setShowAmendModal]      = useState(false);
   const [showEsignModal,     setShowEsignModal]      = useState(false);
   const [showEditDraft,      setShowEditDraft]        = useState(false);
-  const [showPreview,        setShowPreview]          = useState(false);
-  const [showReport,         setShowReport]           = useState(false);
 
   const { data, isLoading } = useGetLeaseQuery(id!);
   const lease = data?.data;
+  const { data: usersData } = useGetUsersQuery({ limit: '200' });
+  const { data: leadsData } = useGetLeadsQuery({ limit: 100 });
 
   const [submit,   { isLoading: submitting }]   = useSubmitLeaseMutation();
   const [activate, { isLoading: activating }]   = useActivateLeaseMutation();
@@ -101,8 +101,18 @@ export default function LeaseDetailPage() {
 
           {/* Action toolbar */}
           <div className="ld-actions">
-            <button className="btn-action-report" onClick={() => setShowReport(true)}><FileText size={14}/> Lease Form</button>
-            <button className="btn-action-preview" onClick={() => setShowPreview(true)}><FileText size={14}/> Preview</button>
+            <button
+              className="btn-action-report"
+              onClick={() => openLeaseFormPrintPreview(lease, usersData?.data || [], leadsData?.data || [])}
+            >
+              <FileText size={14}/> Lease Form
+            </button>
+            <button
+              className="btn-action-preview"
+              onClick={() => openLeasePreviewReport(lease)}
+            >
+              <FileText size={14}/> Preview
+            </button>
             {isDraft  && (
               <PermissionGuard permission="leases.update">
                 <button className="btn-action-edit" onClick={() => setShowEditDraft(true)}><Edit2 size={14}/> Edit</button>
@@ -196,8 +206,6 @@ export default function LeaseDetailPage() {
       {showAmendModal     && <AmendModal     leaseId={id!} onClose={() => setShowAmendModal(false)} />}
       {showEsignModal     && <EsignSendModal leaseId={id!} tenantEmail={lease.tenant.email || ''} tenantName={lease.tenant.displayName} onClose={() => setShowEsignModal(false)} />}
       {showEditDraft       && <EditDraftModal lease={lease} onClose={() => setShowEditDraft(false)} />}
-      {showPreview         && <InvoicePreviewModal lease={lease} onClose={() => setShowPreview(false)} />}
-      {showReport          && <LeaseReportModal lease={lease} onClose={() => setShowReport(false)} />}
     </div>
   );
 }

@@ -129,7 +129,7 @@ const INVOICE_TEMPLATE = `
     .col-amt  { width: 105px; text-align: right;  }
 
     /* Row styles */
-    .row-group td { font-weight: 700; }
+    .row-group td { font-weight: 400; }
     .row-sub   td { font-weight: 400; }
     .row-grand td { font-weight: 700; font-size: 12px; background: #fff; }
 
@@ -233,7 +233,7 @@ const INVOICE_TEMPLATE = `
       <tr class="row-group">
         <td class="col-no ta-center">{{this.no}}</td>
         <td class="col-img"></td>
-        <td class="col-desc"><strong>{{this.items.[0].chargeTypeName}}</strong></td>
+        <td class="col-desc">{{this.items.[0].chargeTypeName}}</td>
         <td class="col-sqft ta-right">{{n2 this.items.[0].quantity}}</td>
         <td class="col-rate ta-right">{{n2 this.items.[0].unitPrice}}</td>
         <td class="col-qty  ta-right"></td>
@@ -245,7 +245,7 @@ const INVOICE_TEMPLATE = `
       <tr class="row-group">
         <td class="col-no ta-center">{{this.no}}</td>
         <td class="col-img"></td>
-        <td class="col-desc"><strong>{{this.name}}</strong></td>
+        <td class="col-desc">{{this.name}}</td>
         <td class="col-sqft"></td>
         <td class="col-rate"></td>
         <td class="col-qty"></td>

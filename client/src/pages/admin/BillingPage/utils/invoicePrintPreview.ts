@@ -80,7 +80,7 @@ export function generateInvoiceHtml(inv: InvoiceDetail): string {
             <tr class="row-group">
               <td class="col-no ta-center">${g.no}</td>
               <td class="col-img"></td>
-              <td class="col-desc"><strong>${escapeHtml(item.chargeTypeName)}</strong></td>
+              <td class="col-desc">${escapeHtml(item.chargeTypeName)}</td>
               <td class="col-sqft ta-right">${n2(item.quantity)}</td>
               <td class="col-rate ta-right">${n2(item.unitPrice)}</td>
               <td class="col-qty ta-right"></td>
@@ -105,7 +105,7 @@ export function generateInvoiceHtml(inv: InvoiceDetail): string {
           <tr class="row-group">
             <td class="col-no ta-center">${g.no}</td>
             <td class="col-img"></td>
-            <td class="col-desc"><strong>${escapeHtml(g.name)}</strong></td>
+            <td class="col-desc">${escapeHtml(g.name)}</td>
             <td class="col-sqft"></td>
             <td class="col-rate"></td>
             <td class="col-qty"></td>
@@ -140,26 +140,11 @@ export function generateInvoiceHtml(inv: InvoiceDetail): string {
       z-index: 100;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       padding: 10px 24px;
       background: #1e293b;
       color: #fff;
       box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-    }
-    .preview-toolbar-title {
-      font-size: 14px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .preview-toolbar-badge {
-      background: rgba(255,255,255,0.18);
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 4px;
-      letter-spacing: 0.5px;
-      font-weight: 600;
     }
     .preview-toolbar-actions {
       display: flex;
@@ -179,11 +164,11 @@ export function generateInvoiceHtml(inv: InvoiceDetail): string {
       transition: all 0.15s ease;
     }
     .preview-btn-print {
-      background: #2563eb;
+      background: #10b981;
       color: #fff;
     }
     .preview-btn-print:hover {
-      background: #1d4ed8;
+      background: #059669;
     }
     .preview-btn-close {
       background: rgba(255,255,255,0.12);
@@ -299,7 +284,7 @@ export function generateInvoiceHtml(inv: InvoiceDetail): string {
     .col-amt  { width: 105px; text-align: right;  }
 
     /* Row styles */
-    .row-group td { font-weight: 700; }
+    .row-group td { font-weight: 400; }
     .row-sub   td { font-weight: 400; }
     .row-grand td { font-weight: 700; font-size: 12px; background: #fff; }
 
@@ -353,13 +338,6 @@ export function generateInvoiceHtml(inv: InvoiceDetail): string {
 </head>
 <body>
   <div class="preview-toolbar no-print">
-    <div class="preview-toolbar-title">
-      <span>Invoice Preview (A4)</span>
-      <span class="preview-toolbar-badge">${escapeHtml(invoiceNo)}</span>
-      <span class="preview-toolbar-badge" style="background:${inv.status === 'paid' ? '#059669' : inv.status === 'overdue' ? '#dc2626' : 'rgba(255,255,255,0.18)'}">
-        ${escapeHtml(inv.status ? inv.status.toUpperCase().replace('_', ' ') : '')}
-      </span>
-    </div>
     <div class="preview-toolbar-actions">
       <button class="preview-btn preview-btn-print" onclick="window.print()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

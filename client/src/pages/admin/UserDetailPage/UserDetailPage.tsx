@@ -179,7 +179,7 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
           <DetailRow label="Mobile" value={user.mobile} />
           <DetailRow label="Job Title" value={user.jobTitle} />
           <DetailRow label="Employee ID" value={user.employeeId} />
-          <DetailRow label="Department" value={user.department?.name} />
+          <DetailRow label="Division" value={user.department?.name} />
           <DetailRow label="Position" value={user.position?.name} />
           <DetailRow label="Timezone" value={user.timezone} />
           <DetailRow label="Locale" value={user.locale} />

@@ -39,22 +39,22 @@ export default function DepartmentsPage() {
   const handleCreate = async (name: string, code: string, parentId?: string) => {
     try {
       await createDepartment({ name, code: code || undefined, parentId }).unwrap();
-      toast.success('Department created');
+      toast.success('Division created');
       setShowCreate(false);
     } catch (err: unknown) {
       const apiErr = err as { data?: { errors?: { message: string }[] } };
-      toast.error(apiErr.data?.errors?.[0]?.message || 'Failed to create department');
+      toast.error(apiErr.data?.errors?.[0]?.message || 'Failed to create division');
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!(await confirmDialog(`Delete department "${name}"?`, { danger: true, confirmText: 'Delete' }))) return;
+    if (!(await confirmDialog(`Delete division "${name}"?`, { danger: true, confirmText: 'Delete' }))) return;
     try {
       await deleteDepartment(id).unwrap();
-      toast.success('Department deleted');
+      toast.success('Division deleted');
     } catch (err: unknown) {
       const apiErr = err as { data?: { errors?: { message: string }[] } };
-      toast.error(apiErr.data?.errors?.[0]?.message || 'Cannot delete department');
+      toast.error(apiErr.data?.errors?.[0]?.message || 'Cannot delete division');
     }
   };
 
@@ -80,25 +80,25 @@ export default function DepartmentsPage() {
               <GitBranch size={22} />
             </div>
             <div>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Departments</h1>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Divisions</h1>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                {isLoading ? 'Loading…' : `${totalDepartments} total departments`}
+                {isLoading ? 'Loading…' : `${totalDepartments} total divisions`}
               </p>
             </div>
           </div>
           <PermissionGuard permission="departments.create">
             <button className="btn btn-primary" onClick={() => { setCreateParentId(undefined); setShowCreate(true); }}>
-              + New Department
+              + New Division
             </button>
           </PermissionGuard>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading departments...</div>
+        <div className="loading-inline"><div className="loading-spinner" /> Loading divisions...</div>
       ) : tree.length === 0 ? (
         <div className="info-card" style={{ textAlign: 'center', padding: '60px' }}>
-          <p className="text-muted">No departments yet. Create your first department to get started.</p>
+          <p className="text-muted">No divisions yet. Create your first division to get started.</p>
         </div>
       ) : (
         <>
@@ -209,10 +209,10 @@ function DeptTreeNode({
         </div>
         <div className="dept-actions">
           <PermissionGuard permission="departments.create">
-            <button className="btn btn-sm" onClick={() => onAddChild(node.id)} title="Add sub-department">+</button>
+            <button className="btn btn-sm" onClick={() => onAddChild(node.id)} title="Add sub-division">+</button>
           </PermissionGuard>
           <PermissionGuard permission="departments.update">
-            <button className="btn btn-sm" onClick={() => onMove(node.id, node.name)} title="Move department">↕</button>
+            <button className="btn btn-sm" onClick={() => onMove(node.id, node.name)} title="Move division">↕</button>
           </PermissionGuard>
           <PermissionGuard permission="departments.delete">
             <button
@@ -251,7 +251,7 @@ function CreateDeptModal({
   const [code, setCode] = useState('');
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
-  const nameError = hasAttemptedSubmit && !name.trim() ? 'Department name is required' : '';
+  const nameError = hasAttemptedSubmit && !name.trim() ? 'Division name is required' : '';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,12 +265,12 @@ function CreateDeptModal({
     <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>{parentId ? 'Add Sub-Department' : 'Create Department'}</h2>
+          <h2>{parentId ? 'Add Sub-Division' : 'Create Division'}</h2>
           <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">
-            <label>Department Name *</label>
+            <label>Division Name *</label>
             <input
               className={`input-full${nameError ? ' input-error' : ''}`}
               value={name}
@@ -293,7 +293,7 @@ function CreateDeptModal({
   );
 }
 
-/* ─── Move Department Modal ────────────────── */
+/* ─── Move Division Modal ──────────────────── */
 
 function MoveDeptModal({
   deptId, deptName, tree, onClose,
@@ -327,7 +327,7 @@ function MoveDeptModal({
       onClose();
     } catch (err: unknown) {
       const msg = (err as { data?: { errors?: { message: string }[] } })?.data?.errors?.[0]?.message;
-      toast.error(msg || 'Failed to move department');
+      toast.error(msg || 'Failed to move division');
     }
   };
 
@@ -335,7 +335,7 @@ function MoveDeptModal({
     <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
         <div className="modal-header">
-          <h2>Move Department</h2>
+          <h2>Move Division</h2>
           <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
@@ -367,7 +367,7 @@ function MoveDeptModal({
               onClick={handleMove}
               disabled={isLoading}
             >
-              {isLoading ? 'Moving...' : 'Move Department'}
+              {isLoading ? 'Moving...' : 'Move Division'}
             </button>
           </div>
         </div>

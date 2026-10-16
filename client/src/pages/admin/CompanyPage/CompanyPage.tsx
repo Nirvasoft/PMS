@@ -31,7 +31,6 @@ export default function CompanyPage() {
     <div className="page-content">
       <div className="page-header">
         <h1>🏢 Organization Settings</h1>
-        <p className="text-secondary">Manage your company, branches, regions and organizational structure</p>
       </div>
 
       <div className="tabs">

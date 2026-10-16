@@ -112,9 +112,11 @@ export default function DashboardLayout() {
   // The property ID from the URL — used to display the correct property in the sidebar
   // when the user arrived at the detail page from the "All Properties" view.
   const urlPropertyId = isPropertyDetailPage ? (propertyDetailMatch?.params?.id ?? null) : null;
-  // Only the main Dashboard (/dashboard) supports the "All Properties" option in the Active Property dropdown.
+  // Only the main Dashboard (/dashboard) and Properties list (/admin/properties) support
+  // the "All Properties" option in the Active Property dropdown.
   const isDashboardPage = !!matchPath('/dashboard', location.pathname);
-  const hideAllPropertiesOption = !isDashboardPage;
+  const isPropertiesListPage = !!matchPath('/admin/properties', location.pathname);
+  const hideAllPropertiesOption = !isDashboardPage && !isPropertiesListPage;
   const [logout] = useLogoutMutation();
   useRealtimeNotifications(); // Real-time WS notifications
 
@@ -230,9 +232,9 @@ export default function DashboardLayout() {
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="departments.read">
-                <NavLink to="/admin/departments" className="nav-item" title="Departments">
+                <NavLink to="/admin/departments" className="nav-item" title="Divisions">
                   <GitBranch size={18} />
-                  <span>Departments</span>
+                  <span>Divisions</span>
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="positions.read">

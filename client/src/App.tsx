@@ -473,6 +473,15 @@ import { Component, type ReactNode as RN2 } from 'react';
 class GlobalErrorBoundary extends Component<{ children: RN2 }, { hasError: boolean; error?: Error; info?: string }> {
   state = { hasError: false, error: undefined as Error | undefined, info: '' };
   static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  componentDidMount() {
+    if (import.meta.hot) {
+      import.meta.hot.on('vite:afterUpdate', () => {
+        if (this.state.hasError) {
+          this.setState({ hasError: false, error: undefined, info: '' });
+        }
+      });
+    }
+  }
   componentDidCatch(error: Error, info: any) {
     this.setState({ info: info?.componentStack || '' });
     console.error('Global Error Boundary caught:', error, info);
