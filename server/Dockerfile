@@ -65,6 +65,7 @@ RUN apt-get update -y && \
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 
 # Install production dependencies only
 COPY package.json package-lock.json ./

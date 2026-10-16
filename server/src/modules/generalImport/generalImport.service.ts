@@ -245,74 +245,91 @@ type LeaseCandidateInvoice = {
   lines: LeaseCandidateInvoiceLine[];
 };
 
-async function findCandidateInvoicesForLeaseImport(
+type LeaseWindowFilter = {
+  startDate: Date;
+  graceStart: Date;
+  endDate: Date;
+  leaseNumLower: string;
+};
+
+const INVOICE_HEADER_SELECT = {
+  id: true,
+  invoiceNumber: true,
+  secondRef: true,
+  notes: true,
+  leaseId: true,
+  unitId: true,
+  tenantId: true,
+  invoiceDate: true,
+  periodFrom: true,
+  periodTo: true,
+  status: true,
+  totalAmount: true,
+  paidAmount: true,
+} as const;
+
+const yieldEventLoop = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+async function findCandidateInvoicesForLeaseBatch(
   companyId: string,
-  unitIds: string[],
-  leaseNumbers: string[],
-  validUnitTenantPairs: Set<string>,
+  batchUnitIds: string[],
+  batchRefLowerSet: Set<string>,
+  batchWindowsByUnitTenant: Map<string, LeaseWindowFilter[]>,
   chargeTypeById: Map<string, { id: string; code: string; name: string; category: string }>,
+  prematchedNullUnitInvoices: Omit<LeaseCandidateInvoice, 'lines'>[],
 ): Promise<LeaseCandidateInvoice[]> {
-  if (unitIds.length === 0 && leaseNumbers.length === 0) return [];
+  if (batchUnitIds.length === 0 && batchRefLowerSet.size === 0) return [];
 
-  const refLowerSet = new Set(leaseNumbers.map((s) => s.trim().toLowerCase()).filter(Boolean));
   const invById = new Map<string, Omit<LeaseCandidateInvoice, 'lines'>>();
-  const invoiceSelect = {
-    id: true,
-    invoiceNumber: true,
-    secondRef: true,
-    notes: true,
-    leaseId: true,
-    unitId: true,
-    tenantId: true,
-    invoiceDate: true,
-    periodFrom: true,
-    periodTo: true,
-    status: true,
-    totalAmount: true,
-    paidAmount: true,
-  } as const;
+  const batchRefLowerArr = Array.from(batchRefLowerSet);
 
-  const isRelevantInvoice = (inv: Omit<LeaseCandidateInvoice, 'lines'>) => {
-    if (inv.unitId && inv.tenantId && validUnitTenantPairs.has(`${inv.unitId}|${inv.tenantId}`)) {
+  const isRelevantForBatch = (inv: Omit<LeaseCandidateInvoice, 'lines'>): boolean => {
+    if (inv.secondRef && batchRefLowerSet.size > 0 && batchRefLowerSet.has(inv.secondRef.trim().toLowerCase())) {
       return true;
     }
-    if (inv.secondRef && refLowerSet.size > 0 && refLowerSet.has(inv.secondRef.trim().toLowerCase())) {
-      return true;
+    if (inv.notes && batchRefLowerArr.length > 0) {
+      const notesLower = inv.notes.toLowerCase();
+      if (batchRefLowerArr.some((ref) => notesLower.includes(ref))) {
+        return true;
+      }
     }
-    return false;
+    if (!inv.unitId || !inv.tenantId) return false;
+    const windows = batchWindowsByUnitTenant.get(`${inv.unitId}|${inv.tenantId}`);
+    if (!windows || windows.length === 0) return false;
+
+    return windows.some((w) => {
+      if (inv.periodFrom && inv.periodFrom >= w.graceStart && inv.periodFrom <= w.endDate) {
+        return true;
+      }
+      if (inv.periodTo && inv.periodTo > w.startDate && inv.periodTo <= w.endDate) {
+        return true;
+      }
+      if (!inv.periodFrom && !inv.periodTo && inv.invoiceDate >= w.graceStart && inv.invoiceDate <= w.endDate) {
+        return true;
+      }
+      return false;
+    });
   };
 
-  for (const uChunk of chunkArray(unitIds, 250)) {
+  if (batchUnitIds.length > 0) {
     const batch = await prisma.invoice.findMany({
       where: {
         companyId,
         status: { not: 'void' },
-        unitId: { in: uChunk },
+        unitId: { in: batchUnitIds },
       },
-      select: invoiceSelect,
+      select: INVOICE_HEADER_SELECT,
     });
     for (const inv of batch) {
-      if (isRelevantInvoice(inv)) {
+      if (isRelevantForBatch(inv)) {
         invById.set(inv.id, inv);
       }
     }
   }
 
-  // Only scan non-unit invoices with a secondRef and match in memory to avoid expensive UPPER(second_ref) IN (...) SQL scans
-  if (refLowerSet.size > 0) {
-    const refCandidates = await prisma.invoice.findMany({
-      where: {
-        companyId,
-        status: { not: 'void' },
-        unitId: null,
-        secondRef: { not: null },
-      },
-      select: invoiceSelect,
-    });
-    for (const inv of refCandidates) {
-      if (inv.secondRef && refLowerSet.has(inv.secondRef.trim().toLowerCase())) {
-        invById.set(inv.id, inv);
-      }
+  for (const inv of prematchedNullUnitInvoices) {
+    if (inv.secondRef && batchRefLowerSet.has(inv.secondRef.trim().toLowerCase())) {
+      invById.set(inv.id, inv);
     }
   }
 
@@ -547,6 +564,7 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
   } catch {
     throw AppError.badRequest('File is not a valid .xlsx workbook', 'INVALID_FILE');
   }
+  await yieldEventLoop();
   const sheet = workbook.worksheets[0];
   if (!sheet) throw AppError.badRequest('Workbook has no sheets', 'EMPTY_FILE');
 
@@ -624,6 +642,7 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
       rows.push({ rowNo: rowNo - 1, data }); // header is Excel row 1, so first data row is #1
     }
   });
+  await yieldEventLoop();
   if (rows.length === 0) throw AppError.badRequest('The file contains no data rows', 'EMPTY_FILE');
   return rows;
 }
@@ -1126,6 +1145,9 @@ async function validateRows(
     }
 
     out.push({ rowNo: r.rowNo, data: d, status, errors: status === 'error' ? errors : notes });
+    if (out.length % 400 === 0) {
+      await yieldEventLoop();
+    }
   }
   return out;
 }
@@ -1177,13 +1199,16 @@ export const generalImportService = {
     const normType = (type === 'charges' ? 'charge' : type) as ImportType;
     assertType(normType);
     const parsedRows = await parseWorkbook(normType, buffer);
+    const totalRowCount = parsedRows.length;
     const preloadedLeaseCtx = normType === 'lease' ? await loadLeaseImportContext(companyId, true) : undefined;
     const rows = await validateRows(normType, propertyId, companyId, parsedRows, preloadedLeaseCtx);
+    parsedRows.length = 0;
     const failed: { rowNo: number; errors: string[] }[] = rows
       .filter((r) => r.status === 'error')
       .map((r) => ({ rowNo: r.rowNo, errors: r.errors }));
     // 'skip' rows (meter already exists) still flow through so their unit link can be made.
     const valid = rows.filter((r) => r.status !== 'error');
+    rows.length = 0;
     let imported = 0;
     let skipped = 0;
     let linked = 0;
@@ -2007,10 +2032,9 @@ export const generalImportService = {
         groups.get(groupKey)!.push(r);
       }
 
-      // Collect target unitIds, unit+tenant pairs, and leaseNumbers for non-skipped groups so we only query relevant invoices & unitCharges
+      // Collect target unitIds and leaseNumbers for non-skipped groups
       const targetUnitIdSet = new Set<string>();
-      const targetLeaseNumSet = new Set<string>();
-      const targetUnitTenantPairSet = new Set<string>();
+      const targetLeaseNumLowerSet = new Set<string>();
       const chargeTypeById = new Map(chargeTypes.map((ct) => [ct.id, ct]));
       for (const [_groupKey, groupRows] of groups.entries()) {
         const d = groupRows[0].data;
@@ -2031,51 +2055,28 @@ export const generalImportService = {
           if (matched) targetPropertyId = matched;
         }
         const u = unitMap.get(unitKey(targetPropertyId, (d.unitNumber || '').trim()));
-        const targetTenant = tenantMap.get(tCode) || (tName ? tenantByName.get(tName) : undefined);
-        if (u) {
-          targetUnitIdSet.add(u.id);
-          if (targetTenant) {
-            targetUnitTenantPairSet.add(`${u.id}|${targetTenant.id}`);
-          }
-        }
-        if (leaseNum) targetLeaseNumSet.add(leaseNum);
+        if (u) targetUnitIdSet.add(u.id);
+        if (lNum) targetLeaseNumLowerSet.add(lNum);
       }
 
-      const [existingCompanyInvoices, existingUnitCharges] = await Promise.all([
-        findCandidateInvoicesForLeaseImport(
-          companyId,
-          Array.from(targetUnitIdSet),
-          Array.from(targetLeaseNumSet),
-          targetUnitTenantPairSet,
-          chargeTypeById,
-        ),
+      const [existingUnitCharges, rawNullUnitInvoices] = await Promise.all([
         findUnitChargesByUnitIds(Array.from(targetUnitIdSet)),
+        targetLeaseNumLowerSet.size > 0
+          ? prisma.invoice.findMany({
+              where: {
+                companyId,
+                status: { not: 'void' },
+                unitId: null,
+                secondRef: { not: null },
+              },
+              select: INVOICE_HEADER_SELECT,
+            })
+          : Promise.resolve([]),
       ]);
 
-      const invoicesByUnitTenant = new Map<string, LeaseCandidateInvoice[]>();
-      const invoicesBySecondRef = new Map<string, LeaseCandidateInvoice[]>();
-      for (const inv of existingCompanyInvoices) {
-        if (inv.unitId && inv.tenantId) {
-          const utKey = `${inv.unitId}|${inv.tenantId}`;
-          let arr = invoicesByUnitTenant.get(utKey);
-          if (!arr) {
-            arr = [];
-            invoicesByUnitTenant.set(utKey, arr);
-          }
-          arr.push(inv);
-        }
-        if (inv.secondRef) {
-          const srKey = inv.secondRef.trim().toLowerCase();
-          if (srKey) {
-            let arr = invoicesBySecondRef.get(srKey);
-            if (!arr) {
-              arr = [];
-              invoicesBySecondRef.set(srKey, arr);
-            }
-            arr.push(inv);
-          }
-        }
-      }
+      const prematchedNullUnitInvoices = rawNullUnitInvoices.filter(
+        (inv) => inv.secondRef && targetLeaseNumLowerSet.has(inv.secondRef.trim().toLowerCase()),
+      );
 
       type UnitChargeState = {
         id: string;
@@ -2164,7 +2165,7 @@ export const generalImportService = {
       }
 
       const touchedPropertyIds = new Set<string>();
-      const LEASE_BATCH_SIZE = 250;
+      const LEASE_BATCH_SIZE = 50;
       let pendingLeaseBatch: PreparedLease[] = [];
 
       const applySideEffectsForInsertedLeases = async (insertedBatch: PreparedLease[]) => {
@@ -2331,470 +2332,549 @@ export const generalImportService = {
         await applySideEffectsForInsertedLeases(insertedBatch);
       };
 
-      for (const [_groupKey, groupRows] of groups.entries()) {
-        const headerRow = groupRows[0];
-        const d = headerRow.data;
-        const leaseNum = (d.leaseNumber || '').trim();
-        const lNum = leaseNum.toLowerCase();
-        const tCode = (d.tenantCode || '').trim().toLowerCase();
-        const tName = (d.tenantName || '').trim().toLowerCase();
+      const allGroupEntries = Array.from(groups.entries());
+      for (const batchEntries of chunkArray(allGroupEntries, LEASE_BATCH_SIZE)) {
+        const batchUnitIdSet = new Set<string>();
+        const batchRefLowerSet = new Set<string>();
+        const batchWindowsByUnitTenant = new Map<string, LeaseWindowFilter[]>();
 
-        const isExistingLeaseTenant =
-          (tCode && knownLeaseTenant.has(`${lNum}|${tCode}`)) ||
-          (tName && knownLeaseTenant.has(`${lNum}|${tName}`));
+        for (const [_groupKey, groupRows] of batchEntries) {
+          const d = groupRows[0].data;
+          const leaseNum = (d.leaseNumber || '').trim();
+          const lNum = leaseNum.toLowerCase();
+          const tCode = (d.tenantCode || '').trim().toLowerCase();
+          const tName = (d.tenantName || '').trim().toLowerCase();
+          const isExisting =
+            (tCode && knownLeaseTenant.has(`${lNum}|${tCode}`)) ||
+            (tName && knownLeaseTenant.has(`${lNum}|${tName}`)) ||
+            Boolean(lNum && knownLeaseNumbers.has(lNum));
+          if (isExisting) continue;
 
-        if (isExistingLeaseTenant || (lNum && knownLeaseNumbers.has(lNum))) {
-          skipped += groupRows.length;
-          skippedLeases++;
-          const skipMsg = isExistingLeaseTenant
-            ? `Lease Number "${leaseNum}" and Tenant "${d.tenantCode || d.tenantName || ''}" already exist - skipped`
-            : `Lease Number "${leaseNum}" already exists - skipped`;
-          groupRows.forEach((gr) => notes.push({ rowNo: gr.rowNo, message: skipMsg }));
-          continue;
-        }
-
-        try {
-          // Target property
           let targetPropertyId = propertyId;
           const propRaw = (d.propertyCode || d.property || '').trim().toLowerCase();
           if (propRaw) {
             const matched = propByCode.get(propRaw) || propByName.get(propRaw);
-            if (matched) {
-              targetPropertyId = matched;
+            if (matched) targetPropertyId = matched;
+          }
+          const u = unitMap.get(unitKey(targetPropertyId, (d.unitNumber || '').trim()));
+          const targetTenant = tenantMap.get(tCode) || (tName ? tenantByName.get(tName) : undefined);
+          const sDate = parseDateStr(d.startDate);
+          const eDate = parseDateStr(d.endDate);
+
+          if (lNum) batchRefLowerSet.add(lNum);
+          if (u && targetTenant && sDate && eDate) {
+            batchUnitIdSet.add(u.id);
+            const utKey = `${u.id}|${targetTenant.id}`;
+            let winArr = batchWindowsByUnitTenant.get(utKey);
+            if (!winArr) {
+              winArr = [];
+              batchWindowsByUnitTenant.set(utKey, winArr);
+            }
+            winArr.push({
+              startDate: sDate,
+              graceStart: new Date(sDate.getTime() - 7 * 86_400_000),
+              endDate: eDate,
+              leaseNumLower: lNum,
+            });
+          }
+        }
+
+        const batchInvoices = await findCandidateInvoicesForLeaseBatch(
+          companyId,
+          Array.from(batchUnitIdSet),
+          batchRefLowerSet,
+          batchWindowsByUnitTenant,
+          chargeTypeById,
+          prematchedNullUnitInvoices,
+        );
+
+        const invoicesByUnitTenant = new Map<string, LeaseCandidateInvoice[]>();
+        const invoicesBySecondRef = new Map<string, LeaseCandidateInvoice[]>();
+        for (const inv of batchInvoices) {
+          if (inv.unitId && inv.tenantId) {
+            const utKey = `${inv.unitId}|${inv.tenantId}`;
+            let arr = invoicesByUnitTenant.get(utKey);
+            if (!arr) {
+              arr = [];
+              invoicesByUnitTenant.set(utKey, arr);
+            }
+            arr.push(inv);
+          }
+          if (inv.secondRef) {
+            const srKey = inv.secondRef.trim().toLowerCase();
+            if (srKey) {
+              let arr = invoicesBySecondRef.get(srKey);
+              if (!arr) {
+                arr = [];
+                invoicesBySecondRef.set(srKey, arr);
+              }
+              arr.push(inv);
             }
           }
+        }
 
-          // Target tenant
-          const targetTenant = tenantMap.get(tCode) || (tName ? tenantByName.get(tName) : undefined);
-          if (!targetTenant) {
-            groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [`Tenant "${d.tenantCode || d.tenantName}" not found`] }));
-            continue;
-          }
-          if (targetTenant.isBlacklisted) {
-            groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [`Tenant "${d.tenantCode || d.tenantName}" is blacklisted`] }));
-            continue;
-          }
+        for (const [_groupKey, groupRows] of batchEntries) {
+          const headerRow = groupRows[0];
+          const d = headerRow.data;
+          const leaseNum = (d.leaseNumber || '').trim();
+          const lNum = leaseNum.toLowerCase();
+          const tCode = (d.tenantCode || '').trim().toLowerCase();
+          const tName = (d.tenantName || '').trim().toLowerCase();
 
-          // Target unit
-          const unit = unitMap.get(unitKey(targetPropertyId, (d.unitNumber || '').trim()));
-          if (!unit) {
-            groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [`Unit "${d.unitNumber}" not found in property`] }));
-            continue;
-          }
+          const isExistingLeaseTenant =
+            (tCode && knownLeaseTenant.has(`${lNum}|${tCode}`)) ||
+            (tName && knownLeaseTenant.has(`${lNum}|${tName}`));
 
-          const startDate = parseDateStr(d.startDate);
-          const endDate = parseDateStr(d.endDate);
-          if (!startDate || !endDate) {
-            groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: ['StartDate and EndDate are required and must be valid dates'] }));
-            continue;
-          }
-          const handoverDate = parseDateStr(d.handoverDate);
-          const contractStartDate = parseDateStr(d.contractStartDate);
-          const contractEndDate = parseDateStr(d.contractEndDate);
-
-          let termMonths = optNum(d.leaseTermMonths);
-          if (!termMonths || termMonths <= 0) {
-            termMonths = calcLeaseTermMonths(startDate, endDate);
-          }
-          const effectiveTermMonths = termMonths && termMonths > 0 ? Math.max(1, Math.round(termMonths)) : 1;
-
-          const rent = num(d.rentAmount);
-          if (rent === null || isNaN(rent)) {
-            groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: ['RentAmount must be a valid number'] }));
+          if (isExistingLeaseTenant || (lNum && knownLeaseNumbers.has(lNum))) {
+            skipped += groupRows.length;
+            skippedLeases++;
+            const skipMsg = isExistingLeaseTenant
+              ? `Lease Number "${leaseNum}" and Tenant "${d.tenantCode || d.tenantName || ''}" already exist - skipped`
+              : `Lease Number "${leaseNum}" already exists - skipped`;
+            groupRows.forEach((gr) => notes.push({ rowNo: gr.rowNo, message: skipMsg }));
             continue;
           }
 
-          const status = d.status ? norm(d.status) : 'active';
-          const currency = (d.currency?.trim() || 'USD').toUpperCase();
-
-          const rentalAgreement = (contractStartDate || contractEndDate)
-            ? {
-                contractStartDate: contractStartDate ? contractStartDate.toISOString().slice(0, 10) : null,
-                contractEndDate: contractEndDate ? contractEndDate.toISOString().slice(0, 10) : null,
+          try {
+            // Target property
+            let targetPropertyId = propertyId;
+            const propRaw = (d.propertyCode || d.property || '').trim().toLowerCase();
+            if (propRaw) {
+              const matched = propByCode.get(propRaw) || propByName.get(propRaw);
+              if (matched) {
+                targetPropertyId = matched;
               }
-            : undefined;
+            }
 
-          const finalLeaseNumber = leaseNum || nextLeaseNumber();
-          const createdLeaseId = randomUUID();
+            // Target tenant
+            const targetTenant = tenantMap.get(tCode) || (tName ? tenantByName.get(tName) : undefined);
+            if (!targetTenant) {
+              groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [`Tenant "${d.tenantCode || d.tenantName}" not found`] }));
+              continue;
+            }
+            if (targetTenant.isBlacklisted) {
+              groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [`Tenant "${d.tenantCode || d.tenantName}" is blacklisted`] }));
+              continue;
+            }
 
-          // -if lease status is Active>>unit status must be occupied, if draft unit status is reserved
-          let targetUnitStatus: string | null = null;
-          if (status === 'active') {
-            targetUnitStatus = 'occupied';
-          } else if (status === 'draft') {
-            targetUnitStatus = 'reserved';
-          }
+            // Target unit
+            const unit = unitMap.get(unitKey(targetPropertyId, (d.unitNumber || '').trim()));
+            if (!unit) {
+              groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [`Unit "${d.unitNumber}" not found in property`] }));
+              continue;
+            }
 
-          let unitStatusChange: PreparedLease['unitStatusChange'];
-          if (targetUnitStatus && unit.status !== targetUnitStatus) {
-            unitStatusChange = {
-              unitId: unit.id,
-              propertyId: targetPropertyId,
-              fromStatus: unit.status,
-              toStatus: targetUnitStatus,
-              reason: `Lease import (${finalLeaseNumber}, status: ${status})`,
-            };
-            unit.status = targetUnitStatus;
-          }
+            const startDate = parseDateStr(d.startDate);
+            const endDate = parseDateStr(d.endDate);
+            if (!startDate || !endDate) {
+              groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: ['StartDate and EndDate are required and must be valid dates'] }));
+              continue;
+            }
+            const handoverDate = parseDateStr(d.handoverDate);
+            const contractStartDate = parseDateStr(d.contractStartDate);
+            const contractEndDate = parseDateStr(d.contractEndDate);
 
-          const resolvedFloorLabel =
-            unit.floorLabel ||
-            (unit.floorNumber != null ? floorLabelMap.get(`${targetPropertyId}|${unit.floorNumber}`) : undefined) ||
-            (unit.floorNumber != null ? `Floor ${unit.floorNumber}` : '');
-          const unitFloorLabel = resolvedFloorLabel
-            ? `${resolvedFloorLabel} · Unit ${unit.unitNumber}`
-            : `Unit ${unit.unitNumber}`;
+            let termMonths = optNum(d.leaseTermMonths);
+            if (!termMonths || termMonths <= 0) {
+              termMonths = calcLeaseTermMonths(startDate, endDate);
+            }
+            const effectiveTermMonths = termMonths && termMonths > 0 ? Math.max(1, Math.round(termMonths)) : 1;
 
-          // Collect existing non-void invoices belonging to this contract
-          const candidateInvoices = new Map<string, LeaseCandidateInvoice>();
-          for (const inv of invoicesByUnitTenant.get(`${unit.id}|${targetTenant.id}`) || []) {
-            candidateInvoices.set(inv.id, inv);
-          }
-          const finalNumLower = finalLeaseNumber.trim().toLowerCase();
-          if (finalNumLower) {
-            for (const inv of invoicesBySecondRef.get(finalNumLower) || []) {
+            const rent = num(d.rentAmount);
+            if (rent === null || isNaN(rent)) {
+              groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: ['RentAmount must be a valid number'] }));
+              continue;
+            }
+
+            const status = d.status ? norm(d.status) : 'active';
+            const currency = (d.currency?.trim() || 'USD').toUpperCase();
+
+            const rentalAgreement = (contractStartDate || contractEndDate)
+              ? {
+                  contractStartDate: contractStartDate ? contractStartDate.toISOString().slice(0, 10) : null,
+                  contractEndDate: contractEndDate ? contractEndDate.toISOString().slice(0, 10) : null,
+                }
+              : undefined;
+
+            const finalLeaseNumber = leaseNum || nextLeaseNumber();
+            const createdLeaseId = randomUUID();
+
+            // -if lease status is Active>>unit status must be occupied, if draft unit status is reserved
+            let targetUnitStatus: string | null = null;
+            if (status === 'active') {
+              targetUnitStatus = 'occupied';
+            } else if (status === 'draft') {
+              targetUnitStatus = 'reserved';
+            }
+
+            let unitStatusChange: PreparedLease['unitStatusChange'];
+            if (targetUnitStatus && unit.status !== targetUnitStatus) {
+              unitStatusChange = {
+                unitId: unit.id,
+                propertyId: targetPropertyId,
+                fromStatus: unit.status,
+                toStatus: targetUnitStatus,
+                reason: `Lease import (${finalLeaseNumber}, status: ${status})`,
+              };
+              unit.status = targetUnitStatus;
+            }
+
+            const resolvedFloorLabel =
+              unit.floorLabel ||
+              (unit.floorNumber != null ? floorLabelMap.get(`${targetPropertyId}|${unit.floorNumber}`) : undefined) ||
+              (unit.floorNumber != null ? `Floor ${unit.floorNumber}` : '');
+            const unitFloorLabel = resolvedFloorLabel
+              ? `${resolvedFloorLabel} · Unit ${unit.unitNumber}`
+              : `Unit ${unit.unitNumber}`;
+
+            // Collect existing non-void invoices belonging to this contract
+            const candidateInvoices = new Map<string, LeaseCandidateInvoice>();
+            for (const inv of invoicesByUnitTenant.get(`${unit.id}|${targetTenant.id}`) || []) {
               candidateInvoices.set(inv.id, inv);
             }
-          }
+            const finalNumLower = finalLeaseNumber.trim().toLowerCase();
+            if (finalNumLower) {
+              for (const inv of invoicesBySecondRef.get(finalNumLower) || []) {
+                candidateInvoices.set(inv.id, inv);
+              }
+            }
 
-          const contractStartGrace = new Date(startDate.getTime() - 7 * 86_400_000);
-          const contractInvoices = Array.from(candidateInvoices.values()).filter((inv) => {
-            if (inv.leaseId === createdLeaseId) return true;
-            if (finalNumLower && inv.secondRef && inv.secondRef.trim().toLowerCase() === finalNumLower) {
-              return true;
-            }
-            if (finalNumLower && inv.notes && inv.notes.toLowerCase().includes(finalNumLower)) {
-              return true;
-            }
-            if (inv.periodFrom && inv.periodFrom >= contractStartGrace && inv.periodFrom <= endDate) {
-              return true;
-            }
-            if (inv.periodTo && inv.periodTo > startDate && inv.periodTo <= endDate) {
-              return true;
-            }
-            const hasLineInContract = inv.lines.some((ln) => {
-              if (ln.periodFrom && ln.periodFrom >= contractStartGrace && ln.periodFrom <= endDate) return true;
-              if (ln.periodTo && ln.periodTo > startDate && ln.periodTo <= endDate) return true;
+            const contractStartGrace = new Date(startDate.getTime() - 7 * 86_400_000);
+            const contractInvoices = Array.from(candidateInvoices.values()).filter((inv) => {
+              if (inv.leaseId === createdLeaseId) return true;
+              if (finalNumLower && inv.secondRef && inv.secondRef.trim().toLowerCase() === finalNumLower) {
+                return true;
+              }
+              if (finalNumLower && inv.notes && inv.notes.toLowerCase().includes(finalNumLower)) {
+                return true;
+              }
+              if (inv.periodFrom && inv.periodFrom >= contractStartGrace && inv.periodFrom <= endDate) {
+                return true;
+              }
+              if (inv.periodTo && inv.periodTo > startDate && inv.periodTo <= endDate) {
+                return true;
+              }
+              const hasLineInContract = inv.lines.some((ln) => {
+                if (ln.periodFrom && ln.periodFrom >= contractStartGrace && ln.periodFrom <= endDate) return true;
+                if (ln.periodTo && ln.periodTo > startDate && ln.periodTo <= endDate) return true;
+                return false;
+              });
+              if (hasLineInContract) return true;
+              const hasAnyPeriod = Boolean(inv.periodFrom || inv.periodTo || inv.lines.some((ln) => ln.periodFrom || ln.periodTo));
+              if (!hasAnyPeriod && inv.invoiceDate >= contractStartGrace && inv.invoiceDate <= endDate) {
+                return true;
+              }
               return false;
             });
-            if (hasLineInContract) return true;
-            const hasAnyPeriod = Boolean(inv.periodFrom || inv.periodTo || inv.lines.some((ln) => ln.periodFrom || ln.periodTo));
-            if (!hasAnyPeriod && inv.invoiceDate >= contractStartGrace && inv.invoiceDate <= endDate) {
-              return true;
+
+            const unlinkedInvoiceIds = contractInvoices.filter((inv) => !inv.leaseId).map((inv) => inv.id);
+            for (const inv of contractInvoices) {
+              if (!inv.leaseId) inv.leaseId = createdLeaseId;
             }
-            return false;
-          });
 
-          const unlinkedInvoiceIds = contractInvoices.filter((inv) => !inv.leaseId).map((inv) => inv.id);
-          for (const inv of contractInvoices) {
-            if (!inv.leaseId) inv.leaseId = createdLeaseId;
-          }
+            const unitChargeOps: PreparedLease['unitChargeOps'] = [];
+            const unitChargeHistories: PreparedLease['unitChargeHistories'] = [];
+            const schedulesToCreate: PreparedLease['schedulesToCreate'] = [];
+            const pendingNotes: PreparedLease['pendingNotes'] = [];
+            const scheduledChargeTypesForLease = new Set<string>();
 
-          const unitChargeOps: PreparedLease['unitChargeOps'] = [];
-          const unitChargeHistories: PreparedLease['unitChargeHistories'] = [];
-          const schedulesToCreate: PreparedLease['schedulesToCreate'] = [];
-          const pendingNotes: PreparedLease['pendingNotes'] = [];
-          const scheduledChargeTypesForLease = new Set<string>();
+            // -lease with charges need to add charges at corresponding unit
+            // -Rent is not Charges >> that is base rent only
+            // -if lease status is Active>>charges are need to schedule (advancing nextBillingDate past already-invoiced months)
+            for (const gr of groupRows) {
+              const chgCode = (gr.data.chargesCode || gr.data.chargeCode || '').trim();
+              const chgAmount = num(gr.data.chargesAmount || gr.data.chargeAmount);
+              if (chgCode && chgAmount !== null && !isNaN(chgAmount)) {
+                const ct = chargeTypeByCode.get(chgCode.toLowerCase());
+                if (!ct) {
+                  pendingNotes.push({ rowNo: gr.rowNo, message: `Charges Code "${chgCode}" not found in Charges Setup - skipped charge` });
+                  continue;
+                }
 
-          // -lease with charges need to add charges at corresponding unit
-          // -Rent is not Charges >> that is base rent only
-          // -if lease status is Active>>charges are need to schedule (advancing nextBillingDate past already-invoiced months)
-          for (const gr of groupRows) {
-            const chgCode = (gr.data.chargesCode || gr.data.chargeCode || '').trim();
-            const chgAmount = num(gr.data.chargesAmount || gr.data.chargeAmount);
-            if (chgCode && chgAmount !== null && !isNaN(chgAmount)) {
-              const ct = chargeTypeByCode.get(chgCode.toLowerCase());
-              if (!ct) {
-                pendingNotes.push({ rowNo: gr.rowNo, message: `Charges Code "${chgCode}" not found in Charges Setup - skipped charge` });
-                continue;
-              }
+                // Rent is Base Rent only — never enter as a unit/lease charge
+                if (isRentChargeType(ct)) {
+                  pendingNotes.push({ rowNo: gr.rowNo, message: `Charge "${ct.name}" (${ct.code}) is Base Rent — excluded from lease charges` });
+                  continue;
+                }
 
-              // Rent is Base Rent only — never enter as a unit/lease charge
-              if (isRentChargeType(ct)) {
-                pendingNotes.push({ rowNo: gr.rowNo, message: `Charge "${ct.name}" (${ct.code}) is Base Rent — excluded from lease charges` });
-                continue;
-              }
+                // 1. Add / update charge at corresponding unit (tracked in memory & flushed in batch)
+                const ucKey = `${unit.id}|${ct.id}`;
+                const existingUC = unitChargeStateMap.get(ucKey);
+                if (existingUC) {
+                  unitChargeHistories.push({
+                    id: randomUUID(),
+                    unitId: unit.id,
+                    action: 'modified',
+                    chargeTypeId: ct.id,
+                    amount: chgAmount,
+                    oldChargeTypeId: existingUC.chargeTypeId,
+                    oldAmount: existingUC.amount,
+                    changedBy: userId,
+                  });
+                  existingUC.amount = chgAmount;
+                  unitChargeOps.push({
+                    id: existingUC.id,
+                    unitId: unit.id,
+                    chargeTypeId: ct.id,
+                    amount: chgAmount,
+                    isNew: false,
+                  });
+                } else {
+                  const newUcId = randomUUID();
+                  unitChargeStateMap.set(ucKey, {
+                    id: newUcId,
+                    unitId: unit.id,
+                    chargeTypeId: ct.id,
+                    amount: chgAmount,
+                    persistedInDb: false,
+                  });
+                  unitChargeOps.push({
+                    id: newUcId,
+                    unitId: unit.id,
+                    chargeTypeId: ct.id,
+                    amount: chgAmount,
+                    isNew: true,
+                  });
+                  unitChargeHistories.push({
+                    id: randomUUID(),
+                    unitId: unit.id,
+                    action: 'added',
+                    chargeTypeId: ct.id,
+                    amount: chgAmount,
+                    oldChargeTypeId: null,
+                    oldAmount: null,
+                    changedBy: userId,
+                  });
+                }
 
-              // 1. Add / update charge at corresponding unit (tracked in memory & flushed in batch)
-              const ucKey = `${unit.id}|${ct.id}`;
-              const existingUC = unitChargeStateMap.get(ucKey);
-              if (existingUC) {
-                unitChargeHistories.push({
-                  id: randomUUID(),
-                  unitId: unit.id,
-                  action: 'modified',
-                  chargeTypeId: ct.id,
-                  amount: chgAmount,
-                  oldChargeTypeId: existingUC.chargeTypeId,
-                  oldAmount: existingUC.amount,
-                  changedBy: userId,
-                });
-                existingUC.amount = chgAmount;
-                unitChargeOps.push({
-                  id: existingUC.id,
-                  unitId: unit.id,
-                  chargeTypeId: ct.id,
-                  amount: chgAmount,
-                  isNew: false,
-                });
-              } else {
-                const newUcId = randomUUID();
-                unitChargeStateMap.set(ucKey, {
-                  id: newUcId,
-                  unitId: unit.id,
-                  chargeTypeId: ct.id,
-                  amount: chgAmount,
-                  persistedInDb: false,
-                });
-                unitChargeOps.push({
-                  id: newUcId,
-                  unitId: unit.id,
-                  chargeTypeId: ct.id,
-                  amount: chgAmount,
-                  isNew: true,
-                });
-                unitChargeHistories.push({
-                  id: randomUUID(),
-                  unitId: unit.id,
-                  action: 'added',
-                  chargeTypeId: ct.id,
-                  amount: chgAmount,
-                  oldChargeTypeId: null,
-                  oldAmount: null,
-                  changedBy: userId,
-                });
-              }
+                // 2. If lease status is Active >> schedule charge starting from the first un-invoiced month
+                if (status === 'active' && !scheduledChargeTypesForLease.has(ct.id)) {
+                  let latestPeriodFrom: Date | null = null;
+                  let latestPeriodTo: Date | null = null;
+                  let latestInvDate: Date | null = null;
+                  let matchedChargeLinesCount = 0;
 
-              // 2. If lease status is Active >> schedule charge starting from the first un-invoiced month
-              if (status === 'active' && !scheduledChargeTypesForLease.has(ct.id)) {
-                let latestPeriodFrom: Date | null = null;
-                let latestPeriodTo: Date | null = null;
-                let latestInvDate: Date | null = null;
-                let matchedChargeLinesCount = 0;
-
-                for (const inv of contractInvoices) {
-                  for (const ln of inv.lines) {
-                    if (doesLineMatchCharge(ln, ct)) {
-                      matchedChargeLinesCount++;
-                      const pf = ln.periodFrom || inv.periodFrom;
-                      const pt = ln.periodTo || inv.periodTo;
-                      if (pf && (!latestPeriodFrom || pf > latestPeriodFrom)) {
-                        latestPeriodFrom = pf;
-                      }
-                      if (pt && (!latestPeriodTo || pt > latestPeriodTo)) {
-                        latestPeriodTo = pt;
-                      }
-                      if (!pf && !pt && (!latestInvDate || inv.invoiceDate > latestInvDate)) {
-                        latestInvDate = inv.invoiceDate;
+                  for (const inv of contractInvoices) {
+                    for (const ln of inv.lines) {
+                      if (doesLineMatchCharge(ln, ct)) {
+                        matchedChargeLinesCount++;
+                        const pf = ln.periodFrom || inv.periodFrom;
+                        const pt = ln.periodTo || inv.periodTo;
+                        if (pf && (!latestPeriodFrom || pf > latestPeriodFrom)) {
+                          latestPeriodFrom = pf;
+                        }
+                        if (pt && (!latestPeriodTo || pt > latestPeriodTo)) {
+                          latestPeriodTo = pt;
+                        }
+                        if (!pf && !pt && (!latestInvDate || inv.invoiceDate > latestInvDate)) {
+                          latestInvDate = inv.invoiceDate;
+                        }
                       }
                     }
                   }
-                }
 
-                const isDepositCharge =
-                  (ct.category || '').toLowerCase() === 'deposit' ||
-                  /^D\d{4}/i.test(ct.code) ||
-                  (ct.name || '').toLowerCase().includes('deposit');
+                  const isDepositCharge =
+                    (ct.category || '').toLowerCase() === 'deposit' ||
+                    /^D\d{4}/i.test(ct.code) ||
+                    (ct.name || '').toLowerCase().includes('deposit');
 
-                if (isDepositCharge && matchedChargeLinesCount > 0) {
-                  pendingNotes.push({
-                    rowNo: gr.rowNo,
-                    message: `Charge "${ct.name}" already has a generated invoice — schedule skipped`,
+                  if (isDepositCharge && matchedChargeLinesCount > 0) {
+                    pendingNotes.push({
+                      rowNo: gr.rowNo,
+                      message: `Charge "${ct.name}" already has a generated invoice — schedule skipped`,
+                    });
+                    continue;
+                  }
+
+                  const chargeNextBillingDate = computeNextUnbilledMonth(
+                    startDate,
+                    latestPeriodFrom,
+                    latestPeriodTo,
+                    latestInvDate,
+                  );
+
+                  if (chargeNextBillingDate > endDate) {
+                    pendingNotes.push({
+                      rowNo: gr.rowNo,
+                      message: `Charge "${ct.name}" is already invoiced through the end of the lease term — schedule skipped`,
+                    });
+                    continue;
+                  }
+
+                  scheduledChargeTypesForLease.add(ct.id);
+                  schedulesToCreate.push({
+                    id: randomUUID(),
+                    companyId,
+                    propertyId: targetPropertyId,
+                    unitId: unit.id,
+                    tenantId: targetTenant.id,
+                    leaseId: createdLeaseId,
+                    chargeTypeId: ct.id,
+                    description: `${ct.name} — ${unitFloorLabel}`,
+                    amount: chgAmount,
+                    quantity: 1,
+                    currency,
+                    billingCycle: 'monthly',
+                    billingDay: 1,
+                    paymentDueDays: 7,
+                    startDate,
+                    endDate,
+                    nextBillingDate: chargeNextBillingDate,
+                    status: 'active',
+                    createdBy: userId,
                   });
-                  continue;
                 }
+              }
+            }
 
-                const chargeNextBillingDate = computeNextUnbilledMonth(
+            // -Rent is not Charges >> that is base rent only
+            // -If full term Rent amount (rent * termMonths) is already invoiced, skip Rent schedule
+            // -If partially invoiced (0 < invoicedRentAmount < totalTermRent), schedule only the remaining rent amount
+            const totalTermRent = Math.round(rent * effectiveTermMonths * 100) / 100;
+            let invoicedRentAmount = 0;
+            let latestRentPeriodFrom: Date | null = null;
+            let latestRentPeriodTo: Date | null = null;
+            let latestRentInvDate: Date | null = null;
+            const matchedRentInvNumbers: string[] = [];
+
+            for (const inv of contractInvoices) {
+              let invHasRent = false;
+              for (const ln of inv.lines) {
+                if (isRentInvoiceLine(ln)) {
+                  invHasRent = true;
+                  invoicedRentAmount += Number(ln.amount ?? ln.lineTotal ?? 0);
+                  const pf = ln.periodFrom || inv.periodFrom;
+                  const pt = ln.periodTo || inv.periodTo;
+                  if (pf && (!latestRentPeriodFrom || pf > latestRentPeriodFrom)) {
+                    latestRentPeriodFrom = pf;
+                  }
+                  if (pt && (!latestRentPeriodTo || pt > latestRentPeriodTo)) {
+                    latestRentPeriodTo = pt;
+                  }
+                  if (!pf && !pt && (!latestRentInvDate || inv.invoiceDate > latestRentInvDate)) {
+                    latestRentInvDate = inv.invoiceDate;
+                  }
+                }
+              }
+              if (invHasRent) {
+                matchedRentInvNumbers.push(inv.invoiceNumber);
+              }
+            }
+            invoicedRentAmount = Math.round(invoicedRentAmount * 100) / 100;
+
+            if (totalTermRent > 0 && invoicedRentAmount >= totalTermRent) {
+              pendingNotes.push({
+                rowNo: headerRow.rowNo,
+                message: `Full term Base Rent (${totalTermRent}) already has generated invoice (${matchedRentInvNumbers.join(', ')}) — Rent schedule skipped`,
+              });
+            } else if (status === 'active' && rent > 0 && totalTermRent > 0 && rentChargeType && !scheduledChargeTypesForLease.has(rentChargeType.id)) {
+              const isPartialRentInvoiced = invoicedRentAmount > 0 && invoicedRentAmount < totalTermRent;
+              const remainingRent = isPartialRentInvoiced
+                ? Math.max(0, Math.round((totalTermRent - invoicedRentAmount) * 100) / 100)
+                : rent;
+              const monthsCovered = isPartialRentInvoiced
+                ? Math.max(1, Math.floor((invoicedRentAmount + 0.009) / rent))
+                : 0;
+              const scheduleQty = isPartialRentInvoiced
+                ? Math.max(1, effectiveTermMonths - monthsCovered)
+                : effectiveTermMonths;
+
+              let rentNextBillingDate = startDate;
+              if (isPartialRentInvoiced) {
+                const fromPeriod = computeNextUnbilledMonth(
                   startDate,
-                  latestPeriodFrom,
-                  latestPeriodTo,
-                  latestInvDate,
+                  latestRentPeriodFrom,
+                  latestRentPeriodTo,
+                  latestRentInvDate,
                 );
-
-                if (chargeNextBillingDate > endDate) {
-                  pendingNotes.push({
-                    rowNo: gr.rowNo,
-                    message: `Charge "${ct.name}" is already invoiced through the end of the lease term — schedule skipped`,
-                  });
-                  continue;
+                let fromMonthsCovered = startDate;
+                for (let i = 0; i < monthsCovered; i++) {
+                  fromMonthsCovered = billingSchedulesService.computeNextBillingDateFromStart(fromMonthsCovered, 'monthly', 1);
                 }
+                rentNextBillingDate = fromPeriod > fromMonthsCovered ? fromPeriod : fromMonthsCovered;
+                if (rentNextBillingDate > endDate) {
+                  rentNextBillingDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1));
+                  if (rentNextBillingDate < startDate) rentNextBillingDate = startDate;
+                }
+              }
 
-                scheduledChargeTypesForLease.add(ct.id);
-                schedulesToCreate.push({
-                  id: randomUUID(),
-                  companyId,
-                  propertyId: targetPropertyId,
-                  unitId: unit.id,
-                  tenantId: targetTenant.id,
-                  leaseId: createdLeaseId,
-                  chargeTypeId: ct.id,
-                  description: `${ct.name} — ${unitFloorLabel}`,
-                  amount: chgAmount,
-                  quantity: 1,
-                  currency,
-                  billingCycle: 'monthly',
-                  billingDay: 1,
-                  paymentDueDays: 7,
-                  startDate,
-                  endDate,
-                  nextBillingDate: chargeNextBillingDate,
-                  status: 'active',
-                  createdBy: userId,
+              scheduledChargeTypesForLease.add(rentChargeType.id);
+              schedulesToCreate.push({
+                id: randomUUID(),
+                companyId,
+                propertyId: targetPropertyId,
+                unitId: unit.id,
+                tenantId: targetTenant.id,
+                leaseId: createdLeaseId,
+                chargeTypeId: rentChargeType.id,
+                description: isPartialRentInvoiced
+                  ? `Rent (Remaining Balance) — ${unitFloorLabel}`
+                  : `Rent — ${unitFloorLabel}`,
+                amount: remainingRent,
+                quantity: scheduleQty,
+                currency,
+                billingCycle: 'monthly',
+                billingDay: 1,
+                paymentDueDays: 7,
+                startDate,
+                endDate,
+                nextBillingDate: rentNextBillingDate,
+                status: 'active',
+                createdBy: userId,
+              });
+
+              if (isPartialRentInvoiced) {
+                pendingNotes.push({
+                  rowNo: headerRow.rowNo,
+                  message: `Partial Base Rent (${invoicedRentAmount} of ${totalTermRent}) invoiced (${matchedRentInvNumbers.join(', ')}) — scheduled remaining ${remainingRent}`,
                 });
               }
             }
-          }
 
-          // -Rent is not Charges >> that is base rent only
-          // -If full term Rent amount (rent * termMonths) is already invoiced, skip Rent schedule
-          // -If partially invoiced (0 < invoicedRentAmount < totalTermRent), schedule only the remaining rent amount
-          const totalTermRent = Math.round(rent * effectiveTermMonths * 100) / 100;
-          let invoicedRentAmount = 0;
-          let latestRentPeriodFrom: Date | null = null;
-          let latestRentPeriodTo: Date | null = null;
-          let latestRentInvDate: Date | null = null;
-          const matchedRentInvNumbers: string[] = [];
+            const finalNumKey = finalLeaseNumber.trim().toLowerCase();
+            knownLeaseNumbers.add(finalNumKey);
+            knownLeaseTenant.add(`${finalNumKey}|${targetTenant.id.toLowerCase()}`);
+            if (targetTenant.code) knownLeaseTenant.add(`${finalNumKey}|${targetTenant.code.trim().toLowerCase()}`);
+            if (targetTenant.companyName) knownLeaseTenant.add(`${finalNumKey}|${targetTenant.companyName.trim().toLowerCase()}`);
+            const fullName = `${targetTenant.firstName || ''} ${targetTenant.lastName || ''}`.trim().toLowerCase();
+            if (fullName) knownLeaseTenant.add(`${finalNumKey}|${fullName}`);
 
-          for (const inv of contractInvoices) {
-            let invHasRent = false;
-            for (const ln of inv.lines) {
-              if (isRentInvoiceLine(ln)) {
-                invHasRent = true;
-                invoicedRentAmount += Number(ln.amount ?? ln.lineTotal ?? 0);
-                const pf = ln.periodFrom || inv.periodFrom;
-                const pt = ln.periodTo || inv.periodTo;
-                if (pf && (!latestRentPeriodFrom || pf > latestRentPeriodFrom)) {
-                  latestRentPeriodFrom = pf;
-                }
-                if (pt && (!latestRentPeriodTo || pt > latestRentPeriodTo)) {
-                  latestRentPeriodTo = pt;
-                }
-                if (!pf && !pt && (!latestRentInvDate || inv.invoiceDate > latestRentInvDate)) {
-                  latestRentInvDate = inv.invoiceDate;
-                }
-              }
-            }
-            if (invHasRent) {
-              matchedRentInvNumbers.push(inv.invoiceNumber);
-            }
-          }
-          invoicedRentAmount = Math.round(invoicedRentAmount * 100) / 100;
-
-          if (totalTermRent > 0 && invoicedRentAmount >= totalTermRent) {
-            pendingNotes.push({
-              rowNo: headerRow.rowNo,
-              message: `Full term Base Rent (${totalTermRent}) already has generated invoice (${matchedRentInvNumbers.join(', ')}) — Rent schedule skipped`,
-            });
-          } else if (status === 'active' && rent > 0 && totalTermRent > 0 && rentChargeType && !scheduledChargeTypesForLease.has(rentChargeType.id)) {
-            const isPartialRentInvoiced = invoicedRentAmount > 0 && invoicedRentAmount < totalTermRent;
-            const remainingRent = isPartialRentInvoiced
-              ? Math.max(0, Math.round((totalTermRent - invoicedRentAmount) * 100) / 100)
-              : rent;
-            const monthsCovered = isPartialRentInvoiced
-              ? Math.max(1, Math.floor((invoicedRentAmount + 0.009) / rent))
-              : 0;
-            const scheduleQty = isPartialRentInvoiced
-              ? Math.max(1, effectiveTermMonths - monthsCovered)
-              : effectiveTermMonths;
-
-            let rentNextBillingDate = startDate;
-            if (isPartialRentInvoiced) {
-              const fromPeriod = computeNextUnbilledMonth(
+            pendingLeaseBatch.push({
+              groupRows,
+              leaseData: {
+                id: createdLeaseId,
+                companyId,
+                propertyId: targetPropertyId,
+                unitId: unit.id,
+                tenantId: targetTenant.id,
+                leaseNumber: finalLeaseNumber,
+                status,
                 startDate,
-                latestRentPeriodFrom,
-                latestRentPeriodTo,
-                latestRentInvDate,
-              );
-              let fromMonthsCovered = startDate;
-              for (let i = 0; i < monthsCovered; i++) {
-                fromMonthsCovered = billingSchedulesService.computeNextBillingDateFromStart(fromMonthsCovered, 'monthly', 1);
-              }
-              rentNextBillingDate = fromPeriod > fromMonthsCovered ? fromPeriod : fromMonthsCovered;
-              if (rentNextBillingDate > endDate) {
-                rentNextBillingDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1));
-                if (rentNextBillingDate < startDate) rentNextBillingDate = startDate;
-              }
-            }
-
-            scheduledChargeTypesForLease.add(rentChargeType.id);
-            schedulesToCreate.push({
-              id: randomUUID(),
-              companyId,
-              propertyId: targetPropertyId,
-              unitId: unit.id,
-              tenantId: targetTenant.id,
-              leaseId: createdLeaseId,
-              chargeTypeId: rentChargeType.id,
-              description: isPartialRentInvoiced
-                ? `Rent (Remaining Balance) — ${unitFloorLabel}`
-                : `Rent — ${unitFloorLabel}`,
-              amount: remainingRent,
-              quantity: scheduleQty,
-              currency,
-              billingCycle: 'monthly',
-              billingDay: 1,
-              paymentDueDays: 7,
-              startDate,
-              endDate,
-              nextBillingDate: rentNextBillingDate,
-              status: 'active',
-              createdBy: userId,
+                endDate,
+                handoverDate,
+                leaseTermMonths: effectiveTermMonths,
+                rentAmount: rent,
+                currency,
+                rentalAgreement: rentalAgreement ?? undefined,
+                createdBy: userId,
+              },
+              unitStatusChange,
+              unlinkedInvoiceIds,
+              unitChargeOps,
+              unitChargeHistories,
+              schedulesToCreate,
+              pendingNotes,
             });
-
-            if (isPartialRentInvoiced) {
-              pendingNotes.push({
-                rowNo: headerRow.rowNo,
-                message: `Partial Base Rent (${invoicedRentAmount} of ${totalTermRent}) invoiced (${matchedRentInvNumbers.join(', ')}) — scheduled remaining ${remainingRent}`,
-              });
-            }
+          } catch (e) {
+            groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [(e as Error).message] }));
           }
-
-          const finalNumKey = finalLeaseNumber.trim().toLowerCase();
-          knownLeaseNumbers.add(finalNumKey);
-          knownLeaseTenant.add(`${finalNumKey}|${targetTenant.id.toLowerCase()}`);
-          if (targetTenant.code) knownLeaseTenant.add(`${finalNumKey}|${targetTenant.code.trim().toLowerCase()}`);
-          if (targetTenant.companyName) knownLeaseTenant.add(`${finalNumKey}|${targetTenant.companyName.trim().toLowerCase()}`);
-          const fullName = `${targetTenant.firstName || ''} ${targetTenant.lastName || ''}`.trim().toLowerCase();
-          if (fullName) knownLeaseTenant.add(`${finalNumKey}|${fullName}`);
-
-          pendingLeaseBatch.push({
-            groupRows,
-            leaseData: {
-              id: createdLeaseId,
-              companyId,
-              propertyId: targetPropertyId,
-              unitId: unit.id,
-              tenantId: targetTenant.id,
-              leaseNumber: finalLeaseNumber,
-              status,
-              startDate,
-              endDate,
-              handoverDate,
-              leaseTermMonths: effectiveTermMonths,
-              rentAmount: rent,
-              currency,
-              rentalAgreement: rentalAgreement ?? undefined,
-              createdBy: userId,
-            },
-            unitStatusChange,
-            unlinkedInvoiceIds,
-            unitChargeOps,
-            unitChargeHistories,
-            schedulesToCreate,
-            pendingNotes,
-          });
-
-          if (pendingLeaseBatch.length >= LEASE_BATCH_SIZE) {
-            await flushLeaseBatch(pendingLeaseBatch);
-            pendingLeaseBatch = [];
-          }
-        } catch (e) {
-          groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [(e as Error).message] }));
         }
-      }
 
-      if (pendingLeaseBatch.length > 0) {
-        await flushLeaseBatch(pendingLeaseBatch);
+        if (pendingLeaseBatch.length > 0) {
+          await flushLeaseBatch(pendingLeaseBatch);
+          pendingLeaseBatch = [];
+        }
+        await yieldEventLoop();
       }
 
       if (touchedPropertyIds.size > 0) {
@@ -2879,7 +2959,7 @@ export const generalImportService = {
     failed.sort((a, b) => a.rowNo - b.rowNo);
     return {
       type: normType,
-      total: rows.length,
+      total: totalRowCount,
       imported,
       skipped,
       linked,

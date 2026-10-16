@@ -68,7 +68,7 @@ async function runAsyncImportJob<T>(
 
   let transientErrors = 0;
   while (!signal.aborted) {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2500));
     if (signal.aborted) break;
 
     const pollRes = await baseQuery({
@@ -78,7 +78,7 @@ async function runAsyncImportJob<T>(
 
     if (pollRes.error) {
       transientErrors++;
-      if (transientErrors >= 3) {
+      if (transientErrors >= 10) {
         return { error: pollRes.error };
       }
       continue;

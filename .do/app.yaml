@@ -12,14 +12,24 @@ services:
     http_port: 3000
     instance_count: 1
     instance_size_slug: professional-s
+    health_check:
+      http_path: /api/v1/health
+      initial_delay_seconds: 25
+      period_seconds: 15
+      timeout_seconds: 10
+      success_threshold: 1
+      failure_threshold: 6
     routes:
       - path: /api
+      - path: /socket.io
       - path: /uploads
       - path: /seed-photos
       - path: /storage
     envs:
       - key: NODE_ENV
         value: production
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=1536"
       - key: DATABASE_URL
         value: "${pms-db.DATABASE_URL}"
         type: SECRET
