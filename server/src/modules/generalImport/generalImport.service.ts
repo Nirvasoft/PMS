@@ -106,6 +106,161 @@ async function findActiveLeasesByUnitIds(companyId: string, unitIds: string[]) {
   return out;
 }
 
+async function findLeasesByNumbers(companyId: string, leaseNumbers: string[]) {
+  if (leaseNumbers.length === 0) return [];
+  const out: {
+    leaseNumber: string;
+    tenantId: string;
+    tenant: { id: string; code: string | null; firstName: string | null; lastName: string | null; companyName: string | null } | null;
+  }[] = [];
+  for (const chunk of chunkArray(leaseNumbers)) {
+    const batch = await prisma.lease.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        leaseNumber: { in: chunk, mode: 'insensitive' },
+      },
+      select: {
+        leaseNumber: true,
+        tenantId: true,
+        tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
+      },
+    });
+    out.push(...batch);
+  }
+  return out;
+}
+
+async function findUnitChargesByUnitIds(unitIds: string[]) {
+  if (unitIds.length === 0) return [];
+  const out: { id: string; unitId: string; chargeTypeId: string; amount: any }[] = [];
+  for (const chunk of chunkArray(unitIds)) {
+    const batch = await prisma.unitCharge.findMany({
+      where: { unitId: { in: chunk } },
+      select: { id: true, unitId: true, chargeTypeId: true, amount: true },
+    });
+    out.push(...batch);
+  }
+  return out;
+}
+
+type LeaseCandidateInvoiceLine = {
+  id: string;
+  invoiceId: string;
+  chargeTypeId: string;
+  description: string;
+  quantity: any;
+  unitPrice: any;
+  amount: any;
+  lineTotal: any;
+  periodFrom: Date | null;
+  periodTo: Date | null;
+  chargeType: { id: string; code: string; name: string; category: string } | null;
+};
+
+type LeaseCandidateInvoice = {
+  id: string;
+  invoiceNumber: string;
+  secondRef: string | null;
+  notes: string | null;
+  leaseId: string | null;
+  unitId: string | null;
+  tenantId: string;
+  invoiceDate: Date;
+  periodFrom: Date | null;
+  periodTo: Date | null;
+  status: string;
+  totalAmount: any;
+  paidAmount: any;
+  lines: LeaseCandidateInvoiceLine[];
+};
+
+async function findCandidateInvoicesForLeaseImport(
+  companyId: string,
+  unitIds: string[],
+  leaseNumbers: string[],
+): Promise<LeaseCandidateInvoice[]> {
+  if (unitIds.length === 0 && leaseNumbers.length === 0) return [];
+
+  const invById = new Map<string, Omit<LeaseCandidateInvoice, 'lines'>>();
+  const invoiceSelect = {
+    id: true,
+    invoiceNumber: true,
+    secondRef: true,
+    notes: true,
+    leaseId: true,
+    unitId: true,
+    tenantId: true,
+    invoiceDate: true,
+    periodFrom: true,
+    periodTo: true,
+    status: true,
+    totalAmount: true,
+    paidAmount: true,
+  } as const;
+
+  for (const uChunk of chunkArray(unitIds)) {
+    const batch = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: { not: 'void' },
+        unitId: { in: uChunk },
+      },
+      select: invoiceSelect,
+    });
+    for (const inv of batch) invById.set(inv.id, inv);
+  }
+
+  for (const refChunk of chunkArray(leaseNumbers)) {
+    const batch = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: { not: 'void' },
+        secondRef: { in: refChunk, mode: 'insensitive' },
+      },
+      select: invoiceSelect,
+    });
+    for (const inv of batch) invById.set(inv.id, inv);
+  }
+
+  const rawInvoices = Array.from(invById.values());
+  if (rawInvoices.length === 0) return [];
+
+  const linesByInvoiceId = new Map<string, LeaseCandidateInvoiceLine[]>();
+  const rawInvoiceIds = rawInvoices.map((inv) => inv.id);
+  for (const idChunk of chunkArray(rawInvoiceIds)) {
+    const chunkLines = await prisma.invoiceLine.findMany({
+      where: { invoiceId: { in: idChunk } },
+      select: {
+        id: true,
+        invoiceId: true,
+        chargeTypeId: true,
+        description: true,
+        quantity: true,
+        unitPrice: true,
+        amount: true,
+        lineTotal: true,
+        periodFrom: true,
+        periodTo: true,
+        chargeType: { select: { id: true, code: true, name: true, category: true } },
+      },
+    });
+    for (const ln of chunkLines) {
+      let arr = linesByInvoiceId.get(ln.invoiceId);
+      if (!arr) {
+        arr = [];
+        linesByInvoiceId.set(ln.invoiceId, arr);
+      }
+      arr.push(ln);
+    }
+  }
+
+  return rawInvoices.map((inv) => ({
+    ...inv,
+    lines: linesByInvoiceId.get(inv.id) || [],
+  }));
+}
+
 interface ColumnDef {
   header: string;
   key: string;
@@ -724,21 +879,17 @@ async function validateRows(type: ImportType, propertyId: string, companyId: str
   }
 
   // lease
+  const fileLeaseNumbers = Array.from(
+    new Set(rows.map((r) => (r.data.leaseNumber || '').trim()).filter(Boolean))
+  );
   const [units, tenants, properties, existingLeases, chargeTypes] = await Promise.all([
-    prisma.unit.findMany({ where: { deletedAt: null }, select: { id: true, unitNumber: true, propertyId: true, status: true } }),
+    prisma.unit.findMany({ where: { property: { companyId }, deletedAt: null }, select: { id: true, unitNumber: true, propertyId: true, status: true } }),
     prisma.tenant.findMany({
       where: { companyId, deletedAt: null },
       select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
     }),
     prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
-    prisma.lease.findMany({
-      where: { companyId, deletedAt: null },
-      select: {
-        leaseNumber: true,
-        tenantId: true,
-        tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
-      },
-    }),
+    findLeasesByNumbers(companyId, fileLeaseNumbers),
     prisma.chargeType.findMany({
       where: { OR: [{ companyId }, { companyId: null }], isActive: true },
       select: { id: true, code: true, name: true, category: true },
@@ -1666,20 +1817,13 @@ export const generalImportService = {
         await flushInvoiceBatch(pendingBatch);
       }
     } else if (normType === 'lease') {
-      let minLeaseStartDate: Date | null = null;
-      for (const r of valid) {
-        const sd = parseDateStr(r.data.startDate);
-        if (sd && (!minLeaseStartDate || sd < minLeaseStartDate)) {
-          minLeaseStartDate = sd;
-        }
-      }
-      const invoiceQueryStart = minLeaseStartDate
-        ? new Date(minLeaseStartDate.getTime() - 31 * 86_400_000)
-        : undefined;
+      const fileLeaseNumbers = Array.from(
+        new Set(valid.map((r) => (r.data.leaseNumber || '').trim()).filter(Boolean))
+      );
 
-      const [units, tenants, properties, existingLeases, chargeTypes, floorSetups, existingCompanyInvoicesRaw] = await Promise.all([
+      const [units, tenants, properties, existingLeases, chargeTypes, floorSetups] = await Promise.all([
         prisma.unit.findMany({
-          where: { deletedAt: null },
+          where: { property: { companyId }, deletedAt: null },
           select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true, propertyId: true, status: true },
         }),
         prisma.tenant.findMany({
@@ -1687,14 +1831,7 @@ export const generalImportService = {
           select: { id: true, code: true, firstName: true, lastName: true, companyName: true, isBlacklisted: true },
         }),
         prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
-        prisma.lease.findMany({
-          where: { companyId, deletedAt: null },
-          select: {
-            leaseNumber: true,
-            tenantId: true,
-            tenant: { select: { id: true, code: true, firstName: true, lastName: true, companyName: true } },
-          },
-        }),
+        findLeasesByNumbers(companyId, fileLeaseNumbers),
         prisma.chargeType.findMany({
           where: { OR: [{ companyId }, { companyId: null }], isActive: true },
           select: { id: true, code: true, name: true, category: true },
@@ -1703,114 +1840,11 @@ export const generalImportService = {
           where: { property: { companyId } },
           select: { propertyId: true, floorNumber: true, floorLabel: true },
         }),
-        prisma.invoice.findMany({
-          where: {
-            companyId,
-            status: { not: 'void' },
-            ...(invoiceQueryStart
-              ? {
-                  OR: [
-                    { invoiceDate: { gte: invoiceQueryStart } },
-                    { periodFrom: { gte: invoiceQueryStart } },
-                    { lines: { some: { periodFrom: { gte: invoiceQueryStart } } } },
-                    { lines: { some: { periodTo: { gte: invoiceQueryStart } } } },
-                  ],
-                }
-              : {}),
-          },
-          select: {
-            id: true,
-            invoiceNumber: true,
-            secondRef: true,
-            notes: true,
-            leaseId: true,
-            unitId: true,
-            tenantId: true,
-            invoiceDate: true,
-            periodFrom: true,
-            periodTo: true,
-            status: true,
-            totalAmount: true,
-            paidAmount: true,
-          },
-        }),
       ]);
-
-      type InvoiceLineRecord = {
-        id: string;
-        invoiceId: string;
-        chargeTypeId: string;
-        description: string;
-        quantity: any;
-        unitPrice: any;
-        amount: any;
-        lineTotal: any;
-        periodFrom: Date | null;
-        periodTo: Date | null;
-        chargeType: { id: string; code: string; name: string; category: string } | null;
-      };
-      const linesByInvoiceId = new Map<string, InvoiceLineRecord[]>();
-      const rawInvoiceIds = existingCompanyInvoicesRaw.map((inv) => inv.id);
-      for (const idChunk of chunkArray(rawInvoiceIds)) {
-        const chunkLines = await prisma.invoiceLine.findMany({
-          where: { invoiceId: { in: idChunk } },
-          select: {
-            id: true,
-            invoiceId: true,
-            chargeTypeId: true,
-            description: true,
-            quantity: true,
-            unitPrice: true,
-            amount: true,
-            lineTotal: true,
-            periodFrom: true,
-            periodTo: true,
-            chargeType: { select: { id: true, code: true, name: true, category: true } },
-          },
-        });
-        for (const ln of chunkLines) {
-          let arr = linesByInvoiceId.get(ln.invoiceId);
-          if (!arr) {
-            arr = [];
-            linesByInvoiceId.set(ln.invoiceId, arr);
-          }
-          arr.push(ln);
-        }
-      }
-      const existingCompanyInvoices = existingCompanyInvoicesRaw.map((inv) => ({
-        ...inv,
-        lines: linesByInvoiceId.get(inv.id) || [],
-      }));
 
       const floorLabelMap = new Map<string, string>();
       for (const fs of floorSetups) {
         floorLabelMap.set(`${fs.propertyId}|${fs.floorNumber}`, fs.floorLabel);
-      }
-
-      type ExistingInvoiceItem = (typeof existingCompanyInvoices)[number];
-      const invoicesByUnitTenant = new Map<string, ExistingInvoiceItem[]>();
-      const invoicesBySecondRef = new Map<string, ExistingInvoiceItem[]>();
-      for (const inv of existingCompanyInvoices) {
-        if (inv.unitId && inv.tenantId) {
-          const utKey = `${inv.unitId}|${inv.tenantId}`;
-          let arr = invoicesByUnitTenant.get(utKey);
-          if (!arr) {
-            arr = [];
-            invoicesByUnitTenant.set(utKey, arr);
-          }
-          arr.push(inv);
-        }
-        if (inv.secondRef) {
-          const srKey = inv.secondRef.trim().toLowerCase();
-          if (srKey) {
-            let arr = invoicesBySecondRef.get(srKey);
-            if (!arr) {
-              arr = [];
-              invoicesBySecondRef.set(srKey, arr);
-            }
-            arr.push(inv);
-          }
-        }
       }
 
       const isRentChargeType = (ct: { code: string; name: string; category: string }) => {
@@ -1826,7 +1860,7 @@ export const generalImportService = {
         );
       };
 
-      const isRentInvoiceLine = (line: ExistingInvoiceItem['lines'][number]) => {
+      const isRentInvoiceLine = (line: LeaseCandidateInvoiceLine) => {
         const ct = line.chargeType;
         if (ct && isRentChargeType(ct)) return true;
         const desc = (line.description || '').toLowerCase();
@@ -1834,7 +1868,7 @@ export const generalImportService = {
       };
 
       const doesLineMatchCharge = (
-        line: ExistingInvoiceItem['lines'][number],
+        line: LeaseCandidateInvoiceLine,
         ct: { id: string; code: string; name: string; category: string },
       ) => {
         if (line.chargeTypeId === ct.id) return true;
@@ -1920,6 +1954,12 @@ export const generalImportService = {
       const unitMap = new Map(units.map((u) => [unitKey(u.propertyId, u.unitNumber), u]));
       const chargeTypeByCode = new Map(chargeTypes.map((c) => [c.code.trim().toLowerCase(), c]));
       let rentChargeType = chargeTypes.find((c) => c.code.trim().toUpperCase() === 'RENT' || c.category === 'rent');
+      if (!rentChargeType) {
+        rentChargeType = await prisma.chargeType.findFirst({
+          where: { code: 'RENT', OR: [{ companyId: null }, { companyId }] },
+          select: { id: true, code: true, name: true, category: true },
+        }) ?? undefined;
+      }
 
       // Group valid rows by leaseNumber (or fallback to rowNo if missing)
       const groups = new Map<string, typeof valid>();
@@ -1932,6 +1972,305 @@ export const generalImportService = {
         }
         groups.get(groupKey)!.push(r);
       }
+
+      // Collect target unitIds and leaseNumbers for non-skipped groups so we only query relevant invoices & unitCharges
+      const targetUnitIdSet = new Set<string>();
+      const targetLeaseNumSet = new Set<string>();
+      for (const [_groupKey, groupRows] of groups.entries()) {
+        const d = groupRows[0].data;
+        const leaseNum = (d.leaseNumber || '').trim();
+        const lNum = leaseNum.toLowerCase();
+        const tCode = (d.tenantCode || '').trim().toLowerCase();
+        const tName = (d.tenantName || '').trim().toLowerCase();
+        const isExisting =
+          (tCode && knownLeaseTenant.has(`${lNum}|${tCode}`)) ||
+          (tName && knownLeaseTenant.has(`${lNum}|${tName}`)) ||
+          Boolean(lNum && knownLeaseNumbers.has(lNum));
+        if (isExisting) continue;
+
+        let targetPropertyId = propertyId;
+        const propRaw = (d.propertyCode || d.property || '').trim().toLowerCase();
+        if (propRaw) {
+          const matched = propByCode.get(propRaw) || propByName.get(propRaw);
+          if (matched) targetPropertyId = matched;
+        }
+        const u = unitMap.get(unitKey(targetPropertyId, (d.unitNumber || '').trim()));
+        if (u) targetUnitIdSet.add(u.id);
+        if (leaseNum) targetLeaseNumSet.add(leaseNum);
+      }
+
+      const [existingCompanyInvoices, existingUnitCharges] = await Promise.all([
+        findCandidateInvoicesForLeaseImport(companyId, Array.from(targetUnitIdSet), Array.from(targetLeaseNumSet)),
+        findUnitChargesByUnitIds(Array.from(targetUnitIdSet)),
+      ]);
+
+      const invoicesByUnitTenant = new Map<string, LeaseCandidateInvoice[]>();
+      const invoicesBySecondRef = new Map<string, LeaseCandidateInvoice[]>();
+      for (const inv of existingCompanyInvoices) {
+        if (inv.unitId && inv.tenantId) {
+          const utKey = `${inv.unitId}|${inv.tenantId}`;
+          let arr = invoicesByUnitTenant.get(utKey);
+          if (!arr) {
+            arr = [];
+            invoicesByUnitTenant.set(utKey, arr);
+          }
+          arr.push(inv);
+        }
+        if (inv.secondRef) {
+          const srKey = inv.secondRef.trim().toLowerCase();
+          if (srKey) {
+            let arr = invoicesBySecondRef.get(srKey);
+            if (!arr) {
+              arr = [];
+              invoicesBySecondRef.set(srKey, arr);
+            }
+            arr.push(inv);
+          }
+        }
+      }
+
+      type UnitChargeState = {
+        id: string;
+        unitId: string;
+        chargeTypeId: string;
+        amount: number;
+        persistedInDb: boolean;
+      };
+      const unitChargeStateMap = new Map<string, UnitChargeState>();
+      for (const uc of existingUnitCharges) {
+        unitChargeStateMap.set(`${uc.unitId}|${uc.chargeTypeId}`, {
+          id: uc.id,
+          unitId: uc.unitId,
+          chargeTypeId: uc.chargeTypeId,
+          amount: Number(uc.amount ?? 0),
+          persistedInDb: true,
+        });
+      }
+
+      interface PreparedLease {
+        groupRows: typeof valid;
+        leaseData: {
+          id: string;
+          companyId: string;
+          propertyId: string;
+          unitId: string;
+          tenantId: string;
+          leaseNumber: string;
+          status: string;
+          startDate: Date;
+          endDate: Date;
+          handoverDate: Date | null;
+          leaseTermMonths: number;
+          rentAmount: number;
+          currency: string;
+          rentalAgreement?: { contractStartDate: string | null; contractEndDate: string | null };
+          createdBy: string;
+        };
+        unitStatusChange?: {
+          unitId: string;
+          propertyId: string;
+          fromStatus: string | null;
+          toStatus: string;
+          reason: string;
+        };
+        unlinkedInvoiceIds: string[];
+        unitChargeOps: {
+          id: string;
+          unitId: string;
+          chargeTypeId: string;
+          amount: number;
+          isNew: boolean;
+        }[];
+        unitChargeHistories: {
+          id: string;
+          unitId: string;
+          action: string;
+          chargeTypeId: string;
+          amount: number;
+          oldChargeTypeId: string | null;
+          oldAmount: number | null;
+          changedBy: string;
+        }[];
+        schedulesToCreate: {
+          id: string;
+          companyId: string;
+          propertyId: string;
+          unitId: string;
+          tenantId: string;
+          leaseId: string;
+          chargeTypeId: string;
+          description: string;
+          amount: number;
+          quantity: number;
+          currency: string;
+          billingCycle: string;
+          billingDay: number;
+          paymentDueDays: number;
+          startDate: Date;
+          endDate: Date;
+          nextBillingDate: Date;
+          status: string;
+          createdBy: string;
+        }[];
+        pendingNotes: { rowNo: number; message: string }[];
+      }
+
+      const touchedPropertyIds = new Set<string>();
+      const LEASE_BATCH_SIZE = 200;
+      let pendingLeaseBatch: PreparedLease[] = [];
+
+      const applySideEffectsForInsertedLeases = async (insertedBatch: PreparedLease[]) => {
+        if (insertedBatch.length === 0) return;
+
+        // 1. Append notes and counters for successfully inserted leases
+        for (const item of insertedBatch) {
+          notes.push(...item.pendingNotes);
+          unitChargesCount += item.unitChargeOps.length;
+          billingSchedulesCount += item.schedulesToCreate.length;
+          if (item.unitStatusChange) {
+            unitStatusUpdated++;
+            touchedPropertyIds.add(item.unitStatusChange.propertyId);
+          }
+        }
+
+        // 2. Batch unit status updates & status history
+        const latestUnitStatusByUnitId = new Map<string, string>();
+        const statusHistoryRows: {
+          id: string;
+          unitId: string;
+          fromStatus: string | null;
+          toStatus: string;
+          reason: string;
+          changedBy: string;
+        }[] = [];
+
+        for (const item of insertedBatch) {
+          if (item.unitStatusChange) {
+            latestUnitStatusByUnitId.set(item.unitStatusChange.unitId, item.unitStatusChange.toStatus);
+            statusHistoryRows.push({
+              id: randomUUID(),
+              unitId: item.unitStatusChange.unitId,
+              fromStatus: item.unitStatusChange.fromStatus,
+              toStatus: item.unitStatusChange.toStatus,
+              reason: item.unitStatusChange.reason,
+              changedBy: userId,
+            });
+          }
+        }
+
+        const occupiedUnitIds: string[] = [];
+        const reservedUnitIds: string[] = [];
+        for (const [uId, st] of latestUnitStatusByUnitId.entries()) {
+          if (st === 'occupied') occupiedUnitIds.push(uId);
+          else if (st === 'reserved') reservedUnitIds.push(uId);
+        }
+
+        if (occupiedUnitIds.length > 0) {
+          await prisma.unit.updateMany({
+            where: { id: { in: occupiedUnitIds } },
+            data: { status: 'occupied' },
+          }).catch(() => {});
+        }
+        if (reservedUnitIds.length > 0) {
+          await prisma.unit.updateMany({
+            where: { id: { in: reservedUnitIds } },
+            data: { status: 'reserved' },
+          }).catch(() => {});
+        }
+        if (statusHistoryRows.length > 0) {
+          await prisma.unitStatusHistory.createMany({ data: statusHistoryRows }).catch(() => {});
+        }
+
+        // 3. Link unlinked invoices to their newly created leases (chunked parallel updates)
+        const leasesWithUnlinked = insertedBatch.filter((item) => item.unlinkedInvoiceIds.length > 0);
+        for (let i = 0; i < leasesWithUnlinked.length; i += 25) {
+          const slice = leasesWithUnlinked.slice(i, i + 25);
+          await Promise.all(
+            slice.map((item) =>
+              prisma.invoice.updateMany({
+                where: { id: { in: item.unlinkedInvoiceIds } },
+                data: { leaseId: item.leaseData.id },
+              }).catch(() => {})
+            )
+          );
+        }
+
+        // 4. Batch unit charges (createMany for new, parallel update for modified DB rows) & unitChargeHistory
+        const newUnitChargesById = new Map<string, { id: string; unitId: string; chargeTypeId: string; amount: number }>();
+        const updatedUnitChargesById = new Map<string, { id: string; amount: number }>();
+        const allChargeHistories = insertedBatch.flatMap((item) => item.unitChargeHistories);
+
+        for (const item of insertedBatch) {
+          for (const op of item.unitChargeOps) {
+            const stateKey = `${op.unitId}|${op.chargeTypeId}`;
+            const state = unitChargeStateMap.get(stateKey);
+            if (op.isNew || newUnitChargesById.has(op.id) || (state && !state.persistedInDb)) {
+              newUnitChargesById.set(op.id, {
+                id: op.id,
+                unitId: op.unitId,
+                chargeTypeId: op.chargeTypeId,
+                amount: op.amount,
+              });
+              if (state) state.persistedInDb = true;
+            } else {
+              updatedUnitChargesById.set(op.id, { id: op.id, amount: op.amount });
+            }
+          }
+        }
+
+        if (newUnitChargesById.size > 0) {
+          await prisma.unitCharge.createMany({
+            data: Array.from(newUnitChargesById.values()),
+          }).catch(() => {});
+        }
+
+        const updatesArr = Array.from(updatedUnitChargesById.values());
+        for (let i = 0; i < updatesArr.length; i += 25) {
+          const slice = updatesArr.slice(i, i + 25);
+          await Promise.all(
+            slice.map((u) =>
+              prisma.unitCharge.update({
+                where: { id: u.id },
+                data: { amount: u.amount },
+              }).catch(() => {})
+            )
+          );
+        }
+
+        if (allChargeHistories.length > 0) {
+          await prisma.unitChargeHistory.createMany({ data: allChargeHistories }).catch(() => {});
+        }
+
+        // 5. Batch billing schedules
+        const allSchedules = insertedBatch.flatMap((item) => item.schedulesToCreate);
+        if (allSchedules.length > 0) {
+          await prisma.billingSchedule.createMany({ data: allSchedules }).catch(() => {});
+        }
+      };
+
+      const flushLeaseBatch = async (batch: PreparedLease[]) => {
+        if (batch.length === 0) return;
+        let insertedBatch: PreparedLease[] = [];
+        try {
+          await prisma.lease.createMany({
+            data: batch.map((b) => b.leaseData),
+          });
+          imported += batch.length;
+          insertedBatch = batch;
+        } catch {
+          for (const item of batch) {
+            try {
+              await prisma.lease.create({ data: item.leaseData });
+              imported++;
+              insertedBatch.push(item);
+            } catch (e) {
+              item.groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [(e as Error).message] }));
+            }
+          }
+        }
+
+        await applySideEffectsForInsertedLeases(insertedBatch);
+      };
 
       for (const [_groupKey, groupRows] of groups.entries()) {
         const headerRow = groupRows[0];
@@ -1998,7 +2337,7 @@ export const generalImportService = {
           if (!termMonths || termMonths <= 0) {
             termMonths = calcLeaseTermMonths(startDate, endDate);
           }
-          const effectiveTermMonths = termMonths && termMonths > 0 ? termMonths : 1;
+          const effectiveTermMonths = termMonths && termMonths > 0 ? Math.max(1, Math.round(termMonths)) : 1;
 
           const rent = num(d.rentAmount);
           if (rent === null || isNaN(rent)) {
@@ -2017,25 +2356,7 @@ export const generalImportService = {
             : undefined;
 
           const finalLeaseNumber = leaseNum || nextLeaseNumber();
-
-          const createdLease = await prisma.lease.create({
-            data: {
-              companyId,
-              propertyId: targetPropertyId,
-              unitId: unit.id,
-              tenantId: targetTenant.id,
-              leaseNumber: finalLeaseNumber,
-              status,
-              startDate,
-              endDate,
-              handoverDate,
-              leaseTermMonths: effectiveTermMonths,
-              rentAmount: rent,
-              currency,
-              rentalAgreement: rentalAgreement ?? undefined,
-              createdBy: userId,
-            },
-          });
+          const createdLeaseId = randomUUID();
 
           // -if lease status is Active>>unit status must be occupied, if draft unit status is reserved
           let targetUnitStatus: string | null = null;
@@ -2045,24 +2366,16 @@ export const generalImportService = {
             targetUnitStatus = 'reserved';
           }
 
+          let unitStatusChange: PreparedLease['unitStatusChange'];
           if (targetUnitStatus && unit.status !== targetUnitStatus) {
-            const fromStatus = unit.status;
-            await prisma.unit.update({
-              where: { id: unit.id },
-              data: { status: targetUnitStatus },
-            });
-            await prisma.unitStatusHistory.create({
-              data: {
-                unitId: unit.id,
-                fromStatus,
-                toStatus: targetUnitStatus,
-                reason: `Lease import (${finalLeaseNumber}, status: ${status})`,
-                changedBy: userId,
-              },
-            }).catch(() => {});
-            unitStatusUpdated++;
+            unitStatusChange = {
+              unitId: unit.id,
+              propertyId: targetPropertyId,
+              fromStatus: unit.status,
+              toStatus: targetUnitStatus,
+              reason: `Lease import (${finalLeaseNumber}, status: ${status})`,
+            };
             unit.status = targetUnitStatus;
-            await unitsService.invalidateStatsCache(targetPropertyId).catch(() => {});
           }
 
           const resolvedFloorLabel =
@@ -2074,7 +2387,7 @@ export const generalImportService = {
             : `Unit ${unit.unitNumber}`;
 
           // Collect existing non-void invoices belonging to this contract
-          const candidateInvoices = new Map<string, ExistingInvoiceItem>();
+          const candidateInvoices = new Map<string, LeaseCandidateInvoice>();
           for (const inv of invoicesByUnitTenant.get(`${unit.id}|${targetTenant.id}`) || []) {
             candidateInvoices.set(inv.id, inv);
           }
@@ -2087,7 +2400,7 @@ export const generalImportService = {
 
           const contractStartGrace = new Date(startDate.getTime() - 7 * 86_400_000);
           const contractInvoices = Array.from(candidateInvoices.values()).filter((inv) => {
-            if (inv.leaseId === createdLease.id) return true;
+            if (inv.leaseId === createdLeaseId) return true;
             if (finalNumLower && inv.secondRef && inv.secondRef.trim().toLowerCase() === finalNumLower) {
               return true;
             }
@@ -2114,17 +2427,15 @@ export const generalImportService = {
           });
 
           const unlinkedInvoiceIds = contractInvoices.filter((inv) => !inv.leaseId).map((inv) => inv.id);
-          if (unlinkedInvoiceIds.length > 0) {
-            for (const idChunk of chunkArray(unlinkedInvoiceIds)) {
-              await prisma.invoice.updateMany({
-                where: { id: { in: idChunk } },
-                data: { leaseId: createdLease.id },
-              }).catch(() => {});
-            }
-            for (const inv of contractInvoices) {
-              if (!inv.leaseId) inv.leaseId = createdLease.id;
-            }
+          for (const inv of contractInvoices) {
+            if (!inv.leaseId) inv.leaseId = createdLeaseId;
           }
+
+          const unitChargeOps: PreparedLease['unitChargeOps'] = [];
+          const unitChargeHistories: PreparedLease['unitChargeHistories'] = [];
+          const schedulesToCreate: PreparedLease['schedulesToCreate'] = [];
+          const pendingNotes: PreparedLease['pendingNotes'] = [];
+          const scheduledChargeTypesForLease = new Set<string>();
 
           // -lease with charges need to add charges at corresponding unit
           // -Rent is not Charges >> that is base rent only
@@ -2135,129 +2446,142 @@ export const generalImportService = {
             if (chgCode && chgAmount !== null && !isNaN(chgAmount)) {
               const ct = chargeTypeByCode.get(chgCode.toLowerCase());
               if (!ct) {
-                notes.push({ rowNo: gr.rowNo, message: `Charges Code "${chgCode}" not found in Charges Setup - skipped charge` });
+                pendingNotes.push({ rowNo: gr.rowNo, message: `Charges Code "${chgCode}" not found in Charges Setup - skipped charge` });
                 continue;
               }
 
               // Rent is Base Rent only — never enter as a unit/lease charge
               if (isRentChargeType(ct)) {
-                notes.push({ rowNo: gr.rowNo, message: `Charge "${ct.name}" (${ct.code}) is Base Rent — excluded from lease charges` });
+                pendingNotes.push({ rowNo: gr.rowNo, message: `Charge "${ct.name}" (${ct.code}) is Base Rent — excluded from lease charges` });
                 continue;
               }
 
-              // 1. Add / update charge at corresponding unit
-              const existingUnitCharge = await prisma.unitCharge.findFirst({
-                where: { unitId: unit.id, chargeTypeId: ct.id },
-              });
-              if (existingUnitCharge) {
-                await prisma.unitCharge.update({
-                  where: { id: existingUnitCharge.id },
-                  data: { amount: chgAmount },
-                });
-              } else {
-                await prisma.unitCharge.create({
-                  data: {
-                    unitId: unit.id,
-                    chargeTypeId: ct.id,
-                    amount: chgAmount,
-                  },
-                });
-              }
-              await prisma.unitChargeHistory.create({
-                data: {
+              // 1. Add / update charge at corresponding unit (tracked in memory & flushed in batch)
+              const ucKey = `${unit.id}|${ct.id}`;
+              const existingUC = unitChargeStateMap.get(ucKey);
+              if (existingUC) {
+                unitChargeHistories.push({
+                  id: randomUUID(),
                   unitId: unit.id,
-                  action: existingUnitCharge ? 'modified' : 'added',
+                  action: 'modified',
                   chargeTypeId: ct.id,
                   amount: chgAmount,
-                  oldChargeTypeId: existingUnitCharge ? existingUnitCharge.chargeTypeId : null,
-                  oldAmount: existingUnitCharge ? existingUnitCharge.amount : null,
+                  oldChargeTypeId: existingUC.chargeTypeId,
+                  oldAmount: existingUC.amount,
                   changedBy: userId,
-                },
-              }).catch(() => {});
-              unitChargesCount++;
+                });
+                existingUC.amount = chgAmount;
+                unitChargeOps.push({
+                  id: existingUC.id,
+                  unitId: unit.id,
+                  chargeTypeId: ct.id,
+                  amount: chgAmount,
+                  isNew: false,
+                });
+              } else {
+                const newUcId = randomUUID();
+                unitChargeStateMap.set(ucKey, {
+                  id: newUcId,
+                  unitId: unit.id,
+                  chargeTypeId: ct.id,
+                  amount: chgAmount,
+                  persistedInDb: false,
+                });
+                unitChargeOps.push({
+                  id: newUcId,
+                  unitId: unit.id,
+                  chargeTypeId: ct.id,
+                  amount: chgAmount,
+                  isNew: true,
+                });
+                unitChargeHistories.push({
+                  id: randomUUID(),
+                  unitId: unit.id,
+                  action: 'added',
+                  chargeTypeId: ct.id,
+                  amount: chgAmount,
+                  oldChargeTypeId: null,
+                  oldAmount: null,
+                  changedBy: userId,
+                });
+              }
 
               // 2. If lease status is Active >> schedule charge starting from the first un-invoiced month
-              if (status === 'active') {
-                const existingBS = await prisma.billingSchedule.findFirst({
-                  where: { leaseId: createdLease.id, chargeTypeId: ct.id, status: { not: 'cancelled' } },
-                });
-                if (!existingBS) {
-                  let latestPeriodFrom: Date | null = null;
-                  let latestPeriodTo: Date | null = null;
-                  let latestInvDate: Date | null = null;
-                  let matchedChargeLinesCount = 0;
+              if (status === 'active' && !scheduledChargeTypesForLease.has(ct.id)) {
+                let latestPeriodFrom: Date | null = null;
+                let latestPeriodTo: Date | null = null;
+                let latestInvDate: Date | null = null;
+                let matchedChargeLinesCount = 0;
 
-                  for (const inv of contractInvoices) {
-                    for (const ln of inv.lines) {
-                      if (doesLineMatchCharge(ln, ct)) {
-                        matchedChargeLinesCount++;
-                        const pf = ln.periodFrom || inv.periodFrom;
-                        const pt = ln.periodTo || inv.periodTo;
-                        if (pf && (!latestPeriodFrom || pf > latestPeriodFrom)) {
-                          latestPeriodFrom = pf;
-                        }
-                        if (pt && (!latestPeriodTo || pt > latestPeriodTo)) {
-                          latestPeriodTo = pt;
-                        }
-                        if (!pf && !pt && (!latestInvDate || inv.invoiceDate > latestInvDate)) {
-                          latestInvDate = inv.invoiceDate;
-                        }
+                for (const inv of contractInvoices) {
+                  for (const ln of inv.lines) {
+                    if (doesLineMatchCharge(ln, ct)) {
+                      matchedChargeLinesCount++;
+                      const pf = ln.periodFrom || inv.periodFrom;
+                      const pt = ln.periodTo || inv.periodTo;
+                      if (pf && (!latestPeriodFrom || pf > latestPeriodFrom)) {
+                        latestPeriodFrom = pf;
+                      }
+                      if (pt && (!latestPeriodTo || pt > latestPeriodTo)) {
+                        latestPeriodTo = pt;
+                      }
+                      if (!pf && !pt && (!latestInvDate || inv.invoiceDate > latestInvDate)) {
+                        latestInvDate = inv.invoiceDate;
                       }
                     }
                   }
-
-                  const isDepositCharge =
-                    (ct.category || '').toLowerCase() === 'deposit' ||
-                    /^D\d{4}/i.test(ct.code) ||
-                    (ct.name || '').toLowerCase().includes('deposit');
-
-                  if (isDepositCharge && matchedChargeLinesCount > 0) {
-                    notes.push({
-                      rowNo: gr.rowNo,
-                      message: `Charge "${ct.name}" already has a generated invoice — schedule skipped`,
-                    });
-                    continue;
-                  }
-
-                  const chargeNextBillingDate = computeNextUnbilledMonth(
-                    startDate,
-                    latestPeriodFrom,
-                    latestPeriodTo,
-                    latestInvDate,
-                  );
-
-                  if (chargeNextBillingDate > endDate) {
-                    notes.push({
-                      rowNo: gr.rowNo,
-                      message: `Charge "${ct.name}" is already invoiced through the end of the lease term — schedule skipped`,
-                    });
-                    continue;
-                  }
-
-                  await prisma.billingSchedule.create({
-                    data: {
-                      companyId,
-                      propertyId: targetPropertyId,
-                      unitId: unit.id,
-                      tenantId: targetTenant.id,
-                      leaseId: createdLease.id,
-                      chargeTypeId: ct.id,
-                      description: `${ct.name} — ${unitFloorLabel}`,
-                      amount: chgAmount,
-                      quantity: 1,
-                      currency,
-                      billingCycle: 'monthly',
-                      billingDay: 1,
-                      paymentDueDays: 7,
-                      startDate,
-                      endDate,
-                      nextBillingDate: chargeNextBillingDate,
-                      status: 'active',
-                      createdBy: userId,
-                    },
-                  });
-                  billingSchedulesCount++;
                 }
+
+                const isDepositCharge =
+                  (ct.category || '').toLowerCase() === 'deposit' ||
+                  /^D\d{4}/i.test(ct.code) ||
+                  (ct.name || '').toLowerCase().includes('deposit');
+
+                if (isDepositCharge && matchedChargeLinesCount > 0) {
+                  pendingNotes.push({
+                    rowNo: gr.rowNo,
+                    message: `Charge "${ct.name}" already has a generated invoice — schedule skipped`,
+                  });
+                  continue;
+                }
+
+                const chargeNextBillingDate = computeNextUnbilledMonth(
+                  startDate,
+                  latestPeriodFrom,
+                  latestPeriodTo,
+                  latestInvDate,
+                );
+
+                if (chargeNextBillingDate > endDate) {
+                  pendingNotes.push({
+                    rowNo: gr.rowNo,
+                    message: `Charge "${ct.name}" is already invoiced through the end of the lease term — schedule skipped`,
+                  });
+                  continue;
+                }
+
+                scheduledChargeTypesForLease.add(ct.id);
+                schedulesToCreate.push({
+                  id: randomUUID(),
+                  companyId,
+                  propertyId: targetPropertyId,
+                  unitId: unit.id,
+                  tenantId: targetTenant.id,
+                  leaseId: createdLeaseId,
+                  chargeTypeId: ct.id,
+                  description: `${ct.name} — ${unitFloorLabel}`,
+                  amount: chgAmount,
+                  quantity: 1,
+                  currency,
+                  billingCycle: 'monthly',
+                  billingDay: 1,
+                  paymentDueDays: 7,
+                  startDate,
+                  endDate,
+                  nextBillingDate: chargeNextBillingDate,
+                  status: 'active',
+                  createdBy: userId,
+                });
               }
             }
           }
@@ -2298,89 +2622,71 @@ export const generalImportService = {
           invoicedRentAmount = Math.round(invoicedRentAmount * 100) / 100;
 
           if (totalTermRent > 0 && invoicedRentAmount >= totalTermRent) {
-            notes.push({
+            pendingNotes.push({
               rowNo: headerRow.rowNo,
               message: `Full term Base Rent (${totalTermRent}) already has generated invoice (${matchedRentInvNumbers.join(', ')}) — Rent schedule skipped`,
             });
-          } else if (status === 'active' && rent > 0 && totalTermRent > 0) {
-            try {
-              if (!rentChargeType) {
-                rentChargeType = await prisma.chargeType.findFirst({
-                  where: { code: 'RENT', OR: [{ companyId: null }, { companyId }] },
-                  select: { id: true, code: true, name: true, category: true },
-                }) ?? undefined;
+          } else if (status === 'active' && rent > 0 && totalTermRent > 0 && rentChargeType && !scheduledChargeTypesForLease.has(rentChargeType.id)) {
+            const isPartialRentInvoiced = invoicedRentAmount > 0 && invoicedRentAmount < totalTermRent;
+            const remainingRent = isPartialRentInvoiced
+              ? Math.max(0, Math.round((totalTermRent - invoicedRentAmount) * 100) / 100)
+              : rent;
+            const monthsCovered = isPartialRentInvoiced
+              ? Math.max(1, Math.floor((invoicedRentAmount + 0.009) / rent))
+              : 0;
+            const scheduleQty = isPartialRentInvoiced
+              ? Math.max(1, effectiveTermMonths - monthsCovered)
+              : effectiveTermMonths;
+
+            let rentNextBillingDate = startDate;
+            if (isPartialRentInvoiced) {
+              const fromPeriod = computeNextUnbilledMonth(
+                startDate,
+                latestRentPeriodFrom,
+                latestRentPeriodTo,
+                latestRentInvDate,
+              );
+              let fromMonthsCovered = startDate;
+              for (let i = 0; i < monthsCovered; i++) {
+                fromMonthsCovered = billingSchedulesService.computeNextBillingDateFromStart(fromMonthsCovered, 'monthly', 1);
               }
-              if (rentChargeType) {
-                const existingRentBS = await prisma.billingSchedule.findFirst({
-                  where: { leaseId: createdLease.id, chargeTypeId: rentChargeType.id, status: { not: 'cancelled' } },
-                });
-                if (!existingRentBS) {
-                  const isPartialRentInvoiced = invoicedRentAmount > 0 && invoicedRentAmount < totalTermRent;
-                  const remainingRent = isPartialRentInvoiced
-                    ? Math.max(0, Math.round((totalTermRent - invoicedRentAmount) * 100) / 100)
-                    : rent;
-                  const monthsCovered = isPartialRentInvoiced
-                    ? Math.max(1, Math.floor((invoicedRentAmount + 0.009) / rent))
-                    : 0;
-                  const scheduleQty = isPartialRentInvoiced
-                    ? Math.max(1, effectiveTermMonths - monthsCovered)
-                    : effectiveTermMonths;
-
-                  let rentNextBillingDate = startDate;
-                  if (isPartialRentInvoiced) {
-                    const fromPeriod = computeNextUnbilledMonth(
-                      startDate,
-                      latestRentPeriodFrom,
-                      latestRentPeriodTo,
-                      latestRentInvDate,
-                    );
-                    let fromMonthsCovered = startDate;
-                    for (let i = 0; i < monthsCovered; i++) {
-                      fromMonthsCovered = billingSchedulesService.computeNextBillingDateFromStart(fromMonthsCovered, 'monthly', 1);
-                    }
-                    rentNextBillingDate = fromPeriod > fromMonthsCovered ? fromPeriod : fromMonthsCovered;
-                    if (rentNextBillingDate > endDate) {
-                      rentNextBillingDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1));
-                      if (rentNextBillingDate < startDate) rentNextBillingDate = startDate;
-                    }
-                  }
-
-                  await prisma.billingSchedule.create({
-                    data: {
-                      companyId,
-                      propertyId: targetPropertyId,
-                      unitId: unit.id,
-                      tenantId: targetTenant.id,
-                      leaseId: createdLease.id,
-                      chargeTypeId: rentChargeType.id,
-                      description: isPartialRentInvoiced
-                        ? `Rent (Remaining Balance) — ${unitFloorLabel}`
-                        : `Rent — ${unitFloorLabel}`,
-                      amount: remainingRent,
-                      quantity: scheduleQty,
-                      currency,
-                      billingCycle: 'monthly',
-                      billingDay: 1,
-                      paymentDueDays: 7,
-                      startDate,
-                      endDate,
-                      nextBillingDate: rentNextBillingDate,
-                      status: 'active',
-                      createdBy: userId,
-                    },
-                  });
-                  billingSchedulesCount++;
-
-                  if (isPartialRentInvoiced) {
-                    notes.push({
-                      rowNo: headerRow.rowNo,
-                      message: `Partial Base Rent (${invoicedRentAmount} of ${totalTermRent}) invoiced (${matchedRentInvNumbers.join(', ')}) — scheduled remaining ${remainingRent}`,
-                    });
-                  }
-                }
+              rentNextBillingDate = fromPeriod > fromMonthsCovered ? fromPeriod : fromMonthsCovered;
+              if (rentNextBillingDate > endDate) {
+                rentNextBillingDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1));
+                if (rentNextBillingDate < startDate) rentNextBillingDate = startDate;
               }
-            } catch (err: any) {
-              // Non-blocking if billing schedule fails
+            }
+
+            scheduledChargeTypesForLease.add(rentChargeType.id);
+            schedulesToCreate.push({
+              id: randomUUID(),
+              companyId,
+              propertyId: targetPropertyId,
+              unitId: unit.id,
+              tenantId: targetTenant.id,
+              leaseId: createdLeaseId,
+              chargeTypeId: rentChargeType.id,
+              description: isPartialRentInvoiced
+                ? `Rent (Remaining Balance) — ${unitFloorLabel}`
+                : `Rent — ${unitFloorLabel}`,
+              amount: remainingRent,
+              quantity: scheduleQty,
+              currency,
+              billingCycle: 'monthly',
+              billingDay: 1,
+              paymentDueDays: 7,
+              startDate,
+              endDate,
+              nextBillingDate: rentNextBillingDate,
+              status: 'active',
+              createdBy: userId,
+            });
+
+            if (isPartialRentInvoiced) {
+              pendingNotes.push({
+                rowNo: headerRow.rowNo,
+                message: `Partial Base Rent (${invoicedRentAmount} of ${totalTermRent}) invoiced (${matchedRentInvNumbers.join(', ')}) — scheduled remaining ${remainingRent}`,
+              });
             }
           }
 
@@ -2392,10 +2698,50 @@ export const generalImportService = {
           const fullName = `${targetTenant.firstName || ''} ${targetTenant.lastName || ''}`.trim().toLowerCase();
           if (fullName) knownLeaseTenant.add(`${finalNumKey}|${fullName}`);
 
-          imported++;
+          pendingLeaseBatch.push({
+            groupRows,
+            leaseData: {
+              id: createdLeaseId,
+              companyId,
+              propertyId: targetPropertyId,
+              unitId: unit.id,
+              tenantId: targetTenant.id,
+              leaseNumber: finalLeaseNumber,
+              status,
+              startDate,
+              endDate,
+              handoverDate,
+              leaseTermMonths: effectiveTermMonths,
+              rentAmount: rent,
+              currency,
+              rentalAgreement: rentalAgreement ?? undefined,
+              createdBy: userId,
+            },
+            unitStatusChange,
+            unlinkedInvoiceIds,
+            unitChargeOps,
+            unitChargeHistories,
+            schedulesToCreate,
+            pendingNotes,
+          });
+
+          if (pendingLeaseBatch.length >= LEASE_BATCH_SIZE) {
+            await flushLeaseBatch(pendingLeaseBatch);
+            pendingLeaseBatch = [];
+          }
         } catch (e) {
           groupRows.forEach((gr) => failed.push({ rowNo: gr.rowNo, errors: [(e as Error).message] }));
         }
+      }
+
+      if (pendingLeaseBatch.length > 0) {
+        await flushLeaseBatch(pendingLeaseBatch);
+      }
+
+      if (touchedPropertyIds.size > 0) {
+        await Promise.all(
+          Array.from(touchedPropertyIds).map((pid) => unitsService.invalidateStatsCache(pid).catch(() => {}))
+        );
       }
     } else if (normType === 'charge') {
       const [existingCharges, categories] = await Promise.all([
