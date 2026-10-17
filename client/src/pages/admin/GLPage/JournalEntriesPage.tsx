@@ -117,7 +117,7 @@ export default function JournalEntriesPage() {
                         </button>
                         <PermissionGuard permission="finance-journal.write">
                           {je.status === 'draft' && <button className="btn-sm btn-success" onClick={() => handlePost(je.id)}>Post</button>}
-                          {je.status === 'posted' && <button className="btn-sm btn-danger" onClick={() => handleReverse(je.id)}>Reverse</button>}
+                          {je.status === 'posted' && !je.isReversal && <button className="btn-sm btn-danger" onClick={() => handleReverse(je.id)}>Reverse</button>}
                         </PermissionGuard>
                       </div>
                     </td>
@@ -281,7 +281,7 @@ function JournalEntryDetailModal({
                 Post Entry
               </button>
             )}
-            {entry.status === 'posted' && (
+            {entry.status === 'posted' && !entry.isReversal && (
               <button type="button" className="btn-sm btn-danger" onClick={() => onReverse(entry.id)}>
                 Reverse Entry
               </button>

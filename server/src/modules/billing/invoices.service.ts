@@ -885,13 +885,16 @@ export class InvoicesService {
   // ── Void ────────────────────────────────────
 
   async void(id: string, companyId: string, reason: string, userId: string) {
-    const invoice = await prisma.invoice.findFirst({ where: { id, companyId } });
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, companyId },
+      include: { lines: true },
+    });
     if (!invoice) throw AppError.notFound('Invoice');
-    if (!['draft', 'issued', 'sent'].includes(invoice.status)) {
-      throw AppError.validation('Can only void draft, issued, or sent invoices. Use credit note for paid invoices.');
+    if (Number(invoice.paidAmount) > 0 || !['draft', 'issued', 'sent', 'overdue'].includes(invoice.status)) {
+      throw AppError.validation('Can only void unpaid draft, issued, sent, or overdue invoices. Use credit note for paid invoices.');
     }
 
-    return prisma.invoice.update({
+    const voidedInvoice = await prisma.invoice.update({
       where: { id },
       data: {
         status: 'void',
@@ -900,7 +903,79 @@ export class InvoicesService {
         voidReason: reason,
       },
     });
-    // TODO: Reverse GL postings
+
+    // 1. Reverse posted GL journal entry(s) for this invoice
+    try {
+      const postedJournals = await prisma.journalEntry.findMany({
+        where: {
+          companyId,
+          referenceType: 'invoice',
+          referenceId: invoice.id,
+          status: 'posted',
+          isReversal: false,
+        },
+      });
+      for (const je of postedJournals) {
+        await glService.reverseJournalEntry(je.id, companyId, userId);
+        logger.info(`Reversed GL journal ${je.journalNumber} for voided invoice ${invoice.invoiceNumber}`);
+      }
+    } catch (err: any) {
+      logger.error(`Failed to reverse GL journal for voided invoice ${invoice.invoiceNumber}: ${err.message}`);
+    }
+
+    // 2. If this invoice was generated from Billing Schedule(s), restore each schedule's nextBillingDate
+    //    back to the date before the invoice was generated (stored on line.periodFrom).
+    try {
+      const scheduleLines = invoice.lines.filter((l) => l.periodFrom != null);
+      if (scheduleLines.length > 0) {
+        const candidateSchedules = await prisma.billingSchedule.findMany({
+          where: {
+            companyId,
+            propertyId: invoice.propertyId,
+            tenantId: invoice.tenantId,
+            unitId: invoice.unitId,
+            status: { not: 'cancelled' },
+            chargeTypeId: { in: scheduleLines.map((l) => l.chargeTypeId) },
+          },
+        });
+
+        const updatedScheduleIds = new Set<string>();
+        for (const line of scheduleLines) {
+          const linePeriodFrom = line.periodFrom!;
+          const matches = candidateSchedules.filter(
+            (s) => s.chargeTypeId === line.chargeTypeId && !updatedScheduleIds.has(s.id),
+          );
+          if (matches.length === 0) continue;
+
+          const matched =
+            matches.find((s) => invoice.leaseId && s.leaseId === invoice.leaseId && s.description === line.description) ||
+            matches.find((s) => invoice.leaseId && s.leaseId === invoice.leaseId) ||
+            matches.find((s) => s.description === line.description) ||
+            matches[0];
+
+          if (matched.nextBillingDate == null || linePeriodFrom < matched.nextBillingDate) {
+            const newInvoiceCount = Math.max(0, (matched.invoiceCount || 0) - 1);
+            await prisma.billingSchedule.update({
+              where: { id: matched.id },
+              data: {
+                nextBillingDate: linePeriodFrom,
+                invoiceCount: newInvoiceCount,
+                isProrated: newInvoiceCount === 0 && matched.prorateStart != null ? true : matched.isProrated,
+                status: matched.status === 'completed' ? 'active' : matched.status,
+              },
+            });
+            updatedScheduleIds.add(matched.id);
+            logger.info(
+              `Restored schedule ${matched.id} nextBillingDate to ${linePeriodFrom.toISOString().split('T')[0]} after voiding invoice ${invoice.invoiceNumber}`,
+            );
+          }
+        }
+      }
+    } catch (err: any) {
+      logger.error(`Failed to restore billing schedule nextBillingDate for voided invoice ${invoice.invoiceNumber}: ${err.message}`);
+    }
+
+    return voidedInvoice;
   }
 
   // ── Credit Note ─────────────────────────────
@@ -1077,17 +1152,17 @@ export class InvoicesService {
    */
   private computeNextBillingDate(periodFrom: Date, billingDay: number, billingCycle: string): Date {
     const d = new Date(periodFrom);
-    const startYear = d.getFullYear();
-    const startMonth = d.getMonth();
+    const startYear = d.getUTCFullYear();
+    const startMonth = d.getUTCMonth();
     const monthsToAdd = this.getCycleMonths(billingCycle);
 
     const totalMonths = startMonth + monthsToAdd;
     const targetYear = startYear + Math.floor(totalMonths / 12);
     const targetMonth = totalMonths % 12;
-    const maxDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+    const maxDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
     const day = Math.min(billingDay, maxDay);
 
-    return new Date(targetYear, targetMonth, day);
+    return new Date(Date.UTC(targetYear, targetMonth, day));
   }
 }
 

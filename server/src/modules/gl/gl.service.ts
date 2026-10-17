@@ -259,7 +259,7 @@ class GlService {
     //    Debit all income accounts, credit all expense accounts, net to Retained Earnings
     const periodLines = await prisma.journalEntryLine.findMany({
       where: {
-        journalEntry: { fiscalPeriodId: id, status: 'posted', companyId: period.companyId },
+        journalEntry: { fiscalPeriodId: id, status: { in: ['posted', 'reversed'] }, companyId: period.companyId },
       },
       include: { account: { select: { id: true, code: true, name: true, accountType: true, normalBalance: true } } },
     });
@@ -454,14 +454,30 @@ class GlService {
   async reverseJournalEntry(id: string, companyId: string, userId: string) {
     const original = await prisma.journalEntry.findFirstOrThrow({
       where: { id, companyId, status: 'posted' },
-      include: { lines: true },
+      include: { lines: { orderBy: { sortOrder: 'asc' } } },
     });
+    if (original.isReversal) {
+      throw new Error('Cannot reverse a reversal journal entry');
+    }
 
     // Create reversal entry directly (using accountId, not accountCode)
-    const entryDate = new Date();
-    const period = await prisma.fiscalPeriod.findFirst({
-      where: { companyId, startDate: { lte: entryDate }, endDate: { gte: entryDate }, status: 'open' },
+    const todayDate = new Date(new Date().toISOString().split('T')[0]);
+    let entryDate = todayDate;
+    let period = await prisma.fiscalPeriod.findFirst({
+      where: { companyId, startDate: { lte: todayDate }, endDate: { gte: todayDate }, status: 'open' },
     });
+    if (!period) {
+      period = await prisma.fiscalPeriod.findFirst({
+        where: { companyId, startDate: { lte: original.entryDate }, endDate: { gte: original.entryDate }, status: 'open' },
+      });
+      if (period) entryDate = original.entryDate;
+    }
+    if (!period) {
+      period = await prisma.fiscalPeriod.findFirst({
+        where: { id: original.fiscalPeriodId, companyId, status: 'open' },
+      });
+      if (period) entryDate = original.entryDate;
+    }
     if (!period) throw new Error('No open fiscal period for reversal date');
 
     const journalNumber = await this.generateJournalNumber(companyId, entryDate.getFullYear());
@@ -473,8 +489,10 @@ class GlService {
         entryDate,
         fiscalPeriodId: period.id,
         entryType: 'adjustment',
-        description: `Reversal of ${original.journalNumber}`,
+        description: `Reversal of ${original.journalNumber} — ${original.description}`,
         status: 'posted',
+        referenceType: original.referenceType,
+        referenceId: original.referenceId,
         isReversal: true,
         reversalOfId: original.id,
         totalDebit: Number(original.totalCredit),
@@ -656,7 +674,7 @@ class GlService {
     });
 
     const where: any = {
-      journalEntry: { companyId, status: 'posted' },
+      journalEntry: { companyId, status: { in: ['posted', 'reversed'] } },
     };
     if (params.fromDate || params.toDate) {
       where.journalEntry.entryDate = {};
@@ -802,7 +820,7 @@ class GlService {
     // 2. Get all posted journal entries in the period
     const where: any = {
       companyId,
-      status: 'posted',
+      status: { in: ['posted', 'reversed'] },
       entryDate: { gte: new Date(params.fromDate), lte: new Date(params.toDate) },
     };
 

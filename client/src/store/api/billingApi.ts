@@ -329,7 +329,7 @@ export const billingApi = createApi({
 
     voidInvoice: builder.mutation<ApiResponse<InvoiceDetail>, { id: string; reason: string }>({
       query: ({ id, reason }) => ({ url: `/invoices/${id}/void`, method: 'POST', body: { reason } }),
-      invalidatesTags: (_, __, { id }) => [{ type: 'Invoices', id }, 'Invoices'],
+      invalidatesTags: (_, __, { id }) => [{ type: 'Invoices', id }, 'Invoices', 'BillingSchedules'],
     }),
 
     createCreditNote: builder.mutation<ApiResponse<InvoiceDetail>, { id: string; data: Record<string, unknown> }>({
