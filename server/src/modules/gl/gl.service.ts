@@ -409,8 +409,7 @@ class GlService {
     }
 
     // Generate journal number
-    const count = await prisma.journalEntry.count({ where: { companyId } });
-    const journalNumber = `JE-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+    const journalNumber = await this.generateJournalNumber(companyId, new Date().getFullYear());
 
     return prisma.journalEntry.create({
       data: {
@@ -465,8 +464,7 @@ class GlService {
     });
     if (!period) throw new Error('No open fiscal period for reversal date');
 
-    const count = await prisma.journalEntry.count({ where: { companyId } });
-    const journalNumber = `JE-${entryDate.getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+    const journalNumber = await this.generateJournalNumber(companyId, entryDate.getFullYear());
 
     const reversalEntry = await prisma.journalEntry.create({
       data: {
@@ -506,6 +504,46 @@ class GlService {
     });
 
     return reversalEntry;
+  }
+
+  private async generateJournalNumber(companyId: string, year: number): Promise<string> {
+    const prefix = `JE-${year}-`;
+    const [count, latestByNum, latestByCreated] = await Promise.all([
+      prisma.journalEntry.count({ where: { companyId } }),
+      prisma.journalEntry.findFirst({
+        where: { companyId, journalNumber: { startsWith: prefix } },
+        orderBy: { journalNumber: 'desc' },
+        select: { journalNumber: true },
+      }),
+      prisma.journalEntry.findFirst({
+        where: { companyId, journalNumber: { startsWith: prefix } },
+        orderBy: { createdAt: 'desc' },
+        select: { journalNumber: true },
+      }),
+    ]);
+
+    let nextNum = count + 1;
+    for (const row of [latestByNum, latestByCreated]) {
+      if (row?.journalNumber) {
+        const m = row.journalNumber.match(/^JE-\d{4}-(\d+)$/);
+        if (m) {
+          const seq = parseInt(m[1], 10);
+          if (seq >= nextNum) {
+            nextNum = seq + 1;
+          }
+        }
+      }
+    }
+
+    while (true) {
+      const candidate = `${prefix}${String(nextNum).padStart(5, '0')}`;
+      const exists = await prisma.journalEntry.findFirst({
+        where: { companyId, journalNumber: candidate },
+        select: { id: true },
+      });
+      if (!exists) return candidate;
+      nextNum++;
+    }
   }
 
   // ── Auto-Posting (for cross-module integration) ──
@@ -548,9 +586,15 @@ class GlService {
       let totalDebit = 0, totalCredit = 0;
 
       for (const line of params.lines) {
-        const account = await prisma.glAccount.findFirst({
+        let account = await prisma.glAccount.findFirst({
           where: { companyId: params.companyId, code: line.accountCode, isActive: true },
         });
+        if (!account && params.entryType === 'ar_invoice' && line.credit > 0 && line.accountCode !== '4100') {
+          logger.warn(`GL auto-post: account code ${line.accountCode} not found, falling back to 4100`);
+          account = await prisma.glAccount.findFirst({
+            where: { companyId: params.companyId, code: '4100', isActive: true },
+          });
+        }
         if (!account) {
           logger.warn(`GL auto-post: account code ${line.accountCode} not found, skipping journal`);
           return null;
@@ -574,8 +618,7 @@ class GlService {
       }
 
       // Generate journal number
-      const count = await prisma.journalEntry.count({ where: { companyId: params.companyId } });
-      const journalNumber = `JE-${entryDate.getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+      const journalNumber = await this.generateJournalNumber(params.companyId, entryDate.getFullYear());
 
       const journal = await prisma.journalEntry.create({
         data: {

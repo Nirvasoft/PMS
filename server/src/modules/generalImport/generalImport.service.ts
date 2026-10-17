@@ -1443,7 +1443,7 @@ export const generalImportService = {
         )
       );
 
-      const [existingInvoices, properties, tenants, chargeTypes, matchedUnits, openPeriods, glAccounts, initialJournalCount] = await Promise.all([
+      const [existingInvoices, properties, tenants, chargeTypes, matchedUnits, openPeriods, glAccounts, initialJournalCount, latestJournal] = await Promise.all([
         findInvoicesByNumbers(companyId, fileInvNumbers),
         prisma.property.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
         prisma.tenant.findMany({
@@ -1452,7 +1452,7 @@ export const generalImportService = {
         }),
         prisma.chargeType.findMany({
           where: { OR: [{ companyId }, { companyId: null }] },
-          select: { id: true, code: true, name: true },
+          select: { id: true, code: true, name: true, glAccountCode: true },
         }),
         findUnitsByNumbers(fileUnitCandidates),
         prisma.fiscalPeriod.findMany({
@@ -1460,20 +1460,27 @@ export const generalImportService = {
           select: { id: true, startDate: true, endDate: true },
         }),
         prisma.glAccount.findMany({
-          where: { companyId, code: { in: ['1100', '4100', '2200'] }, isActive: true },
+          where: { companyId, isActive: true },
           select: { id: true, code: true },
         }),
         prisma.journalEntry.count({ where: { companyId } }),
+        prisma.journalEntry.findFirst({
+          where: { companyId, journalNumber: { startsWith: 'JE-' } },
+          orderBy: { journalNumber: 'desc' },
+          select: { journalNumber: true },
+        }),
       ]);
 
       const matchedUnitIds = matchedUnits.map((u) => u.id);
       const matchedLeases = await findActiveLeasesByUnitIds(companyId, matchedUnitIds);
 
       const glAccByCode = new Map(glAccounts.map((a) => [a.code, a.id]));
+      const chargeTypeById = new Map(chargeTypes.map((ct) => [ct.id, ct]));
       const arAccId = glAccByCode.get('1100');
       const revAccId = glAccByCode.get('4100');
       const taxAccId = glAccByCode.get('2200');
-      let nextJournalSeq = initialJournalCount;
+      const latestSeqMatch = latestJournal?.journalNumber?.match(/^JE-\d{4}-(\d+)$/);
+      let nextJournalSeq = Math.max(initialJournalCount, latestSeqMatch ? parseInt(latestSeqMatch[1], 10) : 0);
 
       const unitByPropAndNum = new Map<string, string>();
       for (const u of matchedUnits) {
@@ -1638,18 +1645,37 @@ export const generalImportService = {
                 postedAt: new Date(),
                 createdBy: '00000000-0000-0000-0000-000000000000',
               });
-              jelRows.push(
-                {
-                  id: randomUUID(),
-                  journalEntryId: jeId,
-                  accountId: arAccId,
-                  description: `AR — ${inv.invoiceNumber}`,
-                  debit: inv.totalAmount,
-                  credit: 0,
-                  propertyId: inv.propertyId || null,
-                  sortOrder: 0,
-                },
-                {
+              let sortIdx = 0;
+              jelRows.push({
+                id: randomUUID(),
+                journalEntryId: jeId,
+                accountId: arAccId,
+                description: `AR — ${inv.invoiceNumber}`,
+                debit: inv.totalAmount,
+                credit: 0,
+                propertyId: inv.propertyId || null,
+                sortOrder: sortIdx++,
+              });
+              const activeItems = item.lineItems.filter((li) => li.amount > 0);
+              if (activeItems.length > 0) {
+                for (const li of activeItems) {
+                  const ct = chargeTypeById.get(li.chargeTypeId);
+                  const ctGlCode = ct?.glAccountCode?.trim();
+                  const creditAccId = (ctGlCode && glAccByCode.get(ctGlCode)) || revAccId;
+                  const lineDesc = li.description || ct?.name || 'Revenue';
+                  jelRows.push({
+                    id: randomUUID(),
+                    journalEntryId: jeId,
+                    accountId: creditAccId,
+                    description: `${lineDesc} — ${inv.invoiceNumber}`,
+                    debit: 0,
+                    credit: li.amount,
+                    propertyId: inv.propertyId || null,
+                    sortOrder: sortIdx++,
+                  });
+                }
+              } else if (inv.subtotal > 0) {
+                jelRows.push({
                   id: randomUUID(),
                   journalEntryId: jeId,
                   accountId: revAccId,
@@ -1657,9 +1683,9 @@ export const generalImportService = {
                   debit: 0,
                   credit: inv.subtotal,
                   propertyId: inv.propertyId || null,
-                  sortOrder: 1,
-                },
-              );
+                  sortOrder: sortIdx++,
+                });
+              }
               if (inv.taxAmount > 0 && taxAccId) {
                 jelRows.push({
                   id: randomUUID(),
@@ -1669,7 +1695,7 @@ export const generalImportService = {
                   debit: 0,
                   credit: inv.taxAmount,
                   propertyId: inv.propertyId || null,
-                  sortOrder: 2,
+                  sortOrder: sortIdx++,
                 });
               }
             }

@@ -294,17 +294,31 @@ export class InvoicesService {
         lines: { create: lineData },
       },
       include: {
-        lines: { include: { chargeType: { select: { code: true, name: true } } } },
+        lines: { include: { chargeType: { select: { code: true, name: true, glAccountCode: true } } } },
         tenant: { select: { id: true, firstName: true, lastName: true } },
       },
     });
 
-    // GL auto-posting: Dr Accounts Receivable / Cr Revenue / Cr Tax Payable
+    // GL auto-posting: Dr Accounts Receivable / Cr per ChargeType GL Account / Cr Tax Payable
     const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
       { accountCode: '1100', debit: Number(invoice.totalAmount), credit: 0, description: `AR — ${invoiceNumber}` },
     ];
-    // Credit revenue for subtotal
-    glLines.push({ accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoiceNumber}` });
+    // Credit each charge line using its linked ChargeType GL account (fallback to 4100)
+    const activeLines = invoice.lines.filter((l) => Number(l.amount) > 0);
+    if (activeLines.length > 0) {
+      for (const invLine of activeLines) {
+        const creditAccountCode = invLine.chargeType?.glAccountCode?.trim() || '4100';
+        const lineDesc = invLine.description || invLine.chargeType?.name || 'Revenue';
+        glLines.push({
+          accountCode: creditAccountCode,
+          debit: 0,
+          credit: Number(invLine.amount),
+          description: `${lineDesc} — ${invoiceNumber}`,
+        });
+      }
+    } else if (subtotal > 0) {
+      glLines.push({ accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoiceNumber}` });
+    }
     // Credit tax payable if tax exists
     if (totalTax > 0) {
       glLines.push({ accountCode: '2200', debit: 0, credit: totalTax, description: `Tax Payable — ${invoiceNumber}` });
@@ -398,13 +412,16 @@ export class InvoicesService {
           OR: [
             { code: 'SECURITY_DEPOSIT' },
             { code: 'security_deposit' },
+            { code: 'DEPOSIT' },
+            { code: 'deposit' },
+            { category: 'deposit' },
           ],
           AND: [{ OR: [{ companyId: null }, { companyId: lease.companyId }] }],
         },
       });
       if (!depositChargeType) {
         depositChargeType = await prisma.chargeType.create({
-          data: { code: 'SECURITY_DEPOSIT', name: 'Security Deposit', category: 'other', isActive: true, isSystem: true },
+          data: { code: 'SECURITY_DEPOSIT', name: 'Security Deposit', category: 'deposit', isActive: true, isSystem: true },
         });
       }
     }
@@ -454,7 +471,7 @@ export class InvoicesService {
               : `Base Rent (${termMonths} months) & Security Deposit — fully paid lease ${lease.leaseNumber}`,
           },
           include: {
-            lines: { include: { chargeType: { select: { code: true, name: true } } } },
+            lines: { include: { chargeType: { select: { code: true, name: true, glAccountCode: true } } } },
             tenant: { select: { id: true, firstName: true, lastName: true } },
           },
         });
@@ -531,7 +548,7 @@ export class InvoicesService {
           lines: { create: invoiceLines },
         },
         include: {
-          lines: { include: { chargeType: { select: { code: true, name: true } } } },
+          lines: { include: { chargeType: { select: { code: true, name: true, glAccountCode: true } } } },
           tenant: { select: { id: true, firstName: true, lastName: true } },
         },
       });
@@ -556,8 +573,24 @@ export class InvoicesService {
 
       const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
         { accountCode: '1100', debit: totalAmount, credit: 0, description: `AR — ${invoice.invoiceNumber}` },
-        { accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoice.invoiceNumber}` },
       ];
+      const activeLines = Array.isArray(invoice.lines)
+        ? invoice.lines.filter((l: any) => Number(l.amount) > 0)
+        : [];
+      if (activeLines.length > 0) {
+        for (const invLine of activeLines) {
+          const creditAccountCode = invLine.chargeType?.glAccountCode?.trim() || '4100';
+          const lineDesc = invLine.description || invLine.chargeType?.name || 'Revenue';
+          glLines.push({
+            accountCode: creditAccountCode,
+            debit: 0,
+            credit: Number(invLine.amount),
+            description: `${lineDesc} — ${invoice.invoiceNumber}`,
+          });
+        }
+      } else if (subtotal > 0) {
+        glLines.push({ accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoice.invoiceNumber}` });
+      }
       if (taxAmount > 0) {
         glLines.push({ accountCode: '2200', debit: 0, credit: taxAmount, description: `Tax Payable — ${invoice.invoiceNumber}` });
       }
@@ -775,11 +808,25 @@ export class InvoicesService {
       })
     );
 
-    // GL auto-posting: Dr AR / Cr Revenue / Cr Tax Payable
+    // GL auto-posting: Dr AR / Cr per ChargeType GL Account / Cr Tax Payable
     const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
       { accountCode: '1100', debit: totalAmount, credit: 0, description: `AR — ${invoiceNumber}` },
-      { accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoiceNumber}` },
     ];
+    const activeScheduleLines = lineInputs.filter((l) => l.amount > 0);
+    if (activeScheduleLines.length > 0) {
+      for (const l of activeScheduleLines) {
+        const creditAccountCode = l.schedule.chargeType?.glAccountCode?.trim() || '4100';
+        const lineDesc = l.schedule.description || l.schedule.chargeType?.name || 'Revenue';
+        glLines.push({
+          accountCode: creditAccountCode,
+          debit: 0,
+          credit: l.amount,
+          description: `${lineDesc} — ${invoiceNumber}`,
+        });
+      }
+    } else if (subtotal > 0) {
+      glLines.push({ accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoiceNumber}` });
+    }
     if (taxAmount > 0) {
       glLines.push({ accountCode: '2200', debit: 0, credit: taxAmount, description: `Tax Payable — ${invoiceNumber}` });
     }
