@@ -2988,40 +2988,46 @@ model BillingSchedule {
   propertyId      String    @map("property_id") @db.Uuid
   unitId          String?   @map("unit_id") @db.Uuid
   tenantId        String    @map("tenant_id") @db.Uuid
-  leaseId         String?   @map("lease_id") @db.Uuid
-  chargeTypeId    String    @map("charge_type_id") @db.Uuid
-  description     String?   @db.VarChar(500)
-  amount          Decimal   @db.Decimal(15, 2)
-  quantity        Decimal   @default(1) @db.Decimal(10, 4)
-  currency        String    @default("USD") @db.VarChar(3)
+  leaseId            String?   @map("lease_id") @db.Uuid
+  departmentCenterId String?   @map("department_center_id") @db.Uuid
+  costCenterId       String?   @map("cost_center_id") @db.Uuid
+  chargeTypeId       String    @map("charge_type_id") @db.Uuid
+  description        String?   @db.VarChar(500)
+  amount             Decimal   @db.Decimal(15, 2)
+  quantity           Decimal   @default(1) @db.Decimal(10, 4)
+  currency           String    @default("USD") @db.VarChar(3)
   // Snapshot of the lease's Currency Setup rate as of lease activation.
-  currencyRate    Decimal?  @map("currency_rate") @db.Decimal(18, 6)
-  billingCycle    String    @default("monthly") @map("billing_cycle") @db.VarChar(50)
-  billingDay      Int       @default(1) @map("billing_day") @db.SmallInt
-  paymentDueDays  Int       @default(7) @map("payment_due_days") @db.SmallInt
-  startDate       DateTime  @map("start_date") @db.Date
-  endDate         DateTime? @map("end_date") @db.Date
-  nextBillingDate DateTime? @map("next_billing_date") @db.Date
-  status          String    @default("active") @db.VarChar(50) // 'active'|'paused'|'cancelled'|'completed'
-  lastInvoicedAt  DateTime? @map("last_invoiced_at") @db.Timestamptz
-  invoiceCount    Int       @default(0) @map("invoice_count")
-  isProrated      Boolean   @default(false) @map("is_prorated")
-  prorateStart    DateTime? @map("prorate_start") @db.Date
-  notes           String?   @db.Text
-  createdBy       String?   @map("created_by") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  currencyRate       Decimal?  @map("currency_rate") @db.Decimal(18, 6)
+  billingCycle       String    @default("monthly") @map("billing_cycle") @db.VarChar(50)
+  billingDay         Int       @default(1) @map("billing_day") @db.SmallInt
+  paymentDueDays     Int       @default(7) @map("payment_due_days") @db.SmallInt
+  startDate          DateTime  @map("start_date") @db.Date
+  endDate            DateTime? @map("end_date") @db.Date
+  nextBillingDate    DateTime? @map("next_billing_date") @db.Date
+  status             String    @default("active") @db.VarChar(50) // 'active'|'paused'|'cancelled'|'completed'
+  lastInvoicedAt     DateTime? @map("last_invoiced_at") @db.Timestamptz
+  invoiceCount       Int       @default(0) @map("invoice_count")
+  isProrated         Boolean   @default(false) @map("is_prorated")
+  prorateStart       DateTime? @map("prorate_start") @db.Date
+  notes              String?   @db.Text
+  createdBy          String?   @map("created_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  property   Property   @relation("ScheduleProperty", fields: [propertyId], references: [id])
-  unit       Unit?      @relation("ScheduleUnit", fields: [unitId], references: [id])
-  tenant     Tenant     @relation("ScheduleTenant", fields: [tenantId], references: [id])
-  lease      Lease?     @relation("ScheduleLease", fields: [leaseId], references: [id])
-  chargeType ChargeType @relation(fields: [chargeTypeId], references: [id])
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property         Property          @relation("ScheduleProperty", fields: [propertyId], references: [id])
+  unit             Unit?             @relation("ScheduleUnit", fields: [unitId], references: [id])
+  tenant           Tenant            @relation("ScheduleTenant", fields: [tenantId], references: [id])
+  lease            Lease?            @relation("ScheduleLease", fields: [leaseId], references: [id])
+  departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
+  costCenter       CostCenter?       @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  chargeType       ChargeType        @relation(fields: [chargeTypeId], references: [id])
 
   @@index([nextBillingDate])
   @@index([tenantId])
   @@index([leaseId])
+  @@index([departmentCenterId])
+  @@index([costCenterId])
   @@index([status])
   @@map("billing_schedules")
 }
@@ -3033,6 +3039,8 @@ model Invoice {
   unitId             String?   @map("unit_id") @db.Uuid
   tenantId           String    @map("tenant_id") @db.Uuid
   leaseId            String?   @map("lease_id") @db.Uuid
+  departmentCenterId String?   @map("department_center_id") @db.Uuid
+  costCenterId       String?   @map("cost_center_id") @db.Uuid
   invoiceNumber      String    @unique @map("invoice_number") @db.VarChar(50)
   secondRef          String?   @map("second_ref") @db.VarChar(100)
   invoiceType        String    @default("invoice") @map("invoice_type") @db.VarChar(50)
@@ -3070,14 +3078,16 @@ model Invoice {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  property        Property      @relation("InvoiceProperty", fields: [propertyId], references: [id])
-  unit            Unit?         @relation("InvoiceUnit", fields: [unitId], references: [id])
-  tenant          Tenant        @relation("InvoiceTenant", fields: [tenantId], references: [id])
-  lease           Lease?        @relation("InvoiceLease", fields: [leaseId], references: [id])
-  originalInvoice Invoice?      @relation("CreditNoteInvoice", fields: [originalInvoiceId], references: [id])
-  creditNotes     Invoice[]     @relation("CreditNoteInvoice")
-  lines           InvoiceLine[]
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property         Property          @relation("InvoiceProperty", fields: [propertyId], references: [id])
+  unit             Unit?             @relation("InvoiceUnit", fields: [unitId], references: [id])
+  tenant           Tenant            @relation("InvoiceTenant", fields: [tenantId], references: [id])
+  lease            Lease?            @relation("InvoiceLease", fields: [leaseId], references: [id])
+  departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
+  costCenter       CostCenter?       @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  originalInvoice  Invoice?          @relation("CreditNoteInvoice", fields: [originalInvoiceId], references: [id])
+  creditNotes      Invoice[]         @relation("CreditNoteInvoice")
+  lines            InvoiceLine[]
 
   // Relations — AR (Module 3.2)
   receiptAllocations ReceiptAllocation[]
@@ -3099,6 +3109,8 @@ model Invoice {
 
   @@index([tenantId])
   @@index([leaseId])
+  @@index([departmentCenterId])
+  @@index([costCenterId])
   @@index([status, dueDate])
   @@index([companyId])
   @@map("invoices")
@@ -3291,9 +3303,11 @@ model DepartmentCenter {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  costCenters CostCenter[]
-  glAccounts  GlAccount[]
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  costCenters      CostCenter[]
+  glAccounts       GlAccount[]
+  invoices         Invoice[]
+  billingSchedules BillingSchedule[]
 
   @@unique([code, companyId])
   @@index([companyId])
@@ -3315,6 +3329,8 @@ model CostCenter {
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
   glAccounts       GlAccount[]
+  invoices         Invoice[]
+  billingSchedules BillingSchedule[]
 
   @@unique([code, companyId])
   @@index([companyId])

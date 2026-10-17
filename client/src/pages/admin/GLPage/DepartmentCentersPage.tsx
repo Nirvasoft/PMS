@@ -40,15 +40,15 @@ export default function DepartmentCentersPage() {
 
   const handleDelete = async (dc: DepartmentCenter) => {
     const ok = await confirmDialog(
-      `Delete Department Center "${dc.code} — ${dc.name}"?`,
+      `Delete Department "${dc.code} — ${dc.name}"?`,
       { danger: true, confirmText: 'Delete' }
     );
     if (!ok) return;
     try {
       await deleteDepartmentCenter(dc.id).unwrap();
-      toast.success('Department Center deleted');
+      toast.success('Department deleted');
     } catch (err: any) {
-      toast.error(err.data?.errors?.[0]?.message || 'Failed to delete Department Center');
+      toast.error(err.data?.errors?.[0]?.message || 'Failed to delete Department');
     }
   };
 
@@ -60,8 +60,8 @@ export default function DepartmentCentersPage() {
             <GitBranch size={22} />
           </div>
           <div>
-            <h1>Department Centers</h1>
-            <p>{departmentCenters.length} total department centers for accounting & GL</p>
+            <h1>Department</h1>
+            <p>{departmentCenters.length} total departments for accounting & GL</p>
           </div>
         </div>
         <PermissionGuard permission="finance-coa.write">
@@ -73,7 +73,7 @@ export default function DepartmentCentersPage() {
             }}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            <Plus size={16} /> Add Department Center
+            <Plus size={16} /> Add Department
           </button>
         </PermissionGuard>
       </div>
@@ -128,14 +128,14 @@ export default function DepartmentCentersPage() {
       </div>
 
       {isLoading ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Loading department centers…</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Loading departments…</p>
       ) : (
         <div className="gl-table-wrap">
           <table className="gl-table">
             <thead>
               <tr>
                 <th style={{ width: 130 }}>Code</th>
-                <th>Department Center Name</th>
+                <th>Department Name</th>
                 <th>Description</th>
                 <th style={{ width: 130, textAlign: 'center' }}>GL Accounts</th>
                 <th style={{ width: 110 }}>Status</th>
@@ -146,7 +146,7 @@ export default function DepartmentCentersPage() {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
-                    No department centers found. Click &ldquo;+ Add Department Center&rdquo; to get started.
+                    No departments found. Click &ldquo;+ Add Department&rdquo; to get started.
                   </td>
                 </tr>
               ) : (
@@ -257,7 +257,7 @@ function DepartmentCenterModal({
             isActive: form.isActive,
           },
         }).unwrap();
-        toast.success('Department Center updated');
+        toast.success('Department updated');
       } else {
         await onCreate({
           code: form.code.trim(),
@@ -266,37 +266,37 @@ function DepartmentCenterModal({
           sortOrder: Number(form.sortOrder) || 0,
           isActive: form.isActive,
         }).unwrap();
-        toast.success('Department Center created');
+        toast.success('Department created');
       }
       onClose();
     } catch (err: any) {
-      alertDialog(err.data?.errors?.[0]?.message || err.data?.message || 'Error saving Department Center');
+      alertDialog(err.data?.errors?.[0]?.message || err.data?.message || 'Error saving Department');
     }
   };
 
   return (
     <div className="gl-modal-overlay" onClick={onClose}>
       <div className="gl-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{isEdit ? 'Edit Department Center' : 'New Department Center'}</h3>
+        <h3>{isEdit ? 'Edit Department' : 'New Department'}</h3>
         <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-row">
             <div className="gl-form-group">
               <label>
-                Department Center Code <span className="req">*</span>
+                Department Code <span className="req">*</span>
               </label>
               <input
                 className={hasAttemptedSubmit && !form.code.trim() ? 'gl-input-error' : ''}
-                placeholder="e.g. DC-100"
+                placeholder="e.g. DEPT-100"
                 value={form.code}
                 onChange={(e) => setForm({ ...form, code: e.target.value })}
               />
               {hasAttemptedSubmit && !form.code.trim() && (
-                <span className="gl-error-text">Department center code is required</span>
+                <span className="gl-error-text">Department code is required</span>
               )}
             </div>
             <div className="gl-form-group">
               <label>
-                Department Center Name <span className="req">*</span>
+                Department Name <span className="req">*</span>
               </label>
               <input
                 className={hasAttemptedSubmit && !form.name.trim() ? 'gl-input-error' : ''}
@@ -305,7 +305,7 @@ function DepartmentCenterModal({
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
               {hasAttemptedSubmit && !form.name.trim() && (
-                <span className="gl-error-text">Department center name is required</span>
+                <span className="gl-error-text">Department name is required</span>
               )}
             </div>
           </div>
@@ -314,7 +314,7 @@ function DepartmentCenterModal({
             <label>Description</label>
             <textarea
               rows={2}
-              placeholder="Optional description of this accounting department center…"
+              placeholder="Optional description of this accounting department…"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />

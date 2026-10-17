@@ -40,7 +40,7 @@ class GlService {
 
   async updateDepartmentCenter(id: string, companyId: string, data: any) {
     const existing = await prisma.departmentCenter.findFirst({ where: { id, companyId } });
-    if (!existing) throw new Error('Department Center not found');
+    if (!existing) throw new Error('Department not found');
     return prisma.departmentCenter.update({
       where: { id },
       data: {
@@ -58,7 +58,7 @@ class GlService {
 
   async deleteDepartmentCenter(id: string, companyId: string) {
     const existing = await prisma.departmentCenter.findFirst({ where: { id, companyId } });
-    if (!existing) throw new Error('Department Center not found');
+    if (!existing) throw new Error('Department not found');
     await prisma.departmentCenter.delete({ where: { id } });
     return { deleted: true };
   }

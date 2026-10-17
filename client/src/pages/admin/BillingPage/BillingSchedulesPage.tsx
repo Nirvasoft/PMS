@@ -7,6 +7,7 @@ import {
   useGetChargeTypesQuery, useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
 import type { BillingSchedule } from '../../../store/api/billingApi';
+import { useGetDepartmentCentersQuery, useGetCostCentersQuery } from '../../../store/api/glApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
@@ -26,12 +27,14 @@ const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'] as cons
 
 interface ScheduleForm {
   chargeTypeId: string; propertyId: string; tenantId: string; unitId: string; leaseId: string;
+  departmentCenterId: string; costCenterId: string;
   amount: number; quantity: number; currency: string; billingCycle: string; billingDay: number;
   paymentDueDays: number; startDate: string; endDate: string; description: string;
 }
 
 const emptyForm: ScheduleForm = {
   chargeTypeId: '', propertyId: '', tenantId: '', unitId: '', leaseId: '',
+  departmentCenterId: '', costCenterId: '',
   amount: 0, quantity: 1, currency: 'USD', billingCycle: 'monthly', billingDay: 1,
   paymentDueDays: 14, startDate: new Date().toISOString().split('T')[0], endDate: '', description: '',
 };
@@ -68,6 +71,8 @@ export default function BillingSchedulesPage() {
   });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({ isActive: true });
+  const { data: costCentersData = [] } = useGetCostCentersQuery({ isActive: true });
   // /properties requires properties.read, which a billing-only role may lack — use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
@@ -94,6 +99,8 @@ export default function BillingSchedulesPage() {
   const meta = data?.meta;
   const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
+  const departmentCenters = Array.isArray(departmentCentersData) ? departmentCentersData : (departmentCentersData as any)?.data || [];
+  const costCenters = Array.isArray(costCentersData) ? costCentersData : (costCentersData as any)?.data || [];
   const scopeProperties = scopeData?.data || [];
   const floors = (floorsData?.data || []).slice().sort((a, b) => a.floorNumber - b.floorNumber);
   const units = unitsData?.data || [];
@@ -247,6 +254,8 @@ export default function BillingSchedulesPage() {
       tenantId: s.tenant.id,
       unitId: s.unit?.id || '',
       leaseId: s.leaseId || '',
+      departmentCenterId: s.departmentCenterId || s.departmentCenter?.id || '',
+      costCenterId: s.costCenterId || s.costCenter?.id || '',
       amount: Number(s.amount),
       quantity: effectiveQty,
       currency: s.currency,
@@ -299,15 +308,19 @@ export default function BillingSchedulesPage() {
       };
 
       if (editId) {
-        // Always send unit/lease/end date on edit (even cleared) so removing any of them actually clears it.
+        // Always send unit/lease/end date/department/cost center on edit (even cleared) so removing any of them actually clears it.
         payload.unitId = form.unitId || null;
         payload.leaseId = form.leaseId || null;
         payload.endDate = form.endDate || null;
+        payload.departmentCenterId = form.departmentCenterId || null;
+        payload.costCenterId = form.costCenterId || null;
         await updateSchedule({ id: editId, data: payload }).unwrap();
       } else {
         if (form.unitId) payload.unitId = form.unitId;
         if (form.leaseId) payload.leaseId = form.leaseId;
         if (form.endDate) payload.endDate = form.endDate;
+        if (form.departmentCenterId) payload.departmentCenterId = form.departmentCenterId;
+        if (form.costCenterId) payload.costCenterId = form.costCenterId;
         await createSchedule(payload).unwrap();
       }
       setShowForm(false);
@@ -720,6 +733,30 @@ export default function BillingSchedulesPage() {
                     <label>End Date (optional)</label>
                     <input type="date" value={form.endDate}
                       onChange={e => setForm({ ...form, endDate: e.target.value })} />
+                  </div>
+                  <div className="inv-field">
+                    <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                    <select
+                      value={form.departmentCenterId}
+                      onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
+                    >
+                      <option value="">— None —</option>
+                      {departmentCenters.map((d) => (
+                        <option key={d.id} value={d.id}>{d.code}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="inv-field">
+                    <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                    <select
+                      value={form.costCenterId}
+                      onChange={e => setForm({ ...form, costCenterId: e.target.value })}
+                    >
+                      <option value="">— None —</option>
+                      {costCenters.map((c) => (
+                        <option key={c.id} value={c.id}>{c.code}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="inv-form-grid cols-1" style={{ marginTop: 16 }}>

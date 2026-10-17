@@ -302,6 +302,18 @@ export default function InvoiceDetailPage() {
           <div className="imi-value">{inv.secondRef || '—'}</div>
         </div>
         <div className="invoice-meta-item">
+          <div className="imi-label">Department</div>
+          <div className="imi-value">
+            {inv.departmentCenter ? inv.departmentCenter.code : '—'}
+          </div>
+        </div>
+        <div className="invoice-meta-item">
+          <div className="imi-label">Cost Center</div>
+          <div className="imi-value">
+            {inv.costCenter ? inv.costCenter.code : '—'}
+          </div>
+        </div>
+        <div className="invoice-meta-item">
           <div className="imi-label">Currency</div>
           <div className="imi-value" style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600 }}>{tenantCurrency}</span>

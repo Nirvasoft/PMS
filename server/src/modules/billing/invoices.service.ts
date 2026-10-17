@@ -52,6 +52,8 @@ export class InvoicesService {
           tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, currency: true } },
           unit: { select: { id: true, unitNumber: true } },
           property: { select: { id: true, name: true } },
+          departmentCenter: { select: { id: true, code: true, name: true } },
+          costCenter: { select: { id: true, code: true, name: true } },
           _count: { select: { lines: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -75,6 +77,8 @@ export class InvoicesService {
         tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, email: true, currency: true } },
         unit: { select: { id: true, unitNumber: true } },
         property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
+        departmentCenter: { select: { id: true, code: true, name: true } },
+        costCenter: { select: { id: true, code: true, name: true } },
         creditNotes: { select: { id: true, invoiceNumber: true, totalAmount: true, status: true } },
         receiptAllocations: {
           include: {
@@ -275,6 +279,8 @@ export class InvoicesService {
         unitId: (dto.unitId as string) || null,
         tenantId: dto.tenantId as string,
         leaseId: (dto.leaseId as string) || null,
+        departmentCenterId: (dto.departmentCenterId as string) || null,
+        costCenterId: (dto.costCenterId as string) || null,
         invoiceNumber,
         invoiceType: 'invoice',
         status: 'issued',
@@ -296,6 +302,8 @@ export class InvoicesService {
       include: {
         lines: { include: { chargeType: { select: { code: true, name: true, glAccountCode: true } } } },
         tenant: { select: { id: true, firstName: true, lastName: true } },
+        departmentCenter: { select: { id: true, code: true, name: true } },
+        costCenter: { select: { id: true, code: true, name: true } },
       },
     });
 
@@ -748,6 +756,9 @@ export class InvoicesService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const departmentCenterId = lineInputs.find((l) => l.schedule.departmentCenterId)?.schedule.departmentCenterId || first.departmentCenterId || null;
+    const costCenterId = lineInputs.find((l) => l.schedule.costCenterId)?.schedule.costCenterId || first.costCenterId || null;
+
     const invoice = await prisma.invoice.create({
       data: {
         companyId: first.companyId,
@@ -755,6 +766,8 @@ export class InvoicesService {
         unitId: first.unitId,
         tenantId: first.tenantId,
         leaseId,
+        departmentCenterId,
+        costCenterId,
         invoiceNumber,
         invoiceType: 'invoice',
         status: 'issued',

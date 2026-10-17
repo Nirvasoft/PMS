@@ -482,9 +482,9 @@ export default function DashboardLayout() {
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="finance-coa.read">
-                <NavLink to="/admin/gl/department-centers" className="nav-item" title="Department Centers">
+                <NavLink to="/admin/gl/department-centers" className="nav-item" title="Department">
                   <GitBranch size={18} />
-                  <span>Department Centers</span>
+                  <span>Department</span>
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="finance-coa.read">

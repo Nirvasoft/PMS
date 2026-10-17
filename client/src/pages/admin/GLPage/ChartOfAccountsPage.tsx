@@ -179,7 +179,7 @@ function AccountNode({
         {account.departmentCenter && (
           <span
             className="gl-badge"
-            title={`Department Center: ${account.departmentCenter.code} — ${account.departmentCenter.name}`}
+            title={`Department: ${account.departmentCenter.code} — ${account.departmentCenter.name}`}
             style={{
               fontSize: '0.68rem',
               background: 'rgba(139, 92, 246, 0.14)',
@@ -187,7 +187,7 @@ function AccountNode({
               textTransform: 'none',
             }}
           >
-            DC: {account.departmentCenter.code}
+            DEPT: {account.departmentCenter.code}
           </span>
         )}
         {account.costCenter && (
@@ -525,14 +525,14 @@ function AccountModal({
             </div>
           </div>
 
-          {/* Department Center & Cost Center Lookup Row */}
+          {/* Department & Cost Center Lookup Row */}
           <div className="gl-form-row">
             <div className="gl-form-group">
-              <label>Department Center</label>
+              <label>Department</label>
               <div className="coa-input-group">
                 <input
                   className="coa-bound-input"
-                  placeholder="Select Department Center…"
+                  placeholder="Select Department…"
                   value={selectedDept ? `${selectedDept.code} — ${selectedDept.name}` : ''}
                   readOnly
                   tabIndex={-1}
@@ -549,7 +549,7 @@ function AccountModal({
                       e.stopPropagation();
                       setForm({ ...form, departmentCenterId: '' });
                     }}
-                    title="Clear Department Center"
+                    title="Clear Department"
                   >
                     <X size={13} />
                   </button>
@@ -561,7 +561,7 @@ function AccountModal({
                     setDeptSearch('');
                     setShowDeptLookup(true);
                   }}
-                  title="Search Department Centers"
+                  title="Search Departments"
                 >
                   <Search size={15} />
                 </button>
@@ -629,14 +629,14 @@ function AccountModal({
         </form>
       </div>
 
-      {/* Department Center Lookup Modal */}
+      {/* Department Lookup Modal */}
       {showDeptLookup &&
         createPortal(
           <div className="modal-overlay coa-lookup-overlay" onClick={() => setShowDeptLookup(false)}>
             <div className="modal-content coa-lookup-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>
-                  <GitBranch size={18} /> Select Department Center
+                  <GitBranch size={18} /> Select Department
                 </h2>
                 <button type="button" className="modal-close" onClick={() => setShowDeptLookup(false)}>
                   <X size={18} />
@@ -648,7 +648,7 @@ function AccountModal({
                   <Search size={15} className="coa-lookup-search-icon" />
                   <input
                     type="text"
-                    placeholder="Search department center by code or name…"
+                    placeholder="Search department by code or name…"
                     value={deptSearch}
                     onChange={(e) => setDeptSearch(e.target.value)}
                     autoFocus
@@ -669,7 +669,7 @@ function AccountModal({
               <div className="modal-body coa-lookup-body">
                 {filteredDepts.length === 0 ? (
                   <div className="coa-lookup-empty">
-                    No Department Centers found. Create them in Finance &gt; Department Centers.
+                    No Departments found. Create them in Finance &gt; Department.
                   </div>
                 ) : (
                   <div className="coa-lookup-list">
@@ -677,7 +677,7 @@ function AccountModal({
                       <thead>
                         <tr>
                           <th style={{ width: 120 }}>Code</th>
-                          <th>Department Center Name</th>
+                          <th>Department Name</th>
                           <th>Description</th>
                           <th style={{ width: 100 }} className="text-center">Action</th>
                         </tr>
@@ -733,7 +733,7 @@ function AccountModal({
 
               <div className="modal-footer">
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 'auto' }}>
-                  Showing {filteredDepts.length} of {departmentCenters.length} department centers
+                  Showing {filteredDepts.length} of {departmentCenters.length} departments
                 </span>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowDeptLookup(false)}>
                   Close

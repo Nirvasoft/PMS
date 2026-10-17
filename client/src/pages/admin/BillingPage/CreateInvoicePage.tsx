@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetChargeTypesQuery, useCreateInvoiceMutation, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useGetDepartmentCentersQuery, useGetCostCentersQuery } from '../../../store/api/glApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
@@ -34,11 +35,15 @@ export default function CreateInvoicePage() {
   const navigate = useNavigate();
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({ isActive: true });
+  const { data: costCentersData = [] } = useGetCostCentersQuery({ isActive: true });
   const [createInvoice, { isLoading }] = useCreateInvoiceMutation();
   const alertDialog = useAlertDialog();
 
   const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
+  const departmentCenters = Array.isArray(departmentCentersData) ? departmentCentersData : (departmentCentersData as any)?.data || [];
+  const costCenters = Array.isArray(costCentersData) ? costCentersData : (costCentersData as any)?.data || [];
 
   // Locked to the sidebar's Active Property, same convention as Expenses/Payment
   // Vouchers/New Lease/New Floor/New Lead — only when "All Properties" is active
@@ -47,7 +52,9 @@ export default function CreateInvoicePage() {
   const propertyLocked = !!activeProperty;
 
   const [form, setForm] = useState({
-    propertyId: '', tenantId: '', unitId: '', leaseId: '', invoiceDate: new Date().toISOString().split('T')[0],
+    propertyId: '', tenantId: '', unitId: '', leaseId: '',
+    departmentCenterId: '', costCenterId: '',
+    invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: '', secondRef: '', notes: '',
   });
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
@@ -249,6 +256,9 @@ export default function CreateInvoicePage() {
     try {
       const result = await createInvoice({
         ...form,
+        unitId: form.unitId || undefined,
+        departmentCenterId: form.departmentCenterId || undefined,
+        costCenterId: form.costCenterId || undefined,
         secondRef: form.secondRef.trim() || undefined,
         leaseId: selectedLease?.id || form.leaseId || undefined,
         currency: effectiveCurrency,
@@ -442,6 +452,30 @@ export default function CreateInvoicePage() {
                 value={form.secondRef}
                 onChange={e => setForm({ ...form, secondRef: e.target.value })}
               />
+            </div>
+            <div className="inv-field">
+              <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+              <select
+                value={form.departmentCenterId}
+                onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
+              >
+                <option value="">— None —</option>
+                {departmentCenters.map((d) => (
+                  <option key={d.id} value={d.id}>{d.code}</option>
+                ))}
+              </select>
+            </div>
+            <div className="inv-field">
+              <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+              <select
+                value={form.costCenterId}
+                onChange={e => setForm({ ...form, costCenterId: e.target.value })}
+              >
+                <option value="">— None —</option>
+                {costCenters.map((c) => (
+                  <option key={c.id} value={c.id}>{c.code}</option>
+                ))}
+              </select>
             </div>
           </div>
 

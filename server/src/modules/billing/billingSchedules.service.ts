@@ -55,6 +55,8 @@ export class BillingSchedulesService {
           unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
           property: { select: { id: true, name: true } },
           lease: { select: { id: true, leaseNumber: true, leaseTermMonths: true } },
+          departmentCenter: { select: { id: true, code: true, name: true } },
+          costCenter: { select: { id: true, code: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -109,6 +111,8 @@ export class BillingSchedulesService {
         unitId: (dto.unitId as string) || null,
         tenantId: dto.tenantId as string,
         leaseId: (dto.leaseId as string) || null,
+        departmentCenterId: (dto.departmentCenterId as string) || null,
+        costCenterId: (dto.costCenterId as string) || null,
         chargeTypeId: dto.chargeTypeId as string,
         description: (dto.description as string) || null,
         amount: dto.amount as number,
@@ -126,6 +130,8 @@ export class BillingSchedulesService {
       },
       include: {
         chargeType: { select: { id: true, code: true, name: true, category: true } },
+        departmentCenter: { select: { id: true, code: true, name: true } },
+        costCenter: { select: { id: true, code: true, name: true } },
       },
     });
   }
@@ -503,6 +509,8 @@ export class BillingSchedulesService {
     if (dto.tenantId !== undefined) updateData.tenantId = dto.tenantId;
     if (dto.unitId !== undefined) updateData.unitId = dto.unitId;
     if (dto.leaseId !== undefined) updateData.leaseId = dto.leaseId;
+    if (dto.departmentCenterId !== undefined) updateData.departmentCenterId = dto.departmentCenterId || null;
+    if (dto.costCenterId !== undefined) updateData.costCenterId = dto.costCenterId || null;
     if (dto.currency !== undefined) updateData.currency = dto.currency;
     if (dto.billingCycle !== undefined) updateData.billingCycle = dto.billingCycle;
     if (dto.description !== undefined) updateData.description = dto.description;
@@ -529,6 +537,8 @@ export class BillingSchedulesService {
         unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
         property: { select: { id: true, name: true } },
         lease: { select: { id: true, leaseNumber: true, leaseTermMonths: true } },
+        departmentCenter: { select: { id: true, code: true, name: true } },
+        costCenter: { select: { id: true, code: true, name: true } },
       },
     });
   }

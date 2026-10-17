@@ -94,6 +94,10 @@ export interface BillingSchedule {
   nextBillingDate: string | null;
   status: string;
   invoiceCount: number;
+  departmentCenterId?: string | null;
+  costCenterId?: string | null;
+  departmentCenter?: { id: string; code: string; name: string } | null;
+  costCenter?: { id: string; code: string; name: string } | null;
   chargeType: { id: string; code: string; name: string; category: string };
   tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
   unit: { id: string; unitNumber: string; floorNumber?: number | null; floorLabel?: string | null } | null;
@@ -132,6 +136,10 @@ export interface InvoiceListItem {
   penaltyAmount: string;
   currency: string;
   currencyRate?: string | number | null;
+  departmentCenterId?: string | null;
+  costCenterId?: string | null;
+  departmentCenter?: { id: string; code: string; name: string } | null;
+  costCenter?: { id: string; code: string; name: string } | null;
   tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string; currency: string | null };
   unit: { id: string; unitNumber: string } | null;
   property: { id: string; name: string; coverImageUrl?: string | null; imageUrl?: string | null };
