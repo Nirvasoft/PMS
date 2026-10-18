@@ -1,5 +1,25 @@
 import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
+import { AppError } from '../../common/errors';
+
+let glAccountConstraintEnsured = false;
+async function ensureGlAccountConstraint() {
+  if (glAccountConstraintEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "gl_accounts" DROP CONSTRAINT IF EXISTS "gl_accounts_code_company_id_key"`,
+    );
+    await prisma.$executeRawUnsafe(
+      `DROP INDEX IF EXISTS "gl_accounts_code_company_id_key"`,
+    );
+    await prisma.$executeRawUnsafe(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "gl_accounts_code_company_id_department_center_id_cost_cente_key" ON "gl_accounts"("code", "company_id", "department_center_id", "cost_center_id")`,
+    );
+    glAccountConstraintEnsured = true;
+  } catch (err) {
+    logger.warn('Could not update gl_accounts unique index automatically', err);
+  }
+}
 
 class GlService {
   // ── Department Centers ──────────────────────
@@ -138,13 +158,13 @@ class GlService {
 
     const accounts = await prisma.glAccount.findMany({
       where,
-      orderBy: [{ code: 'asc' }],
+      orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
       include: {
         departmentCenter: { select: { id: true, code: true, name: true } },
         costCenter: { select: { id: true, code: true, name: true } },
         children: {
           where: { isActive: true },
-          orderBy: { code: 'asc' },
+          orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
           include: {
             departmentCenter: { select: { id: true, code: true, name: true } },
             costCenter: { select: { id: true, code: true, name: true } },
@@ -161,13 +181,33 @@ class GlService {
   }
 
   async createAccount(companyId: string, data: any) {
+    await ensureGlAccountConstraint();
+
+    const code = data.code.trim();
+    const departmentCenterId = data.departmentCenterId || null;
+    const costCenterId = data.costCenterId || null;
+
+    const existing = await prisma.glAccount.findFirst({
+      where: {
+        companyId,
+        code: { equals: code, mode: 'insensitive' },
+        departmentCenterId,
+        costCenterId,
+      },
+    });
+    if (existing) {
+      throw AppError.conflict(
+        'A record with this Account Code, Department, and Cost Center already exists',
+      );
+    }
+
     return prisma.glAccount.create({
       data: {
         companyId,
         parentId: data.parentId || null,
-        departmentCenterId: data.departmentCenterId || null,
-        costCenterId: data.costCenterId || null,
-        code: data.code,
+        departmentCenterId,
+        costCenterId,
+        code,
         name: data.name,
         accountType: data.accountType,
         accountSubtype: data.accountSubtype || null,
@@ -183,13 +223,38 @@ class GlService {
     });
   }
 
-  async updateAccount(id: string, _companyId: string, data: any) {
+  async updateAccount(id: string, companyId: string, data: any) {
+    await ensureGlAccountConstraint();
+
+    const current = await prisma.glAccount.findFirst({ where: { id, companyId } });
+    if (!current) throw AppError.notFound('Account');
+
+    const nextDepartmentCenterId =
+      data.departmentCenterId !== undefined ? (data.departmentCenterId || null) : current.departmentCenterId;
+    const nextCostCenterId =
+      data.costCenterId !== undefined ? (data.costCenterId || null) : current.costCenterId;
+
+    const duplicate = await prisma.glAccount.findFirst({
+      where: {
+        companyId,
+        id: { not: id },
+        code: { equals: current.code, mode: 'insensitive' },
+        departmentCenterId: nextDepartmentCenterId,
+        costCenterId: nextCostCenterId,
+      },
+    });
+    if (duplicate) {
+      throw AppError.conflict(
+        'A record with this Account Code, Department, and Cost Center already exists',
+      );
+    }
+
     return prisma.glAccount.update({
       where: { id },
       data: {
         name: data.name,
-        ...(data.departmentCenterId !== undefined ? { departmentCenterId: data.departmentCenterId || null } : {}),
-        ...(data.costCenterId !== undefined ? { costCenterId: data.costCenterId || null } : {}),
+        ...(data.departmentCenterId !== undefined ? { departmentCenterId: nextDepartmentCenterId } : {}),
+        ...(data.costCenterId !== undefined ? { costCenterId: nextCostCenterId } : {}),
         accountSubtype: data.accountSubtype,
         description: data.description,
         isActive: data.isActive,
