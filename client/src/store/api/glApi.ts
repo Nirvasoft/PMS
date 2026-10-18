@@ -50,7 +50,20 @@ interface FiscalPeriod {
 interface JournalEntryLine {
   id: string; accountId: string; description: string;
   debit: number; credit: number; sortOrder: number;
-  account: { code: string; name: string; accountType?: string };
+  departmentCenterId?: string | null;
+  costCenterId?: string | null;
+  departmentCenter?: { id: string; code: string; name: string } | null;
+  costCenter?: { id: string; code: string; name: string } | null;
+  account: {
+    id?: string;
+    code: string;
+    name: string;
+    accountType?: string;
+    departmentCenterId?: string | null;
+    costCenterId?: string | null;
+    departmentCenter?: { id: string; code: string; name: string } | null;
+    costCenter?: { id: string; code: string; name: string } | null;
+  };
 }
 
 interface JournalEntry {

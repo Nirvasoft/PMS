@@ -14,6 +14,38 @@ import './GLPage.css';
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
+const getLineDept = (line: any): { id?: string; code: string; name: string } | null =>
+  line?.departmentCenter || line?.account?.departmentCenter || null;
+
+const getLineCc = (line: any): { id?: string; code: string; name: string } | null =>
+  line?.costCenter || line?.account?.costCenter || null;
+
+const getEntryDepts = (je: any): Array<{ id?: string; code: string; name: string }> => {
+  const seen = new Set<string>();
+  const result: Array<{ id?: string; code: string; name: string }> = [];
+  for (const line of je?.lines || []) {
+    const d = getLineDept(line);
+    if (d?.code && !seen.has(d.code)) {
+      seen.add(d.code);
+      result.push(d);
+    }
+  }
+  return result;
+};
+
+const getEntryCcs = (je: any): Array<{ id?: string; code: string; name: string }> => {
+  const seen = new Set<string>();
+  const result: Array<{ id?: string; code: string; name: string }> = [];
+  for (const line of je?.lines || []) {
+    const c = getLineCc(line);
+    if (c?.code && !seen.has(c.code)) {
+      seen.add(c.code);
+      result.push(c);
+    }
+  }
+  return result;
+};
+
 export default function JournalEntriesPage() {
   const selectedPropertyId = useSelectedPropertyFilter();
   const [page, setPage] = useState(1);
@@ -92,39 +124,90 @@ export default function JournalEntriesPage() {
               <thead>
                 <tr>
                   <th>JE #</th><th>Date</th><th>Type</th><th>Description</th>
+                  <th>Department</th><th>Cost Center</th>
                   <th style={{textAlign:'right'}}>Debit</th><th style={{textAlign:'right'}}>Credit</th><th>Status</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {entries.map((je: any) => (
-                  <tr key={je.id}>
-                    <td style={{fontWeight:600}}>{je.journalNumber}</td>
-                    <td>{fmtDate(je.entryDate)}</td>
-                    <td><span className="gl-type-chip asset" style={{fontSize:'0.7rem'}}>{je.entryType}</span></td>
-                    <td style={{maxWidth:250,overflow:'hidden',textOverflow:'ellipsis'}}>{je.description}</td>
-                    <td className="amount">{fmtAmt(Number(je.totalDebit))}</td>
-                    <td className="amount">{fmtAmt(Number(je.totalCredit))}</td>
-                    <td><span className={`gl-badge ${je.status}`}>{je.status}</span></td>
-                    <td>
-                      <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                        <button
-                          type="button"
-                          className="btn-sm je-view-btn"
-                          onClick={() => setViewingEntry(je)}
-                          title="View Journal Entry Details"
-                        >
-                          <Eye size={13} /> View
-                        </button>
-                        <PermissionGuard permission="finance-journal.write">
-                          {je.status === 'draft' && <button className="btn-sm btn-success" onClick={() => handlePost(je.id)}>Post</button>}
-                          {je.status === 'posted' && !je.isReversal && <button className="btn-sm btn-danger" onClick={() => handleReverse(je.id)}>Reverse</button>}
-                        </PermissionGuard>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {entries.map((je: any) => {
+                  const depts = getEntryDepts(je);
+                  const ccs = getEntryCcs(je);
+                  return (
+                    <tr key={je.id}>
+                      <td style={{fontWeight:600}}>{je.journalNumber}</td>
+                      <td>{fmtDate(je.entryDate)}</td>
+                      <td><span className="gl-type-chip asset" style={{fontSize:'0.7rem'}}>{je.entryType}</span></td>
+                      <td style={{maxWidth:250,overflow:'hidden',textOverflow:'ellipsis'}}>{je.description}</td>
+                      <td>
+                        {depts.length > 0 ? (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {depts.map((d) => (
+                              <span
+                                key={d.id || d.code}
+                                className="gl-badge"
+                                title={`${d.code} — ${d.name}`}
+                                style={{
+                                  fontSize: '0.68rem',
+                                  background: 'rgba(139, 92, 246, 0.14)',
+                                  color: '#a78bfa',
+                                  textTransform: 'none',
+                                }}
+                              >
+                                {d.code}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {ccs.length > 0 ? (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {ccs.map((c) => (
+                              <span
+                                key={c.id || c.code}
+                                className="gl-badge"
+                                title={`${c.code} — ${c.name}`}
+                                style={{
+                                  fontSize: '0.68rem',
+                                  background: 'rgba(59, 130, 246, 0.14)',
+                                  color: '#60a5fa',
+                                  textTransform: 'none',
+                                }}
+                              >
+                                {c.code}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td className="amount">{fmtAmt(Number(je.totalDebit))}</td>
+                      <td className="amount">{fmtAmt(Number(je.totalCredit))}</td>
+                      <td><span className={`gl-badge ${je.status}`}>{je.status}</span></td>
+                      <td>
+                        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                          <button
+                            type="button"
+                            className="btn-sm je-view-btn"
+                            onClick={() => setViewingEntry(je)}
+                            title="View Journal Entry Details"
+                          >
+                            <Eye size={13} /> View
+                          </button>
+                          <PermissionGuard permission="finance-journal.write">
+                            {je.status === 'draft' && <button className="btn-sm btn-success" onClick={() => handlePost(je.id)}>Post</button>}
+                            {je.status === 'posted' && !je.isReversal && <button className="btn-sm btn-danger" onClick={() => handleReverse(je.id)}>Reverse</button>}
+                          </PermissionGuard>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {entries.length === 0 && (
-                  <tr><td colSpan={8} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>No journal entries found</td></tr>
+                  <tr><td colSpan={10} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>No journal entries found</td></tr>
                 )}
               </tbody>
             </table>
@@ -185,10 +268,12 @@ function JournalEntryDetailModal({
   const lines: any[] = entry.lines || [];
   const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0) || Number(entry.totalDebit) || 0;
   const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0) || Number(entry.totalCredit) || 0;
+  const entryDepts = getEntryDepts(entry);
+  const entryCcs = getEntryCcs(entry);
 
   return (
     <div className="gl-modal-overlay" onClick={onClose}>
-      <div className="gl-modal je-detail-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 820 }}>
+      <div className="gl-modal je-detail-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 960 }}>
         <div className="je-detail-header">
           <div>
             <div className="je-detail-title-row">
@@ -203,7 +288,7 @@ function JournalEntryDetailModal({
           </button>
         </div>
 
-        <div className="je-detail-meta-grid">
+        <div className="je-detail-meta-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))' }}>
           <div className="je-detail-meta-item">
             <span className="meta-label">Entry Date</span>
             <span className="meta-value">{fmtDate(entry.entryDate)}</span>
@@ -211,6 +296,18 @@ function JournalEntryDetailModal({
           <div className="je-detail-meta-item">
             <span className="meta-label">Fiscal Period</span>
             <span className="meta-value">{entry.fiscalPeriod?.name || '—'}</span>
+          </div>
+          <div className="je-detail-meta-item">
+            <span className="meta-label">Department</span>
+            <span className="meta-value">
+              {entryDepts.length > 0 ? entryDepts.map((d) => d.code).join(', ') : '—'}
+            </span>
+          </div>
+          <div className="je-detail-meta-item">
+            <span className="meta-label">Cost Center</span>
+            <span className="meta-value">
+              {entryCcs.length > 0 ? entryCcs.map((c) => c.code).join(', ') : '—'}
+            </span>
           </div>
           <div className="je-detail-meta-item">
             <span className="meta-label">Total Debit</span>
@@ -230,34 +327,76 @@ function JournalEntryDetailModal({
                   <th style={{ width: 48 }}>#</th>
                   <th>Account Code</th>
                   <th>Account Name</th>
+                  <th>Department</th>
+                  <th>Cost Center</th>
                   <th>Description</th>
                   <th style={{ textAlign: 'right' }}>Debit</th>
                   <th style={{ textAlign: 'right' }}>Credit</th>
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line: any, idx: number) => (
-                  <tr key={line.id || idx}>
-                    <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
-                    <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{line.account?.code || '—'}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>{line.account?.name || '—'}</span>
-                        {line.account?.accountType && (
-                          <span className={`gl-type-chip ${line.account.accountType}`} style={{ fontSize: '0.65rem' }}>
-                            {line.account.accountType}
+                {lines.map((line: any, idx: number) => {
+                  const dept = getLineDept(line);
+                  const cc = getLineCc(line);
+                  return (
+                    <tr key={line.id || idx}>
+                      <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
+                      <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{line.account?.code || '—'}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span>{line.account?.name || '—'}</span>
+                          {line.account?.accountType && (
+                            <span className={`gl-type-chip ${line.account.accountType}`} style={{ fontSize: '0.65rem' }}>
+                              {line.account.accountType}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        {dept ? (
+                          <span
+                            className="gl-badge"
+                            title={`${dept.code} — ${dept.name}`}
+                            style={{
+                              fontSize: '0.68rem',
+                              background: 'rgba(139, 92, 246, 0.14)',
+                              color: '#a78bfa',
+                              textTransform: 'none',
+                            }}
+                          >
+                            {dept.code}
                           </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
                         )}
-                      </div>
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{line.description || '—'}</td>
-                    <td className="amount">{Number(line.debit) > 0 ? fmtAmt(Number(line.debit)) : '—'}</td>
-                    <td className="amount">{Number(line.credit) > 0 ? fmtAmt(Number(line.credit)) : '—'}</td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        {cc ? (
+                          <span
+                            className="gl-badge"
+                            title={`${cc.code} — ${cc.name}`}
+                            style={{
+                              fontSize: '0.68rem',
+                              background: 'rgba(59, 130, 246, 0.14)',
+                              color: '#60a5fa',
+                              textTransform: 'none',
+                            }}
+                          >
+                            {cc.code}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{line.description || '—'}</td>
+                      <td className="amount">{Number(line.debit) > 0 ? fmtAmt(Number(line.debit)) : '—'}</td>
+                      <td className="amount">{Number(line.credit) > 0 ? fmtAmt(Number(line.credit)) : '—'}</td>
+                    </tr>
+                  );
+                })}
                 {lines.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
                       No journal lines found
                     </td>
                   </tr>
@@ -265,7 +404,7 @@ function JournalEntryDetailModal({
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'right' }}>Total</td>
+                  <td colSpan={6} style={{ textAlign: 'right' }}>Total</td>
                   <td className="amount">{fmtAmt(totalDebit)}</td>
                   <td className="amount">{fmtAmt(totalCredit)}</td>
                 </tr>
@@ -301,8 +440,8 @@ function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; prop
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({ entryDate: new Date().toISOString().split('T')[0], description: '' });
   const [lines, setLines] = useState([
-    { accountCode: '', description: '', debit: 0, credit: 0 },
-    { accountCode: '', description: '', debit: 0, credit: 0 },
+    { accountId: '', accountCode: '', description: '', debit: 0, credit: 0 },
+    { accountId: '', accountCode: '', description: '', debit: 0, credit: 0 },
   ]);
 
   const nonControlAccounts = accounts.filter(a => !a.isControl && a.isActive);
@@ -312,10 +451,19 @@ function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; prop
 
   const updateLine = (idx: number, field: string, value: any) => {
     const newLines = [...lines];
-    (newLines[idx] as any)[field] = value;
+    if (field === 'accountId') {
+      const selectedAcc = nonControlAccounts.find(a => a.id === value);
+      newLines[idx] = {
+        ...newLines[idx],
+        accountId: value,
+        accountCode: selectedAcc?.code || '',
+      };
+    } else {
+      (newLines[idx] as any)[field] = value;
+    }
     setLines(newLines);
   };
-  const addLine = () => setLines([...lines, { accountCode: '', description: '', debit: 0, credit: 0 }]);
+  const addLine = () => setLines([...lines, { accountId: '', accountCode: '', description: '', debit: 0, credit: 0 }]);
   const removeLine = (idx: number) => { if (lines.length > 2) setLines(lines.filter((_, i) => i !== idx)); };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -328,10 +476,19 @@ function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; prop
       await createJE({
         ...form,
         propertyId: propertyId || undefined,
-        lines: lines.filter(l => l.accountCode).map(l => ({
-          ...l,
-          propertyId: propertyId || undefined,
-        })),
+        lines: lines.filter(l => l.accountCode).map(l => {
+          const acc = nonControlAccounts.find(a => a.id === l.accountId);
+          return {
+            accountId: l.accountId || undefined,
+            accountCode: l.accountCode,
+            departmentCenterId: acc?.departmentCenterId || acc?.departmentCenter?.id || null,
+            costCenterId: acc?.costCenterId || acc?.costCenter?.id || null,
+            description: l.description,
+            debit: l.debit,
+            credit: l.credit,
+            propertyId: propertyId || undefined,
+          };
+        }),
       }).unwrap();
       onClose();
     } catch (err: any) {
@@ -379,11 +536,18 @@ function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; prop
               <div key={i} className="je-line-row">
                 <select
                   className={hasAttemptedSubmit && !line.accountCode ? 'gl-input-error' : ''}
-                  value={line.accountCode}
-                  onChange={e => updateLine(i, 'accountCode', e.target.value)}
+                  value={line.accountId}
+                  onChange={e => updateLine(i, 'accountId', e.target.value)}
                 >
                   <option value="">Select…</option>
-                  {nonControlAccounts.map(a => <option key={a.id} value={a.code}>{a.code} — {a.name}</option>)}
+                  {nonControlAccounts.map(a => {
+                    const deptCc = [a.departmentCenter?.code, a.costCenter?.code].filter(Boolean).join(' / ');
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {a.code} — {a.name}{deptCc ? ` (${deptCc})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
                 <input value={line.description} onChange={e => updateLine(i, 'description', e.target.value)} placeholder="Line memo" />
                 <input type="number" min="0" step="0.01" value={line.debit || ''} onChange={e => updateLine(i, 'debit', parseFloat(e.target.value) || 0)} placeholder="0.00" />

@@ -3309,12 +3309,13 @@ model DepartmentCenter {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   costCenters      CostCenter[]
   glAccounts       GlAccount[]
   chargeTypes      ChargeType[]
   invoices         Invoice[]
   billingSchedules BillingSchedule[]
+  journalLines     JournalEntryLine[]
 
   @@unique([code, companyId])
   @@index([companyId])
@@ -3333,12 +3334,13 @@ model CostCenter {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  departmentCenter DepartmentCenter?  @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
   glAccounts       GlAccount[]
   chargeTypes      ChargeType[]
   invoices         Invoice[]
   billingSchedules BillingSchedule[]
+  journalLines     JournalEntryLine[]
 
   @@unique([code, companyId])
   @@index([companyId])
@@ -3438,21 +3440,27 @@ model JournalEntry {
 }
 
 model JournalEntryLine {
-  id             String  @id @default(uuid()) @db.Uuid
-  journalEntryId String  @map("journal_entry_id") @db.Uuid
-  accountId      String  @map("account_id") @db.Uuid
-  description    String? @db.VarChar(500)
-  debit          Decimal @default(0) @db.Decimal(15, 2)
-  credit         Decimal @default(0) @db.Decimal(15, 2)
-  propertyId     String? @map("property_id") @db.Uuid
-  departmentId   String? @map("department_id") @db.Uuid
-  sortOrder      Int     @default(0) @map("sort_order") @db.SmallInt
+  id                 String  @id @default(uuid()) @db.Uuid
+  journalEntryId     String  @map("journal_entry_id") @db.Uuid
+  accountId          String  @map("account_id") @db.Uuid
+  departmentCenterId String? @map("department_center_id") @db.Uuid
+  costCenterId       String? @map("cost_center_id") @db.Uuid
+  description        String? @db.VarChar(500)
+  debit              Decimal @default(0) @db.Decimal(15, 2)
+  credit             Decimal @default(0) @db.Decimal(15, 2)
+  propertyId         String? @map("property_id") @db.Uuid
+  departmentId       String? @map("department_id") @db.Uuid
+  sortOrder          Int     @default(0) @map("sort_order") @db.SmallInt
 
-  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-  account      GlAccount    @relation(fields: [accountId], references: [id])
+  journalEntry     JournalEntry      @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account          GlAccount         @relation(fields: [accountId], references: [id])
+  departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
+  costCenter       CostCenter?       @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
 
   @@index([journalEntryId])
   @@index([accountId])
+  @@index([departmentCenterId])
+  @@index([costCenterId])
   @@map("journal_entry_lines")
 }
 

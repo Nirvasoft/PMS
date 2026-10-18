@@ -407,10 +407,29 @@ class GlService {
 
     const page = parseInt(params.page) || 1;
     const limit = Math.min(parseInt(params.limit) || 20, 100);
+    const journalLineInclude = {
+      departmentCenter: { select: { id: true, code: true, name: true } },
+      costCenter: { select: { id: true, code: true, name: true } },
+      account: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          accountType: true,
+          departmentCenterId: true,
+          costCenterId: true,
+          departmentCenter: { select: { id: true, code: true, name: true } },
+          costCenter: { select: { id: true, code: true, name: true } },
+        },
+      },
+    };
     const [data, total] = await Promise.all([
       prisma.journalEntry.findMany({
         where,
-        include: { lines: { include: { account: { select: { code: true, name: true, accountType: true } } }, orderBy: { sortOrder: 'asc' } }, fiscalPeriod: { select: { name: true } } },
+        include: {
+          lines: { include: journalLineInclude, orderBy: { sortOrder: 'asc' } },
+          fiscalPeriod: { select: { name: true } },
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -424,10 +443,182 @@ class GlService {
     return prisma.journalEntry.findFirstOrThrow({
       where: { id, companyId },
       include: {
-        lines: { include: { account: { select: { code: true, name: true, accountType: true } } }, orderBy: { sortOrder: 'asc' } },
+        lines: {
+          include: {
+            departmentCenter: { select: { id: true, code: true, name: true } },
+            costCenter: { select: { id: true, code: true, name: true } },
+            account: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                accountType: true,
+                departmentCenterId: true,
+                costCenterId: true,
+                departmentCenter: { select: { id: true, code: true, name: true } },
+                costCenter: { select: { id: true, code: true, name: true } },
+              },
+            },
+          },
+          orderBy: { sortOrder: 'asc' },
+        },
         fiscalPeriod: true,
       },
     });
+  }
+
+  /**
+   * Resolves a GL Account matching the requested accountId / accountCode and
+   * Department / Cost Center. For AR Invoice Debit lines (`isArDebit = true`),
+   * prioritizes an AR Account linked to the Invoice's Department and Cost Center.
+   */
+  async resolveGlAccount(params: {
+    companyId: string;
+    accountId?: string | null;
+    accountCode: string;
+    departmentCenterId?: string | null;
+    costCenterId?: string | null;
+    isArDebit?: boolean;
+  }) {
+    const { companyId, accountId, accountCode, departmentCenterId, costCenterId, isArDebit } = params;
+    const normalizedCode = (accountCode || '').trim();
+
+    if (accountId) {
+      const byId = await prisma.glAccount.findFirst({
+        where: { id: accountId, companyId, isActive: true },
+      });
+      if (byId) return byId;
+    }
+
+    const activeAccounts = await prisma.glAccount.findMany({
+      where: { companyId, isActive: true },
+      orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const isCodeMatch = (a: any) =>
+      (a.code || '').trim().toLowerCase() === normalizedCode.toLowerCase();
+
+    const isArCandidate = (a: any) => {
+      if (a.accountType !== 'asset') return false;
+      if (isCodeMatch(a)) return true;
+      const code = (a.code || '').trim();
+      const name = (a.name || '').toLowerCase();
+      const subtype = (a.accountSubtype || '').toLowerCase();
+      if (name.includes('receivable') || /\ba\/?r\b/i.test(a.name || '')) return true;
+      if (subtype.includes('receivable')) return true;
+      if (a.isControl) return true;
+      if (code.startsWith('11')) return true;
+      return false;
+    };
+
+    const deptId = departmentCenterId || null;
+    const ccId = costCenterId || null;
+
+    if (isArDebit) {
+      // 1. Exact Department + Cost Center match on AR account
+      if (deptId && ccId) {
+        const exactCodeAndDeptCc = activeAccounts.find(
+          (a) => isCodeMatch(a) && a.departmentCenterId === deptId && a.costCenterId === ccId,
+        );
+        if (exactCodeAndDeptCc) return exactCodeAndDeptCc;
+
+        const arByDeptCc = activeAccounts.find(
+          (a) => isArCandidate(a) && a.departmentCenterId === deptId && a.costCenterId === ccId,
+        );
+        if (arByDeptCc) return arByDeptCc;
+      }
+
+      // 2. Department match
+      if (deptId) {
+        const codeDeptNullCc = activeAccounts.find(
+          (a) => isCodeMatch(a) && a.departmentCenterId === deptId && !a.costCenterId,
+        );
+        if (codeDeptNullCc) return codeDeptNullCc;
+
+        const arDeptNullCc = activeAccounts.find(
+          (a) => isArCandidate(a) && a.departmentCenterId === deptId && !a.costCenterId,
+        );
+        if (arDeptNullCc) return arDeptNullCc;
+
+        const codeDeptAny = activeAccounts.find(
+          (a) => isCodeMatch(a) && a.departmentCenterId === deptId,
+        );
+        if (codeDeptAny) return codeDeptAny;
+
+        const arDeptAny = activeAccounts.find(
+          (a) => isArCandidate(a) && a.departmentCenterId === deptId,
+        );
+        if (arDeptAny) return arDeptAny;
+      }
+
+      // 3. Cost Center match (when department wasn't specified)
+      if (ccId && !deptId) {
+        const codeCcNullDept = activeAccounts.find(
+          (a) => isCodeMatch(a) && a.costCenterId === ccId && !a.departmentCenterId,
+        );
+        if (codeCcNullDept) return codeCcNullDept;
+
+        const arCcNullDept = activeAccounts.find(
+          (a) => isArCandidate(a) && a.costCenterId === ccId && !a.departmentCenterId,
+        );
+        if (arCcNullDept) return arCcNullDept;
+
+        const codeCcAny = activeAccounts.find(
+          (a) => isCodeMatch(a) && a.costCenterId === ccId,
+        );
+        if (codeCcAny) return codeCcAny;
+
+        const arCcAny = activeAccounts.find(
+          (a) => isArCandidate(a) && a.costCenterId === ccId,
+        );
+        if (arCcAny) return arCcAny;
+      }
+
+      // 4. Fallback: unlinked AR account with matching code, then any matching code, then any AR candidate
+      return (
+        activeAccounts.find((a) => isCodeMatch(a) && !a.departmentCenterId && !a.costCenterId) ||
+        activeAccounts.find((a) => isCodeMatch(a)) ||
+        activeAccounts.find((a) => isArCandidate(a) && !a.departmentCenterId && !a.costCenterId) ||
+        activeAccounts.find((a) => isArCandidate(a)) ||
+        null
+      );
+    }
+
+    // Standard account resolution: match code + dept/cc first
+    if (deptId && ccId) {
+      const exact = activeAccounts.find(
+        (a) => isCodeMatch(a) && a.departmentCenterId === deptId && a.costCenterId === ccId,
+      );
+      if (exact) return exact;
+    }
+    if (deptId) {
+      const byDeptNullCc = activeAccounts.find(
+        (a) => isCodeMatch(a) && a.departmentCenterId === deptId && !a.costCenterId,
+      );
+      if (byDeptNullCc) return byDeptNullCc;
+
+      const byDeptAny = activeAccounts.find(
+        (a) => isCodeMatch(a) && a.departmentCenterId === deptId,
+      );
+      if (byDeptAny) return byDeptAny;
+    }
+    if (ccId && !deptId) {
+      const byCcNullDept = activeAccounts.find(
+        (a) => isCodeMatch(a) && a.costCenterId === ccId && !a.departmentCenterId,
+      );
+      if (byCcNullDept) return byCcNullDept;
+
+      const byCcAny = activeAccounts.find(
+        (a) => isCodeMatch(a) && a.costCenterId === ccId,
+      );
+      if (byCcAny) return byCcAny;
+    }
+
+    return (
+      activeAccounts.find((a) => isCodeMatch(a) && !a.departmentCenterId && !a.costCenterId) ||
+      activeAccounts.find((a) => isCodeMatch(a)) ||
+      null
+    );
   }
 
   async createJournalEntry(companyId: string, userId: string, data: any) {
@@ -449,8 +640,12 @@ class GlService {
     let totalDebit = 0, totalCredit = 0;
 
     for (const line of data.lines) {
-      const account = await prisma.glAccount.findFirst({
-        where: { companyId, code: line.accountCode, isActive: true },
+      const account = await this.resolveGlAccount({
+        companyId,
+        accountId: line.accountId,
+        accountCode: line.accountCode,
+        departmentCenterId: line.departmentCenterId,
+        costCenterId: line.costCenterId,
       });
       if (!account) throw new Error(`Account code ${line.accountCode} not found`);
       if (account.isControl && data.entryType !== 'manual') {
@@ -464,6 +659,8 @@ class GlService {
 
       lines.push({
         accountId: account.id,
+        departmentCenterId: account.departmentCenterId ?? line.departmentCenterId ?? null,
+        costCenterId: account.costCenterId ?? line.costCenterId ?? null,
         description: line.description || '',
         debit: line.debit || 0,
         credit: line.credit || 0,
@@ -491,7 +688,26 @@ class GlService {
         createdBy: userId,
         lines: { create: lines },
       },
-      include: { lines: { include: { account: { select: { code: true, name: true } } } } },
+      include: {
+        lines: {
+          include: {
+            departmentCenter: { select: { id: true, code: true, name: true } },
+            costCenter: { select: { id: true, code: true, name: true } },
+            account: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                accountType: true,
+                departmentCenterId: true,
+                costCenterId: true,
+                departmentCenter: { select: { id: true, code: true, name: true } },
+                costCenter: { select: { id: true, code: true, name: true } },
+              },
+            },
+          },
+        },
+      },
     });
   }
 
@@ -519,7 +735,7 @@ class GlService {
   async reverseJournalEntry(id: string, companyId: string, userId: string) {
     const original = await prisma.journalEntry.findFirstOrThrow({
       where: { id, companyId, status: 'posted' },
-      include: { lines: { orderBy: { sortOrder: 'asc' } } },
+      include: { lines: { include: { account: true }, orderBy: { sortOrder: 'asc' } } },
     });
     if (original.isReversal) {
       throw new Error('Cannot reverse a reversal journal entry');
@@ -568,6 +784,8 @@ class GlService {
         lines: {
           create: original.lines.map((l, i) => ({
             accountId: l.accountId,
+            departmentCenterId: l.departmentCenterId ?? l.account?.departmentCenterId ?? null,
+            costCenterId: l.costCenterId ?? l.account?.costCenterId ?? null,
             description: `Reversal: ${l.description || ''}`,
             debit: Number(l.credit),
             credit: Number(l.debit),
@@ -577,7 +795,26 @@ class GlService {
           })),
         },
       },
-      include: { lines: { include: { account: { select: { code: true, name: true } } } } },
+      include: {
+        lines: {
+          include: {
+            departmentCenter: { select: { id: true, code: true, name: true } },
+            costCenter: { select: { id: true, code: true, name: true } },
+            account: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                accountType: true,
+                departmentCenterId: true,
+                costCenterId: true,
+                departmentCenter: { select: { id: true, code: true, name: true } },
+                costCenter: { select: { id: true, code: true, name: true } },
+              },
+            },
+          },
+        },
+      },
     });
 
     // Mark original as reversed
@@ -633,7 +870,7 @@ class GlService {
 
   /**
    * Creates and immediately posts a journal entry from another module.
-   * Lines use accountCode (not accountId) — resolved internally.
+   * Lines use accountCode (or accountId) and optional departmentCenterId/costCenterId — resolved internally.
    * Control-account restrictions are bypassed for auto-postings.
    * Silently returns null if no open fiscal period exists (graceful degradation).
    */
@@ -645,7 +882,17 @@ class GlService {
     referenceType?: string;
     referenceId?: string;
     propertyId?: string;
-    lines: Array<{ accountCode: string; debit: number; credit: number; description?: string }>;
+    departmentCenterId?: string | null;
+    costCenterId?: string | null;
+    lines: Array<{
+      accountId?: string | null;
+      accountCode: string;
+      debit: number;
+      credit: number;
+      description?: string;
+      departmentCenterId?: string | null;
+      costCenterId?: string | null;
+    }>;
   }) {
     try {
       const entryDate = new Date(params.entryDate);
@@ -669,13 +916,25 @@ class GlService {
       let totalDebit = 0, totalCredit = 0;
 
       for (const line of params.lines) {
-        let account = await prisma.glAccount.findFirst({
-          where: { companyId: params.companyId, code: line.accountCode, isActive: true },
+        const lineDeptId = line.departmentCenterId ?? params.departmentCenterId ?? null;
+        const lineCcId = line.costCenterId ?? params.costCenterId ?? null;
+        const isArDebit = params.entryType === 'ar_invoice' && line.debit > 0;
+
+        let account = await this.resolveGlAccount({
+          companyId: params.companyId,
+          accountId: line.accountId,
+          accountCode: line.accountCode,
+          departmentCenterId: lineDeptId,
+          costCenterId: lineCcId,
+          isArDebit,
         });
         if (!account && params.entryType === 'ar_invoice' && line.credit > 0 && line.accountCode !== '4100') {
           logger.warn(`GL auto-post: account code ${line.accountCode} not found, falling back to 4100`);
-          account = await prisma.glAccount.findFirst({
-            where: { companyId: params.companyId, code: '4100', isActive: true },
+          account = await this.resolveGlAccount({
+            companyId: params.companyId,
+            accountCode: '4100',
+            departmentCenterId: lineDeptId,
+            costCenterId: lineCcId,
           });
         }
         if (!account) {
@@ -686,6 +945,8 @@ class GlService {
         totalCredit += line.credit;
         resolvedLines.push({
           accountId: account.id,
+          departmentCenterId: account.departmentCenterId ?? lineDeptId ?? null,
+          costCenterId: account.costCenterId ?? lineCcId ?? null,
           description: line.description || '',
           debit: line.debit,
           credit: line.credit,

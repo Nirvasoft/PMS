@@ -300,16 +300,51 @@ export class InvoicesService {
         lines: { create: lineData },
       },
       include: {
-        lines: { include: { chargeType: { select: { code: true, name: true, glAccountCode: true } } } },
+        lines: {
+          include: {
+            chargeType: {
+              select: {
+                code: true,
+                name: true,
+                glAccountCode: true,
+                departmentCenterId: true,
+                costCenterId: true,
+              },
+            },
+          },
+        },
         tenant: { select: { id: true, firstName: true, lastName: true } },
         departmentCenter: { select: { id: true, code: true, name: true } },
         costCenter: { select: { id: true, code: true, name: true } },
       },
     });
 
-    // GL auto-posting: Dr Accounts Receivable / Cr per ChargeType GL Account / Cr Tax Payable
-    const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
-      { accountCode: '1100', debit: Number(invoice.totalAmount), credit: 0, description: `AR — ${invoiceNumber}` },
+    const invDeptId =
+      invoice.departmentCenterId ||
+      invoice.lines.find((l) => l.chargeType?.departmentCenterId)?.chargeType?.departmentCenterId ||
+      null;
+    const invCcId =
+      invoice.costCenterId ||
+      invoice.lines.find((l) => l.chargeType?.costCenterId)?.chargeType?.costCenterId ||
+      null;
+
+    // GL auto-posting: Dr Accounts Receivable (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
+    const glLines: Array<{
+      accountCode: string;
+      debit: number;
+      credit: number;
+      description?: string;
+      departmentCenterId?: string | null;
+      costCenterId?: string | null;
+    }> = [
+      {
+        accountCode: '1100',
+        debit: Number(invoice.totalAmount),
+        credit: 0,
+        description: `AR — ${invoiceNumber}`,
+        departmentCenterId: invDeptId,
+        costCenterId: invCcId,
+      },
     ];
     // Credit each charge line using its linked ChargeType GL account (fallback to 4100)
     const activeLines = invoice.lines.filter((l) => Number(l.amount) > 0);
@@ -322,14 +357,30 @@ export class InvoicesService {
           debit: 0,
           credit: Number(invLine.amount),
           description: `${lineDesc} — ${invoiceNumber}`,
+          departmentCenterId: invLine.chargeType?.departmentCenterId || invDeptId,
+          costCenterId: invLine.chargeType?.costCenterId || invCcId,
         });
       }
     } else if (subtotal > 0) {
-      glLines.push({ accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoiceNumber}` });
+      glLines.push({
+        accountCode: '4100',
+        debit: 0,
+        credit: subtotal,
+        description: `Revenue — ${invoiceNumber}`,
+        departmentCenterId: invDeptId,
+        costCenterId: invCcId,
+      });
     }
     // Credit tax payable if tax exists
     if (totalTax > 0) {
-      glLines.push({ accountCode: '2200', debit: 0, credit: totalTax, description: `Tax Payable — ${invoiceNumber}` });
+      glLines.push({
+        accountCode: '2200',
+        debit: 0,
+        credit: totalTax,
+        description: `Tax Payable — ${invoiceNumber}`,
+        departmentCenterId: invDeptId,
+        costCenterId: invCcId,
+      });
     }
     await glService.postAutoJournal({
       companyId,
@@ -339,6 +390,8 @@ export class InvoicesService {
       referenceType: 'invoice',
       referenceId: invoice.id,
       propertyId: dto.propertyId as string,
+      departmentCenterId: invDeptId,
+      costCenterId: invCcId,
       lines: glLines,
     });
 
@@ -529,6 +582,16 @@ export class InvoicesService {
       }
 
       const invoiceNumber = await this.generateInvoiceNumber(lease.companyId);
+      const leaseDeptId =
+        lease.departmentCenterId ||
+        rentChargeType?.departmentCenterId ||
+        depositChargeType?.departmentCenterId ||
+        null;
+      const leaseCcId =
+        lease.costCenterId ||
+        rentChargeType?.costCenterId ||
+        depositChargeType?.costCenterId ||
+        null;
       const inv = await prisma.invoice.create({
         data: {
           companyId: lease.companyId,
@@ -536,6 +599,8 @@ export class InvoicesService {
           unitId: lease.unitId || null,
           tenantId: lease.tenantId,
           leaseId: lease.id,
+          departmentCenterId: leaseDeptId,
+          costCenterId: leaseCcId,
           invoiceNumber,
           invoiceType: 'invoice',
           status: 'issued',
@@ -556,7 +621,19 @@ export class InvoicesService {
           lines: { create: invoiceLines },
         },
         include: {
-          lines: { include: { chargeType: { select: { code: true, name: true, glAccountCode: true } } } },
+          lines: {
+            include: {
+              chargeType: {
+                select: {
+                  code: true,
+                  name: true,
+                  glAccountCode: true,
+                  departmentCenterId: true,
+                  costCenterId: true,
+                },
+              },
+            },
+          },
           tenant: { select: { id: true, firstName: true, lastName: true } },
         },
       });
@@ -579,8 +656,35 @@ export class InvoicesService {
       const totalAmount = Number(invoice.totalAmount);
       const taxAmount   = Number(invoice.taxAmount);
 
-      const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
-        { accountCode: '1100', debit: totalAmount, credit: 0, description: `AR — ${invoice.invoiceNumber}` },
+      const invDeptId =
+        invoice.departmentCenterId ||
+        (Array.isArray(invoice.lines)
+          ? invoice.lines.find((l: any) => l.chargeType?.departmentCenterId)?.chargeType?.departmentCenterId
+          : null) ||
+        null;
+      const invCcId =
+        invoice.costCenterId ||
+        (Array.isArray(invoice.lines)
+          ? invoice.lines.find((l: any) => l.chargeType?.costCenterId)?.chargeType?.costCenterId
+          : null) ||
+        null;
+
+      const glLines: Array<{
+        accountCode: string;
+        debit: number;
+        credit: number;
+        description?: string;
+        departmentCenterId?: string | null;
+        costCenterId?: string | null;
+      }> = [
+        {
+          accountCode: '1100',
+          debit: totalAmount,
+          credit: 0,
+          description: `AR — ${invoice.invoiceNumber}`,
+          departmentCenterId: invDeptId,
+          costCenterId: invCcId,
+        },
       ];
       const activeLines = Array.isArray(invoice.lines)
         ? invoice.lines.filter((l: any) => Number(l.amount) > 0)
@@ -594,13 +698,29 @@ export class InvoicesService {
             debit: 0,
             credit: Number(invLine.amount),
             description: `${lineDesc} — ${invoice.invoiceNumber}`,
+            departmentCenterId: invLine.chargeType?.departmentCenterId || invDeptId,
+            costCenterId: invLine.chargeType?.costCenterId || invCcId,
           });
         }
       } else if (subtotal > 0) {
-        glLines.push({ accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoice.invoiceNumber}` });
+        glLines.push({
+          accountCode: '4100',
+          debit: 0,
+          credit: subtotal,
+          description: `Revenue — ${invoice.invoiceNumber}`,
+          departmentCenterId: invDeptId,
+          costCenterId: invCcId,
+        });
       }
       if (taxAmount > 0) {
-        glLines.push({ accountCode: '2200', debit: 0, credit: taxAmount, description: `Tax Payable — ${invoice.invoiceNumber}` });
+        glLines.push({
+          accountCode: '2200',
+          debit: 0,
+          credit: taxAmount,
+          description: `Tax Payable — ${invoice.invoiceNumber}`,
+          departmentCenterId: invDeptId,
+          costCenterId: invCcId,
+        });
       }
       await glService.postAutoJournal({
         companyId,
@@ -610,6 +730,8 @@ export class InvoicesService {
         referenceType: 'invoice',
         referenceId: invoice.id,
         propertyId: invoice.propertyId,
+        departmentCenterId: invDeptId,
+        costCenterId: invCcId,
         lines: glLines,
       });
     } catch (err: any) {
@@ -756,8 +878,16 @@ export class InvoicesService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const departmentCenterId = lineInputs.find((l) => l.schedule.departmentCenterId)?.schedule.departmentCenterId || first.departmentCenterId || null;
-    const costCenterId = lineInputs.find((l) => l.schedule.costCenterId)?.schedule.costCenterId || first.costCenterId || null;
+    const departmentCenterId =
+      lineInputs.find((l) => l.schedule.departmentCenterId)?.schedule.departmentCenterId ||
+      first.departmentCenterId ||
+      lineInputs.find((l) => l.schedule.chargeType?.departmentCenterId)?.schedule.chargeType?.departmentCenterId ||
+      null;
+    const costCenterId =
+      lineInputs.find((l) => l.schedule.costCenterId)?.schedule.costCenterId ||
+      first.costCenterId ||
+      lineInputs.find((l) => l.schedule.chargeType?.costCenterId)?.schedule.chargeType?.costCenterId ||
+      null;
 
     const invoice = await prisma.invoice.create({
       data: {
@@ -821,9 +951,23 @@ export class InvoicesService {
       })
     );
 
-    // GL auto-posting: Dr AR / Cr per ChargeType GL Account / Cr Tax Payable
-    const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [
-      { accountCode: '1100', debit: totalAmount, credit: 0, description: `AR — ${invoiceNumber}` },
+    // GL auto-posting: Dr AR (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
+    const glLines: Array<{
+      accountCode: string;
+      debit: number;
+      credit: number;
+      description?: string;
+      departmentCenterId?: string | null;
+      costCenterId?: string | null;
+    }> = [
+      {
+        accountCode: '1100',
+        debit: totalAmount,
+        credit: 0,
+        description: `AR — ${invoiceNumber}`,
+        departmentCenterId,
+        costCenterId,
+      },
     ];
     const activeScheduleLines = lineInputs.filter((l) => l.amount > 0);
     if (activeScheduleLines.length > 0) {
@@ -835,13 +979,35 @@ export class InvoicesService {
           debit: 0,
           credit: l.amount,
           description: `${lineDesc} — ${invoiceNumber}`,
+          departmentCenterId:
+            l.schedule.departmentCenterId ||
+            l.schedule.chargeType?.departmentCenterId ||
+            departmentCenterId,
+          costCenterId:
+            l.schedule.costCenterId ||
+            l.schedule.chargeType?.costCenterId ||
+            costCenterId,
         });
       }
     } else if (subtotal > 0) {
-      glLines.push({ accountCode: '4100', debit: 0, credit: subtotal, description: `Revenue — ${invoiceNumber}` });
+      glLines.push({
+        accountCode: '4100',
+        debit: 0,
+        credit: subtotal,
+        description: `Revenue — ${invoiceNumber}`,
+        departmentCenterId,
+        costCenterId,
+      });
     }
     if (taxAmount > 0) {
-      glLines.push({ accountCode: '2200', debit: 0, credit: taxAmount, description: `Tax Payable — ${invoiceNumber}` });
+      glLines.push({
+        accountCode: '2200',
+        debit: 0,
+        credit: taxAmount,
+        description: `Tax Payable — ${invoiceNumber}`,
+        departmentCenterId,
+        costCenterId,
+      });
     }
     await glService.postAutoJournal({
       companyId: first.companyId,
@@ -851,6 +1017,8 @@ export class InvoicesService {
       referenceType: 'invoice',
       referenceId: invoice.id,
       propertyId: first.propertyId,
+      departmentCenterId,
+      costCenterId,
       lines: glLines,
     });
     // Send notification

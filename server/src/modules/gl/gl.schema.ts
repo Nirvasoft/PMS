@@ -81,12 +81,15 @@ export const createFiscalPeriodSchema = z.object({
 });
 
 const journalLineSchema = z.object({
+  accountId: z.string().uuid().optional(),
   accountCode: z.string().min(1),
   debit: z.number().min(0).default(0),
   credit: z.number().min(0).default(0),
   description: z.string().optional(),
   propertyId: z.string().uuid().optional(),
   departmentId: z.string().uuid().optional(),
+  departmentCenterId: z.string().uuid().nullable().optional(),
+  costCenterId: z.string().uuid().nullable().optional(),
 });
 
 export const createJournalEntrySchema = z.object({
