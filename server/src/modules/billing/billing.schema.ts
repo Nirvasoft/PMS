@@ -28,7 +28,9 @@ export const createChargeTypeSchema = z.object({
     code: z.string().min(1).max(50),
     name: z.string().min(1).max(150),
     category: z.string().min(1).max(50), // code of a ChargeCategory — see charge-categories
-    glAccountCode: z.string().max(20).optional(),
+    glAccountCode: z.string().max(50).nullish(),
+    departmentCenterId: z.string().uuid().nullish(),
+    costCenterId: z.string().uuid().nullish(),
     isTaxable: z.boolean().optional(),
     taxRate: z.number().min(0).max(1).optional(),
   }),
@@ -87,7 +89,9 @@ export const updateChargeTypeSchema = z.object({
     code: z.string().min(1).max(50).optional(),
     name: z.string().min(1).max(150).optional(),
     category: z.string().min(1).max(50).optional(), // code of a ChargeCategory — see charge-categories
-    glAccountCode: z.string().max(20).optional(),
+    glAccountCode: z.string().max(50).nullish(),
+    departmentCenterId: z.string().uuid().nullish(),
+    costCenterId: z.string().uuid().nullish(),
     isTaxable: z.boolean().optional(),
     taxRate: z.number().min(0).max(1).optional(),
     isActive: z.boolean().optional(),

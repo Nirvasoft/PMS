@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetBillingSchedulesQuery, usePauseScheduleMutation,
@@ -7,7 +7,7 @@ import {
   useGetChargeTypesQuery, useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
 import type { BillingSchedule } from '../../../store/api/billingApi';
-import { useGetDepartmentCentersQuery, useGetCostCentersQuery } from '../../../store/api/glApi';
+import { useGetDepartmentCentersQuery, useGetCostCentersQuery, useGetGlAccountsQuery, type GlAccount } from '../../../store/api/glApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
@@ -71,6 +71,7 @@ export default function BillingSchedulesPage() {
   });
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const { data: glAccounts = [] } = useGetGlAccountsQuery({});
   const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({ isActive: true });
   const { data: costCentersData = [] } = useGetCostCentersQuery({ isActive: true });
   // /properties requires properties.read, which a billing-only role may lack — use the
@@ -105,6 +106,43 @@ export default function BillingSchedulesPage() {
   const floors = (floorsData?.data || []).slice().sort((a, b) => a.floorNumber - b.floorNumber);
   const units = unitsData?.data || [];
   const leases = leasesData?.data || [];
+
+  const glAccountByCode = useMemo(() => {
+    const map = new Map<string, GlAccount>();
+    glAccounts.forEach((a) => map.set(a.code, a));
+    return map;
+  }, [glAccounts]);
+
+  const filteredChargeTypes = useMemo(() => {
+    if (!form.departmentCenterId && !form.costCenterId) return [];
+    return chargeTypes.filter((ct) => {
+      if (!ct.isActive) return false;
+      const acc = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
+      const ctDeptId =
+        ct.departmentCenterId ||
+        ct.departmentCenter?.id ||
+        acc?.departmentCenterId ||
+        acc?.departmentCenter?.id ||
+        '';
+      const ctCcId =
+        ct.costCenterId ||
+        ct.costCenter?.id ||
+        acc?.costCenterId ||
+        acc?.costCenter?.id ||
+        '';
+      if (form.departmentCenterId && ctDeptId !== form.departmentCenterId) return false;
+      if (form.costCenterId && ctCcId !== form.costCenterId) return false;
+      return true;
+    });
+  }, [chargeTypes, glAccountByCode, form.departmentCenterId, form.costCenterId]);
+
+  useEffect(() => {
+    if (!showForm || !form.chargeTypeId) return;
+    const validIds = new Set(filteredChargeTypes.map((ct) => ct.id));
+    if (!validIds.has(form.chargeTypeId)) {
+      setForm((f) => ({ ...f, chargeTypeId: '' }));
+    }
+  }, [filteredChargeTypes, showForm, form.chargeTypeId]);
 
   // New schedules bind to the sidebar's Active Property; only "All Properties" allows
   // picking one here. Editing an existing schedule keeps its own property, unaffected.
@@ -561,8 +599,14 @@ export default function BillingSchedulesPage() {
                         setForm({ ...form, chargeTypeId: nextCtId, quantity: nextQty });
                       }}
                     >
-                      <option value="">Select charge type</option>
-                      {chargeTypes.filter(ct => ct.isActive).map(ct => (
+                      <option value="">
+                        {!form.departmentCenterId && !form.costCenterId
+                          ? 'Select Dept / CC first…'
+                          : filteredChargeTypes.length === 0
+                          ? 'No matching charge types'
+                          : 'Select charge type'}
+                      </option>
+                      {filteredChargeTypes.map(ct => (
                         <option key={ct.id} value={ct.id}>{ct.name}</option>
                       ))}
                     </select>

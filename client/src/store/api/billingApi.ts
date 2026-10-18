@@ -19,6 +19,10 @@ export interface ChargeType {
   name: string;
   category: string;
   glAccountCode: string | null;
+  departmentCenterId?: string | null;
+  costCenterId?: string | null;
+  departmentCenter?: { id: string; code: string; name: string } | null;
+  costCenter?: { id: string; code: string; name: string } | null;
   isTaxable: boolean;
   taxRate: string;
   isSystem: boolean;

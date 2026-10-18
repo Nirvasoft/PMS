@@ -2816,29 +2816,35 @@ model ChargeCategory {
 }
 
 model ChargeType {
-  id            String   @id @default(uuid()) @db.Uuid
-  companyId     String?  @map("company_id") @db.Uuid
-  code          String   @db.VarChar(50)
-  name          String   @db.VarChar(150)
-  category      String   @db.VarChar(50) // code of a ChargeCategory (dynamic — see ChargeCategory model)
-  glAccountCode String?  @map("gl_account_code") @db.VarChar(50)
-  isTaxable     Boolean  @default(false) @map("is_taxable")
-  taxRate       Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 4)
-  isActive      Boolean  @default(true) @map("is_active")
-  isSystem      Boolean  @default(false) @map("is_system")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                 String   @id @default(uuid()) @db.Uuid
+  companyId          String?  @map("company_id") @db.Uuid
+  departmentCenterId String?  @map("department_center_id") @db.Uuid
+  costCenterId       String?  @map("cost_center_id") @db.Uuid
+  code               String   @db.VarChar(50)
+  name               String   @db.VarChar(150)
+  category           String   @db.VarChar(50) // code of a ChargeCategory (dynamic — see ChargeCategory model)
+  glAccountCode      String?  @map("gl_account_code") @db.VarChar(50)
+  isTaxable          Boolean  @default(false) @map("is_taxable")
+  taxRate            Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  isActive           Boolean  @default(true) @map("is_active")
+  isSystem           Boolean  @default(false) @map("is_system")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  company          Company?               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  billingSchedules BillingSchedule[]
-  invoiceLines     InvoiceLine[]
-  penaltyConfigs   PenaltyConfiguration[] @relation("PenaltyChargeType")
-  apInvoiceLines   ApInvoiceLine[]
-  unitCharges      UnitCharge[]
-  unitChargeHistory UnitChargeHistory[] @relation("ChargeHistoryNewType")
-  meterSetups      MeterSetup[]
+  company           Company?               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  departmentCenter  DepartmentCenter?      @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
+  costCenter        CostCenter?            @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  billingSchedules  BillingSchedule[]
+  invoiceLines      InvoiceLine[]
+  penaltyConfigs    PenaltyConfiguration[] @relation("PenaltyChargeType")
+  apInvoiceLines    ApInvoiceLine[]
+  unitCharges       UnitCharge[]
+  unitChargeHistory UnitChargeHistory[]    @relation("ChargeHistoryNewType")
+  meterSetups       MeterSetup[]
 
   @@unique([code, companyId], name: "uq_charge_type_code_company")
   @@index([category])
+  @@index([departmentCenterId])
+  @@index([costCenterId])
   @@map("charge_types")
 }
 
@@ -3306,6 +3312,7 @@ model DepartmentCenter {
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   costCenters      CostCenter[]
   glAccounts       GlAccount[]
+  chargeTypes      ChargeType[]
   invoices         Invoice[]
   billingSchedules BillingSchedule[]
 
@@ -3329,6 +3336,7 @@ model CostCenter {
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
   glAccounts       GlAccount[]
+  chargeTypes      ChargeType[]
   invoices         Invoice[]
   billingSchedules BillingSchedule[]
 

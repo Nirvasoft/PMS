@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetChargeTypesQuery, useCreateInvoiceMutation, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
-import { useGetDepartmentCentersQuery, useGetCostCentersQuery } from '../../../store/api/glApi';
+import { useGetDepartmentCentersQuery, useGetCostCentersQuery, useGetGlAccountsQuery, type GlAccount } from '../../../store/api/glApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
@@ -35,6 +35,7 @@ export default function CreateInvoicePage() {
   const navigate = useNavigate();
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const { data: glAccounts = [] } = useGetGlAccountsQuery({});
   const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({ isActive: true });
   const { data: costCentersData = [] } = useGetCostCentersQuery({ isActive: true });
   const [createInvoice, { isLoading }] = useCreateInvoiceMutation();
@@ -44,6 +45,12 @@ export default function CreateInvoicePage() {
   const properties = propertiesData?.data || [];
   const departmentCenters = Array.isArray(departmentCentersData) ? departmentCentersData : (departmentCentersData as any)?.data || [];
   const costCenters = Array.isArray(costCentersData) ? costCentersData : (costCentersData as any)?.data || [];
+
+  const glAccountByCode = useMemo(() => {
+    const map = new Map<string, GlAccount>();
+    glAccounts.forEach((a) => map.set(a.code, a));
+    return map;
+  }, [glAccounts]);
 
   // Locked to the sidebar's Active Property, same convention as Expenses/Payment
   // Vouchers/New Lease/New Floor/New Lead — only when "All Properties" is active
@@ -157,9 +164,45 @@ export default function CreateInvoicePage() {
     }
   }, [form.tenantId]);
 
+  const filteredChargeTypes = useMemo(() => {
+    if (!form.departmentCenterId && !form.costCenterId) return [];
+    return chargeTypes.filter((ct) => {
+      const acc = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
+      const ctDeptId =
+        ct.departmentCenterId ||
+        ct.departmentCenter?.id ||
+        acc?.departmentCenterId ||
+        acc?.departmentCenter?.id ||
+        '';
+      const ctCcId =
+        ct.costCenterId ||
+        ct.costCenter?.id ||
+        acc?.costCenterId ||
+        acc?.costCenter?.id ||
+        '';
+      if (form.departmentCenterId && ctDeptId !== form.departmentCenterId) return false;
+      if (form.costCenterId && ctCcId !== form.costCenterId) return false;
+      return true;
+    });
+  }, [chargeTypes, glAccountByCode, form.departmentCenterId, form.costCenterId]);
+
   const [lines, setLines] = useState<LineItem[]>([
     { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
   ]);
+
+  // Clear any line's chargeTypeId if it is no longer valid for the selected Department / Cost Center
+  useEffect(() => {
+    const validIds = new Set(filteredChargeTypes.map((ct) => ct.id));
+    setLines((prev) => {
+      const needsUpdate = prev.some((l) => l.chargeTypeId && !validIds.has(l.chargeTypeId));
+      if (!needsUpdate) return prev;
+      return prev.map((l) =>
+        l.chargeTypeId && !validIds.has(l.chargeTypeId)
+          ? { ...l, chargeTypeId: '' }
+          : l
+      );
+    });
+  }, [filteredChargeTypes]);
 
   // When selectedLease changes (tenant/unit chosen), auto-fill Qty with Lease Term and unitPrice with rent
   const prevSelectedLeaseIdRef = useRef<string | null>(null);
@@ -181,11 +224,11 @@ export default function CreateInvoicePage() {
 
     const leaseTerm = selectedLease.leaseTermMonths || 1;
     const leaseRent = Number(selectedLease.rentAmount) || 0;
-    const rentCt = chargeTypes.find(c => c.code?.toUpperCase() === 'RENT' || c.name?.toLowerCase() === 'rent' || c.category === 'rent');
+    const rentCt = filteredChargeTypes.find(c => c.code?.toUpperCase() === 'RENT' || c.name?.toLowerCase() === 'rent' || c.category === 'rent');
 
     setLines((prev) => {
       if (prev.length === 1 && (!prev[0].chargeTypeId || (rentCt && prev[0].chargeTypeId === rentCt.id))) {
-        const ct = rentCt || chargeTypes[0];
+        const ct = rentCt || filteredChargeTypes[0];
         return [{
           chargeTypeId: ct?.id || '',
           description: selectedLease.unit?.unitNumber
@@ -202,7 +245,7 @@ export default function CreateInvoicePage() {
         unitPrice: rentCt && l.chargeTypeId === rentCt.id && l.unitPrice === 0 ? leaseRent : l.unitPrice,
       }));
     });
-  }, [selectedLease, form.leaseId, chargeTypes]);
+  }, [selectedLease, form.leaseId, filteredChargeTypes]);
 
   const addLine = () => setLines([
     ...lines,
@@ -535,8 +578,14 @@ export default function CreateInvoicePage() {
                         value={line.chargeTypeId}
                         onChange={e => updateLine(idx, 'chargeTypeId', e.target.value)}
                       >
-                        <option value="">Select…</option>
-                        {chargeTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                        <option value="">
+                          {!form.departmentCenterId && !form.costCenterId
+                            ? 'Select Dept / CC first…'
+                            : filteredChargeTypes.length === 0
+                            ? 'No matching charge types'
+                            : 'Select…'}
+                        </option>
+                        {filteredChargeTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
                       </select>
                       {lineChargeTypeMissing && <span className="inv-error-text">Required</span>}
                     </td>

@@ -108,8 +108,18 @@ export default function ChargeTypesPage() {
       name: ct.name,
       category: ct.category,
       glAccountCode: ct.glAccountCode || '',
-      departmentCenterId: linkedGl?.departmentCenterId || linkedGl?.departmentCenter?.id || '',
-      costCenterId: linkedGl?.costCenterId || linkedGl?.costCenter?.id || '',
+      departmentCenterId:
+        ct.departmentCenterId ||
+        ct.departmentCenter?.id ||
+        linkedGl?.departmentCenterId ||
+        linkedGl?.departmentCenter?.id ||
+        '',
+      costCenterId:
+        ct.costCenterId ||
+        ct.costCenter?.id ||
+        linkedGl?.costCenterId ||
+        linkedGl?.costCenter?.id ||
+        '',
       isTaxable: ct.isTaxable,
       taxRate: Number(ct.taxRate),
     });
@@ -132,7 +142,9 @@ export default function ChargeTypesPage() {
       code: form.code.toUpperCase(),
       name: form.name,
       category: form.category,
-      glAccountCode: form.glAccountCode || undefined,
+      glAccountCode: form.glAccountCode || null,
+      departmentCenterId: form.departmentCenterId || null,
+      costCenterId: form.costCenterId || null,
       isTaxable: form.isTaxable,
       taxRate: form.isTaxable ? form.taxRate : 0,
     };
@@ -152,12 +164,14 @@ export default function ChargeTypesPage() {
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       const linkedGl = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
+      const deptCode = ct.departmentCenter?.code || linkedGl?.departmentCenter?.code || '';
+      const ccCode = ct.costCenter?.code || linkedGl?.costCenter?.code || '';
       const codeMatch = ct.code.toLowerCase().includes(q);
       const nameMatch = ct.name.toLowerCase().includes(q);
       const glMatch = ct.glAccountCode ? ct.glAccountCode.toLowerCase().includes(q) : false;
       const categoryMatch = ct.category ? ct.category.toLowerCase().includes(q) : false;
-      const deptMatch = linkedGl?.departmentCenter?.code?.toLowerCase().includes(q) || false;
-      const ccMatch = linkedGl?.costCenter?.code?.toLowerCase().includes(q) || false;
+      const deptMatch = deptCode.toLowerCase().includes(q);
+      const ccMatch = ccCode.toLowerCase().includes(q);
       if (!codeMatch && !nameMatch && !glMatch && !categoryMatch && !deptMatch && !ccMatch) return false;
     }
     if (categoryFilter && ct.category !== categoryFilter) {
@@ -321,6 +335,8 @@ export default function ChargeTypesPage() {
               </tr>
             ) : paginatedChargeTypes.map(ct => {
               const linkedGl = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
+              const deptCode = ct.departmentCenter?.code || linkedGl?.departmentCenter?.code;
+              const ccCode = ct.costCenter?.code || linkedGl?.costCenter?.code;
               return (
                 <tr key={ct.id}>
                   <td><span className="cell-mono">{ct.code}</span></td>
@@ -334,13 +350,13 @@ export default function ChargeTypesPage() {
                     </span>
                   </td>
                   <td>
-                    <span className="cell-mono" style={{ fontSize: 13, color: linkedGl?.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                      {linkedGl?.departmentCenter?.code || '—'}
+                    <span className="cell-mono" style={{ fontSize: 13, color: deptCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                      {deptCode || '—'}
                     </span>
                   </td>
                   <td>
-                    <span className="cell-mono" style={{ fontSize: 13, color: linkedGl?.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                      {linkedGl?.costCenter?.code || '—'}
+                    <span className="cell-mono" style={{ fontSize: 13, color: ccCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                      {ccCode || '—'}
                     </span>
                   </td>
                   <td className="text-center">
@@ -528,12 +544,7 @@ export default function ChargeTypesPage() {
                   <div className="inv-field">
                     <label>Department</label>
                     <select
-                      value={
-                        form.departmentCenterId ||
-                        selectedGlAccount?.departmentCenterId ||
-                        selectedGlAccount?.departmentCenter?.id ||
-                        ''
-                      }
+                      value={form.departmentCenterId}
                       onChange={(e) =>
                         setForm({
                           ...form,
@@ -555,12 +566,7 @@ export default function ChargeTypesPage() {
                   <div className="inv-field">
                     <label>Cost Center</label>
                     <select
-                      value={
-                        form.costCenterId ||
-                        selectedGlAccount?.costCenterId ||
-                        selectedGlAccount?.costCenter?.id ||
-                        ''
-                      }
+                      value={form.costCenterId}
                       onChange={(e) =>
                         setForm({
                           ...form,
@@ -572,12 +578,7 @@ export default function ChargeTypesPage() {
                       {costCenters
                         .filter((c) => {
                           if (!c.isActive) return false;
-                          const activeDeptId =
-                            form.departmentCenterId ||
-                            selectedGlAccount?.departmentCenterId ||
-                            selectedGlAccount?.departmentCenter?.id ||
-                            '';
-                          return !activeDeptId || !c.departmentCenterId || c.departmentCenterId === activeDeptId;
+                          return !form.departmentCenterId || !c.departmentCenterId || c.departmentCenterId === form.departmentCenterId;
                         })
                         .map((c) => (
                           <option key={c.id} value={c.id}>
@@ -695,8 +696,8 @@ export default function ChargeTypesPage() {
                               setForm({
                                 ...form,
                                 glAccountCode: acc.code,
-                                departmentCenterId: acc.departmentCenterId || acc.departmentCenter?.id || '',
-                                costCenterId: acc.costCenterId || acc.costCenter?.id || '',
+                                departmentCenterId: acc.departmentCenterId || acc.departmentCenter?.id || form.departmentCenterId,
+                                costCenterId: acc.costCenterId || acc.costCenter?.id || form.costCenterId,
                               });
                               setShowCoaModal(false);
                             }}
@@ -736,8 +737,8 @@ export default function ChargeTypesPage() {
                                   setForm({
                                     ...form,
                                     glAccountCode: acc.code,
-                                    departmentCenterId: acc.departmentCenterId || acc.departmentCenter?.id || '',
-                                    costCenterId: acc.costCenterId || acc.costCenter?.id || '',
+                                    departmentCenterId: acc.departmentCenterId || acc.departmentCenter?.id || form.departmentCenterId,
+                                    costCenterId: acc.costCenterId || acc.costCenter?.id || form.costCenterId,
                                   });
                                   setShowCoaModal(false);
                                 }}
