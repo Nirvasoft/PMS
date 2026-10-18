@@ -21,6 +21,7 @@ const IMPORT_OPTIONS: { value: GeneralImportType; label: string }[] = [
   { value: 'lead', label: 'Lead Import' },
   { value: 'invoice', label: 'Invoice Import' },
   { value: 'charge', label: 'Charges Import' },
+  { value: 'coa', label: 'Chart of Accounts Import' },
 ];
 
 function errMessage(e: unknown, fallback: string): string {
@@ -109,7 +110,7 @@ export default function GeneralImportPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${importType === 'charge' ? 'charges' : importType}-import-sample.xlsx`;
+      a.download = `${importType === 'charge' ? 'charges' : importType === 'coa' ? 'chart-of-accounts' : importType}-import-sample.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -141,7 +142,7 @@ export default function GeneralImportPage() {
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>General Import</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              Import meters, units, leases, tenants, leads, invoices and charges from an Excel file
+              Import meters, units, leases, tenants, leads, invoices, charges and chart of accounts from an Excel file
             </p>
           </div>
         </div>
@@ -246,8 +247,8 @@ export default function GeneralImportPage() {
             <strong>{typeLabel} result</strong> ({result.total} rows in file)
           </div>
           <ul className="gi-stats">
-            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants', lead: 'leads', invoice: 'invoices', lease: 'leases', charge: 'Charges' }[importType as string] ?? 'database'}</li>
-            {(['meter', 'tenant', 'lead', 'invoice', 'lease', 'charge'].includes(importType)) && (
+            <li><span className="gi-ok">{result.imported}</span> record(s) inserted into {{ meter: 'meter_setups', tenant: 'tenants', lead: 'leads', invoice: 'invoices', lease: 'leases', charge: 'Charges', coa: 'Chart of Accounts' }[importType as string] ?? 'database'}</li>
+            {(['meter', 'tenant', 'lead', 'invoice', 'lease', 'charge', 'coa'].includes(importType)) && (
               <li><span className="gi-skip">{result.skipped}</span> record(s) skipped (
                 {importType === 'meter'
                   ? 'Meter No + Floor + Category already exist'
@@ -261,6 +262,8 @@ export default function GeneralImportPage() {
                   ? (result.skippedLeases !== undefined && result.skippedLeases > 0
                       ? `${result.skippedLeases} lease(s) already exist`
                       : 'Lease Number and Tenant already exist')
+                  : importType === 'coa'
+                  ? 'AccCode + Department + Cost Center already exist'
                   : 'Charges Code already exists'})</li>
             )}
             {importType === 'meter' && (

@@ -6,8 +6,8 @@ import { unitsService, metersService } from '../units/units.service';
 import { calcLeaseTermMonths, nextLeaseNumber } from '../leases/services/helpers';
 import { billingSchedulesService } from '../billing/billingSchedules.service';
 
-export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice' | 'charge';
-export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant', 'lead', 'invoice', 'charge'];
+export type ImportType = 'meter' | 'unit' | 'lease' | 'tenant' | 'lead' | 'invoice' | 'charge' | 'coa';
+export const IMPORT_TYPES: ImportType[] = ['meter', 'unit', 'lease', 'tenant', 'lead', 'invoice', 'charge', 'coa'];
 
 /**
  * PostgreSQL prepared statements support at most 32,767 bind variables.
@@ -512,7 +512,159 @@ const COLUMNS: Record<ImportType, ColumnDef[]> = {
     { header: 'Account Code', key: 'glAccountCode', samples: ['4001', '4900', '4900'] },
     { header: 'Is_Taxable', key: 'isTaxable', samples: ['No', 'Yes', 'No'] },
   ],
+  coa: [
+    { header: 'AccCode', key: 'accCode', required: true, samples: ['1100', '1100', '4100'] },
+    { header: 'AccDescription', key: 'accDescription', required: true, samples: ['Accounts Receivable', 'Accounts Receivable', 'Rental Income'] },
+    { header: 'AccCategory', key: 'accCategory', required: true, samples: ['Current Assets', 'Current Assets', 'Sales'] },
+    { header: 'Cost Center', key: 'costCenter', samples: ['First Floor', '2nd Floor', 'First Floor'] },
+    { header: 'Department', key: 'department', samples: ['01 Development', '01 Development', '01 Development'] },
+    { header: 'Parent Code', key: 'parentCode', samples: ['1000', '1000', '4000'] },
+  ],
 };
+
+const COA_SUBTYPE_DEFS: { subtype: string; accountType: 'asset' | 'liability' | 'equity' | 'income' | 'expense'; normalBalance: 'debit' | 'credit' }[] = [
+  { subtype: 'Non-Current Assets', accountType: 'asset', normalBalance: 'debit' },
+  { subtype: 'Accumulated Depreciation', accountType: 'asset', normalBalance: 'credit' },
+  { subtype: 'Current Assets', accountType: 'asset', normalBalance: 'debit' },
+  { subtype: 'Other Accounts Receivable', accountType: 'asset', normalBalance: 'debit' },
+  { subtype: 'Other Assets', accountType: 'asset', normalBalance: 'debit' },
+  { subtype: 'Non-Current Liabilities', accountType: 'liability', normalBalance: 'credit' },
+  { subtype: 'Current Liabilities', accountType: 'liability', normalBalance: 'credit' },
+  { subtype: 'Other Accounts Payable', accountType: 'liability', normalBalance: 'credit' },
+  { subtype: 'Capital', accountType: 'equity', normalBalance: 'credit' },
+  { subtype: 'Reserve', accountType: 'equity', normalBalance: 'credit' },
+  { subtype: 'Retained Earnings', accountType: 'equity', normalBalance: 'credit' },
+  { subtype: 'Net Profit', accountType: 'equity', normalBalance: 'credit' },
+  { subtype: 'Sales', accountType: 'income', normalBalance: 'credit' },
+  { subtype: 'Other Revenue', accountType: 'income', normalBalance: 'credit' },
+  { subtype: 'Opening Stocks', accountType: 'expense', normalBalance: 'debit' },
+  { subtype: 'Purchase', accountType: 'expense', normalBalance: 'debit' },
+  { subtype: 'Carriage Inwards', accountType: 'expense', normalBalance: 'debit' },
+  { subtype: 'Closing Stocks', accountType: 'expense', normalBalance: 'credit' },
+  { subtype: 'Cost of Sales', accountType: 'expense', normalBalance: 'debit' },
+  { subtype: 'Income & Expenses', accountType: 'income', normalBalance: 'credit' },
+  { subtype: 'Income Tax', accountType: 'expense', normalBalance: 'debit' },
+  { subtype: 'Other Comprehensive Income', accountType: 'income', normalBalance: 'credit' },
+  { subtype: 'Cost & Expenses', accountType: 'expense', normalBalance: 'debit' },
+  { subtype: 'Direct Expenses', accountType: 'expense', normalBalance: 'debit' },
+  { subtype: 'Overheads', accountType: 'expense', normalBalance: 'debit' },
+];
+
+function resolveCoaCategory(
+  rawCategory: string,
+  rawCode?: string,
+): { accountType: 'asset' | 'liability' | 'equity' | 'income' | 'expense'; accountSubtype: string | null; normalBalance: 'debit' | 'credit' } {
+  const clean = (rawCategory || '').trim();
+  const low = clean.toLowerCase();
+  const normKey = low.replace(/[\s_-]+/g, '');
+
+  for (const def of COA_SUBTYPE_DEFS) {
+    if (def.subtype.toLowerCase() === low || def.subtype.toLowerCase().replace(/[\s_-]+/g, '') === normKey) {
+      return { accountType: def.accountType, accountSubtype: def.subtype, normalBalance: def.normalBalance };
+    }
+  }
+
+  if (['asset', 'assets', '1'].includes(low)) {
+    return { accountType: 'asset', accountSubtype: 'Current Assets', normalBalance: 'debit' };
+  }
+  if (['liability', 'liabilities', '2'].includes(low)) {
+    return { accountType: 'liability', accountSubtype: 'Current Liabilities', normalBalance: 'credit' };
+  }
+  if (['equity', '3'].includes(low)) {
+    return { accountType: 'equity', accountSubtype: 'Capital', normalBalance: 'credit' };
+  }
+  if (['income', 'revenue', 'revenues', '4'].includes(low)) {
+    return { accountType: 'income', accountSubtype: 'Sales', normalBalance: 'credit' };
+  }
+  if (['costofsales', '5'].includes(normKey)) {
+    return { accountType: 'expense', accountSubtype: 'Cost of Sales', normalBalance: 'debit' };
+  }
+  if (['otherincome&tax', 'otherincometax', '6'].includes(normKey)) {
+    return { accountType: 'income', accountSubtype: 'Income & Expenses', normalBalance: 'credit' };
+  }
+  if (['expense', 'expenses', '7'].includes(low)) {
+    return { accountType: 'expense', accountSubtype: 'Overheads', normalBalance: 'debit' };
+  }
+
+  const subtype = clean ? clean.slice(0, 50) : null;
+  if (low.includes('accumulated') && low.includes('depreciation')) {
+    return { accountType: 'asset', accountSubtype: subtype || 'Accumulated Depreciation', normalBalance: 'credit' };
+  }
+  if (low.includes('asset') || low.includes('receivable') || low.includes('cash') || low.includes('bank') || low.includes('prepaid')) {
+    return { accountType: 'asset', accountSubtype: subtype || 'Current Assets', normalBalance: 'debit' };
+  }
+  if (low.includes('liabilit') || low.includes('payable') || low.includes('deposit') || low.includes('accrued')) {
+    return { accountType: 'liability', accountSubtype: subtype || 'Current Liabilities', normalBalance: 'credit' };
+  }
+  if (low.includes('equity') || low.includes('capital') || low.includes('reserve') || low.includes('retained') || low.includes('profit')) {
+    return { accountType: 'equity', accountSubtype: subtype || 'Capital', normalBalance: 'credit' };
+  }
+  if (low.includes('income') && !low.includes('tax') || low.includes('revenue') || low.includes('sale') || low.includes('rent')) {
+    return { accountType: 'income', accountSubtype: subtype || 'Sales', normalBalance: 'credit' };
+  }
+  if (low.includes('expense') || low.includes('cost') || low.includes('overhead') || low.includes('purchase') || low.includes('tax')) {
+    return { accountType: 'expense', accountSubtype: subtype || 'Overheads', normalBalance: 'debit' };
+  }
+
+  const firstChar = (rawCode || '').trim()[0];
+  if (firstChar === '2') return { accountType: 'liability', accountSubtype: subtype || 'Current Liabilities', normalBalance: 'credit' };
+  if (firstChar === '3') return { accountType: 'equity', accountSubtype: subtype || 'Capital', normalBalance: 'credit' };
+  if (firstChar === '4' || firstChar === '6') return { accountType: 'income', accountSubtype: subtype || 'Sales', normalBalance: 'credit' };
+  if (['5', '7', '8', '9'].includes(firstChar)) return { accountType: 'expense', accountSubtype: subtype || 'Overheads', normalBalance: 'debit' };
+
+  return { accountType: 'asset', accountSubtype: subtype || 'Current Assets', normalBalance: 'debit' };
+}
+
+function normalizeCoaDimKey(raw?: string | null): string {
+  if (!raw) return '';
+  return raw
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .replace(/([a-z])\1+/g, '$1');
+}
+
+type CoaDimEntry = { id: string; code: string; name: string };
+
+function buildCoaDimLookupMap(
+  items: Array<{ id: string; code: string; name: string; description?: string | null }>,
+): Map<string, CoaDimEntry> {
+  const map = new Map<string, CoaDimEntry>();
+  const addKey = (key: string, entry: CoaDimEntry) => {
+    const clean = key.trim().replace(/\s+/g, ' ').toLowerCase();
+    if (clean) {
+      map.set(clean, entry);
+      map.set(normalizeCoaDimKey(clean), entry);
+    }
+  };
+  for (const item of items) {
+    const code = item.code.trim();
+    const name = item.name.trim();
+    const entry: CoaDimEntry = { id: item.id, code, name };
+    addKey(code, entry);
+    addKey(name, entry);
+    addKey(`${code} ${name}`, entry);
+    addKey(`${code}-${name}`, entry);
+    addKey(`${code} - ${name}`, entry);
+    if (item.description) {
+      addKey(item.description, entry);
+      addKey(`${code} ${item.description.trim()}`, entry);
+    }
+  }
+  return map;
+}
+
+function resolveCoaDim(map: Map<string, CoaDimEntry>, raw?: string | null): CoaDimEntry | null {
+  if (!raw || !raw.trim()) return null;
+  const clean = raw.trim().replace(/\s+/g, ' ').toLowerCase();
+  return map.get(clean) || map.get(normalizeCoaDimKey(clean)) || null;
+}
+
+function normalizeImportType(type: string): string {
+  if (type === 'charges') return 'charge';
+  if (['account', 'accounts', 'chart-of-accounts', 'chart_of_accounts'].includes(type)) return 'coa';
+  return type;
+}
 
 // ── Cell helpers ─────────────────────────────────────────────────────────────
 
@@ -551,7 +703,7 @@ const norm = (s?: string | null) => (s ? String(s).trim().toLowerCase().replace(
 // ── Core ─────────────────────────────────────────────────────────────────────
 
 function assertType(type: string): asserts type is ImportType {
-  const normType = type === 'charges' ? 'charge' : type;
+  const normType = normalizeImportType(type);
   if (!IMPORT_TYPES.includes(normType as ImportType)) {
     throw AppError.badRequest(`Unknown import type "${type}"`, 'INVALID_IMPORT_TYPE');
   }
@@ -579,6 +731,12 @@ async function parseWorkbook(type: ImportType, buffer: Buffer): Promise<ParsedRo
     const def = cols.find((c) => {
       const ch = c.header.toLowerCase();
       if (ch === h || normalize(c.header) === nh) return true;
+      if (c.key === 'accCode' && ['acccode', 'accountcode', 'code', 'glaccountcode', 'acctcode', 'accountno', 'accno'].includes(nh)) return true;
+      if (c.key === 'accDescription' && ['accdescription', 'accountdescription', 'accountname', 'accname', 'name', 'description', 'title'].includes(nh)) return true;
+      if (c.key === 'accCategory' && ['acccategory', 'accountcategory', 'category', 'accounttype', 'acctype', 'type', 'subtype', 'accountsubtype'].includes(nh)) return true;
+      if (c.key === 'costCenter' && ['costcenter', 'costcentercode', 'cc', 'cccode', 'costcentername'].includes(nh)) return true;
+      if (c.key === 'department' && ['department', 'departmentcode', 'dept', 'deptcode', 'departmentcenter', 'departmentcentercode', 'departmentname'].includes(nh)) return true;
+      if (c.key === 'parentCode' && ['parentcode', 'parentaccount', 'parentaccountcode', 'parent', 'parentacc', 'parentacccode'].includes(nh)) return true;
       if (c.key === 'code' && ['chargescode', 'chargecode', 'code'].includes(nh)) return true;
       if (c.key === 'name' && ['chargesname', 'chargename', 'name', 'chargestitle'].includes(nh)) return true;
       if (c.key === 'category' && ['chargescategory', 'chargecategory', 'category'].includes(nh)) return true;
@@ -998,6 +1156,96 @@ async function validateRows(
     return out;
   }
 
+  if (type === 'coa') {
+    const [existingAccounts, existingDepts, existingCostCenters] = await Promise.all([
+      prisma.glAccount.findMany({
+        where: { companyId },
+        select: {
+          code: true,
+          departmentCenterId: true,
+          costCenterId: true,
+        },
+      }),
+      prisma.departmentCenter.findMany({
+        where: { companyId },
+        select: { id: true, code: true, name: true, description: true },
+      }),
+      prisma.costCenter.findMany({
+        where: { companyId },
+        select: { id: true, code: true, name: true, description: true },
+      }),
+    ]);
+
+    const deptMap = buildCoaDimLookupMap(existingDepts);
+    const ccMap = buildCoaDimLookupMap(existingCostCenters);
+
+    const knownKeys = new Set<string>();
+    for (const acc of existingAccounts) {
+      const cKey = acc.code.trim().toLowerCase();
+      knownKeys.add(`${cKey}|${acc.departmentCenterId || ''}|${acc.costCenterId || ''}`);
+    }
+
+    const seenKeys = new Map<string, number>();
+
+    for (const r of rows) {
+      const d = r.data;
+      const errors = checkRequired(type, d);
+
+      if (d.accCode && d.accCode.trim().length > 20) {
+        errors.push('AccCode cannot exceed 20 characters');
+      }
+      if (d.accDescription && d.accDescription.trim().length > 255) {
+        errors.push('AccDescription cannot exceed 255 characters');
+      }
+      if (d.accCategory && d.accCategory.trim().length > 50) {
+        errors.push('AccCategory cannot exceed 50 characters');
+      }
+      if (d.parentCode && d.parentCode.trim().length > 20) {
+        errors.push('Parent Code cannot exceed 20 characters');
+      }
+
+      const rawDept = (d.department || '').trim();
+      const rawCc = (d.costCenter || '').trim();
+
+      const resolvedDept = rawDept ? resolveCoaDim(deptMap, rawDept) : null;
+      if (rawDept && !resolvedDept) {
+        errors.push(`Department "${rawDept}" does not exist in Department Setup`);
+      }
+
+      const resolvedCc = rawCc ? resolveCoaDim(ccMap, rawCc) : null;
+      if (rawCc && !resolvedCc) {
+        errors.push(`Cost Center "${rawCc}" does not exist in Cost Center Setup`);
+      }
+
+      const notes: string[] = [];
+
+      if (d.accCode) {
+        const cKey = d.accCode.trim().toLowerCase();
+        const deptKey = resolvedDept ? resolvedDept.id : normalizeCoaDimKey(rawDept);
+        const ccKey = resolvedCc ? resolvedCc.id : normalizeCoaDimKey(rawCc);
+        const compositeKey = `${cKey}|${deptKey}|${ccKey}`;
+
+        const dimLabel = [
+          rawCc ? `Cost Center "${rawCc}"` : 'no Cost Center',
+          rawDept ? `Department "${rawDept}"` : 'no Department',
+        ].join(' and ');
+
+        if (knownKeys.has(compositeKey)) {
+          errors.push(`AccCode "${d.accCode.trim()}" with ${dimLabel} already exists`);
+        } else if (seenKeys.has(compositeKey)) {
+          const prevRow = seenKeys.get(compositeKey);
+          errors.push(`Duplicate AccCode "${d.accCode.trim()}" with ${dimLabel} (already in file at row #${prevRow})`);
+        } else {
+          seenKeys.set(compositeKey, r.rowNo);
+        }
+      }
+
+      const status: PreviewRow['status'] = errors.length ? 'error' : 'valid';
+      out.push({ rowNo: r.rowNo, data: d, status, errors: status === 'error' ? errors : notes });
+    }
+    return out;
+  }
+
   // lease
   const leaseCtx = preloadedLeaseCtx ?? await loadLeaseImportContext(companyId, false);
   const {
@@ -1158,11 +1406,17 @@ export const generalImportService = {
   assertType,
 
   async buildSample(type: string): Promise<{ buffer: Buffer; filename: string }> {
-    const normType = (type === 'charges' ? 'charge' : type) as ImportType;
+    const normType = normalizeImportType(type) as ImportType;
     assertType(normType);
     const cols = COLUMNS[normType];
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet(normType === 'charge' ? 'Charges Import' : `${normType[0].toUpperCase()}${normType.slice(1)} Import`);
+    const sheetName =
+      normType === 'charge'
+        ? 'Charges Import'
+        : normType === 'coa'
+        ? 'Chart of Accounts Import'
+        : `${normType[0].toUpperCase()}${normType.slice(1)} Import`;
+    const ws = wb.addWorksheet(sheetName);
     ws.columns = cols.map((c) => ({ header: c.header, key: c.key, width: Math.max(16, c.header.length + 4) }));
     const header = ws.getRow(1);
     header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -1175,11 +1429,12 @@ export const generalImportService = {
     }
     ws.views = [{ state: 'frozen', ySplit: 1 }];
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
-    return { buffer, filename: `${normType === 'charge' ? 'charges' : normType}-import-sample.xlsx` };
+    const filePrefix = normType === 'charge' ? 'charges' : normType === 'coa' ? 'chart-of-accounts' : normType;
+    return { buffer, filename: `${filePrefix}-import-sample.xlsx` };
   },
 
   async preview(type: string, propertyId: string, companyId: string, buffer: Buffer) {
-    const normType = (type === 'charges' ? 'charge' : type) as ImportType;
+    const normType = normalizeImportType(type) as ImportType;
     assertType(normType);
     const rows = await validateRows(normType, propertyId, companyId, await parseWorkbook(normType, buffer));
     const validCount = rows.filter((r) => r.status === 'valid').length;
@@ -1196,7 +1451,7 @@ export const generalImportService = {
   },
 
   async import(type: string, propertyId: string, companyId: string, userId: string, buffer: Buffer) {
-    const normType = (type === 'charges' ? 'charge' : type) as ImportType;
+    const normType = normalizeImportType(type) as ImportType;
     assertType(normType);
     const parsedRows = await parseWorkbook(normType, buffer);
     const totalRowCount = parsedRows.length;
@@ -2978,6 +3233,140 @@ export const generalImportService = {
           imported++;
         } catch (e) {
           failed.push({ rowNo: r.rowNo, errors: [(e as Error).message] });
+        }
+      }
+    } else if (normType === 'coa') {
+      try {
+        await prisma.$executeRawUnsafe(`
+          ALTER TABLE "gl_accounts" DROP CONSTRAINT IF EXISTS "gl_accounts_code_company_id_key";
+        `);
+        await prisma.$executeRawUnsafe(`
+          DROP INDEX IF EXISTS "gl_accounts_code_company_id_key";
+        `);
+        await prisma.$executeRawUnsafe(`
+          CREATE UNIQUE INDEX IF NOT EXISTS "gl_accounts_code_company_dept_cc_key"
+          ON "gl_accounts" ("code", "company_id", "department_center_id", "cost_center_id");
+        `);
+      } catch {
+        // Ignore if index already exists
+      }
+
+      const [existingAccounts, existingDepts, existingCcs] = await Promise.all([
+        prisma.glAccount.findMany({
+          where: { companyId },
+          select: {
+            id: true,
+            code: true,
+            departmentCenterId: true,
+            costCenterId: true,
+          },
+        }),
+        prisma.departmentCenter.findMany({
+          where: { companyId },
+          select: { id: true, code: true, name: true, description: true },
+        }),
+        prisma.costCenter.findMany({
+          where: { companyId },
+          select: { id: true, code: true, name: true, description: true },
+        }),
+      ]);
+
+      const deptMap = buildCoaDimLookupMap(existingDepts);
+      const ccMap = buildCoaDimLookupMap(existingCcs);
+
+      const knownKeys = new Set<string>();
+      const accountIdByCode = new Map<string, string>();
+      for (const acc of existingAccounts) {
+        const cKey = acc.code.trim().toLowerCase();
+        knownKeys.add(`${cKey}|${acc.departmentCenterId || ''}|${acc.costCenterId || ''}`);
+        if (!accountIdByCode.has(cKey)) {
+          accountIdByCode.set(cKey, acc.id);
+        }
+      }
+
+      const pendingParentLinks: Array<{ accountId: string; parentCode: string }> = [];
+
+      for (const r of valid) {
+        const d = r.data;
+        const code = (d.accCode || '').trim();
+        const description = (d.accDescription || '').trim();
+        const rawCat = (d.accCategory || '').trim();
+        const rawDept = (d.department || '').trim();
+        const rawCc = (d.costCenter || '').trim();
+        const rawParent = (d.parentCode || '').trim();
+
+        try {
+          const resolvedDept = rawDept ? resolveCoaDim(deptMap, rawDept) : null;
+          if (rawDept && !resolvedDept) {
+            failed.push({
+              rowNo: r.rowNo,
+              errors: [`Department "${rawDept}" does not exist in Department Setup`],
+            });
+            continue;
+          }
+
+          const resolvedCc = rawCc ? resolveCoaDim(ccMap, rawCc) : null;
+          if (rawCc && !resolvedCc) {
+            failed.push({
+              rowNo: r.rowNo,
+              errors: [`Cost Center "${rawCc}" does not exist in Cost Center Setup`],
+            });
+            continue;
+          }
+
+          const compositeKey = `${code.toLowerCase()}|${resolvedDept?.id || ''}|${resolvedCc?.id || ''}`;
+          if (knownKeys.has(compositeKey)) {
+            failed.push({
+              rowNo: r.rowNo,
+              errors: [`AccCode "${code}"${resolvedCc ? ` (Cost Center: ${resolvedCc.code})` : ''}${resolvedDept ? ` (Dept: ${resolvedDept.code})` : ''} already exists`],
+            });
+            continue;
+          }
+
+          const { accountType, accountSubtype, normalBalance } = resolveCoaCategory(rawCat, code);
+          const immediateParentId = rawParent ? accountIdByCode.get(rawParent.toLowerCase()) || null : null;
+
+          const createdAcc = await prisma.glAccount.create({
+            data: {
+              companyId,
+              code: code.slice(0, 20),
+              name: description.slice(0, 255),
+              accountType,
+              accountSubtype: accountSubtype ? accountSubtype.slice(0, 50) : null,
+              normalBalance,
+              departmentCenterId: resolvedDept?.id ?? null,
+              costCenterId: resolvedCc?.id ?? null,
+              parentId: immediateParentId,
+              isControl: false,
+              isActive: true,
+            },
+          });
+
+          knownKeys.add(compositeKey);
+          if (!accountIdByCode.has(code.toLowerCase())) {
+            accountIdByCode.set(code.toLowerCase(), createdAcc.id);
+          }
+          if (rawParent && !immediateParentId) {
+            pendingParentLinks.push({ accountId: createdAcc.id, parentCode: rawParent.toLowerCase() });
+          }
+
+          imported++;
+        } catch (e) {
+          failed.push({ rowNo: r.rowNo, errors: [(e as Error).message] });
+        }
+      }
+
+      for (const link of pendingParentLinks) {
+        const parentId = accountIdByCode.get(link.parentCode);
+        if (parentId && parentId !== link.accountId) {
+          try {
+            await prisma.glAccount.update({
+              where: { id: link.accountId },
+              data: { parentId },
+            });
+          } catch {
+            // Ignore parent link update errors
+          }
         }
       }
     }

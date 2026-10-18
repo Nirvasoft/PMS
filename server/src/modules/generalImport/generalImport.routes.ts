@@ -8,7 +8,10 @@ import { generalImportService } from './generalImport.service';
 
 const p = (req: Request, key: string) => {
   const val = req.params[key] as string;
-  if (key === 'type' && val === 'charges') return 'charge';
+  if (key === 'type') {
+    if (val === 'charges') return 'charge';
+    if (['account', 'accounts', 'chart-of-accounts', 'chart_of_accounts'].includes(val)) return 'coa';
+  }
   return val;
 };
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -45,6 +48,10 @@ const PERMISSIONS: Record<string, { read: string | string[]; create: string | st
   charge: {
     read: ['billing-charge-types.read', 'billing.read', 'charge-category.read', 'meter.read', 'leases.read'],
     create: ['billing-charge-types.write', 'billing.create', 'charge-category.create', 'meter.create', 'leases.create'],
+  },
+  coa: {
+    read: ['finance-coa.read', 'finance.read', 'billing.read', 'leases.read'],
+    create: ['finance-coa.write', 'finance.create', 'billing.create', 'leases.create'],
   },
 };
 
