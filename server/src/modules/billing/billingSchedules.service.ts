@@ -102,7 +102,8 @@ export class BillingSchedulesService {
     const startDate = new Date(dto.startDate as string);
     const billingDay = (dto.billingDay as number) || 1;
     const billingCycle = (dto.billingCycle as string) || 'monthly';
-    const isProrated = startDate.getDate() !== billingDay;
+    const isProrated = startDate.getUTCDate() !== billingDay;
+    const nextBillingDate = this.computeNextBillingDateFromStart(startDate, billingCycle, billingDay);
 
     return prisma.billingSchedule.create({
       data: {
@@ -123,7 +124,7 @@ export class BillingSchedulesService {
         paymentDueDays: (dto.paymentDueDays as number) || 7,
         startDate,
         endDate: dto.endDate ? new Date(dto.endDate as string) : null,
-        nextBillingDate: startDate,
+        nextBillingDate,
         isProrated,
         prorateStart: isProrated ? startDate : null,
         createdBy: userId,
@@ -437,7 +438,7 @@ export class BillingSchedulesService {
           }
         }
 
-        let nextBillingDate = startDate;
+        let nextBillingDate = this.computeNextBillingDateFromStart(startDate, effectiveCycle, leaseBillingDay);
         if (latestPeriodFrom) {
           const d1 = this.computeNextBillingDateFromStart(latestPeriodFrom, effectiveCycle, leaseBillingDay);
           if (d1 > nextBillingDate) nextBillingDate = d1;
@@ -521,11 +522,24 @@ export class BillingSchedulesService {
     if (dto.endDate !== undefined) updateData.endDate = dto.endDate ? new Date(dto.endDate as string) : null;
     if (dto.notes !== undefined) updateData.notes = dto.notes;
     if (dto.startDate !== undefined) {
-      const startDate = new Date(dto.startDate as string);
-      updateData.startDate = startDate;
-      // No invoices generated yet — safe to move the next billing date along with the start date.
-      // Once billing has run, nextBillingDate has already advanced past the original start and must be left alone.
-      if (schedule.invoiceCount === 0) updateData.nextBillingDate = startDate;
+      updateData.startDate = new Date(dto.startDate as string);
+    }
+    if (dto.startDate !== undefined || dto.billingCycle !== undefined || dto.billingDay !== undefined) {
+      const effectiveStart: Date = updateData.startDate ?? schedule.startDate;
+      const effectiveCycle: string = (updateData.billingCycle ?? schedule.billingCycle) as string;
+      const effectiveDay: number = Number(updateData.billingDay ?? schedule.billingDay) || 1;
+
+      if (schedule.invoiceCount === 0) {
+        const isProrated = effectiveStart.getUTCDate() !== effectiveDay;
+        updateData.isProrated = isProrated;
+        updateData.prorateStart = isProrated ? effectiveStart : null;
+      }
+      const cyclesToAdvance = Math.max(1, schedule.invoiceCount || 1);
+      let nextDate = effectiveStart;
+      for (let i = 0; i < cyclesToAdvance; i++) {
+        nextDate = this.computeNextBillingDateFromStart(nextDate, effectiveCycle, effectiveDay);
+      }
+      updateData.nextBillingDate = nextDate;
     }
 
     return prisma.billingSchedule.update({

@@ -689,7 +689,7 @@ export class InvoicesService {
       const periodFrom = schedule.nextBillingDate!;
       const nextBillingDate = this.computeNextBillingDate(periodFrom, schedule.billingDay, schedule.billingCycle);
       const periodTo = new Date(nextBillingDate);
-      periodTo.setDate(periodTo.getDate() - 1);
+      periodTo.setUTCDate(periodTo.getUTCDate() - 1);
 
       // Idempotency: check if this schedule already has an invoice for this period.
       // Scoped to tenant/property/unit/charge type (not just leaseId) — multiple ad-hoc
@@ -735,11 +735,11 @@ export class InvoicesService {
     const periodTo = lineInputs.reduce((max, l) => (l.periodTo > max ? l.periodTo : max), lineInputs[0].periodTo);
     const dueDate = lineInputs.reduce((min, l) => {
       const d = new Date(l.periodFrom);
-      d.setDate(d.getDate() + l.schedule.paymentDueDays);
+      d.setUTCDate(d.getUTCDate() + l.schedule.paymentDueDays);
       return d < min ? d : min;
     }, (() => {
       const d = new Date(lineInputs[0].periodFrom);
-      d.setDate(d.getDate() + lineInputs[0].schedule.paymentDueDays);
+      d.setUTCDate(d.getUTCDate() + lineInputs[0].schedule.paymentDueDays);
       return d;
     })());
     const leaseId = lineInputs.every(l => l.schedule.leaseId === first.leaseId) ? first.leaseId : null;
@@ -1143,7 +1143,7 @@ export class InvoicesService {
 
   private calculateProratedAmount(monthlyAmount: number, prorateFrom: Date, periodEnd: Date, billingCycle: string): number {
     if (billingCycle !== 'monthly') return monthlyAmount;
-    const daysInMonth = new Date(prorateFrom.getFullYear(), prorateFrom.getMonth() + 1, 0).getDate();
+    const daysInMonth = new Date(Date.UTC(prorateFrom.getUTCFullYear(), prorateFrom.getUTCMonth() + 1, 0)).getUTCDate();
     const daysInPeriod = Math.ceil((periodEnd.getTime() - prorateFrom.getTime()) / 86400000) + 1;
     return Math.round((monthlyAmount / daysInMonth) * daysInPeriod * 100) / 100;
   }

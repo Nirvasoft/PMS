@@ -417,7 +417,7 @@ export default function BillingSchedulesPage() {
             <tr>
               <th style={{ width: 220 }}>Charge</th>
               <th style={{ width: 160 }}>Tenant</th>
-              <th style={{ width: 190 }}>Property / Floor / Unit</th>
+              <th style={{ width: 150 }}>Floor / Unit</th>
               <th className="text-center" style={{ width: 65 }}>Qty</th>
               <th className="text-right" style={{ width: 110 }}>Amount</th>
               <th style={{ width: 80 }}>Cycle</th>
@@ -448,16 +448,17 @@ export default function BillingSchedulesPage() {
                       <div className="cell-primary">{getTenantName(s)}</div>
                     </td>
                     <td>
-                      <div className="cell-primary">{s.property.name}</div>
-                      {s.unit && (
-                        <div className="cell-secondary">
-                          {s.unit.floorLabel
-                            ? `${s.unit.floorLabel} · `
-                            : s.unit.floorNumber != null
-                              ? `Floor ${s.unit.floorNumber} · `
-                              : ''}
-                          Unit {s.unit.unitNumber}
-                        </div>
+                      {s.unit ? (
+                        <>
+                          {(s.unit.floorLabel || s.unit.floorNumber != null) && (
+                            <div className="cell-primary">
+                              {s.unit.floorLabel || `Floor ${s.unit.floorNumber}`}
+                            </div>
+                          )}
+                          <div className="cell-secondary">{s.unit.unitNumber}</div>
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--text-tertiary)' }}>—</span>
                       )}
                     </td>
                     <td className="text-center">
@@ -477,14 +478,14 @@ export default function BillingSchedulesPage() {
                     </td>
                     <td>
                       {s.startDate ? (
-                        <div style={{ fontSize: 13 }}>{format(new Date(s.startDate), 'MMM d, yyyy')}</div>
+                        <div style={{ fontSize: 13 }}>{format(new Date(`${s.startDate.split('T')[0]}T00:00:00`), 'MMM d, yyyy')}</div>
                       ) : (
                         <span style={{ color: 'var(--text-tertiary)' }}>—</span>
                       )}
                     </td>
                     <td>
                       {s.nextBillingDate ? (
-                        <div style={{ fontSize: 13 }}>{format(new Date(s.nextBillingDate), 'MMM d, yyyy')}</div>
+                        <div style={{ fontSize: 13 }}>{format(new Date(`${s.nextBillingDate.split('T')[0]}T00:00:00`), 'MMM d, yyyy')}</div>
                       ) : (
                         <span style={{ color: 'var(--text-tertiary)' }}>—</span>
                       )}
