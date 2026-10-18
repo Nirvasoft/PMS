@@ -4,7 +4,12 @@ import {
   useGetChargeCategoriesQuery,
   type ChargeType,
 } from '../../../store/api/billingApi';
-import { useGetGlAccountsQuery, type GlAccount } from '../../../store/api/glApi';
+import {
+  useGetGlAccountsQuery,
+  useGetDepartmentCentersQuery,
+  useGetCostCentersQuery,
+  type GlAccount,
+} from '../../../store/api/glApi';
 import { DollarSign, Plus, X, Tag, Check, Pencil, Lock, Search, RotateCcw, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -16,6 +21,8 @@ export default function ChargeTypesPage() {
   const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery();
   const { data: categoriesData } = useGetChargeCategoriesQuery();
   const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery({});
+  const { data: departmentCenters = [] } = useGetDepartmentCentersQuery();
+  const { data: costCenters = [] } = useGetCostCentersQuery();
   const [createChargeType, { isLoading: creating }] = useCreateChargeTypeMutation();
   const [updateChargeType, { isLoading: updating }] = useUpdateChargeTypeMutation();
   const alertDialog = useAlertDialog();
@@ -23,7 +30,16 @@ export default function ChargeTypesPage() {
   const chargeTypes = chargeTypesData?.data || [];
   const categories = categoriesData?.data || [];
 
-  const emptyForm = { code: '', name: '', category: categories[0]?.code || '', glAccountCode: '', isTaxable: false, taxRate: 0 };
+  const emptyForm = {
+    code: '',
+    name: '',
+    category: categories[0]?.code || '',
+    glAccountCode: '',
+    departmentCenterId: '',
+    costCenterId: '',
+    isTaxable: false,
+    taxRate: 0,
+  };
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ChargeType | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -34,9 +50,15 @@ export default function ChargeTypesPage() {
   const [coaSearch, setCoaSearch] = useState('');
   const [coaTypeFilter, setCoaTypeFilter] = useState('');
 
+  const glAccountByCode = useMemo(() => {
+    const map = new Map<string, GlAccount>();
+    glAccounts.forEach((a) => map.set(a.code, a));
+    return map;
+  }, [glAccounts]);
+
   const selectedGlAccount = useMemo(
-    () => glAccounts.find((a) => a.code === form.glAccountCode.trim()),
-    [glAccounts, form.glAccountCode]
+    () => glAccountByCode.get(form.glAccountCode.trim()),
+    [glAccountByCode, form.glAccountCode]
   );
 
   const filteredGlAccounts = useMemo(() => {
@@ -48,7 +70,9 @@ export default function ChargeTypesPage() {
         const codeMatch = acc.code.toLowerCase().includes(q);
         const nameMatch = acc.name.toLowerCase().includes(q);
         const typeMatch = acc.accountType.toLowerCase().includes(q);
-        if (!codeMatch && !nameMatch && !typeMatch) return false;
+        const deptMatch = acc.departmentCenter?.code?.toLowerCase().includes(q) || false;
+        const ccMatch = acc.costCenter?.code?.toLowerCase().includes(q) || false;
+        if (!codeMatch && !nameMatch && !typeMatch && !deptMatch && !ccMatch) return false;
       }
       return true;
     });
@@ -78,9 +102,16 @@ export default function ChargeTypesPage() {
   const openEdit = (ct: ChargeType) => {
     setHasAttemptedSubmit(false);
     setEditing(ct);
+    const linkedGl = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
     setForm({
-      code: ct.code, name: ct.name, category: ct.category,
-      glAccountCode: ct.glAccountCode || '', isTaxable: ct.isTaxable, taxRate: Number(ct.taxRate),
+      code: ct.code,
+      name: ct.name,
+      category: ct.category,
+      glAccountCode: ct.glAccountCode || '',
+      departmentCenterId: linkedGl?.departmentCenterId || linkedGl?.departmentCenter?.id || '',
+      costCenterId: linkedGl?.costCenterId || linkedGl?.costCenter?.id || '',
+      isTaxable: ct.isTaxable,
+      taxRate: Number(ct.taxRate),
     });
     setShowForm(true);
   };
@@ -120,11 +151,14 @@ export default function ChargeTypesPage() {
   const filteredChargeTypes = chargeTypes.filter((ct) => {
     if (search.trim()) {
       const q = search.trim().toLowerCase();
+      const linkedGl = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
       const codeMatch = ct.code.toLowerCase().includes(q);
       const nameMatch = ct.name.toLowerCase().includes(q);
       const glMatch = ct.glAccountCode ? ct.glAccountCode.toLowerCase().includes(q) : false;
       const categoryMatch = ct.category ? ct.category.toLowerCase().includes(q) : false;
-      if (!codeMatch && !nameMatch && !glMatch && !categoryMatch) return false;
+      const deptMatch = linkedGl?.departmentCenter?.code?.toLowerCase().includes(q) || false;
+      const ccMatch = linkedGl?.costCenter?.code?.toLowerCase().includes(q) || false;
+      if (!codeMatch && !nameMatch && !glMatch && !categoryMatch && !deptMatch && !ccMatch) return false;
     }
     if (categoryFilter && ct.category !== categoryFilter) {
       return false;
@@ -255,7 +289,9 @@ export default function ChargeTypesPage() {
               <th style={{ width: 140 }}>Code</th>
               <th style={{ minWidth: 200 }}>Name</th>
               <th style={{ width: 140 }}>Category</th>
-              <th style={{ width: 140 }}>GL Account</th>
+              <th style={{ width: 130 }}>GL Account</th>
+              <th style={{ width: 120 }}>Department</th>
+              <th style={{ width: 120 }}>Cost Center</th>
               <th className="text-center" style={{ width: 90 }}>Taxable</th>
               <th className="text-right" style={{ width: 120 }}>Default Tax</th>
               <th style={{ width: 110 }}>Status</th>
@@ -264,12 +300,12 @@ export default function ChargeTypesPage() {
           </thead>
           <tbody>
             {isFetching && chargeTypes.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
+              <tr><td colSpan={10} className="billing-empty">Loading…</td></tr>
             ) : chargeTypes.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">No charge types found</td></tr>
+              <tr><td colSpan={10} className="billing-empty">No charge types found</td></tr>
             ) : filteredChargeTypes.length === 0 ? (
               <tr>
-                <td colSpan={8} className="billing-empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
+                <td colSpan={10} className="billing-empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
                   <div style={{ marginBottom: 12, fontSize: 14, color: 'var(--text-secondary)' }}>
                     No charge types match your search or filter criteria.
                   </div>
@@ -283,7 +319,9 @@ export default function ChargeTypesPage() {
                   </button>
                 </td>
               </tr>
-            ) : paginatedChargeTypes.map(ct => (
+            ) : paginatedChargeTypes.map(ct => {
+              const linkedGl = ct.glAccountCode ? glAccountByCode.get(ct.glAccountCode) : undefined;
+              return (
                 <tr key={ct.id}>
                   <td><span className="cell-mono">{ct.code}</span></td>
                   <td><div className="cell-primary">{ct.name}</div></td>
@@ -293,6 +331,16 @@ export default function ChargeTypesPage() {
                   <td>
                     <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
                       {ct.glAccountCode || '—'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="cell-mono" style={{ fontSize: 13, color: linkedGl?.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                      {linkedGl?.departmentCenter?.code || '—'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="cell-mono" style={{ fontSize: 13, color: linkedGl?.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                      {linkedGl?.costCenter?.code || '—'}
                     </span>
                   </td>
                   <td className="text-center">
@@ -328,7 +376,8 @@ export default function ChargeTypesPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+              );
+            })}
           </tbody>
         </table>
         </TableScrollWrapper>
@@ -443,7 +492,12 @@ export default function ChargeTypesPage() {
                           className="coa-clear-inline-btn"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setForm({ ...form, glAccountCode: '' });
+                            setForm({
+                              ...form,
+                              glAccountCode: '',
+                              departmentCenterId: '',
+                              costCenterId: '',
+                            });
                           }}
                           title="Clear GL Account Code"
                           aria-label="Clear GL Account Code"
@@ -470,6 +524,67 @@ export default function ChargeTypesPage() {
                         {selectedGlAccount.name} ({selectedGlAccount.accountType})
                       </span>
                     )}
+                  </div>
+                  <div className="inv-field">
+                    <label>Department</label>
+                    <select
+                      value={
+                        form.departmentCenterId ||
+                        selectedGlAccount?.departmentCenterId ||
+                        selectedGlAccount?.departmentCenter?.id ||
+                        ''
+                      }
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          departmentCenterId: e.target.value,
+                          costCenterId: '',
+                        })
+                      }
+                    >
+                      <option value="">— None —</option>
+                      {departmentCenters
+                        .filter((d) => d.isActive)
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.code}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="inv-field">
+                    <label>Cost Center</label>
+                    <select
+                      value={
+                        form.costCenterId ||
+                        selectedGlAccount?.costCenterId ||
+                        selectedGlAccount?.costCenter?.id ||
+                        ''
+                      }
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          costCenterId: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="">— None —</option>
+                      {costCenters
+                        .filter((c) => {
+                          if (!c.isActive) return false;
+                          const activeDeptId =
+                            form.departmentCenterId ||
+                            selectedGlAccount?.departmentCenterId ||
+                            selectedGlAccount?.departmentCenter?.id ||
+                            '';
+                          return !activeDeptId || !c.departmentCenterId || c.departmentCenterId === activeDeptId;
+                        })
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.code}
+                          </option>
+                        ))}
+                    </select>
                   </div>
                 </div>
 
@@ -563,6 +678,8 @@ export default function ChargeTypesPage() {
                       <tr>
                         <th style={{ width: 110 }}>Code</th>
                         <th>Account Name</th>
+                        <th style={{ width: 110 }}>Department</th>
+                        <th style={{ width: 110 }}>Cost Center</th>
                         <th style={{ width: 110 }}>Type</th>
                         <th style={{ width: 100 }} className="text-center">Action</th>
                       </tr>
@@ -575,7 +692,12 @@ export default function ChargeTypesPage() {
                             key={acc.id}
                             className={`coa-lookup-row ${isSelected ? 'selected' : ''}`}
                             onClick={() => {
-                              setForm({ ...form, glAccountCode: acc.code });
+                              setForm({
+                                ...form,
+                                glAccountCode: acc.code,
+                                departmentCenterId: acc.departmentCenterId || acc.departmentCenter?.id || '',
+                                costCenterId: acc.costCenterId || acc.costCenter?.id || '',
+                              });
                               setShowCoaModal(false);
                             }}
                           >
@@ -591,6 +713,16 @@ export default function ChargeTypesPage() {
                               </div>
                             </td>
                             <td>
+                              <span className="cell-mono" style={{ fontSize: 12, color: acc.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                                {acc.departmentCenter?.code || '—'}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="cell-mono" style={{ fontSize: 12, color: acc.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                                {acc.costCenter?.code || '—'}
+                              </span>
+                            </td>
+                            <td>
                               <span className={`coa-type-badge ${acc.accountType}`}>
                                 {acc.accountType}
                               </span>
@@ -601,7 +733,12 @@ export default function ChargeTypesPage() {
                                 className={`coa-select-btn ${isSelected ? 'active' : ''}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setForm({ ...form, glAccountCode: acc.code });
+                                  setForm({
+                                    ...form,
+                                    glAccountCode: acc.code,
+                                    departmentCenterId: acc.departmentCenterId || acc.departmentCenter?.id || '',
+                                    costCenterId: acc.costCenterId || acc.costCenter?.id || '',
+                                  });
                                   setShowCoaModal(false);
                                 }}
                               >

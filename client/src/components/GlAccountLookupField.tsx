@@ -165,6 +165,8 @@ export default function GlAccountLookupField({
                         <tr>
                           <th style={{ width: 110 }}>Code</th>
                           <th>Account Name</th>
+                          <th style={{ width: 110 }}>Department</th>
+                          <th style={{ width: 110 }}>Cost Center</th>
                           <th style={{ width: 110 }}>Type</th>
                           <th style={{ width: 100 }} className="text-center">Action</th>
                         </tr>
@@ -191,6 +193,16 @@ export default function GlAccountLookupField({
                                     <span className="coa-control-tag">Control</span>
                                   )}
                                 </div>
+                              </td>
+                              <td>
+                                <span className="cell-mono" style={{ fontSize: 12, color: acc.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                                  {acc.departmentCenter?.code || '—'}
+                                </span>
+                              </td>
+                              <td>
+                                <span className="cell-mono" style={{ fontSize: 12, color: acc.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                                  {acc.costCenter?.code || '—'}
+                                </span>
                               </td>
                               <td>
                                 <span className={`coa-type-badge ${acc.accountType}`}>
