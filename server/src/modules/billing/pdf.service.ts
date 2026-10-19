@@ -41,8 +41,18 @@ const INVOICE_TEMPLATE = `
       font-family: 'Noto Sans Myanmar', 'Pyidaungsu', 'Myanmar Text', 'Padauk', Arial, sans-serif;
       font-size: 12px;
       color: #000;
-      padding: 28px 40px;
       background: #fff;
+    }
+    .invoice-paper {
+      padding: 28px 40px;
+      min-height: calc(297mm - 24mm);
+      display: flex;
+      flex-direction: column;
+      page-break-after: always;
+      box-sizing: border-box;
+    }
+    .invoice-paper:last-child {
+      page-break-after: auto;
     }
 
     /* ── Page Header ─────────────────────────────── */
@@ -78,6 +88,7 @@ const INVOICE_TEMPLATE = `
 
     /* ── Info Section ────────────────────────────── */
     .info-section {
+      margin-top: 16px;
       margin-bottom: 18px;
     }
     .info-row {
@@ -103,6 +114,7 @@ const INVOICE_TEMPLATE = `
       width: 100%;
       border-collapse: collapse;
       font-size: 11.5px;
+      margin-top: 16px;
       margin-bottom: 0;
     }
     .items-table th,
@@ -140,8 +152,11 @@ const INVOICE_TEMPLATE = `
 
     /* ── Footer ──────────────────────────────────── */
     .footer-wrap {
-      margin-top: 18px;
+      margin-top: auto;
+      padding-top: 18px;
       font-size: 11.5px;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .footer-note { margin-bottom: 6px; line-height: 1.6; }
     .footer-hours { margin-top: 10px; display: flex; align-items: baseline; gap: 12px; }
@@ -150,144 +165,147 @@ const INVOICE_TEMPLATE = `
   </style>
 </head>
 <body>
+{{#each pages}}
+  <div class="invoice-paper">
+    <!-- ════ PAGE HEADER ════ -->
+    <div class="page-header">
+      <div class="logo-wrap">
+        {{#if ../propertyLogoUrl}}
+          <img src="{{../propertyLogoUrl}}" alt="Property Logo"
+               style="width:90px;height:90px;object-fit:contain;" />
+        {{else}}
+          <svg viewBox="0 0 110 120" xmlns="http://www.w3.org/2000/svg" width="90" height="98">
+            <g transform="translate(55,65)">
+              <ellipse rx="8"  ry="32" fill="#c87d0a" transform="rotate(-50)"/>
+              <ellipse rx="8"  ry="32" fill="#d98b10" transform="rotate(-35)"/>
+              <ellipse rx="9"  ry="34" fill="#e8a015" transform="rotate(-18)"/>
+              <ellipse rx="9"  ry="34" fill="#f0ab18" transform="rotate(0)"/>
+              <ellipse rx="9"  ry="34" fill="#e8a015" transform="rotate(18)"/>
+              <ellipse rx="8"  ry="32" fill="#d98b10" transform="rotate(35)"/>
+              <ellipse rx="8"  ry="32" fill="#c87d0a" transform="rotate(50)"/>
+              <ellipse rx="5.5" ry="22" fill="#f8cc50" transform="rotate(-18) translate(0,-4)"/>
+              <ellipse rx="6"   ry="24" fill="#fdd455" transform="rotate(0)   translate(0,-5)"/>
+              <ellipse rx="5.5" ry="22" fill="#f8cc50" transform="rotate(18)  translate(0,-4)"/>
+              <circle  r="7" fill="#fde070"/>
+            </g>
+            <rect x="51" y="97" width="8" height="16" rx="4" fill="#8B6010"/>
+            <ellipse cx="36" cy="108" rx="16" ry="6" fill="#6a8a20" transform="rotate(-20,36,108)"/>
+            <ellipse cx="74" cy="108" rx="16" ry="6" fill="#6a8a20" transform="rotate(20,74,108)"/>
+          </svg>
+        {{/if}}
+      </div>
+      <div class="title-block">
+        <div class="title-floor">{{../property.name}}</div>
+        <div class="title-main">{{../company.name}} Utilities Charges</div>
+      </div>
+    </div>
 
-  <!-- ════ PAGE HEADER ════ -->
-  <div class="page-header">
-    <div class="logo-wrap">
-      {{#if propertyLogoUrl}}
-        <img src="{{propertyLogoUrl}}" alt="Property Logo"
-             style="width:90px;height:90px;object-fit:contain;" />
-      {{else}}
-        <svg viewBox="0 0 110 120" xmlns="http://www.w3.org/2000/svg" width="90" height="98">
-          <g transform="translate(55,65)">
-            <ellipse rx="8"  ry="32" fill="#c87d0a" transform="rotate(-50)"/>
-            <ellipse rx="8"  ry="32" fill="#d98b10" transform="rotate(-35)"/>
-            <ellipse rx="9"  ry="34" fill="#e8a015" transform="rotate(-18)"/>
-            <ellipse rx="9"  ry="34" fill="#f0ab18" transform="rotate(0)"/>
-            <ellipse rx="9"  ry="34" fill="#e8a015" transform="rotate(18)"/>
-            <ellipse rx="8"  ry="32" fill="#d98b10" transform="rotate(35)"/>
-            <ellipse rx="8"  ry="32" fill="#c87d0a" transform="rotate(50)"/>
-            <ellipse rx="5.5" ry="22" fill="#f8cc50" transform="rotate(-18) translate(0,-4)"/>
-            <ellipse rx="6"   ry="24" fill="#fdd455" transform="rotate(0)   translate(0,-5)"/>
-            <ellipse rx="5.5" ry="22" fill="#f8cc50" transform="rotate(18)  translate(0,-4)"/>
-            <circle  r="7" fill="#fde070"/>
-          </g>
-          <rect x="51" y="97" width="8" height="16" rx="4" fill="#8B6010"/>
-          <ellipse cx="36" cy="108" rx="16" ry="6" fill="#6a8a20" transform="rotate(-20,36,108)"/>
-          <ellipse cx="74" cy="108" rx="16" ry="6" fill="#6a8a20" transform="rotate(20,74,108)"/>
-        </svg>
+    {{#if this.isFirstPage}}
+    <!-- ════ INFO SECTION ════ -->
+    <div class="info-section">
+      <div class="info-row">
+        <span class="info-label">အမည်</span>
+        <span class="info-value">{{../tenantName}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">ဆိုင်အမှတ်</span>
+        <span class="info-value">{{#if ../unit}}{{../unit.unitNumber}}{{/if}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">ဘောက်ချာနံပါတ်</span>
+        <span class="info-value">{{../invoiceNumber}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">ကောက်ခံသည့်လ</span>
+        <span class="info-value">{{monthYr ../periodFrom}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">ငွေတောင်းခံလွှာပေးသည့်နေ့</span>
+        <span class="info-value">{{dmy ../invoiceDate}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">ငွေပေးသွင်းရန်နောက်ဆုံးနေ့</span>
+        <span class="info-value">{{dmy ../dueDate}}</span>
+      </div>
+    </div>
+    {{/if}}
+
+    <!-- ════ LINE ITEMS TABLE ════ -->
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th class="col-no">စဉ်</th>
+          <th class="col-img"></th>
+          <th class="col-desc">အမျိုးအစားများ</th>
+          <th class="col-sqft">Sq.ft/Unit/Watt</th>
+          <th class="col-rate">ထိန်းသိမ်းခ</th>
+          <th class="col-qty">နူန်း</th>
+          <th class="col-amt">ကျသင့်ငွေ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each this.rows}}
+          {{#if this.isSingle}}
+          <tr class="row-group">
+            <td class="col-no ta-center">{{this.no}}</td>
+            <td class="col-img"></td>
+            <td class="col-desc">{{this.chargeTypeName}}</td>
+            <td class="col-sqft ta-right">{{n2 this.quantity}}</td>
+            <td class="col-rate ta-right"></td>
+            <td class="col-qty  ta-right">{{n2 this.unitPrice}}</td>
+            <td class="col-amt  ta-right">{{mmk this.lineTotal}}</td>
+          </tr>
+          {{else if this.isGroupHeader}}
+          <tr class="row-group">
+            <td class="col-no ta-center">{{this.no}}</td>
+            <td class="col-img"></td>
+            <td class="col-desc">{{this.name}}</td>
+            <td class="col-sqft"></td>
+            <td class="col-rate"></td>
+            <td class="col-qty"></td>
+            <td class="col-amt"></td>
+          </tr>
+          {{else}}
+          <tr class="row-sub">
+            <td class="col-no"></td>
+            <td class="col-img ta-center" style="font-size:11px;">{{this.subNo}}</td>
+            <td class="col-desc pl-14">{{this.chargeTypeName}}</td>
+            <td class="col-sqft ta-right">{{n2 this.quantity}}</td>
+            <td class="col-rate ta-right"></td>
+            <td class="col-qty  ta-right">{{n2 this.unitPrice}}</td>
+            <td class="col-amt  ta-right">{{mmk this.lineTotal}}</td>
+          </tr>
+          {{/if}}
+        {{/each}}
+      </tbody>
+      {{#if this.isLastPage}}
+      <tfoot>
+        <tr class="row-grand">
+          <td colspan="6" class="ta-right" style="padding-right:10px;">Grand Total ({{../displayCurrency}})</td>
+          <td class="col-amt ta-right">{{mmk ../grandTotal}}</td>
+        </tr>
+      </tfoot>
       {{/if}}
-    </div>
-    <div class="title-block">
-      <div class="title-floor">{{property.name}}</div>
-      <div class="title-main">{{company.name}} Utilities Charges</div>
+    </table>
+
+    <!-- ════ FOOTER NOTES ════ -->
+    <div class="footer-wrap">
+      <div class="footer-note">
+        <pre style="font-family:inherit;white-space:pre-wrap;margin:0;">မှတ်ချက်၊၊    ၊၊သတ်မှတ်ရက်အတွင်း လာရောက်ပေးသွင်းနိုင်ရန် ပျက်ကွက်ပါက 
+နောက်ကျကြေးအဖြစ် ကျသင့်ငွေ၏ (၁၀%) နှုန်းဖြင့် ဒါဏ်ကြေး ကောက်ခံမည်</pre>
+      </div>
+      <div class="footer-hours" style="justify-content:space-between;">
+        <div style="display:flex;align-items:baseline;gap:12px;">
+          <span class="label">ငွေလက်ခံချိန်</span>
+          <span class="time">9:00 Am to 4:00 Pm</span>
+        </div>
+        {{#if this.hasMultiPages}}
+          <span style="font-size:11px;color:#475569;">Page {{this.pageNumber}} of {{this.totalPages}}</span>
+        {{/if}}
+      </div>
     </div>
   </div>
-
-  <!-- ════ INFO SECTION ════ -->
-  <div class="info-section">
-    <div class="info-row">
-      <span class="info-label">အမည်</span>
-      <span class="info-value">{{tenantName}}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">ဆိုင်အမှတ်</span>
-      <span class="info-value">{{#if unit}}{{unit.unitNumber}}{{/if}}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">ဘောက်ချာနံပါတ်</span>
-      <span class="info-value">{{invoiceNumber}}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">ကောက်ခံသည့်လ</span>
-      <span class="info-value">{{monthYr periodFrom}}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">ငွေတောင်းခံလွှာပေးသည့်နေ့</span>
-      <span class="info-value">{{dmy invoiceDate}}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">ငွေပေးသွင်းရန်နောက်ဆုံးနေ့</span>
-      <span class="info-value">{{dmy dueDate}}</span>
-    </div>
-  </div>
-
-  <!-- ════ LINE ITEMS TABLE ════ -->
-  <table class="items-table">
-    <thead>
-      <tr>
-        <th class="col-no">စဉ်</th>
-        <th class="col-img"></th>
-        <th class="col-desc">အမျိုးအစားများ</th>
-        <th class="col-sqft">Sq.ft/Unit/Watt</th>
-        <th class="col-rate">ထိန်းသိမ်းခ</th>
-        <th class="col-qty">နူန်း</th>
-        <th class="col-amt">ကျသင့်ငွေ</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each groups}}
-
-      {{#if this.isSingle}}
-      <!-- ── Single-item category: show data on the same row ── -->
-      <tr class="row-group">
-        <td class="col-no ta-center">{{this.no}}</td>
-        <td class="col-img"></td>
-        <td class="col-desc">{{this.items.[0].chargeTypeName}}</td>
-        <td class="col-sqft ta-right">{{n2 this.items.[0].quantity}}</td>
-        <td class="col-rate ta-right">{{n2 this.items.[0].unitPrice}}</td>
-        <td class="col-qty  ta-right"></td>
-        <td class="col-amt  ta-right">{{mmk this.total}}</td>
-      </tr>
-
-      {{else}}
-      <!-- ── Multi-item category: header row then sub-rows ── -->
-      <tr class="row-group">
-        <td class="col-no ta-center">{{this.no}}</td>
-        <td class="col-img"></td>
-        <td class="col-desc">{{this.name}}</td>
-        <td class="col-sqft"></td>
-        <td class="col-rate"></td>
-        <td class="col-qty"></td>
-        <td class="col-amt"></td>
-      </tr>
-      {{#each this.items}}
-      <tr class="row-sub">
-        <td class="col-no"></td>
-        <td class="col-img ta-center" style="font-size:11px;">{{this.subNo}}</td>
-        <td class="col-desc pl-14">{{this.chargeTypeName}}</td>
-        <td class="col-sqft ta-right">{{n2 this.quantity}}</td>
-        <td class="col-rate ta-right">{{n2 this.unitPrice}}</td>
-        <td class="col-qty  ta-right"></td>
-        <td class="col-amt  ta-right">{{mmk this.lineTotal}}</td>
-      </tr>
-      {{/each}}
-
-      {{/if}}
-      {{/each}}
-    </tbody>
-    <tfoot>
-      <tr class="row-grand">
-        <td colspan="6" class="ta-right" style="padding-right:10px;">Grand Total ({{displayCurrency}})</td>
-        <td class="col-amt ta-right">{{mmk grandTotal}}</td>
-      </tr>
-    </tfoot>
-  </table>
-
-  <!-- ════ FOOTER NOTES ════ -->
-  <div class="footer-wrap">
-    <div class="footer-note">
-    <pre>
-မှတ်ချက်၊၊    ၊၊သတ်မှတ်ရက်အတွင်း လာရောက်ပေးသွင်းနိုင်ရန် ပျက်ကွက်ပါက 
-နောက်ကျကြေးအဖြစ် ကျသင့်ငွေ၏ (၁၀%) နှုန်းဖြင့် ဒါဏ်ကြေး ကောက်ခံမည်
-      </pre>
-    </div>
-    <div class="footer-hours">
-      <span class="label">ငွေလက်ခံချိန်</span>
-      <span class="time">9:00 Am to 4:00 Pm</span>
-    </div>
-  </div>
-
+{{/each}}
 </body>
 </html>
 `;
@@ -433,6 +451,84 @@ export class InvoicePdfService {
 
     const grandTotal = convert(Number(invoice.totalAmount));
 
+    const MAX_ROWS_PER_PAGE = 15;
+    const flatRows: Array<{
+      isSingle?: boolean;
+      isGroupHeader?: boolean;
+      no?: number;
+      subNo?: string;
+      name?: string;
+      chargeTypeName?: string;
+      quantity?: number;
+      unitPrice?: number;
+      lineTotal?: number;
+    }> = [];
+
+    for (const g of groups) {
+      if (g.isSingle) {
+        const item = g.items[0];
+        flatRows.push({
+          isSingle: true,
+          no: g.no,
+          chargeTypeName: item.chargeTypeName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: g.total,
+        });
+      } else {
+        flatRows.push({
+          isGroupHeader: true,
+          no: g.no,
+          name: g.name,
+        });
+        for (const item of g.items) {
+          flatRows.push({
+            subNo: item.subNo,
+            chargeTypeName: item.chargeTypeName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.lineTotal,
+          });
+        }
+      }
+    }
+
+    const FIRST_PAGE_MAX_ROWS = 15;
+    const NEXT_PAGE_MAX_ROWS = 21;
+    const rowChunks: Array<typeof flatRows> = [];
+    if (flatRows.length === 0) {
+      rowChunks.push([]);
+    } else {
+      let currentChunk: typeof flatRows = [];
+      for (let i = 0; i < flatRows.length; i++) {
+        currentChunk.push(flatRows[i]);
+        const maxForCurrentPage = rowChunks.length === 0 ? FIRST_PAGE_MAX_ROWS : NEXT_PAGE_MAX_ROWS;
+        if (currentChunk.length >= maxForCurrentPage) {
+          if (currentChunk[currentChunk.length - 1].isGroupHeader && currentChunk.length > 1) {
+            const orphanHeader = currentChunk.pop()!;
+            rowChunks.push(currentChunk);
+            currentChunk = [orphanHeader];
+          } else {
+            rowChunks.push(currentChunk);
+            currentChunk = [];
+          }
+        }
+      }
+      if (currentChunk.length > 0) {
+        rowChunks.push(currentChunk);
+      }
+    }
+
+    const totalPages = rowChunks.length;
+    const pages = rowChunks.map((rows, idx) => ({
+      rows,
+      isFirstPage: idx === 0,
+      isLastPage: idx === totalPages - 1,
+      pageNumber: idx + 1,
+      totalPages,
+      hasMultiPages: totalPages > 1,
+    }));
+
     // ── Resolve property logo URL for Puppeteer ──────────────────────────────
     const rawLogoUrl = (invoice.property as any).coverImageUrl
       || (invoice.property as any).imageUrl
@@ -452,6 +548,7 @@ export class InvoicePdfService {
       ...invoice,
       tenantName,
       groups,
+      pages,
       grandTotal,
       propertyLogoUrl,
       displayCurrency,

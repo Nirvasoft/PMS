@@ -16,21 +16,186 @@ function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T
 export class InvoicesService {
   // ── Query ───────────────────────────────────
 
+  async getReportFilterOptions(companyId: string, propertyId?: string) {
+    const where: any = { companyId };
+    if (propertyId) where.propertyId = propertyId;
+
+    const [dateAgg, unitRows, tenantRows] = await Promise.all([
+      prisma.invoice.aggregate({
+        where,
+        _min: { invoiceDate: true },
+        _max: { invoiceDate: true },
+      }),
+      prisma.unit.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+          ...(propertyId ? { propertyId } : {}),
+        },
+        select: { unitNumber: true, floorNumber: true, floorLabel: true },
+      }),
+      prisma.tenant.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+        },
+        select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true },
+      }),
+    ]);
+
+    const formatFloor = (u: { floorNumber: number | null; floorLabel: string | null }) => {
+      if (u.floorLabel && String(u.floorLabel).trim()) return String(u.floorLabel).trim();
+      if (u.floorNumber != null) return `Floor ${u.floorNumber}`;
+      return '';
+    };
+
+    const formatTenant = (t: { firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string | null }) => {
+      if (t.tenantType && t.tenantType !== 'individual') return t.companyName || '';
+      const full = `${t.firstName || ''} ${t.lastName || ''}`.trim();
+      return full || t.lastName || t.firstName || '';
+    };
+
+    const floorSet = new Set<string>();
+    const units: Array<{ unitNumber: string; floor: string }> = [];
+    for (const u of unitRows) {
+      const fl = formatFloor(u);
+      if (fl) floorSet.add(fl);
+      if (u.unitNumber) {
+        units.push({ unitNumber: u.unitNumber, floor: fl });
+      }
+    }
+
+    const tenantSet = new Set<string>();
+    const tenantItems: Array<{ id: string; firstName: string; lastName: string }> = [];
+    for (const t of tenantRows) {
+      const label = formatTenant(t);
+      if (label) tenantSet.add(label);
+      const fn = (t.firstName || '').trim();
+      const ln = (t.lastName || t.companyName || '').trim();
+      if (fn || ln) {
+        tenantItems.push({ id: t.id, firstName: fn, lastName: ln });
+      }
+    }
+    tenantItems.sort((a, b) =>
+      (a.firstName || a.lastName).localeCompare(b.firstName || b.lastName, undefined, { numeric: true }),
+    );
+
+    const statuses = ['draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
+
+    return {
+      minDate: dateAgg._min.invoiceDate ? dateAgg._min.invoiceDate.toISOString().split('T')[0] : '',
+      maxDate: dateAgg._max.invoiceDate ? dateAgg._max.invoiceDate.toISOString().split('T')[0] : '',
+      floors: Array.from(floorSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+      units: units.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true })),
+      tenants: Array.from(tenantSet).sort(),
+      tenantItems,
+      statuses,
+    };
+  }
+
   async findAll(companyId: string, filters: {
     tenantId?: string; leaseId?: string; propertyId?: string; status?: string;
-    search?: string; from?: string; to?: string; page?: number; limit?: number;
+    billType?: string;
+    search?: string; from?: string; to?: string; floor?: string; unitNumber?: string;
+    tenantName?: string; includeLines?: boolean; includeTotals?: boolean;
+    sortBy?: string; sortOrder?: 'asc' | 'desc';
+    page?: number; limit?: number; all?: boolean;
   }) {
-    const { tenantId, leaseId, propertyId, status, search, from, to, page = 1, limit = 20 } = filters;
+    const {
+      tenantId, leaseId, propertyId, status, billType, search, from, to,
+      floor, unitNumber, tenantName, includeLines = true, includeTotals = false,
+      sortBy, sortOrder = 'asc',
+      page = 1, limit = 20, all = false,
+    } = filters;
     const where: any = { companyId };
     if (tenantId) where.tenantId = tenantId;
     if (leaseId) where.leaseId = leaseId;
     if (propertyId) where.propertyId = propertyId;
     if (status) where.status = status;
+
+    if (billType === 'rental') {
+      const rentChargeTypes = await prisma.chargeType.findMany({
+        where: {
+          OR: [
+            { category: { equals: 'rent', mode: 'insensitive' } },
+            { code: { in: ['RENT', 'rent'] } },
+          ],
+          AND: [{ OR: [{ companyId: null }, { companyId }] }],
+        },
+        select: { id: true },
+      });
+      const rentChargeTypeIds = rentChargeTypes.map((ct) => ct.id);
+      where.lines = { some: { chargeTypeId: { in: rentChargeTypeIds } } };
+    } else if (billType === 'monthly') {
+      const monthlyCategories = await prisma.chargeCategory.findMany({
+        where: {
+          isActive: true,
+          monthly: true,
+          OR: [{ companyId: null }, { companyId }],
+        },
+        select: { code: true },
+      });
+      const monthlyCategoryCodes = monthlyCategories.map((c) => c.code);
+      let monthlyChargeTypeIds: string[] = [];
+      if (monthlyCategoryCodes.length > 0) {
+        const monthlyChargeTypes = await prisma.chargeType.findMany({
+          where: {
+            OR: monthlyCategoryCodes.map((code) => ({
+              category: { equals: code, mode: 'insensitive' as const },
+            })),
+            AND: [{ OR: [{ companyId: null }, { companyId }] }],
+          },
+          select: { id: true },
+        });
+        monthlyChargeTypeIds = monthlyChargeTypes.map((ct) => ct.id);
+      }
+      where.lines = { some: { chargeTypeId: { in: monthlyChargeTypeIds } } };
+    }
+
     if (from || to) {
       where.invoiceDate = {};
       if (from) where.invoiceDate.gte = new Date(from);
-      if (to) where.invoiceDate.lte = new Date(to);
+      if (to) {
+        const toStr = to.trim();
+        where.invoiceDate.lte = toStr.length === 10 ? new Date(`${toStr}T23:59:59.999Z`) : new Date(toStr);
+      }
     }
+
+    if (floor || unitNumber) {
+      const unitWhere: any = {};
+      if (unitNumber) unitWhere.unitNumber = unitNumber;
+      if (floor) {
+        const floorMatch = /^Floor\s+(-?\d+)$/i.exec(floor.trim());
+        if (floorMatch) {
+          const flNum = parseInt(floorMatch[1], 10);
+          unitWhere.OR = [
+            { floorLabel: floor.trim() },
+            { floorNumber: flNum },
+          ];
+        } else {
+          unitWhere.floorLabel = floor.trim();
+        }
+      }
+      where.unit = unitWhere;
+    }
+
+    if (tenantName?.trim()) {
+      const target = tenantName.trim().toLowerCase();
+      const allTenants = await prisma.tenant.findMany({
+        where: { companyId },
+        select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true },
+      });
+      const matchedIds = allTenants
+        .filter((t) => {
+          const label = t.tenantType && t.tenantType !== 'individual'
+            ? (t.companyName || '')
+            : (`${t.firstName || ''} ${t.lastName || ''}`.trim() || t.lastName || t.firstName || '');
+          return label.toLowerCase() === target;
+        })
+        .map((t) => t.id);
+      where.tenantId = { in: matchedIds };
+    }
+
     // Matches the invoice number, or an individual tenant's first/last name, or a company
     // tenant's name — searched server-side so it covers every matching invoice, not just
     // whichever page is loaded.
@@ -45,14 +210,50 @@ export class InvoicesService {
       ];
     }
 
-    const [data, total] = await Promise.all([
+    let orderByClause: any = { createdAt: 'desc' };
+    if (sortBy) {
+      const dir: 'asc' | 'desc' = sortOrder === 'desc' ? 'desc' : 'asc';
+      switch (sortBy) {
+        case 'issueDate':
+          orderByClause = [{ invoiceDate: dir }, { invoiceNumber: dir }];
+          break;
+        case 'dueDate':
+          orderByClause = [{ dueDate: dir }, { invoiceNumber: dir }];
+          break;
+        case 'floor':
+          orderByClause = [{ unit: { floorNumber: dir } }, { unit: { floorLabel: dir } }, { invoiceNumber: dir }];
+          break;
+        case 'unit':
+          orderByClause = [{ unit: { unitNumber: dir } }, { invoiceNumber: dir }];
+          break;
+        case 'tenant':
+          orderByClause = [{ tenant: { companyName: dir } }, { tenant: { firstName: dir } }, { tenant: { lastName: dir } }];
+          break;
+        case 'totalAmount':
+          orderByClause = [{ totalAmount: dir }, { invoiceNumber: dir }];
+          break;
+        case 'invoiceNumber':
+        default:
+          orderByClause = { invoiceNumber: dir };
+          break;
+      }
+    }
+
+    // Avoid PostgreSQL's 32,767 bind-parameter limit on `WHERE invoice_id IN (...)` when fetching large sets
+    const includeLinesDirectly = includeLines && !all && limit <= 2000;
+
+    const [data, total, currencyGroupTotals] = await Promise.all([
       prisma.invoice.findMany({
         where,
         include: {
-          lines: {
-            include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
-            orderBy: { sortOrder: 'asc' },
-          },
+          ...(includeLinesDirectly
+            ? {
+                lines: {
+                  include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
+                  orderBy: { sortOrder: 'asc' as const },
+                },
+              }
+            : {}),
           tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, currency: true } },
           unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
           property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
@@ -60,14 +261,75 @@ export class InvoicesService {
           costCenter: { select: { id: true, code: true, name: true } },
           _count: { select: { lines: true } },
         },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
+        orderBy: orderByClause,
+        ...(all ? {} : { skip: (page - 1) * limit, take: limit }),
       }),
       prisma.invoice.count({ where }),
+      includeTotals
+        ? prisma.invoice.groupBy({
+            by: ['currency'],
+            where,
+            _sum: {
+              subtotal: true,
+              taxAmount: true,
+              totalAmount: true,
+              paidAmount: true,
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
-    return { data: data.map(withOutstanding), meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    if (!includeLinesDirectly && includeLines && data.length > 0) {
+      const CHUNK_SIZE = 5000;
+      const linesByInvoiceId = new Map<string, any[]>();
+      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        const chunkIds = data.slice(i, i + CHUNK_SIZE).map((inv) => inv.id);
+        const chunkLines = await prisma.invoiceLine.findMany({
+          where: { invoiceId: { in: chunkIds } },
+          include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
+          orderBy: { sortOrder: 'asc' },
+        });
+        for (const line of chunkLines) {
+          const arr = linesByInvoiceId.get(line.invoiceId) || [];
+          arr.push(line);
+          linesByInvoiceId.set(line.invoiceId, arr);
+        }
+      }
+      for (const inv of data as any[]) {
+        inv.lines = linesByInvoiceId.get(inv.id) || [];
+      }
+    }
+
+    let totalsByCurrency: Record<string, { subtotal: number; tax: number; total: number; paid: number; outstanding: number }> | undefined;
+    if (currencyGroupTotals) {
+      totalsByCurrency = {};
+      for (const row of currencyGroupTotals) {
+        const cur = row.currency || 'USD';
+        const subtotal = Number(row._sum.subtotal || 0);
+        const tax = Number(row._sum.taxAmount || 0);
+        const totalAmt = Number(row._sum.totalAmount || 0);
+        const paid = Number(row._sum.paidAmount || 0);
+        totalsByCurrency[cur] = {
+          subtotal,
+          tax,
+          total: totalAmt,
+          paid,
+          outstanding: Math.max(0, totalAmt - paid),
+        };
+      }
+    }
+
+    const effectiveLimit = all ? (total || 1) : limit;
+    return {
+      data: data.map(withOutstanding),
+      meta: {
+        total,
+        page: all ? 1 : page,
+        limit: effectiveLimit,
+        totalPages: all ? 1 : Math.ceil(total / limit),
+        ...(totalsByCurrency ? { totalsByCurrency } : {}),
+      },
+    };
   }
 
   async findById(id: string, companyId: string) {

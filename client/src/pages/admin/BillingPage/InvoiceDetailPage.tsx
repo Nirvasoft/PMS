@@ -174,7 +174,7 @@ export default function InvoiceDetailPage() {
 
   const tenantName = inv.tenant.tenantType !== 'individual'
     ? inv.tenant.companyName || ''
-    : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
+    : (inv.tenant.lastName || '').trim();
 
   const outstanding = Number(inv.totalAmount) - Number(inv.paidAmount);
 
@@ -286,8 +286,8 @@ export default function InvoiceDetailPage() {
           <div className="imi-value">{tenantName}</div>
         </div>
         <div className="invoice-meta-item">
-          <div className="imi-label">Property</div>
-          <div className="imi-value">{inv.property?.name}{inv.unit ? ` | ${inv.unit.unitNumber}` : ''}</div>
+          <div className="imi-label">Unit</div>
+          <div className="imi-value">{inv.unit?.unitNumber || '—'}</div>
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Invoice Date</div>

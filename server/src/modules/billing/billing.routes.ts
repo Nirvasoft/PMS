@@ -180,19 +180,44 @@ billingSchedulesRouter.post('/:id/cancel', asyncHandler(async (req, res) => {
 // ════════════════════════════════════════════════
 export const invoicesRouter = Router();
 
+const qStr = (val: unknown): string | undefined => {
+  if (typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return undefined;
+  return trimmed;
+};
+
 invoicesRouter.get('/', asyncHandler(async (req, res) => {
+  const rawOrder = qStr(req.query.sortOrder);
   const result = await invoicesService.findAll(req.user!.companyId, {
-    tenantId: req.query.tenantId as string,
-    leaseId: req.query.leaseId as string,
-    propertyId: req.query.propertyId as string,
-    status: req.query.status as string,
-    search: req.query.search as string,
-    from: req.query.from as string,
-    to: req.query.to as string,
+    tenantId: qStr(req.query.tenantId),
+    leaseId: qStr(req.query.leaseId),
+    propertyId: qStr(req.query.propertyId),
+    status: qStr(req.query.status),
+    billType: qStr(req.query.billType),
+    search: qStr(req.query.search),
+    from: qStr(req.query.from),
+    to: qStr(req.query.to),
+    floor: qStr(req.query.floor),
+    unitNumber: qStr(req.query.unitNumber),
+    tenantName: qStr(req.query.tenantName),
+    includeLines: req.query.includeLines !== 'false',
+    includeTotals: req.query.includeTotals === 'true',
+    sortBy: qStr(req.query.sortBy),
+    sortOrder: rawOrder === 'desc' ? 'desc' : (rawOrder === 'asc' ? 'asc' : undefined),
     page: parseInt(req.query.page as string) || 1,
-    limit: Math.min(parseInt(req.query.limit as string) || 20, 5000),
+    limit: parseInt(req.query.limit as string) || 20,
+    all: req.query.all === 'true',
   });
   res.json({ success: true, ...result });
+}));
+
+invoicesRouter.get('/report-filters', asyncHandler(async (req, res) => {
+  const data = await invoicesService.getReportFilterOptions(
+    req.user!.companyId,
+    qStr(req.query.propertyId),
+  );
+  res.json({ success: true, data });
 }));
 
 invoicesRouter.get('/dashboard-summary', asyncHandler(async (req, res) => {

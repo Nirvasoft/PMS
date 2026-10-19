@@ -324,11 +324,32 @@ export const billingApi = createApi({
     }),
 
     // ── Invoices ──────────────────────────
-    getInvoices: builder.query<PaginatedResponse<InvoiceListItem>, {
+    getInvoices: builder.query<PaginatedResponse<InvoiceListItem> & {
+      meta: PaginatedResponse<InvoiceListItem>['meta'] & {
+        totalsByCurrency?: Record<string, { subtotal: number; tax: number; total: number; paid: number; outstanding: number }>;
+      };
+    }, {
       tenantId?: string; leaseId?: string; propertyId?: string; status?: string;
-      search?: string; from?: string; to?: string; page?: number; limit?: number;
+      billType?: string;
+      search?: string; from?: string; to?: string; floor?: string; unitNumber?: string;
+      tenantName?: string; includeLines?: boolean; includeTotals?: boolean;
+      sortBy?: string; sortOrder?: 'asc' | 'desc';
+      page?: number; limit?: number; all?: boolean;
     }>({
       query: (params) => ({ url: '/invoices', params }),
+      providesTags: ['Invoices'],
+    }),
+
+    getInvoiceReportFilters: builder.query<ApiResponse<{
+      minDate: string;
+      maxDate: string;
+      floors: string[];
+      units: Array<{ unitNumber: string; floor: string }>;
+      tenants: string[];
+      tenantItems?: Array<{ id: string; firstName: string; lastName: string }>;
+      statuses: string[];
+    }>, { propertyId?: string } | void>({
+      query: (params) => ({ url: '/invoices/report-filters', params: params || {} }),
       providesTags: ['Invoices'],
     }),
 
@@ -423,6 +444,7 @@ export const {
   useUpdateScheduleMutation,
   useGetInvoicesQuery,
   useLazyGetInvoicesQuery,
+  useGetInvoiceReportFiltersQuery,
   useGetBillingDashboardSummaryQuery,
   useGetInvoiceQuery,
   useCreateInvoiceMutation,

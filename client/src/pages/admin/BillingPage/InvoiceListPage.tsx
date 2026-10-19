@@ -2,7 +2,8 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
-  useGetInvoicesQuery, useRunBillingMutation, useGetBillingSchedulesQuery,
+  useGetInvoicesQuery, useLazyGetInvoicesQuery, useGetInvoiceReportFiltersQuery,
+  useRunBillingMutation, useGetBillingSchedulesQuery,
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
   useGetCurrencyRatesQuery, type InvoiceListItem,
 } from '../../../store/api/billingApi';
@@ -19,6 +20,7 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import ComboBox from '../../../components/ComboBox';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
 import { openInvoicesReportPreview, type InvoiceReportType } from './utils/invoicePrintPreview';
 import './BillingPage.css';
@@ -32,6 +34,7 @@ export default function InvoiceListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [status, setStatus] = useState('');
+  const [billType, setBillType] = useState('');
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
@@ -47,12 +50,13 @@ export default function InvoiceListPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Reset pagination whenever the sidebar's Active Property, status, pageSize, or search changes.
-  useEffect(() => { setPage(1); }, [activePropertyFilter, status, debouncedSearch, pageSize]);
+  // Reset pagination whenever the sidebar's Active Property, status, billType, pageSize, or search changes.
+  useEffect(() => { setPage(1); }, [activePropertyFilter, status, billType, debouncedSearch, pageSize]);
 
   const { data, isFetching, refetch } = useGetInvoicesQuery({
     propertyId: activePropertyFilter || undefined,
     status: status || undefined,
+    billType: billType || undefined,
     search: debouncedSearch || undefined,
     page, limit: pageSize,
   });
@@ -359,6 +363,11 @@ export default function InvoiceListPage() {
             <Search size={15} className="search-icon" />
             <input type="text" placeholder="Search invoice or tenant" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
+          <select className="filter-select" value={billType} onChange={e => { setBillType(e.target.value); setPage(1); clearSelection(); }}>
+            <option value="">All Bills</option>
+            <option value="monthly">Monthly Bill</option>
+            <option value="rental">Rental Bill</option>
+          </select>
           <select className="filter-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); clearSelection(); }}>
             <option value="">All Statuses</option>
             {STATUS_OPTIONS.filter(Boolean).map(s => (
@@ -420,7 +429,6 @@ export default function InvoiceListPage() {
               <th style={{ width: 140 }}>Invoice #</th>
               <th style={{ width: 160 }}>Tenant</th>
               <th style={{ width: 120 }}>Unit</th>
-              <th className="text-right" style={{ width: 110 }}>Total</th>
               <th className="text-right" style={{ width: 110 }}>Paid</th>
               <th style={{ width: 120 }}>Status</th>
               <th style={{ width: 110 }}>Due Date</th>
@@ -429,7 +437,7 @@ export default function InvoiceListPage() {
           <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={8}>
                   <div className="billing-empty">
                     {isFetching ? 'Loading invoices…' : 'No invoices found.'}
                   </div>
@@ -472,13 +480,6 @@ export default function InvoiceListPage() {
                     </td>
                     <td>
                       <div className="cell-primary">{inv.unit?.unitNumber || '—'}</div>
-                    </td>
-                    <td className="text-right">
-                      <span className="cell-amount">
-                        {inv.tenant?.currency && inv.tenant.currency !== inv.currency
-                          ? formatCurrency(convertCurrency(Number(inv.totalAmount), inv.currency, inv.tenant.currency), inv.tenant.currency)
-                          : formatCurrency(inv.totalAmount, inv.currency)}
-                      </span>
                     </td>
                     <td className="text-right">
                       <span className={`cell-amount ${paidNum > 0 ? (paidNum >= totalNum ? 'paid' : '') : 'zero'}`}>
@@ -818,12 +819,12 @@ function ViewInvoiceReportModal({
   activeProperty: string;
   onClose: () => void;
 }) {
-  const { data: allInvoicesData, isFetching: loadingInvoices } = useGetInvoicesQuery({
-    propertyId: activeProperty || undefined,
-    page: 1,
-    limit: 5000,
-  });
-  const allInvoices = allInvoicesData?.data || [];
+  const { data: filterMetaResp, isFetching: loadingFilterMeta } = useGetInvoiceReportFiltersQuery(
+    activeProperty ? { propertyId: activeProperty } : undefined,
+  );
+  const filterMeta = filterMetaResp?.data;
+
+  const [triggerFetchReportInvoices, { isFetching: generatingReport }] = useLazyGetInvoicesQuery();
 
   const getTenantLabel = (inv: InvoiceListItem) => {
     if (!inv.tenant) return '—';
@@ -851,24 +852,19 @@ function ViewInvoiceReportModal({
   const getInvoiceDateStr = (inv: InvoiceListItem) =>
     toDateInputStr(inv.invoiceDate || (inv as any).issueDate);
 
-  const defaultDates = useMemo(() => {
-    const dates = allInvoices
-      .map(inv => getInvoiceDateStr(inv))
-      .filter(Boolean)
-      .sort();
-    return {
-      min: dates[0] || '',
-      max: dates[dates.length - 1] || '',
-    };
-  }, [allInvoices]);
+  const defaultDates = useMemo(() => ({
+    min: filterMeta?.minDate || '',
+    max: filterMeta?.maxDate || '',
+  }), [filterMeta?.minDate, filterMeta?.maxDate]);
 
   const [reportType, setReportType] = useState<InvoiceReportType>('summary');
+  const [billType, setBillType] = useState<string>('');
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [datesInitialized, setDatesInitialized] = useState(false);
   const [floor, setFloor] = useState<string>('');
   const [unitNumber, setUnitNumber] = useState<string>('');
-  const [tenantName, setTenantName] = useState<string>('');
+  const [tenantId, setTenantId] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('invoiceNumber');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -882,55 +878,60 @@ function ViewInvoiceReportModal({
     }
   }, [defaultDates.min, defaultDates.max, datesInitialized]);
 
-  const floorOptions = useMemo(() => {
-    const set = new Set<string>();
-    allInvoices.forEach(inv => {
-      const fl = getFloorLabel(inv);
-      if (fl) set.add(fl);
-    });
-    return Array.from(set).sort();
-  }, [allInvoices]);
+  const countQueryParams = useMemo(() => {
+    const p: Record<string, any> = { page: 1, limit: 1, includeLines: false };
+    if (activeProperty) p.propertyId = activeProperty;
+    if (billType) p.billType = billType;
+    if (fromDate) p.from = fromDate;
+    if (toDate) p.to = toDate;
+    if (floor) p.floor = floor;
+    if (unitNumber) p.unitNumber = unitNumber;
+    if (tenantId) p.tenantId = tenantId;
+    if (statusFilter) p.status = statusFilter;
+    return p;
+  }, [activeProperty, billType, fromDate, toDate, floor, unitNumber, tenantId, statusFilter]);
+
+  const { data: countCheckData, isFetching: checkingCount } = useGetInvoicesQuery(countQueryParams);
+  const matchedCount = countCheckData?.meta?.total ?? 0;
+  const loadingInvoices = loadingFilterMeta || checkingCount || generatingReport;
+
+  const floorOptions = useMemo(() => filterMeta?.floors || [], [filterMeta?.floors]);
 
   const unitOptions = useMemo(() => {
+    const list = filterMeta?.units || [];
     const set = new Set<string>();
-    allInvoices.forEach(inv => {
-      if (floor && getFloorLabel(inv) !== floor) return;
-      if (inv.unit?.unitNumber) set.add(inv.unit.unitNumber);
+    list.forEach(u => {
+      if (floor && u.floor !== floor) return;
+      if (u.unitNumber) set.add(u.unitNumber);
     });
-    return Array.from(set).sort();
-  }, [allInvoices, floor]);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [filterMeta?.units, floor]);
 
-  const tenantOptions = useMemo(() => {
-    const set = new Set<string>();
-    allInvoices.forEach(inv => {
-      const label = getTenantLabel(inv);
-      if (label && label !== '—') set.add(label);
+  const tenantComboOptions = useMemo(() => {
+    const items = filterMeta?.tenantItems || [];
+    return items.map((t) => {
+      const topLine = t.firstName || t.lastName;
+      const subLine = t.firstName && t.lastName && t.lastName !== t.firstName ? t.lastName : undefined;
+      return {
+        id: t.id,
+        label: topLine,
+        sublabel: subLine,
+      };
     });
-    return Array.from(set).sort();
-  }, [allInvoices]);
+  }, [filterMeta?.tenantItems]);
 
-  const statusOptions = useMemo(() => {
-    const set = new Set<string>();
-    allInvoices.forEach(inv => {
-      if (inv.status) set.add(inv.status);
-    });
-    return Array.from(set).sort();
-  }, [allInvoices]);
+  const selectedTenantDisplay = useMemo(() => {
+    if (!tenantId) return '';
+    const found = (filterMeta?.tenantItems || []).find((t) => t.id === tenantId);
+    if (!found) return '';
+    return [found.firstName, found.lastName].filter(Boolean).join(' - ');
+  }, [tenantId, filterMeta?.tenantItems]);
 
-  const matchedInvoices = useMemo(() => {
-    const filtered = allInvoices.filter(inv => {
-      const issueDay = getInvoiceDateStr(inv);
-      if (fromDate && (!issueDay || issueDay < fromDate)) return false;
-      if (toDate && (!issueDay || issueDay > toDate)) return false;
-      if (floor && getFloorLabel(inv) !== floor) return false;
-      if (unitNumber && (inv.unit?.unitNumber || '') !== unitNumber) return false;
-      if (tenantName && getTenantLabel(inv) !== tenantName) return false;
-      if (statusFilter && inv.status !== statusFilter) return false;
-      return true;
-    });
+  const statusOptions = useMemo(() => filterMeta?.statuses || [], [filterMeta?.statuses]);
 
+  const sortInvoicesList = useCallback((list: InvoiceListItem[]) => {
     const dir = sortOrder === 'asc' ? 1 : -1;
-    return [...filtered].sort((a, b) => {
+    return [...list].sort((a, b) => {
       switch (sortBy) {
         case 'issueDate': {
           const da = getInvoiceDateStr(a);
@@ -955,31 +956,32 @@ function ViewInvoiceReportModal({
           return (a.invoiceNumber || '').localeCompare(b.invoiceNumber || '', undefined, { numeric: true }) * dir;
       }
     });
-  }, [allInvoices, fromDate, toDate, floor, unitNumber, tenantName, statusFilter, sortBy, sortOrder]);
+  }, [sortBy, sortOrder]);
 
   useEffect(() => {
     if (fromDate && toDate && fromDate > toDate) {
       setValidationError('From Date cannot be later than To Date.');
-    } else if (!loadingInvoices && matchedInvoices.length === 0) {
+    } else if (!loadingFilterMeta && !checkingCount && matchedCount === 0) {
       setValidationError('No invoices match the current filter criteria.');
     } else {
       setValidationError('');
     }
-  }, [fromDate, toDate, matchedInvoices.length, loadingInvoices]);
+  }, [fromDate, toDate, matchedCount, loadingFilterMeta, checkingCount]);
 
   const handleResetFilters = () => {
+    setBillType('');
     setFromDate(defaultDates.min);
     setToDate(defaultDates.max);
     setFloor('');
     setUnitNumber('');
-    setTenantName('');
+    setTenantId('');
     setStatusFilter('');
     setSortBy('invoiceNumber');
     setSortOrder('asc');
     setValidationError('');
   };
 
-  const handleGenerateReport = () => {
+  const handleGenerateReport = async () => {
     if (!reportType) {
       toast.error('Please select a Report Type');
       return;
@@ -988,26 +990,91 @@ function ViewInvoiceReportModal({
       toast.error('From Date cannot be later than To Date');
       return;
     }
-    if (matchedInvoices.length === 0) {
+    if (matchedCount === 0) {
       toast.error('No invoices match the validation criteria');
       return;
     }
-    const opened = openInvoicesReportPreview({
-      reportType,
-      invoices: matchedInvoices,
-      filters: {
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
-        floor: floor || undefined,
-        unit: unitNumber || undefined,
-        tenant: tenantName || undefined,
-        status: statusFilter || undefined,
-      },
-    });
-    if (!opened) {
+
+    const previewWin = window.open('', '_blank');
+    if (!previewWin) {
       toast.error('Popup blocked! Please allow popups for this site to view the report.');
       return;
     }
+    previewWin.document.write('<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1e293b;color:#f8fafc;"><h3>Generating Invoice Report…</h3></body></html>');
+
+    const baseFilterParams: Record<string, any> = {
+      includeLines: reportType !== 'summary',
+      sortBy,
+      sortOrder,
+    };
+    if (activeProperty) baseFilterParams.propertyId = activeProperty;
+    if (billType) baseFilterParams.billType = billType;
+    if (fromDate) baseFilterParams.from = fromDate;
+    if (toDate) baseFilterParams.to = toDate;
+    if (floor) baseFilterParams.floor = floor;
+    if (unitNumber) baseFilterParams.unitNumber = unitNumber;
+    if (tenantId) baseFilterParams.tenantId = tenantId;
+    if (statusFilter) baseFilterParams.status = statusFilter;
+
+    const reportFiltersInfo = {
+      billType: billType ? (billType === 'monthly' ? 'Monthly Bill' : 'Rental Bill') : undefined,
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+      floor: floor || undefined,
+      unit: unitNumber || undefined,
+      tenant: selectedTenantDisplay || undefined,
+      status: statusFilter || undefined,
+    };
+
+    const loadReportPage = async (
+      targetPage: number,
+      targetPageSize: number,
+      cachedTotals?: Record<string, { subtotal: number; tax: number; total: number; paid: number; outstanding: number }>,
+    ) => {
+      try {
+        const res = await triggerFetchReportInvoices({
+          ...baseFilterParams,
+          page: targetPage,
+          limit: targetPageSize,
+          includeTotals: !cachedTotals,
+        }).unwrap();
+
+        const fetched = res?.data || [];
+        if (fetched.length === 0 && targetPage === 1) {
+          previewWin.close();
+          toast.error('No invoices match the validation criteria');
+          return;
+        }
+
+        const total = res?.meta?.total ?? matchedCount;
+        const totalPages = res?.meta?.totalPages ?? Math.max(1, Math.ceil(total / targetPageSize));
+        const totalsByCurrency = cachedTotals || res?.meta?.totalsByCurrency;
+
+        openInvoicesReportPreview({
+          reportType,
+          invoices: fetched,
+          targetWindow: previewWin,
+          filters: reportFiltersInfo,
+          pagination: {
+            page: targetPage,
+            pageSize: targetPageSize,
+            total,
+            totalPages,
+            totalsByCurrency,
+            onPageChange: (nextPage, nextSize) => {
+              loadReportPage(nextPage, nextSize, totalsByCurrency);
+            },
+          },
+        });
+      } catch (err: any) {
+        if (targetPage === 1) {
+          previewWin.close();
+        }
+        toast.error(err?.data?.errors?.[0]?.message || 'Failed to generate invoice report');
+      }
+    };
+
+    await loadReportPage(1, 500);
     onClose();
   };
 
@@ -1022,36 +1089,49 @@ function ViewInvoiceReportModal({
         </div>
 
         <div className="rb-body">
-          {/* Report Type */}
-          <div className="rb-field">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Report Type & Bill Type */}
+          <div className="rb-grid-2">
+            <div className="rb-field">
               <label>Report Type <span style={{ color: '#ef4444' }}>*</span></label>
-              {(floor || unitNumber || tenantName || statusFilter || sortBy !== 'invoiceNumber' || sortOrder !== 'asc' || fromDate !== defaultDates.min || toDate !== defaultDates.max) && (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--accent, #10b981)',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  Reset Filters
-                </button>
-              )}
+              <select
+                value={reportType}
+                onChange={e => setReportType(e.target.value as InvoiceReportType)}
+              >
+                <option value="summary">Invoice Summary Report</option>
+                <option value="detail">Invoice Detail Report</option>
+                <option value="voucher">Invoice Voucher Print Preview</option>
+              </select>
             </div>
-            <select
-              value={reportType}
-              onChange={e => setReportType(e.target.value as InvoiceReportType)}
-            >
-              <option value="summary">Invoice Summary Report</option>
-              <option value="detail">Invoice Detail Report</option>
-              <option value="voucher">Invoice Voucher Print Preview</option>
-            </select>
+            <div className="rb-field">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label>Bill Type</label>
+                {(billType || floor || unitNumber || tenantId || statusFilter || sortBy !== 'invoiceNumber' || sortOrder !== 'asc' || fromDate !== defaultDates.min || toDate !== defaultDates.max) && (
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent, #10b981)',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
+              <select
+                value={billType}
+                onChange={e => setBillType(e.target.value)}
+              >
+                <option value="">All Bills</option>
+                <option value="monthly">Monthly Bill</option>
+                <option value="rental">Rental Bill</option>
+              </select>
+            </div>
           </div>
 
           {/* Date Range Validation */}
@@ -1111,15 +1191,14 @@ function ViewInvoiceReportModal({
           <div className="rb-grid-2">
             <div className="rb-field">
               <label>Tenant</label>
-              <select
-                value={tenantName}
-                onChange={e => setTenantName(e.target.value)}
-              >
-                <option value="">All Tenants</option>
-                {tenantOptions.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+              <ComboBox
+                id="report-tenant"
+                value={tenantId}
+                placeholder="All Tenants"
+                emptyText="No tenants found"
+                options={tenantComboOptions}
+                onChange={val => setTenantId(val)}
+              />
             </div>
             <div className="rb-field">
               <label>Status</label>
@@ -1196,7 +1275,7 @@ function ViewInvoiceReportModal({
           <button
             className="btn btn-primary"
             onClick={handleGenerateReport}
-            disabled={loadingInvoices || !!validationError || matchedInvoices.length === 0}
+            disabled={loadingInvoices || !!validationError || matchedCount === 0}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <Eye size={14} /> {loadingInvoices ? 'Loading…' : 'View Report'}
