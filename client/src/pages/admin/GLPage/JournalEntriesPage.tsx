@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, Eye, X } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, Eye, Search, X } from 'lucide-react';
 import {
   useGetJournalEntriesQuery, useCreateJournalEntryMutation,
   usePostJournalEntryMutation, useReverseJournalEntryMutation,
@@ -50,6 +50,8 @@ export default function JournalEntriesPage() {
   const selectedPropertyId = useSelectedPropertyFilter();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [viewingEntry, setViewingEntry] = useState<any | null>(null);
@@ -58,9 +60,18 @@ export default function JournalEntriesPage() {
     setPage(1);
   }, [selectedPropertyId]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const { data, isLoading } = useGetJournalEntriesQuery({
     page,
     limit,
+    search: debouncedSearch || undefined,
     status: statusFilter || undefined,
     propertyId: selectedPropertyId || undefined,
   });
@@ -109,6 +120,47 @@ export default function JournalEntriesPage() {
       </div>
 
       <div className="gl-toolbar">
+        <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: 360 }}>
+          <Search
+            size={15}
+            style={{
+              position: 'absolute',
+              left: 11,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-muted)',
+              pointerEvents: 'none',
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Search JE #, description, department, cost center…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: '100%', paddingLeft: 34, paddingRight: search ? 30 : 12, boxSizing: 'border-box' }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute',
+                right: 8,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: 2,
+                display: 'flex',
+              }}
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="">All Status</option>
           <option value="draft">Draft</option>

@@ -145,8 +145,11 @@ export interface InvoiceListItem {
   departmentCenter?: { id: string; code: string; name: string } | null;
   costCenter?: { id: string; code: string; name: string } | null;
   tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string; currency: string | null };
-  unit: { id: string; unitNumber: string } | null;
+  unit: { id: string; unitNumber: string; floorNumber?: number | null; floorLabel?: string | null } | null;
   property: { id: string; name: string; coverImageUrl?: string | null; imageUrl?: string | null };
+  periodFrom?: string | null;
+  periodTo?: string | null;
+  lines?: InvoiceLine[];
   outstandingAmount: number;
   _count: { lines: number };
 }

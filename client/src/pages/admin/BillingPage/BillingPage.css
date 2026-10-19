@@ -2099,6 +2099,17 @@
   color: #ffffff;
 }
 
+.bulk-actions-bar .bulk-btn.report {
+  background: rgba(139, 92, 246, 0.18);
+  border-color: rgba(139, 92, 246, 0.35);
+  color: #c4b5fd;
+}
+.bulk-actions-bar .bulk-btn.report:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.32);
+  border-color: rgba(139, 92, 246, 0.55);
+  color: #ffffff;
+}
+
 .bulk-actions-bar .bulk-btn.v6-erp {
   background: rgba(16, 185, 129, 0.15);
   border-color: rgba(16, 185, 129, 0.3);
@@ -2174,6 +2185,19 @@
   border-color: #065f46;
   color: #ffffff;
   box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3);
+}
+
+[data-theme="light"] .bulk-actions-bar .bulk-btn.report {
+  background: #7c3aed;
+  border-color: #6d28d9;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.22);
+}
+[data-theme="light"] .bulk-actions-bar .bulk-btn.report:hover:not(:disabled) {
+  background: #6d28d9;
+  border-color: #5b21b6;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(124, 58, 237, 0.3);
 }
 
 [data-theme="light"] .bulk-actions-bar .bulk-btn.v6-erp {

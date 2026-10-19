@@ -49,9 +49,13 @@ export class InvoicesService {
       prisma.invoice.findMany({
         where,
         include: {
+          lines: {
+            include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
+            orderBy: { sortOrder: 'asc' },
+          },
           tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, currency: true } },
-          unit: { select: { id: true, unitNumber: true } },
-          property: { select: { id: true, name: true } },
+          unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
+          property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
           departmentCenter: { select: { id: true, code: true, name: true } },
           costCenter: { select: { id: true, code: true, name: true } },
           _count: { select: { lines: true } },
@@ -75,7 +79,7 @@ export class InvoicesService {
           orderBy: { sortOrder: 'asc' },
         },
         tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, email: true, currency: true } },
-        unit: { select: { id: true, unitNumber: true } },
+        unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
         property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
         departmentCenter: { select: { id: true, code: true, name: true } },
         costCenter: { select: { id: true, code: true, name: true } },

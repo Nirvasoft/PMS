@@ -395,14 +395,79 @@ class GlService {
 
   async getJournalEntries(companyId: string, params: any) {
     const where: any = { companyId };
+    const andConditions: any[] = [];
     if (params.entryType) where.entryType = params.entryType;
     if (params.status) where.status = params.status;
     if (params.fiscalPeriodId) where.fiscalPeriodId = params.fiscalPeriodId;
-    if (params.propertyId) where.lines = { some: { propertyId: params.propertyId } };
+    if (params.propertyId) {
+      andConditions.push({ lines: { some: { propertyId: params.propertyId } } });
+    }
     if (params.from || params.to) {
       where.entryDate = {};
       if (params.from) where.entryDate.gte = new Date(params.from);
       if (params.to) where.entryDate.lte = new Date(params.to);
+    }
+    const q = typeof params.search === 'string' ? params.search.trim() : '';
+    if (q) {
+      andConditions.push({
+        OR: [
+          { journalNumber: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+          { entryType: { contains: q, mode: 'insensitive' } },
+          {
+            lines: {
+              some: {
+                OR: [
+                  { description: { contains: q, mode: 'insensitive' } },
+                  {
+                    departmentCenter: {
+                      OR: [
+                        { code: { contains: q, mode: 'insensitive' } },
+                        { name: { contains: q, mode: 'insensitive' } },
+                      ],
+                    },
+                  },
+                  {
+                    costCenter: {
+                      OR: [
+                        { code: { contains: q, mode: 'insensitive' } },
+                        { name: { contains: q, mode: 'insensitive' } },
+                      ],
+                    },
+                  },
+                  {
+                    account: {
+                      OR: [
+                        { code: { contains: q, mode: 'insensitive' } },
+                        { name: { contains: q, mode: 'insensitive' } },
+                        {
+                          departmentCenter: {
+                            OR: [
+                              { code: { contains: q, mode: 'insensitive' } },
+                              { name: { contains: q, mode: 'insensitive' } },
+                            ],
+                          },
+                        },
+                        {
+                          costCenter: {
+                            OR: [
+                              { code: { contains: q, mode: 'insensitive' } },
+                              { name: { contains: q, mode: 'insensitive' } },
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+    }
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const page = parseInt(params.page) || 1;

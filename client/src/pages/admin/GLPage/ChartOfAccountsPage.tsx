@@ -142,31 +142,59 @@ function getGroupLabel(accountType?: string, accountSubtype?: string | null): st
   return ACCOUNT_TYPE_GROUPS.find((g) => g.group === grp)?.label || accountType || '';
 }
 
+function matchesAccountSearch(account: GlAccount, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const normSub = normalizeSubtype(account.accountSubtype).toLowerCase();
+  const groupLabel = getGroupLabel(account.accountType, account.accountSubtype).toLowerCase();
+  const deptCode = (account.departmentCenter?.code || '').toLowerCase();
+  const deptName = (account.departmentCenter?.name || '').toLowerCase();
+  const ccCode = (account.costCenter?.code || '').toLowerCase();
+  const ccName = (account.costCenter?.name || '').toLowerCase();
+  return (
+    account.code.toLowerCase().includes(q) ||
+    account.name.toLowerCase().includes(q) ||
+    (account.description || '').toLowerCase().includes(q) ||
+    normSub.includes(q) ||
+    groupLabel.includes(q) ||
+    deptCode.includes(q) ||
+    deptName.includes(q) ||
+    `${deptCode} ${deptName}`.includes(q) ||
+    ccCode.includes(q) ||
+    ccName.includes(q) ||
+    `${ccCode} ${ccName}`.includes(q)
+  );
+}
+
 function matchesGroupOrDescendants(
   account: GlAccount,
   accounts: GlAccount[],
   filterGroup: string,
+  searchQuery = '',
   visited = new Set<string>(),
 ): boolean {
-  if (!filterGroup) return true;
-  if (resolveGroupForAccount(account.accountType, account.accountSubtype) === filterGroup) return true;
+  const groupOk = !filterGroup || resolveGroupForAccount(account.accountType, account.accountSubtype) === filterGroup;
+  const searchOk = matchesAccountSearch(account, searchQuery);
+  if (groupOk && searchOk) return true;
   if (visited.has(account.id)) return false;
   const nextVisited = new Set(visited);
   nextVisited.add(account.id);
   const children = accounts.filter((a) => a.parentId === account.id && a.id !== account.id);
-  return children.some((c) => matchesGroupOrDescendants(c, accounts, filterGroup, nextVisited));
+  return children.some((c) => matchesGroupOrDescendants(c, accounts, filterGroup, searchQuery, nextVisited));
 }
 
 function AccountNode({
   account,
   accounts,
   filterGroup,
+  searchQuery,
   onEdit,
   ancestors = new Set<string>(),
 }: {
   account: GlAccount;
   accounts: GlAccount[];
   filterGroup: string;
+  searchQuery: string;
   onEdit: (a: GlAccount) => void;
   ancestors?: Set<string>;
 }) {
@@ -174,9 +202,11 @@ function AccountNode({
   const nextAncestors = new Set(ancestors);
   nextAncestors.add(account.id);
   const allChildren = accounts.filter(a => a.parentId === account.id && !nextAncestors.has(a.id));
-  const children = filterGroup
-    ? allChildren.filter(c => matchesGroupOrDescendants(c, accounts, filterGroup, nextAncestors))
+  const hasFilters = Boolean(filterGroup || searchQuery.trim());
+  const children = hasFilters
+    ? allChildren.filter(c => matchesGroupOrDescendants(c, accounts, filterGroup, searchQuery, nextAncestors))
     : allChildren;
+  const isExpanded = searchQuery.trim() ? true : open;
   const normSubtype = normalizeSubtype(account.accountSubtype);
   const groupLabel = getGroupLabel(account.accountType, account.accountSubtype);
 
@@ -184,7 +214,7 @@ function AccountNode({
     <li>
       <div className="coa-node">
         {children.length > 0
-          ? <span className="coa-toggle" onClick={() => setOpen(!open)}>{open ? '▾' : '▸'}</span>
+          ? <span className="coa-toggle" onClick={() => setOpen(!open)}>{isExpanded ? '▾' : '▸'}</span>
           : <span className="coa-toggle" />}
         <span className="coa-code">{account.code}</span>
         <span className="coa-name">{account.name}</span>
@@ -239,10 +269,18 @@ function AccountNode({
           </button>
         </PermissionGuard>
       </div>
-      {open && children.length > 0 && (
+      {isExpanded && children.length > 0 && (
         <ul className="coa-children">
           {children.map(c => (
-            <AccountNode key={c.id} account={c} accounts={accounts} filterGroup={filterGroup} onEdit={onEdit} ancestors={nextAncestors} />
+            <AccountNode
+              key={c.id}
+              account={c}
+              accounts={accounts}
+              filterGroup={filterGroup}
+              searchQuery={searchQuery}
+              onEdit={onEdit}
+              ancestors={nextAncestors}
+            />
           ))}
         </ul>
       )}
@@ -258,12 +296,14 @@ export default function ChartOfAccountsPage() {
   const [updateAccount] = useUpdateGlAccountMutation();
   const [showModal, setShowModal] = useState(false);
   const [editAccount, setEditAccount] = useState<GlAccount | null>(null);
+  const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
 
   const accountIdSet = new Set(accounts.map(a => a.id));
   const rootAccounts = accounts.filter(a => !a.parentId || a.parentId === a.id || !accountIdSet.has(a.parentId));
-  const filtered = filterType
-    ? rootAccounts.filter(a => matchesGroupOrDescendants(a, accounts, filterType))
+  const hasFilters = Boolean(filterType || search.trim());
+  const filtered = hasFilters
+    ? rootAccounts.filter(a => matchesGroupOrDescendants(a, accounts, filterType, search))
     : rootAccounts;
 
   const handleEdit = (a: GlAccount) => { setEditAccount(a); setShowModal(true); };
@@ -289,6 +329,47 @@ export default function ChartOfAccountsPage() {
       </div>
 
       <div className="gl-toolbar">
+        <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: 360 }}>
+          <Search
+            size={15}
+            style={{
+              position: 'absolute',
+              left: 11,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-muted)',
+              pointerEvents: 'none',
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Search code, name, subtype, department, cost center…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: '100%', paddingLeft: 34, paddingRight: search ? 30 : 12, boxSizing: 'border-box' }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute',
+                right: 8,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: 2,
+                display: 'flex',
+              }}
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
         <select value={filterType} onChange={e => setFilterType(e.target.value)}>
           <option value="">All Types</option>
           {ACCOUNT_TYPE_GROUPS.map((g) => (
@@ -303,10 +384,23 @@ export default function ChartOfAccountsPage() {
         <div className="gl-card">
           <ul className="coa-tree">
             {filtered.map(a => (
-              <AccountNode key={a.id} account={a} accounts={accounts} filterGroup={filterType} onEdit={handleEdit} />
+              <AccountNode
+                key={a.id}
+                account={a}
+                accounts={accounts}
+                filterGroup={filterType}
+                searchQuery={search}
+                onEdit={handleEdit}
+              />
             ))}
           </ul>
-          {filtered.length === 0 && <p style={{padding:20,textAlign:'center',color:'var(--text-muted)'}}>No accounts found. Click "+ Add Account" to create a new account.</p>}
+          {filtered.length === 0 && (
+            <p style={{padding:20,textAlign:'center',color:'var(--text-muted)'}}>
+              {hasFilters
+                ? 'No accounts match your search or filter criteria.'
+                : 'No accounts found. Click "+ Add Account" to create a new account.'}
+            </p>
+          )}
         </div>
       )}
 

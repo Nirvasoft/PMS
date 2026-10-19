@@ -4,7 +4,7 @@ import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetInvoicesQuery, useRunBillingMutation, useGetBillingSchedulesQuery,
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
-  useGetCurrencyRatesQuery,
+  useGetCurrencyRatesQuery, type InvoiceListItem,
 } from '../../../store/api/billingApi';
 import { usePushInvoicesToV6ErpMutation } from '../../../store/api/integrationsApi';
 import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
@@ -13,13 +13,14 @@ import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   FileText, Plus, Play, Search, ChevronLeft, ChevronRight,
   DollarSign, AlertTriangle, CheckCircle, Receipt,
-  Send, Ban, Download, XCircle, X, Building2, UploadCloud,
+  Send, Ban, Download, XCircle, X, Building2, UploadCloud, Eye,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
+import { openInvoicesReportPreview, type InvoiceReportType } from './utils/invoicePrintPreview';
 import './BillingPage.css';
 
 const STATUS_OPTIONS = ['', 'draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
@@ -35,6 +36,7 @@ export default function InvoiceListPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [runBillingModalOpen, setRunBillingModalOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
 
   const activePropertyFilter = useSelectedPropertyFilter();
 
@@ -557,6 +559,14 @@ export default function InvoiceListPage() {
               title="Download PDF for selected invoices">
               <Download size={14} /> Download PDFs
             </button>
+            <button
+              className="bulk-btn report"
+              onClick={() => setReportModalOpen(true)}
+              disabled={bulkProcessing}
+              title="View Report for selected invoices"
+            >
+              <Eye size={14} /> View Report
+            </button>
             <PermissionGuard permission="billing-invoices.write">
               {/* V6 ERP Bulk Push — only issued invoices will be forwarded */}
               {isV6Active && (
@@ -579,6 +589,13 @@ export default function InvoiceListPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {reportModalOpen && (
+        <ViewInvoiceReportModal
+          selectedInvoices={selectedInvoices}
+          onClose={() => setReportModalOpen(false)}
+        />
       )}
 
       {runBillingModalOpen && (
@@ -793,3 +810,385 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
     </div>
   );
 }
+
+// ── View Invoice Report Modal ────────────────────────
+function ViewInvoiceReportModal({
+  selectedInvoices,
+  onClose,
+}: {
+  selectedInvoices: InvoiceListItem[];
+  onClose: () => void;
+}) {
+  const getTenantLabel = (inv: InvoiceListItem) => {
+    if (!inv.tenant) return '—';
+    if (inv.tenant.tenantType && inv.tenant.tenantType !== 'individual') {
+      return inv.tenant.companyName || '—';
+    }
+    const full = `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
+    return full || inv.tenant.lastName || inv.tenant.firstName || '—';
+  };
+
+  const getFloorLabel = (inv: InvoiceListItem) => {
+    if (!inv.unit) return '';
+    if (inv.unit.floorLabel) return String(inv.unit.floorLabel).trim();
+    if (inv.unit.floorNumber != null) return `Floor ${inv.unit.floorNumber}`;
+    return '';
+  };
+
+  const toDateInputStr = (raw?: string | null) => {
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return String(raw).split('T')[0];
+    return format(d, 'yyyy-MM-dd');
+  };
+
+  const getInvoiceDateStr = (inv: InvoiceListItem) =>
+    toDateInputStr(inv.invoiceDate || (inv as any).issueDate);
+
+  const defaultDates = useMemo(() => {
+    const dates = selectedInvoices
+      .map(inv => getInvoiceDateStr(inv))
+      .filter(Boolean)
+      .sort();
+    return {
+      min: dates[0] || '',
+      max: dates[dates.length - 1] || '',
+    };
+  }, [selectedInvoices]);
+
+  const [reportType, setReportType] = useState<InvoiceReportType>('summary');
+  const [fromDate, setFromDate] = useState<string>(defaultDates.min);
+  const [toDate, setToDate] = useState<string>(defaultDates.max);
+  const [floor, setFloor] = useState<string>('');
+  const [unitNumber, setUnitNumber] = useState<string>('');
+  const [tenantName, setTenantName] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('invoiceNumber');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [validationError, setValidationError] = useState<string>('');
+
+  const floorOptions = useMemo(() => {
+    const set = new Set<string>();
+    selectedInvoices.forEach(inv => {
+      const fl = getFloorLabel(inv);
+      if (fl) set.add(fl);
+    });
+    return Array.from(set).sort();
+  }, [selectedInvoices]);
+
+  const unitOptions = useMemo(() => {
+    const set = new Set<string>();
+    selectedInvoices.forEach(inv => {
+      if (floor && getFloorLabel(inv) !== floor) return;
+      if (inv.unit?.unitNumber) set.add(inv.unit.unitNumber);
+    });
+    return Array.from(set).sort();
+  }, [selectedInvoices, floor]);
+
+  const tenantOptions = useMemo(() => {
+    const set = new Set<string>();
+    selectedInvoices.forEach(inv => {
+      const label = getTenantLabel(inv);
+      if (label && label !== '—') set.add(label);
+    });
+    return Array.from(set).sort();
+  }, [selectedInvoices]);
+
+  const statusOptions = useMemo(() => {
+    const set = new Set<string>();
+    selectedInvoices.forEach(inv => {
+      if (inv.status) set.add(inv.status);
+    });
+    return Array.from(set).sort();
+  }, [selectedInvoices]);
+
+  const matchedInvoices = useMemo(() => {
+    const filtered = selectedInvoices.filter(inv => {
+      const issueDay = getInvoiceDateStr(inv);
+      if (fromDate && (!issueDay || issueDay < fromDate)) return false;
+      if (toDate && (!issueDay || issueDay > toDate)) return false;
+      if (floor && getFloorLabel(inv) !== floor) return false;
+      if (unitNumber && (inv.unit?.unitNumber || '') !== unitNumber) return false;
+      if (tenantName && getTenantLabel(inv) !== tenantName) return false;
+      if (statusFilter && inv.status !== statusFilter) return false;
+      return true;
+    });
+
+    const dir = sortOrder === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'issueDate': {
+          const da = getInvoiceDateStr(a);
+          const db = getInvoiceDateStr(b);
+          return da.localeCompare(db) * dir;
+        }
+        case 'dueDate': {
+          const da = toDateInputStr(a.dueDate);
+          const db = toDateInputStr(b.dueDate);
+          return da.localeCompare(db) * dir;
+        }
+        case 'floor':
+          return getFloorLabel(a).localeCompare(getFloorLabel(b), undefined, { numeric: true }) * dir;
+        case 'unit':
+          return (a.unit?.unitNumber || '').localeCompare(b.unit?.unitNumber || '', undefined, { numeric: true }) * dir;
+        case 'tenant':
+          return getTenantLabel(a).localeCompare(getTenantLabel(b)) * dir;
+        case 'totalAmount':
+          return ((Number(a.totalAmount) || 0) - (Number(b.totalAmount) || 0)) * dir;
+        case 'invoiceNumber':
+        default:
+          return (a.invoiceNumber || '').localeCompare(b.invoiceNumber || '', undefined, { numeric: true }) * dir;
+      }
+    });
+  }, [selectedInvoices, fromDate, toDate, floor, unitNumber, tenantName, statusFilter, sortBy, sortOrder]);
+
+  useEffect(() => {
+    if (fromDate && toDate && fromDate > toDate) {
+      setValidationError('From Date cannot be later than To Date.');
+    } else if (matchedInvoices.length === 0) {
+      setValidationError('No selected invoices match the current filter criteria.');
+    } else {
+      setValidationError('');
+    }
+  }, [fromDate, toDate, matchedInvoices.length]);
+
+  const handleResetFilters = () => {
+    setFromDate(defaultDates.min);
+    setToDate(defaultDates.max);
+    setFloor('');
+    setUnitNumber('');
+    setTenantName('');
+    setStatusFilter('');
+    setSortBy('invoiceNumber');
+    setSortOrder('asc');
+    setValidationError('');
+  };
+
+  const handleGenerateReport = () => {
+    if (!reportType) {
+      toast.error('Please select a Report Type');
+      return;
+    }
+    if (fromDate && toDate && fromDate > toDate) {
+      toast.error('From Date cannot be later than To Date');
+      return;
+    }
+    if (matchedInvoices.length === 0) {
+      toast.error('No selected invoices match the validation criteria');
+      return;
+    }
+    const opened = openInvoicesReportPreview({
+      reportType,
+      invoices: matchedInvoices,
+      filters: {
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        floor: floor || undefined,
+        unit: unitNumber || undefined,
+        tenant: tenantName || undefined,
+        status: statusFilter || undefined,
+      },
+    });
+    if (!opened) {
+      toast.error('Popup blocked! Please allow popups for this site to view the report.');
+      return;
+    }
+    onClose();
+  };
+
+  return (
+    <div className="rb-overlay" onClick={onClose}>
+      <div className="rb-modal rb-modal-lg" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+        <div className="rb-header">
+          <div className="rb-title">
+            <Eye size={16} /> View Invoice Report
+          </div>
+          <button className="btn-icon" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div className="rb-body">
+          {/* Report Type */}
+          <div className="rb-field">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label>Report Type <span style={{ color: '#ef4444' }}>*</span></label>
+              {(floor || unitNumber || tenantName || statusFilter || sortBy !== 'invoiceNumber' || sortOrder !== 'asc' || fromDate !== defaultDates.min || toDate !== defaultDates.max) && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accent, #10b981)',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  Reset Filters
+                </button>
+              )}
+            </div>
+            <select
+              value={reportType}
+              onChange={e => setReportType(e.target.value as InvoiceReportType)}
+            >
+              <option value="summary">Invoice Summary Report</option>
+              <option value="detail">Invoice Detail Report</option>
+              <option value="voucher">Invoice Voucher Print Preview</option>
+            </select>
+          </div>
+
+          {/* Date Range Validation */}
+          <div className="rb-grid-2">
+            <div className="rb-field">
+              <label>From Date (Issue Date)</label>
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={e => setFromDate(e.target.value)}
+              />
+            </div>
+            <div className="rb-field">
+              <label>To Date (Issue Date)</label>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={e => setToDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Floor & Unit Validation */}
+          <div className="rb-grid-2">
+            <div className="rb-field">
+              <label>Floor</label>
+              <select
+                value={floor}
+                onChange={e => {
+                  setFloor(e.target.value);
+                  setUnitNumber('');
+                }}
+              >
+                <option value="">All Floors</option>
+                {floorOptions.map(fl => (
+                  <option key={fl} value={fl}>{fl}</option>
+                ))}
+              </select>
+            </div>
+            <div className="rb-field">
+              <label>Unit / Room</label>
+              <select
+                value={unitNumber}
+                onChange={e => setUnitNumber(e.target.value)}
+              >
+                <option value="">All Units</option>
+                {unitOptions.map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Tenant & Status Validation */}
+          <div className="rb-grid-2">
+            <div className="rb-field">
+              <label>Tenant</label>
+              <select
+                value={tenantName}
+                onChange={e => setTenantName(e.target.value)}
+              >
+                <option value="">All Tenants</option>
+                {tenantOptions.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div className="rb-field">
+              <label>Status</label>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+              >
+                <option value="">All Statuses</option>
+                {statusOptions.map(s => (
+                  <option key={s} value={s}>{s.replace('_', ' ').toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Sort By & Sort Order */}
+          <div className="rb-grid-2">
+            <div className="rb-field">
+              <label>Sort By</label>
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value)}
+              >
+                <option value="invoiceNumber">Invoice Number</option>
+                <option value="issueDate">Issue Date</option>
+                <option value="dueDate">Due Date</option>
+                <option value="floor">Floor</option>
+                <option value="unit">Unit / Room</option>
+                <option value="tenant">Tenant</option>
+                <option value="totalAmount">Total Amount</option>
+              </select>
+            </div>
+            <div className="rb-field">
+              <label>Sort Order</label>
+              <select
+                value={sortOrder}
+                onChange={e => setSortOrder(e.target.value as 'asc' | 'desc')}
+              >
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Validation Banner */}
+          {validationError && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                fontSize: '0.82rem',
+                fontWeight: 500,
+              }}
+            >
+              <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+              <span>{validationError}</span>
+            </div>
+          )}
+
+          <p className="rb-hint">
+            <FileText size={12} />
+            Opens a printable report preview window where you can print or save as PDF.
+          </p>
+        </div>
+
+        <div className="rb-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            className="btn btn-primary"
+            onClick={handleGenerateReport}
+            disabled={!!validationError || matchedInvoices.length === 0}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Eye size={14} /> View Report
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
