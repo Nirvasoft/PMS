@@ -422,6 +422,7 @@ export const {
   useCancelScheduleMutation,
   useUpdateScheduleMutation,
   useGetInvoicesQuery,
+  useLazyGetInvoicesQuery,
   useGetBillingDashboardSummaryQuery,
   useGetInvoiceQuery,
   useCreateInvoiceMutation,

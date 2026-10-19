@@ -2240,8 +2240,8 @@
   width: 18px;
   height: 18px;
   border-radius: 4px;
-  border: 2px solid var(--border);
-  background: transparent;
+  border: 2px solid #10b981;
+  background: rgba(16, 185, 129, 0.08);
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
@@ -2250,19 +2250,32 @@
   justify-content: center;
   transition: all 0.15s;
   flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.15);
+}
+
+.billing-table thead th .inv-checkbox {
+  border-color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
 }
 
 .inv-checkbox:checked,
 .inv-checkbox:indeterminate {
-  background: var(--accent, #10b981);
-  border-color: var(--accent, #10b981);
+  background: #10b981;
+  border-color: #34d399;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.28);
+}
+
+.billing-table thead th .inv-checkbox:checked,
+.billing-table thead th .inv-checkbox:indeterminate {
+  background: #10b981;
+  border-color: #34d399;
 }
 
 .inv-checkbox:checked::after {
   content: '✓';
   color: #ffffff;
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 900;
   line-height: 1;
 }
 
@@ -2270,17 +2283,19 @@
   content: '−';
   color: #ffffff;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 900;
   line-height: 1;
 }
 
 .inv-checkbox:hover:not(:checked):not(:indeterminate) {
-  border-color: var(--accent, #10b981);
+  border-color: #34d399;
+  background: rgba(16, 185, 129, 0.22);
 }
 
 [data-theme="light"] .inv-checkbox {
   border-color: #94a3b8;
   background: #ffffff;
+  box-shadow: none;
 }
 
 [data-theme="light"] .inv-checkbox:checked,

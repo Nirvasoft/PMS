@@ -190,7 +190,7 @@ invoicesRouter.get('/', asyncHandler(async (req, res) => {
     from: req.query.from as string,
     to: req.query.to as string,
     page: parseInt(req.query.page as string) || 1,
-    limit: Math.min(parseInt(req.query.limit as string) || 20, 100),
+    limit: Math.min(parseInt(req.query.limit as string) || 20, 5000),
   });
   res.json({ success: true, ...result });
 }));
