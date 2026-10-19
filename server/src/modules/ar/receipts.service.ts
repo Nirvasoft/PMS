@@ -169,7 +169,7 @@ export class ReceiptsService {
         propertyId: (dto.propertyId as string) || undefined,
         lines: [
           { accountCode: '1210', debit: amount, credit: 0, description: `Bank deposit — ${receiptNumber}` },
-          { accountCode: '1100', debit: 0, credit: amount, description: `AR cleared — ${receiptNumber}` },
+          { accountCode: '1-2210', debit: 0, credit: amount, description: `AR cleared — ${receiptNumber}` },
         ],
       });
     } catch (err: any) {

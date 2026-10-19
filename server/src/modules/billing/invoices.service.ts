@@ -338,7 +338,7 @@ export class InvoicesService {
       costCenterId?: string | null;
     }> = [
       {
-        accountCode: '1100',
+        accountCode: '1-2210',
         debit: Number(invoice.totalAmount),
         credit: 0,
         description: `AR — ${invoiceNumber}`,
@@ -678,7 +678,7 @@ export class InvoicesService {
         costCenterId?: string | null;
       }> = [
         {
-          accountCode: '1100',
+          accountCode: '1-2210',
           debit: totalAmount,
           credit: 0,
           description: `AR — ${invoice.invoiceNumber}`,
@@ -961,7 +961,7 @@ export class InvoicesService {
       costCenterId?: string | null;
     }> = [
       {
-        accountCode: '1100',
+        accountCode: '1-2210',
         debit: totalAmount,
         credit: 0,
         description: `AR — ${invoiceNumber}`,
