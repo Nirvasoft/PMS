@@ -13,12 +13,13 @@ import { webhookLeaseTerminated } from '../../common/webhookHooks';
 // SEED
 // ══════════════════════════════════════════════
 export async function seedUnitTypes() {
-  let created = 0;
-  for (const t of UNIT_TYPES) {
-    const existing = await prisma.unitType.findUnique({ where: { code: t.code } });
-    if (!existing) { await prisma.unitType.create({ data: t }); created++; }
+  const existing = await prisma.unitType.findMany({ select: { code: true } });
+  const existingCodes = new Set(existing.map((u) => u.code));
+  const missing = UNIT_TYPES.filter((t) => !existingCodes.has(t.code));
+  if (missing.length > 0) {
+    await prisma.unitType.createMany({ data: missing, skipDuplicates: true });
+    logger.info(`Seeded ${missing.length} unit types`);
   }
-  if (created > 0) logger.info(`Seeded ${created} unit types`);
 }
 
 // ══════════════════════════════════════════════

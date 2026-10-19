@@ -102,7 +102,7 @@ export function encodePrefix(prefix1: string, prefix2: Prefix2Format, mode?: Pre
   return `${clean1}|${clean2}`;
 }
 
-/** Format a sequence string: PREFIX1-[DATE]-NUMBER */
+/** Format a sequence string: [PREFIX1-][DATE-]NUMBER */
 export function formatSequence(
   prefix1: string,
   prefix2: Prefix2Format,
@@ -110,7 +110,7 @@ export function formatSequence(
   padLength: number,
   date: Date = new Date(),
 ): string {
-  const cleanPrefix = (prefix1 || '').trim().toUpperCase() || 'DOC';
+  const cleanPrefix = (prefix1 || '').trim().toUpperCase();
   const cleanPad = Math.max(3, Math.min(10, padLength || 6));
   const paddedVal = String(val).padStart(cleanPad, '0');
 
@@ -124,10 +124,7 @@ export function formatSequence(
     datePart = `${mm}${yy}`;
   }
 
-  if (datePart) {
-    return `${cleanPrefix}-${datePart}-${paddedVal}`;
-  }
-  return `${cleanPrefix}-${paddedVal}`;
+  return [cleanPrefix, datePart, paddedVal].filter(Boolean).join('-');
 }
 
 class SequenceService {
@@ -173,7 +170,7 @@ class SequenceService {
       }
     }
 
-    const defaultCombined = options?.prefix
+    const defaultCombined = options?.prefix !== undefined
       ? encodePrefix(options.prefix, 'none')
       : encodePrefix(docDef.defaultPrefix1, docDef.defaultPrefix2);
     const defaultPadLength = options?.padLength ?? docDef.defaultPad;
@@ -188,8 +185,9 @@ class SequenceService {
     `;
 
     const row = result[0];
-    const { prefix1, prefix2 } = parseStoredPrefix(row?.prefix || defaultCombined);
-    const actualPrefix1 = prefix1 || docDef.defaultPrefix1;
+    const hasStored = row?.prefix != null;
+    const { prefix1, prefix2 } = parseStoredPrefix(hasStored ? row.prefix : defaultCombined);
+    const actualPrefix1 = hasStored ? prefix1 : (prefix1 || docDef.defaultPrefix1);
     const actualPad = (row?.pad_length && row.pad_length > 0) ? row.pad_length : defaultPadLength;
     const val = Number(row.current_val);
 
@@ -246,10 +244,11 @@ class SequenceService {
     for (const doc of targetTypes) {
       const stored = rowMap.get(doc.typeKey);
       const isCustom = !!stored;
-      const { prefix1, prefix2, mode } = parseStoredPrefix(stored?.prefix || encodePrefix(doc.defaultPrefix1, doc.defaultPrefix2, doc.defaultMode));
+      const { prefix1, prefix2, mode } = parseStoredPrefix(stored ? stored.prefix : encodePrefix(doc.defaultPrefix1, doc.defaultPrefix2, doc.defaultMode));
+      const resolvedPrefix1 = isCustom ? prefix1 : (prefix1 || doc.defaultPrefix1);
       const padLength = stored?.padLength || doc.defaultPad;
       const currentVal = stored ? Number(stored.currentVal) : 0;
-      const samplePreview = formatSequence(prefix1 || doc.defaultPrefix1, prefix2, currentVal + 1, padLength, now);
+      const samplePreview = formatSequence(resolvedPrefix1, prefix2, currentVal + 1, padLength, now);
 
       results.push({
         id: stored?.sequenceKey || (isAll ? doc.typeKey : `${doc.typeKey}:${locationId}`),
@@ -257,7 +256,7 @@ class SequenceService {
         label: doc.label,
         module: doc.module,
         locationId: isAll ? 'all' : locationId,
-        prefix1: prefix1 || doc.defaultPrefix1,
+        prefix1: resolvedPrefix1,
         prefix2,
         padLength,
         currentVal,
@@ -274,7 +273,7 @@ class SequenceService {
       const { prefix1, prefix2, mode } = parseStoredPrefix(stored.prefix);
       const padLength = stored.padLength || 6;
       const currentVal = Number(stored.currentVal);
-      const samplePreview = formatSequence(prefix1 || key.slice(0, 3).toUpperCase(), prefix2, currentVal + 1, padLength, now);
+      const samplePreview = formatSequence(prefix1, prefix2, currentVal + 1, padLength, now);
 
       results.push({
         id: stored.sequenceKey,
@@ -282,7 +281,7 @@ class SequenceService {
         label: key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
         module: 'custom',
         locationId: isAll ? 'all' : locationId,
-        prefix1: prefix1 || key.slice(0, 3).toUpperCase(),
+        prefix1,
         prefix2,
         padLength,
         currentVal,

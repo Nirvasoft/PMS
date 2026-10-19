@@ -35,7 +35,7 @@ sequenceRouter.post('/bulk-save', asyncHandler(async (req: Request, res: Respons
     prefix2: (item.prefix2 as Prefix2Format) || 'none',
     padLength: Number(item.padLength) || 6,
     mode: item.mode ? ((item.mode === 'auto' ? 'auto' : 'manual') as PrefixMode) : undefined,
-  })).filter((item: any) => item.typeKey && item.prefix1);
+  })).filter((item: any) => item.typeKey);
 
   const updated = await sequenceService.bulkSave(companyId, locationId, validItems);
   res.json({ success: true, data: updated });

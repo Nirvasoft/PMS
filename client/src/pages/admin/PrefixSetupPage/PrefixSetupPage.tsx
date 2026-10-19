@@ -87,7 +87,7 @@ const DOC_TYPE_LOOKUP = PMS_DOCUMENT_TYPES.reduce((acc, doc) => {
 // ── Helper: Format Sample Preview ───────────────────────────
 
 function computeLiveSample(prefix1: string, prefix2: Prefix2Format, padLength: number, sampleVal: number = 1): string {
-  const cleanPrefix = (prefix1 || '').trim().toUpperCase() || 'DOC';
+  const cleanPrefix = (prefix1 || '').trim().toUpperCase();
   const cleanPad = Math.max(3, Math.min(10, padLength || 6));
   const padded = String(sampleVal).padStart(cleanPad, '0');
 
@@ -102,10 +102,7 @@ function computeLiveSample(prefix1: string, prefix2: Prefix2Format, padLength: n
     datePart = `${mm}${yy}`;
   }
 
-  if (datePart) {
-    return `${cleanPrefix}-${datePart}-${padded}`;
-  }
-  return `${cleanPrefix}-${padded}`;
+  return [cleanPrefix, datePart, padded].filter(Boolean).join('-');
 }
 
 // ── Editable Row Model ──────────────────────────────────────
@@ -394,19 +391,11 @@ export default function PrefixSetupPage() {
       return;
     }
 
-    // Validate rows
-    for (const r of rows) {
-      if (!r.prefix1.trim()) {
-        toast.error(`Prefix cannot be empty for ${r.label}`);
-        return;
-      }
-    }
-
     const payload = {
       locationId: activePropertyId,
       items: rows.map((r) => ({
         typeKey: r.typeKey,
-        prefix1: r.prefix1.trim().toUpperCase(),
+        prefix1: (r.prefix1 || '').trim().toUpperCase(),
         prefix2: r.prefix2,
         padLength: Number(r.padLength) || 6,
         mode: r.mode,

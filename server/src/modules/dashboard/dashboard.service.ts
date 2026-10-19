@@ -51,26 +51,25 @@ export class DashboardService {
    * Seed widget definitions — idempotent (skips existing).
    */
   async seedWidgetDefinitions() {
-    let created = 0;
-    for (const def of WIDGET_DEFINITIONS) {
-      const existing = await prisma.widgetDefinition.findUnique({ where: { code: def.code } });
-      if (!existing) {
-        await prisma.widgetDefinition.create({
-          data: {
-            code: def.code,
-            name: def.name,
-            category: def.category,
-            widgetType: def.widgetType,
-            dataProvider: def.dataProvider,
-            defaultWidth: def.defaultWidth,
-            defaultHeight: def.defaultHeight,
-            requiredPermissions: def.requiredPermissions,
-          },
-        });
-        created++;
-      }
+    const existing = await prisma.widgetDefinition.findMany({ select: { code: true } });
+    const existingCodes = new Set(existing.map((w) => w.code));
+    const missing = WIDGET_DEFINITIONS.filter((def) => !existingCodes.has(def.code));
+    if (missing.length > 0) {
+      await prisma.widgetDefinition.createMany({
+        data: missing.map((def) => ({
+          code: def.code,
+          name: def.name,
+          category: def.category,
+          widgetType: def.widgetType,
+          dataProvider: def.dataProvider,
+          defaultWidth: def.defaultWidth,
+          defaultHeight: def.defaultHeight,
+          requiredPermissions: def.requiredPermissions,
+        })),
+        skipDuplicates: true,
+      });
+      logger.info(`Seeded ${missing.length} widget definitions`);
     }
-    if (created > 0) logger.info(`Seeded ${created} widget definitions`);
   }
 
   /**

@@ -75,14 +75,15 @@ export async function seedBillingNotificationTemplates() {
     },
   ];
 
-  for (const t of templates) {
-    const existing = await prisma.notificationTemplate.findFirst({
-      where: { code: t.code, companyId: null },
-    });
-    if (!existing) {
-      await prisma.notificationTemplate.create({ data: t as any });
-      logger.info(`Seeded notification template: ${t.code}`);
-    }
+  const existing = await prisma.notificationTemplate.findMany({
+    where: { companyId: null, code: { in: templates.map((t) => t.code) } },
+    select: { code: true },
+  });
+  const existingCodes = new Set(existing.map((t) => t.code));
+  const missing = templates.filter((t) => !existingCodes.has(t.code));
+  if (missing.length > 0) {
+    await prisma.notificationTemplate.createMany({ data: missing as any, skipDuplicates: true });
+    logger.info(`Seeded ${missing.length} billing notification templates`);
   }
 }
 

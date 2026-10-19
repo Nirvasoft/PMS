@@ -115,17 +115,15 @@ async function bootstrap() {
   app.use('/storage', express.static(path.join(process.cwd(), 'storage')));
 
   // Public API routes (no auth required)
+  app.get('/api/v1/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' });
+  });
   app.use('/api/v1/shared/documents', sharedDocumentsRouter);
   app.use('/api/v1/webhooks', stripeWebhookRouter);  // Stripe webhook — uses signature, not JWT
 
   app.use(authMiddleware);
   app.use(apiKeyAuth()); // Validate pms_sk_* API keys (after JWT passthrough)
   app.use(tenantContextMiddleware);
-
-  // Health check
-  app.get('/api/v1/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' });
-  });
 
   // Routes
   app.use('/api/v1/auth', authRouter);
@@ -319,46 +317,58 @@ async function bootstrap() {
   // Error handler (must be last)
   app.use(errorHandler);
 
-  // Connect database
-  await connectDatabase();
-
-  // Seed reference data
-  await dashboardService.seedWidgetDefinitions();
-  await seedPropertyTypes();
-  await seedUnitTypes();
-  try { await maintenanceCategoriesService.seedDefaults(); } catch (e) { logger.warn('Maintenance tables not ready — skipping seed'); }
-  const { seedBillingNotificationTemplates } = await import('./modules/billing/billingNotifications.service');
-  await seedBillingNotificationTemplates();
-  const { seedPhase2NotificationTemplates } = await import('./modules/notifications/phase2Templates.seed');
-  await seedPhase2NotificationTemplates();
-
   // Start Socket.IO
   initSocketIO(httpServer, config.frontendUrl);
 
-  // Start lightweight in-memory background workers (no DB log overhead)
-  startSlaEscalationJob();
-  startWorkflowDelayResumeJob();
-  try { startSlaMonitorJob(); } catch (e) { logger.warn('Maintenance SLA monitor skipped — tables not ready'); }
-  try { startTicketLifecycleJobs(); } catch (e) { logger.warn('Ticket lifecycle crons skipped — tables not ready'); }
-  try { startHousekeepingTaskCron(); } catch (e) { logger.warn('Housekeeping task cron skipped — tables not ready'); }
-  try { startFootfallSyncJob(); } catch (e) { logger.warn('Footfall sync cron skipped — tables not ready'); }
-  try { startSmartMeterPollingJob(); } catch (e) { logger.warn('Smart meter polling cron skipped — tables not ready'); }
-  try { startWebhookRetryJob(); } catch (e) { logger.warn('Webhook retry cron skipped'); }
-  try { startPermissionOverrideExpiryJob(); } catch (e) { logger.warn('Permission override expiry cron skipped'); }
-  try { startNotificationQueueJob(); } catch (e) { logger.warn('Notification queue processor skipped'); }
-  try { startScheduledNotificationJob(); } catch (e) { logger.warn('Scheduled notification processor skipped'); }
-  try { startViewingReminderJob(); } catch (e) { logger.warn('Viewing reminder cron skipped'); }
-
-  // Start server FIRST, then initialize Business Cron Manager asynchronously in background
+  // Start HTTP server FIRST so health checks and upstream proxies never hit 504 Gateway Timeout,
+  // then connect DB, seed reference data, and start background workers asynchronously.
   httpServer.listen(config.port, () => {
     logger.info(`🚀 PMS API running on http://localhost:${config.port}`);
     logger.info(`   Environment: ${config.env}`);
     logger.info(`   Frontend URL: ${config.frontendUrl}`);
 
-    setImmediate(() => {
-      cronManager.init().catch((e: any) => {
-        logger.error('Failed to initialize business cron manager:', e);
-      });
+    setImmediate(async () => {
+      try {
+        await connectDatabase();
+
+        // Seed reference data in parallel
+        const [
+          { seedBillingNotificationTemplates },
+          { seedPhase2NotificationTemplates },
+        ] = await Promise.all([
+          import('./modules/billing/billingNotifications.service'),
+          import('./modules/notifications/phase2Templates.seed'),
+        ]);
+
+        await Promise.allSettled([
+          dashboardService.seedWidgetDefinitions(),
+          seedPropertyTypes(),
+          seedUnitTypes(),
+          maintenanceCategoriesService.seedDefaults().catch(() => {
+            logger.warn('Maintenance tables not ready — skipping seed');
+          }),
+          seedBillingNotificationTemplates(),
+          seedPhase2NotificationTemplates(),
+        ]);
+
+        // Start lightweight in-memory background workers (no DB log overhead)
+        startSlaEscalationJob();
+        startWorkflowDelayResumeJob();
+        try { startSlaMonitorJob(); } catch (e) { logger.warn('Maintenance SLA monitor skipped — tables not ready'); }
+        try { startTicketLifecycleJobs(); } catch (e) { logger.warn('Ticket lifecycle crons skipped — tables not ready'); }
+        try { startHousekeepingTaskCron(); } catch (e) { logger.warn('Housekeeping task cron skipped — tables not ready'); }
+        try { startFootfallSyncJob(); } catch (e) { logger.warn('Footfall sync cron skipped — tables not ready'); }
+        try { startSmartMeterPollingJob(); } catch (e) { logger.warn('Smart meter polling cron skipped — tables not ready'); }
+        try { startWebhookRetryJob(); } catch (e) { logger.warn('Webhook retry cron skipped'); }
+        try { startPermissionOverrideExpiryJob(); } catch (e) { logger.warn('Permission override expiry cron skipped'); }
+        try { startNotificationQueueJob(); } catch (e) { logger.warn('Notification queue processor skipped'); }
+        try { startScheduledNotificationJob(); } catch (e) { logger.warn('Scheduled notification processor skipped'); }
+        try { startViewingReminderJob(); } catch (e) { logger.warn('Viewing reminder cron skipped'); }
+
+        await cronManager.init();
+      } catch (e: any) {
+        logger.error('Failed during background startup initialization:', e);
+      }
     });
   });
 

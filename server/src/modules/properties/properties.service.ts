@@ -20,15 +20,21 @@ const MAX_BILLING_DAY = 28;
 // PROPERTY TYPES SEED
 // ═══════════════════════════════════════════════════
 export async function seedPropertyTypes() {
-  let created = 0;
-  for (const t of PROPERTY_TYPES) {
-    const existing = await prisma.propertyType.findUnique({ where: { code: t.code } });
-    if (!existing) { await prisma.propertyType.create({ data: t }); created++; }
+  const [existingProps, existingFacs] = await Promise.all([
+    prisma.propertyType.findMany({ select: { code: true } }),
+    prisma.facilityType.findMany({ select: { code: true } }),
+  ]);
+  const propCodes = new Set(existingProps.map((p) => p.code));
+  const facCodes = new Set(existingFacs.map((f) => f.code));
+  const missingProps = PROPERTY_TYPES.filter((t) => !propCodes.has(t.code));
+  const missingFacs = FACILITY_TYPES.filter((f) => !facCodes.has(f.code));
+  if (missingProps.length > 0) {
+    await prisma.propertyType.createMany({ data: missingProps, skipDuplicates: true });
   }
-  for (const f of FACILITY_TYPES) {
-    const existing = await prisma.facilityType.findUnique({ where: { code: f.code } });
-    if (!existing) { await prisma.facilityType.create({ data: f }); created++; }
+  if (missingFacs.length > 0) {
+    await prisma.facilityType.createMany({ data: missingFacs, skipDuplicates: true });
   }
+  const created = missingProps.length + missingFacs.length;
   if (created > 0) logger.info(`Seeded ${created} property/facility types`);
 }
 
