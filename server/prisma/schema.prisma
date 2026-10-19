@@ -244,7 +244,7 @@ model Company {
 
 model CompanySequence {
   companyId   String   @map("company_id") @db.Uuid
-  sequenceKey String   @map("sequence_key") @db.VarChar(50)
+  sequenceKey String   @map("sequence_key") @db.VarChar(100)
   prefix      String?  @db.VarChar(50)
   currentVal  BigInt   @default(0) @map("current_val")
   padLength   Int      @default(5) @map("pad_length") @db.SmallInt
