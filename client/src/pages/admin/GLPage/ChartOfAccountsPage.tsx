@@ -142,11 +142,19 @@ function getGroupLabel(accountType?: string, accountSubtype?: string | null): st
   return ACCOUNT_TYPE_GROUPS.find((g) => g.group === grp)?.label || accountType || '';
 }
 
-function matchesGroupOrDescendants(account: GlAccount, accounts: GlAccount[], filterGroup: string): boolean {
+function matchesGroupOrDescendants(
+  account: GlAccount,
+  accounts: GlAccount[],
+  filterGroup: string,
+  visited = new Set<string>(),
+): boolean {
   if (!filterGroup) return true;
   if (resolveGroupForAccount(account.accountType, account.accountSubtype) === filterGroup) return true;
-  const children = accounts.filter((a) => a.parentId === account.id);
-  return children.some((c) => matchesGroupOrDescendants(c, accounts, filterGroup));
+  if (visited.has(account.id)) return false;
+  const nextVisited = new Set(visited);
+  nextVisited.add(account.id);
+  const children = accounts.filter((a) => a.parentId === account.id && a.id !== account.id);
+  return children.some((c) => matchesGroupOrDescendants(c, accounts, filterGroup, nextVisited));
 }
 
 function AccountNode({
@@ -154,16 +162,20 @@ function AccountNode({
   accounts,
   filterGroup,
   onEdit,
+  ancestors = new Set<string>(),
 }: {
   account: GlAccount;
   accounts: GlAccount[];
   filterGroup: string;
   onEdit: (a: GlAccount) => void;
+  ancestors?: Set<string>;
 }) {
   const [open, setOpen] = useState(true);
-  const allChildren = accounts.filter(a => a.parentId === account.id);
+  const nextAncestors = new Set(ancestors);
+  nextAncestors.add(account.id);
+  const allChildren = accounts.filter(a => a.parentId === account.id && !nextAncestors.has(a.id));
   const children = filterGroup
-    ? allChildren.filter(c => matchesGroupOrDescendants(c, accounts, filterGroup))
+    ? allChildren.filter(c => matchesGroupOrDescendants(c, accounts, filterGroup, nextAncestors))
     : allChildren;
   const normSubtype = normalizeSubtype(account.accountSubtype);
   const groupLabel = getGroupLabel(account.accountType, account.accountSubtype);
@@ -230,7 +242,7 @@ function AccountNode({
       {open && children.length > 0 && (
         <ul className="coa-children">
           {children.map(c => (
-            <AccountNode key={c.id} account={c} accounts={accounts} filterGroup={filterGroup} onEdit={onEdit} />
+            <AccountNode key={c.id} account={c} accounts={accounts} filterGroup={filterGroup} onEdit={onEdit} ancestors={nextAncestors} />
           ))}
         </ul>
       )}
@@ -248,7 +260,8 @@ export default function ChartOfAccountsPage() {
   const [editAccount, setEditAccount] = useState<GlAccount | null>(null);
   const [filterType, setFilterType] = useState('');
 
-  const rootAccounts = accounts.filter(a => !a.parentId);
+  const accountIdSet = new Set(accounts.map(a => a.id));
+  const rootAccounts = accounts.filter(a => !a.parentId || a.parentId === a.id || !accountIdSet.has(a.parentId));
   const filtered = filterType
     ? rootAccounts.filter(a => matchesGroupOrDescendants(a, accounts, filterType))
     : rootAccounts;

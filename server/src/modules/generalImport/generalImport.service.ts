@@ -513,12 +513,12 @@ const COLUMNS: Record<ImportType, ColumnDef[]> = {
     { header: 'Is_Taxable', key: 'isTaxable', samples: ['No', 'Yes', 'No'] },
   ],
   coa: [
-    { header: 'AccCode', key: 'accCode', required: true, samples: ['1100', '1100', '4100'] },
-    { header: 'AccDescription', key: 'accDescription', required: true, samples: ['Accounts Receivable', 'Accounts Receivable', 'Rental Income'] },
-    { header: 'AccCategory', key: 'accCategory', required: true, samples: ['Current Assets', 'Current Assets', 'Sales'] },
-    { header: 'Cost Center', key: 'costCenter', samples: ['First Floor', '2nd Floor', 'First Floor'] },
-    { header: 'Department', key: 'department', samples: ['01 Development', '01 Development', '01 Development'] },
-    { header: 'Parent Code', key: 'parentCode', samples: ['1000', '1000', '4000'] },
+    { header: 'AccCode', key: 'accCode', required: true, samples: ['1100', '1100', '1000'] },
+    { header: 'AccDescription', key: 'accDescription', required: true, samples: ['Accounts Receivable', 'Accounts Receivable', 'Assets'] },
+    { header: 'AccCategory', key: 'accCategory', required: true, samples: ['Current Assets', 'Current Assets', 'Current Assets'] },
+    { header: 'Cost Center', key: 'costCenter', samples: ['First Floor', '2nd Floor', ''] },
+    { header: 'Department', key: 'department', samples: ['01 Development', '01 Development', ''] },
+    { header: 'Parent Code', key: 'parentCode', samples: ['1000', '1000', ''] },
   ],
 };
 
@@ -654,9 +654,20 @@ function buildCoaDimLookupMap(
   return map;
 }
 
+function cleanOptionalCoaDim(raw?: string | null): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (['-', '--', '---', 'n/a', 'na', 'none', 'null', 'nil'].includes(trimmed.toLowerCase())) {
+    return '';
+  }
+  return trimmed;
+}
+
 function resolveCoaDim(map: Map<string, CoaDimEntry>, raw?: string | null): CoaDimEntry | null {
-  if (!raw || !raw.trim()) return null;
-  const clean = raw.trim().replace(/\s+/g, ' ').toLowerCase();
+  const cleaned = cleanOptionalCoaDim(raw);
+  if (!cleaned) return null;
+  const clean = cleaned.replace(/\s+/g, ' ').toLowerCase();
   return map.get(clean) || map.get(normalizeCoaDimKey(clean)) || null;
 }
 
@@ -1204,8 +1215,8 @@ async function validateRows(
         errors.push('Parent Code cannot exceed 20 characters');
       }
 
-      const rawDept = (d.department || '').trim();
-      const rawCc = (d.costCenter || '').trim();
+      const rawDept = cleanOptionalCoaDim(d.department);
+      const rawCc = cleanOptionalCoaDim(d.costCenter);
 
       const resolvedDept = rawDept ? resolveCoaDim(deptMap, rawDept) : null;
       if (rawDept && !resolvedDept) {
@@ -1217,6 +1228,7 @@ async function validateRows(
         errors.push(`Cost Center "${rawCc}" does not exist in Cost Center Setup`);
       }
 
+      let status: PreviewRow['status'] = errors.length ? 'error' : 'valid';
       const notes: string[] = [];
 
       if (d.accCode) {
@@ -1225,22 +1237,23 @@ async function validateRows(
         const ccKey = resolvedCc ? resolvedCc.id : normalizeCoaDimKey(rawCc);
         const compositeKey = `${cKey}|${deptKey}|${ccKey}`;
 
-        const dimLabel = [
-          rawCc ? `Cost Center "${rawCc}"` : 'no Cost Center',
-          rawDept ? `Department "${rawDept}"` : 'no Department',
-        ].join(' and ');
+        const dimParts: string[] = [];
+        if (rawDept) dimParts.push(`Department "${rawDept}"`);
+        if (rawCc) dimParts.push(`Cost Center "${rawCc}"`);
+        const dimSuffix = dimParts.length > 0 ? ` (${dimParts.join(', ')})` : '';
 
         if (knownKeys.has(compositeKey)) {
-          errors.push(`AccCode "${d.accCode.trim()}" with ${dimLabel} already exists`);
+          if (status === 'valid') status = 'skip';
+          notes.push(`AccCode "${d.accCode.trim()}"${dimSuffix} already exists - insert will be skipped`);
         } else if (seenKeys.has(compositeKey)) {
           const prevRow = seenKeys.get(compositeKey);
-          errors.push(`Duplicate AccCode "${d.accCode.trim()}" with ${dimLabel} (already in file at row #${prevRow})`);
+          if (status === 'valid') status = 'skip';
+          notes.push(`Duplicate AccCode "${d.accCode.trim()}"${dimSuffix} (already in file at row #${prevRow}) - insert will be skipped`);
         } else {
           seenKeys.set(compositeKey, r.rowNo);
         }
       }
 
-      const status: PreviewRow['status'] = errors.length ? 'error' : 'valid';
       out.push({ rowNo: r.rowNo, data: d, status, errors: status === 'error' ? errors : notes });
     }
     return out;
@@ -3274,25 +3287,40 @@ export const generalImportService = {
       const deptMap = buildCoaDimLookupMap(existingDepts);
       const ccMap = buildCoaDimLookupMap(existingCcs);
 
-      const knownKeys = new Set<string>();
+      const existingByCompositeKey = new Map<string, typeof existingAccounts[number]>();
+      const seenInFile = new Set<string>();
       const accountIdByCode = new Map<string, string>();
+      const unlinkedAccountIdByCode = new Map<string, string>();
       for (const acc of existingAccounts) {
         const cKey = acc.code.trim().toLowerCase();
-        knownKeys.add(`${cKey}|${acc.departmentCenterId || ''}|${acc.costCenterId || ''}`);
-        if (!accountIdByCode.has(cKey)) {
+        const compKey = `${cKey}|${acc.departmentCenterId || ''}|${acc.costCenterId || ''}`;
+        existingByCompositeKey.set(compKey, acc);
+        if (!acc.departmentCenterId && !acc.costCenterId) {
+          unlinkedAccountIdByCode.set(cKey, acc.id);
+          accountIdByCode.set(cKey, acc.id);
+        } else if (!accountIdByCode.has(cKey)) {
           accountIdByCode.set(cKey, acc.id);
         }
       }
 
-      const pendingParentLinks: Array<{ accountId: string; parentCode: string }> = [];
+      const pendingParentLinks: Array<{ accountId: string; codeKey: string; parentCode: string; isUnlinked: boolean }> = [];
+
+      const resolveParentAccountId = (codeKey: string, parentCodeKey: string, isUnlinked: boolean): string | null => {
+        if (!parentCodeKey) return null;
+        if (parentCodeKey === codeKey) {
+          if (isUnlinked) return null;
+          return unlinkedAccountIdByCode.get(parentCodeKey) || null;
+        }
+        return unlinkedAccountIdByCode.get(parentCodeKey) || accountIdByCode.get(parentCodeKey) || null;
+      };
 
       for (const r of valid) {
         const d = r.data;
         const code = (d.accCode || '').trim();
         const description = (d.accDescription || '').trim();
         const rawCat = (d.accCategory || '').trim();
-        const rawDept = (d.department || '').trim();
-        const rawCc = (d.costCenter || '').trim();
+        const rawDept = cleanOptionalCoaDim(d.department);
+        const rawCc = cleanOptionalCoaDim(d.costCenter);
         const rawParent = (d.parentCode || '').trim();
 
         try {
@@ -3314,17 +3342,45 @@ export const generalImportService = {
             continue;
           }
 
-          const compositeKey = `${code.toLowerCase()}|${resolvedDept?.id || ''}|${resolvedCc?.id || ''}`;
-          if (knownKeys.has(compositeKey)) {
-            failed.push({
-              rowNo: r.rowNo,
-              errors: [`AccCode "${code}"${resolvedCc ? ` (Cost Center: ${resolvedCc.code})` : ''}${resolvedDept ? ` (Dept: ${resolvedDept.code})` : ''} already exists`],
-            });
+          const codeKey = code.toLowerCase();
+          const parentCodeKey = rawParent.toLowerCase();
+          const isUnlinked = !resolvedDept && !resolvedCc;
+          const compositeKey = `${codeKey}|${resolvedDept?.id || ''}|${resolvedCc?.id || ''}`;
+
+          if (seenInFile.has(compositeKey)) {
+            skipped++;
             continue;
           }
+          seenInFile.add(compositeKey);
 
           const { accountType, accountSubtype, normalBalance } = resolveCoaCategory(rawCat, code);
-          const immediateParentId = rawParent ? accountIdByCode.get(rawParent.toLowerCase()) || null : null;
+          const immediateParentId = resolveParentAccountId(codeKey, parentCodeKey, isUnlinked);
+
+          const existingAcc = existingByCompositeKey.get(compositeKey);
+          if (existingAcc) {
+            const safeParentId = immediateParentId && immediateParentId !== existingAcc.id ? immediateParentId : undefined;
+            await prisma.glAccount.update({
+              where: { id: existingAcc.id },
+              data: {
+                name: description.slice(0, 255),
+                accountType,
+                accountSubtype: accountSubtype ? accountSubtype.slice(0, 50) : null,
+                normalBalance,
+                ...(safeParentId !== undefined ? { parentId: safeParentId } : {}),
+                isActive: true,
+              },
+            });
+            if (rawParent && !safeParentId) {
+              pendingParentLinks.push({
+                accountId: existingAcc.id,
+                codeKey,
+                parentCode: parentCodeKey,
+                isUnlinked,
+              });
+            }
+            skipped++;
+            continue;
+          }
 
           const createdAcc = await prisma.glAccount.create({
             data: {
@@ -3342,12 +3398,25 @@ export const generalImportService = {
             },
           });
 
-          knownKeys.add(compositeKey);
-          if (!accountIdByCode.has(code.toLowerCase())) {
-            accountIdByCode.set(code.toLowerCase(), createdAcc.id);
+          existingByCompositeKey.set(compositeKey, {
+            id: createdAcc.id,
+            code: createdAcc.code,
+            departmentCenterId: createdAcc.departmentCenterId,
+            costCenterId: createdAcc.costCenterId,
+          });
+          if (isUnlinked) {
+            unlinkedAccountIdByCode.set(codeKey, createdAcc.id);
+            accountIdByCode.set(codeKey, createdAcc.id);
+          } else if (!accountIdByCode.has(codeKey)) {
+            accountIdByCode.set(codeKey, createdAcc.id);
           }
           if (rawParent && !immediateParentId) {
-            pendingParentLinks.push({ accountId: createdAcc.id, parentCode: rawParent.toLowerCase() });
+            pendingParentLinks.push({
+              accountId: createdAcc.id,
+              codeKey,
+              parentCode: parentCodeKey,
+              isUnlinked,
+            });
           }
 
           imported++;
@@ -3357,7 +3426,7 @@ export const generalImportService = {
       }
 
       for (const link of pendingParentLinks) {
-        const parentId = accountIdByCode.get(link.parentCode);
+        const parentId = resolveParentAccountId(link.codeKey, link.parentCode, link.isUnlinked);
         if (parentId && parentId !== link.accountId) {
           try {
             await prisma.glAccount.update({

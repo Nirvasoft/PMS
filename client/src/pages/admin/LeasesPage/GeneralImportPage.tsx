@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { FileUp, Eye, Upload, Download, FolderOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,6 +11,7 @@ import {
   type GeneralImportPreview,
   type GeneralImportResult,
 } from '../../../store/api/generalImportApi';
+import { glApi } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import './GeneralImportPage.css';
 
@@ -36,6 +38,7 @@ function errMessage(e: unknown, fallback: string): string {
 }
 
 export default function GeneralImportPage() {
+  const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
   const initialType = (searchParams.get('type') as GeneralImportType) || 'meter';
   const propertyId = useSelectedPropertyId();
@@ -92,6 +95,9 @@ export default function GeneralImportPage() {
       const res = await importMut({ propertyId, type: importType, formData: buildForm() }).unwrap();
       setResult(res.data);
       setPreview(null);
+      if (importType === 'coa') {
+        dispatch(glApi.util.invalidateTags(['GlAccounts']));
+      }
       if (res.data.imported > 0) {
         toast.success(`${res.data.imported} record(s) imported${res.data.skipped > 0 ? `, ${res.data.skipped} skipped` : ''}`);
       } else if (res.data.skipped > 0) {
