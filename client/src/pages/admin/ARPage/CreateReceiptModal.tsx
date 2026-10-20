@@ -5,6 +5,7 @@ import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { Banknote, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ComboBox from '../../../components/ComboBox';
 
 const formatCurrency = (amount: number, currency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(amount);
@@ -123,11 +124,19 @@ export default function CreateReceiptModal({ onClose }: Props) {
     }
   };
 
-  const getTenantName = (t: any) => {
-    return t.tenantType === 'corporate'
-      ? t.companyName || ''
-      : `${t.firstName || ''} ${t.lastName || ''}`.trim();
-  };
+  const tenantComboOptions = useMemo(() => {
+    return tenants
+      .map((t: any) => {
+        const topLine = (t.lastName || t.companyName || t.displayName || t.firstName || '').trim();
+        const firstName = (t.firstName || '').trim();
+        return {
+          id: t.id,
+          label: topLine,
+          sublabel: firstName && firstName !== topLine ? firstName : undefined,
+        };
+      })
+      .filter((o: any) => o.label !== '');
+  }, [tenants]);
 
   return (
     <div className="ar-modal-backdrop">
@@ -142,18 +151,16 @@ export default function CreateReceiptModal({ onClose }: Props) {
 
         {/* Tenant Selection */}
         <div className="ar-form-grid">
-          <div className="ar-field" style={{ gridColumn: '1 / -1' }}>
+          <div className={`ar-field ${isTenantMissing ? 'ar-field-error' : ''}`} style={{ gridColumn: '1 / -1' }}>
             <label>Tenant <span className="req">*</span></label>
-            <select
-              className={isTenantMissing ? 'ar-input-error' : ''}
+            <ComboBox
+              id="receipt-tenant"
               value={tenantId}
-              onChange={e => { setTenantId(e.target.value); setAllocations({}); }}
-            >
-              <option value="">Select tenant…</option>
-              {tenants.map((t: any) => (
-                <option key={t.id} value={t.id}>{getTenantName(t)}</option>
-              ))}
-            </select>
+              placeholder="Select tenant…"
+              emptyText="No KYC-verified tenants found"
+              options={tenantComboOptions}
+              onChange={val => { setTenantId(val); setAllocations({}); }}
+            />
             {isTenantMissing && <span className="ar-error-text">Tenant is required</span>}
             {tenants.length === 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#f59e0b' }}>

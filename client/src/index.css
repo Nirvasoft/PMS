@@ -13506,3 +13506,134 @@ textarea.input-error,
   font-weight: 500;
   margin-top: 4px;
 }
+
+/* ── Global System Loading Indicator (Top Progress Bar + Centered Spinner Card) ── */
+.global-loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 99999;
+  background: rgba(16, 185, 129, 0.16);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.global-loading-bar-track {
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, #10b981, #34d399, #10b981, transparent);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.75);
+  animation: globalLoadingBarSlide 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes globalLoadingBarSlide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.global-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(2, 6, 23, 0.22);
+  backdrop-filter: blur(1.5px);
+  animation: globalLoadingFadeIn 0.16s ease-out;
+}
+
+@keyframes globalLoadingFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.global-loading-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 22px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  backdrop-filter: blur(10px);
+}
+
+.global-loading-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid rgba(16, 185, 129, 0.22);
+  border-top-color: #10b981;
+  border-right-color: #34d399;
+  animation: globalSpinnerRotate 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes globalSpinnerRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.global-loading-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.global-loading-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #f8fafc;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.global-loading-subtitle {
+  font-size: 0.73rem;
+  font-weight: 500;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+[data-theme="light"] .global-loading-overlay {
+  background: rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="light"] .global-loading-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(5, 150, 105, 0.32);
+  box-shadow:
+    0 12px 32px rgba(15, 23, 42, 0.14),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .global-loading-spinner {
+  border-color: rgba(5, 150, 105, 0.18);
+  border-top-color: #059669;
+  border-right-color: #10b981;
+}
+
+[data-theme="light"] .global-loading-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .global-loading-subtitle {
+  color: #64748b;
+}
+

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useGetChargeTypesQuery, useCreateInvoiceMutation, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetDepartmentCentersQuery, useGetCostCentersQuery, useGetGlAccountsQuery, type GlAccount } from '../../../store/api/glApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
@@ -35,6 +35,7 @@ export default function CreateInvoicePage() {
   const navigate = useNavigate();
   const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
+  const { data: scopeData } = useGetMyPropertyScopeQuery();
   const { data: glAccounts = [] } = useGetGlAccountsQuery({});
   const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({ isActive: true });
   const { data: costCentersData = [] } = useGetCostCentersQuery({ isActive: true });
@@ -43,6 +44,7 @@ export default function CreateInvoicePage() {
 
   const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
+  const scopeProperties = scopeData?.data || [];
   const departmentCenters = Array.isArray(departmentCentersData) ? departmentCentersData : (departmentCentersData as any)?.data || [];
   const costCenters = Array.isArray(costCentersData) ? costCentersData : (costCentersData as any)?.data || [];
 
@@ -52,11 +54,8 @@ export default function CreateInvoicePage() {
     return map;
   }, [glAccounts]);
 
-  // Locked to the sidebar's Active Property, same convention as Expenses/Payment
-  // Vouchers/New Lease/New Floor/New Lead — only when "All Properties" is active
-  // can the property be chosen here.
   const activeProperty = useSelectedPropertyFilter();
-  const propertyLocked = !!activeProperty;
+  const effectivePropertyId = activeProperty || properties[0]?.id || scopeProperties[0]?.id || '';
 
   const [form, setForm] = useState({
     propertyId: '', tenantId: '', unitId: '', leaseId: '',
@@ -66,12 +65,12 @@ export default function CreateInvoicePage() {
   });
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
-  // Tenants scoped to the selected property — only fetched once a property is chosen.
-  // The server's propertyId filter matches tenants whose propertyId field equals it
-  // OR who have an active lease against that property.
+  const resolvedPropertyId = form.propertyId || effectivePropertyId;
+
+  // Tenants scoped to the selected property
   const { data: tenantsData } = useGetTenantsQuery(
-    form.propertyId
-      ? { propertyId: form.propertyId, page: 1, limit: 200 }
+    resolvedPropertyId
+      ? { propertyId: resolvedPropertyId, page: 1, limit: 200 }
       : skipToken,
   );
   const tenants = tenantsData?.data || [];
@@ -97,7 +96,7 @@ export default function CreateInvoicePage() {
 
   // Fetch currency rates for the selected property to determine currency exchange rates.
   const { data: currencyRatesData, isFetching: isRatesLoading } = useGetCurrencyRatesQuery(
-    form.propertyId ? { propertyId: form.propertyId } : skipToken,
+    resolvedPropertyId ? { propertyId: resolvedPropertyId } : skipToken,
   );
   const currencyRates = currencyRatesData?.data ?? [];
 
@@ -129,31 +128,14 @@ export default function CreateInvoicePage() {
     return 'No exchange rate configured';
   })();
 
-
-  // Clears back to "Select property" if the sidebar switches to "All Properties" after
-  // having been locked to a specific property. Also resets tenant + unit since they are
-  // property-scoped.
-  const prevPropertyLockedRef = useRef(propertyLocked);
   useEffect(() => {
-    if (propertyLocked) {
-      if (form.propertyId !== activeProperty) {
-        setForm((f) => ({ ...f, propertyId: activeProperty, tenantId: '', unitId: '', leaseId: '' }));
-      }
-    } else if (prevPropertyLockedRef.current) {
+    if (effectivePropertyId && form.propertyId !== effectivePropertyId) {
+      setForm((f) => ({ ...f, propertyId: effectivePropertyId, tenantId: '', unitId: '', leaseId: '' }));
+    } else if (!effectivePropertyId && form.propertyId) {
       setForm((f) => ({ ...f, propertyId: '', tenantId: '', unitId: '', leaseId: '' }));
     }
-    prevPropertyLockedRef.current = propertyLocked;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyLocked, activeProperty]);
-
-  // Reset tenant + unit selection whenever property changes (tenants are property-scoped)
-  const prevPropertyIdRef = useRef(form.propertyId);
-  useEffect(() => {
-    if (prevPropertyIdRef.current !== form.propertyId) {
-      setForm((f) => ({ ...f, tenantId: '', unitId: '', leaseId: '' }));
-      prevPropertyIdRef.current = form.propertyId;
-    }
-  }, [form.propertyId]);
+  }, [effectivePropertyId]);
 
   // Reset unit selection whenever tenant changes (units are tenant-specific)
   const prevTenantIdRef = useRef(form.tenantId);
@@ -283,7 +265,6 @@ export default function CreateInvoicePage() {
   const tax = lines.reduce((s, l) => s + l.quantity * l.unitPrice * l.taxRate, 0);
   const total = subtotal + tax;
 
-  const isPropertyMissing = hasAttemptedSubmit && !form.propertyId;
   const isTenantMissing = hasAttemptedSubmit && !form.tenantId;
   const isInvoiceDateMissing = hasAttemptedSubmit && !form.invoiceDate;
   const isDueDateMissing = hasAttemptedSubmit && !form.dueDate;
@@ -292,13 +273,14 @@ export default function CreateInvoicePage() {
     e.preventDefault();
     setHasAttemptedSubmit(true);
     const hasLineErrors = lines.length === 0 || lines.some(l => !l.chargeTypeId || !l.description.trim());
-    if (!form.propertyId || !form.tenantId || !form.invoiceDate || !form.dueDate || hasLineErrors) {
-      toast.error('Please fill in all required fields');
+    if (!resolvedPropertyId || !form.tenantId || !form.invoiceDate || !form.dueDate || hasLineErrors) {
+      toast.error(!resolvedPropertyId ? 'Please select a property from the sidebar first' : 'Please fill in all required fields');
       return;
     }
     try {
       const result = await createInvoice({
         ...form,
+        propertyId: resolvedPropertyId,
         unitId: form.unitId || undefined,
         departmentCenterId: form.departmentCenterId || undefined,
         costCenterId: form.costCenterId || undefined,
@@ -348,32 +330,18 @@ export default function CreateInvoicePage() {
             </div>
             <div>
               <h3>Invoice Details</h3>
-              <p>Select the property, tenant, and billing dates</p>
+              <p>Select the tenant and billing dates</p>
             </div>
           </div>
 
           <div className="inv-form-grid">
-            <div className="inv-field">
-              <label>Property <span className="req">*</span></label>
-              {/* Locked to the sidebar's Active Property; not independently choosable then. */}
-              <select
-                className={isPropertyMissing ? 'inv-input-error' : ''}
-                value={form.propertyId}
-                disabled={propertyLocked}
-                onChange={e => setForm({ ...form, propertyId: e.target.value, tenantId: '', unitId: '' })}
-              >
-                <option value="">Select property</option>
-                {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              {isPropertyMissing && <span className="inv-error-text">Property is required</span>}
-            </div>
             <div className={`inv-field ${isTenantMissing ? 'inv-field-error' : ''}`}>
               <label>Tenant <span className="req">*</span></label>
               <ComboBox
                 id="invoice-tenant"
                 value={form.tenantId}
-                disabled={!form.propertyId}
-                placeholder={!form.propertyId ? 'Select property first' : 'Select tenant'}
+                disabled={!resolvedPropertyId}
+                placeholder={!resolvedPropertyId ? 'Select property first' : 'Select tenant'}
                 emptyText="No tenants found for this property"
                 options={tenants
                   .map((t: any) => {

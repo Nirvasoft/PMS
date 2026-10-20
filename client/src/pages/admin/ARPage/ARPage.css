@@ -477,7 +477,7 @@
 }
 .ar-field label .req { color: #f87171; margin-left: 2px; }
 
-.ar-field input,
+.ar-field input:not(.combobox-input),
 .ar-field select,
 .ar-field textarea {
   width: 100%; padding: 10px 14px;
@@ -485,7 +485,7 @@
   border-radius: 10px; color: var(--text-primary); font-size: 13px; outline: none;
   transition: border-color 0.15s, box-shadow 0.15s; font-family: inherit;
 }
-.ar-field input:focus,
+.ar-field input:not(.combobox-input):focus,
 .ar-field select:focus,
 .ar-field textarea:focus {
   border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
@@ -496,7 +496,8 @@
 /* ── Validation Error Styles ─────────────────── */
 .ar-field input.ar-input-error,
 .ar-field select.ar-input-error,
-.ar-field textarea.ar-input-error {
+.ar-field textarea.ar-input-error,
+.ar-field.ar-field-error .combobox-control {
   border-color: #ef4444 !important;
   background-color: rgba(239, 68, 68, 0.08) !important;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
@@ -512,7 +513,8 @@
 
 [data-theme="light"] .ar-field input.ar-input-error,
 [data-theme="light"] .ar-field select.ar-input-error,
-[data-theme="light"] .ar-field textarea.ar-input-error {
+[data-theme="light"] .ar-field textarea.ar-input-error,
+[data-theme="light"] .ar-field.ar-field-error .combobox-control {
   border-color: #ef4444 !important;
   background-color: #fef2f2 !important;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
@@ -702,7 +704,7 @@
 [data-theme="light"] .ar-modal { background: white; border-color: rgba(0,0,0,0.08); box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
 [data-theme="light"] .ar-drawer { background: white; border-color: rgba(0,0,0,0.08); box-shadow: -10px 0 40px rgba(0,0,0,0.1); }
 
-[data-theme="light"] .ar-field input,
+[data-theme="light"] .ar-field input:not(.combobox-input),
 [data-theme="light"] .ar-field select,
 [data-theme="light"] .ar-field textarea { background: white; border-color: rgba(0,0,0,0.12); color: #111; }
 [data-theme="light"] .ar-field select option { background: white; }

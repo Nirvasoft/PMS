@@ -318,26 +318,24 @@ export default function ChargeTypesPage() {
           <table className="billing-table">
           <thead>
             <tr>
-              <th style={{ width: 140 }}>Code</th>
-              <th style={{ minWidth: 200 }}>Name</th>
-              <th style={{ width: 140 }}>Category</th>
-              <th style={{ width: 130 }}>GL Account</th>
-              <th style={{ width: 120 }}>Department</th>
-              <th style={{ width: 120 }}>Cost Center</th>
-              <th className="text-center" style={{ width: 90 }}>Taxable</th>
-              <th className="text-right" style={{ width: 120 }}>Default Tax</th>
-              <th style={{ width: 110 }}>Status</th>
-              <th className="text-center" style={{ width: 80 }}></th>
+              <th style={{ width: 120 }}>Code</th>
+              <th style={{ width: 170 }}>Name</th>
+              <th style={{ width: 125 }}>Category</th>
+              <th style={{ width: 120 }}>GL Account</th>
+              <th style={{ width: 115 }}>Department</th>
+              <th style={{ width: 115 }}>Cost Center</th>
+              <th style={{ width: 100 }}>Status</th>
+              <th className="text-center" style={{ width: 65 }}></th>
             </tr>
           </thead>
           <tbody>
             {isFetching && chargeTypes.length === 0 ? (
-              <tr><td colSpan={10} className="billing-empty">Loading…</td></tr>
+              <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
             ) : chargeTypes.length === 0 ? (
-              <tr><td colSpan={10} className="billing-empty">No charge types found</td></tr>
+              <tr><td colSpan={8} className="billing-empty">No charge types found</td></tr>
             ) : filteredChargeTypes.length === 0 ? (
               <tr>
-                <td colSpan={10} className="billing-empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
+                <td colSpan={8} className="billing-empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
                   <div style={{ marginBottom: 12, fontSize: 14, color: 'var(--text-secondary)' }}>
                     No charge types match your search or filter criteria.
                   </div>
@@ -376,20 +374,6 @@ export default function ChargeTypesPage() {
                     <span className="cell-mono" style={{ fontSize: 13, color: ccCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
                       {ccCode || '—'}
                     </span>
-                  </td>
-                  <td className="text-center">
-                    {ct.isTaxable ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
-                        <Check size={13} />
-                      </span>
-                    ) : (
-                      <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>—</span>
-                    )}
-                  </td>
-                  <td className="text-right">
-                    {ct.isTaxable && Number(ct.taxRate) > 0
-                      ? <span style={{ fontWeight: 600, color: '#fbbf24' }}>{(Number(ct.taxRate) * 100).toFixed(1)}%</span>
-                      : <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>—</span>}
                   </td>
                   <td>
                     {ct.isActive
@@ -464,10 +448,10 @@ export default function ChargeTypesPage() {
       {/* Create / Edit Form Modal */}
       {showForm && (
         <div className="modal-overlay">
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <div className="modal-content meter-form-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2><Tag size={18} /> {editing ? 'Edit Charge Type' : 'New Charge Type'}</h2>
-              <button className="modal-close" onClick={closeForm}><X size={18} /></button>
+              <button type="button" className="modal-close" onClick={closeForm}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">
@@ -605,20 +589,28 @@ export default function ChargeTypesPage() {
                         ))}
                     </select>
                   </div>
-                </div>
-
-                <div style={{ marginTop: 16, display: 'flex', gap: 20, alignItems: 'center' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={form.isTaxable}
-                      onChange={e => setForm({ ...form, isTaxable: e.target.checked })}
-                      style={{ accentColor: 'var(--primary)' }} />
-                    Taxable
-                  </label>
+                  <div className="inv-field" style={{ justifyContent: form.isTaxable ? 'flex-end' : 'flex-start' }}>
+                    {form.isTaxable && <label style={{ visibility: 'hidden' }} aria-hidden="true">Taxable</label>}
+                    <label className="ct-taxable-toggle">
+                      <input
+                        type="checkbox"
+                        checked={form.isTaxable}
+                        onChange={e => setForm({ ...form, isTaxable: e.target.checked })}
+                      />
+                      <span>Taxable</span>
+                    </label>
+                  </div>
                   {form.isTaxable && (
-                    <div className="inv-field" style={{ width: 160 }}>
+                    <div className="inv-field">
                       <label>Default Tax Rate</label>
-                      <input type="number" min={0} max={1} step={0.001} value={form.taxRate}
-                        onChange={e => setForm({ ...form, taxRate: Number(e.target.value) })} />
+                      <input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.001}
+                        value={form.taxRate}
+                        onChange={e => setForm({ ...form, taxRate: Number(e.target.value) })}
+                      />
                     </div>
                   )}
                 </div>

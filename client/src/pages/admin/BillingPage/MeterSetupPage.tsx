@@ -144,8 +144,6 @@ export default function MeterSetupPage() {
   );
   const floors = floorsData?.data || [];
 
-  const lockedPropertyName = scopeProperties.find((p) => p.id === searchPropertyId)?.name;
-
   useEffect(() => {
     if (showForm && !editing) {
       if (form.propertyId !== defaultPropertyId && defaultPropertyId) {
@@ -287,9 +285,7 @@ export default function MeterSetupPage() {
             <span className="bsc-label">Total Meters</span>
             <span className="bsc-value">{totalCount}</span>
             <span className="bsc-sub">
-              {selectedFloorLabel
-                ? `Floor: ${selectedFloorLabel}`
-                : (lockedPropertyName || properties.find((p) => p.id === searchPropertyId)?.name || 'All registered meters')}
+              {selectedFloorLabel ? `Floor: ${selectedFloorLabel}` : 'All registered meters'}
             </span>
           </div>
         </div>
@@ -531,10 +527,10 @@ export default function MeterSetupPage() {
       {/* Create / Edit Form Modal */}
       {showForm && (
         <div className="modal-overlay">
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content meter-form-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2><Gauge size={18} /> {editing ? 'Edit Meter' : 'New Meter'}</h2>
-              <button className="modal-close" onClick={closeForm}><X size={18} /></button>
+              <button type="button" className="modal-close" onClick={closeForm}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">

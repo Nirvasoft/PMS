@@ -401,7 +401,6 @@ export default function BillingDashboardPage() {
                 <tr>
                   <th>Invoice #</th>
                   <th>Tenant</th>
-                  <th>Property</th>
                   <th>Date</th>
                   <th className="text-right">Amount</th>
                   <th>Status</th>
@@ -409,14 +408,13 @@ export default function BillingDashboardPage() {
               </thead>
               <tbody>
                 {isFetching && !recentInvoices.length ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>Loading…</td></tr>
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>Loading…</td></tr>
                 ) : recentInvoices.length === 0 ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>No invoices yet</td></tr>
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>No invoices yet</td></tr>
                 ) : recentInvoices.map(inv => (
                   <tr key={inv.id} className="clickable" onClick={() => navigate(`/admin/billing/invoices/${inv.id}`)}>
                     <td><span className="cell-mono">{inv.invoiceNumber}</span></td>
                     <td><span className="cell-primary">{getTenantName(inv)}</span></td>
-                    <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{inv.property?.name}</span></td>
                     <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{format(new Date(inv.invoiceDate), 'yyyy-MM-dd')}</span></td>
                     <td className="text-right">
                       <span className="cell-amount">{formatCurrency(Number(inv.totalAmount), inv.currency)}</span>

@@ -48,7 +48,7 @@ import { sequenceApi } from './api/sequenceApi';
 // Every RTK Query slice, so its cache can be wiped on logout — otherwise a second user
 // signing in on the same tab (no full page reload) sees the previous user's cached data,
 // e.g. a property-scoped user briefly seeing an unscoped admin's cached property list.
-const apiSlices = [
+export const apiSlices = [
   authApi, usersApi, organizationApi, workflowApi, notificationsApi, documentsApi,
   dashboardApi, propertiesApi, unitsApi, tenantsApi, leasesApi, crmApi, parkingApi,
   billingApi, arApi, apApi, glApi, assetsApi, bankingApi, maintenanceApi, pmApi,

@@ -14,8 +14,9 @@ import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil, Search, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
-import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useSelectedPropertyFilter, useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import ComboBox from '../../../components/ComboBox';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
 import toast from 'react-hot-toast';
 import './BillingPage.css';
@@ -61,6 +62,7 @@ export default function BillingSchedulesPage() {
   const [cycleFilter, setCycleFilter] = useState<string>('');
   const [search, setSearch] = useState('');
   const selectedProperty = useSelectedPropertyFilter();
+  const defaultPropertyId = useSelectedPropertyId();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<BillingSchedule | null>(null);
@@ -194,10 +196,7 @@ export default function BillingSchedulesPage() {
     }
   }, [filteredChargeTypes, showForm, form.chargeTypeId]);
 
-  // New schedules bind to the sidebar's Active Property; only "All Properties" allows
-  // picking one here. Editing an existing schedule keeps its own property, unaffected.
-  const propertyLocked = !editId && !!selectedProperty;
-  const lockedPropertyName = scopeProperties.find((p) => p.id === selectedProperty)?.name;
+  const effectiveCreatePropertyId = selectedProperty || defaultPropertyId || properties[0]?.id || scopeProperties[0]?.id || '';
 
   // Currency is bound to the selected Unit's own Currency Code (falling back to the
   // property's currency when no unit is picked, or for units created before that field
@@ -234,24 +233,13 @@ export default function BillingSchedulesPage() {
         : form.amount * Number(selectedCurrencyRate.rate))
     : null;
 
-  // Clears back to "Select property" (or re-locks to the new property) if the sidebar
-  // changes while the create form is open.
-  const prevPropertyLockedRef = useRef(propertyLocked);
   useEffect(() => {
-    if (showForm && !editId) {
-      if (propertyLocked) {
-        if (form.propertyId !== selectedProperty) {
-          setForm((f) => ({ ...f, propertyId: selectedProperty, unitId: '', tenantId: '', leaseId: '' }));
-          setFloorId('');
-        }
-      } else if (prevPropertyLockedRef.current) {
-        setForm((f) => ({ ...f, propertyId: '', unitId: '', tenantId: '', leaseId: '' }));
-        setFloorId('');
-      }
+    if (showForm && !editId && effectiveCreatePropertyId && form.propertyId !== effectiveCreatePropertyId) {
+      setForm((f) => ({ ...f, propertyId: effectiveCreatePropertyId, unitId: '', tenantId: '', leaseId: '' }));
+      setFloorId('');
     }
-    prevPropertyLockedRef.current = propertyLocked;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyLocked, selectedProperty, showForm, editId]);
+  }, [effectiveCreatePropertyId, showForm, editId]);
 
   // `units` already reflects the current floor filter (all of the property's units when none is
   // picked yet), so cross-referencing against it is how leases stay scoped to Floor as well as Unit.
@@ -320,7 +308,7 @@ export default function BillingSchedulesPage() {
     setHasAttemptedSubmit(false);
     setEditId(null);
     setSelectedSchedule(null);
-    setForm({ ...emptyForm, propertyId: selectedProperty });
+    setForm({ ...emptyForm, propertyId: effectiveCreatePropertyId });
     setFloorId('');
     setShowForm(true);
   };
@@ -358,7 +346,6 @@ export default function BillingSchedulesPage() {
   };
 
   const isChargeTypeMissing = hasAttemptedSubmit && !form.chargeTypeId;
-  const isPropertyMissing = hasAttemptedSubmit && !form.propertyId;
   const isTenantMissing = hasAttemptedSubmit && !form.leaseId;
   const isAmountMissing = hasAttemptedSubmit && (form.amount === undefined || form.amount === null || isNaN(form.amount) || form.amount <= 0 || String(form.amount).trim() === '');
   const isBillingCycleMissing = hasAttemptedSubmit && !form.billingCycle;
@@ -693,14 +680,117 @@ export default function BillingSchedulesPage() {
       {/* ═══ Create / Edit Schedule Modal ═══ */}
       {showForm && (
         <div className="modal-overlay">
-          <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
+          <div className="modal-content modal-lg meter-form-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2><CalendarClock size={18} /> {editId ? 'Edit Schedule' : 'New Billing Schedule'}</h2>
-              <button className="modal-close" onClick={() => setShowForm(false)}><X size={18} /></button>
+              <button type="button" className="modal-close" onClick={() => setShowForm(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} noValidate>
               <div className="modal-body">
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  {/* Row 1: Floor | Unit */}
+                  <div className="inv-field">
+                    <label>Floor</label>
+                    <select value={floorId} disabled={!form.propertyId} onChange={e => {
+                      setFloorId(e.target.value);
+                      setForm({ ...form, unitId: '', tenantId: '', leaseId: '' });
+                    }}>
+                      <option value="">{form.propertyId ? 'Select floor' : 'Select property first'}</option>
+                      {floors.map(f => <option key={f.id} value={f.id}>{f.floorLabel}</option>)}
+                    </select>
+                  </div>
+                  <div className="inv-field">
+                    <label>Unit</label>
+                    <select value={form.unitId} disabled={!form.propertyId} onChange={e => {
+                      const unitId = e.target.value;
+                      setForm({ ...form, unitId, tenantId: '', leaseId: '' });
+                      if (unitId) setFloorId(deriveFloorId(unitId));
+                    }}>
+                      <option value="">{form.propertyId ? 'No specific unit' : 'Select property first'}</option>
+                      {selectedSchedule?.unit && form.unitId === selectedSchedule.unit.id && !units.some(u => u.id === selectedSchedule.unit!.id) && (
+                        <option value={selectedSchedule.unit.id}>{selectedSchedule.unit.unitNumber}</option>
+                      )}
+                      {units.map(u => <option key={u.id} value={u.id}>{u.unitNumber}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Row 2: Department | Cost Center */}
+                  <div className="inv-field">
+                    <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                    <select
+                      value={form.departmentCenterId}
+                      onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
+                    >
+                      <option value="">— None —</option>
+                      {departmentCenters.map((d) => (
+                        <option key={d.id} value={d.id}>{d.code}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="inv-field">
+                    <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                    <select
+                      value={form.costCenterId}
+                      onChange={e => setForm({ ...form, costCenterId: e.target.value })}
+                    >
+                      <option value="">— None —</option>
+                      {costCenters.map((c) => (
+                        <option key={c.id} value={c.id}>{c.code}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Row 3: Tenant * | Charge Type * */}
+                  <div className={`inv-field ${isTenantMissing ? 'inv-field-error' : ''}`}>
+                    <label>Tenant <span className="req">*</span></label>
+                    <ComboBox
+                      id="schedule-tenant"
+                      value={form.leaseId}
+                      disabled={!form.propertyId}
+                      placeholder={
+                        !form.propertyId
+                          ? 'Select property first'
+                          : (filteredLeases.length > 0 || (selectedSchedule && form.leaseId))
+                          ? 'Select tenant'
+                          : 'No active leases'
+                      }
+                      emptyText="No active leases"
+                      options={[
+                        ...(selectedSchedule && form.leaseId && !filteredLeases.some(l => l.id === form.leaseId)
+                          ? [{
+                              id: form.leaseId,
+                              label: (selectedSchedule.tenant.lastName || selectedSchedule.tenant.companyName || selectedSchedule.tenant.firstName || '').trim(),
+                              sublabel: (selectedSchedule.tenant.firstName || '').trim() && (selectedSchedule.tenant.firstName || '').trim() !== (selectedSchedule.tenant.lastName || selectedSchedule.tenant.companyName || selectedSchedule.tenant.firstName || '').trim()
+                                ? (selectedSchedule.tenant.firstName || '').trim()
+                                : undefined,
+                            }]
+                          : []),
+                        ...filteredLeases.map(l => {
+                          const topLine = (l.tenant.lastName || l.tenant.companyName || l.tenant.firstName || '').trim();
+                          const firstName = (l.tenant.firstName || '').trim();
+                          return {
+                            id: l.id,
+                            label: topLine,
+                            sublabel: firstName && firstName !== topLine ? firstName : undefined,
+                          };
+                        }),
+                      ].filter(o => o.label !== '')}
+                      onChange={val => {
+                        const lease = leases.find(l => l.id === val);
+                        const unitId = lease?.unit?.id || form.unitId;
+                        const currentCt = chargeTypes.find(ct => ct.id === form.chargeTypeId) || selectedSchedule?.chargeType;
+                        setForm({
+                          ...form,
+                          leaseId: lease?.id || '',
+                          tenantId: lease?.tenant.id || '',
+                          unitId,
+                          quantity: isBaseRentCharge(currentCt) ? (lease?.leaseTermMonths ?? form.quantity) : 1,
+                        });
+                        if (lease?.unit?.id) setFloorId(deriveFloorId(lease.unit.id));
+                      }}
+                    />
+                    {isTenantMissing && <span className="inv-error-text">Tenant is required</span>}
+                  </div>
                   <div className="inv-field">
                     <label>Charge Type <span className="req">*</span></label>
                     <select
@@ -729,86 +819,8 @@ export default function BillingSchedulesPage() {
                     </select>
                     {isChargeTypeMissing && <span className="inv-error-text">Charge type is required</span>}
                   </div>
-                  <div className="inv-field">
-                    <label>Property <span className="req">*</span></label>
-                    <select
-                      className={isPropertyMissing ? 'inv-input-error' : ''}
-                      value={form.propertyId}
-                      disabled={propertyLocked}
-                      onChange={e => {
-                        setForm({ ...form, propertyId: e.target.value, unitId: '', tenantId: '', leaseId: '' });
-                        setFloorId('');
-                      }}
-                    >
-                      {propertyLocked ? (
-                        <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
-                      ) : (
-                        <>
-                          <option value="">Select property</option>
-                          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </>
-                      )}
-                    </select>
-                    {isPropertyMissing && <span className="inv-error-text">Property is required</span>}
-                  </div>
-                  <div className="inv-field">
-                    <label>Floor</label>
-                    <select value={floorId} disabled={!form.propertyId} onChange={e => {
-                      setFloorId(e.target.value);
-                      setForm({ ...form, unitId: '', tenantId: '', leaseId: '' });
-                    }}>
-                      <option value="">{form.propertyId ? 'Select floor' : 'Select property first'}</option>
-                      {floors.map(f => <option key={f.id} value={f.id}>{f.floorLabel}</option>)}
-                    </select>
-                  </div>
-                  <div className="inv-field">
-                    <label>Unit</label>
-                    <select value={form.unitId} disabled={!form.propertyId} onChange={e => {
-                      const unitId = e.target.value;
-                      setForm({ ...form, unitId, tenantId: '', leaseId: '' });
-                      if (unitId) setFloorId(deriveFloorId(unitId));
-                    }}>
-                      <option value="">{form.propertyId ? 'No specific unit' : 'Select property first'}</option>
-                      {selectedSchedule?.unit && form.unitId === selectedSchedule.unit.id && !units.some(u => u.id === selectedSchedule.unit!.id) && (
-                        <option value={selectedSchedule.unit.id}>{selectedSchedule.unit.unitNumber}</option>
-                      )}
-                      {units.map(u => <option key={u.id} value={u.id}>{u.unitNumber}</option>)}
-                    </select>
-                  </div>
-                  <div className="inv-field">
-                    <label>Tenant <span className="req">*</span></label>
-                    <select
-                      className={isTenantMissing ? 'inv-input-error' : ''}
-                      value={form.leaseId}
-                      disabled={!form.propertyId}
-                      onChange={e => {
-                        const lease = leases.find(l => l.id === e.target.value);
-                        const unitId = lease?.unit?.id || form.unitId;
-                        const currentCt = chargeTypes.find(ct => ct.id === form.chargeTypeId) || selectedSchedule?.chargeType;
-                        setForm({
-                          ...form,
-                          leaseId: lease?.id || '',
-                          tenantId: lease?.tenant.id || '',
-                          unitId,
-                          quantity: isBaseRentCharge(currentCt) ? (lease?.leaseTermMonths ?? form.quantity) : 1,
-                        });
-                        if (lease?.unit?.id) setFloorId(deriveFloorId(lease.unit.id));
-                      }}
-                    >
-                      <option value="">
-                        {!form.propertyId ? 'Select property first' : (filteredLeases.length > 0 || (selectedSchedule && form.leaseId)) ? 'Select tenant' : 'No active leases for this property/floor/unit'}
-                      </option>
-                      {selectedSchedule && form.leaseId && !filteredLeases.some(l => l.id === form.leaseId) && (
-                        <option value={form.leaseId}>{getTenantName(selectedSchedule)}</option>
-                      )}
-                      {filteredLeases.map(l => (
-                        <option key={l.id} value={l.id}>
-                          {l.tenant.tenantType !== 'individual' ? l.tenant.companyName : l.tenant.lastName}
-                        </option>
-                      ))}
-                    </select>
-                    {isTenantMissing && <span className="inv-error-text">Tenant is required</span>}
-                  </div>
+
+                  {/* Row 4: Qty | Amount * */}
                   <div className="inv-field">
                     <label>Qty</label>
                     <input type="number" min={0} step={1} value={form.quantity}
@@ -826,6 +838,8 @@ export default function BillingSchedulesPage() {
                     />
                     {isAmountMissing && <span className="inv-error-text">Amount must be greater than 0</span>}
                   </div>
+
+                  {/* Row 5: Currency | Base Amount */}
                   <div className="inv-field">
                     <label>Currency</label>
                     <select
@@ -850,6 +864,8 @@ export default function BillingSchedulesPage() {
                       style={{ background: 'var(--bg-tertiary)', color: baseAmount != null ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'not-allowed' }}
                     />
                   </div>
+
+                  {/* Row 6: Billing Cycle * | Billing Day (of month) * */}
                   <div className="inv-field">
                     <label>Billing Cycle <span className="req">*</span></label>
                     <select
@@ -875,11 +891,8 @@ export default function BillingSchedulesPage() {
                     />
                     {isBillingDayMissing && <span className="inv-error-text">Billing day must be between 1 and 28</span>}
                   </div>
-                  <div className="inv-field">
-                    <label>Payment Due (days after billing)</label>
-                    <input type="number" min={0} max={90} value={form.paymentDueDays}
-                      onChange={e => setForm({ ...form, paymentDueDays: Number(e.target.value) })} />
-                  </div>
+
+                  {/* Row 7: Start Date * | End Date (optional) */}
                   <div className="inv-field">
                     <label>Start Date <span className="req">*</span></label>
                     <input
@@ -895,32 +908,13 @@ export default function BillingSchedulesPage() {
                     <input type="date" value={form.endDate}
                       onChange={e => setForm({ ...form, endDate: e.target.value })} />
                   </div>
+
+                  {/* Row 8: Payment Due (days after billing) | Description (optional) */}
                   <div className="inv-field">
-                    <label>Department <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
-                    <select
-                      value={form.departmentCenterId}
-                      onChange={e => setForm({ ...form, departmentCenterId: e.target.value })}
-                    >
-                      <option value="">— None —</option>
-                      {departmentCenters.map((d) => (
-                        <option key={d.id} value={d.id}>{d.code}</option>
-                      ))}
-                    </select>
+                    <label>Payment Due (days after billing)</label>
+                    <input type="number" min={0} max={90} value={form.paymentDueDays}
+                      onChange={e => setForm({ ...form, paymentDueDays: Number(e.target.value) })} />
                   </div>
-                  <div className="inv-field">
-                    <label>Cost Center <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
-                    <select
-                      value={form.costCenterId}
-                      onChange={e => setForm({ ...form, costCenterId: e.target.value })}
-                    >
-                      <option value="">— None —</option>
-                      {costCenters.map((c) => (
-                        <option key={c.id} value={c.id}>{c.code}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="inv-form-grid cols-1" style={{ marginTop: 16 }}>
                   <div className="inv-field">
                     <label>Description (optional)</label>
                     <input placeholder="e.g. Monthly rent for Unit A101" value={form.description}

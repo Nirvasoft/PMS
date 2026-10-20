@@ -89,9 +89,10 @@ export default function ReceiptsPage() {
 
   const getTenantName = (r: any) => {
     if (!r.tenant) return '—';
-    return r.tenant.tenantType === 'corporate'
-      ? r.tenant.companyName || ''
-      : `${r.tenant.firstName || ''} ${r.tenant.lastName || ''}`.trim();
+    if (r.tenant.tenantType && r.tenant.tenantType !== 'individual') {
+      return r.tenant.companyName || '—';
+    }
+    return r.tenant.lastName || r.tenant.firstName || '—';
   };
 
   const totalCount = meta ? meta.total : filtered.length;

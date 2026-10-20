@@ -1159,6 +1159,98 @@
   color: var(--text-primary);
 }
 
+/* ── New / Edit Meter Modal (Sticky Header & Close X / Scrollable Body / Sticky Footer) ── */
+
+.modal-content.meter-form-modal {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  max-height: 90vh;
+}
+
+.meter-form-modal > .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.meter-form-modal > .modal-header h2 {
+  margin: 0;
+}
+
+.meter-form-modal > .modal-header .modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.meter-form-modal > .modal-header .modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.meter-form-modal > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.meter-form-modal > form > .modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.meter-form-modal > form > .modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border-subtle);
+}
+
+[data-theme="light"] .meter-form-modal > .modal-header,
+[data-theme="light"] .meter-form-modal > form > .modal-footer {
+  background: #ffffff;
+}
+
+[data-theme="light"] .meter-form-modal > .modal-header .modal-close {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+[data-theme="light"] .meter-form-modal > .modal-header .modal-close:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
 /* ── Responsive ────────────────────────────── */
 
 
@@ -1744,7 +1836,7 @@
   margin-left: 2px;
 }
 
-.inv-field input,
+.inv-field input:not([type="checkbox"]):not([type="radio"]),
 .inv-field select,
 .inv-field textarea {
   width: 100%;
@@ -1758,7 +1850,7 @@
   transition: border-color 0.15s, box-shadow 0.15s;
   font-family: inherit;
 }
-.inv-field input:focus,
+.inv-field input:not([type="checkbox"]):not([type="radio"]):focus,
 .inv-field select:focus,
 .inv-field textarea:focus {
   border-color: var(--primary);
@@ -1766,6 +1858,36 @@
 }
 .inv-field select option { background: #1a1f2e; }
 .inv-field textarea { resize: vertical; min-height: 60px; }
+
+.inv-field .ct-taxable-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background 0.15s;
+}
+.inv-field .ct-taxable-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.inv-field .ct-taxable-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
 
 .inv-field input[type="number"] {
   font-variant-numeric: tabular-nums;
@@ -2019,15 +2141,19 @@
 [data-theme="light"] .inv-form-section-header {
   border-bottom-color: rgba(0,0,0,0.06);
 }
-[data-theme="light"] .inv-field input,
+[data-theme="light"] .inv-field input:not([type="checkbox"]):not([type="radio"]),
 [data-theme="light"] .inv-field select,
-[data-theme="light"] .inv-field textarea {
+[data-theme="light"] .inv-field textarea,
+[data-theme="light"] .inv-field .ct-taxable-toggle {
   background: #ffffff;
   border: 1px solid var(--border);
   color: var(--text-primary);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
-[data-theme="light"] .inv-field input:focus,
+[data-theme="light"] .inv-field .ct-taxable-toggle:hover {
+  border-color: var(--accent);
+}
+[data-theme="light"] .inv-field input:not([type="checkbox"]):not([type="radio"]):focus,
 [data-theme="light"] .inv-field select:focus,
 [data-theme="light"] .inv-field textarea:focus {
   border-color: var(--accent);

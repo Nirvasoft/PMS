@@ -35,9 +35,6 @@ const formatCompactAmount = (amount: string | number) => {
   if (abs >= 1_000_000_000) {
     return `${(num / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '')}B`;
   }
-  if (abs >= 1_000_000) {
-    return `${(num / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`;
-  }
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
 };
 

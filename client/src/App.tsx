@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { store } from './store';
 import { ProtectedRoute, PublicRoute, RequirePermission } from './components/RouteGuards';
 import { DialogProvider } from './components/DialogProvider';
+import { GlobalLoadingIndicator } from './components/GlobalLoadingIndicator';
 import LoginPage from './pages/LoginPage/LoginPage';
 import MfaVerifyPage from './pages/MfaVerifyPage/MfaVerifyPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage/ForgotPasswordPage';
@@ -520,6 +521,7 @@ export default function App() {
   return (
     <GlobalErrorBoundary>
       <Provider store={store}>
+        <GlobalLoadingIndicator />
         <DialogProvider>
           <BrowserRouter>
             <AuthBootstrap>
