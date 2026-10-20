@@ -43,6 +43,14 @@ function getTenantLabel(inv: InvoiceListItem | InvoiceDetail): string {
   return [inv.tenant.firstName, inv.tenant.lastName].filter(Boolean).join(' - ') || '-';
 }
 
+function getReportTenantLabel(inv: InvoiceListItem | InvoiceDetail): string {
+  if (!inv.tenant) return '-';
+  if (inv.tenant.tenantType && inv.tenant.tenantType !== 'individual') {
+    return inv.tenant.companyName || '-';
+  }
+  return inv.tenant.lastName || inv.tenant.firstName || '-';
+}
+
 function getFloorLabel(inv: InvoiceListItem | InvoiceDetail): string {
   if (!inv.unit) return '-';
   if (inv.unit.floorLabel) return inv.unit.floorLabel;
@@ -667,6 +675,16 @@ export function openInvoicesReportPreview(options: {
   }
 
   const reportTitle = reportType === 'summary' ? 'Invoice Summary Report' : 'Invoice Detail Report';
+  const firstProp = invoices.find((inv) => inv.property)?.property;
+  let reportPropertyLogoUrl = firstProp?.coverImageUrl || firstProp?.imageUrl || null;
+  if (
+    reportPropertyLogoUrl &&
+    !reportPropertyLogoUrl.startsWith('http://') &&
+    !reportPropertyLogoUrl.startsWith('https://') &&
+    !reportPropertyLogoUrl.startsWith('data:')
+  ) {
+    reportPropertyLogoUrl = `${window.location.origin}${reportPropertyLogoUrl.startsWith('/') ? '' : '/'}${reportPropertyLogoUrl}`;
+  }
   const generatedAt = new Date().toLocaleString('en-US', {
     year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit',
   });
@@ -724,7 +742,6 @@ export function openInvoicesReportPreview(options: {
             <th>Tenant</th>
             <th>Floor</th>
             <th>Unit</th>
-            <th style="text-align:center;">Status</th>
             <th style="text-align:center;">Curr</th>
             <th style="text-align:right;">Total</th>
             <th style="text-align:right;">Paid</th>
@@ -739,13 +756,12 @@ export function openInvoicesReportPreview(options: {
             return `
               <tr>
                 <td style="text-align:center;">${pageOffset + idx + 1}</td>
-                <td style="font-weight:600;">${escapeHtml(inv.invoiceNumber)}</td>
+                <td>${escapeHtml(inv.invoiceNumber)}</td>
                 <td>${escapeHtml(dmy(inv.invoiceDate))}</td>
                 <td>${escapeHtml(dmy(inv.dueDate))}</td>
-                <td>${escapeHtml(getTenantLabel(inv))}</td>
+                <td>${escapeHtml(getReportTenantLabel(inv))}</td>
                 <td>${escapeHtml(getFloorLabel(inv))}</td>
                 <td>${escapeHtml(inv.unit?.unitNumber || '-')}</td>
-                <td style="text-align:center;text-transform:capitalize;">${escapeHtml(inv.status.replace('_', ' '))}</td>
                 <td style="text-align:center;">${escapeHtml(inv.currency || 'USD')}</td>
                 <td style="text-align:right;font-weight:600;">${mmk(totalNum)}</td>
                 <td style="text-align:right;color:#059669;">${mmk(paidNum)}</td>
@@ -757,7 +773,7 @@ export function openInvoicesReportPreview(options: {
         <tfoot>
           ${hasMultiplePages ? Object.entries(pageTotalsByCurrency).map(([cur, t]) => `
             <tr style="background:#f8fafc;">
-              <td colspan="9" style="text-align:right;font-weight:600;color:#475569;">Page ${pagination!.page} Subtotal (${escapeHtml(cur)})</td>
+              <td colspan="8" style="text-align:right;font-weight:600;color:#475569;">Page ${pagination!.page} Subtotal (${escapeHtml(cur)})</td>
               <td style="text-align:right;font-weight:600;">${mmk(t.total)}</td>
               <td style="text-align:right;font-weight:600;color:#059669;">${mmk(t.paid)}</td>
               <td style="text-align:right;font-weight:600;color:${t.outstanding > 0 ? '#dc2626' : '#0f172a'};">${mmk(t.outstanding)}</td>
@@ -765,7 +781,7 @@ export function openInvoicesReportPreview(options: {
           `).join('') : ''}
           ${Object.entries(grandTotalsByCurrency).map(([cur, t]) => `
             <tr class="summary-row">
-              <td colspan="9" style="text-align:right;font-weight:700;">Grand Total — All ${totalCount.toLocaleString()} Invoices (${escapeHtml(cur)})</td>
+              <td colspan="8" style="text-align:right;font-weight:700;">Grand Total — All ${totalCount.toLocaleString()} Invoices (${escapeHtml(cur)})</td>
               <td style="text-align:right;font-weight:700;">${mmk(t.total)}</td>
               <td style="text-align:right;font-weight:700;color:#059669;">${mmk(t.paid)}</td>
               <td style="text-align:right;font-weight:700;color:${t.outstanding > 0 ? '#dc2626' : '#0f172a'};">${mmk(t.outstanding)}</td>
@@ -801,9 +817,9 @@ export function openInvoicesReportPreview(options: {
               return `
                 <tr>
                   <td style="text-align:center;">${rowNum}</td>
-                  <td style="font-weight:600;">${escapeHtml(inv.invoiceNumber)}</td>
+                  <td>${escapeHtml(inv.invoiceNumber)}</td>
                   <td>${escapeHtml(dmy(inv.invoiceDate))}</td>
-                  <td>${escapeHtml(getTenantLabel(inv))}</td>
+                  <td>${escapeHtml(getReportTenantLabel(inv))}</td>
                   <td>${escapeHtml(floorUnit)}</td>
                   <td colspan="6" style="color:#64748b;">Invoice Total (${escapeHtml(inv.currency || 'USD')})</td>
                   <td style="text-align:right;font-weight:600;">${mmk(inv.totalAmount)}</td>
@@ -813,9 +829,9 @@ export function openInvoicesReportPreview(options: {
             return lines.map((line, lIdx) => `
               <tr>
                 <td style="text-align:center;">${lIdx === 0 ? rowNum : ''}</td>
-                <td style="font-weight:600;">${lIdx === 0 ? escapeHtml(inv.invoiceNumber) : ''}</td>
+                <td>${lIdx === 0 ? escapeHtml(inv.invoiceNumber) : ''}</td>
                 <td>${lIdx === 0 ? escapeHtml(dmy(inv.invoiceDate)) : ''}</td>
-                <td>${lIdx === 0 ? escapeHtml(getTenantLabel(inv)) : ''}</td>
+                <td>${lIdx === 0 ? escapeHtml(getReportTenantLabel(inv)) : ''}</td>
                 <td>${lIdx === 0 ? escapeHtml(floorUnit) : ''}</td>
                 <td>${escapeHtml(line.chargeType?.code || '-')}</td>
                 <td>${escapeHtml(line.description || line.chargeType?.name || '-')}</td>
@@ -926,13 +942,44 @@ export function openInvoicesReportPreview(options: {
     .report-header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       border-bottom: 2px solid #0f172a;
       padding-bottom: 12px;
       margin-bottom: 14px;
     }
-    .report-title { font-size: 20px; font-weight: 800; color: #0f172a; }
-    .report-subtitle { font-size: 12px; color: #475569; margin-top: 4px; }
+    .report-brand {
+      display: flex;
+      align-items: stretch;
+      gap: 12px;
+    }
+    .report-property-logo {
+      width: 44px;
+      height: 44px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      flex-shrink: 0;
+    }
+    .report-property-logo-fallback {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #64748b;
+      flex-shrink: 0;
+    }
+    .report-title-group {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 44px;
+    }
+    .report-title { font-size: 20px; line-height: 24px; font-weight: 800; color: #0f172a; }
+    .report-subtitle { font-size: 13px; line-height: 16px; font-weight: 600; color: #475569; }
     .report-meta { text-align: right; font-size: 11px; color: #475569; line-height: 1.5; }
     .filter-bar {
       display: flex;
@@ -961,7 +1008,7 @@ export function openInvoicesReportPreview(options: {
       vertical-align: middle;
     }
     .report-table thead th {
-      background: #0f172a;
+      background: #059669;
       color: #ffffff;
       font-weight: 700;
       text-align: left;
@@ -1023,9 +1070,27 @@ export function openInvoicesReportPreview(options: {
   <div class="preview-container">
     <div class="report-sheet">
       <div class="report-header">
-        <div>
-          <div class="report-title">${escapeHtml(reportTitle)}</div>
-          <div class="report-subtitle">${escapeHtml(invoices[0]?.property?.name || 'All Properties')}</div>
+        <div class="report-brand">
+          ${reportPropertyLogoUrl ? `
+            <img src="${escapeHtml(reportPropertyLogoUrl)}" alt="${escapeHtml(firstProp?.name || 'Property')}" class="report-property-logo" />
+          ` : `
+            <div class="report-property-logo-fallback">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                <path d="M9 22v-4h6v4"></path>
+                <path d="M8 6h.01"></path>
+                <path d="M16 6h.01"></path>
+                <path d="M8 10h.01"></path>
+                <path d="M16 10h.01"></path>
+                <path d="M8 14h.01"></path>
+                <path d="M16 14h.01"></path>
+              </svg>
+            </div>
+          `}
+          <div class="report-title-group">
+            <div class="report-title">${escapeHtml(reportTitle)}</div>
+            <div class="report-subtitle">${escapeHtml(firstProp?.name || 'All Properties')}</div>
+          </div>
         </div>
         <div class="report-meta">
           <div><strong>Generated:</strong> ${escapeHtml(generatedAt)}</div>
