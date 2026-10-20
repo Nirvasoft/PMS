@@ -4,7 +4,7 @@ import {
   useUpdateChargeCategoryMutation, useDeleteChargeCategoryMutation,
   type ChargeCategory,
 } from '../../../store/api/billingApi';
-import { Tag, Plus, X, Pencil, Trash2, Check, Lock, Search, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Tag, Plus, X, Pencil, Trash2, Check, Lock, Search, RotateCcw, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
@@ -29,6 +29,7 @@ export default function ChargeCategoriesPage() {
 
   // Search and filter state
   const [search, setSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [monthlyFilter, setMonthlyFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
 
@@ -36,6 +37,7 @@ export default function ChargeCategoriesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  const hasFilterSelections = Boolean(monthlyFilter || typeFilter);
   const hasActiveFilters = Boolean(search.trim() || monthlyFilter || typeFilter);
 
   const handleResetFilters = () => {
@@ -136,7 +138,7 @@ export default function ChargeCategoriesPage() {
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="billing-filters">
+      <div className="billing-filters" style={showFilters ? { marginBottom: 12 } : undefined}>
         <div className="billing-filters-left">
           <div className="search-wrap">
             <Search size={15} className="search-icon" />
@@ -158,10 +160,23 @@ export default function ChargeCategoriesPage() {
             )}
           </div>
 
+          <button
+            type="button"
+            className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
+          </button>
+        </div>
+      </div>
+
+      {showFilters && (
+        <div className="billing-filter-bar">
           <select
             className="filter-select"
             value={monthlyFilter}
             onChange={(e) => setMonthlyFilter(e.target.value)}
+            title="Frequency"
           >
             <option value="">All Frequencies</option>
             <option value="monthly">Monthly Only</option>
@@ -172,25 +187,26 @@ export default function ChargeCategoriesPage() {
             className="filter-select"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
+            title="Type"
           >
             <option value="">All Types</option>
             <option value="custom">Custom Categories</option>
             <option value="system">System Categories</option>
           </select>
 
-          {hasActiveFilters && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleResetFilters}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, height: 38, padding: '0 14px' }}
-              title="Reset all filters"
-            >
-              <RotateCcw size={13} /> Reset
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn-ghost billing-filter-reset-btn"
+            onClick={() => {
+              setMonthlyFilter('');
+              setTypeFilter('');
+              setPage(1);
+            }}
+          >
+            <X size={14} /> Reset
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Charge Categories Table */}
       <div className="billing-table-wrap">

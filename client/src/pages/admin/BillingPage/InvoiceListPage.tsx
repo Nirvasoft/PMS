@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { skipToken } from '@reduxjs/toolkit/query';
 import {
   useGetInvoicesQuery, useLazyGetInvoicesQuery, useGetInvoiceReportFiltersQuery,
   useRunBillingMutation, useGetBillingSchedulesQuery,
@@ -14,7 +13,7 @@ import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   FileText, Plus, Play, Search, ChevronLeft, ChevronRight,
   DollarSign, AlertTriangle, CheckCircle, Receipt,
-  Send, Ban, Download, XCircle, X, Building2, UploadCloud, Eye,
+  Send, Ban, Download, XCircle, X, Building2, UploadCloud, Eye, Filter,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -28,13 +27,30 @@ import './BillingPage.css';
 const STATUS_OPTIONS = ['', 'draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
 const formatCurrency = (amount: string | number, currency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(Number(amount));
+const formatAmount = (amount: string | number) =>
+  new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount) || 0);
+const formatCompactAmount = (amount: string | number) => {
+  const num = Number(amount) || 0;
+  const abs = Math.abs(num);
+  if (abs >= 1_000_000_000) {
+    return `${(num / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '')}B`;
+  }
+  if (abs >= 1_000_000) {
+    return `${(num / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`;
+  }
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+};
 
 export default function InvoiceListPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [showFilters, setShowFilters] = useState(false);
   const [status, setStatus] = useState('');
-  const [billType, setBillType] = useState('');
+  const [currencyFilter, setCurrencyFilter] = useState<string>('');
+  const [billType, setBillType] = useState<string>('');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
@@ -43,6 +59,42 @@ export default function InvoiceListPage() {
 
   const activePropertyFilter = useSelectedPropertyFilter();
 
+  // Fetch currency rates scoped to the active property (or company-wide when All Properties is selected)
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    activePropertyFilter ? { propertyId: activePropertyFilter } : undefined,
+  );
+  const currencyRates = currencyRatesData?.data ?? [];
+  const baseCurrencyCode = currencyRates.find(r => r.isBaseCurrency)?.currency || 'MMK';
+
+  const currencyOptions = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const r of currencyRates) {
+      if (!r.currency) continue;
+      map.set(r.currency, Boolean(map.get(r.currency) || r.isBaseCurrency));
+    }
+    if (map.size === 0) {
+      map.set(baseCurrencyCode, true);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => (b[1] ? 1 : 0) - (a[1] ? 1 : 0) || a[0].localeCompare(b[0]))
+      .map(([code, isBase]) => ({ code, isBase }));
+  }, [currencyRates, baseCurrencyCode]);
+
+  // Default currency filter to Base Currency whenever property or base currency changes
+  useEffect(() => {
+    setCurrencyFilter(baseCurrencyCode);
+  }, [activePropertyFilter, baseCurrencyCode]);
+
+  const activeCurrency = currencyFilter === 'ALL' ? undefined : (currencyFilter || baseCurrencyCode);
+
+  const hasActiveFilters = Boolean(
+    status ||
+    billType ||
+    fromDate ||
+    toDate ||
+    (currencyFilter && currencyFilter !== baseCurrencyCode)
+  );
+
   // Debounce the search box so typing doesn't fire a request per keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
@@ -50,13 +102,16 @@ export default function InvoiceListPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Reset pagination whenever the sidebar's Active Property, status, billType, pageSize, or search changes.
-  useEffect(() => { setPage(1); }, [activePropertyFilter, status, billType, debouncedSearch, pageSize]);
+  // Reset pagination whenever the sidebar's Active Property, filters, pageSize, or search changes.
+  useEffect(() => { setPage(1); }, [activePropertyFilter, status, currencyFilter, billType, fromDate, toDate, debouncedSearch, pageSize]);
 
   const { data, isFetching, refetch } = useGetInvoicesQuery({
     propertyId: activePropertyFilter || undefined,
     status: status || undefined,
+    currency: activeCurrency,
     billType: billType || undefined,
+    from: fromDate || undefined,
+    to: toDate || undefined,
     search: debouncedSearch || undefined,
     page, limit: pageSize,
   });
@@ -78,16 +133,6 @@ export default function InvoiceListPage() {
     message: string;
   }>(null);
 
-
-  // Fetch currency rates scoped to the active property so Page Revenue is expressed
-  // in that property's base currency. When "All Properties" is selected (no propertyId),
-  // rates are skipped and amounts are grouped by their own currency instead.
-  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
-    activePropertyFilter ? { propertyId: activePropertyFilter } : skipToken,
-  );
-  const currencyRates = currencyRatesData?.data ?? [];
-  const baseCurrencyCode = currencyRates.find(r => r.isBaseCurrency)?.currency ?? '';
-
   // Convert an amount from `fromCurrency` to the property's base currency using the
   // same two-hop method used across the rest of the app (currency → base via rate/operator).
   const toBase = (amount: number, fromCurrency: string): number => {
@@ -107,25 +152,26 @@ export default function InvoiceListPage() {
     return toRow.operator === 'divide' ? baseAmount * Number(toRow.rate) : baseAmount / Number(toRow.rate);
   };
 
+  const displayCurrencyCode = activeCurrency || baseCurrencyCode || 'MMK';
+
   const stats = useMemo(() => {
     const all = invoices;
-    // Group raw totals by currency for the "All Properties" multi-currency display
     const byCurrency: Record<string, number> = {};
-    let totalInBase = 0;
+    let totalInDisplayCurrency = 0;
     for (const inv of all) {
       const cur = inv.currency || 'USD';
       byCurrency[cur] = (byCurrency[cur] || 0) + Number(inv.totalAmount);
-      totalInBase += toBase(Number(inv.totalAmount), cur);
+      totalInDisplayCurrency += convertCurrency(Number(inv.totalAmount), cur, displayCurrencyCode);
     }
     return {
       total: meta?.total || 0,
-      totalInBase,
+      totalInDisplayCurrency,
       byCurrency,
       overdue: all.filter(i => i.status === 'overdue').length,
       paid: all.filter(i => i.status === 'paid').length,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, meta, currencyRates, baseCurrencyCode]);
+  }, [invoices, meta, currencyRates, baseCurrencyCode, displayCurrencyCode]);
 
 
   // Filtering by invoice # / tenant name happens server-side (see `search` above), so it
@@ -288,12 +334,18 @@ export default function InvoiceListPage() {
           <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
             <FileText size={22} />
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Invoices</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
               {meta ? `${meta.total} total invoices` : 'Loading…'}
             </p>
           </div>
+          <PermissionGuard permission="billing-invoices.write">
+            <button className="btn btn-primary" onClick={() => navigate('/admin/billing/invoices/new')}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={14} /> New Invoice
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -315,19 +367,13 @@ export default function InvoiceListPage() {
           </div>
           <div className="bsc-info">
             <span className="bsc-label">Page Revenue</span>
-            {baseCurrencyCode ? (
-              <span className="bsc-value">{formatCurrency(stats.totalInBase, baseCurrencyCode)}</span>
-            ) : Object.keys(stats.byCurrency).length <= 1 ? (
-              <span className="bsc-value">
-                {formatCurrency(stats.totalInBase, Object.keys(stats.byCurrency)[0] || 'USD')}
-              </span>
-            ) : (
-              <span className="bsc-value multi-currency">
-                {Object.entries(stats.byCurrency).map(([cur, amt]) => (
-                  <span key={cur}>{formatCurrency(amt, cur)}</span>
-                ))}
-              </span>
-            )}
+            <span
+              className="bsc-value"
+              title={formatAmount(stats.totalInDisplayCurrency)}
+              style={{ cursor: 'help' }}
+            >
+              {formatCompactAmount(stats.totalInDisplayCurrency)}
+            </span>
           </div>
         </div>
 
@@ -356,24 +402,30 @@ export default function InvoiceListPage() {
         </div>
       </div>
 
-      {/* Toolbar: Filters (Left) & Actions (Right) */}
-      <div className="billing-filters">
+      {/* Toolbar: Search + Filter Toggle (Left) & Actions (Right) */}
+      <div className="billing-filters" style={showFilters ? { marginBottom: 12 } : undefined}>
         <div className="billing-filters-left">
           <div className="search-wrap">
             <Search size={15} className="search-icon" />
-            <input type="text" placeholder="Search invoice or tenant" value={search} onChange={e => setSearch(e.target.value)} />
+            <input
+              type="text"
+              placeholder="Search invoice or tenant"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button type="button" className="search-clear-btn" onClick={() => setSearch('')} title="Clear search">
+                <X size={13} />
+              </button>
+            )}
           </div>
-          <select className="filter-select" value={billType} onChange={e => { setBillType(e.target.value); setPage(1); clearSelection(); }}>
-            <option value="">All Bills</option>
-            <option value="monthly">Monthly Bill</option>
-            <option value="rental">Rental Bill</option>
-          </select>
-          <select className="filter-select" value={status} onChange={e => { setStatus(e.target.value); setPage(1); clearSelection(); }}>
-            <option value="">All Statuses</option>
-            {STATUS_OPTIONS.filter(Boolean).map(s => (
-              <option key={s} value={s}>{s.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
-            ))}
-          </select>
+          <button
+            type="button"
+            className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasActiveFilters ? ' active' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter size={14} /> Filters{hasActiveFilters ? ' •' : ''}
+          </button>
         </div>
 
         <div className="billing-filters-actions">
@@ -401,13 +453,84 @@ export default function InvoiceListPage() {
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Play size={14} /> Run Billing
             </button>
-            <button className="btn btn-primary" onClick={() => navigate('/admin/billing/invoices/new')}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Plus size={14} /> New Invoice
-            </button>
           </PermissionGuard>
         </div>
       </div>
+
+      {showFilters && (
+        <div className="billing-filter-bar">
+          <select
+            className="filter-select"
+            value={currencyFilter || baseCurrencyCode}
+            onChange={e => { setCurrencyFilter(e.target.value); setPage(1); clearSelection(); }}
+            title="Currency"
+          >
+            {currencyOptions.map(c => (
+              <option key={c.code} value={c.code}>
+                {c.code}{c.isBase ? ' (Base)' : ''}
+              </option>
+            ))}
+            <option value="ALL">All Currencies</option>
+          </select>
+
+          <select
+            className="filter-select"
+            value={status}
+            onChange={e => { setStatus(e.target.value); setPage(1); clearSelection(); }}
+            title="Status"
+          >
+            <option value="">All Statuses</option>
+            {STATUS_OPTIONS.filter(Boolean).map(s => (
+              <option key={s} value={s}>{s.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
+            ))}
+          </select>
+
+          <select
+            className="filter-select"
+            value={billType}
+            onChange={e => { setBillType(e.target.value); setPage(1); clearSelection(); }}
+            title="Bill Type"
+          >
+            <option value="">All Bills</option>
+            <option value="monthly">Monthly Bill</option>
+            <option value="rental">Rental Bill</option>
+          </select>
+
+          <div className="billing-filter-date-range">
+            <input
+              type="date"
+              className="filter-date-input"
+              value={fromDate}
+              onChange={e => { setFromDate(e.target.value); setPage(1); clearSelection(); }}
+              title="From Issue Date"
+            />
+            <span className="filter-date-sep">to</span>
+            <input
+              type="date"
+              className="filter-date-input"
+              value={toDate}
+              onChange={e => { setToDate(e.target.value); setPage(1); clearSelection(); }}
+              title="To Issue Date"
+            />
+          </div>
+
+          <button
+            type="button"
+            className="btn-ghost billing-filter-reset-btn"
+            onClick={() => {
+              setCurrencyFilter(baseCurrencyCode);
+              setStatus('');
+              setBillType('');
+              setFromDate('');
+              setToDate('');
+              setPage(1);
+              clearSelection();
+            }}
+          >
+            <X size={14} /> Reset
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="billing-table-wrap">
@@ -429,6 +552,7 @@ export default function InvoiceListPage() {
               <th style={{ width: 140 }}>Invoice #</th>
               <th style={{ width: 160 }}>Tenant</th>
               <th style={{ width: 120 }}>Unit</th>
+              <th className="text-right" style={{ width: 110 }}>Total</th>
               <th className="text-right" style={{ width: 110 }}>Paid</th>
               <th style={{ width: 120 }}>Status</th>
               <th style={{ width: 110 }}>Due Date</th>
@@ -437,7 +561,7 @@ export default function InvoiceListPage() {
           <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <div className="billing-empty">
                     {isFetching ? 'Loading invoices…' : 'No invoices found.'}
                   </div>
@@ -448,6 +572,12 @@ export default function InvoiceListPage() {
                 const paidNum = Number(inv.paidAmount);
                 const totalNum = Number(inv.totalAmount);
                 const isSelected = selectedIds.has(inv.id);
+                const displayTotal = inv.tenant?.currency && inv.tenant.currency !== inv.currency
+                  ? convertCurrency(totalNum, inv.currency, inv.tenant.currency)
+                  : totalNum;
+                const displayPaid = inv.tenant?.currency && inv.tenant.currency !== inv.currency
+                  ? convertCurrency(paidNum, inv.currency, inv.tenant.currency)
+                  : paidNum;
 
                 return (
                   <tr
@@ -482,10 +612,16 @@ export default function InvoiceListPage() {
                       <div className="cell-primary">{inv.unit?.unitNumber || '—'}</div>
                     </td>
                     <td className="text-right">
-                      <span className={`cell-amount ${paidNum > 0 ? (paidNum >= totalNum ? 'paid' : '') : 'zero'}`}>
-                        {inv.tenant?.currency && inv.tenant.currency !== inv.currency
-                          ? formatCurrency(convertCurrency(Number(inv.paidAmount), inv.currency, inv.tenant.currency), inv.tenant.currency)
-                          : formatCurrency(inv.paidAmount, inv.currency)}
+                      <span className="cell-amount" title={formatAmount(displayTotal)}>
+                        {formatCompactAmount(displayTotal)}
+                      </span>
+                    </td>
+                    <td className="text-right">
+                      <span
+                        className={`cell-amount ${paidNum > 0 ? (paidNum >= totalNum ? 'paid' : '') : 'zero'}`}
+                        title={formatAmount(displayPaid)}
+                      >
+                        {formatCompactAmount(displayPaid)}
                       </span>
                     </td>
                     <td>
@@ -852,16 +988,45 @@ function ViewInvoiceReportModal({
   const getInvoiceDateStr = (inv: InvoiceListItem) =>
     toDateInputStr(inv.invoiceDate || (inv as any).issueDate);
 
-  const defaultDates = useMemo(() => ({
-    min: filterMeta?.minDate || '',
-    max: filterMeta?.maxDate || '',
-  }), [filterMeta?.minDate, filterMeta?.maxDate]);
+  const defaultDates = useMemo(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      min: format(firstDay, 'yyyy-MM-dd'),
+      max: format(lastDay, 'yyyy-MM-dd'),
+    };
+  }, []);
+
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery(
+    activeProperty ? { propertyId: activeProperty } : undefined,
+  );
+  const currencyRates = currencyRatesData?.data ?? [];
+  const baseCurrencyCode = currencyRates.find(r => r.isBaseCurrency)?.currency || 'MMK';
+
+  const currencyOptions = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const r of currencyRates) {
+      if (!r.currency) continue;
+      map.set(r.currency, Boolean(map.get(r.currency) || r.isBaseCurrency));
+    }
+    if (map.size === 0) {
+      map.set(baseCurrencyCode, true);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => (b[1] ? 1 : 0) - (a[1] ? 1 : 0) || a[0].localeCompare(b[0]))
+      .map(([code, isBase]) => ({ code, isBase }));
+  }, [currencyRates, baseCurrencyCode]);
 
   const [reportType, setReportType] = useState<InvoiceReportType>('summary');
   const [billType, setBillType] = useState<string>('');
-  const [fromDate, setFromDate] = useState<string>('');
-  const [toDate, setToDate] = useState<string>('');
-  const [datesInitialized, setDatesInitialized] = useState(false);
+  const [currencyFilter, setCurrencyFilter] = useState<string>('');
+  const [fromDate, setFromDate] = useState<string>(() => defaultDates.min);
+  const [toDate, setToDate] = useState<string>(() => defaultDates.max);
+  const [startInvoice, setStartInvoice] = useState<string>('');
+  const [endInvoice, setEndInvoice] = useState<string>('');
+  const [debouncedStartInvoice, setDebouncedStartInvoice] = useState<string>('');
+  const [debouncedEndInvoice, setDebouncedEndInvoice] = useState<string>('');
   const [floor, setFloor] = useState<string>('');
   const [unitNumber, setUnitNumber] = useState<string>('');
   const [tenantId, setTenantId] = useState<string>('');
@@ -871,17 +1036,26 @@ function ViewInvoiceReportModal({
   const [validationError, setValidationError] = useState<string>('');
 
   useEffect(() => {
-    if (!datesInitialized && (defaultDates.min || defaultDates.max)) {
-      setFromDate(defaultDates.min);
-      setToDate(defaultDates.max);
-      setDatesInitialized(true);
-    }
-  }, [defaultDates.min, defaultDates.max, datesInitialized]);
+    setCurrencyFilter(baseCurrencyCode);
+  }, [activeProperty, baseCurrencyCode]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedStartInvoice(startInvoice);
+      setDebouncedEndInvoice(endInvoice);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [startInvoice, endInvoice]);
+
+  const activeCurrency = currencyFilter === 'ALL' ? undefined : (currencyFilter || baseCurrencyCode);
 
   const countQueryParams = useMemo(() => {
     const p: Record<string, any> = { page: 1, limit: 1, includeLines: false };
     if (activeProperty) p.propertyId = activeProperty;
+    if (activeCurrency) p.currency = activeCurrency;
     if (billType) p.billType = billType;
+    if (debouncedStartInvoice.trim()) p.startInvoice = debouncedStartInvoice.trim();
+    if (debouncedEndInvoice.trim()) p.endInvoice = debouncedEndInvoice.trim();
     if (fromDate) p.from = fromDate;
     if (toDate) p.to = toDate;
     if (floor) p.floor = floor;
@@ -889,7 +1063,7 @@ function ViewInvoiceReportModal({
     if (tenantId) p.tenantId = tenantId;
     if (statusFilter) p.status = statusFilter;
     return p;
-  }, [activeProperty, billType, fromDate, toDate, floor, unitNumber, tenantId, statusFilter]);
+  }, [activeProperty, activeCurrency, billType, debouncedStartInvoice, debouncedEndInvoice, fromDate, toDate, floor, unitNumber, tenantId, statusFilter]);
 
   const { data: countCheckData, isFetching: checkingCount } = useGetInvoicesQuery(countQueryParams);
   const matchedCount = countCheckData?.meta?.total ?? 0;
@@ -961,17 +1135,24 @@ function ViewInvoiceReportModal({
   useEffect(() => {
     if (fromDate && toDate && fromDate > toDate) {
       setValidationError('From Date cannot be later than To Date.');
+    } else if (startInvoice.trim() && endInvoice.trim() && startInvoice.trim() > endInvoice.trim()) {
+      setValidationError('Start Invoice cannot be greater than End Invoice.');
     } else if (!loadingFilterMeta && !checkingCount && matchedCount === 0) {
       setValidationError('No invoices match the current filter criteria.');
     } else {
       setValidationError('');
     }
-  }, [fromDate, toDate, matchedCount, loadingFilterMeta, checkingCount]);
+  }, [fromDate, toDate, startInvoice, endInvoice, matchedCount, loadingFilterMeta, checkingCount]);
 
   const handleResetFilters = () => {
     setBillType('');
+    setCurrencyFilter(baseCurrencyCode);
     setFromDate(defaultDates.min);
     setToDate(defaultDates.max);
+    setStartInvoice('');
+    setEndInvoice('');
+    setDebouncedStartInvoice('');
+    setDebouncedEndInvoice('');
     setFloor('');
     setUnitNumber('');
     setTenantId('');
@@ -988,6 +1169,10 @@ function ViewInvoiceReportModal({
     }
     if (fromDate && toDate && fromDate > toDate) {
       toast.error('From Date cannot be later than To Date');
+      return;
+    }
+    if (startInvoice.trim() && endInvoice.trim() && startInvoice.trim() > endInvoice.trim()) {
+      toast.error('Start Invoice cannot be greater than End Invoice');
       return;
     }
     if (matchedCount === 0) {
@@ -1008,7 +1193,10 @@ function ViewInvoiceReportModal({
       sortOrder,
     };
     if (activeProperty) baseFilterParams.propertyId = activeProperty;
+    if (activeCurrency) baseFilterParams.currency = activeCurrency;
     if (billType) baseFilterParams.billType = billType;
+    if (startInvoice.trim()) baseFilterParams.startInvoice = startInvoice.trim();
+    if (endInvoice.trim()) baseFilterParams.endInvoice = endInvoice.trim();
     if (fromDate) baseFilterParams.from = fromDate;
     if (toDate) baseFilterParams.to = toDate;
     if (floor) baseFilterParams.floor = floor;
@@ -1017,7 +1205,10 @@ function ViewInvoiceReportModal({
     if (statusFilter) baseFilterParams.status = statusFilter;
 
     const reportFiltersInfo = {
+      currency: activeCurrency || undefined,
       billType: billType ? (billType === 'monthly' ? 'Monthly Bill' : 'Rental Bill') : undefined,
+      startInvoice: startInvoice.trim() || undefined,
+      endInvoice: endInvoice.trim() || undefined,
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
       floor: floor || undefined,
@@ -1075,7 +1266,6 @@ function ViewInvoiceReportModal({
     };
 
     await loadReportPage(1, 500);
-    onClose();
   };
 
   return (
@@ -1089,40 +1279,42 @@ function ViewInvoiceReportModal({
         </div>
 
         <div className="rb-body">
-          {/* Report Type & Bill Type */}
+          {/* Report Type */}
+          <div className="rb-field">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label>Report Type <span style={{ color: '#ef4444' }}>*</span></label>
+              {(billType || (currencyFilter && currencyFilter !== baseCurrencyCode) || startInvoice.trim() || endInvoice.trim() || floor || unitNumber || tenantId || statusFilter || sortBy !== 'invoiceNumber' || sortOrder !== 'asc' || fromDate !== defaultDates.min || toDate !== defaultDates.max) && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accent, #10b981)',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  Reset Filters
+                </button>
+              )}
+            </div>
+            <select
+              value={reportType}
+              onChange={e => setReportType(e.target.value as InvoiceReportType)}
+            >
+              <option value="summary">Invoice Summary Report</option>
+              <option value="detail">Invoice Detail Report</option>
+              <option value="voucher">Invoice Voucher Print Preview</option>
+            </select>
+          </div>
+
+          {/* Bill Type & Currency */}
           <div className="rb-grid-2">
             <div className="rb-field">
-              <label>Report Type <span style={{ color: '#ef4444' }}>*</span></label>
-              <select
-                value={reportType}
-                onChange={e => setReportType(e.target.value as InvoiceReportType)}
-              >
-                <option value="summary">Invoice Summary Report</option>
-                <option value="detail">Invoice Detail Report</option>
-                <option value="voucher">Invoice Voucher Print Preview</option>
-              </select>
-            </div>
-            <div className="rb-field">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label>Bill Type</label>
-                {(billType || floor || unitNumber || tenantId || statusFilter || sortBy !== 'invoiceNumber' || sortOrder !== 'asc' || fromDate !== defaultDates.min || toDate !== defaultDates.max) && (
-                  <button
-                    type="button"
-                    onClick={handleResetFilters}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--accent, #10b981)',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    Reset Filters
-                  </button>
-                )}
-              </div>
+              <label>Bill Type</label>
               <select
                 value={billType}
                 onChange={e => setBillType(e.target.value)}
@@ -1130,6 +1322,20 @@ function ViewInvoiceReportModal({
                 <option value="">All Bills</option>
                 <option value="monthly">Monthly Bill</option>
                 <option value="rental">Rental Bill</option>
+              </select>
+            </div>
+            <div className="rb-field">
+              <label>Currency</label>
+              <select
+                value={currencyFilter || baseCurrencyCode}
+                onChange={e => setCurrencyFilter(e.target.value)}
+              >
+                {currencyOptions.map(c => (
+                  <option key={c.code} value={c.code}>
+                    {c.code}{c.isBase ? ' (Base)' : ''}
+                  </option>
+                ))}
+                <option value="ALL">All Currencies</option>
               </select>
             </div>
           </div>
@@ -1152,6 +1358,28 @@ function ViewInvoiceReportModal({
                 value={toDate}
                 min={fromDate || undefined}
                 onChange={e => setToDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Start Invoice & End Invoice */}
+          <div className="rb-grid-2">
+            <div className="rb-field">
+              <label>Start Invoice</label>
+              <input
+                type="text"
+                placeholder="e.g. INV-000001"
+                value={startInvoice}
+                onChange={e => setStartInvoice(e.target.value)}
+              />
+            </div>
+            <div className="rb-field">
+              <label>End Invoice</label>
+              <input
+                type="text"
+                placeholder="e.g. INV-000500"
+                value={endInvoice}
+                onChange={e => setEndInvoice(e.target.value)}
               />
             </div>
           </div>

@@ -377,7 +377,8 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-.billing-filters .filter-select {
+.billing-filters .filter-select,
+.billing-filter-bar .filter-select {
   height: 38px;
   box-sizing: border-box;
   padding: 0 14px;
@@ -387,10 +388,88 @@
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
-  min-width: 160px;
+  min-width: 150px;
   cursor: pointer;
 }
-.billing-filters .filter-select option { background: #1a1f2e; }
+.billing-filters .filter-select option,
+.billing-filter-bar .filter-select option { background: #1a1f2e; }
+
+.billing-filter-toggle-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+.billing-filter-toggle-btn.active {
+  border-color: var(--accent, #10b981);
+  color: var(--accent, #10b981);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.billing-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.billing-filter-date-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.billing-filter-bar .filter-date-input {
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+}
+.billing-filter-bar .filter-date-input:focus {
+  border-color: var(--primary);
+}
+.billing-filter-bar .filter-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+.billing-filter-bar .filter-date-sep {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.billing-filter-reset-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+[data-theme="light"] .billing-filter-bar .filter-select,
+[data-theme="light"] .billing-filter-bar .filter-date-input {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: var(--text-primary, #0f172a);
+}
+[data-theme="light"] .billing-filter-bar .filter-select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+[data-theme="light"] .billing-filter-bar .filter-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0);
+}
 
 .billing-filters-actions {
   display: flex;
@@ -1692,6 +1771,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.inv-field input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
 /* ── Validation Error Styles ─────────────────── */
 .inv-field .combobox-control {
   border-radius: 10px;
@@ -1952,6 +2036,9 @@
 [data-theme="light"] .inv-field select option {
   background: #fff;
   color: #111;
+}
+[data-theme="light"] .inv-field input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0);
 }
 [data-theme="light"] .cr-conversion-preview {
   background: #f8fafc;
@@ -2422,6 +2509,10 @@
 .rb-field select:focus,
 .rb-field input:focus { border-color: var(--primary); }
 .rb-field select option { background: #1a1f2e; }
+.rb-field input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
 
 .rb-schedule-list {
   border: 1px solid var(--border-subtle);
@@ -2494,6 +2585,9 @@
   border-color: rgba(0,0,0,0.1);
 }
 [data-theme="light"] .rb-field select option { background: #ffffff; }
+[data-theme="light"] .rb-field input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0);
+}
 [data-theme="light"] .rb-hint { background: rgba(0,0,0,0.02); }
 [data-theme="light"] .rb-schedule-header { background: rgba(0,0,0,0.02); }
 

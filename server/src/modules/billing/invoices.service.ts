@@ -95,14 +95,16 @@ export class InvoicesService {
 
   async findAll(companyId: string, filters: {
     tenantId?: string; leaseId?: string; propertyId?: string; status?: string;
-    billType?: string;
+    currency?: string; billType?: string;
+    startInvoice?: string; endInvoice?: string;
     search?: string; from?: string; to?: string; floor?: string; unitNumber?: string;
     tenantName?: string; includeLines?: boolean; includeTotals?: boolean;
     sortBy?: string; sortOrder?: 'asc' | 'desc';
     page?: number; limit?: number; all?: boolean;
   }) {
     const {
-      tenantId, leaseId, propertyId, status, billType, search, from, to,
+      tenantId, leaseId, propertyId, status, currency, billType,
+      startInvoice, endInvoice, search, from, to,
       floor, unitNumber, tenantName, includeLines = true, includeTotals = false,
       sortBy, sortOrder = 'asc',
       page = 1, limit = 20, all = false,
@@ -112,6 +114,12 @@ export class InvoicesService {
     if (leaseId) where.leaseId = leaseId;
     if (propertyId) where.propertyId = propertyId;
     if (status) where.status = status;
+    if (currency) where.currency = currency;
+    if (startInvoice || endInvoice) {
+      where.invoiceNumber = {};
+      if (startInvoice) where.invoiceNumber.gte = startInvoice.trim();
+      if (endInvoice) where.invoiceNumber.lte = endInvoice.trim();
+    }
 
     if (billType === 'rental') {
       const rentChargeTypes = await prisma.chargeType.findMany({

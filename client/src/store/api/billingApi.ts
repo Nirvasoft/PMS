@@ -292,7 +292,7 @@ export const billingApi = createApi({
 
     // ── Billing Schedules ─────────────────
     getBillingSchedules: builder.query<PaginatedResponse<BillingSchedule>, {
-      leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; search?: string; page?: number; limit?: number;
+      leaseId?: string; tenantId?: string; propertyId?: string; unitId?: string; status?: string; currency?: string; billingCycle?: string; search?: string; page?: number; limit?: number;
     }>({
       query: (params) => ({ url: '/billing/schedules', params }),
       providesTags: ['BillingSchedules'],
@@ -330,7 +330,8 @@ export const billingApi = createApi({
       };
     }, {
       tenantId?: string; leaseId?: string; propertyId?: string; status?: string;
-      billType?: string;
+      currency?: string; billType?: string;
+      startInvoice?: string; endInvoice?: string;
       search?: string; from?: string; to?: string; floor?: string; unitNumber?: string;
       tenantName?: string; includeLines?: boolean; includeTotals?: boolean;
       sortBy?: string; sortOrder?: 'asc' | 'desc';

@@ -110,7 +110,7 @@ function renderInvoicePaperHtml(inv: InvoiceListItem | InvoiceDetail): string {
           <tr class="row-group">
             <td class="col-no ta-center">${g.no}</td>
             <td class="col-img"></td>
-            <td class="col-desc">${escapeHtml(g.name)}</td>
+            <td class="col-desc" style="font-weight: 700;">${escapeHtml(g.name)}</td>
             <td class="col-sqft"></td>
             <td class="col-rate"></td>
             <td class="col-qty"></td>
@@ -597,7 +597,10 @@ export type InvoiceReportType = 'summary' | 'detail' | 'voucher';
 export interface InvoiceReportFilterInfo {
   fromDate?: string;
   toDate?: string;
+  currency?: string;
   billType?: string;
+  startInvoice?: string;
+  endInvoice?: string;
   floor?: string;
   unit?: string;
   tenant?: string;
@@ -698,7 +701,11 @@ export function openInvoicesReportPreview(options: {
     filters.fromDate || filters.toDate
       ? `Date Range: ${filters.fromDate || 'Any'} to ${filters.toDate || 'Any'}`
       : 'Date Range: All Dates',
+    `Currency: ${filters.currency || 'All Currencies'}`,
     `Bill Type: ${filters.billType || 'All Bills'}`,
+    ...(filters.startInvoice || filters.endInvoice
+      ? [`Invoice #: ${filters.startInvoice || 'Start'} to ${filters.endInvoice || 'End'}`]
+      : []),
     `Floor: ${filters.floor || 'All Floors'}`,
     `Unit: ${filters.unit || 'All Units'}`,
     `Tenant: ${filters.tenant || 'All Tenants'}`,
@@ -812,7 +819,7 @@ export function openInvoicesReportPreview(options: {
                 <td>${lIdx === 0 ? escapeHtml(floorUnit) : ''}</td>
                 <td>${escapeHtml(line.chargeType?.code || '-')}</td>
                 <td>${escapeHtml(line.description || line.chargeType?.name || '-')}</td>
-                <td style="text-transform:capitalize;">${escapeHtml(line.chargeType?.category || '-')}</td>
+                <td style="text-transform:capitalize;font-weight:700;">${escapeHtml(line.chargeType?.category || '-')}</td>
                 <td style="text-align:right;">${mmk(line.quantity)}</td>
                 <td style="text-align:right;">${mmk(line.unitPrice)}</td>
                 <td style="text-align:right;">${mmk(line.taxAmount)}</td>

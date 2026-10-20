@@ -10,7 +10,7 @@ import {
   useGetCostCentersQuery,
   type GlAccount,
 } from '../../../store/api/glApi';
-import { DollarSign, Plus, X, Tag, Check, Pencil, Lock, Search, RotateCcw, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { DollarSign, Plus, X, Tag, Check, Pencil, Lock, Search, RotateCcw, ChevronLeft, ChevronRight, BookOpen, Filter } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
@@ -80,6 +80,7 @@ export default function ChargeTypesPage() {
 
   // Search and filter state
   const [search, setSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [taxFilter, setTaxFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -88,6 +89,7 @@ export default function ChargeTypesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  const hasFilterSelections = Boolean(categoryFilter || taxFilter || statusFilter);
   const hasActiveFilters = Boolean(search.trim() || categoryFilter || taxFilter || statusFilter);
 
   const handleResetFilters = () => {
@@ -225,7 +227,7 @@ export default function ChargeTypesPage() {
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="billing-filters">
+      <div className="billing-filters" style={showFilters ? { marginBottom: 12 } : undefined}>
         <div className="billing-filters-left">
           <div className="search-wrap">
             <Search size={15} className="search-icon" />
@@ -247,10 +249,23 @@ export default function ChargeTypesPage() {
             )}
           </div>
 
+          <button
+            type="button"
+            className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
+          </button>
+        </div>
+      </div>
+
+      {showFilters && (
+        <div className="billing-filter-bar">
           <select
             className="filter-select"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
+            title="Category"
           >
             <option value="">All Categories</option>
             {categories.map((cat) => (
@@ -264,6 +279,7 @@ export default function ChargeTypesPage() {
             className="filter-select"
             value={taxFilter}
             onChange={(e) => setTaxFilter(e.target.value)}
+            title="Tax Status"
           >
             <option value="">All Tax Status</option>
             <option value="taxable">Taxable</option>
@@ -274,25 +290,27 @@ export default function ChargeTypesPage() {
             className="filter-select"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
+            title="Status"
           >
             <option value="">All Statuses</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
 
-          {hasActiveFilters && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleResetFilters}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, height: 38, padding: '0 14px' }}
-              title="Reset all filters"
-            >
-              <RotateCcw size={13} /> Reset
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn-ghost billing-filter-reset-btn"
+            onClick={() => {
+              setCategoryFilter('');
+              setTaxFilter('');
+              setStatusFilter('');
+              setPage(1);
+            }}
+          >
+            <X size={14} /> Reset
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Charge Types Table */}
       <div className="billing-table-wrap">

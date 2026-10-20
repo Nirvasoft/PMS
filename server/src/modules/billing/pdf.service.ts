@@ -259,7 +259,7 @@ const INVOICE_TEMPLATE = `
           <tr class="row-group">
             <td class="col-no ta-center">{{this.no}}</td>
             <td class="col-img"></td>
-            <td class="col-desc">{{this.name}}</td>
+            <td class="col-desc" style="font-weight: 700;">{{this.name}}</td>
             <td class="col-sqft"></td>
             <td class="col-rate"></td>
             <td class="col-qty"></td>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetMeterSetupsQuery, useCreateMeterSetupMutation, useUpdateMeterSetupMutation, useDeleteMeterSetupMutation,
   useGetChargeTypesQuery,
@@ -6,7 +6,7 @@ import {
 } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { Gauge, Plus, X, Pencil, Trash2, Search, Zap, Layers, Droplets, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Gauge, Plus, X, Pencil, Trash2, Search, Zap, Layers, Droplets, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
@@ -61,16 +61,24 @@ export default function MeterSetupPage() {
   const properties = propertiesData?.data || [];
   const chargeTypes = chargeTypesData?.data || [];
 
-  // ── Search ──────────────────────────────────────────
+  // ── Search & Filters ────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const searchPropertyId = useSelectedPropertyFilter();
   const [searchFloorId, setSearchFloorId] = useState('');
+  const [filterMeterType, setFilterMeterType] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterChargeTypeId, setFilterChargeTypeId] = useState('');
+
+  const defaultPropertyId = searchPropertyId || properties[0]?.id || scopeProperties[0]?.id || '';
 
   const { data: searchFloorsData } = useGetFloorSetupsQuery(
-    searchPropertyId ? { propertyId: searchPropertyId } : undefined,
-    { skip: !searchPropertyId }
+    defaultPropertyId ? { propertyId: defaultPropertyId } : undefined,
+    { skip: !defaultPropertyId }
   );
   const searchFloors = searchFloorsData?.data || [];
+
+  const hasFilterSelections = Boolean(searchFloorId || filterMeterType || filterCategory || filterChargeTypeId);
 
   // Floor filter resets whenever the sidebar's Active Property changes.
   useEffect(() => { setSearchFloorId(''); }, [searchPropertyId]);
@@ -79,6 +87,9 @@ export default function MeterSetupPage() {
     const q = searchQuery.toLowerCase().trim();
     if (searchPropertyId && m.propertyId !== searchPropertyId) return false;
     if (searchFloorId && m.floorId !== searchFloorId) return false;
+    if (filterMeterType && m.meterType !== filterMeterType) return false;
+    if (filterCategory && m.category !== filterCategory) return false;
+    if (filterChargeTypeId && m.chargeTypeId !== filterChargeTypeId) return false;
     if (!q) return true;
     return (
       m.property.name.toLowerCase().includes(q) ||
@@ -95,7 +106,7 @@ export default function MeterSetupPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, searchPropertyId, searchFloorId, pageSize]);
+  }, [searchQuery, searchPropertyId, searchFloorId, filterMeterType, filterCategory, filterChargeTypeId, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMeters.length / pageSize));
   const paginatedMeters = filteredMeters.slice((page - 1) * pageSize, page * pageSize);
@@ -125,39 +136,35 @@ export default function MeterSetupPage() {
   const [form, setForm] = useState(emptyForm);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
+  const effectiveFormPropertyId = form.propertyId || defaultPropertyId;
+
   const { data: floorsData } = useGetFloorSetupsQuery(
-    form.propertyId ? { propertyId: form.propertyId } : undefined,
-    { skip: !form.propertyId }
+    effectiveFormPropertyId ? { propertyId: effectiveFormPropertyId } : undefined,
+    { skip: !effectiveFormPropertyId }
   );
   const floors = floorsData?.data || [];
 
-  // New meters bind to the sidebar's Active Property; only "All Properties" allows
-  // picking one here. Editing an existing meter keeps its own property, unaffected.
-  const propertyLocked = !editing && !!searchPropertyId;
   const lockedPropertyName = scopeProperties.find((p) => p.id === searchPropertyId)?.name;
 
-  // Clears back to "Select property" (or re-locks to the new property) if the sidebar
-  // changes while the create form is open.
-  const prevPropertyLockedRef = useRef(propertyLocked);
   useEffect(() => {
     if (showForm && !editing) {
-      if (propertyLocked) {
-        if (form.propertyId !== searchPropertyId) {
-          setForm((f) => ({ ...f, propertyId: searchPropertyId, floorId: '', mainMeterId: '' }));
-        }
-      } else if (prevPropertyLockedRef.current) {
-        setForm((f) => ({ ...f, propertyId: '', floorId: '', mainMeterId: '' }));
+      if (form.propertyId !== defaultPropertyId && defaultPropertyId) {
+        setForm((f) => ({ ...f, propertyId: defaultPropertyId, floorId: '', mainMeterId: '' }));
       }
     }
-    prevPropertyLockedRef.current = propertyLocked;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyLocked, searchPropertyId, showForm, editing]);
+  }, [defaultPropertyId, showForm, editing]);
 
   const mainMeterOptions = meters.filter(
-    (m) => m.propertyId === form.propertyId && m.meterType !== 'sub_meter' && m.id !== editing?.id
+    (m) => m.propertyId === effectiveFormPropertyId && m.meterType !== 'sub_meter' && m.id !== editing?.id
   );
 
-  const openCreate = () => { setHasAttemptedSubmit(false); setEditing(null); setForm({ ...emptyForm, propertyId: searchPropertyId }); setShowForm(true); };
+  const openCreate = () => {
+    setHasAttemptedSubmit(false);
+    setEditing(null);
+    setForm({ ...emptyForm, propertyId: defaultPropertyId });
+    setShowForm(true);
+  };
   const openEdit = (m: MeterSetup) => {
     setHasAttemptedSubmit(false);
     setEditing(m);
@@ -181,15 +188,10 @@ export default function MeterSetupPage() {
   };
   const closeForm = () => { setHasAttemptedSubmit(false); setShowForm(false); setEditing(null); setForm(emptyForm); };
 
-  const handlePropertyChange = (propertyId: string) => {
-    setForm({ ...form, propertyId, floorId: '', mainMeterId: '' });
-  };
-
   const handleMeterTypeChange = (meterType: string) => {
     setForm({ ...form, meterType, mainMeterId: meterType === 'sub_meter' ? form.mainMeterId : '' });
   };
 
-  const isPropertyMissing = hasAttemptedSubmit && !form.propertyId;
   const isMeterTypeMissing = hasAttemptedSubmit && !form.meterType;
   const isMainMeterMissing = hasAttemptedSubmit && form.meterType === 'sub_meter' && !form.mainMeterId;
   const isMeterNoMissing = hasAttemptedSubmit && !form.meterNo.trim();
@@ -201,8 +203,9 @@ export default function MeterSetupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setHasAttemptedSubmit(true);
+    const resolvedPropertyId = form.propertyId || defaultPropertyId;
     if (
-      !form.propertyId ||
+      !resolvedPropertyId ||
       !form.meterType ||
       (form.meterType === 'sub_meter' && !form.mainMeterId) ||
       !form.meterNo.trim() ||
@@ -211,11 +214,11 @@ export default function MeterSetupPage() {
       form.rate === '' || form.rate == null || isNaN(Number(form.rate)) || Number(form.rate) < 0 ||
       !form.calculationType
     ) {
-      toast.error('Please fill in all required fields');
+      toast.error(!resolvedPropertyId ? 'Please select a property from the sidebar first' : 'Please fill in all required fields');
       return;
     }
     const payload = {
-      propertyId: form.propertyId,
+      propertyId: resolvedPropertyId,
       floorId: form.floorId || undefined,
       meterType: form.meterType,
       meterNo: form.meterNo,
@@ -325,64 +328,104 @@ export default function MeterSetupPage() {
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="meter-search-bar">
-        <div className="meter-search-wrap">
-          <Search size={15} className="meter-search-icon" />
-          <input
-            type="text"
-            className="meter-search-input"
-            placeholder="Search meter no, meter type…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="meter-search-clear"
-              onClick={() => setSearchQuery('')}
-              title="Clear search"
-            >
-              <X size={13} />
-            </button>
-          )}
-        </div>
-        <div className="meter-search-filter-wrap">
-          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
-          <select
-            className="meter-search-select"
-            value={searchPropertyId}
-            disabled
-            style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', pointerEvents: 'none' }}
-          >
-            {!searchPropertyId && <option value="">All Properties</option>}
-            {searchPropertyId && (
-              <option value={searchPropertyId}>{properties.find((p) => p.id === searchPropertyId)?.name || ''}</option>
+      {/* Search & Filter Toolbar */}
+      <div className="billing-filters" style={showFilters ? { marginBottom: 12 } : undefined}>
+        <div className="billing-filters-left">
+          <div className="search-wrap">
+            <Search size={15} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search meter no, meter type…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="search-clear-btn"
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+              >
+                <X size={13} />
+              </button>
             )}
-          </select>
+          </div>
+          <button
+            type="button"
+            className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
+          </button>
+        </div>
+      </div>
+
+      {showFilters && (
+        <div className="billing-filter-bar">
           <select
-            className="meter-search-select"
+            className="filter-select"
             value={searchFloorId}
             onChange={(e) => setSearchFloorId(e.target.value)}
-            disabled={!searchPropertyId}
+            disabled={!defaultPropertyId}
+            title="Floor"
           >
-            <option value="">{searchPropertyId ? 'All Floors' : 'Select property first'}</option>
+            <option value="">All Floors</option>
             {searchFloors.map((f) => (
               <option key={f.id} value={f.id}>{f.floorLabel}</option>
             ))}
           </select>
-          {searchFloorId && (
-            <button
-              type="button"
-              className="meter-search-reset-btn"
-              onClick={() => setSearchFloorId('')}
-              title="Clear floor filter"
-            >
-              <X size={13} /> Clear
-            </button>
-          )}
+
+          <select
+            className="filter-select"
+            value={filterMeterType}
+            onChange={(e) => setFilterMeterType(e.target.value)}
+            title="Meter Type"
+          >
+            <option value="">All Meter Types</option>
+            {METER_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+
+          <select
+            className="filter-select"
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            title="Category"
+          >
+            <option value="">All Categories</option>
+            {CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+
+          <select
+            className="filter-select"
+            value={filterChargeTypeId}
+            onChange={(e) => setFilterChargeTypeId(e.target.value)}
+            title="Charge Type"
+          >
+            <option value="">All Charge Types</option>
+            {chargeTypes.map((ct) => (
+              <option key={ct.id} value={ct.id}>{ct.name}</option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            className="btn-ghost billing-filter-reset-btn"
+            onClick={() => {
+              setSearchFloorId('');
+              setFilterMeterType('');
+              setFilterCategory('');
+              setFilterChargeTypeId('');
+              setPage(1);
+            }}
+          >
+            <X size={14} /> Reset
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Meter Setup Table */}
       <div className="billing-table-wrap">
@@ -497,29 +540,10 @@ export default function MeterSetupPage() {
               <div className="modal-body">
                 <div className="inv-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="inv-field">
-                    <label>Property <span className="req">*</span></label>
-                    <select
-                      className={isPropertyMissing ? 'inv-input-error' : ''}
-                      value={form.propertyId}
-                      disabled={propertyLocked}
-                      onChange={(e) => handlePropertyChange(e.target.value)}
-                    >
-                      {propertyLocked ? (
-                        <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
-                      ) : (
-                        <>
-                          <option value="">Select property…</option>
-                          {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </>
-                      )}
-                    </select>
-                    {isPropertyMissing && <span className="inv-error-text">Property is required</span>}
-                  </div>
-                  <div className="inv-field">
                     <label>Floor</label>
-                    <select value={form.floorId} disabled={!form.propertyId}
+                    <select value={form.floorId} disabled={!effectiveFormPropertyId}
                       onChange={(e) => setForm({ ...form, floorId: e.target.value })}>
-                      <option value="">{form.propertyId ? 'Select floor…' : 'Select property first'}</option>
+                      <option value="">Select floor…</option>
                       {floors.map((f) => <option key={f.id} value={f.id}>{f.floorLabel}</option>)}
                     </select>
                   </div>
@@ -541,10 +565,10 @@ export default function MeterSetupPage() {
                       <select
                         className={isMainMeterMissing ? 'inv-input-error' : ''}
                         value={form.mainMeterId}
-                        disabled={!form.propertyId}
+                        disabled={!effectiveFormPropertyId}
                         onChange={(e) => setForm({ ...form, mainMeterId: e.target.value })}
                       >
-                        <option value="">{form.propertyId ? 'Select main meter…' : 'Select property first'}</option>
+                        <option value="">Select main meter…</option>
                         {mainMeterOptions.map((m) => (
                           <option key={m.id} value={m.id}>{m.meterNo}</option>
                         ))}

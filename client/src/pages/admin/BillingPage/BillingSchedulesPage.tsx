@@ -11,7 +11,7 @@ import { useGetDepartmentCentersQuery, useGetCostCentersQuery, useGetGlAccountsQ
 import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetUnitsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
-import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil, Search } from 'lucide-react';
+import { CalendarClock, Pause, Play, X, ChevronLeft, ChevronRight, CircleDot, Plus, Pencil, Search, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
@@ -22,6 +22,19 @@ import './BillingPage.css';
 
 const formatCurrency = (amount: string | number, currency = 'USD') =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
+const formatAmount = (amount: string | number) =>
+  new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount) || 0);
+const formatCompactAmount = (amount: string | number) => {
+  const num = Number(amount) || 0;
+  const abs = Math.abs(num);
+  if (abs >= 1_000_000_000) {
+    return `${(num / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '')}B`;
+  }
+  if (abs >= 1_000_000) {
+    return `${(num / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`;
+  }
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+};
 
 const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'] as const;
 
@@ -42,7 +55,10 @@ const emptyForm: ScheduleForm = {
 export default function BillingSchedulesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState('active');
+  const [currencyFilter, setCurrencyFilter] = useState<string>('');
+  const [cycleFilter, setCycleFilter] = useState<string>('');
   const [search, setSearch] = useState('');
   const selectedProperty = useSelectedPropertyFilter();
   const [showForm, setShowForm] = useState(false);
@@ -52,6 +68,38 @@ export default function BillingSchedulesPage() {
   const [floorId, setFloorId] = useState('');
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
+  const { data: listCurrencyRatesData } = useGetCurrencyRatesQuery(
+    selectedProperty ? { propertyId: selectedProperty } : undefined,
+  );
+  const listCurrencyRates = listCurrencyRatesData?.data ?? [];
+  const listBaseCurrencyCode = listCurrencyRates.find(r => r.isBaseCurrency)?.currency || 'MMK';
+
+  const listCurrencyOptions = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const r of listCurrencyRates) {
+      if (!r.currency) continue;
+      map.set(r.currency, Boolean(map.get(r.currency) || r.isBaseCurrency));
+    }
+    if (map.size === 0) {
+      map.set(listBaseCurrencyCode, true);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => (b[1] ? 1 : 0) - (a[1] ? 1 : 0) || a[0].localeCompare(b[0]))
+      .map(([code, isBase]) => ({ code, isBase }));
+  }, [listCurrencyRates, listBaseCurrencyCode]);
+
+  useEffect(() => {
+    setCurrencyFilter(listBaseCurrencyCode);
+  }, [selectedProperty, listBaseCurrencyCode]);
+
+  const activeListCurrency = currencyFilter === 'ALL' ? undefined : (currencyFilter || listBaseCurrencyCode);
+
+  const hasActiveFilters = Boolean(
+    statusFilter !== 'active' ||
+    cycleFilter ||
+    (currencyFilter && currencyFilter !== listBaseCurrencyCode)
+  );
+
   // Debounce the search box so typing doesn't fire a request per keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
@@ -59,12 +107,14 @@ export default function BillingSchedulesPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Reset pagination whenever Active Property, status, or search changes.
-  useEffect(() => { setPage(1); }, [selectedProperty, statusFilter, debouncedSearch]);
+  // Reset pagination whenever Active Property, filters, or search changes.
+  useEffect(() => { setPage(1); }, [selectedProperty, statusFilter, currencyFilter, cycleFilter, debouncedSearch]);
 
   const { data, isFetching } = useGetBillingSchedulesQuery({
     ...(statusFilter ? { status: statusFilter } : {}),
     propertyId: selectedProperty || undefined,
+    currency: activeListCurrency,
+    billingCycle: cycleFilter || undefined,
     search: debouncedSearch || undefined,
     page,
     limit: pageSize,
@@ -391,33 +441,97 @@ export default function BillingSchedulesPage() {
           </PermissionGuard>
         </div>
         <div className="billing-filters" style={{ marginBottom: 0 }}>
-          <div className="search-wrap">
-            <Search size={15} className="search-icon" />
-            <input
-              type="text"
-              placeholder="Search tenant or unit…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          <div className="billing-filters-left">
+            <div className="search-wrap">
+              <Search size={15} className="search-icon" />
+              <input
+                type="text"
+                placeholder="Search tenant or unit…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              {search && (
+                <button type="button" className="search-clear-btn" onClick={() => setSearch('')} title="Clear search">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasActiveFilters ? ' active' : ''}`}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter size={14} /> Filters{hasActiveFilters ? ' •' : ''}
+            </button>
           </div>
-          <select className="filter-select" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
+        </div>
+      </div>
+
+      {showFilters && (
+        <div className="billing-filter-bar" style={{ marginTop: 12, marginBottom: 0 }}>
+          <select
+            className="filter-select"
+            value={currencyFilter || listBaseCurrencyCode}
+            onChange={e => { setCurrencyFilter(e.target.value); setPage(1); }}
+            title="Currency"
+          >
+            {listCurrencyOptions.map(c => (
+              <option key={c.code} value={c.code}>
+                {c.code}{c.isBase ? ' (Base)' : ''}
+              </option>
+            ))}
+            <option value="ALL">All Currencies</option>
+          </select>
+
+          <select
+            className="filter-select"
+            value={statusFilter}
+            onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+            title="Status"
+          >
             <option value="">All Statuses</option>
             <option value="active">Active</option>
             <option value="paused">Paused</option>
             <option value="cancelled">Cancelled</option>
             <option value="completed">Completed</option>
           </select>
+
+          <select
+            className="filter-select"
+            value={cycleFilter}
+            onChange={e => { setCycleFilter(e.target.value); setPage(1); }}
+            title="Billing Cycle"
+          >
+            <option value="">All Cycles</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="semi_annual">Semi-Annual</option>
+            <option value="annual">Annual</option>
+          </select>
+
+          <button
+            type="button"
+            className="btn-ghost billing-filter-reset-btn"
+            onClick={() => {
+              setCurrencyFilter(listBaseCurrencyCode);
+              setStatusFilter('active');
+              setCycleFilter('');
+              setPage(1);
+            }}
+          >
+            <X size={14} /> Reset
+          </button>
         </div>
-      </div>
+      )}
 
       <div className="billing-table-wrap" style={{ marginTop: 24 }}>
         <TableScrollWrapper className="schedules-scroll">
           <table className="billing-table">
           <thead>
             <tr>
-              <th style={{ width: 220 }}>Charge</th>
-              <th style={{ width: 160 }}>Tenant</th>
-              <th style={{ width: 150 }}>Floor / Unit</th>
+              <th style={{ width: 130 }}>Charge</th>
+              <th style={{ width: 130 }}>Tenant</th>
+              <th style={{ width: 115 }}>Floor / Unit</th>
               <th className="text-center" style={{ width: 65 }}>Qty</th>
               <th className="text-right" style={{ width: 110 }}>Amount</th>
               <th style={{ width: 80 }}>Cycle</th>
@@ -469,7 +583,9 @@ export default function BillingSchedulesPage() {
                       </span>
                     </td>
                     <td className="text-right">
-                      <span className="cell-amount">{formatCurrency(s.amount, s.currency)}</span>
+                      <span className="cell-amount" title={formatAmount(s.amount)}>
+                        {formatCompactAmount(s.amount)}
+                      </span>
                     </td>
                     <td>
                       <span style={{ fontSize: 12, textTransform: 'capitalize', color: 'var(--text-secondary)' }}>
