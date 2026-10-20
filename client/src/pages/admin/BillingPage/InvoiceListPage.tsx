@@ -4,7 +4,7 @@ import {
   useGetInvoicesQuery, useLazyGetInvoicesQuery, useGetInvoiceReportFiltersQuery,
   useRunBillingMutation, useGetBillingSchedulesQuery,
   useVoidInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoicePdfQuery,
-  useGetCurrencyRatesQuery, type InvoiceListItem,
+  useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
 import { usePushInvoicesToV6ErpMutation } from '../../../store/api/integrationsApi';
 import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
@@ -110,6 +110,7 @@ export default function InvoiceListPage() {
     from: fromDate || undefined,
     to: toDate || undefined,
     search: debouncedSearch || undefined,
+    includeLines: false,
     page, limit: pageSize,
   });
   const [runBilling, { isLoading: runningBilling }] = useRunBillingMutation();
@@ -952,38 +953,12 @@ function ViewInvoiceReportModal({
   activeProperty: string;
   onClose: () => void;
 }) {
-  const { data: filterMetaResp, isFetching: loadingFilterMeta } = useGetInvoiceReportFiltersQuery(
+  const { data: filterMetaResp } = useGetInvoiceReportFiltersQuery(
     activeProperty ? { propertyId: activeProperty } : undefined,
   );
   const filterMeta = filterMetaResp?.data;
 
   const [triggerFetchReportInvoices, { isFetching: generatingReport }] = useLazyGetInvoicesQuery();
-
-  const getTenantLabel = (inv: InvoiceListItem) => {
-    if (!inv.tenant) return '—';
-    if (inv.tenant.tenantType && inv.tenant.tenantType !== 'individual') {
-      return inv.tenant.companyName || '—';
-    }
-    const full = `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim();
-    return full || inv.tenant.lastName || inv.tenant.firstName || '—';
-  };
-
-  const getFloorLabel = (inv: InvoiceListItem) => {
-    if (!inv.unit) return '';
-    if (inv.unit.floorLabel) return String(inv.unit.floorLabel).trim();
-    if (inv.unit.floorNumber != null) return `Floor ${inv.unit.floorNumber}`;
-    return '';
-  };
-
-  const toDateInputStr = (raw?: string | null) => {
-    if (!raw) return '';
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return String(raw).split('T')[0];
-    return format(d, 'yyyy-MM-dd');
-  };
-
-  const getInvoiceDateStr = (inv: InvoiceListItem) =>
-    toDateInputStr(inv.invoiceDate || (inv as any).issueDate);
 
   const defaultDates = useMemo(() => {
     const now = new Date();
@@ -1022,8 +997,6 @@ function ViewInvoiceReportModal({
   const [toDate, setToDate] = useState<string>(() => defaultDates.max);
   const [startInvoice, setStartInvoice] = useState<string>('');
   const [endInvoice, setEndInvoice] = useState<string>('');
-  const [debouncedStartInvoice, setDebouncedStartInvoice] = useState<string>('');
-  const [debouncedEndInvoice, setDebouncedEndInvoice] = useState<string>('');
   const [floor, setFloor] = useState<string>('');
   const [unitNumber, setUnitNumber] = useState<string>('');
   const [tenantId, setTenantId] = useState<string>('');
@@ -1036,35 +1009,7 @@ function ViewInvoiceReportModal({
     setCurrencyFilter(baseCurrencyCode);
   }, [activeProperty, baseCurrencyCode]);
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedStartInvoice(startInvoice);
-      setDebouncedEndInvoice(endInvoice);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [startInvoice, endInvoice]);
-
   const activeCurrency = currencyFilter === 'ALL' ? undefined : (currencyFilter || baseCurrencyCode);
-
-  const countQueryParams = useMemo(() => {
-    const p: Record<string, any> = { page: 1, limit: 1, includeLines: false };
-    if (activeProperty) p.propertyId = activeProperty;
-    if (activeCurrency) p.currency = activeCurrency;
-    if (billType) p.billType = billType;
-    if (debouncedStartInvoice.trim()) p.startInvoice = debouncedStartInvoice.trim();
-    if (debouncedEndInvoice.trim()) p.endInvoice = debouncedEndInvoice.trim();
-    if (fromDate) p.from = fromDate;
-    if (toDate) p.to = toDate;
-    if (floor) p.floor = floor;
-    if (unitNumber) p.unitNumber = unitNumber;
-    if (tenantId) p.tenantId = tenantId;
-    if (statusFilter) p.status = statusFilter;
-    return p;
-  }, [activeProperty, activeCurrency, billType, debouncedStartInvoice, debouncedEndInvoice, fromDate, toDate, floor, unitNumber, tenantId, statusFilter]);
-
-  const { data: countCheckData, isFetching: checkingCount } = useGetInvoicesQuery(countQueryParams);
-  const matchedCount = countCheckData?.meta?.total ?? 0;
-  const loadingInvoices = loadingFilterMeta || checkingCount || generatingReport;
 
   const floorOptions = useMemo(() => filterMeta?.floors || [], [filterMeta?.floors]);
 
@@ -1100,46 +1045,15 @@ function ViewInvoiceReportModal({
 
   const statusOptions = useMemo(() => filterMeta?.statuses || [], [filterMeta?.statuses]);
 
-  const sortInvoicesList = useCallback((list: InvoiceListItem[]) => {
-    const dir = sortOrder === 'asc' ? 1 : -1;
-    return [...list].sort((a, b) => {
-      switch (sortBy) {
-        case 'issueDate': {
-          const da = getInvoiceDateStr(a);
-          const db = getInvoiceDateStr(b);
-          return da.localeCompare(db) * dir;
-        }
-        case 'dueDate': {
-          const da = toDateInputStr(a.dueDate);
-          const db = toDateInputStr(b.dueDate);
-          return da.localeCompare(db) * dir;
-        }
-        case 'floor':
-          return getFloorLabel(a).localeCompare(getFloorLabel(b), undefined, { numeric: true }) * dir;
-        case 'unit':
-          return (a.unit?.unitNumber || '').localeCompare(b.unit?.unitNumber || '', undefined, { numeric: true }) * dir;
-        case 'tenant':
-          return getTenantLabel(a).localeCompare(getTenantLabel(b)) * dir;
-        case 'totalAmount':
-          return ((Number(a.totalAmount) || 0) - (Number(b.totalAmount) || 0)) * dir;
-        case 'invoiceNumber':
-        default:
-          return (a.invoiceNumber || '').localeCompare(b.invoiceNumber || '', undefined, { numeric: true }) * dir;
-      }
-    });
-  }, [sortBy, sortOrder]);
-
   useEffect(() => {
     if (fromDate && toDate && fromDate > toDate) {
       setValidationError('From Date cannot be later than To Date.');
     } else if (startInvoice.trim() && endInvoice.trim() && startInvoice.trim() > endInvoice.trim()) {
       setValidationError('Start Invoice cannot be greater than End Invoice.');
-    } else if (!loadingFilterMeta && !checkingCount && matchedCount === 0) {
-      setValidationError('No invoices match the current filter criteria.');
     } else {
       setValidationError('');
     }
-  }, [fromDate, toDate, startInvoice, endInvoice, matchedCount, loadingFilterMeta, checkingCount]);
+  }, [billType, currencyFilter, fromDate, toDate, startInvoice, endInvoice, floor, unitNumber, tenantId, statusFilter]);
 
   const handleResetFilters = () => {
     setBillType('');
@@ -1148,8 +1062,6 @@ function ViewInvoiceReportModal({
     setToDate(defaultDates.max);
     setStartInvoice('');
     setEndInvoice('');
-    setDebouncedStartInvoice('');
-    setDebouncedEndInvoice('');
     setFloor('');
     setUnitNumber('');
     setTenantId('');
@@ -1165,24 +1077,17 @@ function ViewInvoiceReportModal({
       return;
     }
     if (fromDate && toDate && fromDate > toDate) {
+      setValidationError('From Date cannot be later than To Date.');
       toast.error('From Date cannot be later than To Date');
       return;
     }
     if (startInvoice.trim() && endInvoice.trim() && startInvoice.trim() > endInvoice.trim()) {
+      setValidationError('Start Invoice cannot be greater than End Invoice.');
       toast.error('Start Invoice cannot be greater than End Invoice');
       return;
     }
-    if (matchedCount === 0) {
-      toast.error('No invoices match the validation criteria');
-      return;
-    }
 
-    const previewWin = window.open('', '_blank');
-    if (!previewWin) {
-      toast.error('Popup blocked! Please allow popups for this site to view the report.');
-      return;
-    }
-    previewWin.document.write('<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1e293b;color:#f8fafc;"><h3>Generating Invoice Report…</h3></body></html>');
+    setValidationError('');
 
     const baseFilterParams: Record<string, any> = {
       includeLines: reportType !== 'summary',
@@ -1214,6 +1119,8 @@ function ViewInvoiceReportModal({
       status: statusFilter || undefined,
     };
 
+    let previewWin: Window | null = null;
+
     const loadReportPage = async (
       targetPage: number,
       targetPageSize: number,
@@ -1229,12 +1136,21 @@ function ViewInvoiceReportModal({
 
         const fetched = res?.data || [];
         if (fetched.length === 0 && targetPage === 1) {
-          previewWin.close();
-          toast.error('No invoices match the validation criteria');
+          if (previewWin) previewWin.close();
+          setValidationError('No invoices match the current filter criteria.');
+          toast.error('No invoices match the current filter criteria.');
           return;
         }
 
-        const total = res?.meta?.total ?? matchedCount;
+        if (!previewWin || previewWin.closed) {
+          previewWin = window.open('', '_blank');
+          if (!previewWin) {
+            toast.error('Popup blocked! Please allow popups for this site to view the report.');
+            return;
+          }
+        }
+
+        const total = res?.meta?.total ?? fetched.length;
         const totalPages = res?.meta?.totalPages ?? Math.max(1, Math.ceil(total / targetPageSize));
         const totalsByCurrency = cachedTotals || res?.meta?.totalsByCurrency;
 
@@ -1255,7 +1171,7 @@ function ViewInvoiceReportModal({
           },
         });
       } catch (err: any) {
-        if (targetPage === 1) {
+        if (targetPage === 1 && previewWin) {
           previewWin.close();
         }
         toast.error(err?.data?.errors?.[0]?.message || 'Failed to generate invoice report');
@@ -1500,10 +1416,10 @@ function ViewInvoiceReportModal({
           <button
             className="btn btn-primary"
             onClick={handleGenerateReport}
-            disabled={loadingInvoices || !!validationError || matchedCount === 0}
+            disabled={generatingReport}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <Eye size={14} /> {loadingInvoices ? 'Loading…' : 'View Report'}
+            <Eye size={14} /> {generatingReport ? 'Loading…' : 'View Report'}
           </button>
         </div>
       </div>

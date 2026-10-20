@@ -2,6 +2,7 @@ import { prisma } from '../../common/database';
 import { sequenceService } from '../../common/sequence.service';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import { cacheGetOrSet, invalidateCacheByPrefix } from '../../common/redis';
 import { billingNotifications } from './billingNotifications.service';
 import { workflowEngine } from '../workflow/services/engine.service';
 import { glService } from '../gl/gl.service';
@@ -14,83 +15,92 @@ function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T
 }
 
 export class InvoicesService {
+  // ── Cache Invalidation ──────────────────────
+
+  async invalidateCompanyCache(companyId: string) {
+    await invalidateCacheByPrefix(`invoices:${companyId}:`);
+  }
+
   // ── Query ───────────────────────────────────
 
   async getReportFilterOptions(companyId: string, propertyId?: string) {
-    const where: any = { companyId };
-    if (propertyId) where.propertyId = propertyId;
+    const cacheKey = `invoices:${companyId}:report-filters:${propertyId || 'all'}`;
+    return cacheGetOrSet(cacheKey, 300, async () => {
+      const where: any = { companyId };
+      if (propertyId) where.propertyId = propertyId;
 
-    const [dateAgg, unitRows, tenantRows] = await Promise.all([
-      prisma.invoice.aggregate({
-        where,
-        _min: { invoiceDate: true },
-        _max: { invoiceDate: true },
-      }),
-      prisma.unit.findMany({
-        where: {
-          companyId,
-          deletedAt: null,
-          ...(propertyId ? { propertyId } : {}),
-        },
-        select: { unitNumber: true, floorNumber: true, floorLabel: true },
-      }),
-      prisma.tenant.findMany({
-        where: {
-          companyId,
-          deletedAt: null,
-        },
-        select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true },
-      }),
-    ]);
+      const [dateAgg, unitRows, tenantRows] = await Promise.all([
+        prisma.invoice.aggregate({
+          where,
+          _min: { invoiceDate: true },
+          _max: { invoiceDate: true },
+        }),
+        prisma.unit.findMany({
+          where: {
+            companyId,
+            deletedAt: null,
+            ...(propertyId ? { propertyId } : {}),
+          },
+          select: { unitNumber: true, floorNumber: true, floorLabel: true },
+        }),
+        prisma.tenant.findMany({
+          where: {
+            companyId,
+            deletedAt: null,
+          },
+          select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true },
+        }),
+      ]);
 
-    const formatFloor = (u: { floorNumber: number | null; floorLabel: string | null }) => {
-      if (u.floorLabel && String(u.floorLabel).trim()) return String(u.floorLabel).trim();
-      if (u.floorNumber != null) return `Floor ${u.floorNumber}`;
-      return '';
-    };
+      const formatFloor = (u: { floorNumber: number | null; floorLabel: string | null }) => {
+        if (u.floorLabel && String(u.floorLabel).trim()) return String(u.floorLabel).trim();
+        if (u.floorNumber != null) return `Floor ${u.floorNumber}`;
+        return '';
+      };
 
-    const formatTenant = (t: { firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string | null }) => {
-      if (t.tenantType && t.tenantType !== 'individual') return t.companyName || '';
-      const full = `${t.firstName || ''} ${t.lastName || ''}`.trim();
-      return full || t.lastName || t.firstName || '';
-    };
+      const formatTenant = (t: { firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string | null }) => {
+        if (t.tenantType && t.tenantType !== 'individual') return t.companyName || '';
+        const full = `${t.firstName || ''} ${t.lastName || ''}`.trim();
+        return full || t.lastName || t.firstName || '';
+      };
 
-    const floorSet = new Set<string>();
-    const units: Array<{ unitNumber: string; floor: string }> = [];
-    for (const u of unitRows) {
-      const fl = formatFloor(u);
-      if (fl) floorSet.add(fl);
-      if (u.unitNumber) {
-        units.push({ unitNumber: u.unitNumber, floor: fl });
+      const floorSet = new Set<string>();
+      const units: Array<{ unitNumber: string; floor: string }> = [];
+      for (const u of unitRows) {
+        const fl = formatFloor(u);
+        if (fl) floorSet.add(fl);
+        if (u.unitNumber) {
+          units.push({ unitNumber: u.unitNumber, floor: fl });
+        }
       }
-    }
 
-    const tenantSet = new Set<string>();
-    const tenantItems: Array<{ id: string; firstName: string; lastName: string }> = [];
-    for (const t of tenantRows) {
-      const label = formatTenant(t);
-      if (label) tenantSet.add(label);
-      const fn = (t.firstName || '').trim();
-      const ln = (t.lastName || t.companyName || '').trim();
-      if (fn || ln) {
-        tenantItems.push({ id: t.id, firstName: fn, lastName: ln });
+      const tenantSet = new Set<string>();
+      const tenantItems: Array<{ id: string; firstName: string; lastName: string }> = [];
+      for (const t of tenantRows) {
+        const label = formatTenant(t);
+        if (label) tenantSet.add(label);
+        const fn = (t.firstName || '').trim();
+        const ln = (t.lastName || t.companyName || '').trim();
+        if (fn || ln) {
+          tenantItems.push({ id: t.id, firstName: fn, lastName: ln });
+        }
       }
-    }
-    tenantItems.sort((a, b) =>
-      (a.firstName || a.lastName).localeCompare(b.firstName || b.lastName, undefined, { numeric: true }),
-    );
+      tenantItems.sort((a, b) =>
+        (a.firstName || a.lastName).localeCompare(b.firstName || b.lastName, undefined, { numeric: true }),
+      );
 
-    const statuses = ['draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
+      const statuses = ['draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
 
-    return {
-      minDate: dateAgg._min.invoiceDate ? dateAgg._min.invoiceDate.toISOString().split('T')[0] : '',
-      maxDate: dateAgg._max.invoiceDate ? dateAgg._max.invoiceDate.toISOString().split('T')[0] : '',
-      floors: Array.from(floorSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
-      units: units.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true })),
-      tenants: Array.from(tenantSet).sort(),
-      tenantItems,
-      statuses,
-    };
+      return {
+        minDate: dateAgg._min.invoiceDate ? dateAgg._min.invoiceDate.toISOString().split('T')[0] : '',
+        maxDate: dateAgg._max.invoiceDate ? dateAgg._max.invoiceDate.toISOString().split('T')[0] : '',
+        floors: Array.from(floorSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+        units: units.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true })),
+        tenants: Array.from(tenantSet).sort(),
+        tenantItems,
+        statuses,
+      };
+    });
   }
 
   async findAll(companyId: string, filters: {
@@ -102,6 +112,8 @@ export class InvoicesService {
     sortBy?: string; sortOrder?: 'asc' | 'desc';
     page?: number; limit?: number; all?: boolean;
   }) {
+    const cacheKey = `invoices:${companyId}:list:${JSON.stringify(filters)}`;
+    return cacheGetOrSet(cacheKey, 60, async () => {
     const {
       tenantId, leaseId, propertyId, status, currency, billType,
       startInvoice, endInvoice, search, from, to,
@@ -338,6 +350,7 @@ export class InvoicesService {
         ...(totalsByCurrency ? { totalsByCurrency } : {}),
       },
     };
+    });
   }
 
   async findById(id: string, companyId: string) {
@@ -375,6 +388,8 @@ export class InvoicesService {
   // ── Dashboard Summary ───────────────────────
 
   async getDashboardSummary(companyId: string, propertyId?: string) {
+    const cacheKey = `invoices:${companyId}:dashboard-summary:${propertyId || 'all'}`;
+    return cacheGetOrSet(cacheKey, 120, async () => {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
@@ -481,6 +496,7 @@ export class InvoicesService {
       mtdRevenue,
       currency: entityWithCurrency?.currency || 'USD',
     };
+    });
   }
 
   // ── Invoice Number ──────────────────────────
@@ -679,6 +695,7 @@ export class InvoicesService {
     }, tenantName);
 
     webhookInvoiceIssued(invoice);
+    await this.invalidateCompanyCache(companyId);
     return invoice;
   }
 
@@ -916,6 +933,7 @@ export class InvoicesService {
       logger.info(`[createFromLease] Rent+Deposit invoice ${invoiceNumber} (${subtotal} ${currency}) for lease ${lease.leaseNumber}`);
     }
 
+    await this.invalidateCompanyCache(lease.companyId);
     // Additional lease charges do NOT go to Direct Invoices on initial activation;
     // they are handled via Billing Schedules starting from period 1 (startDate).
     return created;
@@ -1306,6 +1324,7 @@ export class InvoicesService {
 
     logger.info(`Generated invoice ${invoiceNumber} for ${lineInputs.length} schedule(s) [${lineInputs.map(l => l.schedule.id).join(', ')}] (${totalAmount} ${first.currency})`);
     webhookInvoiceIssued({ ...invoice, companyId: first.companyId, tenantId: first.tenantId, currency: first.currency });
+    await this.invalidateCompanyCache(first.companyId);
     return invoice;
   }
 
@@ -1430,6 +1449,7 @@ export class InvoicesService {
       logger.error(`Failed to restore billing schedule nextBillingDate for voided invoice ${invoice.invoiceNumber}: ${err.message}`);
     }
 
+    await this.invalidateCompanyCache(companyId);
     return voidedInvoice;
   }
 
@@ -1561,6 +1581,7 @@ export class InvoicesService {
       ...creditNote, companyId, tenantId: original.tenantId, currency: original.currency,
     }, original.invoiceNumber || '', tenantName);
 
+    await this.invalidateCompanyCache(companyId);
     return creditNote;
   }
 

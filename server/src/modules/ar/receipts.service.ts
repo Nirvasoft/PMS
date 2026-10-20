@@ -2,6 +2,7 @@ import { prisma } from '../../common/database';
 import { sequenceService } from '../../common/sequence.service';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import { invalidateCacheByPrefix } from '../../common/redis';
 import { glService } from '../gl/gl.service';
 import { webhookPaymentReceived, webhookRefundProcessed } from '../../common/webhookHooks';
 
@@ -177,6 +178,7 @@ export class ReceiptsService {
     }
 
     webhookPaymentReceived(receipt);
+    await invalidateCacheByPrefix(`invoices:${companyId}:`);
     return receipt;
   }
 
@@ -271,6 +273,7 @@ export class ReceiptsService {
 
     logger.info(`Reversed receipt ${receipt.receiptNumber}: ${reason}`);
     webhookRefundProcessed(receipt);
+    await invalidateCacheByPrefix(`invoices:${companyId}:`);
     return { id, status: 'reversed' };
   }
 

@@ -180,6 +180,7 @@ interface ApiResponse<T> {
 export const propertiesApi = createApi({
   reducerPath: 'propertiesApi',
   baseQuery: baseQueryWithReauth,
+  keepUnusedDataFor: 300,
   tagTypes: ['Properties', 'PropertyPhotos', 'PropertyFacilities', 'PropertyContacts', 'PropertyStatus', 'PropertyStats', 'FacilityTypes', 'FloorSetups'],
   endpoints: (builder) => ({
     // Catalog

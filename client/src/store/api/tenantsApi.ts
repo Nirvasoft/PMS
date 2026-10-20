@@ -178,6 +178,7 @@ interface PaginatedResponse<T> {
 export const tenantsApi = createApi({
   reducerPath: 'tenantsApi',
   baseQuery: baseQueryWithReauth,
+  keepUnusedDataFor: 300,
   tagTypes: ['Tenants', 'TenantKyc', 'EmergencyContacts', 'TenantNotes', 'BlacklistLog', 'KycRequirements'],
   endpoints: (builder) => ({
 

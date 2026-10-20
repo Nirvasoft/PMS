@@ -299,6 +299,7 @@ invoicesRouter.post('/:id/send', asyncHandler(async (req, res) => {
     where: { id: invoice.id },
     data: { status: invoice.status === 'draft' || invoice.status === 'issued' ? 'sent' : invoice.status, sentAt: new Date() },
   });
+  await invoicesService.invalidateCompanyCache(req.user!.companyId);
 
   res.json({ success: true, data: { invoiceId: invoice.id, status: updated.status, sentTo: tenantEmail } });
 }));

@@ -119,6 +119,7 @@ interface CashFlow {
 export const glApi = createApi({
   reducerPath: 'glApi',
   baseQuery: baseQueryWithReauth,
+  keepUnusedDataFor: 300,
   tagTypes: ['GlAccounts', 'DepartmentCenters', 'CostCenters', 'FiscalPeriods', 'JournalEntries', 'TrialBalance', 'PnL', 'BalanceSheet', 'CashFlow'],
   endpoints: (b) => ({
     // ── Department Centers ─────────

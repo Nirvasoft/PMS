@@ -280,6 +280,7 @@ interface PaginatedResponse<T> {
 export const unitsApi = createApi({
   reducerPath: 'unitsApi',
   baseQuery: baseQueryWithReauth,
+  keepUnusedDataFor: 300,
   tagTypes: ['Towers', 'Units', 'FloorPlan', 'Meters', 'UnitTypes', 'UnitStats', 'UnitCharges'],
   endpoints: (builder) => ({
 

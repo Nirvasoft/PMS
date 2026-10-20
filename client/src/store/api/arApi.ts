@@ -144,6 +144,7 @@ export interface OverdueTrendPoint {
 export const arApi = createApi({
   reducerPath: 'arApi',
   baseQuery: baseQueryWithReauth,
+  keepUnusedDataFor: 300,
   tagTypes: ['Receipts', 'AgingReport', 'Refunds', 'TenantCredits', 'CollectionSummary'],
   endpoints: (builder) => ({
 

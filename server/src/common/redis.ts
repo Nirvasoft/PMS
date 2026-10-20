@@ -88,9 +88,49 @@ if (useRedis) {
 
 export { redis };
 
+export async function cacheGetOrSet<T>(
+  key: string,
+  ttlSeconds: number,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  try {
+    const cached = await redis.get(key);
+    if (cached) {
+      return JSON.parse(cached) as T;
+    }
+  } catch (err) {
+    logger.warn(`Cache get failed for ${key}: ${(err as Error).message}`);
+  }
+
+  const fresh = await fetcher();
+
+  try {
+    await redis.set(key, JSON.stringify(fresh), 'EX', ttlSeconds);
+  } catch (err) {
+    logger.warn(`Cache set failed for ${key}: ${(err as Error).message}`);
+  }
+
+  return fresh;
+}
+
+export async function invalidateCacheByPrefix(prefix: string): Promise<void> {
+  try {
+    const redisPrefix = config.redis.prefix || '';
+    const matchedKeys = await redis.keys(`${redisPrefix}${prefix}*`);
+    if (matchedKeys.length === 0) return;
+    const strippedKeys = matchedKeys.map((k) =>
+      redisPrefix && k.startsWith(redisPrefix) ? k.slice(redisPrefix.length) : k,
+    );
+    await redis.del(...strippedKeys);
+  } catch (err) {
+    logger.warn(`Cache invalidation failed for ${prefix}: ${(err as Error).message}`);
+  }
+}
+
 export async function disconnectRedis(): Promise<void> {
   if (useRedis) {
     await (redis as Redis).quit();
     logger.info('Redis disconnected');
   }
 }
+

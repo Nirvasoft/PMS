@@ -214,6 +214,7 @@ async function invalidateOnActivate(
 export const leasesApi = createApi({
   reducerPath: 'leasesApi',
   baseQuery: baseQueryWithReauth,
+  keepUnusedDataFor: 300,
   tagTypes: ['Leases', 'LeaseAmendments', 'EsignStatus', 'LeaseTemplates', 'LeaseClauses'],
   endpoints: (builder) => ({
 

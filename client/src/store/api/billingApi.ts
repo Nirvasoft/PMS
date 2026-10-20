@@ -203,6 +203,7 @@ interface PaginatedResponse<T> {
 export const billingApi = createApi({
   reducerPath: 'billingApi',
   baseQuery: baseQueryWithReauth,
+  keepUnusedDataFor: 300,
   tagTypes: ['Invoices', 'BillingSchedules', 'ChargeCategories', 'ChargeTypes', 'PenaltyConfigs', 'TaxConfigs', 'MeterSetups', 'CurrencyRates'],
   endpoints: (builder) => ({
 
