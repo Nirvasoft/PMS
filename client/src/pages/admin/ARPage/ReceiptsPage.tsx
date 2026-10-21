@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGetReceiptsQuery } from '../../../store/api/arApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { useSelectedPropertyId, useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
@@ -94,6 +95,17 @@ export default function ReceiptsPage() {
     }
     return r.tenant.lastName || r.tenant.firstName || '—';
   };
+
+  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery();
+  const paymentMethodMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const pm of paymentMethods) {
+      map.set(pm.code.toLowerCase(), pm.name);
+    }
+    return map;
+  }, [paymentMethods]);
+  const formatPaymentMethod = (code: string) =>
+    paymentMethodMap.get((code || '').toLowerCase()) || (code || '').replace(/_/g, ' ');
 
   const totalCount = meta ? meta.total : filtered.length;
   const totalPages = meta?.totalPages || 1;
@@ -203,7 +215,7 @@ export default function ReceiptsPage() {
                       </div>
                     </td>
                     <td>
-                      <span className="pay-method">{r.paymentMethod.replace(/_/g, ' ')}</span>
+                      <span className="pay-method">{formatPaymentMethod(r.paymentMethod)}</span>
                     </td>
                     <td className="text-right">
                       <span className="cell-amount">{formatCurrency(r.amount, r.currency)}</span>

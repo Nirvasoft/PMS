@@ -154,6 +154,8 @@ export class PaymentVouchersService {
     try {
       const vendorNames = [...new Set(voucher.allocations.map(a => (a.apInvoice as any)?.vendorName).filter(Boolean))];
       const vendorLabel = vendorNames.length > 0 ? vendorNames.join(', ') : voucher.vendorName;
+      const pmConfig = await glService.resolvePaymentMethodConfig(companyId, voucher.paymentMethod);
+      const creditAccountCode = pmConfig?.glAccountCode || '1000';
 
       await glService.postAutoJournal({
         companyId,
@@ -170,10 +172,12 @@ export class PaymentVouchersService {
             description: `AP cleared — ${voucher.voucherNumber}`,
           },
           {
-            accountCode: '1000', // Cash / Bank
+            accountCode: creditAccountCode, // Cash / Bank (or configured PaymentMethod GL Account)
             debit: 0,
             credit: Number(voucher.totalAmount),
             description: `Payment — ${voucher.voucherNumber} (Ref: ${dto.paymentReference})`,
+            departmentCenterId: pmConfig?.departmentCenterId || undefined,
+            costCenterId: pmConfig?.costCenterId || undefined,
           },
         ],
       });

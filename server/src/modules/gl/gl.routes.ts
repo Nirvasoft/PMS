@@ -6,6 +6,7 @@ import {
   createAccountSchema, updateAccountSchema,
   createDepartmentCenterSchema, updateDepartmentCenterSchema,
   createCostCenterSchema, updateCostCenterSchema,
+  createPaymentMethodSchema, updatePaymentMethodSchema,
   createFiscalPeriodSchema,
   createJournalEntrySchema,
 } from './gl.schema';
@@ -90,6 +91,34 @@ glRouter.put('/cost-centers/:id', validateRequest(updateCostCenterSchema), async
 
 glRouter.delete('/cost-centers/:id', asyncHandler(async (req, res) => {
   const data = await glService.deleteCostCenter(p(req, 'id'), req.user!.companyId);
+  res.json({ success: true, data });
+}));
+
+// ════════════════════════════════════════════════
+// PAYMENT METHODS — /api/v1/gl/payment-methods
+// ════════════════════════════════════════════════
+
+glRouter.get('/payment-methods', asyncHandler(async (req, res) => {
+  const isActiveParam = q(req, 'isActive');
+  const data = await glService.getPaymentMethods(req.user!.companyId, {
+    isActive: isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : undefined,
+    search: q(req, 'search') || undefined,
+  });
+  res.json({ success: true, data });
+}));
+
+glRouter.post('/payment-methods', validateRequest(createPaymentMethodSchema), asyncHandler(async (req, res) => {
+  const data = await glService.createPaymentMethod(req.user!.companyId, req.body);
+  res.status(201).json({ success: true, data });
+}));
+
+glRouter.put('/payment-methods/:id', validateRequest(updatePaymentMethodSchema), asyncHandler(async (req, res) => {
+  const data = await glService.updatePaymentMethod(p(req, 'id'), req.user!.companyId, req.body);
+  res.json({ success: true, data });
+}));
+
+glRouter.delete('/payment-methods/:id', asyncHandler(async (req, res) => {
+  const data = await glService.deletePaymentMethod(p(req, 'id'), req.user!.companyId);
   res.json({ success: true, data });
 }));
 

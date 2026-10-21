@@ -21,6 +21,74 @@ async function ensureGlAccountConstraint() {
   }
 }
 
+const DEFAULT_PAYMENT_METHODS = [
+  { code: 'BANK_TRANSFER', name: 'Bank Transfer', isSystem: true, isActive: true },
+  { code: 'CHEQUE', name: 'Cheque', isSystem: true, isActive: true },
+  { code: 'CASH', name: 'Cash', isSystem: true, isActive: true },
+  { code: 'ONLINE', name: 'Online', isSystem: true, isActive: true },
+  { code: 'GIRO', name: 'GIRO', isSystem: true, isActive: true },
+  { code: 'CREDIT_CARD', name: 'Credit Card', isSystem: true, isActive: true },
+];
+
+let paymentMethodsTableEnsured = false;
+const seededCompanyPaymentMethods = new Set<string>();
+
+async function ensurePaymentMethodsTable(companyId: string) {
+  if (!paymentMethodsTableEnsured) {
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "payment_methods" (
+          "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+          "company_id" UUID NOT NULL,
+          "department_center_id" UUID,
+          "cost_center_id" UUID,
+          "code" VARCHAR(50) NOT NULL,
+          "name" VARCHAR(150) NOT NULL,
+          "gl_account_code" VARCHAR(50),
+          "is_active" BOOLEAN NOT NULL DEFAULT true,
+          "is_system" BOOLEAN NOT NULL DEFAULT false,
+          "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "payment_methods_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "payment_methods_company_id_idx" ON "payment_methods"("company_id")`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "payment_methods_department_center_id_idx" ON "payment_methods"("department_center_id")`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "payment_methods_cost_center_id_idx" ON "payment_methods"("cost_center_id")`);
+      await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "payment_methods_code_company_id_key" ON "payment_methods"("code", "company_id")`);
+      paymentMethodsTableEnsured = true;
+    } catch (err) {
+      logger.warn('Could not ensure payment_methods table automatically', err);
+    }
+  }
+
+  if (companyId && !seededCompanyPaymentMethods.has(companyId)) {
+    try {
+      const count = await prisma.paymentMethod.count({ where: { companyId } });
+      if (count === 0) {
+        await prisma.paymentMethod.createMany({
+          data: DEFAULT_PAYMENT_METHODS.map((pm) => ({
+            companyId,
+            code: pm.code,
+            name: pm.name,
+            isSystem: pm.isSystem,
+            isActive: pm.isActive,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      seededCompanyPaymentMethods.add(companyId);
+    } catch (err) {
+      logger.warn('Could not seed default payment methods automatically', err);
+    }
+  }
+}
+
+const paymentMethodInclude = {
+  departmentCenter: { select: { id: true, code: true, name: true } },
+  costCenter: { select: { id: true, code: true, name: true } },
+};
+
 class GlService {
   // ── Department Centers ──────────────────────
 
@@ -147,6 +215,112 @@ class GlService {
     const existing = await prisma.costCenter.findFirst({ where: { id, companyId } });
     if (!existing) throw new Error('Cost Center not found');
     await prisma.costCenter.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  // ── Payment Methods ─────────────────────────
+
+  async getPaymentMethods(companyId: string, filters?: { isActive?: boolean; search?: string }) {
+    await ensurePaymentMethodsTable(companyId);
+
+    const where: any = { companyId };
+    if (filters?.isActive !== undefined) where.isActive = filters.isActive;
+    if (filters?.search) {
+      where.OR = [
+        { code: { contains: filters.search, mode: 'insensitive' } },
+        { name: { contains: filters.search, mode: 'insensitive' } },
+        { glAccountCode: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+    return prisma.paymentMethod.findMany({
+      where,
+      include: paymentMethodInclude,
+      orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  async resolvePaymentMethodConfig(companyId: string, codeOrName?: string | null) {
+    if (!codeOrName) return null;
+    await ensurePaymentMethodsTable(companyId);
+    const normalized = codeOrName.trim();
+    return prisma.paymentMethod.findFirst({
+      where: {
+        companyId,
+        OR: [
+          { code: { equals: normalized, mode: 'insensitive' } },
+          { name: { equals: normalized, mode: 'insensitive' } },
+        ],
+      },
+      include: paymentMethodInclude,
+    });
+  }
+
+  async createPaymentMethod(companyId: string, data: any) {
+    await ensurePaymentMethodsTable(companyId);
+
+    const code = data.code.trim().toUpperCase();
+    const existing = await prisma.paymentMethod.findFirst({
+      where: { companyId, code: { equals: code, mode: 'insensitive' } },
+    });
+    if (existing) {
+      throw AppError.conflict(`Payment method code "${code}" already exists`);
+    }
+
+    return prisma.paymentMethod.create({
+      data: {
+        companyId,
+        code,
+        name: data.name.trim(),
+        glAccountCode: data.glAccountCode?.trim() || null,
+        departmentCenterId: data.departmentCenterId || null,
+        costCenterId: data.costCenterId || null,
+        isActive: data.isActive ?? true,
+        isSystem: false,
+      },
+      include: paymentMethodInclude,
+    });
+  }
+
+  async updatePaymentMethod(id: string, companyId: string, data: any) {
+    await ensurePaymentMethodsTable(companyId);
+
+    const existing = await prisma.paymentMethod.findFirst({ where: { id, companyId } });
+    if (!existing) throw AppError.notFound('Payment method');
+
+    if (data.code !== undefined) {
+      const nextCode = data.code.trim().toUpperCase();
+      const duplicate = await prisma.paymentMethod.findFirst({
+        where: {
+          companyId,
+          id: { not: id },
+          code: { equals: nextCode, mode: 'insensitive' },
+        },
+      });
+      if (duplicate) {
+        throw AppError.conflict(`Payment method code "${nextCode}" already exists`);
+      }
+    }
+
+    return prisma.paymentMethod.update({
+      where: { id },
+      data: {
+        ...(data.code !== undefined ? { code: data.code.trim().toUpperCase() } : {}),
+        ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+        ...(data.glAccountCode !== undefined ? { glAccountCode: data.glAccountCode?.trim() || null } : {}),
+        ...(data.departmentCenterId !== undefined ? { departmentCenterId: data.departmentCenterId || null } : {}),
+        ...(data.costCenterId !== undefined ? { costCenterId: data.costCenterId || null } : {}),
+        ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+      },
+      include: paymentMethodInclude,
+    });
+  }
+
+  async deletePaymentMethod(id: string, companyId: string) {
+    await ensurePaymentMethodsTable(companyId);
+
+    const existing = await prisma.paymentMethod.findFirst({ where: { id, companyId } });
+    if (!existing) throw AppError.notFound('Payment method');
+    await prisma.paymentMethod.delete({ where: { id } });
     return { deleted: true };
   }
 

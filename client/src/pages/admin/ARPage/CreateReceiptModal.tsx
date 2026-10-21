@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useCreateReceiptMutation } from '../../../store/api/arApi';
 import { useGetInvoicesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { Banknote, X, AlertTriangle } from 'lucide-react';
@@ -13,8 +14,14 @@ const formatCurrency = (amount: number, currency = 'USD') =>
 interface Props { onClose: () => void; }
 
 export default function CreateReceiptModal({ onClose }: Props) {
+  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery({ isActive: true });
+  const activePaymentMethods = useMemo(
+    () => paymentMethods.filter((pm) => pm.isActive),
+    [paymentMethods]
+  );
+
   const [tenantId, setTenantId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [amount, setAmount] = useState('');
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split('T')[0]);
@@ -22,6 +29,15 @@ export default function CreateReceiptModal({ onClose }: Props) {
   const [notes, setNotes] = useState('');
   const [allocations, setAllocations] = useState<Record<string, number>>({});
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  useEffect(() => {
+    if (activePaymentMethods.length > 0 && (!paymentMethod || !activePaymentMethods.some((pm) => pm.code === paymentMethod))) {
+      const preferred =
+        activePaymentMethods.find((pm) => pm.code.toUpperCase() === 'BANK_TRANSFER')?.code ||
+        activePaymentMethods[0].code;
+      setPaymentMethod(preferred);
+    }
+  }, [activePaymentMethods, paymentMethod]);
 
   // Active property — tenants are scoped to this property and must be KYC-verified.
   const activePropertyId = useSelectedPropertyId();
@@ -180,12 +196,15 @@ export default function CreateReceiptModal({ onClose }: Props) {
               value={paymentMethod}
               onChange={e => setPaymentMethod(e.target.value)}
             >
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-              <option value="cash">Cash</option>
-              <option value="online">Online</option>
-              <option value="giro">GIRO</option>
-              <option value="credit_card">Credit Card</option>
+              {activePaymentMethods.length === 0 ? (
+                <option value="">No active payment methods</option>
+              ) : (
+                activePaymentMethods.map((pm) => (
+                  <option key={pm.id} value={pm.code}>
+                    {pm.name}
+                  </option>
+                ))
+              )}
             </select>
             {isPaymentMethodMissing && <span className="ar-error-text">Payment method is required</span>}
           </div>

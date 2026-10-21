@@ -9,7 +9,7 @@ export const createReceiptSchema = z.object({
     tenantId: z.string().uuid(),
     propertyId: z.string().uuid().optional(),
     receiptDate: dateString.optional(),
-    paymentMethod: z.enum(['bank_transfer', 'cheque', 'cash', 'online', 'giro', 'credit_card']),
+    paymentMethod: z.string().min(1, 'Payment method is required').max(50),
     paymentReference: z.string().max(255).optional(),
     bankAccountId: z.string().uuid().optional(),
     amount: z.number().positive('Amount must be positive'),

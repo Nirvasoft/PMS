@@ -40,7 +40,7 @@ export const rejectApInvoiceSchema = z.object({
 export const createPaymentVoucherSchema = z.object({
   body: z.object({
     voucherDate: dateString,
-    paymentMethod: z.enum(['bank_transfer', 'cheque', 'giro', 'cash']),
+    paymentMethod: z.string().min(1, 'Payment method is required').max(50),
     bankAccountId: z.string().uuid().optional(),
     vendorName: z.string().min(1).max(255),
     vendorBankName: z.string().max(100).optional(),

@@ -69,6 +69,7 @@ import ExpensesPage from './pages/admin/APPage/ExpensesPage';
 import ChartOfAccountsPage from './pages/admin/GLPage/ChartOfAccountsPage';
 import DepartmentCentersPage from './pages/admin/GLPage/DepartmentCentersPage';
 import CostCentersPage from './pages/admin/GLPage/CostCentersPage';
+import PaymentMethodSetupPage from './pages/admin/GLPage/PaymentMethodSetupPage';
 import JournalEntriesPage from './pages/admin/GLPage/JournalEntriesPage';
 import FiscalPeriodsPage from './pages/admin/GLPage/FiscalPeriodsPage';
 import TrialBalancePage from './pages/admin/GLPage/TrialBalancePage';
@@ -326,6 +327,7 @@ function AppRoutes() {
             <Route path="/admin/gl/accounts" element={<ChartOfAccountsPage />} />
             <Route path="/admin/gl/department-centers" element={<DepartmentCentersPage />} />
             <Route path="/admin/gl/cost-centers" element={<CostCentersPage />} />
+            <Route path="/admin/gl/payment-methods" element={<PaymentMethodSetupPage />} />
             <Route path="/admin/gl/journal-entries" element={<JournalEntriesPage />} />
             <Route path="/admin/gl/fiscal-periods" element={<FiscalPeriodsPage />} />
             <Route path="/admin/gl/trial-balance" element={<TrialBalancePage />} />

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   useGetPaymentVouchersQuery, useCreatePaymentVoucherMutation, useMarkVoucherPaidMutation,
   useGetApInvoicesQuery,
 } from '../../../store/api/apApi';
+import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
@@ -47,6 +48,28 @@ export default function PaymentVouchersPage() {
     propertyId: selectedProperty || undefined,
     limit: '100',
   });
+  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery();
+  const activePaymentMethods = useMemo(
+    () => paymentMethods.filter((pm) => pm.isActive),
+    [paymentMethods]
+  );
+  const paymentMethodMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const pm of paymentMethods) {
+      map.set(pm.code.toLowerCase(), pm.name);
+    }
+    return map;
+  }, [paymentMethods]);
+  const formatPaymentMethod = (code: string) =>
+    paymentMethodMap.get((code || '').toLowerCase()) || (code || '').replace(/_/g, ' ');
+  const defaultPaymentMethodCode = useMemo(
+    () =>
+      activePaymentMethods.find((pm) => pm.code.toUpperCase() === 'BANK_TRANSFER')?.code ||
+      activePaymentMethods[0]?.code ||
+      '',
+    [activePaymentMethods]
+  );
+
   const [createPaymentVoucher, { isLoading: creating }] = useCreatePaymentVoucherMutation();
   const [markVoucherPaid, { isLoading: marking }] = useMarkVoucherPaidMutation();
 
@@ -60,11 +83,17 @@ export default function PaymentVouchersPage() {
   // Create form
   const [form, setForm] = useState({
     voucherDate: format(new Date(), 'yyyy-MM-dd'),
-    paymentMethod: 'bank_transfer' as string,
+    paymentMethod: '' as string,
     vendorName: '', vendorBankName: '', vendorBankAcc: '',
     currency: 'USD', notes: '',
   });
   const [allocations, setAllocations] = useState<Array<{ apInvoiceId: string; amount: number }>>([]);
+
+  useEffect(() => {
+    if (activePaymentMethods.length > 0 && (!form.paymentMethod || !activePaymentMethods.some((pm) => pm.code === form.paymentMethod))) {
+      setForm((f) => ({ ...f, paymentMethod: defaultPaymentMethodCode }));
+    }
+  }, [activePaymentMethods, defaultPaymentMethodCode, form.paymentMethod]);
 
   const totalAllocated = allocations.reduce((s, a) => s + a.amount, 0);
 
@@ -80,7 +109,7 @@ export default function PaymentVouchersPage() {
   const handleCreate = async () => {
     setHasAttemptedCreate(true);
     if (!selectedProperty) return toast.error('Please select a property from the sidebar first');
-    if (!form.voucherDate || !form.vendorName.trim()) return toast.error('Vendor name is required');
+    if (!form.voucherDate || !form.paymentMethod || !form.vendorName.trim()) return toast.error('Please fill in all required fields');
     if (allocations.length === 0) return toast.error('At least one AP invoice allocation is required');
     try {
       await createPaymentVoucher({
@@ -90,7 +119,7 @@ export default function PaymentVouchersPage() {
       toast.success('Payment Voucher created');
       setShowCreate(false);
       setHasAttemptedCreate(false);
-      setForm({ voucherDate: format(new Date(), 'yyyy-MM-dd'), paymentMethod: 'bank_transfer', vendorName: '', vendorBankName: '', vendorBankAcc: '', currency: 'USD', notes: '' });
+      setForm({ voucherDate: format(new Date(), 'yyyy-MM-dd'), paymentMethod: defaultPaymentMethodCode, vendorName: '', vendorBankName: '', vendorBankAcc: '', currency: 'USD', notes: '' });
       setAllocations([]);
     } catch { toast.error('Failed to create payment voucher'); }
   };
@@ -127,7 +156,7 @@ export default function PaymentVouchersPage() {
             className="ap-btn primary"
             onClick={() => {
               const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
-              setForm((f) => ({ ...f, currency: propertyCurrency || 'USD' }));
+              setForm((f) => ({ ...f, currency: propertyCurrency || 'USD', paymentMethod: f.paymentMethod || defaultPaymentMethodCode }));
               setHasAttemptedCreate(false);
               setShowCreate(true);
             }}
@@ -182,7 +211,7 @@ export default function PaymentVouchersPage() {
                   <td><strong>{pv.voucherNumber}</strong></td>
                   <td>{format(new Date(pv.voucherDate), 'dd MMM yyyy')}</td>
                   <td>{pv.vendorName}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{pv.paymentMethod.replace(/_/g, ' ')}</td>
+                  <td style={{ textTransform: 'capitalize' }}>{formatPaymentMethod(pv.paymentMethod)}</td>
                   <td className="amount-neutral">{fmt(pv.totalAmount)} {pv.currency}</td>
                   <td>{pv.allocations.map((a: any) => a.apInvoice.apInvoiceNumber).join(', ')}</td>
                   <td><span className={`ap-status ${pv.status}`}>{pv.status}</span></td>
@@ -284,10 +313,15 @@ export default function PaymentVouchersPage() {
                 <div className="ap-form-group">
                   <label>Payment Method <span className="req">*</span></label>
                   <select value={form.paymentMethod} onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))}>
-                    <option value="bank_transfer">Bank Transfer</option>
-                    <option value="cheque">Cheque</option>
-                    <option value="giro">GIRO</option>
-                    <option value="cash">Cash</option>
+                    {activePaymentMethods.length === 0 ? (
+                      <option value="">No active payment methods</option>
+                    ) : (
+                      activePaymentMethods.map((pm) => (
+                        <option key={pm.id} value={pm.code}>
+                          {pm.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
                 <div className="ap-form-group">

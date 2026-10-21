@@ -116,11 +116,27 @@ interface CashFlow {
   generatedAt: string;
 }
 
+interface PaymentMethod {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  glAccountCode: string | null;
+  departmentCenterId?: string | null;
+  costCenterId?: string | null;
+  departmentCenter?: { id: string; code: string; name: string } | null;
+  costCenter?: { id: string; code: string; name: string } | null;
+  isActive: boolean;
+  isSystem: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export const glApi = createApi({
   reducerPath: 'glApi',
   baseQuery: baseQueryWithReauth,
   keepUnusedDataFor: 300,
-  tagTypes: ['GlAccounts', 'DepartmentCenters', 'CostCenters', 'FiscalPeriods', 'JournalEntries', 'TrialBalance', 'PnL', 'BalanceSheet', 'CashFlow'],
+  tagTypes: ['GlAccounts', 'DepartmentCenters', 'CostCenters', 'PaymentMethods', 'FiscalPeriods', 'JournalEntries', 'TrialBalance', 'PnL', 'BalanceSheet', 'CashFlow'],
   endpoints: (b) => ({
     // ── Department Centers ─────────
     getDepartmentCenters: b.query<DepartmentCenter[], { isActive?: boolean; search?: string } | void>({
@@ -158,6 +174,25 @@ export const glApi = createApi({
     deleteCostCenter: b.mutation<{ deleted: boolean }, string>({
       query: (id) => ({ url: `/gl/cost-centers/${id}`, method: 'DELETE' }),
       invalidatesTags: ['CostCenters', 'DepartmentCenters', 'GlAccounts'],
+    }),
+
+    // ── Payment Methods ────────────
+    getPaymentMethods: b.query<PaymentMethod[], { isActive?: boolean; search?: string } | void>({
+      query: (params) => ({ url: '/gl/payment-methods', params: (params || {}) as any }),
+      transformResponse: (r: any) => r.data,
+      providesTags: ['PaymentMethods'],
+    }),
+    createPaymentMethod: b.mutation<PaymentMethod, Record<string, unknown>>({
+      query: (body) => ({ url: '/gl/payment-methods', method: 'POST', body }),
+      invalidatesTags: ['PaymentMethods'],
+    }),
+    updatePaymentMethod: b.mutation<PaymentMethod, { id: string; data: Record<string, unknown> }>({
+      query: ({ id, data }) => ({ url: `/gl/payment-methods/${id}`, method: 'PUT', body: data }),
+      invalidatesTags: ['PaymentMethods'],
+    }),
+    deletePaymentMethod: b.mutation<{ deleted: boolean }, string>({
+      query: (id) => ({ url: `/gl/payment-methods/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['PaymentMethods'],
     }),
 
     // ── Chart of Accounts ──────────
@@ -248,6 +283,7 @@ export const glApi = createApi({
 export const {
   useGetDepartmentCentersQuery, useCreateDepartmentCenterMutation, useUpdateDepartmentCenterMutation, useDeleteDepartmentCenterMutation,
   useGetCostCentersQuery, useCreateCostCenterMutation, useUpdateCostCenterMutation, useDeleteCostCenterMutation,
+  useGetPaymentMethodsQuery, useCreatePaymentMethodMutation, useUpdatePaymentMethodMutation, useDeletePaymentMethodMutation,
   useGetGlAccountsQuery, useCreateGlAccountMutation, useUpdateGlAccountMutation,
   useGetFiscalPeriodsQuery, useCreateFiscalPeriodMutation, useGenerateFiscalYearMutation,
   useCloseFiscalPeriodMutation, useReopenFiscalPeriodMutation,
@@ -256,4 +292,4 @@ export const {
   useGetTrialBalanceQuery, useGetPnLQuery, useGetBalanceSheetQuery, useGetCashFlowQuery,
 } = glApi;
 
-export type { DepartmentCenter, CostCenter, GlAccount, FiscalPeriod, JournalEntry, JournalEntryLine, TrialBalanceRow, TrialBalance, PnL, BalanceSheet, CashFlow };
+export type { DepartmentCenter, CostCenter, PaymentMethod, GlAccount, FiscalPeriod, JournalEntry, JournalEntryLine, TrialBalanceRow, TrialBalance, PnL, BalanceSheet, CashFlow };

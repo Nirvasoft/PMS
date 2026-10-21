@@ -1,4 +1,5 @@
 import { useGetReceiptQuery, useReverseReceiptMutation } from '../../../store/api/arApi';
+import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { X, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -11,8 +12,13 @@ interface Props { receiptId: string; onClose: () => void; }
 
 export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
   const { data, isLoading } = useGetReceiptQuery(receiptId);
+  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery();
   const [reverseReceipt, { isLoading: reversing }] = useReverseReceiptMutation();
   const receipt = data?.data;
+  const paymentMethodLabel = receipt
+    ? paymentMethods.find((pm) => pm.code.toLowerCase() === (receipt.paymentMethod || '').toLowerCase())?.name ||
+      (receipt.paymentMethod || '').replace(/_/g, ' ')
+    : '';
 
   const handleReverse = async () => {
     const reason = prompt('Enter reason for reversal:');
@@ -67,7 +73,7 @@ export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
               <div className="drawer-meta-item">
                 <div className="dmi-label">Payment Method</div>
                 <div className="dmi-value" style={{ textTransform: 'capitalize' }}>
-                  {receipt.paymentMethod.replace(/_/g, ' ')}
+                  {paymentMethodLabel}
                 </div>
               </div>
               <div className="drawer-meta-item">

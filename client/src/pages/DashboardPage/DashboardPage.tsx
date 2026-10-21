@@ -493,6 +493,12 @@ export default function DashboardLayout() {
                   <span>Cost Centers</span>
                 </NavLink>
               </PermissionGuard>
+              <PermissionGuard hideWhenDenied permission="finance-coa.read">
+                <NavLink to="/admin/gl/payment-methods" className="nav-item" title="Payment Method Setup">
+                  <CreditCard size={18} />
+                  <span>Payment Method Setup</span>
+                </NavLink>
+              </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="finance-journal.read">
                 <NavLink to="/admin/gl/journal-entries" className="nav-item" title="Journal Entries">
                   <ClipboardList size={18} />

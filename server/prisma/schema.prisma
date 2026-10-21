@@ -127,6 +127,7 @@ model Company {
   glAccounts        GlAccount[]
   departmentCenters DepartmentCenter[]
   costCenters       CostCenter[]
+  paymentMethods    PaymentMethod[]
   fiscalPeriods     FiscalPeriod[]
   journalEntries    JournalEntry[]
 
@@ -3313,6 +3314,7 @@ model DepartmentCenter {
   costCenters      CostCenter[]
   glAccounts       GlAccount[]
   chargeTypes      ChargeType[]
+  paymentMethods   PaymentMethod[]
   invoices         Invoice[]
   billingSchedules BillingSchedule[]
   journalLines     JournalEntryLine[]
@@ -3338,6 +3340,7 @@ model CostCenter {
   departmentCenter DepartmentCenter?  @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
   glAccounts       GlAccount[]
   chargeTypes      ChargeType[]
+  paymentMethods   PaymentMethod[]
   invoices         Invoice[]
   billingSchedules BillingSchedule[]
   journalLines     JournalEntryLine[]
@@ -3346,6 +3349,30 @@ model CostCenter {
   @@index([companyId])
   @@index([departmentCenterId])
   @@map("cost_centers")
+}
+
+model PaymentMethod {
+  id                 String   @id @default(uuid()) @db.Uuid
+  companyId          String   @map("company_id") @db.Uuid
+  departmentCenterId String?  @map("department_center_id") @db.Uuid
+  costCenterId       String?  @map("cost_center_id") @db.Uuid
+  code               String   @db.VarChar(50)
+  name               String   @db.VarChar(150)
+  glAccountCode      String?  @map("gl_account_code") @db.VarChar(50)
+  isActive           Boolean  @default(true) @map("is_active")
+  isSystem           Boolean  @default(false) @map("is_system")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
+  costCenter       CostCenter?       @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+
+  @@unique([code, companyId], name: "uq_payment_method_code_company")
+  @@index([companyId])
+  @@index([departmentCenterId])
+  @@index([costCenterId])
+  @@map("payment_methods")
 }
 
 model GlAccount {

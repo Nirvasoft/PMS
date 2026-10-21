@@ -42,6 +42,28 @@ export const updateCostCenterSchema = z.object({
   }),
 });
 
+export const createPaymentMethodSchema = z.object({
+  body: z.object({
+    code: z.string().min(1).max(50),
+    name: z.string().min(1).max(150),
+    glAccountCode: z.string().max(50).nullable().optional(),
+    departmentCenterId: z.string().uuid().nullable().optional(),
+    costCenterId: z.string().uuid().nullable().optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
+export const updatePaymentMethodSchema = z.object({
+  body: z.object({
+    code: z.string().min(1).max(50).optional(),
+    name: z.string().min(1).max(150).optional(),
+    glAccountCode: z.string().max(50).nullable().optional(),
+    departmentCenterId: z.string().uuid().nullable().optional(),
+    costCenterId: z.string().uuid().nullable().optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
 export const createAccountSchema = z.object({
   body: z.object({
     parentId: z.string().uuid().optional(),

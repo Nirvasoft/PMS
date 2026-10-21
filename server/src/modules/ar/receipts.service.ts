@@ -160,6 +160,8 @@ export class ReceiptsService {
 
     // GL auto-posting: Dr Bank / Cr Accounts Receivable
     try {
+      const pmConfig = await glService.resolvePaymentMethodConfig(companyId, dto.paymentMethod as string);
+      const debitAccountCode = pmConfig?.glAccountCode || '1210';
       await glService.postAutoJournal({
         companyId,
         entryDate: dto.receiptDate as string || new Date().toISOString().split('T')[0],
@@ -169,7 +171,14 @@ export class ReceiptsService {
         referenceId: receipt.id,
         propertyId: (dto.propertyId as string) || undefined,
         lines: [
-          { accountCode: '1210', debit: amount, credit: 0, description: `Bank deposit — ${receiptNumber}` },
+          {
+            accountCode: debitAccountCode,
+            debit: amount,
+            credit: 0,
+            description: `Bank deposit — ${receiptNumber}`,
+            departmentCenterId: pmConfig?.departmentCenterId || undefined,
+            costCenterId: pmConfig?.costCenterId || undefined,
+          },
           { accountCode: '1-2210', debit: 0, credit: amount, description: `AR cleared — ${receiptNumber}` },
         ],
       });
