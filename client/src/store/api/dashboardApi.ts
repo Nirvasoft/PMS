@@ -170,10 +170,22 @@ export const dashboardApi = createApi({
       query: () => '/dashboard/widgets',
     }),
 
-    getWidgetData: builder.query<ApiResponse<WidgetData>, { code: string; propertyId?: string; dateRange?: string }>({
-      query: ({ code, propertyId, dateRange }) => ({
+    getWidgetData: builder.query<
+      ApiResponse<WidgetData>,
+      { code: string; propertyId?: string; dateRange?: string; refresh?: boolean }
+    >({
+      query: ({ code, propertyId, dateRange, refresh }) => ({
         url: `/dashboard/widget-data/${code}`,
-        params: { ...(propertyId && { propertyId }), ...(dateRange && { dateRange }) },
+        params: {
+          ...(propertyId && { propertyId }),
+          ...(dateRange && { dateRange }),
+          ...(refresh && { refresh: 'true' }),
+        },
+      }),
+      serializeQueryArgs: ({ queryArgs }) => ({
+        code: queryArgs.code,
+        propertyId: queryArgs.propertyId,
+        dateRange: queryArgs.dateRange,
       }),
       providesTags: (_r, _e, { code }) => [{ type: 'WidgetData', id: code }],
       keepUnusedDataFor: 300,
@@ -228,6 +240,7 @@ export const dashboardApi = createApi({
 export const {
   useGetWidgetCatalogQuery,
   useGetWidgetDataQuery,
+  useLazyGetWidgetDataQuery,
   useGetDashboardLayoutQuery,
   useSaveDashboardLayoutMutation,
   useResetDashboardLayoutMutation,

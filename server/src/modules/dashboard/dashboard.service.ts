@@ -120,6 +120,7 @@ export class DashboardService {
     propertyId?: string;
     dateRange?: string;
     userId?: string;
+    refresh?: boolean;
   }) {
     // Verify widget exists
     const widget = await prisma.widgetDefinition.findUnique({ where: { code } });
@@ -148,14 +149,16 @@ export class DashboardService {
     const ttl = CACHE_TTL[widgetDef?.category || ''] || 120;
     const cacheKey = `widget:${companyId}:${code}:${propertyKey}:${dateFrom || ''}:${dateTo || ''}`;
 
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
+    if (!query.refresh) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          return JSON.parse(cached);
+        }
+      } catch (err) {
+        // Cache miss or Redis error — fall through to compute
+        logger.debug(`Widget cache miss for ${cacheKey}`);
       }
-    } catch (err) {
-      // Cache miss or Redis error — fall through to compute
-      logger.debug(`Widget cache miss for ${cacheKey}`);
     }
 
     // Compute fresh data

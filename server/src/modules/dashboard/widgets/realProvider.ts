@@ -17,12 +17,13 @@ function isUuid(val?: string | null): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 }
 
-function getMonthLabels(count: number): string[] {
+function getMonthLabels(count: number, endDate: Date = new Date()): string[] {
   const months: string[] = [];
-  const d = new Date();
   for (let i = count - 1; i >= 0; i--) {
-    const m = new Date(d.getFullYear(), d.getMonth() - i, 1);
-    months.push(m.toISOString().slice(0, 7));
+    const m = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
+    const yyyy = m.getFullYear();
+    const mm = String(m.getMonth() + 1).padStart(2, '0');
+    months.push(`${yyyy}-${mm}`);
   }
   return months;
 }
@@ -32,22 +33,55 @@ function getMonthLabels(count: number): string[] {
 // ──────────────────────────────────────────────
 
 async function occupancyRate(params: WidgetDataParams) {
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { deletedAt: null };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const [total, occupied] = await Promise.all([
-    prisma.unit.count({ where }),
-    prisma.unit.count({ where: { ...where, status: 'occupied' } }),
+  const leaseWhere: Record<string, unknown> = { status: 'active' };
+  if (params.companyId) leaseWhere.companyId = params.companyId;
+  if (params.propertyId) leaseWhere.propertyId = params.propertyId;
+
+  const [statusGroups, activeLeaseUnits] = await Promise.all([
+    prisma.unit.groupBy({
+      by: ['status'],
+      where,
+      _count: true,
+    }),
+    prisma.lease.findMany({
+      where: leaseWhere,
+      distinct: ['unitId'],
+      select: { unitId: true },
+    }),
   ]);
 
+  let total = 0;
+  let occupiedByStatus = 0;
+  let reserved = 0;
+  for (const s of statusGroups) {
+    total += s._count;
+    if (s.status === 'occupied') occupiedByStatus += s._count;
+    if (s.status === 'reserved') reserved += s._count;
+  }
+
+  const occupied = total > 0
+    ? Math.min(total, Math.max(occupiedByStatus, activeLeaseUnits.length))
+    : activeLeaseUnits.length;
   const rate = total > 0 ? +((occupied / total) * 100).toFixed(1) : 0;
-  const vacant = total - occupied;
+  const vacant = Math.max(0, total - occupied);
+
+  const breakdown: Record<string, number> = {
+    occupied,
+    vacant,
+    total,
+  };
+  if (reserved > 0) {
+    breakdown.reserved = reserved;
+  }
 
   return {
     type: 'kpi_card', label: 'Occupancy Rate', value: rate, unit: '%',
     trend: { direction: rate >= 80 ? 'up' : 'down', changePercent: +(rate - 85).toFixed(1), label: 'vs target 85%' },
-    breakdown: { occupied, total, vacant },
+    breakdown,
   };
 }
 
@@ -120,30 +154,36 @@ async function revenueYtd(params: WidgetDataParams) {
 }
 
 async function collectionRate(params: WidgetDataParams) {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const { from, to } = resolvePeriod(params, monthStart, now);
-
   const where: any = {
     status: { notIn: ['draft', 'void'] },
-    invoiceDate: { gte: from, lte: to },
   };
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.invoiceDate = { gte: from, lte: to };
+  }
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
   const agg = await prisma.invoice.aggregate({
     where,
     _sum: { totalAmount: true, paidAmount: true },
+    _count: true,
   });
 
   const totalBilled = agg._sum.totalAmount?.toNumber() ?? 0;
   const totalCollected = agg._sum.paidAmount?.toNumber() ?? 0;
+  const outstanding = Math.max(0, totalBilled - totalCollected);
   const rate = totalBilled > 0 ? +((totalCollected / totalBilled) * 100).toFixed(1) : 0;
 
   return {
     type: 'gauge', label: 'Collection Rate', value: rate, unit: '%',
     target: 95,
-    breakdown: { collected: Math.round(totalCollected), billed: Math.round(totalBilled) },
+    breakdown: {
+      collected: Math.round(totalCollected),
+      billed: Math.round(totalBilled),
+      outstanding: Math.round(outstanding),
+      invoices: agg._count,
+    },
   };
 }
 
@@ -153,6 +193,10 @@ async function overdueInvoices(params: WidgetDataParams) {
     status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
     dueDate: { lt: now },
   };
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), now);
+    where.invoiceDate = { gte: from, lte: to };
+  }
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
@@ -166,7 +210,9 @@ async function overdueInvoices(params: WidgetDataParams) {
   ]);
 
   const count = agg._count;
-  const totalOverdue = Math.max(0, (agg._sum.totalAmount?.toNumber() ?? 0) - (agg._sum.paidAmount?.toNumber() ?? 0));
+  const totalBilled = agg._sum.totalAmount?.toNumber() ?? 0;
+  const totalPaid = agg._sum.paidAmount?.toNumber() ?? 0;
+  const totalOverdue = Math.max(0, totalBilled - totalPaid);
 
   return {
     type: 'kpi_card', label: 'Overdue Invoices', value: count, unit: '',
@@ -175,7 +221,12 @@ async function overdueInvoices(params: WidgetDataParams) {
       changePercent: 0,
       label: count === 0 ? 'All invoices current' : `${currency} ${Math.round(totalOverdue).toLocaleString()} outstanding`,
     },
-    breakdown: { totalAmount: Math.round(totalOverdue) },
+    breakdown: {
+      overdue_invoices: count,
+      outstanding_amount: Math.round(totalOverdue),
+      total_billed: Math.round(totalBilled),
+      total_paid: Math.round(totalPaid),
+    },
   };
 }
 
@@ -287,15 +338,19 @@ async function documentsExpiring(params: WidgetDataParams) {
 }
 
 async function vacancyTrend(params: WidgetDataParams) {
-  const months = getMonthLabels(6);
-  const where: Record<string, unknown> = {};
+  const endRef = params.dateTo ? new Date(params.dateTo) : new Date();
+  const months = getMonthLabels(6, endRef);
+  const where: Record<string, unknown> = { deletedAt: null };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
-  const total = await prisma.unit.count({ where });
+  const [total, currentOccupiedUnits] = await Promise.all([
+    prisma.unit.count({ where }),
+    prisma.unit.count({ where: { ...where, status: 'occupied' } }),
+  ]);
 
-  // For each of the last 6 months, calculate the actual vacancy rate using active leases
-  const data = await Promise.all(
+  // For each of the 6 months, calculate the actual vacancy rate using distinct leased units
+  const rawCounts = await Promise.all(
     months.map(async (m) => {
       const [year, month] = m.split('-').map(Number);
       const monthStart = new Date(year, month - 1, 1);
@@ -309,12 +364,30 @@ async function vacancyTrend(params: WidgetDataParams) {
       if (params.companyId) leaseWhere.companyId = params.companyId;
       if (params.propertyId) leaseWhere.propertyId = params.propertyId;
 
-      const occupied = await prisma.lease.count({ where: leaseWhere });
-      const vacant = Math.max(0, total - occupied);
-      const vacancyRate = total > 0 ? +((vacant / total) * 100).toFixed(1) : 0;
-      return { x: m, y: vacancyRate };
+      const distinctUnits = await prisma.lease.findMany({
+        where: leaseWhere,
+        distinct: ['unitId'],
+        select: { unitId: true },
+      });
+      return { month: m, leasedCount: distinctUnits.length };
     }),
   );
+
+  const hasAnyLeaseInWindow = rawCounts.some((r) => r.leasedCount > 0);
+  const latestMonth = months[months.length - 1];
+
+  const data = rawCounts.map(({ month, leasedCount }) => {
+    let occupied = leasedCount;
+    if (!hasAnyLeaseInWindow && currentOccupiedUnits > 0) {
+      occupied = currentOccupiedUnits;
+    } else if (month === latestMonth && currentOccupiedUnits > occupied) {
+      occupied = currentOccupiedUnits;
+    }
+    occupied = Math.min(total, occupied);
+    const vacant = Math.max(0, total - occupied);
+    const vacancyRate = total > 0 ? +((vacant / total) * 100).toFixed(1) : 0;
+    return { x: month, y: vacancyRate };
+  });
 
   return {
     type: 'line_chart', label: 'Vacancy Trend',
@@ -360,14 +433,13 @@ async function maintenanceTrend(params: WidgetDataParams) {
 }
 
 async function revenueByProperty(params: WidgetDataParams) {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const { from, to } = resolvePeriod(params, monthStart, now);
-
   const where: any = {
     status: { notIn: ['draft', 'void'] },
-    invoiceDate: { gte: from, lte: to },
   };
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date());
+    where.invoiceDate = { gte: from, lte: to };
+  }
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
@@ -378,7 +450,7 @@ async function revenueByProperty(params: WidgetDataParams) {
       _sum: { totalAmount: true },
     }),
     prisma.property.findMany({
-      where: { companyId: params.companyId },
+      where: { companyId: params.companyId, deletedAt: null },
       select: { id: true, name: true },
     }),
     resolveCurrency(params),
@@ -390,10 +462,11 @@ async function revenueByProperty(params: WidgetDataParams) {
       const name = propNameMap.get(g.propertyId) || 'Unknown';
       const val = g._sum.totalAmount?.toNumber() ?? 0;
       return {
-        x: name.length > 18 ? name.substring(0, 18) + '…' : name,
+        x: name.length > 22 ? name.substring(0, 22) + '…' : name,
         y: Math.round(val),
       };
     })
+    .filter((d) => d.y > 0 || groups.length === 1)
     .sort((a, b) => b.y - a.y);
 
   return {
@@ -404,7 +477,7 @@ async function revenueByProperty(params: WidgetDataParams) {
 }
 
 async function unitStatusBreakdown(params: WidgetDataParams) {
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { deletedAt: null };
   if (params.companyId) where.companyId = params.companyId;
   if (params.propertyId) where.propertyId = params.propertyId;
 
@@ -417,9 +490,11 @@ async function unitStatusBreakdown(params: WidgetDataParams) {
   const statusColors: Record<string, string> = {
     occupied: '#6c5ce7',
     available: '#00cec9',
+    vacant: '#00cec9',
     reserved: '#fdcb6e',
     under_renovation: '#f39c12',
     maintenance: '#e74c3c',
+    not_for_rent: '#74b9ff',
     blocked: '#636e72',
   };
 
@@ -482,35 +557,61 @@ async function ticketsByCategory(params: WidgetDataParams) {
 }
 
 async function leaseExpiringSoon(params: WidgetDataParams) {
-  const ninetyDaysFromNow = new Date();
-  ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
-
-  const where: Record<string, unknown> = {
+  const baseWhere: Record<string, unknown> = {
     status: 'active',
-    endDate: { lte: ninetyDaysFromNow, gte: new Date() },
   };
-  if (params.companyId) where.companyId = params.companyId;
-  if (params.propertyId) where.propertyId = params.propertyId;
+  if (params.companyId) baseWhere.companyId = params.companyId;
+  if (params.propertyId) baseWhere.propertyId = params.propertyId;
 
-  const [leases, currency] = await Promise.all([
+  const selectFields = {
+    leaseNumber: true,
+    endDate: true,
+    rentAmount: true,
+    tenant: { select: { firstName: true, lastName: true, companyName: true } },
+    unit: { select: { unitNumber: true } },
+  };
+
+  let where: Record<string, unknown>;
+  if (params.dateFrom || params.dateTo) {
+    const { from, to } = resolvePeriod(params, new Date(0), new Date('2100-01-01'));
+    where = {
+      ...baseWhere,
+      endDate: { gte: from, lte: to },
+    };
+  } else {
+    const ninetyDaysFromNow = new Date();
+    ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
+    where = {
+      ...baseWhere,
+      endDate: { lte: ninetyDaysFromNow, gte: new Date() },
+    };
+  }
+
+  const [initialLeases, currency] = await Promise.all([
     prisma.lease.findMany({
       where,
-      select: {
-        leaseNumber: true,
-        endDate: true,
-        rentAmount: true,
-        tenant: { select: { firstName: true, lastName: true, companyName: true } },
-        unit: { select: { unitNumber: true } },
-      },
+      select: selectFields,
       orderBy: { endDate: 'asc' },
-      take: 10,
+      take: 25,
     }),
     resolveCurrency(params),
   ]);
 
+  // If no active leases expire within the default 90-day window and no custom date filter was set,
+  // fall back to showing active leases ordered by upcoming endDate so real active leases are visible.
+  const leases =
+    initialLeases.length === 0 && !params.dateFrom && !params.dateTo
+      ? await prisma.lease.findMany({
+          where: baseWhere,
+          select: selectFields,
+          orderBy: { endDate: 'asc' },
+          take: 25,
+        })
+      : initialLeases;
+
   const rows = leases.map((l) => {
     const tenantName = l.tenant
-      ? (l.tenant.companyName || `${l.tenant.firstName || ''} ${l.tenant.lastName || ''}`.trim())
+      ? (l.tenant.lastName?.trim() || l.tenant.companyName || l.tenant.firstName || 'Unknown')
       : 'Unknown';
     const daysLeft = Math.ceil((new Date(l.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     return [
@@ -523,7 +624,7 @@ async function leaseExpiringSoon(params: WidgetDataParams) {
   });
 
   return {
-    type: 'data_table', label: 'Leases Expiring (90 Days)',
+    type: 'data_table', label: 'Leases Expiring',
     columns: ['Tenant', 'Unit', 'Expiry Date', 'Days Left', 'Rent'],
     rows: rows.length > 0 ? rows : [['—', '—', '—', '—', '—']],
   };
@@ -612,7 +713,7 @@ async function recentActivity(params: WidgetDataParams) {
 
   for (const inv of invoices) {
     const tenantName = inv.tenant
-      ? (inv.tenant.tenantType === 'corporate' ? inv.tenant.companyName : `${inv.tenant.firstName || ''} ${inv.tenant.lastName || ''}`.trim())
+      ? (inv.tenant.lastName?.trim() || inv.tenant.companyName || inv.tenant.firstName || 'Customer')
       : 'System';
     items.push({
       action: 'Invoice Issued',
@@ -624,7 +725,7 @@ async function recentActivity(params: WidgetDataParams) {
 
   for (const l of leases) {
     const tenantName = l.tenant
-      ? (l.tenant.tenantType === 'corporate' ? l.tenant.companyName : `${l.tenant.firstName || ''} ${l.tenant.lastName || ''}`.trim())
+      ? (l.tenant.lastName?.trim() || l.tenant.companyName || l.tenant.firstName || 'Tenant')
       : 'System';
     items.push({
       action: 'Lease Created',
@@ -636,7 +737,7 @@ async function recentActivity(params: WidgetDataParams) {
 
   for (const r of receipts) {
     const tenantName = r.tenant
-      ? (r.tenant.tenantType === 'corporate' ? r.tenant.companyName : `${r.tenant.firstName || ''} ${r.tenant.lastName || ''}`.trim())
+      ? (r.tenant.lastName?.trim() || r.tenant.companyName || r.tenant.firstName || 'Customer')
       : 'Customer';
     items.push({
       action: 'Payment Received',
@@ -662,7 +763,7 @@ async function recentActivity(params: WidgetDataParams) {
     const reporter = t.reportedByUser?.profile
       ? `${t.reportedByUser.profile.firstName} ${t.reportedByUser.profile.lastName}`.trim()
       : (t.reportedByTenant
-        ? (t.reportedByTenant.companyName || `${t.reportedByTenant.firstName || ''} ${t.reportedByTenant.lastName || ''}`.trim())
+        ? (t.reportedByTenant.lastName?.trim() || t.reportedByTenant.companyName || t.reportedByTenant.firstName || 'Tenant')
         : 'Staff');
     items.push({
       action: 'Maintenance Ticket',

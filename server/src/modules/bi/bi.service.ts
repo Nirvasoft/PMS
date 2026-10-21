@@ -1,5 +1,4 @@
 import { prisma } from '../../common/database';
-import { logger } from '../../common/logger';
 
 class BiService {
   // ═══════════════════════════════════════
@@ -386,7 +385,7 @@ class BiService {
             propertyId: inv.propertyId,
             entityType: 'tenant',
             entityId: tenant.id,
-            description: `${tenant.firstName || ''} ${tenant.lastName || ''}: Invoice of $${amt.toLocaleString()} is ${zScore.toFixed(1)}σ from average ($${mean.toFixed(0)})`,
+            description: `${tenant.lastName || tenant.firstName || ''}: Invoice of $${amt.toLocaleString()} is ${zScore.toFixed(1)}σ from average ($${mean.toFixed(0)})`,
             severity: zScore > 5 ? 'high' : 'medium',
             metricValue: amt,
             expectedValue: mean,
@@ -454,7 +453,7 @@ class BiService {
           anomalyType: 'late_payment_risk',
           entityType: 'tenant',
           entityId: tenant.id,
-          description: `${tenant.firstName || ''} ${tenant.lastName || ''}: ${lateRate.toFixed(0)}% late payment rate (${late}/${total} invoices in 6 months)`,
+          description: `${tenant.lastName || tenant.firstName || ''}: ${lateRate.toFixed(0)}% late payment rate (${late}/${total} invoices in 6 months)`,
           severity: lateRate > 75 ? 'high' : 'medium',
           metricValue: lateRate,
           expectedValue: 10,

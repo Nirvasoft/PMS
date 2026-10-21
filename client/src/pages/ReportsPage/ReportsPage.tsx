@@ -1,20 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAppSelector } from '../../store';
+import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import {
   useListReportsQuery,
   useCreateReportMutation,
   useDeleteReportMutation,
   useGetWidgetDataQuery,
+  useLazyGetWidgetDataQuery,
 } from '../../store/api/dashboardApi';
 import type { SavedReport, WidgetData } from '../../store/api/dashboardApi';
 import {
-  FileText, Trash2, X, Search, Clock,
+  FileText, Trash2, X, Clock,
   BarChart3, PieChart as PieChartIcon, TrendingUp, Activity,
   Building2, DollarSign, Wrench, Calendar,
-  Play, ChevronLeft, ChevronRight, Download, Save,
+  Play, RefreshCw, ChevronLeft, ChevronRight, Download, Save,
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
 } from 'recharts';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../components/DialogProvider';
@@ -29,72 +32,56 @@ const REPORT_TYPES = [
   {
     code: 'occupancy',
     name: 'Occupancy Report',
-    description: 'Unit occupancy rates across properties and time periods',
     icon: <Building2 size={22} />,
-    category: 'property',
-    color: '#6c5ce7',
+    color: '#10b981',
     widgetCode: 'occupancy_rate',
   },
   {
     code: 'vacancy_trend',
     name: 'Vacancy Trend',
-    description: 'Vacancy rate trends over time with forecasting',
     icon: <TrendingUp size={22} />,
-    category: 'property',
-    color: '#00cec9',
+    color: '#10b981',
     widgetCode: 'vacancy_trend',
   },
   {
     code: 'revenue',
     name: 'Revenue Report',
-    description: 'Revenue breakdown by property, unit type, and period',
     icon: <DollarSign size={22} />,
-    category: 'finance',
-    color: '#fdcb6e',
+    color: '#10b981',
     widgetCode: 'revenue_by_property',
   },
   {
     code: 'collection',
     name: 'Collection Report',
-    description: 'Payment collection rates and overdue analysis',
     icon: <Activity size={22} />,
-    category: 'finance',
     color: '#fd79a8',
     widgetCode: 'collection_rate',
   },
   {
     code: 'overdue',
     name: 'Overdue Invoices',
-    description: 'Outstanding invoice aging and follow-up tracking',
     icon: <Clock size={22} />,
-    category: 'finance',
     color: '#e17055',
     widgetCode: 'overdue_invoices',
   },
   {
     code: 'maintenance',
     name: 'Maintenance Report',
-    description: 'Ticket status, SLA compliance, and category breakdown',
     icon: <Wrench size={22} />,
-    category: 'maintenance',
     color: '#74b9ff',
     widgetCode: 'maintenance_open',
   },
   {
     code: 'unit_status',
     name: 'Unit Status Breakdown',
-    description: 'Distribution of unit statuses across all properties',
     icon: <PieChartIcon size={22} />,
-    category: 'property',
     color: '#a29bfe',
     widgetCode: 'unit_status_breakdown',
   },
   {
     code: 'lease_expiry',
     name: 'Lease Expiry Report',
-    description: 'Leases expiring within configurable time windows',
     icon: <Calendar size={22} />,
-    category: 'property',
     color: '#55efc4',
     widgetCode: 'lease_expiring_soon',
   },
@@ -106,24 +93,43 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function getDefaultDateRange() {
+  return {
+    from: '',
+    to: '',
+  };
+}
+
+function getMonthDateRange() {
+  const now = new Date();
+  return {
+    from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
+    to: now.toISOString().split('T')[0],
+  };
+}
+
+function getYearDateRange() {
+  const now = new Date();
+  return {
+    from: new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0],
+    to: now.toISOString().split('T')[0],
+  };
+}
+
 // ═══════════════════════════════════════════════════
 // MAIN REPORTS PAGE
 // ═══════════════════════════════════════════════════
 export default function ReportsPage() {
+  const selectedPropertyId = useSelectedPropertyId();
   const [activeTab, setActiveTab] = useState<'types' | 'saved'>('types');
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [selectedReport, setSelectedReport] = useState<string | null>(null); // widgetCode
-  const [selectedReportName, setSelectedReportName] = useState('');
+  const [selectedReport, setSelectedReport] = useState<string>(REPORT_TYPES[0].widgetCode);
+  const [selectedReportName, setSelectedReportName] = useState<string>(REPORT_TYPES[0].name);
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>(getDefaultDateRange);
+  const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
+  const [runKey, setRunKey] = useState(0);
   const [showSaveModal, setShowSaveModal] = useState(false);
 
-  const filteredTypes = REPORT_TYPES.filter((rt) => {
-    if (search && !rt.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (categoryFilter !== 'all' && rt.category !== categoryFilter) return false;
-    return true;
-  });
-
-  const categories = [...new Set(REPORT_TYPES.map((r) => r.category))];
+  const selectedTypeDef = REPORT_TYPES.find((rt) => rt.widgetCode === selectedReport);
 
   return (
     <div className="reports-page">
@@ -135,7 +141,7 @@ export default function ReportsPage() {
           </div>
           <div>
             <h1>Reports</h1>
-            <p>{REPORT_TYPES.length} report types · Generate, view, and manage analytical reports</p>
+            <p>{REPORT_TYPES.length} report types</p>
           </div>
         </div>
       </div>
@@ -159,85 +165,95 @@ export default function ReportsPage() {
       {/* Content */}
       {activeTab === 'types' ? (
         <>
-          {/* Toolbar */}
-          <div className="reports-toolbar">
-            <div className="search-box">
-              <Search size={16} />
-              <input
-                type="text"
-                placeholder="Search reports..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <div className="filter-pills">
-              <button
-                className={`pill ${categoryFilter === 'all' ? 'active' : ''}`}
-                onClick={() => setCategoryFilter('all')}
-              >
-                All
-              </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  className={`pill ${categoryFilter === cat ? 'active' : ''}`}
-                  onClick={() => setCategoryFilter(cat)}
-                >
-                  {cat}
-                </button>
-              ))}
+          {/* Horizontal Icon Bar */}
+          <div className="report-compact-bar">
+            <div className="report-icon-strip">
+              {REPORT_TYPES.map((rt) => {
+                const isActive = selectedReport === rt.widgetCode;
+                return (
+                  <button
+                    key={rt.code}
+                    type="button"
+                    className={`report-icon-btn ${isActive ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedReport(rt.widgetCode);
+                      setSelectedReportName(rt.name);
+                      setViewMode('chart');
+                    }}
+                    style={
+                      isActive
+                        ? { borderColor: rt.color, background: `${rt.color}18` }
+                        : undefined
+                    }
+                  >
+                    <span
+                      className="report-icon-box"
+                      style={{ background: `${rt.color}18`, color: rt.color }}
+                    >
+                      {rt.icon}
+                    </span>
+                    <span className="report-icon-label">{rt.name}</span>
+                    <span className="report-icon-tooltip">{rt.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Report type cards */}
-          <div className="report-type-grid">
-            {filteredTypes.map((rt) => (
-              <button
-                key={rt.code}
-                className={`report-type-card ${selectedReport === rt.widgetCode ? 'selected' : ''}`}
-                onClick={() => {
-                  setSelectedReport(rt.widgetCode);
-                  setSelectedReportName(rt.name);
-                }}
-              >
-                <div className="card-icon" style={{ background: `${rt.color}15`, color: rt.color }}>
-                  {rt.icon}
-                </div>
-                <div className="card-content">
-                  <h3>{rt.name}</h3>
-                  <p>{rt.description}</p>
-                  <span className="card-category">{rt.category}</span>
-                </div>
-                <ChevronRight size={16} className="card-arrow" />
-              </button>
-            ))}
-          </div>
-
-          {/* Report viewer */}
-          {selectedReport && (
-            <ReportViewer
-              widgetCode={selectedReport}
-              reportName={selectedReportName}
-              onSave={() => setShowSaveModal(true)}
-              onClose={() => setSelectedReport(null)}
-            />
-          )}
+          {/* Report viewer immediately visible below icon bar */}
+          <ReportViewer
+            widgetCode={selectedReport}
+            reportName={selectedReportName}
+            propertyId={selectedPropertyId || undefined}
+            from={dateRange.from}
+            to={dateRange.to}
+            onDateRangeChange={setDateRange}
+            view={viewMode}
+            onViewChange={setViewMode}
+            runKey={runKey}
+            onSave={() => setShowSaveModal(true)}
+          />
         </>
       ) : (
         <SavedReportsList
           onRun={(report) => {
-            setSelectedReport(report.reportType);
+            const matched = REPORT_TYPES.find(
+              (rt) =>
+                rt.code === report.reportType ||
+                rt.widgetCode === report.reportType ||
+                rt.name === report.reportType,
+            );
+            const params = (report.parameters || {}) as {
+              dateFrom?: string;
+              dateTo?: string;
+              view?: 'chart' | 'table';
+            };
+            const defaults = getDefaultDateRange();
+            setSelectedReport(matched ? matched.widgetCode : REPORT_TYPES[0].widgetCode);
             setSelectedReportName(report.name);
+            setDateRange({
+              from: params.dateFrom ?? defaults.from,
+              to: params.dateTo ?? defaults.to,
+            });
+            setViewMode(params.view === 'table' ? 'table' : 'chart');
+            setRunKey((prev) => prev + 1);
             setActiveTab('types');
+            toast.success(`Running "${report.name}"`);
           }}
         />
       )}
 
       {/* Save Report Modal */}
-      {showSaveModal && selectedReport && (
+      {showSaveModal && (
         <SaveReportModal
           reportType={selectedReport}
+          reportTypeName={selectedTypeDef?.name || selectedReportName}
           defaultName={selectedReportName}
+          parameters={{
+            dateFrom: dateRange.from,
+            dateTo: dateRange.to,
+            view: viewMode,
+          }}
           onClose={() => setShowSaveModal(false)}
         />
       )}
@@ -251,39 +267,85 @@ export default function ReportsPage() {
 function ReportViewer({
   widgetCode,
   reportName,
+  propertyId,
+  from,
+  to,
+  onDateRangeChange,
+  view,
+  onViewChange,
+  runKey,
   onSave,
-  onClose,
 }: {
   widgetCode: string;
   reportName: string;
+  propertyId?: string;
+  from: string;
+  to: string;
+  onDateRangeChange: (range: { from: string; to: string }) => void;
+  view: 'chart' | 'table';
+  onViewChange: (v: 'chart' | 'table') => void;
+  runKey: number;
   onSave: () => void;
-  onClose: () => void;
 }) {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const to = now.toISOString().split('T')[0];
-
-  const { data, isLoading, error, refetch } = useGetWidgetDataQuery({
+  const dateRangeParam = from || to ? `${from},${to}` : undefined;
+  const { data, isLoading, isFetching, error } = useGetWidgetDataQuery({
     code: widgetCode,
-    dateRange: `${from},${to}`,
+    propertyId,
+    dateRange: dateRangeParam,
   });
+  const [triggerRefresh] = useLazyGetWidgetDataQuery();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const accessToken = useAppSelector((s) => s.auth.accessToken);
   const widgetData = data?.data;
   const [exporting, setExporting] = useState<string | null>(null);
+  const refreshing = isRefreshing || (isFetching && !isLoading);
+
+  useEffect(() => {
+    if (runKey > 0) {
+      triggerRefresh(
+        { code: widgetCode, propertyId, dateRange: dateRangeParam, refresh: true },
+        false,
+      );
+    }
+  }, [runKey, widgetCode, propertyId, dateRangeParam, triggerRefresh]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        triggerRefresh(
+          { code: widgetCode, propertyId, dateRange: dateRangeParam, refresh: true },
+          false,
+        ).unwrap(),
+        new Promise((resolve) => setTimeout(resolve, 350)),
+      ]);
+      toast.success('Report data refreshed');
+    } catch {
+      toast.error('Failed to refresh report data');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleExport = async (format: 'xlsx' | 'csv') => {
     setExporting(format);
     try {
-      const token = localStorage.getItem('accessToken');
       const res = await fetch(`/api/v1/reports/${widgetCode}/export`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'X-Requested-With': 'XMLHttpRequest',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({
           format,
-          parameters: { dateFrom: from, dateTo: to },
+          parameters: {
+            propertyId,
+            dateFrom: from || undefined,
+            dateTo: to || undefined,
+          },
         }),
       });
       if (!res.ok) throw new Error('Export failed');
@@ -291,7 +353,9 @@ function ReportViewer({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || `report.${format}`;
+      a.download =
+        res.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') ||
+        `${widgetCode}_${from || 'all_time'}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -304,6 +368,12 @@ function ReportViewer({
     }
   };
 
+  const monthRange = getMonthDateRange();
+  const yearRange = getYearDateRange();
+  const isAllTime = !from && !to;
+  const isThisMonth = from === monthRange.from && to === monthRange.to;
+  const isThisYear = from === yearRange.from && to === yearRange.to;
+
   return (
     <div className="report-viewer">
       <div className="viewer-header">
@@ -311,7 +381,9 @@ function ReportViewer({
           <BarChart3 size={18} />
           <h2>{reportName}</h2>
           <span className="viewer-date">
-            {formatDate(from)} — {formatDate(to)}
+            {isAllTime
+              ? 'All Time'
+              : `${from ? formatDate(from) : 'Start'} — ${to ? formatDate(to) : 'Now'}`}
           </span>
         </div>
         <div className="viewer-actions">
@@ -332,16 +404,63 @@ function ReportViewer({
           <button className="btn-secondary-sm" onClick={onSave}>
             <Save size={14} /> Save Config
           </button>
-          <button className="btn-secondary-sm" onClick={() => refetch()}>
-            <Play size={14} /> Refresh
-          </button>
-          <button className="btn-icon-sm" onClick={onClose}>
-            <X size={16} />
+          <button
+            className="btn-secondary-sm"
+            onClick={handleRefresh}
+            disabled={refreshing || isLoading}
+          >
+            <RefreshCw size={14} className={refreshing ? 'spin-icon' : ''} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
 
-      <div className="viewer-body">
+      {/* Date Range Filter Bar */}
+      <div className="viewer-filter-bar">
+        <div className="viewer-date-presets">
+          <button
+            type="button"
+            className={`date-preset-btn ${isAllTime ? 'active' : ''}`}
+            onClick={() => onDateRangeChange({ from: '', to: '' })}
+          >
+            All Time
+          </button>
+          <button
+            type="button"
+            className={`date-preset-btn ${isThisYear ? 'active' : ''}`}
+            onClick={() => onDateRangeChange(yearRange)}
+          >
+            This Year
+          </button>
+          <button
+            type="button"
+            className={`date-preset-btn ${isThisMonth ? 'active' : ''}`}
+            onClick={() => onDateRangeChange(monthRange)}
+          >
+            This Month
+          </button>
+        </div>
+        <div className="viewer-date-inputs">
+          <label className="date-input-group">
+            <span>From</span>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => onDateRangeChange({ from: e.target.value, to })}
+            />
+          </label>
+          <label className="date-input-group">
+            <span>To</span>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => onDateRangeChange({ from, to: e.target.value })}
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className={`viewer-body ${refreshing ? 'viewer-body-refreshing' : ''}`}>
         {isLoading ? (
           <div className="viewer-loading">
             <div className="spinner" />
@@ -350,12 +469,12 @@ function ReportViewer({
         ) : error ? (
           <div className="viewer-error">
             <p>Failed to load report data</p>
-            <button className="btn-primary-sm" onClick={() => refetch()}>
-              Retry
+            <button className="btn-primary-sm" onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? 'Retrying...' : 'Retry'}
             </button>
           </div>
         ) : widgetData ? (
-          <ReportDataRenderer data={widgetData} />
+          <ReportDataRenderer data={widgetData} view={view} onViewChange={onViewChange} />
         ) : null}
       </div>
     </div>
@@ -365,16 +484,22 @@ function ReportViewer({
 // ═══════════════════════════════════════════════════
 // REPORT DATA RENDERER — chart + table views
 // ═══════════════════════════════════════════════════
-function ReportDataRenderer({ data }: { data: WidgetData }) {
-  const [view, setView] = useState<'chart' | 'table'>('chart');
-
+function ReportDataRenderer({
+  data,
+  view,
+  onViewChange,
+}: {
+  data: WidgetData;
+  view: 'chart' | 'table';
+  onViewChange: (v: 'chart' | 'table') => void;
+}) {
   return (
     <div className="report-data">
       <div className="data-view-toggle">
-        <button className={`toggle-btn ${view === 'chart' ? 'active' : ''}`} onClick={() => setView('chart')}>
+        <button className={`toggle-btn ${view === 'chart' ? 'active' : ''}`} onClick={() => onViewChange('chart')}>
           <BarChart3 size={14} /> Chart
         </button>
-        <button className={`toggle-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')}>
+        <button className={`toggle-btn ${view === 'table' ? 'active' : ''}`} onClick={() => onViewChange('table')}>
           <FileText size={14} /> Table
         </button>
       </div>
@@ -425,35 +550,115 @@ function KpiReportView({ data }: { data: any }) {
   );
 }
 
+function useChartTheme() {
+  const themeMode = useAppSelector((s) => s.theme.mode);
+  const isLight =
+    themeMode === 'light' ||
+    (themeMode === 'system' &&
+      typeof window !== 'undefined' &&
+      !window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  return {
+    gridStroke: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)',
+    tickFill: isLight ? '#64748b' : '#8b95a5',
+    tooltipBg: isLight ? '#ffffff' : '#1a1f2e',
+    tooltipBorder: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.08)',
+    tooltipShadow: isLight ? '0 8px 24px rgba(15, 23, 42, 0.12)' : '0 8px 24px rgba(0, 0, 0, 0.4)',
+    textPrimary: isLight ? '#0f172a' : '#e2e8f0',
+    legendColor: isLight ? '#475569' : '#8b95a5',
+    gaugeTrack: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)',
+  };
+}
+
+const BAR_GREEN_PALETTE = ['#10b981', '#059669', '#34d399', '#047857', '#6ee7b7'];
+
 function LineReportView({ data }: { data: any }) {
+  const ct = useChartTheme();
   return (
     <ResponsiveContainer width="100%" height={360}>
       <LineChart data={data.series[0]?.data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-        <XAxis dataKey="x" tick={{ fill: '#8b95a5', fontSize: 12 }} />
-        <YAxis tick={{ fill: '#8b95a5', fontSize: 12 }} />
-        <Tooltip contentStyle={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }} />
-        <Legend wrapperStyle={{ color: '#8b95a5' }} />
-        {data.series.map((s: any, i: number) => (
-          <Line key={s.name} type="monotone" data={s.data} dataKey="y" name={s.name} stroke={CHART_COLORS[i]} strokeWidth={2} dot={{ r: 3 }} />
-        ))}
+        <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} />
+        <XAxis dataKey="x" tick={{ fill: ct.tickFill, fontSize: 12 }} />
+        <YAxis tick={{ fill: ct.tickFill, fontSize: 12 }} />
+        <Tooltip
+          contentStyle={{
+            background: ct.tooltipBg,
+            border: ct.tooltipBorder,
+            borderRadius: 10,
+            color: ct.textPrimary,
+            boxShadow: ct.tooltipShadow,
+          }}
+          itemStyle={{ color: '#10b981', fontWeight: 600 }}
+          labelStyle={{ color: ct.textPrimary, fontWeight: 600 }}
+        />
+        <Legend wrapperStyle={{ color: ct.legendColor }} />
+        {data.series.map((s: any, i: number) => {
+          const lineColor = BAR_GREEN_PALETTE[i % BAR_GREEN_PALETTE.length];
+          return (
+            <Line
+              key={s.name}
+              type="monotone"
+              data={s.data}
+              dataKey="y"
+              name={s.name}
+              stroke={lineColor}
+              strokeWidth={2.5}
+              dot={{ r: 4, fill: lineColor, stroke: lineColor }}
+              activeDot={{ r: 6, fill: lineColor }}
+            />
+          );
+        })}
       </LineChart>
     </ResponsiveContainer>
   );
 }
 
+function formatCompactAxisValue(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000_000) return `${+(v / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${+(v / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${+(v / 1_000).toFixed(1)}K`;
+  return Number(v).toLocaleString();
+}
+
 function BarReportView({ data }: { data: any }) {
+  const ct = useChartTheme();
+  const unit = data.yAxis?.unit ? ` (${data.yAxis.unit})` : '';
+  const seriesName = (data.series[0]?.name || 'Revenue') + unit;
+
   return (
     <ResponsiveContainer width="100%" height={360}>
-      <BarChart data={data.series[0]?.data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-        <XAxis dataKey="x" tick={{ fill: '#8b95a5', fontSize: 12 }} />
-        <YAxis tick={{ fill: '#8b95a5', fontSize: 12 }} />
-        <Tooltip contentStyle={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }} />
-        <Bar dataKey="y" name={data.series[0]?.name || 'Value'} radius={[4, 4, 0, 0]}>
+      <BarChart data={data.series[0]?.data} margin={{ top: 32, right: 24, left: 16, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={ct.gridStroke} />
+        <XAxis dataKey="x" tick={{ fill: ct.textPrimary, fontSize: 12, fontWeight: 600 }} />
+        <YAxis
+          width={80}
+          tick={{ fill: ct.tickFill, fontSize: 12, fontWeight: 600 }}
+          tickFormatter={(val) => formatCompactAxisValue(Number(val))}
+        />
+        <Tooltip
+          cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }}
+          formatter={(val: any) => [Number(val).toLocaleString(), seriesName]}
+          contentStyle={{
+            background: ct.tooltipBg,
+            border: ct.tooltipBorder,
+            borderRadius: 10,
+            color: ct.textPrimary,
+            boxShadow: ct.tooltipShadow,
+          }}
+          labelStyle={{ color: ct.textPrimary, fontWeight: 700, marginBottom: 4 }}
+          itemStyle={{ color: '#10b981', fontWeight: 700 }}
+        />
+        <Bar dataKey="y" name={seriesName} fill="#10b981" maxBarSize={88} radius={[6, 6, 0, 0]}>
           {data.series[0]?.data.map((_: any, i: number) => (
-            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+            <Cell key={i} fill={BAR_GREEN_PALETTE[i % BAR_GREEN_PALETTE.length]} />
           ))}
+          <LabelList
+            dataKey="y"
+            position="top"
+            formatter={(val: any) => Number(val).toLocaleString()}
+            style={{ fill: ct.textPrimary, fontSize: 13, fontWeight: 700 }}
+          />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -461,6 +666,7 @@ function BarReportView({ data }: { data: any }) {
 }
 
 function PieReportView({ data }: { data: any }) {
+  const ct = useChartTheme();
   return (
     <ResponsiveContainer width="100%" height={360}>
       <PieChart>
@@ -469,22 +675,31 @@ function PieReportView({ data }: { data: any }) {
             <Cell key={entry.name} fill={entry.color || CHART_COLORS[i % CHART_COLORS.length]} />
           ))}
         </Pie>
-        <Tooltip contentStyle={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }} />
-        <Legend wrapperStyle={{ color: '#8b95a5' }} />
+        <Tooltip
+          contentStyle={{
+            background: ct.tooltipBg,
+            border: ct.tooltipBorder,
+            borderRadius: 10,
+            color: ct.textPrimary,
+            boxShadow: ct.tooltipShadow,
+          }}
+        />
+        <Legend wrapperStyle={{ color: ct.legendColor }} />
       </PieChart>
     </ResponsiveContainer>
   );
 }
 
 function GaugeReportView({ data }: { data: any }) {
+  const ct = useChartTheme();
   const pct = Math.min(Math.max(data.value, 0), 100);
   return (
     <div className="gauge-report">
       <svg viewBox="0 0 200 120" className="gauge-svg">
-        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="14" strokeLinecap="round" />
+        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke={ct.gaugeTrack} strokeWidth="14" strokeLinecap="round" />
         <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#6c5ce7" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${pct * 2.52} 252`} />
-        <text x="100" y="85" textAnchor="middle" fill="#e2e8f0" fontSize="28" fontWeight="700">{data.value}{data.unit}</text>
-        <text x="100" y="110" textAnchor="middle" fill="#8b95a5" fontSize="12">{data.label}</text>
+        <text x="100" y="85" textAnchor="middle" fill={ct.textPrimary} fontSize="28" fontWeight="700">{data.value}{data.unit}</text>
+        <text x="100" y="110" textAnchor="middle" fill={ct.tickFill} fontSize="12">{data.label}</text>
       </svg>
       {data.breakdown && (
         <div className="gauge-breakdown">
@@ -696,11 +911,15 @@ function SavedReportsList({ onRun }: { onRun: (r: SavedReport) => void }) {
 // ═══════════════════════════════════════════════════
 function SaveReportModal({
   reportType,
+  reportTypeName,
   defaultName,
+  parameters,
   onClose,
 }: {
   reportType: string;
+  reportTypeName: string;
   defaultName: string;
+  parameters: Record<string, unknown>;
   onClose: () => void;
 }) {
   const [name, setName] = useState(defaultName);
@@ -715,7 +934,7 @@ function SaveReportModal({
       await createReport({
         name: name.trim(),
         reportType,
-        parameters: {},
+        parameters,
       }).unwrap();
       toast.success('Report saved');
       onClose();
@@ -723,14 +942,14 @@ function SaveReportModal({
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal small-modal report-save-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2><Save size={20} /> Save Report</h2>
-          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
+          <button type="button" className="icon-btn" onClick={onClose}><X size={18} /></button>
         </div>
         <form onSubmit={handleSubmit} noValidate>
-          <div className="form-group" style={{ padding: '0 24px' }}>
+          <div className="form-group">
             <label>Report Name *</label>
             <input
               type="text"
@@ -742,9 +961,9 @@ function SaveReportModal({
             />
             {submitted && !name.trim() && <span className="mall-error-text">Report name is required</span>}
           </div>
-          <div className="form-group" style={{ padding: '0 24px' }}>
+          <div className="form-group">
             <label>Report Type</label>
-            <input type="text" value={reportType} disabled />
+            <input type="text" value={reportTypeName} disabled />
           </div>
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>

@@ -29,6 +29,7 @@ dashboardRouter.get('/widget-data/:code', asyncHandler(async (req: Request, res:
       propertyId: cleanPropertyId(req.query.propertyId),
       dateRange: req.query.dateRange as string,
       userId: req.user!.sub,
+      refresh: req.query.refresh === 'true',
     },
   );
   res.json({ success: true, data });

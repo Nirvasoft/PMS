@@ -168,17 +168,23 @@ export async function exportToExcel(
 
   const sheet = workbook.addWorksheet(title.slice(0, 31)); // Excel limits sheet name to 31 chars
 
+  // Set column keys and widths without header property so Row 1 is not overwritten
+  sheet.columns = columns.map((c) => ({
+    key: c.key,
+    width: c.width || 15,
+  }));
+
   // Title row
-  sheet.mergeCells(1, 1, 1, columns.length || 1);
+  sheet.mergeCells(1, 1, 1, Math.max(columns.length, 1));
   const titleCell = sheet.getCell('A1');
   titleCell.value = title;
   titleCell.font = { bold: true, size: 14, color: { argb: 'FF1A3C5E' } };
-  titleCell.alignment = { horizontal: 'left' };
+  titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
   sheet.getRow(1).height = 28;
 
   // Date range row
   if (params.dateFrom && params.dateTo) {
-    sheet.mergeCells(2, 1, 2, columns.length || 1);
+    sheet.mergeCells(2, 1, 2, Math.max(columns.length, 1));
     const dateCell = sheet.getCell('A2');
     dateCell.value = `Period: ${params.dateFrom} to ${params.dateTo}`;
     dateCell.font = { size: 10, color: { argb: 'FF777777' } };
@@ -186,14 +192,8 @@ export async function exportToExcel(
 
   // Header row
   const headerRowNum = params.dateFrom ? 4 : 3;
-  sheet.columns = columns.map((c) => ({
-    header: c.header,
-    key: c.key,
-    width: c.width || 15,
-  }));
-
-  // Re-apply headers on correct row
   const headerRow = sheet.getRow(headerRowNum);
+  headerRow.height = 22;
   columns.forEach((c, i) => {
     const cell = headerRow.getCell(i + 1);
     cell.value = c.header;
@@ -235,7 +235,8 @@ export async function exportToExcel(
     });
   }
 
-  const buffer = (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+  const arrayBuffer = await workbook.xlsx.writeBuffer();
+  const buffer = Buffer.from(arrayBuffer);
   const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
   const filename = `${safeTitle}_${params.dateFrom || 'report'}.xlsx`;
 

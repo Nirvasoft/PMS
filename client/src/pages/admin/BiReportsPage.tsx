@@ -215,7 +215,7 @@ export default function BiReportsPage() {
                     )}
                   </button>
                   <PermissionGuard permission="reports-bi.write">
-                    <button style={styles.iconBtn} onClick={() => handleDelete(r.id)} title="Delete">
+                    <button className="btn-icon-sm danger" onClick={() => handleDelete(r.id)} title="Delete">
                       <Trash2 size={15} />
                     </button>
                   </PermissionGuard>
