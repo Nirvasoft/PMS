@@ -161,7 +161,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
           <span className="modal-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
             <Banknote size={18} />
           </span>
-          Record Payment
+          Record Receipts
           <button className="btn-icon" onClick={onClose} style={{ marginLeft: 'auto' }}><X size={18} /></button>
         </h2>
 
@@ -325,7 +325,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSubmit} disabled={isLoading}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Banknote size={14} /> {isLoading ? 'Recording…' : 'Record Payment'}
+            <Banknote size={14} /> {isLoading ? 'Recording…' : 'Record Receipts'}
           </button>
         </div>
       </div>

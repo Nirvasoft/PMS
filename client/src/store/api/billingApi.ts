@@ -334,7 +334,7 @@ export const billingApi = createApi({
       currency?: string; billType?: string;
       startInvoice?: string; endInvoice?: string;
       search?: string; from?: string; to?: string; floor?: string; unitNumber?: string;
-      tenantName?: string; includeLines?: boolean; includeTotals?: boolean;
+      includeLines?: boolean; includeTotals?: boolean;
       sortBy?: string; sortOrder?: 'asc' | 'desc';
       page?: number; limit?: number; all?: boolean;
     }>({
@@ -343,12 +343,9 @@ export const billingApi = createApi({
     }),
 
     getInvoiceReportFilters: builder.query<ApiResponse<{
-      minDate: string;
-      maxDate: string;
       floors: string[];
       units: Array<{ unitNumber: string; floor: string }>;
-      tenants: string[];
-      tenantItems?: Array<{ id: string; firstName: string; lastName: string }>;
+      tenantItems: Array<{ id: string; firstName: string; lastName: string }>;
       statuses: string[];
     }>, { propertyId?: string } | void>({
       query: (params) => ({ url: '/invoices/report-filters', params: params || {} }),

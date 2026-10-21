@@ -26,15 +26,7 @@ export class InvoicesService {
   async getReportFilterOptions(companyId: string, propertyId?: string) {
     const cacheKey = `invoices:${companyId}:report-filters:${propertyId || 'all'}`;
     return cacheGetOrSet(cacheKey, 300, async () => {
-      const where: any = { companyId };
-      if (propertyId) where.propertyId = propertyId;
-
-      const [dateAgg, unitRows, tenantRows] = await Promise.all([
-        prisma.invoice.aggregate({
-          where,
-          _min: { invoiceDate: true },
-          _max: { invoiceDate: true },
-        }),
+      const [unitRows, tenantRows] = await Promise.all([
         prisma.unit.findMany({
           where: {
             companyId,
@@ -48,7 +40,7 @@ export class InvoicesService {
             companyId,
             deletedAt: null,
           },
-          select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true },
+          select: { id: true, firstName: true, lastName: true, companyName: true },
         }),
       ]);
 
@@ -56,12 +48,6 @@ export class InvoicesService {
         if (u.floorLabel && String(u.floorLabel).trim()) return String(u.floorLabel).trim();
         if (u.floorNumber != null) return `Floor ${u.floorNumber}`;
         return '';
-      };
-
-      const formatTenant = (t: { firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string | null }) => {
-        if (t.tenantType && t.tenantType !== 'individual') return t.companyName || '';
-        const full = `${t.firstName || ''} ${t.lastName || ''}`.trim();
-        return full || t.lastName || t.firstName || '';
       };
 
       const floorSet = new Set<string>();
@@ -74,11 +60,8 @@ export class InvoicesService {
         }
       }
 
-      const tenantSet = new Set<string>();
       const tenantItems: Array<{ id: string; firstName: string; lastName: string }> = [];
       for (const t of tenantRows) {
-        const label = formatTenant(t);
-        if (label) tenantSet.add(label);
         const fn = (t.firstName || '').trim();
         const ln = (t.lastName || t.companyName || '').trim();
         if (fn || ln) {
@@ -92,11 +75,8 @@ export class InvoicesService {
       const statuses = ['draft', 'issued', 'sent', 'partially_paid', 'paid', 'overdue', 'void', 'disputed'];
 
       return {
-        minDate: dateAgg._min.invoiceDate ? dateAgg._min.invoiceDate.toISOString().split('T')[0] : '',
-        maxDate: dateAgg._max.invoiceDate ? dateAgg._max.invoiceDate.toISOString().split('T')[0] : '',
         floors: Array.from(floorSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
         units: units.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true })),
-        tenants: Array.from(tenantSet).sort(),
         tenantItems,
         statuses,
       };
@@ -108,7 +88,7 @@ export class InvoicesService {
     currency?: string; billType?: string;
     startInvoice?: string; endInvoice?: string;
     search?: string; from?: string; to?: string; floor?: string; unitNumber?: string;
-    tenantName?: string; includeLines?: boolean; includeTotals?: boolean;
+    includeLines?: boolean; includeTotals?: boolean;
     sortBy?: string; sortOrder?: 'asc' | 'desc';
     page?: number; limit?: number; all?: boolean;
   }) {
@@ -117,7 +97,7 @@ export class InvoicesService {
     const {
       tenantId, leaseId, propertyId, status, currency, billType,
       startInvoice, endInvoice, search, from, to,
-      floor, unitNumber, tenantName, includeLines = true, includeTotals = false,
+      floor, unitNumber, includeLines = true, includeTotals = false,
       sortBy, sortOrder = 'asc',
       page = 1, limit = 20, all = false,
     } = filters;
@@ -199,23 +179,6 @@ export class InvoicesService {
       where.unit = unitWhere;
     }
 
-    if (tenantName?.trim()) {
-      const target = tenantName.trim().toLowerCase();
-      const allTenants = await prisma.tenant.findMany({
-        where: { companyId },
-        select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true },
-      });
-      const matchedIds = allTenants
-        .filter((t) => {
-          const label = t.tenantType && t.tenantType !== 'individual'
-            ? (t.companyName || '')
-            : (`${t.firstName || ''} ${t.lastName || ''}`.trim() || t.lastName || t.firstName || '');
-          return label.toLowerCase() === target;
-        })
-        .map((t) => t.id);
-      where.tenantId = { in: matchedIds };
-    }
-
     // Matches the invoice number, or an individual tenant's first/last name, or a company
     // tenant's name — searched server-side so it covers every matching invoice, not just
     // whichever page is loaded.
@@ -262,6 +225,8 @@ export class InvoicesService {
     // Avoid PostgreSQL's 32,767 bind-parameter limit on `WHERE invoice_id IN (...)` when fetching large sets
     const includeLinesDirectly = includeLines && !all && limit <= 2000;
 
+    const countCacheKey = `invoices:${companyId}:count:${JSON.stringify(where)}`;
+
     const [data, total, currencyGroupTotals] = await Promise.all([
       prisma.invoice.findMany({
         where,
@@ -272,19 +237,19 @@ export class InvoicesService {
                   include: { chargeType: { select: { id: true, code: true, name: true, category: true } } },
                   orderBy: { sortOrder: 'asc' as const },
                 },
+                departmentCenter: { select: { id: true, code: true, name: true } },
+                costCenter: { select: { id: true, code: true, name: true } },
+                _count: { select: { lines: true } },
               }
             : {}),
           tenant: { select: { id: true, firstName: true, lastName: true, companyName: true, tenantType: true, currency: true } },
           unit: { select: { id: true, unitNumber: true, floorNumber: true, floorLabel: true } },
           property: { select: { id: true, name: true, coverImageUrl: true, imageUrl: true } },
-          departmentCenter: { select: { id: true, code: true, name: true } },
-          costCenter: { select: { id: true, code: true, name: true } },
-          _count: { select: { lines: true } },
         },
         orderBy: orderByClause,
         ...(all ? {} : { skip: (page - 1) * limit, take: limit }),
       }),
-      prisma.invoice.count({ where }),
+      cacheGetOrSet(countCacheKey, 120, () => prisma.invoice.count({ where })),
       includeTotals
         ? prisma.invoice.groupBy({
             by: ['currency'],

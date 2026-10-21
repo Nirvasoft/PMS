@@ -205,7 +205,6 @@ invoicesRouter.get('/', asyncHandler(async (req, res) => {
     to: qStr(req.query.to),
     floor: qStr(req.query.floor),
     unitNumber: qStr(req.query.unitNumber),
-    tenantName: qStr(req.query.tenantName),
     includeLines: req.query.includeLines !== 'false',
     includeTotals: req.query.includeTotals === 'true',
     sortBy: qStr(req.query.sortBy),

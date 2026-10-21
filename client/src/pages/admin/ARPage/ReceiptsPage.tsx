@@ -119,7 +119,7 @@ export default function ReceiptsPage() {
             <Banknote size={22} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Payment Receipts</h1>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Receipts</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
               {meta ? `${meta.total} total receipts` : 'Loading…'}
             </p>
@@ -128,7 +128,7 @@ export default function ReceiptsPage() {
         <PermissionGuard permission="ar-receipts.write">
           <button className="btn btn-primary" onClick={() => setShowCreate(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> Record Payment
+            <Plus size={14} /> Record Receipts
           </button>
         </PermissionGuard>
       </div>

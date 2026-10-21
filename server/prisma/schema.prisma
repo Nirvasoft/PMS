@@ -3120,6 +3120,11 @@ model Invoice {
   @@index([costCenterId])
   @@index([status, dueDate])
   @@index([companyId])
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([companyId, currency, createdAt(sort: Desc)])
+  @@index([companyId, propertyId, currency, createdAt(sort: Desc)])
+  @@index([companyId, status, createdAt(sort: Desc)])
+  @@index([companyId, invoiceDate(sort: Desc)])
   @@map("invoices")
 }
 

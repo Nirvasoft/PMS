@@ -58,6 +58,14 @@ function getFloorLabel(inv: InvoiceListItem | InvoiceDetail): string {
   return '-';
 }
 
+function resolveLogoUrl(rawUrl?: string | null): string | null {
+  if (!rawUrl) return null;
+  if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('data:')) {
+    return rawUrl;
+  }
+  return `${window.location.origin}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+}
+
 function renderInvoicePaperHtml(inv: InvoiceListItem | InvoiceDetail): string {
   const invoiceNo = inv.invoiceNumber || '-';
   const displayCurrency = inv.currency || 'USD';
@@ -86,12 +94,8 @@ function renderInvoicePaperHtml(inv: InvoiceListItem | InvoiceDetail): string {
   }));
 
   const grandTotal = Number(inv.totalAmount) || 0;
-  let propertyLogoUrl = inv.property?.coverImageUrl || inv.property?.imageUrl || null;
-  if (propertyLogoUrl && !propertyLogoUrl.startsWith('http://') && !propertyLogoUrl.startsWith('https://') && !propertyLogoUrl.startsWith('data:')) {
-    propertyLogoUrl = `${window.location.origin}${propertyLogoUrl.startsWith('/') ? '' : '/'}${propertyLogoUrl}`;
-  }
+  const propertyLogoUrl = resolveLogoUrl(inv.property?.coverImageUrl || inv.property?.imageUrl);
 
-  const MAX_ROWS_PER_PAGE = 15;
   const allRows: Array<{ html: string; isGroupHeader?: boolean }> = [];
 
   for (const g of groups) {
@@ -676,15 +680,7 @@ export function openInvoicesReportPreview(options: {
 
   const reportTitle = reportType === 'summary' ? 'Invoice Summary Report' : 'Invoice Detail Report';
   const firstProp = invoices.find((inv) => inv.property)?.property;
-  let reportPropertyLogoUrl = firstProp?.coverImageUrl || firstProp?.imageUrl || null;
-  if (
-    reportPropertyLogoUrl &&
-    !reportPropertyLogoUrl.startsWith('http://') &&
-    !reportPropertyLogoUrl.startsWith('https://') &&
-    !reportPropertyLogoUrl.startsWith('data:')
-  ) {
-    reportPropertyLogoUrl = `${window.location.origin}${reportPropertyLogoUrl.startsWith('/') ? '' : '/'}${reportPropertyLogoUrl}`;
-  }
+  const reportPropertyLogoUrl = resolveLogoUrl(firstProp?.coverImageUrl || firstProp?.imageUrl);
   const generatedAt = new Date().toLocaleString('en-US', {
     year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit',
   });
@@ -720,7 +716,7 @@ export function openInvoicesReportPreview(options: {
       ? `Date Range: ${filters.fromDate || 'Any'} to ${filters.toDate || 'Any'}`
       : 'Date Range: All Dates',
     `Currency: ${filters.currency || 'All Currencies'}`,
-    `Bill Type: ${filters.billType || 'All Bills'}`,
+    `Invoice Type: ${filters.billType || 'All Invoices'}`,
     ...(filters.startInvoice || filters.endInvoice
       ? [`Invoice #: ${filters.startInvoice || 'Start'} to ${filters.endInvoice || 'End'}`]
       : []),

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetInvoicesQuery, useLazyGetInvoicesQuery, useGetInvoiceReportFiltersQuery,
@@ -38,23 +38,76 @@ const formatCompactAmount = (amount: string | number) => {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
 };
 
+const getTenantName = (record: { tenant?: { tenantType?: string | null; companyName?: string | null; lastName?: string | null; firstName?: string | null } | null }) => {
+  if (!record.tenant) return '—';
+  if (record.tenant.tenantType && record.tenant.tenantType !== 'individual') {
+    return record.tenant.companyName || '—';
+  }
+  return record.tenant.lastName || record.tenant.firstName || '—';
+};
+
+function buildCurrencyOptions(
+  currencyRates: Array<{ currency?: string; isBaseCurrency?: boolean }>,
+  baseCurrencyCode: string,
+): Array<{ code: string; isBase: boolean }> {
+  const map = new Map<string, boolean>();
+  for (const r of currencyRates) {
+    if (!r.currency) continue;
+    map.set(r.currency, Boolean(map.get(r.currency) || r.isBaseCurrency));
+  }
+  if (map.size === 0) {
+    map.set(baseCurrencyCode, true);
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => (b[1] ? 1 : 0) - (a[1] ? 1 : 0) || a[0].localeCompare(b[0]))
+    .map(([code, isBase]) => ({ code, isBase }));
+}
+
+interface SavedInvoiceListState {
+  propertyFilter: string;
+  page: number;
+  pageSize: number;
+  showFilters: boolean;
+  status: string;
+  currencyFilter: string;
+  billType: string;
+  fromDate: string;
+  toDate: string;
+  search: string;
+}
+
+const INVOICE_LIST_STATE_KEY = 'pms_invoice_list_state';
+
+function loadSavedInvoiceListState(currentPropertyFilter: string): Partial<SavedInvoiceListState> {
+  try {
+    const raw = sessionStorage.getItem(INVOICE_LIST_STATE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as SavedInvoiceListState;
+    if (parsed.propertyFilter !== currentPropertyFilter) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
 export default function InvoiceListPage() {
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [showFilters, setShowFilters] = useState(false);
-  const [status, setStatus] = useState('');
-  const [currencyFilter, setCurrencyFilter] = useState<string>('');
-  const [billType, setBillType] = useState<string>('');
-  const [fromDate, setFromDate] = useState<string>('');
-  const [toDate, setToDate] = useState<string>('');
-  const [search, setSearch] = useState('');
+  const activePropertyFilter = useSelectedPropertyFilter();
+  const initialSaved = useMemo(() => loadSavedInvoiceListState(activePropertyFilter), []);
+
+  const [page, setPage] = useState<number>(() => initialSaved.page || 1);
+  const [pageSize, setPageSize] = useState<number>(() => initialSaved.pageSize || 10);
+  const [showFilters, setShowFilters] = useState<boolean>(() => initialSaved.showFilters ?? false);
+  const [status, setStatus] = useState<string>(() => initialSaved.status || '');
+  const [currencyFilter, setCurrencyFilter] = useState<string>(() => initialSaved.currencyFilter || '');
+  const [billType, setBillType] = useState<string>(() => initialSaved.billType || '');
+  const [fromDate, setFromDate] = useState<string>(() => initialSaved.fromDate || '');
+  const [toDate, setToDate] = useState<string>(() => initialSaved.toDate || '');
+  const [search, setSearch] = useState<string>(() => initialSaved.search || '');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [runBillingModalOpen, setRunBillingModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
-
-  const activePropertyFilter = useSelectedPropertyFilter();
 
   // Fetch currency rates scoped to the active property (or company-wide when All Properties is selected)
   const { data: currencyRatesData } = useGetCurrencyRatesQuery(
@@ -63,24 +116,20 @@ export default function InvoiceListPage() {
   const currencyRates = currencyRatesData?.data ?? [];
   const baseCurrencyCode = currencyRates.find(r => r.isBaseCurrency)?.currency || 'MMK';
 
-  const currencyOptions = useMemo(() => {
-    const map = new Map<string, boolean>();
-    for (const r of currencyRates) {
-      if (!r.currency) continue;
-      map.set(r.currency, Boolean(map.get(r.currency) || r.isBaseCurrency));
-    }
-    if (map.size === 0) {
-      map.set(baseCurrencyCode, true);
-    }
-    return Array.from(map.entries())
-      .sort((a, b) => (b[1] ? 1 : 0) - (a[1] ? 1 : 0) || a[0].localeCompare(b[0]))
-      .map(([code, isBase]) => ({ code, isBase }));
-  }, [currencyRates, baseCurrencyCode]);
+  const currencyOptions = useMemo(
+    () => buildCurrencyOptions(currencyRates, baseCurrencyCode),
+    [currencyRates, baseCurrencyCode],
+  );
 
-  // Default currency filter to Base Currency whenever property or base currency changes
+  // Reset currency filter & page only when the sidebar's Active Property actually changes
+  const prevPropertyFilterRef = useRef(activePropertyFilter);
   useEffect(() => {
-    setCurrencyFilter(baseCurrencyCode);
-  }, [activePropertyFilter, baseCurrencyCode]);
+    if (prevPropertyFilterRef.current !== activePropertyFilter) {
+      prevPropertyFilterRef.current = activePropertyFilter;
+      setCurrencyFilter('');
+      setPage(1);
+    }
+  }, [activePropertyFilter]);
 
   const activeCurrency = currencyFilter === 'ALL' ? undefined : (currencyFilter || baseCurrencyCode);
 
@@ -93,14 +142,38 @@ export default function InvoiceListPage() {
   );
 
   // Debounce the search box so typing doesn't fire a request per keystroke.
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>(() => initialSaved.search || '');
+  const prevSearchRef = useRef(search);
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    if (prevSearchRef.current === search) return;
+    prevSearchRef.current = search;
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
     return () => clearTimeout(t);
   }, [search]);
 
-  // Reset pagination whenever the sidebar's Active Property, filters, pageSize, or search changes.
-  useEffect(() => { setPage(1); }, [activePropertyFilter, status, currencyFilter, billType, fromDate, toDate, debouncedSearch, pageSize]);
+  // Persist current filters, search, and pagination so navigating to Invoice Detail and back preserves them.
+  useEffect(() => {
+    try {
+      const stateToSave: SavedInvoiceListState = {
+        propertyFilter: activePropertyFilter,
+        page,
+        pageSize,
+        showFilters,
+        status,
+        currencyFilter,
+        billType,
+        fromDate,
+        toDate,
+        search,
+      };
+      sessionStorage.setItem(INVOICE_LIST_STATE_KEY, JSON.stringify(stateToSave));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [activePropertyFilter, page, pageSize, showFilters, status, currencyFilter, billType, fromDate, toDate, search]);
 
   const { data, isFetching, refetch } = useGetInvoicesQuery({
     propertyId: activePropertyFilter || undefined,
@@ -153,28 +226,19 @@ export default function InvoiceListPage() {
   const displayCurrencyCode = activeCurrency || baseCurrencyCode || 'MMK';
 
   const stats = useMemo(() => {
-    const all = invoices;
-    const byCurrency: Record<string, number> = {};
     let totalInDisplayCurrency = 0;
-    for (const inv of all) {
+    for (const inv of invoices) {
       const cur = inv.currency || 'USD';
-      byCurrency[cur] = (byCurrency[cur] || 0) + Number(inv.totalAmount);
       totalInDisplayCurrency += convertCurrency(Number(inv.totalAmount), cur, displayCurrencyCode);
     }
     return {
       total: meta?.total || 0,
       totalInDisplayCurrency,
-      byCurrency,
-      overdue: all.filter(i => i.status === 'overdue').length,
-      paid: all.filter(i => i.status === 'paid').length,
+      overdue: invoices.filter(i => i.status === 'overdue').length,
+      paid: invoices.filter(i => i.status === 'paid').length,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoices, meta, currencyRates, baseCurrencyCode, displayCurrencyCode]);
-
-
-  // Filtering by invoice # / tenant name happens server-side (see `search` above), so it
-  // covers every matching invoice — not just whichever page happened to be loaded.
-  const filteredInvoices = invoices;
 
   // ── Selection Helpers ──────────────────────
   const toggleSelect = useCallback((id: string, e: React.MouseEvent) => {
@@ -187,18 +251,18 @@ export default function InvoiceListPage() {
   }, []);
 
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === filteredInvoices.length) {
+    if (selectedIds.size === invoices.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredInvoices.map(i => i.id)));
+      setSelectedIds(new Set(invoices.map(i => i.id)));
     }
-  }, [filteredInvoices, selectedIds.size]);
+  }, [invoices, selectedIds.size]);
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   const selectedInvoices = useMemo(
-    () => filteredInvoices.filter(inv => selectedIds.has(inv.id)),
-    [filteredInvoices, selectedIds],
+    () => invoices.filter(inv => selectedIds.has(inv.id)),
+    [invoices, selectedIds],
   );
 
   // ── Bulk Actions ───────────────────────────
@@ -265,14 +329,6 @@ export default function InvoiceListPage() {
     }
   };
 
-  const getTenantName = (inv: any) => {
-    if (!inv.tenant) return '—';
-    if (inv.tenant.tenantType && inv.tenant.tenantType !== 'individual') {
-      return inv.tenant.companyName || '—';
-    }
-    return inv.tenant.lastName || inv.tenant.firstName || '—';
-  };
-
   // ── V6 ERP Handlers ────────────────────────────────────────────────────────
 
   /** Send ALL issued invoices to V6 ERP (header button) */
@@ -321,7 +377,7 @@ export default function InvoiceListPage() {
     }
   };
 
-  const allSelected = filteredInvoices.length > 0 && selectedIds.size === filteredInvoices.length;
+  const allSelected = invoices.length > 0 && selectedIds.size === invoices.length;
   const someSelected = selectedIds.size > 0;
 
   return (
@@ -487,11 +543,11 @@ export default function InvoiceListPage() {
             className="filter-select"
             value={billType}
             onChange={e => { setBillType(e.target.value); setPage(1); clearSelection(); }}
-            title="Bill Type"
+            title="Invoice Type"
           >
-            <option value="">All Bills</option>
-            <option value="monthly">Monthly Bill</option>
-            <option value="rental">Rental Bill</option>
+            <option value="">All Invoices</option>
+            <option value="monthly">Monthly Invoice</option>
+            <option value="rental">Rental Invoice</option>
           </select>
 
           <div className="billing-filter-date-range">
@@ -516,7 +572,7 @@ export default function InvoiceListPage() {
             type="button"
             className="btn-ghost billing-filter-reset-btn"
             onClick={() => {
-              setCurrencyFilter(baseCurrencyCode);
+              setCurrencyFilter('');
               setStatus('');
               setBillType('');
               setFromDate('');
@@ -557,7 +613,7 @@ export default function InvoiceListPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredInvoices.length === 0 ? (
+            {invoices.length === 0 ? (
               <tr>
                 <td colSpan={9}>
                   <div className="billing-empty">
@@ -566,7 +622,7 @@ export default function InvoiceListPage() {
                 </td>
               </tr>
             ) : (
-              filteredInvoices.map(inv => {
+              invoices.map(inv => {
                 const paidNum = Number(inv.paidAmount);
                 const totalNum = Number(inv.totalAmount);
                 const isSelected = selectedIds.has(inv.id);
@@ -850,14 +906,6 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
     );
   }, [schedulesData, asOfDate]);
 
-  const getTenantName = (s: any) => {
-    if (!s.tenant) return '—';
-    if (s.tenant.tenantType && s.tenant.tenantType !== 'individual') {
-      return s.tenant.companyName || '—';
-    }
-    return s.tenant.lastName || s.tenant.firstName || '—';
-  };
-
   const handleSubmit = () => {
     if (!asOfDate || asOfDate > todayStr) {
       toast.error('Bill date cannot be in the future');
@@ -976,19 +1024,10 @@ function ViewInvoiceReportModal({
   const currencyRates = currencyRatesData?.data ?? [];
   const baseCurrencyCode = currencyRates.find(r => r.isBaseCurrency)?.currency || 'MMK';
 
-  const currencyOptions = useMemo(() => {
-    const map = new Map<string, boolean>();
-    for (const r of currencyRates) {
-      if (!r.currency) continue;
-      map.set(r.currency, Boolean(map.get(r.currency) || r.isBaseCurrency));
-    }
-    if (map.size === 0) {
-      map.set(baseCurrencyCode, true);
-    }
-    return Array.from(map.entries())
-      .sort((a, b) => (b[1] ? 1 : 0) - (a[1] ? 1 : 0) || a[0].localeCompare(b[0]))
-      .map(([code, isBase]) => ({ code, isBase }));
-  }, [currencyRates, baseCurrencyCode]);
+  const currencyOptions = useMemo(
+    () => buildCurrencyOptions(currencyRates, baseCurrencyCode),
+    [currencyRates, baseCurrencyCode],
+  );
 
   const [reportType, setReportType] = useState<InvoiceReportType>('summary');
   const [billType, setBillType] = useState<string>('');
@@ -1053,7 +1092,7 @@ function ViewInvoiceReportModal({
     } else {
       setValidationError('');
     }
-  }, [billType, currencyFilter, fromDate, toDate, startInvoice, endInvoice, floor, unitNumber, tenantId, statusFilter]);
+  }, [fromDate, toDate, startInvoice, endInvoice]);
 
   const handleResetFilters = () => {
     setBillType('');
@@ -1108,7 +1147,7 @@ function ViewInvoiceReportModal({
 
     const reportFiltersInfo = {
       currency: activeCurrency || undefined,
-      billType: billType ? (billType === 'monthly' ? 'Monthly Bill' : 'Rental Bill') : undefined,
+      billType: billType ? (billType === 'monthly' ? 'Monthly Invoice' : 'Rental Invoice') : undefined,
       startInvoice: startInvoice.trim() || undefined,
       endInvoice: endInvoice.trim() || undefined,
       fromDate: fromDate || undefined,
@@ -1224,17 +1263,17 @@ function ViewInvoiceReportModal({
             </select>
           </div>
 
-          {/* Bill Type & Currency */}
+          {/* Invoice Type & Currency */}
           <div className="rb-grid-2">
             <div className="rb-field">
-              <label>Bill Type</label>
+              <label>Invoice Type</label>
               <select
                 value={billType}
                 onChange={e => setBillType(e.target.value)}
               >
-                <option value="">All Bills</option>
-                <option value="monthly">Monthly Bill</option>
-                <option value="rental">Rental Bill</option>
+                <option value="">All Invoices</option>
+                <option value="monthly">Monthly Invoice</option>
+                <option value="rental">Rental Invoice</option>
               </select>
             </div>
             <div className="rb-field">
