@@ -194,15 +194,28 @@ class BiService {
     const currentRate = history[history.length - 1]?.value || 0;
     const forecastData = this.linearForecast(history, months);
 
-    // Cache the forecast
-    const forecast = await prisma.biForecast.upsert({
-      where: { uq_forecast: { companyId, propertyId: propertyId || null as any, forecastType: 'occupancy', forecastPeriod: period } },
-      create: {
-        companyId, propertyId, forecastType: 'occupancy', forecastPeriod: period,
-        forecastData, expiresAt: new Date(Date.now() + 7 * 86400000), // 7-day cache
-      },
-      update: { forecastData, expiresAt: new Date(Date.now() + 7 * 86400000) },
+    // Cache the forecast (avoid upsert on compound unique key when propertyId is null)
+    const effectivePropertyId = propertyId || null;
+    const expiresAt = new Date(Date.now() + 7 * 86400000); // 7-day cache
+    const existingForecast = await prisma.biForecast.findFirst({
+      where: { companyId, propertyId: effectivePropertyId, forecastType: 'occupancy', forecastPeriod: period },
+      select: { id: true },
     });
+    const forecast = existingForecast
+      ? await prisma.biForecast.update({
+          where: { id: existingForecast.id },
+          data: { forecastData, expiresAt },
+        })
+      : await prisma.biForecast.create({
+          data: {
+            companyId,
+            propertyId: effectivePropertyId,
+            forecastType: 'occupancy',
+            forecastPeriod: period,
+            forecastData,
+            expiresAt,
+          },
+        });
 
     return { ...forecast, currentRate };
   }
@@ -212,9 +225,10 @@ class BiService {
   }) {
     const { propertyId, period = '6m' } = params;
     const months = period === '12m' ? 12 : 6;
+    const effectivePropertyId = propertyId || null;
 
     const cached = await prisma.biForecast.findFirst({
-      where: { companyId, propertyId: propertyId || null, forecastType: 'revenue', forecastPeriod: period, expiresAt: { gt: new Date() } },
+      where: { companyId, propertyId: effectivePropertyId, forecastType: 'revenue', forecastPeriod: period, expiresAt: { gt: new Date() } },
     });
     if (cached) return cached;
 
@@ -224,15 +238,27 @@ class BiService {
     }
 
     const forecastData = this.linearForecast(history, months);
+    const expiresAt = new Date(Date.now() + 7 * 86400000);
 
-    const forecast = await prisma.biForecast.upsert({
-      where: { uq_forecast: { companyId, propertyId: propertyId || null as any, forecastType: 'revenue', forecastPeriod: period } },
-      create: {
-        companyId, propertyId, forecastType: 'revenue', forecastPeriod: period,
-        forecastData, expiresAt: new Date(Date.now() + 7 * 86400000),
-      },
-      update: { forecastData, expiresAt: new Date(Date.now() + 7 * 86400000) },
+    const existingForecast = await prisma.biForecast.findFirst({
+      where: { companyId, propertyId: effectivePropertyId, forecastType: 'revenue', forecastPeriod: period },
+      select: { id: true },
     });
+    const forecast = existingForecast
+      ? await prisma.biForecast.update({
+          where: { id: existingForecast.id },
+          data: { forecastData, expiresAt },
+        })
+      : await prisma.biForecast.create({
+          data: {
+            companyId,
+            propertyId: effectivePropertyId,
+            forecastType: 'revenue',
+            forecastPeriod: period,
+            forecastData,
+            expiresAt,
+          },
+        });
 
     return forecast;
   }

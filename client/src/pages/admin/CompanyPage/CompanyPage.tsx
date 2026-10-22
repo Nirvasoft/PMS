@@ -13,24 +13,43 @@ import toast from 'react-hot-toast';
 import { FEATURE_FLAGS } from '../../../hooks/useFeatureFlags';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
+import { Building2, MapPin, Globe, Briefcase, SlidersHorizontal, UploadCloud, Camera, Loader2, Phone, Mail, Home, User, Pencil, Trash2 } from 'lucide-react';
 
 type Tab = 'general' | 'branches' | 'regions' | 'business-units' | 'features';
 
 export default function CompanyPage() {
   const [activeTab, setActiveTab] = useState<Tab>('general');
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'general', label: '🏢 General' },
-    { key: 'branches', label: '📍 Branches' },
-    { key: 'regions', label: '🌍 Regions' },
-    { key: 'business-units', label: '💼 Business Units' },
-    { key: 'features', label: '⚙️ Features' },
+  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
+    { key: 'general', label: 'General', icon: <Building2 size={15} /> },
+    { key: 'branches', label: 'Branches', icon: <MapPin size={15} /> },
+    { key: 'regions', label: 'Regions', icon: <Globe size={15} /> },
+    { key: 'business-units', label: 'Business Units', icon: <Briefcase size={15} /> },
+    { key: 'features', label: 'Features', icon: <SlidersHorizontal size={15} /> },
   ];
 
   return (
     <div className="page-content">
       <div className="page-header">
-        <h1>🏢 Organization Settings</h1>
+        <div className="page-title-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div
+            className="page-icon-lg"
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 12,
+              background: 'rgba(16, 185, 129, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--accent)',
+              flexShrink: 0,
+            }}
+          >
+            <Building2 size={22} style={{ fill: 'rgba(16, 185, 129, 0.22)' }} />
+          </div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Organization Settings</h1>
+        </div>
       </div>
 
       <div className="tabs">
@@ -40,7 +59,7 @@ export default function CompanyPage() {
             className={`tab ${activeTab === t.key ? 'active' : ''}`}
             onClick={() => setActiveTab(t.key)}
           >
-            {t.label}
+            {t.icon} {t.label}
           </button>
         ))}
       </div>
@@ -127,7 +146,7 @@ function GeneralTab() {
           <h3>Company Information</h3>
           {!editing ? (
             <PermissionGuard permission="company.manage">
-              <button className="btn btn-sm" onClick={startEdit}>Edit</button>
+              <button className="btn-icon" title="Edit" onClick={startEdit}><Pencil size={15} /></button>
             </PermissionGuard>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
@@ -190,13 +209,13 @@ function GeneralTab() {
             <img src={company.logoUrl} alt="Company Logo" className="company-logo-img" />
           ) : (
             <div className="logo-placeholder">
-              <span style={{ fontSize: 40 }}>🏢</span>
+              <UploadCloud size={40} strokeWidth={1.5} style={{ color: 'var(--accent)' }} />
               <span className="text-muted text-small">Click to upload logo</span>
             </div>
           )}
           {canManage && (
-            <div className="logo-upload-overlay">
-              {uploading ? '⏳ Uploading...' : '📷 Change Logo'}
+            <div className="logo-upload-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              {uploading ? <><Loader2 size={14} className="spin" /> Uploading...</> : <><Camera size={14} /> Change Logo</>}
             </div>
           )}
           {canManage && (
@@ -305,25 +324,25 @@ function BranchesTab() {
         {branches.map((b) => (
           <div key={b.id} className="org-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="org-card-top">
-              <div className="org-card-icon">📍</div>
+              <div className="org-card-icon"><MapPin size={18} /></div>
               <div className="org-card-title">
                 <h3>{b.name}</h3>
               </div>
               {b.code && <span className="dept-code">{b.code}</span>}
             </div>
             <div className="org-card-details">
-              <span>📞 {b.phone || '—'}</span>
-              <span>📧 {b.email || '—'}</span>
-              <span>📌 {[b.city, b.country].filter(Boolean).join(', ') || '—'}</span>
-              <span>🏠 {b._count.properties} properties</span>
+              <span><Phone size={13} /> {b.phone || '—'}</span>
+              <span><Mail size={13} /> {b.email || '—'}</span>
+              <span><MapPin size={13} /> {[b.city, b.country].filter(Boolean).join(', ') || '—'}</span>
+              <span><Home size={13} /> {b._count.properties} properties</span>
               {b.manager && (
-                <span>👤 {b.manager.profile ? `${b.manager.profile.firstName} ${b.manager.profile.lastName}` : 'Manager assigned'}</span>
+                <span><User size={13} /> {b.manager.profile ? `${b.manager.profile.firstName} ${b.manager.profile.lastName}` : 'Manager assigned'}</span>
               )}
             </div>
             <PermissionGuard permission="company.manage">
               <div className="org-card-actions" style={{ marginTop: 'auto' }}>
-                <button className="btn btn-sm" onClick={() => setShowModal(b.id)}>Edit</button>
-                <button className="btn btn-sm btn-danger" onClick={() => handleDelete(b.id, b.name)}>Delete</button>
+                <button className="btn-icon" title="Edit" onClick={() => setShowModal(b.id)}><Pencil size={15} /></button>
+                <button className="btn-icon" title="Delete" onClick={() => handleDelete(b.id, b.name)}><Trash2 size={15} /></button>
               </div>
             </PermissionGuard>
           </div>
@@ -405,7 +424,7 @@ function RegionsTab() {
         {regions.map((r) => (
           <div key={r.id} className="org-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="org-card-top">
-              <div className="org-card-icon">🌍</div>
+              <div className="org-card-icon"><Globe size={18} /></div>
               <div className="org-card-title">
                 <h3>{r.name}</h3>
               </div>
@@ -413,20 +432,20 @@ function RegionsTab() {
             </div>
             <div className="org-card-details">
               {r.description && <span>{r.description}</span>}
-              <span>🏠 {r._count.regionProperties} properties</span>
+              <span><Home size={13} /> {r._count.regionProperties} properties</span>
               {r.manager && (
-                <span>👤 {r.manager.profile ? `${r.manager.profile.firstName} ${r.manager.profile.lastName}` : 'Manager'}</span>
+                <span><User size={13} /> {r.manager.profile ? `${r.manager.profile.firstName} ${r.manager.profile.lastName}` : 'Manager'}</span>
               )}
             </div>
             <div className="org-card-actions" style={{ marginTop: 'auto' }}>
-              <button className="btn btn-sm" onClick={() => setPickerRegionId(r.id)}>🏠 Properties</button>
+              <button className="btn btn-sm" onClick={() => setPickerRegionId(r.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Home size={13} /> Properties</button>
               <PermissionGuard permission="company.manage">
-                <button className="btn btn-sm" onClick={() => setShowModal(r.id)}>Edit</button>
-                <button className="btn btn-sm btn-danger" onClick={async () => {
+                <button className="btn-icon" title="Edit" onClick={() => setShowModal(r.id)}><Pencil size={15} /></button>
+                <button className="btn-icon" title="Delete" onClick={async () => {
                   if (!(await confirmDialog(`Delete region "${r.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
                   try { await deleteRegion(r.id).unwrap(); toast.success('Deleted'); }
                   catch { toast.error('Cannot delete'); }
-                }}>Delete</button>
+                }}><Trash2 size={15} /></button>
               </PermissionGuard>
             </div>
           </div>
@@ -585,30 +604,30 @@ function BusinessUnitsTab() {
         {units.map((bu) => (
         <div key={bu.id} className="org-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div className="org-card-top">
-              <div className="org-card-icon">💼</div>
+              <div className="org-card-icon"><Briefcase size={18} /></div>
               <div className="org-card-title">
                 <h3>{bu.name}</h3>
               </div>
               {bu.code && <span className="dept-code">{bu.code}</span>}
             </div>
             <div className="org-card-details">
-              <span>📍 Branch: {bu.branch?.name || '—'}</span>
-              <span>🏠 {bu._count.properties} properties</span>
+              <span><MapPin size={13} /> Branch: {bu.branch?.name || '—'}</span>
+              <span><Home size={13} /> {bu._count.properties} properties</span>
               {bu.manager && (
-                <span>👤 {bu.manager.profile ? `${bu.manager.profile.firstName} ${bu.manager.profile.lastName}` : 'Manager'}</span>
+                <span><User size={13} /> {bu.manager.profile ? `${bu.manager.profile.firstName} ${bu.manager.profile.lastName}` : 'Manager'}</span>
               )}
             </div>
             <PermissionGuard permission="company.manage">
               <div className="org-card-actions" style={{ marginTop: 'auto' }}>
-                <button className="btn btn-sm" onClick={() => setShowModal(bu.id)}>Edit</button>
-                <button className="btn btn-sm btn-danger" onClick={async () => {
+                <button className="btn-icon" title="Edit" onClick={() => setShowModal(bu.id)}><Pencil size={15} /></button>
+                <button className="btn-icon" title="Delete" onClick={async () => {
                   if (!(await confirmDialog(`Delete "${bu.name}"?`, { danger: true, confirmText: 'Delete' }))) return;
                   try { await deleteBU(bu.id).unwrap(); toast.success('Deleted'); }
                   catch (err: unknown) {
                     const e = err as { data?: { errors?: { message: string }[] } };
                     toast.error(e.data?.errors?.[0]?.message || 'Cannot delete');
                   }
-                }}>Delete</button>
+                }}><Trash2 size={15} /></button>
               </div>
             </PermissionGuard>
           </div>

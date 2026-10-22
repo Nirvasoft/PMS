@@ -170,7 +170,7 @@ import ExecutiveDashboardPage from './pages/admin/ExecutiveDashboardPage';
 import BiReportsPage from './pages/admin/BiReportsPage';
 import AnomalyDashboardPage from './pages/admin/AnomalyDashboardPage';
 import AdminCompaniesPage from './pages/admin/AdminCompaniesPage/AdminCompaniesPage';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRefreshTokensMutation } from './store/api/authApi';
 import { useAppDispatch } from './store';
 import { setCredentials, setLoading } from './store/slices/authSlice';
@@ -178,8 +178,12 @@ import { setCredentials, setLoading } from './store/slices/authSlice';
 function AuthBootstrap({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
   const [refreshTokens] = useRefreshTokensMutation();
+  const bootstrappedRef = useRef(false);
 
   useEffect(() => {
+    if (bootstrappedRef.current) return;
+    bootstrappedRef.current = true;
+
     const tryRefresh = async () => {
       try {
         const result = await refreshTokens().unwrap();

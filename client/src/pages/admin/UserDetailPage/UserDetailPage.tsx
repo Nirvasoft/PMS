@@ -13,6 +13,12 @@ import { useGetAuditLogsQuery } from '../../../store/api/authApi';
 import { useConfirm } from '../../../components/DialogProvider';
 import { useRefreshAuth } from '../../../hooks/useRefreshAuth';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
+import {
+  User, KeyRound, Shield, Activity, Lock, Unlock, Clock,
+  CheckCircle2, XCircle, Ban, AlertTriangle, Copy, Camera,
+  Loader2, LogOut, RefreshCw, Mail, Laptop, Link2, ShieldAlert,
+  FileText, X,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 type Tab = 'profile' | 'roles' | 'security' | 'activity';
@@ -57,7 +63,11 @@ export default function UserDetailPage() {
               <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
                 {user.isActive ? 'Active' : 'Inactive'}
               </span>
-              {user.mfaEnabled && <span className="status-badge active">🔒 MFA</span>}
+              {user.mfaEnabled && (
+                <span className="status-badge active" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Lock size={12} /> MFA
+                </span>
+              )}
               {user.jobTitle && <span className="role-chip">{user.jobTitle}</span>}
             </div>
           </div>
@@ -67,16 +77,16 @@ export default function UserDetailPage() {
       {/* Tabs */}
       <div className="tabs">
         <button className={`tab ${tab === 'profile' ? 'active' : ''}`} onClick={() => setTab('profile')}>
-          📋 Profile
+          <User size={15} /> Profile
         </button>
         <button className={`tab ${tab === 'roles' ? 'active' : ''}`} onClick={() => setTab('roles')}>
-          🔑 Roles & Permissions
+          <KeyRound size={15} /> Roles & Permissions
         </button>
         <button className={`tab ${tab === 'security' ? 'active' : ''}`} onClick={() => setTab('security')}>
-          🛡️ Security
+          <Shield size={15} /> Security
         </button>
         <button className={`tab ${tab === 'activity' ? 'active' : ''}`} onClick={() => setTab('activity')}>
-          📊 Activity
+          <Activity size={15} /> Activity
         </button>
       </div>
 
@@ -379,8 +389,8 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
               <span className="text-muted text-small"> ({o.module})</span>
               {o.reason && <span className="text-muted text-small"> — {o.reason}</span>}
               {o.expiresAt && (
-                <span className="text-small" style={{ marginLeft: 8, color: 'var(--warning)' }}>
-                  ⏰ expires {new Date(o.expiresAt).toLocaleDateString()}
+                <span className="text-small" style={{ marginLeft: 8, color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Clock size={12} /> expires {new Date(o.expiresAt).toLocaleDateString()}
                 </span>
               )}
             </div>
@@ -460,7 +470,7 @@ function AddOverrideModal({
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
         <div className="modal-header">
           <h2>Add Permission Override</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}><X size={16} /></button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body">
           {/* Override Type */}
@@ -471,15 +481,17 @@ function AddOverrideModal({
                 type="button"
                 className={`toggle-btn ${overrideType === 'grant' ? 'active grant' : ''}`}
                 onClick={() => setOverrideType('grant')}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
-                ✅ Grant
+                <CheckCircle2 size={14} /> Grant
               </button>
               <button
                 type="button"
                 className={`toggle-btn ${overrideType === 'revoke' ? 'active revoke' : ''}`}
                 onClick={() => setOverrideType('revoke')}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
-                🚫 Revoke
+                <Ban size={14} /> Revoke
               </button>
             </div>
             <p className="text-small text-muted" style={{ marginTop: 4 }}>
@@ -698,8 +710,8 @@ function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
                   </span>
                   <span className="eff-perm-source">{p.source}</span>
                   {p.expiresAt && (
-                    <span className="eff-perm-expiry" title={`Expires ${new Date(p.expiresAt).toLocaleDateString()}`}>
-                      ⏰ {new Date(p.expiresAt).toLocaleDateString()}
+                    <span className="eff-perm-expiry" title={`Expires ${new Date(p.expiresAt).toLocaleDateString()}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <Clock size={11} /> {new Date(p.expiresAt).toLocaleDateString()}
                     </span>
                   )}
                 </div>
@@ -771,7 +783,7 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
         {/* Reset Password */}
         <div className="security-card">
           <div className="security-card-info">
-            <h4>🔑 Reset Password</h4>
+            <h4>Reset Password</h4>
             <p className="text-muted text-small">Generate a temporary password. User will be forced to change it on next login.</p>
           </div>
           <PermissionGuard permission="users.update">
@@ -781,22 +793,25 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
 
         {tempPassword && (
           <div className="info-card" style={{ background: 'var(--surface-elevated)', borderColor: 'var(--accent)' }}>
-            <p><strong>⚠️ Temporary Password:</strong></p>
+            <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <AlertTriangle size={15} style={{ color: 'var(--warning)' }} />
+              <strong>Temporary Password:</strong>
+            </p>
             <code className="temp-password">{tempPassword}</code>
             <p className="text-small text-muted" style={{ marginTop: 8 }}>
               Copy this now — it won't be shown again. The user must change it on next login.
             </p>
-            <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => {
+            <button className="btn btn-sm" style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => {
               navigator.clipboard.writeText(tempPassword);
               toast.success('Copied!');
-            }}>📋 Copy</button>
+            }}><Copy size={13} /> Copy</button>
           </div>
         )}
 
         {/* Deactivate / Reactivate */}
         <div className="security-card">
           <div className="security-card-info">
-            <h4>{user.isActive ? '🚫 Deactivate Account' : '✅ Reactivate Account'}</h4>
+            <h4>{user.isActive ? 'Deactivate Account' : 'Reactivate Account'}</h4>
             <p className="text-muted text-small">
               {user.isActive
                 ? 'Prevent this user from logging in and revoke all sessions.'
@@ -829,7 +844,7 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
         {/* MFA Status */}
         <div className="security-card">
           <div className="security-card-info">
-            <h4>🔒 Multi-Factor Authentication</h4>
+            <h4>Multi-Factor Authentication</h4>
             <p className="text-muted text-small">
               Status: {user.mfaEnabled
                 ? <span className="status-badge active">Enabled</span>
@@ -841,7 +856,7 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
         {/* Account Info */}
         <div className="security-card">
           <div className="security-card-info">
-            <h4>📊 Account Info</h4>
+            <h4>Account Info</h4>
             <div className="detail-grid" style={{ marginTop: 8 }}>
               <DetailRow label="Created" value={new Date(user.createdAt).toLocaleString()} />
               <DetailRow label="Last Login" value={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never'} />
@@ -913,7 +928,7 @@ function AvatarUpload({ user, onRefresh }: { user: UserDetail; onRefresh: () => 
       )}
       {canEdit && (
         <div className="avatar-overlay">
-          {isLoading ? '⏳' : '📷'}
+          {isLoading ? <Loader2 size={18} className="spin" /> : <Camera size={18} />}
         </div>
       )}
       {canEdit && (
@@ -931,25 +946,25 @@ function AvatarUpload({ user, onRefresh }: { user: UserDetail; onRefresh: () => 
 
 /* ─── Activity Tab ─────────────────────────── */
 
-const EVENT_LABELS: Record<string, { label: string; icon: string }> = {
-  login_success: { label: 'Login', icon: '✅' },
-  login_failure: { label: 'Failed Login', icon: '❌' },
-  logout: { label: 'Logout', icon: '🚪' },
-  token_refresh: { label: 'Token Refresh', icon: '🔄' },
-  mfa_enabled: { label: 'MFA Enabled', icon: '🔒' },
-  mfa_disabled: { label: 'MFA Disabled', icon: '🔓' },
-  mfa_verify_success: { label: 'MFA Verified', icon: '✅' },
-  mfa_verify_failure: { label: 'MFA Failed', icon: '❌' },
-  password_change: { label: 'Password Changed', icon: '🔑' },
-  password_reset_request: { label: 'Reset Requested', icon: '📧' },
-  password_reset_complete: { label: 'Reset Complete', icon: '🔑' },
-  account_locked: { label: 'Account Locked', icon: '🔒' },
-  account_unlocked: { label: 'Account Unlocked', icon: '🔓' },
-  device_trusted: { label: 'Device Trusted', icon: '💻' },
-  device_revoked: { label: 'Device Revoked', icon: '🚫' },
-  sso_login: { label: 'SSO Login', icon: '🔗' },
-  ip_blocked: { label: 'IP Blocked', icon: '🛑' },
-  permission_override_expired: { label: 'Override Expired', icon: '⏰' },
+const EVENT_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
+  login_success: { label: 'Login', icon: <CheckCircle2 size={14} style={{ color: 'var(--accent)' }} /> },
+  login_failure: { label: 'Failed Login', icon: <XCircle size={14} style={{ color: '#ef4444' }} /> },
+  logout: { label: 'Logout', icon: <LogOut size={14} style={{ color: 'var(--text-secondary)' }} /> },
+  token_refresh: { label: 'Token Refresh', icon: <RefreshCw size={14} style={{ color: 'var(--accent)' }} /> },
+  mfa_enabled: { label: 'MFA Enabled', icon: <Lock size={14} style={{ color: 'var(--accent)' }} /> },
+  mfa_disabled: { label: 'MFA Disabled', icon: <Unlock size={14} style={{ color: 'var(--warning)' }} /> },
+  mfa_verify_success: { label: 'MFA Verified', icon: <CheckCircle2 size={14} style={{ color: 'var(--accent)' }} /> },
+  mfa_verify_failure: { label: 'MFA Failed', icon: <XCircle size={14} style={{ color: '#ef4444' }} /> },
+  password_change: { label: 'Password Changed', icon: <KeyRound size={14} style={{ color: 'var(--accent)' }} /> },
+  password_reset_request: { label: 'Reset Requested', icon: <Mail size={14} style={{ color: 'var(--accent)' }} /> },
+  password_reset_complete: { label: 'Reset Complete', icon: <KeyRound size={14} style={{ color: 'var(--accent)' }} /> },
+  account_locked: { label: 'Account Locked', icon: <Lock size={14} style={{ color: '#ef4444' }} /> },
+  account_unlocked: { label: 'Account Unlocked', icon: <Unlock size={14} style={{ color: 'var(--accent)' }} /> },
+  device_trusted: { label: 'Device Trusted', icon: <Laptop size={14} style={{ color: 'var(--accent)' }} /> },
+  device_revoked: { label: 'Device Revoked', icon: <Ban size={14} style={{ color: '#ef4444' }} /> },
+  sso_login: { label: 'SSO Login', icon: <Link2 size={14} style={{ color: 'var(--accent)' }} /> },
+  ip_blocked: { label: 'IP Blocked', icon: <ShieldAlert size={14} style={{ color: '#ef4444' }} /> },
+  permission_override_expired: { label: 'Override Expired', icon: <Clock size={14} style={{ color: 'var(--warning)' }} /> },
 };
 
 function ActivityTab({ userId }: { userId: string }) {
@@ -989,14 +1004,17 @@ function ActivityTab({ userId }: { userId: string }) {
               </thead>
               <tbody>
                 {logs.map((log: Record<string, unknown>) => {
-                  const evtInfo = EVENT_LABELS[log.eventType as string] ?? { label: String(log.eventType), icon: '📝' };
+                  const evtInfo = EVENT_LABELS[log.eventType as string] ?? {
+                    label: String(log.eventType),
+                    icon: <FileText size={14} style={{ color: 'var(--accent)' }} />,
+                  };
                   const ua = String(log.userAgent || '');
                   const shortUA = ua.length > 40 ? ua.substring(0, 40) + '…' : ua || '—';
                   return (
                     <tr key={log.id as string}>
                       <td>
                         <span className="activity-event">
-                          <span>{evtInfo.icon}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>{evtInfo.icon}</span>
                           <span>{evtInfo.label}</span>
                         </span>
                       </td>

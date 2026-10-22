@@ -129,10 +129,10 @@
 /* Occupancy pill (non-clickable) */
 .ut-occ-pill {
   cursor: default;
-  border-color: rgba(108,92,231,0.25);
-  background: rgba(108,92,231,0.07);
+  border-color: rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.08);
 }
-.ut-occ-pill .usp-count { color: #6c5ce7; }
+.ut-occ-pill .usp-count { color: var(--accent, #10b981); }
 .ut-occ-pill::before { display: none; }
 
 .ut-clear-all {
@@ -179,8 +179,8 @@
   background-position: right 7px center;
 }
 .ut-filter-select select:focus {
-  border-color: rgba(108,92,231,0.5);
-  box-shadow: 0 0 0 3px rgba(108,92,231,0.08);
+  border-color: var(--accent, #10b981);
+  box-shadow: 0 0 0 3px var(--accent-glow, rgba(16, 185, 129, 0.12));
 }
 .ut-filter-select optgroup { background: #1a1f2e; font-weight: 700; }
 .ut-filter-select option { background: #1a1f2e; }
@@ -317,11 +317,16 @@
   border-left: 2px solid transparent;
   font-family: inherit;
 }
-.tower-item:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+.tower-item svg {
+  color: var(--accent, #10b981);
+  fill: rgba(16, 185, 129, 0.22);
+  flex-shrink: 0;
+}
+.tower-item:hover { background: rgba(16, 185, 129, 0.08); color: var(--accent, #10b981); }
 .tower-item.active {
-  background: rgba(108,92,231,0.08);
-  color: #8b5cf6;
-  border-left-color: #8b5cf6;
+  background: rgba(16, 185, 129, 0.14);
+  color: var(--accent, #10b981);
+  border-left-color: var(--accent, #10b981);
   font-weight: 600;
 }
 .tower-item-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -488,7 +493,7 @@
   z-index: 10;
 }
 .unit-cell.selected {
-  box-shadow: 0 0 0 2px #8b5cf6, 0 4px 14px rgba(139,92,246,0.4);
+  box-shadow: 0 0 0 2px var(--accent, #10b981), 0 4px 14px rgba(16, 185, 129, 0.4);
   z-index: 11;
 }
 .cell-dot {
@@ -828,9 +833,12 @@
   justify-content: center;
   transition: all 0.15s;
 }
-.ul-del:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
+.ul-del:hover,
+.row-actions .ul-del:hover,
+[data-theme="light"] .row-actions .ul-del:hover {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  color: #ef4444 !important;
 }
 
 /* ─── Pagination Bar (Tenants List Format) ─────── */
@@ -926,7 +934,7 @@
   position: relative;
 }
 .ug-card:hover {
-  border-color: rgba(139,92,246,0.35);
+  border-color: rgba(16, 185, 129, 0.35);
   box-shadow: 0 6px 20px rgba(0,0,0,0.25);
   transform: translateY(-3px);
 }
@@ -1064,8 +1072,8 @@
   transition: border-color 0.18s, box-shadow 0.18s;
 }
 .cu-unitno-combo:focus-within {
-  border-color: rgba(108,92,231,0.5);
-  box-shadow: 0 0 0 3px rgba(108,92,231,0.08);
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 .cu-unitno-prefix {
   display: flex; align-items: center;
@@ -1100,8 +1108,8 @@
 .cu-field input:focus,
 .cu-field select:focus,
 .cu-field textarea:focus {
-  border-color: rgba(108,92,231,0.5);
-  box-shadow: 0 0 0 3px rgba(108,92,231,0.08);
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 .cu-field select option {
   background: #1a1f2e;
@@ -1109,7 +1117,7 @@
 }
 .cu-field select optgroup {
   background: #121622;
-  color: #a78bfa;
+  color: #34d399;
   font-weight: 700;
   font-style: normal;
 }
@@ -1244,8 +1252,8 @@
   box-shadow: 0 2px 8px color-mix(in srgb, var(--sc, var(--accent)) 15%, transparent);
 }
 [data-theme="light"] .ut-occ-pill {
-  border-color: rgba(108,92,231,0.2);
-  background: rgba(108,92,231,0.05);
+  border-color: rgba(5, 150, 105, 0.2);
+  background: rgba(5, 150, 105, 0.06);
 }
 [data-theme="light"] .ut-clear-all {
   background: rgba(0,0,0,0.04);
@@ -1273,10 +1281,10 @@
   background: rgba(0,0,0,0.01);
 }
 [data-theme="light"] .tower-sidebar-header { border-bottom-color: rgba(0,0,0,0.05); }
-[data-theme="light"] .tower-item:hover { background: rgba(0,0,0,0.04); }
+[data-theme="light"] .tower-item:hover { background: rgba(5, 150, 105, 0.08); color: var(--accent, #059669); }
 [data-theme="light"] .tower-item.active {
-  background: var(--accent-subtle); color: var(--accent);
-  border-left-color: var(--accent);
+  background: rgba(5, 150, 105, 0.14); color: var(--accent, #059669);
+  border-left-color: var(--accent, #059669);
 }
 [data-theme="light"] .unit-table-wrap {
   background: #ffffff;
@@ -1343,7 +1351,7 @@
 }
 [data-theme="light"] .cu-field select optgroup {
   background: #f1f5f9;
-  color: #6c5ce7;
+  color: var(--accent, #059669);
   font-weight: 700;
   font-style: normal;
 }
@@ -1454,7 +1462,7 @@
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: all 0.15s;
 }
-.cal-nav:hover { background: rgba(108,92,231,0.15); color: #8b5cf6; border-color: rgba(108,92,231,0.3); }
+.cal-nav:hover { background: rgba(16, 185, 129, 0.15); color: var(--accent, #10b981); border-color: rgba(16, 185, 129, 0.3); }
 
 /* Summary bar */
 .cal-summary {
@@ -1488,11 +1496,11 @@
 .cal-day:hover:not(.empty) { border-color: rgba(255,255,255,0.12); }
 .cal-day.empty { background: transparent; border-color: transparent; }
 .cal-day.today {
-  border-color: rgba(108,92,231,0.4);
-  background: rgba(108,92,231,0.05);
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.05);
 }
 .cal-date { font-size: 0.72rem; font-weight: 700; }
-.cal-day.today .cal-date { color: #8b5cf6; }
+.cal-day.today .cal-date { color: var(--accent, #10b981); }
 
 .cal-day-dots { display: flex; flex-wrap: wrap; gap: 2px; }
 .cal-dot-bar {
@@ -1533,7 +1541,7 @@
 }
 [data-theme="light"] .cal-day:hover:not(.empty) { border-color: rgba(0,0,0,0.14); }
 [data-theme="light"] .cal-day.today {
-  border-color: rgba(108,92,231,0.3); background: rgba(108,92,231,0.04);
+  border-color: rgba(5, 150, 105, 0.3); background: rgba(5, 150, 105, 0.04);
 }
 [data-theme="light"] .cal-unit-row {
   background: rgba(0,0,0,0.01); border-color: rgba(0,0,0,0.06);
@@ -1547,10 +1555,10 @@
   gap: 4px;
   padding: 3px 10px;
   border-radius: 6px;
-  background: rgba(108,92,231,0.08);
-  border: 1px solid rgba(108,92,231,0.15);
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
   font-size: 0.72rem;
   font-weight: 700;
-  color: #8b5cf6;
+  color: var(--accent, #10b981);
 }
 .ut-total-badge svg { opacity: 0.7; }

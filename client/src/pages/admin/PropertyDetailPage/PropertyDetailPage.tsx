@@ -337,7 +337,7 @@ const FACILITY_ICONS: Record<string, ReactNode> = {
   wifi:           <Wifi size={18} />,
 };
 const FACILITY_CAT_COLORS: Record<string, string> = {
-  recreation:  '#6c5ce7',
+  recreation:  '#10b981',
   convenience: '#0984e3',
   security:    '#e74c3c',
   utility:     '#00b894',
@@ -396,7 +396,7 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
       <div className="section-header">
         <h3>Facilities &amp; Amenities</h3>
         <PermissionGuard permission="properties.update">
-          <button className="btn-secondary" onClick={() => { setAdding(!adding); if (adding) resetForm(); }}>
+          <button className="btn btn-primary" onClick={() => { setAdding(!adding); if (adding) resetForm(); }}>
             <Plus size={14} /> Add Facility
           </button>
         </PermissionGuard>
@@ -465,7 +465,7 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
         <div className="facilities-grid">
           {facilities.map((f) => {
             const iconKey = f.facilityType?.icon || '';
-            const catColor = FACILITY_CAT_COLORS[f.facilityType?.category || ''] || '#6c5ce7';
+            const catColor = FACILITY_CAT_COLORS[f.facilityType?.category || ''] || '#10b981';
             return (
               <div key={f.id} className="facility-card">
                 <div className="facility-icon" style={{ background: `${catColor}18`, color: catColor }}>
@@ -559,7 +559,7 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
       <div className="section-header">
         <h3>Key Contacts</h3>
         <PermissionGuard permission="properties.update">
-          <button className="btn-secondary" onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...BLANK_CONTACT }); }}>
+          <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...BLANK_CONTACT }); }}>
             <Plus size={14} /> {showForm ? 'Cancel' : 'Add Contact'}
           </button>
         </PermissionGuard>
@@ -603,7 +603,7 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
             {contacts.map((c) => (
               <div key={c.id} className="contact-card">
                 {c.isPrimary && <span className="primary-badge"><Star size={11} /> Primary</span>}
-                <div className="contact-avatar" style={{ background: c.isPrimary ? 'rgba(243,156,18,0.15)' : 'rgba(108,92,231,0.12)', color: c.isPrimary ? '#f39c12' : '#6c5ce7' }}>
+                <div className="contact-avatar" style={{ background: c.isPrimary ? 'rgba(243,156,18,0.15)' : 'rgba(16,185,129,0.12)', color: c.isPrimary ? '#f39c12' : '#10b981' }}>
                   {c.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="contact-body">
@@ -717,7 +717,7 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
         <div className="section-header-actions">
           {photos.length > 1 && <span className="drag-hint"><GripVertical size={12} /> Drag to reorder</span>}
           <PermissionGuard permission="properties.update">
-            <label className="btn-secondary upload-label">
+            <label className="btn btn-primary upload-label">
               <Upload size={14} /> Upload Photos
               <input type="file" multiple accept="image/*" hidden onChange={handleUpload} />
             </label>
@@ -876,7 +876,7 @@ function SettingsTab({ property }: { property: any }) {
         <h3>Property Settings</h3>
         <PermissionGuard permission="properties.update">
           <button
-            className="btn-primary"
+            className="btn btn-primary"
             onClick={handleSave}
             disabled={isLoading}
             style={{ gap: 6 }}
@@ -917,6 +917,21 @@ function SettingsTab({ property }: { property: any }) {
           />
         </div>
 
+        {/* Timezone */}
+        <div className="settings-field">
+          <label className="settings-field-label">
+            <Clock size={14} /> Timezone
+          </label>
+          <div className="settings-field-desc">Used for invoice dates and lease expiry calculations</div>
+          <select
+            className="settings-select"
+            value={form.timezone}
+            onChange={e => set('timezone', e.target.value)}
+          >
+            {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+          </select>
+        </div>
+
         {/* Currency */}
         <div className="settings-field">
           <label className="settings-field-label">
@@ -932,21 +947,6 @@ function SettingsTab({ property }: { property: any }) {
             {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-
-        {/* Timezone */}
-        <div className="settings-field">
-          <label className="settings-field-label">
-            <Clock size={14} /> Timezone
-          </label>
-          <div className="settings-field-desc">Used for invoice dates and lease expiry calculations</div>
-          <select
-            className="settings-select"
-            value={form.timezone}
-            onChange={e => set('timezone', e.target.value)}
-          >
-            {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-          </select>
-        </div>
       </div>
 
       {/* Current values summary */}
@@ -955,8 +955,8 @@ function SettingsTab({ property }: { property: any }) {
         <div className="settings-grid">
           <div className="setting-row"><span className="setting-label">Billing Cycle</span><span className="capitalize">{property.billingCycle}</span></div>
           <div className="setting-row"><span className="setting-label">Billing Day</span><span>{property.billingDay}</span></div>
-          <div className="setting-row"><span className="setting-label">Currency</span><span>{property.currency}</span></div>
           <div className="setting-row"><span className="setting-label">Timezone</span><span>{property.timezone}</span></div>
+          <div className="setting-row"><span className="setting-label">Currency</span><span>{property.currency}</span></div>
         </div>
         <p className="settings-note">Changes take effect on the next billing cycle.</p>
       </div>
@@ -989,7 +989,7 @@ function LeasesTab({ propertyId }: { propertyId: string }) {
               <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
             ))}
           </select>
-          <Link to="/admin/leases/new" className="btn-secondary" style={{ textDecoration: 'none' }}>
+          <Link to="/admin/leases/new" className="btn btn-primary" style={{ textDecoration: 'none' }}>
             <Plus size={14} /> New Lease
           </Link>
         </div>
@@ -1079,7 +1079,7 @@ function DocumentsTab({ propertyId }: { propertyId: string }) {
     <div className="tab-section">
       <div className="section-header">
         <h3><FileText size={16} /> Documents</h3>
-        <Link to="/admin/documents" className="btn-secondary" style={{ textDecoration: 'none' }}>
+        <Link to="/admin/documents" className="btn btn-primary" style={{ textDecoration: 'none' }}>
           <Plus size={14} /> Manage Documents
         </Link>
       </div>
@@ -1144,7 +1144,7 @@ function FinanceTab({ property }: { property: any }) {
     <div className="tab-section">
       <div className="section-header">
         <h3><DollarSign size={16} /> Finance Overview</h3>
-        <Link to="/admin/billing" className="btn-secondary" style={{ textDecoration: 'none' }}>
+        <Link to="/admin/billing" className="btn btn-primary" style={{ textDecoration: 'none' }}>
           <DollarSign size={14} /> Billing Dashboard
         </Link>
       </div>

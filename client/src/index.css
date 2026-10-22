@@ -90,7 +90,7 @@
   --bg-secondary: #ffffff;
   --surface: #ffffff;
   --surface-elevated: #e2e8f0;
-  --surface-hover: #e5edf5;
+  --surface-hover: #dcf3e7;
   --surface-card: #ffffff;
   --border: #cbd5e1;
   --border-subtle: #dbe4ef;
@@ -1015,6 +1015,7 @@ div:focus-within > .currency-addon {
 }
 
 [data-theme="light"] .btn-primary:hover {
+  background: linear-gradient(135deg, #047857, #059669) !important;
   box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35) !important;
   transform: translateY(-1px);
 }
@@ -1115,11 +1116,13 @@ div:focus-within > .currency-addon {
 }
 
 [data-theme="light"] .modal-header {
+  background: #ffffff;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 [data-theme="light"] .modal-footer,
 [data-theme="light"] .modal-actions {
+  background: #ffffff;
   border-top: 1px solid var(--border-subtle);
 }
 
@@ -1382,6 +1385,7 @@ input.input-full:focus {
   box-shadow: 0 2px 8px var(--accent-glow);
 }
 .btn-primary:hover {
+  background: linear-gradient(135deg, #047857, #059669);
   box-shadow: 0 4px 16px var(--accent-glow);
   transform: translateY(-1px);
 }
@@ -3973,6 +3977,7 @@ input.input-full:focus {
   width: 90%;
   max-width: 480px;
   max-height: 90vh;
+  overflow-x: hidden;
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -4009,6 +4014,10 @@ input.input-full:focus {
   justify-content: space-between;
   padding: 20px 24px;
   border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
 }
 
 .modal-header h2 {
@@ -4027,8 +4036,13 @@ input.input-full:focus {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding-top: 12px;
+  margin: 4px 0 -24px;
+  padding: 14px 0;
   border-top: 1px solid var(--border-subtle);
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--surface);
 }
 
 .form-row-2 {
@@ -4930,13 +4944,22 @@ select.input-full:focus {
 
 .org-card-icon {
   width: 40px;
+  color: var(--accent);
   height: 40px;
   border-radius: var(--radius-md);
-  background: var(--accent-subtle);
+  background: rgba(16, 185, 129, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.org-card-icon svg,
+.org-card-details span svg,
+.logo-placeholder svg {
+  color: var(--accent);
+  fill: rgba(16, 185, 129, 0.22);
   flex-shrink: 0;
 }
 
@@ -4960,22 +4983,31 @@ select.input-full:focus {
 .org-card-details {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
 
-.org-card-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-subtle);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
+.org-card-details span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.org-card:hover .org-card-actions { opacity: 1; }
+.org-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.btn-icon[title="Delete"]:hover,
+[data-theme="light"] .btn-icon[title="Delete"]:hover {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+}
 
 /* ─── Feature Flags ─────────────────────────── */
 .feature-flags-list {
@@ -6189,9 +6221,13 @@ select.input-full:focus {
   gap: 0;
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: 24px;
+  flex-wrap: wrap;
 }
 
 .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 10px 20px;
   background: none;
   border: none;
@@ -6200,6 +6236,12 @@ select.input-full:focus {
   cursor: pointer;
   font-size: 14px; font-weight: 500;
   transition: all 0.2s;
+}
+
+.tab svg {
+  color: var(--accent, #10b981);
+  fill: rgba(16, 185, 129, 0.22);
+  flex-shrink: 0;
 }
 
 .tab:hover {
@@ -13637,3 +13679,48 @@ textarea.input-error,
   color: #64748b;
 }
 
+
+/* ── User Management: responsive layout ── */
+@media (max-width: 900px) {
+  .users-toolbar { flex-wrap: wrap; gap: 10px; }
+  .users-toolbar .users-search-wrap { flex: 1 1 100%; max-width: none; }
+  .users-filter-pills { flex-wrap: wrap; }
+}
+@media (max-width: 720px) {
+  #users-table, #users-table thead, #users-table tbody, #users-table tr, #users-table td { display: block; width: 100%; box-sizing: border-box; }
+  #users-table thead { display: none; }
+  #users-table tbody tr {
+    position: relative; margin-bottom: 10px; padding: 10px 12px; border: 1px solid var(--border-color, var(--border));
+    border-radius: 10px; background: var(--surface);
+  }
+  #users-table tbody tr td {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 6px 0 !important; border: none !important; text-align: right;
+  }
+  #users-table tbody tr td[data-label]::before {
+    content: attr(data-label); flex-shrink: 0; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--text-muted); text-align: left;
+  }
+  #users-table tbody tr td[data-label='User'] { justify-content: flex-start; }
+  #users-table tbody tr td[data-label='User']::before { display: none; }
+  #users-table .role-chips { justify-content: flex-end; flex-wrap: wrap; }
+  #users-table td.users-actions-cell { position: absolute; top: 8px; right: 8px; width: auto; padding: 0 !important; }
+  #users-table tbody tr:last-child td { border: none !important; }
+  .users-pagination { flex-wrap: wrap; gap: 8px; justify-content: center; }
+}
+/* ── Primary button: keep green (page-level CSS files define purple .btn-primary rules that leak globally) ── */
+.btn-primary:not(:disabled),
+.btn.btn-primary:not(:disabled),
+.btn-primary-sm:not(:disabled) {
+  background: var(--gradient-primary) !important;
+  color: #fff !important;
+  border: none !important;
+}
+.btn-primary:hover:not(:disabled),
+.btn.btn-primary:hover:not(:disabled),
+.btn-primary-sm:hover:not(:disabled) {
+  background: linear-gradient(135deg, #047857, #059669) !important;
+  box-shadow: 0 4px 16px var(--accent-glow) !important;
+  transform: translateY(-1px);
+  filter: none;
+}

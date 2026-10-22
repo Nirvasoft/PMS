@@ -17,6 +17,7 @@ export class TokenService {
   async issueTokens(
     user: { id: string; email: string; companyId: string },
     options: {
+      family?: string;
       deviceId?: string;
       rememberMe?: boolean;
       roles?: string[];
@@ -24,7 +25,7 @@ export class TokenService {
     } = {},
   ): Promise<AuthTokens> {
     const { deviceId, rememberMe = false, roles = [], permissions = [] } = options;
-    const family = uuidv4();
+    const family = options.family || uuidv4();
     const jti = uuidv4();
 
     // Access token
@@ -73,6 +74,26 @@ export class TokenService {
       tokenType: 'Bearer',
       rememberMe,
     };
+  }
+
+  /**
+   * Cache newly rotated tokens briefly by old token hash so concurrent requests
+   * with the just-rotated cookie receive the new token pair instead of failing.
+   */
+  async setRotatedGraceTokens(rawToken: string, tokens: AuthTokens, ttlSeconds = 30): Promise<void> {
+    const tokenHash = this.hashToken(rawToken);
+    await redis.set(`refresh_grace:${tokenHash}`, JSON.stringify(tokens), 'EX', ttlSeconds);
+  }
+
+  async getRotatedGraceTokens(rawToken: string): Promise<AuthTokens | null> {
+    const tokenHash = this.hashToken(rawToken);
+    const cached = await redis.get(`refresh_grace:${tokenHash}`);
+    if (!cached) return null;
+    try {
+      return JSON.parse(cached) as AuthTokens;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -155,6 +176,16 @@ export class TokenService {
 
     if (dbToken) {
       if (dbToken.revokedAt) {
+        // Allow a 30-second grace window for concurrent requests when a token was just rotated
+        const isRecentRotation =
+          dbToken.revokeReason === 'rotated' &&
+          Date.now() - dbToken.revokedAt.getTime() < 30_000;
+        if (isRecentRotation) {
+          const rememberMe =
+            dbToken.expiresAt.getTime() - dbToken.issuedAt.getTime() > config.jwt.refreshExpiry * 1000;
+          return { family: dbToken.family, deviceId: dbToken.deviceId, rememberMe };
+        }
+
         // TOKEN REUSE DETECTED — revoke entire family
         logger.warn('Refresh token reuse detected!', {
           userId,

@@ -13,7 +13,7 @@ import { useConfirm } from '../../../components/DialogProvider';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Mail, Undo2, Clock, CheckCircle, UserPlus, Users, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { Mail, Undo2, Clock, CheckCircle, UserPlus, Users, Search, ChevronLeft, ChevronRight, Eye, Upload } from 'lucide-react';
 import { BulkImportTab } from './BulkImportTab';
 
 export default function UsersPage() {
@@ -82,7 +82,7 @@ export default function UsersPage() {
           <Mail size={15} /> Invitations
         </button>
         <button className={`tab ${tab === 'import' ? 'active' : ''}`} onClick={() => setTab('import')}>
-          📂 Bulk Import
+          <Upload size={15} /> Bulk Import
         </button>
       </div>
 
@@ -107,7 +107,7 @@ export default function UsersPage() {
             {(['all', 'active', 'inactive'] as const).map((s) => (
               <button key={s} className={`filter-pill ${statusFilter === s ? 'active' : ''}`}
                 onClick={() => { setStatusFilter(s); setPage(1); }}>
-                {s === 'all' ? 'All' : s === 'active' ? '✅ Active' : '🚫 Inactive'}
+                {s === 'all' ? 'All' : s === 'active' ? 'Active' : 'Inactive'}
               </button>
             ))}
           </div>
@@ -132,28 +132,28 @@ export default function UsersPage() {
                 <tbody>
                   {users.map((user) => (
                     <tr key={user.id}>
-                      <td>
+                      <td data-label="User">
                         <div className="user-cell">
                           <UserAvatar url={user.avatarUrl} name={user.fullName} />
                           <div className="user-cell-name">{user.fullName}</div>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Roles">
                         <div className="role-chips">
                           {user.roles.map((r) => (
                             <span key={r.id} className="role-chip">{r.name}</span>
                           ))}
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Status">
                         <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
                           {user.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td className="text-muted text-small">
+                      <td data-label="Last Login" className="text-muted text-small">
                         {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td className="users-actions-cell" style={{ textAlign: 'center' }}>
                         <Link to={`/admin/users/${user.id}`} className="btn-icon" title="View" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Eye size={15} />
                         </Link>
@@ -493,7 +493,7 @@ function InvitationsTab() {
         <div className="audit-table-container">
           <table className="audit-table">
             <thead>
-              <tr><th>Email</th><th>Role</th><th>Status</th><th>Expires</th><th>Invited By</th><th>Actions</th></tr>
+              <tr><th>Email</th><th>Role</th><th>Status</th><th>Expires</th><th>Invited By</th><th style={{ width: 60 }}></th></tr>
             </thead>
             <tbody>
               {invitations.map(inv => (
@@ -511,7 +511,7 @@ function InvitationsTab() {
                   <td className="text-small text-muted">{inv.inviter.email}</td>
                   <td>
                     {!inv.acceptedAt && (
-                      <button className=" btn-danger" title="Revoke" onClick={async () => {
+                      <button className="btn-icon" title="Revoke" style={{ background: 'transparent', border: 'none', boxShadow: 'none', color: 'var(--text-secondary)' }} onClick={async () => {
                         if (!(await confirmDialog(`Revoke invitation for ${inv.email}?`, { danger: true, confirmText: 'Revoke' }))) return;
                         try { await revokeInvite(inv.id).unwrap(); toast.success('Invitation revoked'); }
                         catch { toast.error('Failed to revoke'); }

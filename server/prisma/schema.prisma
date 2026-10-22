@@ -2824,7 +2824,7 @@ model ChargeCategory {
   company  Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  @@unique([code, companyId, propertyId], name: "uq_charge_category_code_company")
+  @@unique([code, companyId], name: "uq_charge_category_code_company")
   @@index([companyId])
   @@index([propertyId])
   @@map("charge_categories")
@@ -2858,7 +2858,7 @@ model ChargeType {
   unitChargeHistory UnitChargeHistory[]    @relation("ChargeHistoryNewType")
   meterSetups       MeterSetup[]
 
-  @@unique([code, companyId, propertyId], name: "uq_charge_type_code_company")
+  @@unique([code, companyId], name: "uq_charge_type_code_company")
   @@index([category])
   @@index([propertyId])
   @@index([departmentCenterId])
@@ -3371,7 +3371,7 @@ model DepartmentCenter {
   billingSchedules BillingSchedule[]
   journalLines     JournalEntryLine[]
 
-  @@unique([code, companyId, propertyId])
+  @@unique([code, companyId])
   @@index([companyId])
   @@index([propertyId])
   @@map("department_centers")
@@ -3400,7 +3400,7 @@ model CostCenter {
   billingSchedules BillingSchedule[]
   journalLines     JournalEntryLine[]
 
-  @@unique([code, companyId, propertyId])
+  @@unique([code, companyId])
   @@index([companyId])
   @@index([propertyId])
   @@index([departmentCenterId])
@@ -3426,7 +3426,7 @@ model PaymentMethod {
   departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
   costCenter       CostCenter?       @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
 
-  @@unique([code, companyId, propertyId], name: "uq_payment_method_code_company")
+  @@unique([code, companyId], name: "uq_payment_method_code_company")
   @@index([companyId])
   @@index([propertyId])
   @@index([departmentCenterId])
@@ -3464,7 +3464,7 @@ model GlAccount {
   journalLines     JournalEntryLine[]
   budgets          Budget[]
 
-  @@unique([code, companyId, propertyId, departmentCenterId, costCenterId])
+  @@unique([code, companyId, departmentCenterId, costCenterId])
   @@index([companyId])
   @@index([propertyId])
   @@index([accountType])

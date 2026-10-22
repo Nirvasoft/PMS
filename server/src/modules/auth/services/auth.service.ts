@@ -328,8 +328,10 @@ export class AuthService {
     };
   }
 
+  private inFlightRefreshes = new Map<string, Promise<AuthTokens>>();
+
   /**
-   * Refresh token rotation
+   * Refresh token rotation (with in-flight deduplication and grace cache for concurrent requests)
    */
   async refreshTokens(
     refreshToken: string,
@@ -337,40 +339,60 @@ export class AuthService {
     companyId: string,
     context: RequestContext,
   ): Promise<AuthTokens> {
-    const { deviceId, rememberMe } = await tokenService.validateRefreshToken(refreshToken, userId);
+    const existingPromise = this.inFlightRefreshes.get(refreshToken);
+    if (existingPromise) {
+      return existingPromise;
+    }
 
-    // Revoke old token
-    await tokenService.revokeRefreshToken(refreshToken, userId, 'rotated');
+    const promise = (async (): Promise<AuthTokens> => {
+      const graceTokens = await tokenService.getRotatedGraceTokens(refreshToken);
+      if (graceTokens) {
+        return graceTokens;
+      }
 
-    // Set tenant context so RLS allows user lookup
-    await setTenantContext(companyId);
+      const { family, deviceId, rememberMe } = await tokenService.validateRefreshToken(refreshToken, userId);
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.isActive) throw AppError.tokenInvalid();
+      // Set tenant context so RLS allows user lookup
+      await setTenantContext(companyId);
 
-    // Resolve roles and permissions
-    const userRoles3 = await prisma.userRole.findMany({
-      where: { userId: user.id },
-      include: { role: { select: { name: true } } },
-    });
-    const roles = userRoles3.map((ur) => ur.role.name);
-    const permissions = await permissionResolver.getEffectivePermissions(user.id);
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user || !user.isActive) throw AppError.tokenInvalid();
 
-    // Issue new pair, preserving the "remember me" duration of the session being rotated
-    const tokens = await tokenService.issueTokens(
-      { id: user.id, email: user.email, companyId: user.companyId },
-      { deviceId: deviceId ?? undefined, rememberMe, roles, permissions },
-    );
+      // Resolve roles and permissions
+      const userRoles3 = await prisma.userRole.findMany({
+        where: { userId: user.id },
+        include: { role: { select: { name: true } } },
+      });
+      const roles = userRoles3.map((ur) => ur.role.name);
+      const permissions = await permissionResolver.getEffectivePermissions(user.id);
 
-    await auditService.log({
-      userId: user.id,
-      companyId: user.companyId,
-      eventType: AuthEventType.TOKEN_REFRESH,
-      status: 'success',
-      context,
-    });
+      // Revoke old token and issue new pair within the same session family
+      await tokenService.revokeRefreshToken(refreshToken, userId, 'rotated');
 
-    return tokens;
+      const tokens = await tokenService.issueTokens(
+        { id: user.id, email: user.email, companyId: user.companyId },
+        { family, deviceId: deviceId ?? undefined, rememberMe, roles, permissions },
+      );
+
+      await tokenService.setRotatedGraceTokens(refreshToken, tokens, 30);
+
+      await auditService.log({
+        userId: user.id,
+        companyId: user.companyId,
+        eventType: AuthEventType.TOKEN_REFRESH,
+        status: 'success',
+        context,
+      });
+
+      return tokens;
+    })();
+
+    this.inFlightRefreshes.set(refreshToken, promise);
+    try {
+      return await promise;
+    } finally {
+      this.inFlightRefreshes.delete(refreshToken);
+    }
   }
 
   /**
