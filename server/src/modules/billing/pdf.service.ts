@@ -451,7 +451,6 @@ export class InvoicePdfService {
 
     const grandTotal = convert(Number(invoice.totalAmount));
 
-    const MAX_ROWS_PER_PAGE = 15;
     const flatRows: Array<{
       isSingle?: boolean;
       isGroupHeader?: boolean;

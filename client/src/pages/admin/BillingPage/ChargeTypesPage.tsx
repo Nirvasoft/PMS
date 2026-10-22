@@ -102,7 +102,6 @@ export default function ChargeTypesPage() {
   const [pageSize, setPageSize] = useState(10);
 
   const hasFilterSelections = Boolean(categoryFilter || taxFilter || statusFilter);
-  const hasActiveFilters = Boolean(search.trim() || categoryFilter || taxFilter || statusFilter);
 
   const handleResetFilters = () => {
     setSearch('');

@@ -552,11 +552,7 @@ function KpiReportView({ data }: { data: any }) {
 
 function useChartTheme() {
   const themeMode = useAppSelector((s) => s.theme.mode);
-  const isLight =
-    themeMode === 'light' ||
-    (themeMode === 'system' &&
-      typeof window !== 'undefined' &&
-      !window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const isLight = themeMode === 'light';
 
   return {
     gridStroke: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)',

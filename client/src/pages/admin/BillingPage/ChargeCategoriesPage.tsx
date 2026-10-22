@@ -42,7 +42,6 @@ export default function ChargeCategoriesPage() {
   const [pageSize, setPageSize] = useState(10);
 
   const hasFilterSelections = Boolean(monthlyFilter || typeFilter);
-  const hasActiveFilters = Boolean(search.trim() || monthlyFilter || typeFilter);
 
   const handleResetFilters = () => {
     setSearch('');

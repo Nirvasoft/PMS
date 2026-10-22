@@ -21,8 +21,6 @@ import { TableScrollWrapper } from './components/TableScrollWrapper';
 import toast from 'react-hot-toast';
 import './BillingPage.css';
 
-const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
 const formatAmount = (amount: string | number) =>
   new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount) || 0);
 const formatCompactAmount = (amount: string | number) => {

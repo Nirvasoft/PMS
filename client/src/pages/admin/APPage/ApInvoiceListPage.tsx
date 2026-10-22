@@ -5,7 +5,6 @@ import {
   useApproveApInvoiceMutation, useRejectApInvoiceMutation,
 } from '../../../store/api/apApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
-import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   FileText, Plus, X, Clock, CheckCircle, AlertTriangle,
@@ -44,17 +43,12 @@ export default function ApInvoiceListPage() {
     propertyId: selectedProperty || undefined,
     page: String(page), limit: String(limit),
   });
-  const { data: chargeTypesRes } = useGetChargeTypesQuery(
-    selectedProperty ? { propertyId: selectedProperty } : undefined,
-  );
   const [createApInvoice, { isLoading: creating }] = useCreateApInvoiceMutation();
   const [approveApInvoice] = useApproveApInvoiceMutation();
   const [rejectApInvoice] = useRejectApInvoiceMutation();
 
   const invoices = invoicesData?.data || [];
   const meta = invoicesData?.meta;
-  const chargeTypes = (chargeTypesRes as any)?.data || [];
-  void chargeTypes;
 
   // Stats
   const stats = useMemo(() => {

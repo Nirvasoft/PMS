@@ -51,7 +51,7 @@ async function runAsyncImportJob<T>(
   action: 'preview' | 'import',
   { propertyId, type, formData }: Args,
   signal: AbortSignal,
-  baseQuery: (arg: { url: string; method: string; body?: FormData }) => Promise<{ data?: unknown; error?: FetchBaseQueryError }>,
+  baseQuery: (arg: { url: string; method: string; body?: FormData }) => PromiseLike<{ data?: unknown; error?: FetchBaseQueryError }> | { data?: unknown; error?: FetchBaseQueryError },
 ): Promise<{ data: ApiResponse<T> } | { error: FetchBaseQueryError }> {
   const startRes = await baseQuery({
     url: `/properties/${propertyId}/general-import/${type}/${action}?async=1`,

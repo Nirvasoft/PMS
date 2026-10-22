@@ -201,18 +201,6 @@ export class PenaltyService {
     return applied;
   }
 
-  private async getPenaltyConfig(companyId: string, propertyId: string) {
-    // Try property-specific first, then company-wide
-    const specific = await prisma.penaltyConfiguration.findFirst({
-      where: { companyId, propertyId, isActive: true },
-    });
-    if (specific) return specific;
-
-    return prisma.penaltyConfiguration.findFirst({
-      where: { companyId, propertyId: null, isActive: true },
-    });
-  }
-
   /**
    * Tiered penalty: different rates for different overdue day ranges.
    * tieredConfig shape: [{ dayFrom: 1, dayTo: 30, rate: 0.01 }, { dayFrom: 31, dayTo: 60, rate: 0.02 }, ...]
