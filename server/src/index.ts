@@ -330,6 +330,8 @@ async function bootstrap() {
     setImmediate(async () => {
       try {
         await connectDatabase();
+        const { ensurePropertySetupScope } = await import('./common/propertySetupScope');
+        await ensurePropertySetupScope();
 
         // Seed reference data in parallel
         const [
