@@ -743,25 +743,27 @@ export default function CurrencyRatesPage() {
                 </div>
 
                 <div className="cr-conversion-preview">
-                  <div className="cr-conversion-row">
-                    <span className="cr-conversion-label">1.00 {form.currency || '—'}</span>
-                    <span className="cr-conversion-eq">=</span>
-                    <span className="cr-conversion-value">
-                      {formRateNum > 0
-                        ? <>{forwardValue.toLocaleString(undefined, { maximumFractionDigits: 6 })} <strong>{displayBaseCurrency}</strong></>
-                        : <span className="cr-conversion-empty">—</span>}
-                    </span>
-                  </div>
-                  <div className="cr-conversion-divider" />
-                  <div className="cr-conversion-row">
-                    <span className="cr-conversion-label">1.00 {displayBaseCurrency || '—'} <span className="cr-conversion-base-tag">base</span></span>
-                    <span className="cr-conversion-eq">=</span>
-                    <span className="cr-conversion-value">
-                      {formRateNum > 0
-                        ? <>{inverseValue.toLocaleString(undefined, { maximumFractionDigits: 6 })} <strong>{form.currency || '—'}</strong></>
-                        : <span className="cr-conversion-empty">—</span>}
-                    </span>
-                  </div>
+                  {form.operator === 'divide' ? (
+                    <div className="cr-conversion-row">
+                      <span className="cr-conversion-label">1.00 {displayBaseCurrency || '—'} <span className="cr-conversion-base-tag">base</span></span>
+                      <span className="cr-conversion-eq">=</span>
+                      <span className="cr-conversion-value">
+                        {formRateNum > 0
+                          ? <>{inverseValue.toLocaleString(undefined, { maximumFractionDigits: 6 })} <strong>{form.currency || '—'}</strong></>
+                          : <span className="cr-conversion-empty">—</span>}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="cr-conversion-row">
+                      <span className="cr-conversion-label">1.00 {form.currency || '—'}</span>
+                      <span className="cr-conversion-eq">=</span>
+                      <span className="cr-conversion-value">
+                        {formRateNum > 0
+                          ? <>{forwardValue.toLocaleString(undefined, { maximumFractionDigits: 6 })} <strong>{displayBaseCurrency}</strong></>
+                          : <span className="cr-conversion-empty">—</span>}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
