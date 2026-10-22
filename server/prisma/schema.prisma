@@ -59,7 +59,8 @@ model Company {
   businessUnits BusinessUnit[]
   properties    Property[]
   floorSetups   FloorSetup[]
-  currencyRates CurrencyRate[]
+  currencyRates         CurrencyRate[]
+  currencyRateHistories CurrencyRateHistory[]
 
   // Relations — Workflow (Module 1.4)
   workflowDefinitions WorkflowDefinition[]
@@ -348,7 +349,8 @@ model User {
   unitStatusChanges  UnitStatusHistory[]   @relation("UnitStatusChanger")
   meterReadingsTaken MeterReadingHistory[] @relation("MeterReadingRecorder")
   unitChargeChanges  UnitChargeHistory[]   @relation("UnitChargeChanger")
-  meterRateChanges   MeterSetupHistory[]   @relation("MeterRateChanger")
+  meterRateChanges    MeterSetupHistory[]   @relation("MeterRateChanger")
+  currencyRateChanges CurrencyRateHistory[] @relation("CurrencyRateChanger")
 
   // Relations — Tenants (Module 2.3)
   kycVerifications    Tenant[]             @relation("KycVerifier")
@@ -983,7 +985,8 @@ model Property {
   utilityMeters UtilityMeter[]
   floorSetups   FloorSetup[]
   roleProperties RoleProperty[]
-  currencyRates CurrencyRate[]
+  currencyRates         CurrencyRate[]
+  currencyRateHistories CurrencyRateHistory[]
 
   // Relations — Tenants (Module 2.3)
   blacklistScoped TenantBlacklistLog[]
@@ -2992,8 +2995,9 @@ model CurrencyRate {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property Property?             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  history  CurrencyRateHistory[]
 
   // One rate history — multiple dated entries per currency pair are expected.
   @@unique([propertyId, baseCurrency, currency, effectiveDate], map: "uq_currency_rate_property_pair_date")
@@ -3001,6 +3005,33 @@ model CurrencyRate {
   @@index([propertyId])
   @@index([propertyId, currency])
   @@map("currency_rates")
+}
+
+model CurrencyRateHistory {
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  propertyId     String?  @map("property_id") @db.Uuid
+  currencyRateId String?  @map("currency_rate_id") @db.Uuid
+  currency       String   @db.VarChar(10)
+  baseCurrency   String   @map("base_currency") @db.VarChar(10)
+  operator       String   @default("multiply") @db.VarChar(10)
+  oldRate        Decimal? @map("old_rate") @db.Decimal(18, 6)
+  newRate        Decimal? @map("new_rate") @db.Decimal(18, 6)
+  action         String   @db.VarChar(30) // 'create' | 'update' | 'delete'
+  remarks        String?  @db.VarChar(255)
+  changedBy      String?  @map("changed_by") @db.Uuid
+  changedAt      DateTime @default(now()) @map("changed_at") @db.Timestamptz
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property      Property?     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  currencyRate  CurrencyRate? @relation(fields: [currencyRateId], references: [id], onDelete: SetNull)
+  changedByUser User?         @relation("CurrencyRateChanger", fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([propertyId])
+  @@index([currencyRateId])
+  @@index([propertyId, currency])
+  @@map("currency_rate_history")
 }
 
 model BillingSchedule {

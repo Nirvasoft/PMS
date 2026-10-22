@@ -45,6 +45,81 @@ const ISO_META: Record<string, { description: string; symbol: string }> = {
   ZAR: { description: 'South African Rand',  symbol: 'R'    },
 };
 
+let historyTablePromise: Promise<void> | null = null;
+
+async function ensureCurrencyRateHistoryTable(): Promise<void> {
+  if (!historyTablePromise) {
+    historyTablePromise = (async () => {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "currency_rate_history" (
+          "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+          "company_id" UUID NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+          "property_id" UUID REFERENCES "properties"("id") ON DELETE CASCADE,
+          "currency_rate_id" UUID REFERENCES "currency_rates"("id") ON DELETE SET NULL,
+          "currency" VARCHAR(10) NOT NULL,
+          "base_currency" VARCHAR(10) NOT NULL,
+          "operator" VARCHAR(10) NOT NULL DEFAULT 'multiply',
+          "old_rate" DECIMAL(18, 6),
+          "new_rate" DECIMAL(18, 6),
+          "action" VARCHAR(30) NOT NULL,
+          "remarks" VARCHAR(255),
+          "changed_by" UUID REFERENCES "users"("id") ON DELETE SET NULL,
+          "changed_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "currency_rate_history_pkey" PRIMARY KEY ("id")
+        )
+      `);
+      await prisma.$executeRawUnsafe(
+        `CREATE INDEX IF NOT EXISTS "currency_rate_history_company_id_idx" ON "currency_rate_history"("company_id")`,
+      );
+      await prisma.$executeRawUnsafe(
+        `CREATE INDEX IF NOT EXISTS "currency_rate_history_property_id_idx" ON "currency_rate_history"("property_id")`,
+      );
+      await prisma.$executeRawUnsafe(
+        `CREATE INDEX IF NOT EXISTS "currency_rate_history_currency_rate_id_idx" ON "currency_rate_history"("currency_rate_id")`,
+      );
+      await prisma.$executeRawUnsafe(
+        `CREATE INDEX IF NOT EXISTS "currency_rate_history_property_id_currency_idx" ON "currency_rate_history"("property_id", "currency")`,
+      );
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "currency_rate_history" (
+          "company_id",
+          "property_id",
+          "currency_rate_id",
+          "currency",
+          "base_currency",
+          "operator",
+          "old_rate",
+          "new_rate",
+          "action",
+          "remarks",
+          "changed_at"
+        )
+        SELECT
+          cr."company_id",
+          cr."property_id",
+          cr."id",
+          cr."currency",
+          cr."base_currency",
+          cr."operator",
+          NULL,
+          cr."rate",
+          'create',
+          cr."remarks",
+          cr."created_at"
+        FROM "currency_rates" cr
+        WHERE NOT EXISTS (
+          SELECT 1 FROM "currency_rate_history" h
+          WHERE h."currency_rate_id" = cr."id"
+        )
+      `);
+    })().catch((err) => {
+      logger.warn('[CurrencyRates] Could not ensure currency_rate_history table:', err);
+      historyTablePromise = null;
+    });
+  }
+  return historyTablePromise;
+}
+
 export class CurrencyRatesService {
   // The base currency isn't chosen per rate row — it's whichever currency was most
   // recently flagged isBaseCurrency for this property. Falls back to MMK before any
@@ -55,6 +130,51 @@ export class CurrencyRatesService {
       orderBy: { effectiveDate: 'desc' },
     });
     return base?.currency || 'MMK';
+  }
+
+  private async recordHistory(params: {
+    companyId: string;
+    propertyId: string | null;
+    currencyRateId: string | null;
+    currency: string;
+    baseCurrency: string;
+    operator: string;
+    oldRate: unknown;
+    newRate: unknown;
+    action: 'create' | 'update' | 'delete';
+    remarks: string | null;
+    changedBy?: string | null;
+  }): Promise<void> {
+    await ensureCurrencyRateHistoryTable();
+    const oldRateNum = params.oldRate !== null && params.oldRate !== undefined ? Number(params.oldRate) : null;
+    const newRateNum = params.newRate !== null && params.newRate !== undefined ? Number(params.newRate) : null;
+    await prisma.$executeRaw`
+      INSERT INTO "currency_rate_history" (
+        "company_id",
+        "property_id",
+        "currency_rate_id",
+        "currency",
+        "base_currency",
+        "operator",
+        "old_rate",
+        "new_rate",
+        "action",
+        "remarks",
+        "changed_by"
+      ) VALUES (
+        ${params.companyId}::uuid,
+        ${params.propertyId}::uuid,
+        ${params.currencyRateId}::uuid,
+        ${params.currency},
+        ${params.baseCurrency},
+        ${params.operator},
+        ${oldRateNum},
+        ${newRateNum},
+        ${params.action},
+        ${params.remarks},
+        ${params.changedBy || null}::uuid
+      )
+    `;
   }
 
   // Shared by create()/update() — a currency/base/effectiveDate combo must be unique
@@ -73,7 +193,99 @@ export class CurrencyRatesService {
     });
   }
 
-  async create(companyId: string, dto: Record<string, unknown>) {
+  async getHistory(
+    companyId: string,
+    query: { propertyId?: string; currencyRateId?: string; currency?: string } = {},
+  ) {
+    await ensureCurrencyRateHistoryTable();
+    const conditions: string[] = [`h."company_id" = $1::uuid`];
+    const values: unknown[] = [companyId];
+
+    if (query.propertyId) {
+      values.push(query.propertyId);
+      conditions.push(`h."property_id" = $${values.length}::uuid`);
+    }
+    if (query.currencyRateId) {
+      values.push(query.currencyRateId);
+      conditions.push(`h."currency_rate_id" = $${values.length}::uuid`);
+    }
+    if (query.currency) {
+      values.push(query.currency.trim().toUpperCase());
+      conditions.push(`h."currency" = $${values.length}`);
+    }
+
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      id: string;
+      company_id: string;
+      property_id: string | null;
+      currency_rate_id: string | null;
+      currency: string;
+      base_currency: string;
+      operator: string;
+      old_rate: string | number | null;
+      new_rate: string | number | null;
+      action: string;
+      remarks: string | null;
+      changed_by: string | null;
+      changed_at: Date;
+      user_id: string | null;
+      user_email: string | null;
+      first_name: string | null;
+      last_name: string | null;
+    }>>(
+      `SELECT
+        h."id",
+        h."company_id",
+        h."property_id",
+        h."currency_rate_id",
+        h."currency",
+        h."base_currency",
+        h."operator",
+        h."old_rate"::text AS "old_rate",
+        h."new_rate"::text AS "new_rate",
+        h."action",
+        h."remarks",
+        h."changed_by",
+        h."changed_at",
+        u."id" AS "user_id",
+        u."email" AS "user_email",
+        up."first_name",
+        up."last_name"
+      FROM "currency_rate_history" h
+      LEFT JOIN "users" u ON u."id" = h."changed_by"
+      LEFT JOIN "user_profiles" up ON up."user_id" = u."id"
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY h."changed_at" DESC`,
+      ...values,
+    );
+
+    return rows.map((r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      propertyId: r.property_id,
+      currencyRateId: r.currency_rate_id,
+      currency: r.currency,
+      baseCurrency: r.base_currency,
+      operator: r.operator,
+      oldRate: r.old_rate !== null ? String(r.old_rate) : null,
+      newRate: r.new_rate !== null ? String(r.new_rate) : null,
+      action: r.action,
+      remarks: r.remarks,
+      changedBy: r.changed_by,
+      changedAt: r.changed_at,
+      changedByUser: r.user_id
+        ? {
+            id: r.user_id,
+            email: r.user_email || '',
+            profile: (r.first_name || r.last_name)
+              ? { firstName: r.first_name || '', lastName: r.last_name || '' }
+              : null,
+          }
+        : null,
+    }));
+  }
+
+  async create(companyId: string, dto: Record<string, unknown>, userId?: string) {
     const propertyId = dto.propertyId as string;
     if (!propertyId) throw new AppError(400, 'PROPERTY_REQUIRED', 'Property is required');
 
@@ -108,7 +320,7 @@ export class CurrencyRatesService {
 
     await this.assertRateAvailable(propertyId, baseCurrency, currency, effectiveDate);
 
-    return prisma.currencyRate.create({
+    const created = await prisma.currencyRate.create({
       data: {
         companyId,
         propertyId,
@@ -123,9 +335,25 @@ export class CurrencyRatesService {
         remarks: (dto.remarks as string) || null,
       },
     });
+
+    await this.recordHistory({
+      companyId,
+      propertyId,
+      currencyRateId: created.id,
+      currency: created.currency,
+      baseCurrency: created.baseCurrency,
+      operator: created.operator,
+      oldRate: null,
+      newRate: created.rate,
+      action: 'create',
+      remarks: created.remarks,
+      changedBy: userId || null,
+    });
+
+    return created;
   }
 
-  async update(id: string, companyId: string, dto: Record<string, unknown>) {
+  async update(id: string, companyId: string, dto: Record<string, unknown>, userId?: string) {
     const currencyRate = await prisma.currencyRate.findFirst({ where: { id, companyId } });
     if (!currencyRate) throw AppError.notFound('Currency rate');
 
@@ -165,10 +393,26 @@ export class CurrencyRatesService {
     if (dto.remarks !== undefined) updateData.remarks = dto.remarks || null;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
 
-    return prisma.currencyRate.update({ where: { id }, data: updateData });
+    const updated = await prisma.currencyRate.update({ where: { id }, data: updateData });
+
+    await this.recordHistory({
+      companyId,
+      propertyId: updated.propertyId,
+      currencyRateId: updated.id,
+      currency: updated.currency,
+      baseCurrency: updated.baseCurrency,
+      operator: updated.operator,
+      oldRate: currencyRate.rate,
+      newRate: updated.rate,
+      action: 'update',
+      remarks: updated.remarks,
+      changedBy: userId || null,
+    });
+
+    return updated;
   }
 
-  async delete(id: string, companyId: string) {
+  async delete(id: string, companyId: string, userId?: string) {
     const currencyRate = await prisma.currencyRate.findFirst({ where: { id, companyId } });
     if (!currencyRate) throw AppError.notFound('Currency rate');
 
@@ -209,6 +453,20 @@ export class CurrencyRatesService {
         `Cannot delete ${currency} — it is used by ${totalUsage} existing record${totalUsage > 1 ? 's' : ''} (leases, invoices, or other transactions).`,
       );
     }
+
+    await this.recordHistory({
+      companyId,
+      propertyId: currencyRate.propertyId,
+      currencyRateId: currencyRate.id,
+      currency: currencyRate.currency,
+      baseCurrency: currencyRate.baseCurrency,
+      operator: currencyRate.operator,
+      oldRate: currencyRate.rate,
+      newRate: null,
+      action: 'delete',
+      remarks: currencyRate.remarks,
+      changedBy: userId || null,
+    });
 
     await prisma.currencyRate.delete({ where: { id } });
   }
@@ -251,7 +509,7 @@ export class CurrencyRatesService {
         });
         if (duplicate) return; // Already seeded.
 
-        await prisma.currencyRate.create({
+        const seeded = await prisma.currencyRate.create({
           data: {
             companyId,
             propertyId,
@@ -265,6 +523,20 @@ export class CurrencyRatesService {
             effectiveDate: today,
             remarks: 'Auto-seeded from property currency',
           },
+        });
+
+        await this.recordHistory({
+          companyId,
+          propertyId,
+          currencyRateId: seeded.id,
+          currency: seeded.currency,
+          baseCurrency: seeded.baseCurrency,
+          operator: seeded.operator,
+          oldRate: null,
+          newRate: seeded.rate,
+          action: 'create',
+          remarks: seeded.remarks,
+          changedBy: null,
         });
 
         logger.info(`[CurrencyRates] Seeded base currency ${code} for property ${propertyId}`);
@@ -291,7 +563,7 @@ export class CurrencyRatesService {
       }
 
       // Safe to rename in-place.
-      await prisma.currencyRate.update({
+      const updatedBase = await prisma.currencyRate.update({
         where: { id: existingBase.id },
         data: {
           currency: code,
@@ -300,6 +572,20 @@ export class CurrencyRatesService {
           symbol:      meta.symbol      ?? ISO_META[code]?.symbol      ?? existingBase.symbol      ?? null,
           remarks: `Auto-updated from property currency (was ${existingBase.currency})`,
         },
+      });
+
+      await this.recordHistory({
+        companyId,
+        propertyId,
+        currencyRateId: updatedBase.id,
+        currency: updatedBase.currency,
+        baseCurrency: updatedBase.baseCurrency,
+        operator: updatedBase.operator,
+        oldRate: existingBase.rate,
+        newRate: updatedBase.rate,
+        action: 'update',
+        remarks: updatedBase.remarks,
+        changedBy: null,
       });
 
       logger.info(

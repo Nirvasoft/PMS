@@ -87,18 +87,27 @@ currencyRatesRouter.get('/', requirePermission('currency-rate.read'), asyncHandl
   res.json({ success: true, data });
 }));
 
+currencyRatesRouter.get('/history', requirePermission('currency-rate.read'), asyncHandler(async (req, res) => {
+  const data = await currencyRatesService.getHistory(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+    currencyRateId: req.query.currencyRateId as string,
+    currency: req.query.currency as string,
+  });
+  res.json({ success: true, data });
+}));
+
 currencyRatesRouter.post('/', requirePermission('currency-rate.create'), validateRequest(createCurrencyRateSchema), asyncHandler(async (req, res) => {
-  const data = await currencyRatesService.create(req.user!.companyId, req.body);
+  const data = await currencyRatesService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
 
 currencyRatesRouter.put('/:id', requirePermission('currency-rate.update'), validateRequest(updateCurrencyRateSchema), asyncHandler(async (req, res) => {
-  const data = await currencyRatesService.update(p(req, 'id'), req.user!.companyId, req.body);
+  const data = await currencyRatesService.update(p(req, 'id'), req.user!.companyId, req.body, req.user!.sub);
   res.json({ success: true, data });
 }));
 
 currencyRatesRouter.delete('/:id', requirePermission('currency-rate.delete'), asyncHandler(async (req, res) => {
-  await currencyRatesService.delete(p(req, 'id'), req.user!.companyId);
+  await currencyRatesService.delete(p(req, 'id'), req.user!.companyId, req.user!.sub);
   res.json({ success: true });
 }));
 

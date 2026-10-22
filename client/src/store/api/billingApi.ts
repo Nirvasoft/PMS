@@ -46,6 +46,27 @@ export interface CurrencyRate {
   isActive: boolean;
 }
 
+export interface CurrencyRateHistory {
+  id: string;
+  companyId: string;
+  propertyId: string | null;
+  currencyRateId: string | null;
+  currency: string;
+  baseCurrency: string;
+  operator: 'multiply' | 'divide';
+  oldRate: string | null;
+  newRate: string | null;
+  action: 'create' | 'update' | 'delete';
+  remarks: string | null;
+  changedBy: string | null;
+  changedAt: string;
+  changedByUser: {
+    id: string;
+    email: string;
+    profile: { firstName: string; lastName: string } | null;
+  } | null;
+}
+
 export interface MeterSetup {
   id: string;
   propertyId: string;
@@ -252,6 +273,11 @@ export const billingApi = createApi({
       providesTags: ['CurrencyRates'],
     }),
 
+    getCurrencyRateHistory: builder.query<ApiResponse<CurrencyRateHistory[]>, { propertyId?: string; currencyRateId?: string; currency?: string } | void>({
+      query: (params) => ({ url: '/billing/currency-rates/history', params: params || {} }),
+      providesTags: ['CurrencyRates'],
+    }),
+
     createCurrencyRate: builder.mutation<ApiResponse<CurrencyRate>, Record<string, unknown>>({
       query: (body) => ({ url: '/billing/currency-rates', method: 'POST', body }),
       invalidatesTags: ['CurrencyRates'],
@@ -434,6 +460,7 @@ export const {
   useCreateChargeTypeMutation,
   useUpdateChargeTypeMutation,
   useGetCurrencyRatesQuery,
+  useGetCurrencyRateHistoryQuery,
   useCreateCurrencyRateMutation,
   useUpdateCurrencyRateMutation,
   useDeleteCurrencyRateMutation,
