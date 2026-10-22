@@ -2,8 +2,9 @@ import { Router, Request } from 'express';
 import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { mallService } from './mall.service';
+import { requirePermission } from '../auth/guards/roleGuard';
 import {
-  upsertMallPropertySchema, upsertShopProfileSchema,
+  upsertMallPropertySchema, upsertShopProfileSchema, saveFloorPlanSchema,
   upsertCommercialLeaseSchema,
   submitGtoSchema, verifyGtoSchema,
   createCamPoolSchema, updateCamPoolSchema, generateCamBillingSchema, runReconciliationSchema,
@@ -28,6 +29,24 @@ router.get('/properties/:propertyId/config', asyncHandler(async (req, res) => {
 
 router.put('/properties/:propertyId/config', validateRequest(upsertMallPropertySchema), asyncHandler(async (req, res) => {
   const data = await mallService.upsertMallProperty(String(req.params.propertyId), getCompanyId(req), req.body);
+  res.json({ success: true, data });
+}));
+
+// ═══════════════════════════════════════
+//  SHOP MAP (floor plan grid)
+// ═══════════════════════════════════════
+
+router.get('/properties/:propertyId/floor-plan', asyncHandler(async (req, res) => {
+  const data = await mallService.getFloorPlan(
+    getCompanyId(req), String(req.params.propertyId), String(req.query.floor ?? ''),
+  );
+  res.json({ success: true, data });
+}));
+
+router.put('/properties/:propertyId/floor-plan', requirePermission('mall-shops.write'), validateRequest(saveFloorPlanSchema), asyncHandler(async (req, res) => {
+  const data = await mallService.saveFloorPlan(
+    getCompanyId(req), String(req.params.propertyId), String(req.query.floor ?? ''), req.body,
+  );
   res.json({ success: true, data });
 }));
 

@@ -38,8 +38,14 @@ export function requirePermission(...permissions: string[]) {
       throw AppError.tokenInvalid();
     }
 
+    const userRoles: string[] = req.user.roles || [];
+    const isAdmin = userRoles.some((r) => {
+      const normalized = r.toLowerCase().replace(/\s+/g, '_');
+      return normalized === 'admin' || normalized === 'super_admin';
+    });
+
     const userPerms: string[] = req.user.permissions || [];
-    const hasPermission = permissions.some((perm) => userPerms.includes(perm));
+    const hasPermission = isAdmin || permissions.some((perm) => userPerms.includes(perm));
 
     if (!hasPermission) {
       throw AppError.forbidden(

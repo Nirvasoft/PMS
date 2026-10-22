@@ -42,7 +42,7 @@ class MallService {
         include: {
           unit: {
             select: {
-              unitNumber: true, status: true, areaSqft: true, floorLabel: true,
+              unitNumber: true, status: true, areaSqft: true, floorLabel: true, floorNumber: true,
               leases: {
                 where: { status: 'active' },
                 take: 1,
@@ -64,13 +64,122 @@ class MallService {
     return { data, total, page, limit };
   }
 
+  // ═══════════════════════════════════════
+  //  SHOP MAP (floor plan grid)
+  // ═══════════════════════════════════════
+
+  async getFloorPlan(companyId: string, propertyId: string, floorKey: string) {
+    const [items, setting] = await Promise.all([
+      prisma.mallFloorPlanItem.findMany({
+        where: { companyId, propertyId, floorKey },
+        orderBy: [{ y: 'asc' }, { x: 'asc' }],
+      }),
+      prisma.mallFloorPlanSetting.findFirst({ where: { companyId, propertyId, floorKey } }),
+    ]);
+
+    // Drop tiles whose unit no longer exists / belongs elsewhere (no FK on purpose)
+    const unitIds = items.map((i) => i.unitId).filter((id): id is string => !!id);
+    const validUnits = unitIds.length
+      ? new Set((await prisma.unit.findMany({
+          where: { id: { in: unitIds }, companyId, propertyId },
+          select: { id: true },
+        })).map((u) => u.id))
+      : new Set<string>();
+
+    return {
+      sqftPerCell: setting ? Number(setting.sqftPerCell) : 50,
+      columns: setting?.columns ?? 60,
+      items: items
+        .filter((i) => !i.unitId || validUnits.has(i.unitId))
+        .map((i) => ({
+          id: i.id, kind: i.kind, unitId: i.unitId, label: i.label,
+          x: i.x, y: i.y, w: i.w, h: i.h,
+        })),
+    };
+  }
+
+  async saveFloorPlan(
+    companyId: string,
+    propertyId: string,
+    floorKey: string,
+    data: {
+      sqftPerCell: number; columns: number;
+      items: Array<{ kind: string; unitId?: string | null; label?: string | null; x: number; y: number; w: number; h: number }>;
+    },
+  ) {
+    if (!floorKey) {
+      throw AppError.validation('Floor key is required');
+    }
+    const { sqftPerCell, columns, items } = data;
+
+    // Every tile must sit inside the grid
+    for (const it of items) {
+      if (it.x + it.w > columns) {
+        throw AppError.validation('A tile extends past the right edge of the floor grid');
+      }
+    }
+
+    // A unit can be on the map only once
+    const unitIds = items.map((i) => i.unitId).filter((id): id is string => !!id);
+    if (new Set(unitIds).size !== unitIds.length) {
+      throw AppError.validation('The same unit is placed more than once');
+    }
+    for (const it of items) {
+      if (it.kind === 'unit' && !it.unitId) throw AppError.validation('A unit tile has no unit assigned');
+      if (it.kind !== 'unit' && it.unitId) throw AppError.validation('Only unit tiles can have a unit assigned');
+    }
+
+    // Tiles must not overlap each other
+    for (let a = 0; a < items.length; a++) {
+      for (let b = a + 1; b < items.length; b++) {
+        const p = items[a];
+        const q = items[b];
+        if (p.x < q.x + q.w && p.x + p.w > q.x && p.y < q.y + q.h && p.y + p.h > q.y) {
+          throw AppError.validation('Tiles overlap each other — move them apart before saving');
+        }
+      }
+    }
+
+    // Units must belong to this company + property
+    if (unitIds.length) {
+      const found = await prisma.unit.count({ where: { id: { in: unitIds }, companyId, propertyId } });
+      if (found !== unitIds.length) {
+        throw AppError.validation('One or more units do not belong to this property');
+      }
+    }
+
+    await prisma.$transaction([
+      // A unit moved from another floor must leave its old tile (unitId is unique across mall_floor_plan_items)
+      ...(unitIds.length
+        ? [prisma.mallFloorPlanItem.deleteMany({ where: { unitId: { in: unitIds } } })]
+        : []),
+      prisma.mallFloorPlanItem.deleteMany({ where: { companyId, propertyId, floorKey } }),
+      ...(items.length
+        ? [prisma.mallFloorPlanItem.createMany({
+            data: items.map((it) => ({
+              companyId, propertyId, floorKey,
+              kind: it.kind, unitId: it.unitId ?? null, label: it.label ?? null,
+              x: it.x, y: it.y, w: it.w, h: it.h,
+            })),
+          })]
+        : []),
+      prisma.mallFloorPlanSetting.upsert({
+        where: { propertyId_floorKey: { propertyId, floorKey } },
+        create: { companyId, propertyId, floorKey, sqftPerCell, columns },
+        update: { sqftPerCell, columns },
+      }),
+    ]);
+
+    return this.getFloorPlan(companyId, propertyId, floorKey);
+  }
+
   async getShopProfile(unitId: string, companyId: string) {
     return prisma.shopProfile.findFirst({
       where: { unitId, companyId },
       include: {
         unit: {
           select: {
-            unitNumber: true, status: true, areaSqft: true, floorLabel: true,
+            unitNumber: true, status: true, areaSqft: true, floorLabel: true, floorNumber: true,
             leases: {
               where: { status: 'active' }, take: 1,
               include: { tenant: true, commercialLease: true },
@@ -114,13 +223,20 @@ class MallService {
   }
 
   async getTenantMix(propertyId: string, companyId: string) {
-    const shops = await prisma.shopProfile.findMany({
-      where: { propertyId, companyId },
-      include: { unit: { select: { areaSqft: true, status: true } } },
-    });
+    const [shops, mallProp] = await Promise.all([
+      prisma.shopProfile.findMany({
+        where: { propertyId, companyId },
+        include: { unit: { select: { areaSqft: true, status: true, floorLabel: true, floorNumber: true } } },
+      }),
+      this.getMallProperty(propertyId, companyId),
+    ]);
 
-    const totalShops = shops.length;
-    const totalGla = shops.reduce((s, sp) => s + Number(sp.unit.areaSqft || 0), 0);
+    const configuredShops = mallProp?.totalShops ?? 0;
+    const configuredGla = Number(mallProp?.totalGlaSqft || 0);
+    const shopsGla = shops.reduce((s, sp) => s + Number(sp.unit.areaSqft || 0), 0);
+
+    const totalShops = shops.length > 0 ? Math.max(shops.length, configuredShops) : configuredShops;
+    const totalGla = shopsGla > 0 ? Math.max(shopsGla, configuredGla) : configuredGla;
     const occupiedShops = shops.filter(s => s.unit.status === 'occupied').length;
     const occupancyRate = totalShops > 0 ? (occupiedShops / totalShops) * 100 : 0;
 
@@ -143,7 +259,9 @@ class MallService {
     const anchorTenants = shops
       .filter(s => s.isAnchor)
       .map(s => ({
-        brandName: s.brandName, glaSqft: Number(s.unit.areaSqft || 0), zone: s.shopZone,
+        brandName: s.brandName,
+        glaSqft: Number(s.unit.areaSqft || 0),
+        floorLabel: s.unit.floorLabel || (s.unit.floorNumber != null ? `Floor ${s.unit.floorNumber}` : ''),
       }));
 
     return { totalShops, totalGlaSqft: totalGla, occupancyRate, byCategory, anchorTenants };

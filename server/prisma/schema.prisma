@@ -5371,6 +5371,45 @@ model FootfallCount {
   @@map("footfall_counts")
 }
 
+// Shop Directory "Map" view: one row per tile on a floor's grid (a unit or a decoration).
+// floorKey is the floor's display label (unit.floorLabel, or "Floor N") so it does not
+// depend on FloorSetup. Plain columns (no FK) — orphans are filtered when read.
+model MallFloorPlanItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  floorKey   String   @map("floor_key") @db.VarChar(80)
+  kind       String   @default("unit") @db.VarChar(30) // unit | atrium | stairs | escalator | corridor
+  unitId     String?  @unique @map("unit_id") @db.Uuid
+  label      String?  @db.VarChar(100)
+  x          Int
+  y          Int
+  w          Int
+  h          Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([propertyId, floorKey])
+  @@index([companyId])
+  @@map("mall_floor_plan_items")
+}
+
+model MallFloorPlanSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  propertyId  String   @map("property_id") @db.Uuid
+  floorKey    String   @map("floor_key") @db.VarChar(80)
+  sqftPerCell Decimal  @default(50) @map("sqft_per_cell") @db.Decimal(10, 2)
+  columns     Int      @default(60)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([propertyId, floorKey])
+  @@index([companyId])
+  @@map("mall_floor_plan_settings")
+}
+
+
 // ─────────────────────────────────────────────
 // MODULE 6.2 — CONDO & RESIDENTIAL MODELS
 // ─────────────────────────────────────────────

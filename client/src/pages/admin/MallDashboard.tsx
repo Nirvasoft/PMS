@@ -10,6 +10,7 @@ import {
   Settings, X, Building2, Percent, Hash, Maximize2,
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import toast from 'react-hot-toast';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
@@ -66,9 +67,9 @@ export default function MallDashboard() {
       totalFloors: cfg.totalFloors ?? '',
       totalShops: cfg.totalShops ?? 0,
       anchorTenantSlots: cfg.anchorTenantSlots ?? 0,
-      managementFeePct: cfg.managementFeePct ? (Number(cfg.managementFeePct) * 100).toFixed(2) : '5.00',
+      managementFeePct: cfg.managementFeePct != null ? (Number(cfg.managementFeePct) * 100).toFixed(2) : '5.00',
       camPoolType: cfg.camPoolType || 'shared',
-      camAdminFeePct: cfg.camAdminFeePct ? (Number(cfg.camAdminFeePct) * 100).toFixed(2) : '10.00',
+      camAdminFeePct: cfg.camAdminFeePct != null ? (Number(cfg.camAdminFeePct) * 100).toFixed(2) : '10.00',
       fiscalYearStart: cfg.fiscalYearStart ?? 1,
     });
     setShowConfig(true);
@@ -80,20 +81,23 @@ export default function MallDashboard() {
         propertyId,
         data: {
           mallType: configForm.mallType || null,
-          totalGlaSqft: configForm.totalGlaSqft ? Number(configForm.totalGlaSqft) : null,
-          totalNlaSqft: configForm.totalNlaSqft ? Number(configForm.totalNlaSqft) : null,
-          totalFloors: configForm.totalFloors ? Number(configForm.totalFloors) : null,
+          totalGlaSqft: configForm.totalGlaSqft !== '' && configForm.totalGlaSqft != null ? Number(configForm.totalGlaSqft) : null,
+          totalNlaSqft: configForm.totalNlaSqft !== '' && configForm.totalNlaSqft != null ? Number(configForm.totalNlaSqft) : null,
+          totalFloors: configForm.totalFloors !== '' && configForm.totalFloors != null ? Number(configForm.totalFloors) : null,
           totalShops: Number(configForm.totalShops) || 0,
           anchorTenantSlots: Number(configForm.anchorTenantSlots) || 0,
-          managementFeePct: Number(configForm.managementFeePct) / 100,
-          camPoolType: configForm.camPoolType,
-          camAdminFeePct: Number(configForm.camAdminFeePct) / 100,
-          fiscalYearStart: Number(configForm.fiscalYearStart),
+          managementFeePct: (Number(configForm.managementFeePct) || 0) / 100,
+          camPoolType: configForm.camPoolType || 'shared',
+          camAdminFeePct: (Number(configForm.camAdminFeePct) || 0) / 100,
+          fiscalYearStart: Number(configForm.fiscalYearStart) || 1,
         },
       }).unwrap();
+      toast.success('Mall settings saved');
       setShowConfig(false);
       refetchConfig();
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      toast.error(e?.data?.errors?.[0]?.message || e?.data?.message || 'Failed to save mall settings');
+    }
   };
 
   if (!propertyId) {
@@ -207,14 +211,21 @@ export default function MallDashboard() {
                       ))}
                     </div>
                     <div className="mall-mix-footer">
-                      <span>Total GLA: {(mix.totalGlaSqft || 0).toLocaleString()} sq ft</span>
+                      <span>Total GLA: {(mix.totalGlaSqft || Number(configData?.data?.totalGlaSqft) || 0).toLocaleString()} sq ft</span>
                     </div>
                   </>
                 ) : (
-                  <div className="module-empty-inline">
-                    <BarChart3 size={32} strokeWidth={1} />
-                    <p>No shop profiles configured yet</p>
-                  </div>
+                  <>
+                    <div className="module-empty-inline">
+                      <BarChart3 size={32} strokeWidth={1} />
+                      <p>No shop profiles configured yet</p>
+                    </div>
+                    {(mix?.totalGlaSqft || configData?.data?.totalGlaSqft) ? (
+                      <div className="mall-mix-footer">
+                        <span>Total GLA: {(mix?.totalGlaSqft || Number(configData?.data?.totalGlaSqft) || 0).toLocaleString()} sq ft</span>
+                      </div>
+                    ) : null}
+                  </>
                 )}
               </div>
             </div>
@@ -338,7 +349,7 @@ export default function MallDashboard() {
                     <div key={i} className="mall-anchor-chip">
                       <span className="mall-anchor-name">{a.brandName}</span>
                       <span className="mall-anchor-meta">
-                        {a.glaSqft?.toLocaleString()} sqft · {a.zone}
+                        {a.glaSqft?.toLocaleString()} sqft{a.floorLabel ? ` · ${a.floorLabel}` : ''}
                       </span>
                     </div>
                   ))}

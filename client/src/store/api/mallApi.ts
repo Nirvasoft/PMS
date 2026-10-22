@@ -13,17 +13,30 @@ export const mallApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Shops', 'GtoSubmissions', 'CamPools', 'CamBillings', 'Events', 'Footfall', 'MallDashboard'],
+  tagTypes: ['Shops', 'FloorPlan', 'GtoSubmissions', 'CamPools', 'CamBillings', 'Events', 'Footfall', 'MallDashboard'],
   endpoints: (builder) => ({
     // ── Mall Config ──
     getMallProperty: builder.query<any, { propertyId: string }>({
       query: ({ propertyId }) => `/properties/${propertyId}/config`,
+      providesTags: ['MallDashboard'],
     }),
     upsertMallProperty: builder.mutation<any, { propertyId: string; data: any }>({
       query: ({ propertyId, data }) => ({
         url: `/properties/${propertyId}/config`, method: 'PUT', body: data,
       }),
       invalidatesTags: ['MallDashboard'],
+    }),
+
+    // ── Shop Map (floor plan grid) ──
+    getFloorPlan: builder.query<any, { propertyId: string; floor: string }>({
+      query: ({ propertyId, floor }) => ({ url: `/properties/${propertyId}/floor-plan`, params: { floor } }),
+      providesTags: ['FloorPlan'],
+    }),
+    saveFloorPlan: builder.mutation<any, { propertyId: string; floor: string; data: any }>({
+      query: ({ propertyId, floor, data }) => ({
+        url: `/properties/${propertyId}/floor-plan`, method: 'PUT', params: { floor }, body: data,
+      }),
+      invalidatesTags: ['FloorPlan'],
     }),
 
     // ── Shops ──
@@ -46,7 +59,7 @@ export const mallApi = createApi({
     }),
     getTenantMix: builder.query<any, { propertyId: string }>({
       query: ({ propertyId }) => ({ url: '/tenant-mix', params: { propertyId } }),
-      providesTags: ['Shops'],
+      providesTags: ['Shops', 'MallDashboard'],
     }),
     getAvailableUnits: builder.query<any, { propertyId: string }>({
       query: ({ propertyId }) => ({ url: '/shops/available-units', params: { propertyId } }),
@@ -224,6 +237,8 @@ export const mallApi = createApi({
 export const {
   useGetMallPropertyQuery,
   useUpsertMallPropertyMutation,
+  useGetFloorPlanQuery,
+  useSaveFloorPlanMutation,
   useGetShopsQuery,
   useGetShopProfileQuery,
   useUpsertShopProfileMutation,

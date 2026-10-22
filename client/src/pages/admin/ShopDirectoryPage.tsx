@@ -6,15 +6,15 @@ import {
 } from '../../store/api/mallApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import {
-  Store, Search, X, MapPin, Maximize2, Calendar, DollarSign,
-  Star, Tag, Building2, ChevronRight, Grid3x3, List, Edit3,
+  Store, Search, X, Maximize2, Calendar, DollarSign,
+  Star, Tag, Building2, ChevronRight, Grid3x3, List, Map as MapIcon, Edit3,
   TrendingUp, Percent, ExternalLink, Package, Layers, Plus,
   FileText, Shield, Wrench, Receipt,
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import ShopMapView from './ShopDirectory/ShopMapView';
 
 const CATEGORIES = ['F&B', 'Fashion', 'Electronics', 'Beauty', 'Services', 'Entertainment', 'Anchor', 'Other'];
-const ZONES = ['north_wing', 'south_wing', 'east_wing', 'west_wing', 'atrium', 'basement'];
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
   'F&B':           { bg: 'rgba(245, 158, 11, 0.12)', text: '#f59e0b', icon: '🍽️' },
@@ -27,12 +27,6 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }
   'Other':         { bg: 'rgba(107, 114, 128, 0.12)', text: '#6b7280', icon: '🏪' },
 };
 
-const ZONE_LABELS: Record<string, string> = {
-  north_wing: 'North Wing', south_wing: 'South Wing', east_wing: 'East Wing',
-  west_wing: 'West Wing', atrium: 'Atrium', basement: 'Basement',
-};
-
-function formatZone(z: string) { return ZONE_LABELS[z] || z.replace(/_/g, ' '); }
 function getCatStyle(cat: string) { return CATEGORY_COLORS[cat] || CATEGORY_COLORS['Other']; }
 
 function daysUntil(dateStr: string) {
@@ -40,29 +34,63 @@ function daysUntil(dateStr: string) {
   return diff;
 }
 
-export default function ShopDirectoryPage() {
-  const propertyId = useSelectedPropertyId();
-  const [filters, setFilters] = useState<{ tradeCategory?: string; shopZone?: string; isAnchor?: boolean }>({});
+export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScreenMap?: boolean } = {}) {
+  const selectedPropertyId = useSelectedPropertyId();
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const propertyId = urlParams.get('propertyId') || selectedPropertyId;
+  const initialFloor = urlParams.get('floor') || '';
+  const [filters, setFilters] = useState<{ tradeCategory?: string; isAnchor?: boolean }>({});
+  const [floorFilter, setFloorFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>(fullScreenMap ? 'map' : 'grid');
   const [showForm, setShowForm] = useState(false);
   const [detailShop, setDetailShop] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
   const [showCreateShop, setShowCreateShop] = useState(false);
   const [createSubmitted, setCreateSubmitted] = useState(false);
-  const [createForm, setCreateForm] = useState<any>({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion', shopZone: 'atrium' });
+  const [createForm, setCreateForm] = useState<any>({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion' });
   const [unitSearch, setUnitSearch] = useState('');
+  const [unitFloorFilter, setUnitFloorFilter] = useState('');
   const [showLeaseEdit, setShowLeaseEdit] = useState(false);
   const [leaseFormData, setLeaseFormData] = useState<any>({});
 
   const { data: shopsData, isLoading } = useGetShopsQuery(
-    { propertyId, ...filters },
+    { propertyId },
     { skip: !propertyId }
   );
   const { data: mixData } = useGetTenantMixQuery({ propertyId }, { skip: !propertyId });
   const [upsertProfile, { isLoading: isSaving }] = useUpsertShopProfileMutation();
   const { data: availRes } = useGetAvailableUnitsQuery({ propertyId }, { skip: !propertyId || !showCreateShop });
   const availableUnits = availRes?.data || [];
+
+  const availableFloors = useMemo(() => {
+    const map = new Map<string, { value: string; label: string; floorNumber: number }>();
+    for (const u of availableUnits) {
+      const key = String(u.floorNumber ?? u.floorLabel ?? '1');
+      if (!map.has(key)) {
+        map.set(key, {
+          value: key,
+          label: u.floorLabel || `Floor ${u.floorNumber ?? 1}`,
+          floorNumber: Number(u.floorNumber ?? 1),
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.floorNumber - b.floorNumber);
+  }, [availableUnits]);
+
+  const filteredAvailableUnits = useMemo(() => {
+    return availableUnits.filter((u: any) => {
+      if (unitFloorFilter && String(u.floorNumber ?? u.floorLabel ?? '1') !== unitFloorFilter) {
+        return false;
+      }
+      if (!unitSearch.trim()) return true;
+      const q = unitSearch.toLowerCase();
+      return (
+        u.unitNumber.toLowerCase().includes(q) ||
+        (u.floorLabel || `floor ${u.floorNumber}`).toLowerCase().includes(q)
+      );
+    });
+  }, [availableUnits, unitFloorFilter, unitSearch]);
 
   // Commercial lease hooks
   const activeLeaseId = detailShop?.unit?.leases?.[0]?.id;
@@ -75,18 +103,54 @@ export default function ShopDirectoryPage() {
   const allShops = shopsData?.data || [];
   const mix = mixData?.data;
 
-  // Client-side search
+  const shopFloors = useMemo(() => {
+    const map = new Map<string, { value: string; label: string; floorNumber: number }>();
+    for (const s of allShops) {
+      const u = s.unit;
+      if (!u) continue;
+      const key = String(u.floorNumber ?? u.floorLabel ?? '1');
+      if (!map.has(key)) {
+        map.set(key, {
+          value: key,
+          label: u.floorLabel || `Floor ${u.floorNumber ?? 1}`,
+          floorNumber: Number(u.floorNumber ?? 1),
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.floorNumber - b.floorNumber);
+  }, [allShops]);
+
+  // Client-side category, anchor, floor & search filter (for Grid & List views)
   const shops = useMemo(() => {
-    if (!search.trim()) return allShops;
+    return allShops.filter((s: any) => {
+      if (filters.tradeCategory && s.tradeCategory !== filters.tradeCategory) return false;
+      if (filters.isAnchor && !s.isAnchor) return false;
+      if (floorFilter) {
+        const u = s.unit;
+        const key = String(u?.floorNumber ?? u?.floorLabel ?? '1');
+        if (key !== floorFilter) return false;
+      }
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return (
+        (s.brandName || '').toLowerCase().includes(q) ||
+        (s.shopNumber || '').toLowerCase().includes(q) ||
+        (s.tradeCategory || '').toLowerCase().includes(q) ||
+        (s.franchiseGroup || '').toLowerCase().includes(q) ||
+        (s.unit?.unitNumber || '').toLowerCase().includes(q)
+      );
+    });
+  }, [allShops, filters.tradeCategory, filters.isAnchor, floorFilter, search]);
+
+  const matchesMapSearch = (s: any) => {
+    if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return allShops.filter((s: any) =>
+    return (
       (s.brandName || '').toLowerCase().includes(q) ||
       (s.shopNumber || '').toLowerCase().includes(q) ||
-      (s.tradeCategory || '').toLowerCase().includes(q) ||
-      (s.franchiseGroup || '').toLowerCase().includes(q) ||
       (s.unit?.unitNumber || '').toLowerCase().includes(q)
     );
-  }, [allShops, search]);
+  };
 
   const openDetail = (shop: any) => setDetailShop(shop);
   const closeDetail = () => { setDetailShop(null); setShowLeaseEdit(false); };
@@ -99,7 +163,6 @@ export default function ShopDirectoryPage() {
       tradeSubcategory: shop.tradeSubcategory || '',
       franchiseGroup: shop.franchiseGroup || '',
       isAnchor: shop.isAnchor || false,
-      shopZone: shop.shopZone || '',
       posSystem: shop.posSystem || '',
       posStoreId: shop.posStoreId || '',
     });
@@ -179,12 +242,13 @@ export default function ShopDirectoryPage() {
           brandName: createForm.brandName || undefined,
           tradeCategory: createForm.tradeCategory || undefined,
           tradeSubcategory: createForm.tradeSubcategory || undefined,
-          shopZone: createForm.shopZone || undefined,
         },
       }).unwrap();
       setShowCreateShop(false);
       setCreateSubmitted(false);
-      setCreateForm({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion', shopZone: 'atrium' });
+      setUnitFloorFilter('');
+      setUnitSearch('');
+      setCreateForm({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion' });
     } catch (e) { console.error(e); }
   };
 
@@ -201,8 +265,9 @@ export default function ShopDirectoryPage() {
   }
 
   return (
-    <div className="page-content">
-      {/* Header */}
+    <div className={fullScreenMap ? 'shop-map-fullscreen-page' : 'page-content'}>
+      {!fullScreenMap && (
+      /* Header */
       <div className="shop-dir-header">
         <div className="page-header">
           <div className="page-title-row">
@@ -215,14 +280,14 @@ export default function ShopDirectoryPage() {
             </div>
           </div>
           <PermissionGuard permission="mall-shops.write">
-            <button className="btn btn-primary" onClick={() => { setCreateSubmitted(false); setShowCreateShop(true); }}>
+            <button className="btn btn-primary" onClick={() => { setCreateSubmitted(false); setUnitFloorFilter(''); setUnitSearch(''); setShowCreateShop(true); }}>
               <Plus size={16} /> Add Shop
             </button>
           </PermissionGuard>
         </div>
 
         {/* Stats Bar */}
-        {mix && (
+        {viewMode !== 'map' && mix && (
           <div className="shop-dir-stats">
             <div className="shop-dir-stat">
               <Store size={16} />
@@ -247,8 +312,8 @@ export default function ShopDirectoryPage() {
           </div>
         )}
 
-        {/* Tenant Mix Chart */}
-        {mix?.byCategory?.length > 0 && (
+        {/* Tenant Mix Chart — only for Grid/List directory views */}
+        {viewMode !== 'map' && mix?.byCategory?.length > 0 && (
           <div className="mall-card" style={{ padding: 20, marginBottom: 20 }}>
             <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Layers size={16} /> Tenant Mix by Category
@@ -328,7 +393,7 @@ export default function ShopDirectoryPage() {
             <Search size={16} />
             <input
               type="text"
-              placeholder="Search shops, brands, units..."
+              placeholder={viewMode === 'map' ? 'Search unit or brand on map...' : 'Search shops, brands, units...'}
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -339,35 +404,37 @@ export default function ShopDirectoryPage() {
             )}
           </div>
 
-          <div className="shop-dir-filters">
-            <select
-              className="shop-dir-filter-select"
-              value={filters.tradeCategory || ''}
-              onChange={e => setFilters(f => ({ ...f, tradeCategory: e.target.value || undefined }))}
-            >
-              <option value="">All Categories</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{getCatStyle(c).icon} {c}</option>)}
-            </select>
-            <select
-              className="shop-dir-filter-select"
-              value={filters.shopZone || ''}
-              onChange={e => setFilters(f => ({ ...f, shopZone: e.target.value || undefined }))}
-            >
-              <option value="">All Zones</option>
-              {ZONES.map(z => <option key={z} value={z}>{formatZone(z)}</option>)}
-            </select>
-            <label className="shop-dir-anchor-toggle">
-              <input
-                type="checkbox"
-                checked={filters.isAnchor || false}
-                onChange={e => setFilters(f => ({ ...f, isAnchor: e.target.checked || undefined }))}
-              />
-              <Star size={14} />
-              Anchors
-            </label>
-          </div>
+          {viewMode !== 'map' && (
+            <div className="shop-dir-filters">
+              <select
+                className="shop-dir-filter-select"
+                value={filters.tradeCategory || ''}
+                onChange={e => setFilters(f => ({ ...f, tradeCategory: e.target.value || undefined }))}
+              >
+                <option value="">All Categories</option>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                className="shop-dir-filter-select"
+                value={floorFilter}
+                onChange={e => setFloorFilter(e.target.value)}
+              >
+                <option value="">All Floors</option>
+                {shopFloors.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+              <label className="shop-dir-anchor-toggle">
+                <input
+                  type="checkbox"
+                  checked={filters.isAnchor || false}
+                  onChange={e => setFilters(f => ({ ...f, isAnchor: e.target.checked || undefined }))}
+                />
+                <Star size={14} />
+                Anchors
+              </label>
+            </div>
+          )}
 
-          <div className="shop-dir-view-toggle">
+          <div className="shop-dir-view-toggle" style={viewMode === 'map' ? { marginLeft: 'auto' } : undefined}>
             <button
               className={`shop-dir-view-btn ${viewMode === 'grid' ? 'active' : ''}`}
               onClick={() => setViewMode('grid')}
@@ -376,17 +443,34 @@ export default function ShopDirectoryPage() {
               className={`shop-dir-view-btn ${viewMode === 'list' ? 'active' : ''}`}
               onClick={() => setViewMode('list')}
             ><List size={16} /></button>
+            <button
+              className={`shop-dir-view-btn ${viewMode === 'map' ? 'active' : ''}`}
+              onClick={() => setViewMode('map')}
+              title="Map"
+            ><MapIcon size={16} /></button>
           </div>
 
-          <span className="shop-dir-result-count">{shops.length} shops</span>
+          <span className="shop-dir-result-count">
+            {viewMode === 'map' ? `${allShops.length} units` : `${shops.length} shops`}
+          </span>
         </div>
       </div>
+      )}
 
       {/* Content */}
       {isLoading ? (
         <div className="module-skeleton-grid">
           {[1,2,3,4,5,6].map(i => <div key={i} className="module-skeleton-card" />)}
         </div>
+      ) : viewMode === 'map' ? (
+        <ShopMapView
+          shops={allShops}
+          propertyId={propertyId}
+          matches={matchesMapSearch}
+          onOpenShop={openDetail}
+          fullScreen={fullScreenMap}
+          initialFloor={initialFloor}
+        />
       ) : shops.length === 0 ? (
         <div className="mall-empty-state">
           <Store size={48} strokeWidth={1} />
@@ -424,11 +508,6 @@ export default function ShopDirectoryPage() {
                     <span className="shop-dir-tag" style={{ background: cat.bg, color: cat.text }}>
                       <Tag size={10} /> {shop.tradeCategory}
                     </span>
-                    {shop.shopZone && (
-                      <span className="shop-dir-tag shop-dir-tag-zone">
-                        <MapPin size={10} /> {formatZone(shop.shopZone)}
-                      </span>
-                    )}
                   </div>
 
                   <div className="shop-dir-card-info">
@@ -480,7 +559,6 @@ export default function ShopDirectoryPage() {
           <div className="shop-dir-list-header">
             <span>Unit / Brand</span>
             <span>Category</span>
-            <span>Zone</span>
             <span>Area</span>
             <span>Status</span>
             <span>Rent</span>
@@ -504,7 +582,6 @@ export default function ShopDirectoryPage() {
                 <span className="shop-dir-tag" style={{ background: cat.bg, color: cat.text }}>
                   {shop.tradeCategory}
                 </span>
-                <span className="shop-dir-list-zone">{shop.shopZone ? formatZone(shop.shopZone) : '—'}</span>
                 <span>{Number(shop.unit?.areaSqft || 0).toLocaleString()} sqft</span>
                 <span className={`shop-dir-card-status shop-dir-status-${shop.unit?.status}`}>
                   {shop.unit?.status}
@@ -554,11 +631,6 @@ export default function ShopDirectoryPage() {
               }}>
                 <Tag size={10} /> {detailShop.tradeCategory}
               </span>
-              {detailShop.shopZone && (
-                <span className="shop-dir-tag shop-dir-tag-zone">
-                  <MapPin size={10} /> {formatZone(detailShop.shopZone)}
-                </span>
-              )}
             </div>
 
             {/* Info Grid */}
@@ -821,19 +893,12 @@ export default function ShopDirectoryPage() {
                     <span>Trade Category</span>
                     <select value={formData.tradeCategory} onChange={e => setFormData({ ...formData, tradeCategory: e.target.value })}>
                       <option value="">Select category...</option>
-                      {CATEGORIES.map(c => <option key={c} value={c}>{getCatStyle(c).icon} {c}</option>)}
+                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </label>
                   <label className="shop-edit-field">
                     <span>Sub-category</span>
                     <input value={formData.tradeSubcategory} onChange={e => setFormData({ ...formData, tradeSubcategory: e.target.value })} placeholder="e.g., Coffee, Sportswear" />
-                  </label>
-                  <label className="shop-edit-field">
-                    <span>Shop Zone</span>
-                    <select value={formData.shopZone} onChange={e => setFormData({ ...formData, shopZone: e.target.value })}>
-                      <option value="">Select zone...</option>
-                      {ZONES.map(z => <option key={z} value={z}>{formatZone(z)}</option>)}
-                    </select>
                   </label>
                 </div>
               </div>
@@ -1037,18 +1102,38 @@ export default function ShopDirectoryPage() {
               ) : (
                 <div className="mall-form-grid">
                   <label style={{ gridColumn: '1 / -1' }}>
-                    <span>Search & Select Unit *</span>
+                    <span>Filter by Floor</span>
+                    <select
+                      value={unitFloorFilter}
+                      onChange={e => {
+                        setUnitFloorFilter(e.target.value);
+                        if (createForm.unitId) {
+                          setCreateForm({ ...createForm, unitId: '', shopNumber: '' });
+                        }
+                      }}
+                    >
+                      <option value="">All Floors</option>
+                      {availableFloors.map(f => (
+                        <option key={f.value} value={f.value}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="mall-form-field" style={{ gridColumn: '1 / -1' }}>
+                    <span className="mall-form-field-label">Search & Select Unit *</span>
                     <div className="shop-unit-picker">
-                      <div className={`shop-unit-picker-input ${createSubmitted && !createForm.unitId ? 'mall-input-error' : ''}`}>
-                        <Search size={14} />
+                      <div className="shop-unit-picker-input">
+                        <Search size={16} className="shop-unit-picker-icon" />
                         <input
                           type="text"
+                          className={createSubmitted && !createForm.unitId ? 'mall-input-error' : ''}
                           placeholder="Type unit number to search (e.g. BKG-01-015)..."
                           value={unitSearch}
                           onChange={e => { setUnitSearch(e.target.value); }}
                         />
-                        {createForm.unitId && (
-                          <button className="shop-unit-picker-clear" onClick={() => {
+                        {(unitSearch || createForm.unitId) && (
+                          <button type="button" className="shop-unit-picker-clear" onClick={() => {
                             setCreateForm({ ...createForm, unitId: '', shopNumber: '' });
                             setUnitSearch('');
                           }}><X size={14} /></button>
@@ -1063,15 +1148,11 @@ export default function ShopDirectoryPage() {
                         </div>
                       ) : (
                         <div className="shop-unit-picker-list">
-                          {availableUnits
-                            .filter((u: any) => {
-                              if (!unitSearch.trim()) return true;
-                              const q = unitSearch.toLowerCase();
-                              return u.unitNumber.toLowerCase().includes(q) || (u.floorLabel || '').toLowerCase().includes(q);
-                            })
+                          {filteredAvailableUnits
                             .slice(0, 50)
                             .map((u: any) => (
                               <button
+                                type="button"
                                 key={u.id}
                                 className="shop-unit-picker-item"
                                 onClick={() => {
@@ -1086,16 +1167,16 @@ export default function ShopDirectoryPage() {
                                 <span className={`shop-unit-picker-status status-${u.status}`}>{u.status}</span>
                               </button>
                             ))}
-                          {availableUnits.filter((u: any) => !unitSearch.trim() || u.unitNumber.toLowerCase().includes(unitSearch.toLowerCase())).length > 50 && (
+                          {filteredAvailableUnits.length > 50 && (
                             <div className="shop-unit-picker-more">Type to narrow down results...</div>
                           )}
-                          {unitSearch && availableUnits.filter((u: any) => u.unitNumber.toLowerCase().includes(unitSearch.toLowerCase())).length === 0 && (
+                          {filteredAvailableUnits.length === 0 && (
                             <div className="shop-unit-picker-more">No matching units found</div>
                           )}
                         </div>
                       )}
                     </div>
-                  </label>
+                  </div>
                   <label>
                     <span>Shop Number</span>
                     <input value={createForm.shopNumber} onChange={e => setCreateForm({ ...createForm, shopNumber: e.target.value })} placeholder="Auto from unit" />
@@ -1115,18 +1196,12 @@ export default function ShopDirectoryPage() {
                   <label>
                     <span>Trade Category</span>
                     <select value={createForm.tradeCategory} onChange={e => setCreateForm({ ...createForm, tradeCategory: e.target.value })}>
-                      {CATEGORIES.map(c => <option key={c} value={c}>{getCatStyle(c).icon} {c}</option>)}
+                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </label>
                   <label>
                     <span>Sub-Category</span>
                     <input value={createForm.tradeSubcategory || ''} onChange={e => setCreateForm({ ...createForm, tradeSubcategory: e.target.value })} placeholder="e.g. Coffee" />
-                  </label>
-                  <label style={{ gridColumn: '1 / -1' }}>
-                    <span>Shop Zone</span>
-                    <select value={createForm.shopZone} onChange={e => setCreateForm({ ...createForm, shopZone: e.target.value })}>
-                      {ZONES.map(z => <option key={z} value={z}>{formatZone(z)}</option>)}
-                    </select>
                   </label>
                 </div>
               )}

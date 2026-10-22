@@ -1,16 +1,38 @@
 import { z } from 'zod';
 
+// ── Shop Directory floor map ──
+export const saveFloorPlanSchema = z.object({
+  body: z.object({
+    sqftPerCell: z.number().positive().max(1_000_000),
+    columns: z.number().int().min(10).max(200),
+    items: z.array(z.object({
+      kind: z.enum(['unit', 'atrium', 'stairs', 'escalator', 'corridor', 'toilet', 'marker', 'entrance', 'exit']),
+      unitId: z.string().uuid().nullable().optional(),
+      label: z.string().max(100).nullable().optional(),
+      x: z.number().int().min(0),
+      y: z.number().int().min(0),
+      w: z.number().int().min(1).max(200),
+      h: z.number().int().min(1).max(500),
+    })).max(2000),
+  }),
+});
+
 // ── Mall Property ──
 export const upsertMallPropertySchema = z.object({
   body: z.object({
-    totalGlaSqft: z.number().positive().optional(),
-    totalNlaSqft: z.number().positive().optional(),
+    totalGlaSqft: z.number().min(0).nullable().optional(),
+    totalNlaSqft: z.number().min(0).nullable().optional(),
     totalShops: z.number().int().min(0).optional(),
-    totalFloors: z.number().int().min(1).optional(),
+    totalFloors: z.number().int().min(1).nullable().optional(),
     anchorTenantSlots: z.number().int().min(0).optional(),
-    mallType: z.enum(['regional', 'community', 'strip', 'outlet', 'specialty']).optional(),
+    mallType: z.enum([
+      'regional', 'community', 'neighborhood', 'power_center',
+      'lifestyle', 'outlet', 'mixed_use', 'strip', 'specialty',
+    ]).nullable().optional(),
     managementFeePct: z.number().min(0).max(1).optional(),
-    camPoolType: z.enum(['shared', 'zone_based', 'proportionate']).optional(),
+    camPoolType: z.enum([
+      'shared', 'per_category', 'fixed_rate', 'zone_based', 'proportionate',
+    ]).optional(),
     camAdminFeePct: z.number().min(0).max(1).optional(),
     fiscalYearStart: z.number().int().min(1).max(12).optional(),
   }),

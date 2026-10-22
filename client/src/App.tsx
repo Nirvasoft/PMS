@@ -444,8 +444,9 @@ function AppRoutes() {
           <Route path="/admin/system/companies" element={<AdminCompaniesPage />} />
         </Route>
 
-        {/* Full-screen Workflow Designer — no sidebar layout */}
+        {/* Full-screen Workflow Designer & Mall Floor Plan Map — no sidebar layout */}
         <Route path="/admin/workflows/:id/design" element={<DesignerPage />} />
+        <Route path="/admin/mall/shops/map" element={<ShopDirectoryPage fullScreenMap />} />
 
         {/* Portal — Tenant/Resident self-service */}
         <Route element={<PortalLayout />}>
