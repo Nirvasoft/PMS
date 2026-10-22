@@ -7,13 +7,17 @@ import {
   useDeleteCostCenterMutation,
   type CostCenter,
 } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import toast from 'react-hot-toast';
 import './GLPage.css';
 
 export default function CostCentersPage() {
-  const { data: costCenters = [], isLoading } = useGetCostCentersQuery();
+  const propertyId = useSelectedPropertyId();
+  const { data: costCenters = [], isLoading } = useGetCostCentersQuery(
+    propertyId ? { propertyId } : undefined
+  );
   const [createCostCenter] = useCreateCostCenterMutation();
   const [updateCostCenter] = useUpdateCostCenterMutation();
   const [deleteCostCenter] = useDeleteCostCenterMutation();
@@ -210,6 +214,7 @@ export default function CostCentersPage() {
       {showModal && (
         <CostCenterModal
           item={editingItem}
+          propertyId={propertyId || undefined}
           onClose={() => setShowModal(false)}
           onCreate={createCostCenter}
           onUpdate={updateCostCenter}
@@ -221,11 +226,13 @@ export default function CostCentersPage() {
 
 function CostCenterModal({
   item,
+  propertyId,
   onClose,
   onCreate,
   onUpdate,
 }: {
   item: CostCenter | null;
+  propertyId?: string;
   onClose: () => void;
   onCreate: any;
   onUpdate: any;
@@ -247,6 +254,7 @@ function CostCenterModal({
     if (!form.code.trim() || !form.name.trim()) return;
     try {
       const payload = {
+        ...(propertyId ? { propertyId } : {}),
         code: form.code.trim(),
         name: form.name.trim(),
         description: form.description.trim() || null,

@@ -13,6 +13,7 @@ import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { usePushInvoicesToV6ErpMutation } from '../../../store/api/integrationsApi';
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { openInvoicePrintPreview } from './utils/invoicePrintPreview';
 import './BillingPage.css';
 
@@ -30,6 +31,7 @@ interface CreditLine { chargeTypeId: string; description: string; quantity: numb
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const selectedPropertyId = useSelectedPropertyId();
   const { data, isLoading } = useGetInvoiceQuery(id!);
   const [voidInvoice, { isLoading: voiding }] = useVoidInvoiceMutation();
   const [triggerPdf, { isFetching: downloadingPdf }] = useLazyGetInvoicePdfQuery();
@@ -37,12 +39,15 @@ export default function InvoiceDetailPage() {
   const [createCreditNote, { isLoading: creatingCN }] = useCreateCreditNoteMutation();
   const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
   const { isV6Active } = useV6IntegrationStatus();
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
   const confirmDialog = useConfirm();
   const alertDialog = useAlertDialog();
 
-  const chargeTypes = chargeTypesData?.data || [];
   const inv = data?.data;
+  const effectivePropertyId = inv?.property?.id || selectedPropertyId || undefined;
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    effectivePropertyId ? { propertyId: effectivePropertyId } : undefined,
+  );
+  const chargeTypes = chargeTypesData?.data || [];
 
   // Fetch currency rates for this invoice's property so we can convert to tenant currency.
   const { data: currencyRatesData } = useGetCurrencyRatesQuery(

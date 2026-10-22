@@ -1005,11 +1005,19 @@ model Property {
   rfidAccessEvents     RfidAccessEvent[]
 
   // Relations — Billing (Module 3.1)
+  chargeCategories    ChargeCategory[]
+  chargeTypes         ChargeType[]
   meterSetups         MeterSetup[]
   meterRecordLists    MeterRecordList[]
   billingSchedules BillingSchedule[]      @relation("ScheduleProperty")
   invoices         Invoice[]              @relation("InvoiceProperty")
   penaltyConfigs   PenaltyConfiguration[] @relation("PenaltyProperty")
+
+  // Relations — GL (Module 3.4)
+  departmentCenters DepartmentCenter[]
+  costCenters       CostCenter[]
+  paymentMethods    PaymentMethod[]
+  glAccounts        GlAccount[]
 
   // Relations — AR (Module 3.2)
   receipts Receipt[] @relation("ReceiptProperty")
@@ -2801,6 +2809,7 @@ model RfidAccessEvent {
 model ChargeCategory {
   id          String   @id @default(uuid()) @db.Uuid
   companyId   String?  @map("company_id") @db.Uuid
+  propertyId  String?  @map("property_id") @db.Uuid
   code        String   @db.VarChar(50)
   description String?  @db.VarChar(255)
   monthly     Boolean  @default(false)
@@ -2809,16 +2818,19 @@ model ChargeCategory {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company  Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  @@unique([code, companyId], name: "uq_charge_category_code_company")
+  @@unique([code, companyId, propertyId], name: "uq_charge_category_code_company")
   @@index([companyId])
+  @@index([propertyId])
   @@map("charge_categories")
 }
 
 model ChargeType {
   id                 String   @id @default(uuid()) @db.Uuid
   companyId          String?  @map("company_id") @db.Uuid
+  propertyId         String?  @map("property_id") @db.Uuid
   departmentCenterId String?  @map("department_center_id") @db.Uuid
   costCenterId       String?  @map("cost_center_id") @db.Uuid
   code               String   @db.VarChar(50)
@@ -2832,6 +2844,7 @@ model ChargeType {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   company           Company?               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property          Property?              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   departmentCenter  DepartmentCenter?      @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
   costCenter        CostCenter?            @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
   billingSchedules  BillingSchedule[]
@@ -2842,8 +2855,9 @@ model ChargeType {
   unitChargeHistory UnitChargeHistory[]    @relation("ChargeHistoryNewType")
   meterSetups       MeterSetup[]
 
-  @@unique([code, companyId], name: "uq_charge_type_code_company")
+  @@unique([code, companyId, propertyId], name: "uq_charge_type_code_company")
   @@index([category])
+  @@index([propertyId])
   @@index([departmentCenterId])
   @@index([costCenterId])
   @@map("charge_types")
@@ -3307,6 +3321,7 @@ model TenantCredit {
 model DepartmentCenter {
   id          String   @id @default(uuid()) @db.Uuid
   companyId   String   @map("company_id") @db.Uuid
+  propertyId  String?  @map("property_id") @db.Uuid
   code        String   @db.VarChar(50)
   name        String   @db.VarChar(255)
   description String?  @db.Text
@@ -3316,6 +3331,7 @@ model DepartmentCenter {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property         Property?          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   costCenters      CostCenter[]
   glAccounts       GlAccount[]
   chargeTypes      ChargeType[]
@@ -3324,14 +3340,16 @@ model DepartmentCenter {
   billingSchedules BillingSchedule[]
   journalLines     JournalEntryLine[]
 
-  @@unique([code, companyId])
+  @@unique([code, companyId, propertyId])
   @@index([companyId])
+  @@index([propertyId])
   @@map("department_centers")
 }
 
 model CostCenter {
   id                 String   @id @default(uuid()) @db.Uuid
   companyId          String   @map("company_id") @db.Uuid
+  propertyId         String?  @map("property_id") @db.Uuid
   departmentCenterId String?  @map("department_center_id") @db.Uuid
   code               String   @db.VarChar(50)
   name               String   @db.VarChar(255)
@@ -3342,6 +3360,7 @@ model CostCenter {
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property         Property?          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   departmentCenter DepartmentCenter?  @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
   glAccounts       GlAccount[]
   chargeTypes      ChargeType[]
@@ -3350,8 +3369,9 @@ model CostCenter {
   billingSchedules BillingSchedule[]
   journalLines     JournalEntryLine[]
 
-  @@unique([code, companyId])
+  @@unique([code, companyId, propertyId])
   @@index([companyId])
+  @@index([propertyId])
   @@index([departmentCenterId])
   @@map("cost_centers")
 }
@@ -3359,6 +3379,7 @@ model CostCenter {
 model PaymentMethod {
   id                 String   @id @default(uuid()) @db.Uuid
   companyId          String   @map("company_id") @db.Uuid
+  propertyId         String?  @map("property_id") @db.Uuid
   departmentCenterId String?  @map("department_center_id") @db.Uuid
   costCenterId       String?  @map("cost_center_id") @db.Uuid
   code               String   @db.VarChar(50)
@@ -3370,11 +3391,13 @@ model PaymentMethod {
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property         Property?         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   departmentCenter DepartmentCenter? @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
   costCenter       CostCenter?       @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
 
-  @@unique([code, companyId], name: "uq_payment_method_code_company")
+  @@unique([code, companyId, propertyId], name: "uq_payment_method_code_company")
   @@index([companyId])
+  @@index([propertyId])
   @@index([departmentCenterId])
   @@index([costCenterId])
   @@map("payment_methods")
@@ -3383,6 +3406,7 @@ model PaymentMethod {
 model GlAccount {
   id                 String   @id @default(uuid()) @db.Uuid
   companyId          String   @map("company_id") @db.Uuid
+  propertyId         String?  @map("property_id") @db.Uuid
   parentId           String?  @map("parent_id") @db.Uuid
   departmentCenterId String?  @map("department_center_id") @db.Uuid
   costCenterId       String?  @map("cost_center_id") @db.Uuid
@@ -3401,6 +3425,7 @@ model GlAccount {
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  property         Property?          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   parent           GlAccount?         @relation("AccountTree", fields: [parentId], references: [id], onDelete: SetNull)
   children         GlAccount[]        @relation("AccountTree")
   departmentCenter DepartmentCenter?  @relation(fields: [departmentCenterId], references: [id], onDelete: SetNull)
@@ -3408,8 +3433,9 @@ model GlAccount {
   journalLines     JournalEntryLine[]
   budgets          Budget[]
 
-  @@unique([code, companyId, departmentCenterId, costCenterId])
+  @@unique([code, companyId, propertyId, departmentCenterId, costCenterId])
   @@index([companyId])
+  @@index([propertyId])
   @@index([accountType])
   @@index([departmentCenterId])
   @@index([costCenterId])

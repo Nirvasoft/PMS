@@ -12,6 +12,7 @@ import {
   type GeneralImportResult,
 } from '../../../store/api/generalImportApi';
 import { glApi } from '../../../store/api/glApi';
+import { billingApi } from '../../../store/api/billingApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import './GeneralImportPage.css';
 
@@ -96,7 +97,10 @@ export default function GeneralImportPage() {
       setResult(res.data);
       setPreview(null);
       if (importType === 'coa') {
-        dispatch(glApi.util.invalidateTags(['GlAccounts']));
+        dispatch(glApi.util.invalidateTags(['GlAccounts', 'DepartmentCenters', 'CostCenters']));
+      }
+      if (importType === 'charge') {
+        dispatch(billingApi.util.invalidateTags(['ChargeCategories', 'ChargeTypes']));
       }
       if (res.data.imported > 0) {
         toast.success(`${res.data.imported} record(s) imported${res.data.skipped > 0 ? `, ${res.data.skipped} skipped` : ''}`);

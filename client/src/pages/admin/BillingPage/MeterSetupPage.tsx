@@ -43,9 +43,9 @@ const labelFor = (opts: readonly { value: string; label: string }[], value: stri
   opts.find((o) => o.value === value)?.label || value;
 
 export default function MeterSetupPage() {
+  const searchPropertyId = useSelectedPropertyFilter();
   const { data: metersData, isFetching } = useGetMeterSetupsQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ limit: 100 });
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
   // /properties requires properties.read, which a billing-only role may lack — use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
@@ -59,18 +59,20 @@ export default function MeterSetupPage() {
 
   const meters = metersData?.data || [];
   const properties = propertiesData?.data || [];
-  const chargeTypes = chargeTypesData?.data || [];
 
   // ── Search & Filters ────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const searchPropertyId = useSelectedPropertyFilter();
   const [searchFloorId, setSearchFloorId] = useState('');
   const [filterMeterType, setFilterMeterType] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterChargeTypeId, setFilterChargeTypeId] = useState('');
 
   const defaultPropertyId = searchPropertyId || properties[0]?.id || scopeProperties[0]?.id || '';
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    defaultPropertyId ? { propertyId: defaultPropertyId } : undefined,
+  );
+  const chargeTypes = chargeTypesData?.data || [];
 
   const { data: searchFloorsData } = useGetFloorSetupsQuery(
     defaultPropertyId ? { propertyId: defaultPropertyId } : undefined,

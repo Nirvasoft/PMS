@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, BookOpen, Check } from 'lucide-react';
 import { useGetGlAccountsQuery, type GlAccount } from '../store/api/glApi';
+import { useSelectedPropertyId } from '../hooks/useSelectedPropertyId';
 import '../pages/admin/BillingPage/BillingPage.css';
 import './GlAccountLookupField.css';
 
@@ -12,6 +13,7 @@ interface GlAccountLookupFieldProps {
   wrapperClassName?: string;
   disabled?: boolean;
   placeholder?: string;
+  propertyId?: string;
 }
 
 export default function GlAccountLookupField({
@@ -21,8 +23,13 @@ export default function GlAccountLookupField({
   wrapperClassName = 'form-field',
   disabled = false,
   placeholder = 'Select from Chart of Accounts…',
+  propertyId: propPropertyId,
 }: GlAccountLookupFieldProps) {
-  const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery({});
+  const selectedPropertyId = useSelectedPropertyId();
+  const effectivePropertyId = propPropertyId || selectedPropertyId || undefined;
+  const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery(
+    effectivePropertyId ? { propertyId: effectivePropertyId } : {},
+  );
 
   const [showCoaModal, setShowCoaModal] = useState(false);
   const [coaSearch, setCoaSearch] = useState('');

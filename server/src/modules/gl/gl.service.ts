@@ -1,25 +1,7 @@
 import { prisma } from '../../common/database';
 import { logger } from '../../common/logger';
 import { AppError } from '../../common/errors';
-
-let glAccountConstraintEnsured = false;
-async function ensureGlAccountConstraint() {
-  if (glAccountConstraintEnsured) return;
-  try {
-    await prisma.$executeRawUnsafe(
-      `ALTER TABLE "gl_accounts" DROP CONSTRAINT IF EXISTS "gl_accounts_code_company_id_key"`,
-    );
-    await prisma.$executeRawUnsafe(
-      `DROP INDEX IF EXISTS "gl_accounts_code_company_id_key"`,
-    );
-    await prisma.$executeRawUnsafe(
-      `CREATE UNIQUE INDEX IF NOT EXISTS "gl_accounts_code_company_id_department_center_id_cost_cente_key" ON "gl_accounts"("code", "company_id", "department_center_id", "cost_center_id")`,
-    );
-    glAccountConstraintEnsured = true;
-  } catch (err) {
-    logger.warn('Could not update gl_accounts unique index automatically', err);
-  }
-}
+import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
 
 const DEFAULT_PAYMENT_METHODS = [
   { code: 'BANK_TRANSFER', name: 'Bank Transfer', isSystem: true, isActive: true },
@@ -30,45 +12,25 @@ const DEFAULT_PAYMENT_METHODS = [
   { code: 'CREDIT_CARD', name: 'Credit Card', isSystem: true, isActive: true },
 ];
 
-let paymentMethodsTableEnsured = false;
-const seededCompanyPaymentMethods = new Set<string>();
+const seededPaymentMethodScopes = new Set<string>();
 
-async function ensurePaymentMethodsTable(companyId: string) {
-  if (!paymentMethodsTableEnsured) {
-    try {
-      await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "payment_methods" (
-          "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-          "company_id" UUID NOT NULL,
-          "department_center_id" UUID,
-          "cost_center_id" UUID,
-          "code" VARCHAR(50) NOT NULL,
-          "name" VARCHAR(150) NOT NULL,
-          "gl_account_code" VARCHAR(50),
-          "is_active" BOOLEAN NOT NULL DEFAULT true,
-          "is_system" BOOLEAN NOT NULL DEFAULT false,
-          "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT "payment_methods_pkey" PRIMARY KEY ("id")
-        )
-      `);
-      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "payment_methods_company_id_idx" ON "payment_methods"("company_id")`);
-      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "payment_methods_department_center_id_idx" ON "payment_methods"("department_center_id")`);
-      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "payment_methods_cost_center_id_idx" ON "payment_methods"("cost_center_id")`);
-      await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "payment_methods_code_company_id_key" ON "payment_methods"("code", "company_id")`);
-      paymentMethodsTableEnsured = true;
-    } catch (err) {
-      logger.warn('Could not ensure payment_methods table automatically', err);
-    }
-  }
+async function ensurePaymentMethodsTable(companyId: string, propertyId?: string | null) {
+  await ensurePropertySetupScope();
 
-  if (companyId && !seededCompanyPaymentMethods.has(companyId)) {
+  const effectivePropertyId = propertyId?.trim() || (await resolveEffectivePropertyId(companyId));
+  const scopeKey = `${companyId}:${effectivePropertyId || 'default'}`;
+
+  if (companyId && !seededPaymentMethodScopes.has(scopeKey)) {
     try {
-      const count = await prisma.paymentMethod.count({ where: { companyId } });
+      const whereScope: any = { companyId };
+      if (effectivePropertyId) whereScope.propertyId = effectivePropertyId;
+
+      const count = await prisma.paymentMethod.count({ where: whereScope });
       if (count === 0) {
         await prisma.paymentMethod.createMany({
           data: DEFAULT_PAYMENT_METHODS.map((pm) => ({
             companyId,
+            propertyId: effectivePropertyId,
             code: pm.code,
             name: pm.name,
             isSystem: pm.isSystem,
@@ -77,7 +39,7 @@ async function ensurePaymentMethodsTable(companyId: string) {
           skipDuplicates: true,
         });
       }
-      seededCompanyPaymentMethods.add(companyId);
+      seededPaymentMethodScopes.add(scopeKey);
     } catch (err) {
       logger.warn('Could not seed default payment methods automatically', err);
     }
@@ -92,8 +54,13 @@ const paymentMethodInclude = {
 class GlService {
   // ── Department Centers ──────────────────────
 
-  async getDepartmentCenters(companyId: string, filters?: { isActive?: boolean; search?: string }) {
+  async getDepartmentCenters(
+    companyId: string,
+    filters?: { propertyId?: string; isActive?: boolean; search?: string },
+  ) {
+    await ensurePropertySetupScope();
     const where: any = { companyId };
+    if (filters?.propertyId) where.propertyId = filters.propertyId;
     if (filters?.isActive !== undefined) where.isActive = filters.isActive;
     if (filters?.search) {
       where.OR = [
@@ -111,10 +78,26 @@ class GlService {
   }
 
   async createDepartmentCenter(companyId: string, data: any) {
+    await ensurePropertySetupScope();
+    const code = data.code.trim();
+    const propertyId = await resolveEffectivePropertyId(companyId, data.propertyId);
+
+    const duplicate = await prisma.departmentCenter.findFirst({
+      where: {
+        companyId,
+        propertyId,
+        code: { equals: code, mode: 'insensitive' },
+      },
+    });
+    if (duplicate) {
+      throw AppError.conflict(`Department code "${code}" already exists for this property`);
+    }
+
     return prisma.departmentCenter.create({
       data: {
         companyId,
-        code: data.code.trim(),
+        propertyId,
+        code,
         name: data.name.trim(),
         description: data.description || null,
         isActive: data.isActive ?? true,
@@ -127,11 +110,32 @@ class GlService {
   }
 
   async updateDepartmentCenter(id: string, companyId: string, data: any) {
+    await ensurePropertySetupScope();
     const existing = await prisma.departmentCenter.findFirst({ where: { id, companyId } });
     if (!existing) throw new Error('Department not found');
+
+    const targetPropertyId =
+      data.propertyId !== undefined ? (data.propertyId || null) : existing.propertyId;
+
+    if (data.code !== undefined) {
+      const nextCode = data.code.trim();
+      const duplicate = await prisma.departmentCenter.findFirst({
+        where: {
+          companyId,
+          propertyId: targetPropertyId,
+          id: { not: id },
+          code: { equals: nextCode, mode: 'insensitive' },
+        },
+      });
+      if (duplicate) {
+        throw AppError.conflict(`Department code "${nextCode}" already exists for this property`);
+      }
+    }
+
     return prisma.departmentCenter.update({
       where: { id },
       data: {
+        ...(data.propertyId !== undefined ? { propertyId: targetPropertyId } : {}),
         ...(data.code !== undefined ? { code: data.code.trim() } : {}),
         ...(data.name !== undefined ? { name: data.name.trim() } : {}),
         ...(data.description !== undefined ? { description: data.description || null } : {}),
@@ -145,6 +149,7 @@ class GlService {
   }
 
   async deleteDepartmentCenter(id: string, companyId: string) {
+    await ensurePropertySetupScope();
     const existing = await prisma.departmentCenter.findFirst({ where: { id, companyId } });
     if (!existing) throw new Error('Department not found');
     await prisma.departmentCenter.delete({ where: { id } });
@@ -153,8 +158,13 @@ class GlService {
 
   // ── Cost Centers ────────────────────────────
 
-  async getCostCenters(companyId: string, filters?: { isActive?: boolean; departmentCenterId?: string; search?: string }) {
+  async getCostCenters(
+    companyId: string,
+    filters?: { propertyId?: string; isActive?: boolean; departmentCenterId?: string; search?: string },
+  ) {
+    await ensurePropertySetupScope();
     const where: any = { companyId };
+    if (filters?.propertyId) where.propertyId = filters.propertyId;
     if (filters?.isActive !== undefined) where.isActive = filters.isActive;
     if (filters?.departmentCenterId) where.departmentCenterId = filters.departmentCenterId;
     if (filters?.search) {
@@ -174,10 +184,26 @@ class GlService {
   }
 
   async createCostCenter(companyId: string, data: any) {
+    await ensurePropertySetupScope();
+    const code = data.code.trim();
+    const propertyId = await resolveEffectivePropertyId(companyId, data.propertyId);
+
+    const duplicate = await prisma.costCenter.findFirst({
+      where: {
+        companyId,
+        propertyId,
+        code: { equals: code, mode: 'insensitive' },
+      },
+    });
+    if (duplicate) {
+      throw AppError.conflict(`Cost Center code "${code}" already exists for this property`);
+    }
+
     return prisma.costCenter.create({
       data: {
         companyId,
-        code: data.code.trim(),
+        propertyId,
+        code,
         name: data.name.trim(),
         departmentCenterId: data.departmentCenterId || null,
         description: data.description || null,
@@ -192,11 +218,32 @@ class GlService {
   }
 
   async updateCostCenter(id: string, companyId: string, data: any) {
+    await ensurePropertySetupScope();
     const existing = await prisma.costCenter.findFirst({ where: { id, companyId } });
     if (!existing) throw new Error('Cost Center not found');
+
+    const targetPropertyId =
+      data.propertyId !== undefined ? (data.propertyId || null) : existing.propertyId;
+
+    if (data.code !== undefined) {
+      const nextCode = data.code.trim();
+      const duplicate = await prisma.costCenter.findFirst({
+        where: {
+          companyId,
+          propertyId: targetPropertyId,
+          id: { not: id },
+          code: { equals: nextCode, mode: 'insensitive' },
+        },
+      });
+      if (duplicate) {
+        throw AppError.conflict(`Cost Center code "${nextCode}" already exists for this property`);
+      }
+    }
+
     return prisma.costCenter.update({
       where: { id },
       data: {
+        ...(data.propertyId !== undefined ? { propertyId: targetPropertyId } : {}),
         ...(data.code !== undefined ? { code: data.code.trim() } : {}),
         ...(data.name !== undefined ? { name: data.name.trim() } : {}),
         ...(data.departmentCenterId !== undefined ? { departmentCenterId: data.departmentCenterId || null } : {}),
@@ -212,6 +259,7 @@ class GlService {
   }
 
   async deleteCostCenter(id: string, companyId: string) {
+    await ensurePropertySetupScope();
     const existing = await prisma.costCenter.findFirst({ where: { id, companyId } });
     if (!existing) throw new Error('Cost Center not found');
     await prisma.costCenter.delete({ where: { id } });
@@ -220,10 +268,14 @@ class GlService {
 
   // ── Payment Methods ─────────────────────────
 
-  async getPaymentMethods(companyId: string, filters?: { isActive?: boolean; search?: string }) {
-    await ensurePaymentMethodsTable(companyId);
+  async getPaymentMethods(
+    companyId: string,
+    filters?: { propertyId?: string; isActive?: boolean; search?: string },
+  ) {
+    await ensurePaymentMethodsTable(companyId, filters?.propertyId);
 
     const where: any = { companyId };
+    if (filters?.propertyId) where.propertyId = filters.propertyId;
     if (filters?.isActive !== undefined) where.isActive = filters.isActive;
     if (filters?.search) {
       where.OR = [
@@ -239,10 +291,30 @@ class GlService {
     });
   }
 
-  async resolvePaymentMethodConfig(companyId: string, codeOrName?: string | null) {
+  async resolvePaymentMethodConfig(
+    companyId: string,
+    codeOrName?: string | null,
+    propertyId?: string | null,
+  ) {
     if (!codeOrName) return null;
-    await ensurePaymentMethodsTable(companyId);
+    await ensurePaymentMethodsTable(companyId, propertyId);
     const normalized = codeOrName.trim();
+
+    if (propertyId) {
+      const byProperty = await prisma.paymentMethod.findFirst({
+        where: {
+          companyId,
+          propertyId,
+          OR: [
+            { code: { equals: normalized, mode: 'insensitive' } },
+            { name: { equals: normalized, mode: 'insensitive' } },
+          ],
+        },
+        include: paymentMethodInclude,
+      });
+      if (byProperty) return byProperty;
+    }
+
     return prisma.paymentMethod.findFirst({
       where: {
         companyId,
@@ -256,11 +328,16 @@ class GlService {
   }
 
   async createPaymentMethod(companyId: string, data: any) {
-    await ensurePaymentMethodsTable(companyId);
+    const propertyId = await resolveEffectivePropertyId(companyId, data.propertyId);
+    await ensurePaymentMethodsTable(companyId, propertyId);
 
     const code = data.code.trim().toUpperCase();
     const existing = await prisma.paymentMethod.findFirst({
-      where: { companyId, code: { equals: code, mode: 'insensitive' } },
+      where: {
+        companyId,
+        propertyId,
+        code: { equals: code, mode: 'insensitive' },
+      },
     });
     if (existing) {
       throw AppError.conflict(`Payment method code "${code}" already exists`);
@@ -269,6 +346,7 @@ class GlService {
     return prisma.paymentMethod.create({
       data: {
         companyId,
+        propertyId,
         code,
         name: data.name.trim(),
         glAccountCode: data.glAccountCode?.trim() || null,
@@ -282,16 +360,20 @@ class GlService {
   }
 
   async updatePaymentMethod(id: string, companyId: string, data: any) {
-    await ensurePaymentMethodsTable(companyId);
+    await ensurePropertySetupScope();
 
     const existing = await prisma.paymentMethod.findFirst({ where: { id, companyId } });
     if (!existing) throw AppError.notFound('Payment method');
+
+    const targetPropertyId =
+      data.propertyId !== undefined ? (data.propertyId || null) : existing.propertyId;
 
     if (data.code !== undefined) {
       const nextCode = data.code.trim().toUpperCase();
       const duplicate = await prisma.paymentMethod.findFirst({
         where: {
           companyId,
+          propertyId: targetPropertyId,
           id: { not: id },
           code: { equals: nextCode, mode: 'insensitive' },
         },
@@ -304,6 +386,7 @@ class GlService {
     return prisma.paymentMethod.update({
       where: { id },
       data: {
+        ...(data.propertyId !== undefined ? { propertyId: targetPropertyId } : {}),
         ...(data.code !== undefined ? { code: data.code.trim().toUpperCase() } : {}),
         ...(data.name !== undefined ? { name: data.name.trim() } : {}),
         ...(data.glAccountCode !== undefined ? { glAccountCode: data.glAccountCode?.trim() || null } : {}),
@@ -316,7 +399,7 @@ class GlService {
   }
 
   async deletePaymentMethod(id: string, companyId: string) {
-    await ensurePaymentMethodsTable(companyId);
+    await ensurePropertySetupScope();
 
     const existing = await prisma.paymentMethod.findFirst({ where: { id, companyId } });
     if (!existing) throw AppError.notFound('Payment method');
@@ -326,9 +409,17 @@ class GlService {
 
   // ── Chart of Accounts ───────────────────────
 
-  async getAccounts(companyId: string, filters: { accountType?: string; tree?: boolean }) {
+  async getAccounts(
+    companyId: string,
+    filters: { propertyId?: string; accountType?: string; tree?: boolean },
+  ) {
+    await ensurePropertySetupScope();
     const where: any = { companyId, isActive: true };
+    if (filters.propertyId) where.propertyId = filters.propertyId;
     if (filters.accountType) where.accountType = filters.accountType;
+
+    const childrenWhere: any = { isActive: true };
+    if (filters.propertyId) childrenWhere.propertyId = filters.propertyId;
 
     const accounts = await prisma.glAccount.findMany({
       where,
@@ -337,7 +428,7 @@ class GlService {
         departmentCenter: { select: { id: true, code: true, name: true } },
         costCenter: { select: { id: true, code: true, name: true } },
         children: {
-          where: { isActive: true },
+          where: childrenWhere,
           orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
           include: {
             departmentCenter: { select: { id: true, code: true, name: true } },
@@ -355,15 +446,17 @@ class GlService {
   }
 
   async createAccount(companyId: string, data: any) {
-    await ensureGlAccountConstraint();
+    await ensurePropertySetupScope();
 
     const code = data.code.trim();
+    const propertyId = await resolveEffectivePropertyId(companyId, data.propertyId);
     const departmentCenterId = data.departmentCenterId || null;
     const costCenterId = data.costCenterId || null;
 
     const existing = await prisma.glAccount.findFirst({
       where: {
         companyId,
+        propertyId,
         code: { equals: code, mode: 'insensitive' },
         departmentCenterId,
         costCenterId,
@@ -378,6 +471,7 @@ class GlService {
     return prisma.glAccount.create({
       data: {
         companyId,
+        propertyId,
         parentId: data.parentId || null,
         departmentCenterId,
         costCenterId,
@@ -398,11 +492,13 @@ class GlService {
   }
 
   async updateAccount(id: string, companyId: string, data: any) {
-    await ensureGlAccountConstraint();
+    await ensurePropertySetupScope();
 
     const current = await prisma.glAccount.findFirst({ where: { id, companyId } });
     if (!current) throw AppError.notFound('Account');
 
+    const targetPropertyId =
+      data.propertyId !== undefined ? (data.propertyId || null) : current.propertyId;
     const nextDepartmentCenterId =
       data.departmentCenterId !== undefined ? (data.departmentCenterId || null) : current.departmentCenterId;
     const nextCostCenterId =
@@ -411,6 +507,7 @@ class GlService {
     const duplicate = await prisma.glAccount.findFirst({
       where: {
         companyId,
+        propertyId: targetPropertyId,
         id: { not: id },
         code: { equals: current.code, mode: 'insensitive' },
         departmentCenterId: nextDepartmentCenterId,
@@ -426,6 +523,7 @@ class GlService {
     return prisma.glAccount.update({
       where: { id },
       data: {
+        ...(data.propertyId !== undefined ? { propertyId: targetPropertyId } : {}),
         name: data.name,
         ...(data.departmentCenterId !== undefined ? { departmentCenterId: nextDepartmentCenterId } : {}),
         ...(data.costCenterId !== undefined ? { costCenterId: nextCostCenterId } : {}),
@@ -713,13 +811,15 @@ class GlService {
    */
   async resolveGlAccount(params: {
     companyId: string;
+    propertyId?: string | null;
     accountId?: string | null;
     accountCode: string;
     departmentCenterId?: string | null;
     costCenterId?: string | null;
     isArDebit?: boolean;
   }) {
-    const { companyId, accountId, accountCode, departmentCenterId, costCenterId, isArDebit } = params;
+    await ensurePropertySetupScope();
+    const { companyId, propertyId, accountId, accountCode, departmentCenterId, costCenterId, isArDebit } = params;
     const normalizedCode = (accountCode || '').trim();
 
     if (accountId) {
@@ -729,7 +829,7 @@ class GlService {
       if (byId) return byId;
     }
 
-    const activeAccounts = await prisma.glAccount.findMany({
+    const allAccounts = await prisma.glAccount.findMany({
       where: { companyId, isActive: true },
       orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
     });
@@ -753,111 +853,121 @@ class GlService {
     const deptId = departmentCenterId || null;
     const ccId = costCenterId || null;
 
-    if (isArDebit) {
-      // 1. Exact Department + Cost Center match on AR account
+    const findFromPool = (activeAccounts: typeof allAccounts) => {
+      if (isArDebit) {
+        // 1. Exact Department + Cost Center match on AR account
+        if (deptId && ccId) {
+          const exactCodeAndDeptCc = activeAccounts.find(
+            (a) => isCodeMatch(a) && a.departmentCenterId === deptId && a.costCenterId === ccId,
+          );
+          if (exactCodeAndDeptCc) return exactCodeAndDeptCc;
+
+          const arByDeptCc = activeAccounts.find(
+            (a) => isArCandidate(a) && a.departmentCenterId === deptId && a.costCenterId === ccId,
+          );
+          if (arByDeptCc) return arByDeptCc;
+        }
+
+        // 2. Department match
+        if (deptId) {
+          const codeDeptNullCc = activeAccounts.find(
+            (a) => isCodeMatch(a) && a.departmentCenterId === deptId && !a.costCenterId,
+          );
+          if (codeDeptNullCc) return codeDeptNullCc;
+
+          const arDeptNullCc = activeAccounts.find(
+            (a) => isArCandidate(a) && a.departmentCenterId === deptId && !a.costCenterId,
+          );
+          if (arDeptNullCc) return arDeptNullCc;
+
+          const codeDeptAny = activeAccounts.find(
+            (a) => isCodeMatch(a) && a.departmentCenterId === deptId,
+          );
+          if (codeDeptAny) return codeDeptAny;
+
+          const arDeptAny = activeAccounts.find(
+            (a) => isArCandidate(a) && a.departmentCenterId === deptId,
+          );
+          if (arDeptAny) return arDeptAny;
+        }
+
+        // 3. Cost Center match (when department wasn't specified)
+        if (ccId && !deptId) {
+          const codeCcNullDept = activeAccounts.find(
+            (a) => isCodeMatch(a) && a.costCenterId === ccId && !a.departmentCenterId,
+          );
+          if (codeCcNullDept) return codeCcNullDept;
+
+          const arCcNullDept = activeAccounts.find(
+            (a) => isArCandidate(a) && a.costCenterId === ccId && !a.departmentCenterId,
+          );
+          if (arCcNullDept) return arCcNullDept;
+
+          const codeCcAny = activeAccounts.find(
+            (a) => isCodeMatch(a) && a.costCenterId === ccId,
+          );
+          if (codeCcAny) return codeCcAny;
+
+          const arCcAny = activeAccounts.find(
+            (a) => isArCandidate(a) && a.costCenterId === ccId,
+          );
+          if (arCcAny) return arCcAny;
+        }
+
+        // 4. Fallback: unlinked AR account with matching code, then any matching code, then any AR candidate
+        return (
+          activeAccounts.find((a) => isCodeMatch(a) && !a.departmentCenterId && !a.costCenterId) ||
+          activeAccounts.find((a) => isCodeMatch(a)) ||
+          activeAccounts.find((a) => isArCandidate(a) && !a.departmentCenterId && !a.costCenterId) ||
+          activeAccounts.find((a) => isArCandidate(a)) ||
+          null
+        );
+      }
+
+      // Standard account resolution: match code + dept/cc first
       if (deptId && ccId) {
-        const exactCodeAndDeptCc = activeAccounts.find(
+        const exact = activeAccounts.find(
           (a) => isCodeMatch(a) && a.departmentCenterId === deptId && a.costCenterId === ccId,
         );
-        if (exactCodeAndDeptCc) return exactCodeAndDeptCc;
-
-        const arByDeptCc = activeAccounts.find(
-          (a) => isArCandidate(a) && a.departmentCenterId === deptId && a.costCenterId === ccId,
-        );
-        if (arByDeptCc) return arByDeptCc;
+        if (exact) return exact;
       }
-
-      // 2. Department match
       if (deptId) {
-        const codeDeptNullCc = activeAccounts.find(
+        const byDeptNullCc = activeAccounts.find(
           (a) => isCodeMatch(a) && a.departmentCenterId === deptId && !a.costCenterId,
         );
-        if (codeDeptNullCc) return codeDeptNullCc;
+        if (byDeptNullCc) return byDeptNullCc;
 
-        const arDeptNullCc = activeAccounts.find(
-          (a) => isArCandidate(a) && a.departmentCenterId === deptId && !a.costCenterId,
-        );
-        if (arDeptNullCc) return arDeptNullCc;
-
-        const codeDeptAny = activeAccounts.find(
+        const byDeptAny = activeAccounts.find(
           (a) => isCodeMatch(a) && a.departmentCenterId === deptId,
         );
-        if (codeDeptAny) return codeDeptAny;
-
-        const arDeptAny = activeAccounts.find(
-          (a) => isArCandidate(a) && a.departmentCenterId === deptId,
-        );
-        if (arDeptAny) return arDeptAny;
+        if (byDeptAny) return byDeptAny;
       }
-
-      // 3. Cost Center match (when department wasn't specified)
       if (ccId && !deptId) {
-        const codeCcNullDept = activeAccounts.find(
+        const byCcNullDept = activeAccounts.find(
           (a) => isCodeMatch(a) && a.costCenterId === ccId && !a.departmentCenterId,
         );
-        if (codeCcNullDept) return codeCcNullDept;
+        if (byCcNullDept) return byCcNullDept;
 
-        const arCcNullDept = activeAccounts.find(
-          (a) => isArCandidate(a) && a.costCenterId === ccId && !a.departmentCenterId,
-        );
-        if (arCcNullDept) return arCcNullDept;
-
-        const codeCcAny = activeAccounts.find(
+        const byCcAny = activeAccounts.find(
           (a) => isCodeMatch(a) && a.costCenterId === ccId,
         );
-        if (codeCcAny) return codeCcAny;
-
-        const arCcAny = activeAccounts.find(
-          (a) => isArCandidate(a) && a.costCenterId === ccId,
-        );
-        if (arCcAny) return arCcAny;
+        if (byCcAny) return byCcAny;
       }
 
-      // 4. Fallback: unlinked AR account with matching code, then any matching code, then any AR candidate
       return (
         activeAccounts.find((a) => isCodeMatch(a) && !a.departmentCenterId && !a.costCenterId) ||
         activeAccounts.find((a) => isCodeMatch(a)) ||
-        activeAccounts.find((a) => isArCandidate(a) && !a.departmentCenterId && !a.costCenterId) ||
-        activeAccounts.find((a) => isArCandidate(a)) ||
         null
       );
+    };
+
+    if (propertyId) {
+      const propertyPool = allAccounts.filter((a) => a.propertyId === propertyId);
+      const fromProperty = findFromPool(propertyPool);
+      if (fromProperty) return fromProperty;
     }
 
-    // Standard account resolution: match code + dept/cc first
-    if (deptId && ccId) {
-      const exact = activeAccounts.find(
-        (a) => isCodeMatch(a) && a.departmentCenterId === deptId && a.costCenterId === ccId,
-      );
-      if (exact) return exact;
-    }
-    if (deptId) {
-      const byDeptNullCc = activeAccounts.find(
-        (a) => isCodeMatch(a) && a.departmentCenterId === deptId && !a.costCenterId,
-      );
-      if (byDeptNullCc) return byDeptNullCc;
-
-      const byDeptAny = activeAccounts.find(
-        (a) => isCodeMatch(a) && a.departmentCenterId === deptId,
-      );
-      if (byDeptAny) return byDeptAny;
-    }
-    if (ccId && !deptId) {
-      const byCcNullDept = activeAccounts.find(
-        (a) => isCodeMatch(a) && a.costCenterId === ccId && !a.departmentCenterId,
-      );
-      if (byCcNullDept) return byCcNullDept;
-
-      const byCcAny = activeAccounts.find(
-        (a) => isCodeMatch(a) && a.costCenterId === ccId,
-      );
-      if (byCcAny) return byCcAny;
-    }
-
-    return (
-      activeAccounts.find((a) => isCodeMatch(a) && !a.departmentCenterId && !a.costCenterId) ||
-      activeAccounts.find((a) => isCodeMatch(a)) ||
-      null
-    );
+    return findFromPool(allAccounts);
   }
 
   async createJournalEntry(companyId: string, userId: string, data: any) {
@@ -881,6 +991,7 @@ class GlService {
     for (const line of data.lines) {
       const account = await this.resolveGlAccount({
         companyId,
+        propertyId: line.propertyId || data.propertyId || null,
         accountId: line.accountId,
         accountCode: line.accountCode,
         departmentCenterId: line.departmentCenterId,
@@ -1161,6 +1272,7 @@ class GlService {
 
         let account = await this.resolveGlAccount({
           companyId: params.companyId,
+          propertyId: params.propertyId || null,
           accountId: line.accountId,
           accountCode: line.accountCode,
           departmentCenterId: lineDeptId,
@@ -1171,6 +1283,7 @@ class GlService {
           logger.warn(`GL auto-post: account code ${line.accountCode} not found, falling back to 4100`);
           account = await this.resolveGlAccount({
             companyId: params.companyId,
+            propertyId: params.propertyId || null,
             accountCode: '4100',
             departmentCenterId: lineDeptId,
             costCenterId: lineCcId,
@@ -1233,6 +1346,7 @@ class GlService {
   // ── Reports ─────────────────────────────────
 
   async getTrialBalance(companyId: string, params: { fromDate?: string; toDate?: string; propertyId?: string }) {
+    await ensurePropertySetupScope();
     const accounts = await prisma.glAccount.findMany({
       where: { companyId, isActive: true },
       orderBy: { code: 'asc' },
@@ -1388,6 +1502,9 @@ class GlService {
       status: { in: ['posted', 'reversed'] },
       entryDate: { gte: new Date(params.fromDate), lte: new Date(params.toDate) },
     };
+    if (params.propertyId) {
+      where.lines = { some: { propertyId: params.propertyId } };
+    }
 
     const journals = await prisma.journalEntry.findMany({
       where,

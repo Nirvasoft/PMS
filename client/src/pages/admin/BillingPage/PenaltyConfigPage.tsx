@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useGetPenaltyConfigsQuery, useCreatePenaltyConfigMutation, useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { Shield, Plus, AlertTriangle, Clock, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -15,15 +16,11 @@ const PENALTY_TYPES: Record<string, string> = {
 };
 
 export default function PenaltyConfigPage() {
+  const selectedPropertyId = useSelectedPropertyId();
   const { data: configsData, isFetching } = useGetPenaltyConfigsQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
   const [createConfig, { isLoading: creating }] = useCreatePenaltyConfigMutation();
   const alertDialog = useAlertDialog();
-
-  const configs = configsData?.data || [];
-  const properties = propertiesData?.data || [];
-  const chargeTypes = chargeTypesData?.data || [];
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -35,6 +32,15 @@ export default function PenaltyConfigPage() {
     penaltyType: 'percentage' as string, penaltyValue: '5',
     maxPenaltyPct: '25', compound: false,
   });
+
+  const effectivePropertyId = form.propertyId || selectedPropertyId || undefined;
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    effectivePropertyId ? { propertyId: effectivePropertyId } : undefined,
+  );
+
+  const configs = configsData?.data || [];
+  const properties = propertiesData?.data || [];
+  const chargeTypes = chargeTypesData?.data || [];
 
   const graceNum = Number(form.gracePeriodDays);
   const penaltyNum = Number(form.penaltyValue);

@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { Landmark } from 'lucide-react';
 import { useGetBalanceSheetQuery } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import './GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function BalanceSheetPage() {
+  const selectedPropertyId = useSelectedPropertyId();
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0]);
-  const { data: bs, isLoading } = useGetBalanceSheetQuery({ asOfDate });
+  const { data: bs, isLoading } = useGetBalanceSheetQuery({
+    asOfDate,
+    propertyId: selectedPropertyId || undefined,
+  });
 
   const renderSection = (title: string, icon: string, rows: any[], total: number, colorClass: string) => (
     <div className="report-section">

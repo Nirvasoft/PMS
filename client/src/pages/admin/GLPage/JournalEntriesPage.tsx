@@ -486,7 +486,7 @@ function JournalEntryDetailModal({
 }
 
 function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; propertyId?: string }) {
-  const { data: accounts = [] } = useGetGlAccountsQuery({});
+  const { data: accounts = [] } = useGetGlAccountsQuery(propertyId ? { propertyId } : {});
   const [createJE, { isLoading }] = useCreateJournalEntryMutation();
   const alertDialog = useAlertDialog();
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);

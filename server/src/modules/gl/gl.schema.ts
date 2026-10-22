@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createDepartmentCenterSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50),
     name: z.string().min(1).max(255),
     description: z.string().nullable().optional(),
@@ -12,6 +13,7 @@ export const createDepartmentCenterSchema = z.object({
 
 export const updateDepartmentCenterSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50).optional(),
     name: z.string().min(1).max(255).optional(),
     description: z.string().nullable().optional(),
@@ -22,6 +24,7 @@ export const updateDepartmentCenterSchema = z.object({
 
 export const createCostCenterSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50),
     name: z.string().min(1).max(255),
     departmentCenterId: z.string().uuid().nullable().optional(),
@@ -33,6 +36,7 @@ export const createCostCenterSchema = z.object({
 
 export const updateCostCenterSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50).optional(),
     name: z.string().min(1).max(255).optional(),
     departmentCenterId: z.string().uuid().nullable().optional(),
@@ -44,6 +48,7 @@ export const updateCostCenterSchema = z.object({
 
 export const createPaymentMethodSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50),
     name: z.string().min(1).max(150),
     glAccountCode: z.string().max(50).nullable().optional(),
@@ -55,6 +60,7 @@ export const createPaymentMethodSchema = z.object({
 
 export const updatePaymentMethodSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50).optional(),
     name: z.string().min(1).max(150).optional(),
     glAccountCode: z.string().max(50).nullable().optional(),
@@ -66,6 +72,7 @@ export const updatePaymentMethodSchema = z.object({
 
 export const createAccountSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     parentId: z.string().uuid().optional(),
     departmentCenterId: z.string().uuid().nullable().optional(),
     costCenterId: z.string().uuid().nullable().optional(),
@@ -82,6 +89,7 @@ export const createAccountSchema = z.object({
 
 export const updateAccountSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     name: z.string().min(1).max(255).optional(),
     departmentCenterId: z.string().uuid().nullable().optional(),
     costCenterId: z.string().uuid().nullable().optional(),

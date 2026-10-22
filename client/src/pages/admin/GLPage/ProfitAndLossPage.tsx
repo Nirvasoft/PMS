@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { useGetPnLQuery } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import './GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -44,6 +45,7 @@ function BarChart({ data, maxVal }: { data: Array<{ label: string; current: numb
 }
 
 export default function ProfitAndLossPage() {
+  const selectedPropertyId = useSelectedPropertyId();
   const now = new Date();
   const [fromDate, setFromDate] = useState(`${now.getFullYear()}-01-01`);
   const [toDate, setToDate] = useState(now.toISOString().split('T')[0]);
@@ -52,7 +54,7 @@ export default function ProfitAndLossPage() {
   const [compareFromDate, setCompareFromDate] = useState(`${prevYear}-01-01`);
   const [compareToDate, setCompareToDate] = useState(`${prevYear}-12-31`);
 
-  const queryParams: any = { fromDate, toDate };
+  const queryParams: any = { fromDate, toDate, propertyId: selectedPropertyId || undefined };
   if (compareEnabled) {
     queryParams.compareFromDate = compareFromDate;
     queryParams.compareToDate = compareToDate;

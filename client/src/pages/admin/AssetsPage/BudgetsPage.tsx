@@ -6,6 +6,7 @@ import {
 } from '../../../store/api/assetsApi';
 import type { Budget } from '../../../store/api/assetsApi';
 import { useGetGlAccountsQuery } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, Cell,
@@ -743,7 +744,10 @@ function VarianceTab({ year }: { year: number }) {
 // ═══════════════════════════════════════════════════
 
 function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => void }) {
-  const { data: accounts = [] } = useGetGlAccountsQuery({});
+  const selectedPropertyId = useSelectedPropertyId();
+  const { data: accounts = [] } = useGetGlAccountsQuery(
+    selectedPropertyId ? { propertyId: selectedPropertyId } : {},
+  );
   const [createBudget, { isLoading }] = useCreateBudgetMutation();
   const expenseAccounts = accounts.filter(a => (a.accountType === 'expense' || a.accountType === 'income') && a.isActive && !a.isControl);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);

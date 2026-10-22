@@ -44,7 +44,9 @@ export default function ApInvoiceListPage() {
     propertyId: selectedProperty || undefined,
     page: String(page), limit: String(limit),
   });
-  const { data: chargeTypesRes } = useGetChargeTypesQuery();
+  const { data: chargeTypesRes } = useGetChargeTypesQuery(
+    selectedProperty ? { propertyId: selectedProperty } : undefined,
+  );
   const [createApInvoice, { isLoading: creating }] = useCreateApInvoiceMutation();
   const [approveApInvoice] = useApproveApInvoiceMutation();
   const [rejectApInvoice] = useRejectApInvoiceMutation();

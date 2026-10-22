@@ -10,6 +10,7 @@ import {
   type PaymentMethod,
   type GlAccount,
 } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import {
   CreditCard, Plus, X, Check, Pencil, Trash2, Search, RotateCcw,
   ChevronLeft, ChevronRight, BookOpen, Filter,
@@ -21,10 +22,19 @@ import toast from 'react-hot-toast';
 import '../BillingPage/BillingPage.css';
 
 export default function PaymentMethodSetupPage() {
-  const { data: paymentMethods = [], isFetching } = useGetPaymentMethodsQuery();
-  const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery({});
-  const { data: departmentCenters = [] } = useGetDepartmentCentersQuery();
-  const { data: costCenters = [] } = useGetCostCentersQuery();
+  const propertyId = useSelectedPropertyId();
+  const { data: paymentMethods = [], isFetching } = useGetPaymentMethodsQuery(
+    propertyId ? { propertyId } : undefined
+  );
+  const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery(
+    propertyId ? { propertyId } : {}
+  );
+  const { data: departmentCenters = [] } = useGetDepartmentCentersQuery(
+    propertyId ? { propertyId } : undefined
+  );
+  const { data: costCenters = [] } = useGetCostCentersQuery(
+    propertyId ? { propertyId } : undefined
+  );
   const [createPaymentMethod, { isLoading: creating }] = useCreatePaymentMethodMutation();
   const [updatePaymentMethod, { isLoading: updating }] = useUpdatePaymentMethodMutation();
   const [deletePaymentMethod] = useDeletePaymentMethodMutation();
@@ -145,6 +155,7 @@ export default function PaymentMethodSetupPage() {
       return;
     }
     const payload = {
+      ...(propertyId ? { propertyId } : {}),
       code: form.code.trim().toUpperCase(),
       name: form.name.trim(),
       glAccountCode: form.glAccountCode || null,
@@ -202,10 +213,10 @@ export default function PaymentMethodSetupPage() {
     return true;
   });
 
-  // Reset pagination when search or filters change
+  // Reset pagination when search, filters, or active property change
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, pageSize]);
+  }, [search, statusFilter, pageSize, propertyId]);
 
   const totalItems = filteredPaymentMethods.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;

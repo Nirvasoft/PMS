@@ -1,4 +1,5 @@
 import { prisma } from '../../common/database';
+import { logger } from '../../common/logger';
 
 class BiService {
   // ═══════════════════════════════════════

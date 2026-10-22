@@ -1,5 +1,6 @@
 import { useGetReceiptQuery, useReverseReceiptMutation } from '../../../store/api/arApi';
 import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { X, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -11,8 +12,11 @@ const formatCurrency = (amount: string | number, currency = 'USD') =>
 interface Props { receiptId: string; onClose: () => void; }
 
 export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
+  const selectedPropertyId = useSelectedPropertyId();
   const { data, isLoading } = useGetReceiptQuery(receiptId);
-  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery();
+  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery(
+    selectedPropertyId ? { propertyId: selectedPropertyId } : undefined,
+  );
   const [reverseReceipt, { isLoading: reversing }] = useReverseReceiptMutation();
   const receipt = data?.data;
   const paymentMethodLabel = receipt

@@ -5,6 +5,7 @@ import { baseQueryWithReauth } from './baseQuery';
 
 export interface ChargeCategory {
   id: string;
+  propertyId?: string | null;
   code: string;
   description: string | null;
   monthly: boolean;
@@ -15,6 +16,7 @@ export interface ChargeCategory {
 
 export interface ChargeType {
   id: string;
+  propertyId?: string | null;
   code: string;
   name: string;
   category: string;
@@ -208,8 +210,8 @@ export const billingApi = createApi({
   endpoints: (builder) => ({
 
     // ── Charge Categories ─────────────────
-    getChargeCategories: builder.query<ApiResponse<ChargeCategory[]>, void>({
-      query: () => '/billing/charge-categories',
+    getChargeCategories: builder.query<ApiResponse<ChargeCategory[]>, { propertyId?: string } | void>({
+      query: (params) => ({ url: '/billing/charge-categories', params: params || {} }),
       providesTags: ['ChargeCategories'],
     }),
 
@@ -229,8 +231,8 @@ export const billingApi = createApi({
     }),
 
     // ── Charge Types ──────────────────────
-    getChargeTypes: builder.query<ApiResponse<ChargeType[]>, void>({
-      query: () => '/billing/charge-types',
+    getChargeTypes: builder.query<ApiResponse<ChargeType[]>, { propertyId?: string } | void>({
+      query: (params) => ({ url: '/billing/charge-types', params: params || {} }),
       providesTags: ['ChargeTypes'],
     }),
 

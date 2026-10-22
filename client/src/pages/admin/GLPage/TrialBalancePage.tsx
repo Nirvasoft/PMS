@@ -1,16 +1,22 @@
 import { useState } from 'react';
 import { Scale } from 'lucide-react';
 import { useGetTrialBalanceQuery } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import './GLPage.css';
 
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function TrialBalancePage() {
+  const selectedPropertyId = useSelectedPropertyId();
   const now = new Date();
   const [fromDate, setFromDate] = useState(`${now.getFullYear()}-01-01`);
   const [toDate, setToDate] = useState(now.toISOString().split('T')[0]);
-  const { data: tb, isLoading } = useGetTrialBalanceQuery({ fromDate, toDate });
+  const { data: tb, isLoading } = useGetTrialBalanceQuery({
+    fromDate,
+    toDate,
+    propertyId: selectedPropertyId || undefined,
+  });
 
   return (
     <div className="gl-page">
@@ -37,7 +43,8 @@ export default function TrialBalancePage() {
             <button
               onClick={() => {
                 const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken') || '';
-                const url = `/api/v1/gl/trial-balance?fromDate=${fromDate}&toDate=${toDate}&format=csv`;
+                const propParam = selectedPropertyId ? `&propertyId=${encodeURIComponent(selectedPropertyId)}` : '';
+                const url = `/api/v1/gl/trial-balance?fromDate=${fromDate}&toDate=${toDate}${propParam}&format=csv`;
                 fetch(url, { headers: { Authorization: `Bearer ${token}` } })
                   .then(r => r.blob())
                   .then(blob => {

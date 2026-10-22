@@ -33,26 +33,13 @@ const formatRate = (rate: string | number) => {
 
 export default function CreateInvoicePage() {
   const navigate = useNavigate();
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data: scopeData } = useGetMyPropertyScopeQuery();
-  const { data: glAccounts = [] } = useGetGlAccountsQuery({});
-  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({ isActive: true });
-  const { data: costCentersData = [] } = useGetCostCentersQuery({ isActive: true });
   const [createInvoice, { isLoading }] = useCreateInvoiceMutation();
   const alertDialog = useAlertDialog();
 
-  const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
   const scopeProperties = scopeData?.data || [];
-  const departmentCenters = Array.isArray(departmentCentersData) ? departmentCentersData : (departmentCentersData as any)?.data || [];
-  const costCenters = Array.isArray(costCentersData) ? costCentersData : (costCentersData as any)?.data || [];
-
-  const glAccountByCode = useMemo(() => {
-    const map = new Map<string, GlAccount>();
-    glAccounts.forEach((a) => map.set(a.code, a));
-    return map;
-  }, [glAccounts]);
 
   const activeProperty = useSelectedPropertyFilter();
   const effectivePropertyId = activeProperty || properties[0]?.id || scopeProperties[0]?.id || '';
@@ -66,6 +53,31 @@ export default function CreateInvoicePage() {
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const resolvedPropertyId = form.propertyId || effectivePropertyId;
+
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    resolvedPropertyId ? { propertyId: resolvedPropertyId } : undefined,
+  );
+  const { data: glAccounts = [] } = useGetGlAccountsQuery(
+    resolvedPropertyId ? { propertyId: resolvedPropertyId } : {},
+  );
+  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({
+    isActive: true,
+    propertyId: resolvedPropertyId || undefined,
+  });
+  const { data: costCentersData = [] } = useGetCostCentersQuery({
+    isActive: true,
+    propertyId: resolvedPropertyId || undefined,
+  });
+
+  const chargeTypes = chargeTypesData?.data || [];
+  const departmentCenters = departmentCentersData;
+  const costCenters = costCentersData;
+
+  const glAccountByCode = useMemo(() => {
+    const map = new Map<string, GlAccount>();
+    glAccounts.forEach((a) => map.set(a.code, a));
+    return map;
+  }, [glAccounts]);
 
   // Tenants scoped to the selected property
   const { data: tenantsData } = useGetTenantsQuery(

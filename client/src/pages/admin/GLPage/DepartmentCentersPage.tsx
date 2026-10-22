@@ -7,13 +7,17 @@ import {
   useDeleteDepartmentCenterMutation,
   type DepartmentCenter,
 } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import toast from 'react-hot-toast';
 import './GLPage.css';
 
 export default function DepartmentCentersPage() {
-  const { data: departmentCenters = [], isLoading } = useGetDepartmentCentersQuery();
+  const propertyId = useSelectedPropertyId();
+  const { data: departmentCenters = [], isLoading } = useGetDepartmentCentersQuery(
+    propertyId ? { propertyId } : undefined
+  );
   const [createDepartmentCenter] = useCreateDepartmentCenterMutation();
   const [updateDepartmentCenter] = useUpdateDepartmentCenterMutation();
   const [deleteDepartmentCenter] = useDeleteDepartmentCenterMutation();
@@ -210,6 +214,7 @@ export default function DepartmentCentersPage() {
       {showModal && (
         <DepartmentCenterModal
           item={editingItem}
+          propertyId={propertyId || undefined}
           onClose={() => setShowModal(false)}
           onCreate={createDepartmentCenter}
           onUpdate={updateDepartmentCenter}
@@ -221,11 +226,13 @@ export default function DepartmentCentersPage() {
 
 function DepartmentCenterModal({
   item,
+  propertyId,
   onClose,
   onCreate,
   onUpdate,
 }: {
   item: DepartmentCenter | null;
+  propertyId?: string;
   onClose: () => void;
   onCreate: any;
   onUpdate: any;
@@ -246,26 +253,22 @@ function DepartmentCenterModal({
     setHasAttemptedSubmit(true);
     if (!form.code.trim() || !form.name.trim()) return;
     try {
+      const payload = {
+        ...(propertyId ? { propertyId } : {}),
+        code: form.code.trim(),
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        sortOrder: Number(form.sortOrder) || 0,
+        isActive: form.isActive,
+      };
       if (isEdit) {
         await onUpdate({
           id: item.id,
-          data: {
-            code: form.code.trim(),
-            name: form.name.trim(),
-            description: form.description.trim() || null,
-            sortOrder: Number(form.sortOrder) || 0,
-            isActive: form.isActive,
-          },
+          data: payload,
         }).unwrap();
         toast.success('Department updated');
       } else {
-        await onCreate({
-          code: form.code.trim(),
-          name: form.name.trim(),
-          description: form.description.trim() || null,
-          sortOrder: Number(form.sortOrder) || 0,
-          isActive: form.isActive,
-        }).unwrap();
+        await onCreate(payload).unwrap();
         toast.success('Department created');
       }
       onClose();

@@ -14,7 +14,12 @@ const formatCurrency = (amount: number, currency = 'USD') =>
 interface Props { onClose: () => void; }
 
 export default function CreateReceiptModal({ onClose }: Props) {
-  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery({ isActive: true });
+  // Active property — tenants and payment methods are scoped to this property.
+  const activePropertyId = useSelectedPropertyId();
+  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery({
+    isActive: true,
+    propertyId: activePropertyId || undefined,
+  });
   const activePaymentMethods = useMemo(
     () => paymentMethods.filter((pm) => pm.isActive),
     [paymentMethods]
@@ -38,9 +43,6 @@ export default function CreateReceiptModal({ onClose }: Props) {
       setPaymentMethod(preferred);
     }
   }, [activePaymentMethods, paymentMethod]);
-
-  // Active property — tenants are scoped to this property and must be KYC-verified.
-  const activePropertyId = useSelectedPropertyId();
 
   const { data: tenantsData } = useGetTenantsQuery({
     page: 1,

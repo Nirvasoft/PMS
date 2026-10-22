@@ -21,6 +21,7 @@ export const glRouter = Router();
 
 glRouter.get('/accounts', asyncHandler(async (req, res) => {
   const data = await glService.getAccounts(req.user!.companyId, {
+    propertyId: q(req, 'propertyId') || undefined,
     accountType: q(req, 'accountType') || undefined,
     tree: req.query.tree === 'true',
   });
@@ -44,6 +45,7 @@ glRouter.put('/accounts/:id', validateRequest(updateAccountSchema), asyncHandler
 glRouter.get('/department-centers', asyncHandler(async (req, res) => {
   const isActiveParam = q(req, 'isActive');
   const data = await glService.getDepartmentCenters(req.user!.companyId, {
+    propertyId: q(req, 'propertyId') || undefined,
     isActive: isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : undefined,
     search: q(req, 'search') || undefined,
   });
@@ -72,6 +74,7 @@ glRouter.delete('/department-centers/:id', asyncHandler(async (req, res) => {
 glRouter.get('/cost-centers', asyncHandler(async (req, res) => {
   const isActiveParam = q(req, 'isActive');
   const data = await glService.getCostCenters(req.user!.companyId, {
+    propertyId: q(req, 'propertyId') || undefined,
     isActive: isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : undefined,
     departmentCenterId: q(req, 'departmentCenterId') || undefined,
     search: q(req, 'search') || undefined,
@@ -101,6 +104,7 @@ glRouter.delete('/cost-centers/:id', asyncHandler(async (req, res) => {
 glRouter.get('/payment-methods', asyncHandler(async (req, res) => {
   const isActiveParam = q(req, 'isActive');
   const data = await glService.getPaymentMethods(req.user!.companyId, {
+    propertyId: q(req, 'propertyId') || undefined,
     isActive: isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : undefined,
     search: q(req, 'search') || undefined,
   });

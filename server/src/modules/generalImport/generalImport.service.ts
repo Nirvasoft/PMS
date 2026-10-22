@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import ExcelJS from 'exceljs';
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
+import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
 import { unitsService, metersService } from '../units/units.service';
 import { calcLeaseTermMonths, nextLeaseNumber } from '../leases/services/helpers';
 import { billingSchedulesService } from '../billing/billingSchedules.service';
@@ -1117,8 +1118,16 @@ async function validateRows(
   }
 
   if (type === 'charge') {
+    await ensurePropertySetupScope();
+    const effectivePropId = await resolveEffectivePropertyId(companyId, propertyId);
     const existing = await prisma.chargeType.findMany({
-      where: { OR: [{ companyId }, { companyId: null }] },
+      where: {
+        OR: [
+          { companyId: null },
+          { companyId, isSystem: true, propertyId: null },
+          ...(effectivePropId ? [{ companyId, propertyId: effectivePropId }] : [{ companyId }]),
+        ],
+      },
       select: { code: true },
     });
     const knownCodes = new Set(existing.map((c) => c.code.trim().toLowerCase()));
@@ -1168,9 +1177,15 @@ async function validateRows(
   }
 
   if (type === 'coa') {
+    await ensurePropertySetupScope();
+    const effectivePropId = await resolveEffectivePropertyId(companyId, propertyId);
+    const propScopeWhere = {
+      companyId,
+      ...(effectivePropId ? { propertyId: effectivePropId } : {}),
+    };
     const [existingAccounts, existingDepts, existingCostCenters] = await Promise.all([
       prisma.glAccount.findMany({
-        where: { companyId },
+        where: propScopeWhere,
         select: {
           code: true,
           departmentCenterId: true,
@@ -1178,11 +1193,11 @@ async function validateRows(
         },
       }),
       prisma.departmentCenter.findMany({
-        where: { companyId },
+        where: propScopeWhere,
         select: { id: true, code: true, name: true, description: true },
       }),
       prisma.costCenter.findMany({
-        where: { companyId },
+        where: propScopeWhere,
         select: { id: true, code: true, name: true, description: true },
       }),
     ]);
@@ -3177,13 +3192,21 @@ export const generalImportService = {
         );
       }
     } else if (normType === 'charge') {
+      await ensurePropertySetupScope();
+      const effectivePropId = await resolveEffectivePropertyId(companyId, propertyId);
+      const chargeScopeOr = [
+        { companyId: null },
+        { companyId, isSystem: true, propertyId: null },
+        ...(effectivePropId ? [{ companyId, propertyId: effectivePropId }] : [{ companyId }]),
+      ];
+
       const [existingCharges, categories] = await Promise.all([
         prisma.chargeType.findMany({
-          where: { OR: [{ companyId }, { companyId: null }] },
+          where: { OR: chargeScopeOr },
           select: { code: true },
         }),
         prisma.chargeCategory.findMany({
-          where: { OR: [{ companyId }, { companyId: null }] },
+          where: { OR: chargeScopeOr },
           select: { code: true, description: true },
         }),
       ]);
@@ -3215,6 +3238,7 @@ export const generalImportService = {
             await prisma.chargeCategory.create({
               data: {
                 companyId,
+                propertyId: effectivePropId,
                 code: matchedCat,
                 description: rawCat.slice(0, 255),
                 monthly: false,
@@ -3232,6 +3256,7 @@ export const generalImportService = {
           await prisma.chargeType.create({
             data: {
               companyId,
+              propertyId: effectivePropId,
               code,
               name: d.name.trim(),
               category: matchedCat || 'misc',
@@ -3249,24 +3274,16 @@ export const generalImportService = {
         }
       }
     } else if (normType === 'coa') {
-      try {
-        await prisma.$executeRawUnsafe(`
-          ALTER TABLE "gl_accounts" DROP CONSTRAINT IF EXISTS "gl_accounts_code_company_id_key";
-        `);
-        await prisma.$executeRawUnsafe(`
-          DROP INDEX IF EXISTS "gl_accounts_code_company_id_key";
-        `);
-        await prisma.$executeRawUnsafe(`
-          CREATE UNIQUE INDEX IF NOT EXISTS "gl_accounts_code_company_dept_cc_key"
-          ON "gl_accounts" ("code", "company_id", "department_center_id", "cost_center_id");
-        `);
-      } catch {
-        // Ignore if index already exists
-      }
+      await ensurePropertySetupScope();
+      const effectivePropId = await resolveEffectivePropertyId(companyId, propertyId);
+      const propScopeWhere = {
+        companyId,
+        ...(effectivePropId ? { propertyId: effectivePropId } : {}),
+      };
 
       const [existingAccounts, existingDepts, existingCcs] = await Promise.all([
         prisma.glAccount.findMany({
-          where: { companyId },
+          where: propScopeWhere,
           select: {
             id: true,
             code: true,
@@ -3275,11 +3292,11 @@ export const generalImportService = {
           },
         }),
         prisma.departmentCenter.findMany({
-          where: { companyId },
+          where: propScopeWhere,
           select: { id: true, code: true, name: true, description: true },
         }),
         prisma.costCenter.findMany({
-          where: { companyId },
+          where: propScopeWhere,
           select: { id: true, code: true, name: true, description: true },
         }),
       ]);
@@ -3385,6 +3402,7 @@ export const generalImportService = {
           const createdAcc = await prisma.glAccount.create({
             data: {
               companyId,
+              propertyId: effectivePropId,
               code: code.slice(0, 20),
               name: description.slice(0, 255),
               accountType,

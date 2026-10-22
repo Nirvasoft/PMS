@@ -94,7 +94,9 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
   );
   const unitCharges = unitChargesData?.data || [];
   const unitAreaSqft = Number(unitData?.data?.areaSqft || 0);
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    form.propertyId ? { propertyId: form.propertyId } : undefined,
+  );
   const chargeTypes = chargeTypesData?.data || [];
   const chargeTypeName = (id: string) =>
     unitCharges.find((c) => c.chargeType.id === id)?.chargeType.name

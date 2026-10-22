@@ -48,7 +48,9 @@ export default function PaymentVouchersPage() {
     propertyId: selectedProperty || undefined,
     limit: '100',
   });
-  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery();
+  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery(
+    selectedProperty ? { propertyId: selectedProperty } : undefined,
+  );
   const activePaymentMethods = useMemo(
     () => paymentMethods.filter((pm) => pm.isActive),
     [paymentMethods]

@@ -9,6 +9,7 @@ import {
   useGetCostCentersQuery,
 } from '../../../store/api/glApi';
 import type { GlAccount, DepartmentCenter, CostCenter } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../BillingPage/BillingPage.css';
@@ -289,9 +290,16 @@ function AccountNode({
 }
 
 export default function ChartOfAccountsPage() {
-  const { data: accounts = [], isLoading } = useGetGlAccountsQuery({});
-  const { data: departmentCenters = [] } = useGetDepartmentCentersQuery();
-  const { data: costCenters = [] } = useGetCostCentersQuery();
+  const propertyId = useSelectedPropertyId();
+  const { data: accounts = [], isLoading } = useGetGlAccountsQuery(
+    propertyId ? { propertyId } : {}
+  );
+  const { data: departmentCenters = [] } = useGetDepartmentCentersQuery(
+    propertyId ? { propertyId } : undefined
+  );
+  const { data: costCenters = [] } = useGetCostCentersQuery(
+    propertyId ? { propertyId } : undefined
+  );
   const [createAccount] = useCreateGlAccountMutation();
   const [updateAccount] = useUpdateGlAccountMutation();
   const [showModal, setShowModal] = useState(false);
@@ -407,6 +415,7 @@ export default function ChartOfAccountsPage() {
       {showModal && (
         <AccountModal
           account={editAccount}
+          propertyId={propertyId || undefined}
           accounts={accounts}
           departmentCenters={departmentCenters}
           costCenters={costCenters}
@@ -421,6 +430,7 @@ export default function ChartOfAccountsPage() {
 
 function AccountModal({
   account,
+  propertyId,
   accounts,
   departmentCenters,
   costCenters,
@@ -429,6 +439,7 @@ function AccountModal({
   onUpdate,
 }: {
   account: GlAccount | null;
+  propertyId?: string;
   accounts: GlAccount[];
   departmentCenters: DepartmentCenter[];
   costCenters: CostCenter[];
@@ -529,6 +540,7 @@ function AccountModal({
         await onUpdate({
           id: account.id,
           data: {
+            ...(propertyId ? { propertyId } : {}),
             name: form.name,
             departmentCenterId: form.departmentCenterId || null,
             costCenterId: form.costCenterId || null,
@@ -540,6 +552,7 @@ function AccountModal({
       } else {
         await onCreate({
           ...form,
+          ...(propertyId ? { propertyId } : {}),
           parentId: form.parentId || undefined,
           departmentCenterId: form.departmentCenterId || null,
           costCenterId: form.costCenterId || null,

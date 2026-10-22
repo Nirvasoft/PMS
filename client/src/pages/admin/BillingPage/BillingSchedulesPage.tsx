@@ -121,11 +121,22 @@ export default function BillingSchedulesPage() {
     page,
     limit: pageSize,
   });
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const setupPropertyId = form.propertyId || selectedProperty || defaultPropertyId || undefined;
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    setupPropertyId ? { propertyId: setupPropertyId } : undefined,
+  );
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const { data: glAccounts = [] } = useGetGlAccountsQuery({});
-  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({ isActive: true });
-  const { data: costCentersData = [] } = useGetCostCentersQuery({ isActive: true });
+  const { data: glAccounts = [] } = useGetGlAccountsQuery(
+    setupPropertyId ? { propertyId: setupPropertyId } : {},
+  );
+  const { data: departmentCentersData = [] } = useGetDepartmentCentersQuery({
+    isActive: true,
+    propertyId: setupPropertyId,
+  });
+  const { data: costCentersData = [] } = useGetCostCentersQuery({
+    isActive: true,
+    propertyId: setupPropertyId,
+  });
   // /properties requires properties.read, which a billing-only role may lack — use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
@@ -152,8 +163,8 @@ export default function BillingSchedulesPage() {
   const meta = data?.meta;
   const chargeTypes = chargeTypesData?.data || [];
   const properties = propertiesData?.data || [];
-  const departmentCenters = Array.isArray(departmentCentersData) ? departmentCentersData : (departmentCentersData as any)?.data || [];
-  const costCenters = Array.isArray(costCentersData) ? costCentersData : (costCentersData as any)?.data || [];
+  const departmentCenters = departmentCentersData;
+  const costCenters = costCentersData;
   const scopeProperties = scopeData?.data || [];
   const floors = (floorsData?.data || []).slice().sort((a, b) => a.floorNumber - b.floorNumber);
   const units = unitsData?.data || [];

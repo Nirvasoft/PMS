@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import { Activity } from 'lucide-react';
 import { useGetCashFlowQuery } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import './GLPage.css';
 
 export default function CashFlowPage() {
+  const selectedPropertyId = useSelectedPropertyId();
   const year = new Date().getFullYear();
   const [fromDate, setFromDate] = useState(`${year}-01-01`);
   const [toDate, setToDate] = useState(new Date().toISOString().split('T')[0]);
-  const { data: cf, isLoading } = useGetCashFlowQuery({ fromDate, toDate });
+  const { data: cf, isLoading } = useGetCashFlowQuery({
+    fromDate,
+    toDate,
+    propertyId: selectedPropertyId || undefined,
+  });
 
   const fmt = (n: number) => {
     const abs = Math.abs(n);

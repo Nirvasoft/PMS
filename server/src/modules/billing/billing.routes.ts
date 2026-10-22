@@ -32,7 +32,9 @@ const p = (req: Request, key: string) => req.params[key] as string;
 export const chargeCategoriesRouter = Router();
 
 chargeCategoriesRouter.get('/', requirePermission('charge-category.read'), asyncHandler(async (req, res) => {
-  const data = await chargeCategoriesService.findAll(req.user!.companyId);
+  const data = await chargeCategoriesService.findAll(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+  });
   res.json({ success: true, data });
 }));
 
@@ -57,7 +59,9 @@ chargeCategoriesRouter.delete('/:id', requirePermission('charge-category.delete'
 export const chargeTypesRouter = Router();
 
 chargeTypesRouter.get('/', asyncHandler(async (req, res) => {
-  const data = await chargeTypesService.findAll(req.user!.companyId);
+  const data = await chargeTypesService.findAll(req.user!.companyId, {
+    propertyId: req.query.propertyId as string,
+  });
   res.json({ success: true, data });
 }));
 

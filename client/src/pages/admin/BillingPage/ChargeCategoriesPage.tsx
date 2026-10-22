@@ -4,6 +4,7 @@ import {
   useUpdateChargeCategoryMutation, useDeleteChargeCategoryMutation,
   type ChargeCategory,
 } from '../../../store/api/billingApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { Tag, Plus, X, Pencil, Trash2, Check, Lock, Search, RotateCcw, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -12,7 +13,10 @@ import toast from 'react-hot-toast';
 import './BillingPage.css';
 
 export default function ChargeCategoriesPage() {
-  const { data: categoriesData, isFetching } = useGetChargeCategoriesQuery();
+  const propertyId = useSelectedPropertyId();
+  const { data: categoriesData, isFetching } = useGetChargeCategoriesQuery(
+    propertyId ? { propertyId } : undefined
+  );
   const [createChargeCategory, { isLoading: creating }] = useCreateChargeCategoryMutation();
   const [updateChargeCategory, { isLoading: updating }] = useUpdateChargeCategoryMutation();
   const [deleteChargeCategory] = useDeleteChargeCategoryMutation();
@@ -66,6 +70,7 @@ export default function ChargeCategoriesPage() {
       return;
     }
     const payload = {
+      ...(propertyId ? { propertyId } : {}),
       code: form.code.trim(),
       description: form.description || undefined,
       monthly: form.monthly,
@@ -91,10 +96,10 @@ export default function ChargeCategoriesPage() {
     }
   };
 
-  // Reset pagination when search or filters change
+  // Reset pagination when search, filters, or active property change
   useEffect(() => {
     setPage(1);
-  }, [search, monthlyFilter, typeFilter, pageSize]);
+  }, [search, monthlyFilter, typeFilter, pageSize, propertyId]);
 
   const filteredCategories = categories.filter((cc) => {
     if (search.trim()) {

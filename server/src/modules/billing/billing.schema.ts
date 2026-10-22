@@ -6,6 +6,7 @@ const dateString = z.string().refine((val) => !isNaN(Date.parse(val)), { message
 
 export const createChargeCategorySchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50),
     description: z.string().max(255).optional(),
     monthly: z.boolean().optional(),
@@ -14,6 +15,7 @@ export const createChargeCategorySchema = z.object({
 
 export const updateChargeCategorySchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50).optional(),
     description: z.string().max(255).optional(),
     monthly: z.boolean().optional(),
@@ -25,6 +27,7 @@ export const updateChargeCategorySchema = z.object({
 
 export const createChargeTypeSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50),
     name: z.string().min(1).max(150),
     category: z.string().min(1).max(50), // code of a ChargeCategory — see charge-categories
@@ -86,6 +89,7 @@ export const updateMeterSetupSchema = z.object({
 
 export const updateChargeTypeSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().nullish(),
     code: z.string().min(1).max(50).optional(),
     name: z.string().min(1).max(150).optional(),
     category: z.string().min(1).max(50).optional(), // code of a ChargeCategory — see charge-categories

@@ -160,7 +160,11 @@ export class ReceiptsService {
 
     // GL auto-posting: Dr Bank / Cr Accounts Receivable
     try {
-      const pmConfig = await glService.resolvePaymentMethodConfig(companyId, dto.paymentMethod as string);
+      const pmConfig = await glService.resolvePaymentMethodConfig(
+        companyId,
+        dto.paymentMethod as string,
+        (dto.propertyId as string) || undefined,
+      );
       const debitAccountCode = pmConfig?.glAccountCode || '1210';
       await glService.postAutoJournal({
         companyId,

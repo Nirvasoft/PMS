@@ -96,7 +96,9 @@ export default function ReceiptsPage() {
     return r.tenant.lastName || r.tenant.firstName || '—';
   };
 
-  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery();
+  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery(
+    propertyId ? { propertyId } : undefined,
+  );
   const paymentMethodMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const pm of paymentMethods) {

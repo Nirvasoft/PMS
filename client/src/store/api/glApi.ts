@@ -4,6 +4,7 @@ import { baseQueryWithReauth } from './baseQuery';
 interface DepartmentCenter {
   id: string;
   companyId: string;
+  propertyId?: string | null;
   code: string;
   name: string;
   description: string | null;
@@ -17,6 +18,7 @@ interface DepartmentCenter {
 interface CostCenter {
   id: string;
   companyId: string;
+  propertyId?: string | null;
   departmentCenterId: string | null;
   code: string;
   name: string;
@@ -30,7 +32,7 @@ interface CostCenter {
 }
 
 interface GlAccount {
-  id: string; companyId: string; parentId: string | null;
+  id: string; companyId: string; propertyId?: string | null; parentId: string | null;
   departmentCenterId?: string | null;
   costCenterId?: string | null;
   code: string; name: string; accountType: string; accountSubtype: string | null;
@@ -119,6 +121,7 @@ interface CashFlow {
 interface PaymentMethod {
   id: string;
   companyId: string;
+  propertyId?: string | null;
   code: string;
   name: string;
   glAccountCode: string | null;
@@ -139,7 +142,7 @@ export const glApi = createApi({
   tagTypes: ['GlAccounts', 'DepartmentCenters', 'CostCenters', 'PaymentMethods', 'FiscalPeriods', 'JournalEntries', 'TrialBalance', 'PnL', 'BalanceSheet', 'CashFlow'],
   endpoints: (b) => ({
     // ── Department Centers ─────────
-    getDepartmentCenters: b.query<DepartmentCenter[], { isActive?: boolean; search?: string } | void>({
+    getDepartmentCenters: b.query<DepartmentCenter[], { propertyId?: string; isActive?: boolean; search?: string } | void>({
       query: (params) => ({ url: '/gl/department-centers', params: (params || {}) as any }),
       transformResponse: (r: any) => r.data,
       providesTags: ['DepartmentCenters'],
@@ -158,7 +161,7 @@ export const glApi = createApi({
     }),
 
     // ── Cost Centers ───────────────
-    getCostCenters: b.query<CostCenter[], { isActive?: boolean; departmentCenterId?: string; search?: string } | void>({
+    getCostCenters: b.query<CostCenter[], { propertyId?: string; isActive?: boolean; departmentCenterId?: string; search?: string } | void>({
       query: (params) => ({ url: '/gl/cost-centers', params: (params || {}) as any }),
       transformResponse: (r: any) => r.data,
       providesTags: ['CostCenters'],
@@ -177,7 +180,7 @@ export const glApi = createApi({
     }),
 
     // ── Payment Methods ────────────
-    getPaymentMethods: b.query<PaymentMethod[], { isActive?: boolean; search?: string } | void>({
+    getPaymentMethods: b.query<PaymentMethod[], { propertyId?: string; isActive?: boolean; search?: string } | void>({
       query: (params) => ({ url: '/gl/payment-methods', params: (params || {}) as any }),
       transformResponse: (r: any) => r.data,
       providesTags: ['PaymentMethods'],
@@ -196,8 +199,8 @@ export const glApi = createApi({
     }),
 
     // ── Chart of Accounts ──────────
-    getGlAccounts: b.query<GlAccount[], { accountType?: string; tree?: boolean }>({
-      query: (params) => ({ url: '/gl/accounts', params: params as any }),
+    getGlAccounts: b.query<GlAccount[], { propertyId?: string; accountType?: string; tree?: boolean } | void>({
+      query: (params) => ({ url: '/gl/accounts', params: (params || {}) as any }),
       transformResponse: (r: any) => r.data,
       providesTags: ['GlAccounts'],
     }),

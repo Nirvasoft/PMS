@@ -28,7 +28,9 @@ export function ReviewSubmitStep({ form }: { form: FormState }) {
   const unitCharges = unitChargesData?.data || [];
   const ra = form.rentalAgreement;
 
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    form.propertyId ? { propertyId: form.propertyId } : undefined,
+  );
   const chargeTypes = chargeTypesData?.data || [];
   const chargeTypeName = (id: string) => chargeTypes.find((t) => t.id === id)?.name || 'Unknown charge';
 

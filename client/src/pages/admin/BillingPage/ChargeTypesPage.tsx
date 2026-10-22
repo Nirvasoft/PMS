@@ -10,6 +10,7 @@ import {
   useGetCostCentersQuery,
   type GlAccount,
 } from '../../../store/api/glApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { DollarSign, Plus, X, Tag, Check, Pencil, Lock, Search, RotateCcw, ChevronLeft, ChevronRight, BookOpen, Filter } from 'lucide-react';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -18,11 +19,22 @@ import toast from 'react-hot-toast';
 import './BillingPage.css';
 
 export default function ChargeTypesPage() {
-  const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery();
-  const { data: categoriesData } = useGetChargeCategoriesQuery();
-  const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery({});
-  const { data: departmentCenters = [] } = useGetDepartmentCentersQuery();
-  const { data: costCenters = [] } = useGetCostCentersQuery();
+  const propertyId = useSelectedPropertyId();
+  const { data: chargeTypesData, isFetching } = useGetChargeTypesQuery(
+    propertyId ? { propertyId } : undefined
+  );
+  const { data: categoriesData } = useGetChargeCategoriesQuery(
+    propertyId ? { propertyId } : undefined
+  );
+  const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery(
+    propertyId ? { propertyId } : {}
+  );
+  const { data: departmentCenters = [] } = useGetDepartmentCentersQuery(
+    propertyId ? { propertyId } : undefined
+  );
+  const { data: costCenters = [] } = useGetCostCentersQuery(
+    propertyId ? { propertyId } : undefined
+  );
   const [createChargeType, { isLoading: creating }] = useCreateChargeTypeMutation();
   const [updateChargeType, { isLoading: updating }] = useUpdateChargeTypeMutation();
   const alertDialog = useAlertDialog();
@@ -141,6 +153,7 @@ export default function ChargeTypesPage() {
       return;
     }
     const payload = {
+      ...(propertyId ? { propertyId } : {}),
       code: form.code.toUpperCase(),
       name: form.name,
       category: form.category,
@@ -194,10 +207,10 @@ export default function ChargeTypesPage() {
     return true;
   });
 
-  // Reset pagination when search or filters change
+  // Reset pagination when search, filters, or active property change
   useEffect(() => {
     setPage(1);
-  }, [search, categoryFilter, taxFilter, statusFilter, pageSize]);
+  }, [search, categoryFilter, taxFilter, statusFilter, pageSize, propertyId]);
 
   const totalItems = filteredChargeTypes.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;

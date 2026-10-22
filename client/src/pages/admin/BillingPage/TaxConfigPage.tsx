@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGetTaxConfigsQuery, useCreateTaxConfigMutation, useGetChargeTypesQuery } from '../../../store/api/billingApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { Calculator, Plus, X, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAlertDialog } from '../../../components/DialogProvider';
@@ -8,8 +9,11 @@ import { TableScrollWrapper } from './components/TableScrollWrapper';
 import './BillingPage.css';
 
 export default function TaxConfigPage() {
+  const selectedPropertyId = useSelectedPropertyId();
   const { data: taxData, isFetching } = useGetTaxConfigsQuery();
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    selectedPropertyId ? { propertyId: selectedPropertyId } : undefined,
+  );
   const [createTax, { isLoading: creating }] = useCreateTaxConfigMutation();
   const alertDialog = useAlertDialog();
 

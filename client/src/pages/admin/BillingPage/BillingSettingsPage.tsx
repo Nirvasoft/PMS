@@ -1,13 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import { useGetPenaltyConfigsQuery, useGetTaxConfigsQuery, useGetChargeTypesQuery } from '../../../store/api/billingApi';
+import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { Settings, Shield, Calculator, ArrowRight, DollarSign } from 'lucide-react';
 import './BillingPage.css';
 
 export default function BillingSettingsPage() {
   const navigate = useNavigate();
+  const selectedPropertyId = useSelectedPropertyId();
   const { data: penaltyData } = useGetPenaltyConfigsQuery();
   const { data: taxData } = useGetTaxConfigsQuery();
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    selectedPropertyId ? { propertyId: selectedPropertyId } : undefined,
+  );
 
   const penaltyCount = penaltyData?.data?.length || 0;
   const taxCount = taxData?.data?.length || 0;

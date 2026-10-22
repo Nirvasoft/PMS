@@ -140,7 +140,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     ? Array.from({ length: totalFloors }, (_, i) => i + 1)
     : [];
 
-  const { data: chargeTypesData } = useGetChargeTypesQuery();
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    propertyId ? { propertyId } : undefined,
+  );
   const chargeTypes = (chargeTypesData?.data || []).filter((ct) => ct.isActive);
 
   const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId });
