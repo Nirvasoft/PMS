@@ -19,50 +19,8 @@ import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import { ISO_CURRENCY_LIST } from '../../../constants/currencies';
 import './PropertiesPage.css';
-
-/** ISO currency reference — same list as CurrencyRatesPage, code only */
-const ISO_CURRENCY_LIST: { country: string; name: string; code: string }[] = [
-  { country: 'UAE',           name: 'UAE Dirham',          code: 'AED' },
-  { country: 'Australia',     name: 'Australian Dollar',   code: 'AUD' },
-  { country: 'Bangladesh',    name: 'Bangladeshi Taka',    code: 'BDT' },
-  { country: 'Bahrain',       name: 'Bahraini Dinar',      code: 'BHD' },
-  { country: 'Brazil',        name: 'Brazilian Real',      code: 'BRL' },
-  { country: 'Canada',        name: 'Canadian Dollar',     code: 'CAD' },
-  { country: 'Switzerland',   name: 'Swiss Franc',         code: 'CHF' },
-  { country: 'China',         name: 'Chinese Yuan',        code: 'CNY' },
-  { country: 'Denmark',       name: 'Danish Krone',        code: 'DKK' },
-  { country: 'Euro Zone',     name: 'Euro',                code: 'EUR' },
-  { country: 'UK',            name: 'British Pound',       code: 'GBP' },
-  { country: 'Hong Kong',     name: 'Hong Kong Dollar',    code: 'HKD' },
-  { country: 'Indonesia',     name: 'Indonesian Rupiah',   code: 'IDR' },
-  { country: 'India',         name: 'Indian Rupee',        code: 'INR' },
-  { country: 'Japan',         name: 'Japanese Yen',        code: 'JPY' },
-  { country: 'Cambodia',      name: 'Cambodian Riel',      code: 'KHR' },
-  { country: 'South Korea',   name: 'South Korean Won',    code: 'KRW' },
-  { country: 'Kuwait',        name: 'Kuwaiti Dinar',       code: 'KWD' },
-  { country: 'Laos',          name: 'Lao Kip',             code: 'LAK' },
-  { country: 'Sri Lanka',     name: 'Sri Lankan Rupee',    code: 'LKR' },
-  { country: 'Myanmar',       name: 'Myanmar Kyat',        code: 'MMK' },
-  { country: 'Malaysia',      name: 'Malaysian Ringgit',   code: 'MYR' },
-  { country: 'Norway',        name: 'Norwegian Krone',     code: 'NOK' },
-  { country: 'Nepal',         name: 'Nepalese Rupee',      code: 'NPR' },
-  { country: 'New Zealand',   name: 'New Zealand Dollar',  code: 'NZD' },
-  { country: 'Oman',          name: 'Omani Rial',          code: 'OMR' },
-  { country: 'Philippines',   name: 'Philippine Peso',     code: 'PHP' },
-  { country: 'Pakistan',      name: 'Pakistani Rupee',     code: 'PKR' },
-  { country: 'Qatar',         name: 'Qatari Riyal',        code: 'QAR' },
-  { country: 'Saudi Arabia',  name: 'Saudi Riyal',         code: 'SAR' },
-  { country: 'Sweden',        name: 'Swedish Krona',       code: 'SEK' },
-  { country: 'Singapore',     name: 'Singapore Dollar',    code: 'SGD' },
-  { country: 'Thailand',      name: 'Thai Baht',           code: 'THB' },
-  { country: 'Turkey',        name: 'Turkish Lira',        code: 'TRY' },
-  { country: 'Taiwan',        name: 'Taiwan Dollar',       code: 'TWD' },
-  { country: 'USA',           name: 'US Dollar',           code: 'USD' },
-  { country: 'Vietnam',       name: 'Vietnamese Dong',     code: 'VND' },
-  { country: 'Central Africa',name: 'CFA Franc BEAC',      code: 'XAF' },
-  { country: 'South Africa',  name: 'South African Rand',  code: 'ZAR' },
-];
 
 
 const STATUS_COLORS: Record<string, string> = {

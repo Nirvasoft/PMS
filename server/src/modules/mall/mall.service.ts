@@ -906,7 +906,7 @@ class MallService {
 
     // Find or create BOOTH_RENTAL charge type
     let chargeType = await prisma.chargeType.findFirst({
-      where: { code: 'BOOTH_RENTAL', companyId: { in: [companyId, null as any] } },
+      where: { code: 'BOOTH_RENTAL', OR: [{ companyId }, { companyId: null }] },
     });
     if (!chargeType) {
       chargeType = await prisma.chargeType.create({

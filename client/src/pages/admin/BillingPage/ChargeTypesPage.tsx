@@ -68,10 +68,18 @@ export default function ChargeTypesPage() {
     return map;
   }, [glAccounts]);
 
-  const selectedGlAccount = useMemo(
-    () => glAccountByCode.get(form.glAccountCode.trim()),
-    [glAccountByCode, form.glAccountCode]
-  );
+  const selectedGlAccount = useMemo(() => {
+    const code = form.glAccountCode.trim();
+    if (!code) return undefined;
+    return (
+      glAccounts.find(
+        (a) =>
+          a.code === code &&
+          (a.departmentCenterId || a.departmentCenter?.id || '') === form.departmentCenterId &&
+          (a.costCenterId || a.costCenter?.id || '') === form.costCenterId
+      ) || glAccountByCode.get(code)
+    );
+  }, [glAccounts, glAccountByCode, form.glAccountCode, form.departmentCenterId, form.costCenterId]);
 
   const filteredGlAccounts = useMemo(() => {
     const q = coaSearch.trim().toLowerCase();
@@ -709,7 +717,12 @@ export default function ChargeTypesPage() {
                     </thead>
                     <tbody>
                       {filteredGlAccounts.map((acc: GlAccount) => {
-                        const isSelected = form.glAccountCode.trim() === acc.code;
+                        const accDeptId = acc.departmentCenterId || acc.departmentCenter?.id || '';
+                        const accCcId = acc.costCenterId || acc.costCenter?.id || '';
+                        const isSelected =
+                          form.glAccountCode.trim() === acc.code &&
+                          form.departmentCenterId === accDeptId &&
+                          form.costCenterId === accCcId;
                         return (
                           <tr
                             key={acc.id}
@@ -718,8 +731,8 @@ export default function ChargeTypesPage() {
                               setForm({
                                 ...form,
                                 glAccountCode: acc.code,
-                                departmentCenterId: acc.departmentCenterId || acc.departmentCenter?.id || form.departmentCenterId,
-                                costCenterId: acc.costCenterId || acc.costCenter?.id || form.costCenterId,
+                                departmentCenterId: accDeptId,
+                                costCenterId: accCcId,
                               });
                               setShowCoaModal(false);
                             }}
@@ -759,8 +772,8 @@ export default function ChargeTypesPage() {
                                   setForm({
                                     ...form,
                                     glAccountCode: acc.code,
-                                    departmentCenterId: acc.departmentCenterId || acc.departmentCenter?.id || form.departmentCenterId,
-                                    costCenterId: acc.costCenterId || acc.costCenter?.id || form.costCenterId,
+                                    departmentCenterId: accDeptId,
+                                    costCenterId: accCcId,
                                   });
                                   setShowCoaModal(false);
                                 }}

@@ -492,7 +492,7 @@ function AccountModal({
     setForm((prev) => ({
       ...prev,
       accountSubtype: nextSubtype,
-      accountType: !isEdit && subDef ? subDef.accountType : prev.accountType,
+      accountType: subDef ? subDef.accountType : prev.accountType,
       normalBalance: subDef ? subDef.normalBalance : prev.normalBalance,
     }));
   };
@@ -544,7 +544,9 @@ function AccountModal({
             name: form.name,
             departmentCenterId: form.departmentCenterId || null,
             costCenterId: form.costCenterId || null,
+            accountType: form.accountType,
             accountSubtype: form.accountSubtype || null,
+            normalBalance: form.normalBalance,
             description: form.description || null,
             isActive: form.isActive,
           },

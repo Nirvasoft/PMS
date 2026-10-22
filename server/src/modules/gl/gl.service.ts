@@ -527,7 +527,9 @@ class GlService {
         name: data.name,
         ...(data.departmentCenterId !== undefined ? { departmentCenterId: nextDepartmentCenterId } : {}),
         ...(data.costCenterId !== undefined ? { costCenterId: nextCostCenterId } : {}),
+        ...(data.accountType !== undefined ? { accountType: data.accountType } : {}),
         accountSubtype: data.accountSubtype,
+        ...(data.normalBalance !== undefined ? { normalBalance: data.normalBalance } : {}),
         description: data.description,
         isActive: data.isActive,
         sortOrder: data.sortOrder,
@@ -1422,21 +1424,27 @@ class GlService {
       });
 
       const prevBalances: Record<string, number> = {};
-      for (const r of prevTb.rows) prevBalances[r.code] = r.netBalance;
+      for (const r of prevTb.rows) {
+        prevBalances[r.accountId] = r.netBalance;
+        prevBalances[r.code] = (prevBalances[r.code] || 0) + r.netBalance;
+      }
 
       const prevIncome = prevTb.rows.filter(r => r.accountType === 'income');
       const prevExpense = prevTb.rows.filter(r => r.accountType === 'expense');
       const prevTotalIncome = prevIncome.reduce((s, r) => s + r.netBalance, 0);
       const prevTotalExpense = prevExpense.reduce((s, r) => s + r.netBalance, 0);
 
-      const withVariance = (rows: typeof income) => rows.map(r => ({
-        ...r,
-        previousBalance: prevBalances[r.code] || 0,
-        variance: r.netBalance - (prevBalances[r.code] || 0),
-        variancePct: (prevBalances[r.code] || 0) !== 0
-          ? ((r.netBalance - (prevBalances[r.code] || 0)) / Math.abs(prevBalances[r.code] || 1)) * 100
-          : 0,
-      }));
+      const withVariance = (rows: typeof income) => rows.map(r => {
+        const prevBal = prevBalances[r.accountId] ?? prevBalances[r.code] ?? 0;
+        return {
+          ...r,
+          previousBalance: prevBal,
+          variance: r.netBalance - prevBal,
+          variancePct: prevBal !== 0
+            ? ((r.netBalance - prevBal) / Math.abs(prevBal)) * 100
+            : 0,
+        };
+      });
 
       comparison = {
         period: { fromDate: params.compareFromDate, toDate: params.compareToDate },
@@ -1535,7 +1543,9 @@ class GlService {
 
     for (const je of journals) {
       // Find cash lines in this journal (debit to cash = inflow, credit to cash = outflow)
-      const cashLines = je.lines.filter(l => cashAccountCodes.includes(l.account.code));
+      const cashLines = je.lines.filter(
+        l => cashAccountCodes.includes(l.account.code) && (!params.propertyId || l.propertyId === params.propertyId)
+      );
       if (cashLines.length === 0) continue;
 
       const cashInflow = cashLines.reduce((s, l) => s + Number(l.debit), 0);
