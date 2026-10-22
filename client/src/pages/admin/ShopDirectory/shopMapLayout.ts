@@ -18,9 +18,9 @@ export interface MapItem {
 export const DECORATION_LABELS: Record<Exclude<TileKind, 'unit'>, string> = {
   atrium: 'Atrium',
   stairs: 'Stairs',
-  escalator: 'Lift / Elevator',
+  escalator: 'Elevator',
   corridor: 'Walking Area',
-  toilet: 'Toilet / Restroom',
+  toilet: 'Restroom',
   marker: 'You are here',
   entrance: 'Entrance',
   exit: 'Exit',
