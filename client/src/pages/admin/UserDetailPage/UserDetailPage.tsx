@@ -895,8 +895,8 @@ function AvatarUpload({ user, onRefresh }: { user: UserDetail; onRefresh: () => 
       toast.error('Please select an image file');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Image must be less than 10MB');
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB');
       return;
     }
 
@@ -904,8 +904,8 @@ function AvatarUpload({ user, onRefresh }: { user: UserDetail; onRefresh: () => 
       await uploadAvatar({ userId: user.id, file }).unwrap();
       toast.success('Avatar updated');
       onRefresh();
-    } catch (err: any) {
-      toast.error(err?.data?.errors?.[0]?.message || 'Failed to upload avatar');
+    } catch {
+      toast.error('Failed to upload avatar');
     }
     // Reset input so same file can be re-selected
     e.target.value = '';
@@ -936,7 +936,6 @@ function AvatarUpload({ user, onRefresh }: { user: UserDetail; onRefresh: () => 
           ref={fileRef}
           type="file"
           accept="image/*"
-          onClick={(e) => e.stopPropagation()}
           onChange={handleFileChange}
           style={{ display: 'none' }}
         />

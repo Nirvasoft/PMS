@@ -71,11 +71,7 @@ usersRouter.post('/:id/avatar', avatarUpload.single('avatar'), asyncHandler(asyn
   }
   if (!req.file) { res.status(400).json({ success: false, errors: [{ message: 'No file uploaded' }] }); return; }
   const avatarUrl = await saveUploadedFileToSpaces(req.file, 'avatars');
-  await prisma.userProfile.upsert({
-    where: { userId: targetId },
-    update: { avatarUrl },
-    create: { userId: targetId, firstName: '', lastName: '', avatarUrl },
-  });
+  await prisma.userProfile.update({ where: { userId: targetId }, data: { avatarUrl } });
   res.json({ success: true, data: { avatarUrl } });
 }));
 

@@ -420,10 +420,7 @@ export class PropertiesService {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const ts = Date.now();
-      const baseName = file.originalname
-        .replace(/\.[^.]+$/, '')
-        .replace(/[^a-zA-Z0-9._-]/g, '_')
-        .slice(0, 80) || 'photo';
+      const baseName = file.originalname.replace(/\.[^.]+$/, '');
 
       // ── Resize main image (max 1920px wide, JPEG 85%) ──
       let mainBuffer: Buffer;
@@ -441,7 +438,7 @@ export class PropertiesService {
       await storageService.saveFile(mainKey, mainBuffer, 'image/jpeg', { isPublic: true });
       const mainUrl = storageService.getFileUrl(mainKey);
 
-      const isCover = hasNoCover && i === 0;
+      const isCover = hasNoCover && i === 0 && existing === 0;
       const photo = await prisma.propertyPhoto.create({
         data: {
           propertyId,

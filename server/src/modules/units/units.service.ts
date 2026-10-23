@@ -847,8 +847,15 @@ export class UnitsService {
     if (!unit) throw AppError.notFound('Unit');
     this.assertFloorAllowed(floorScope, unit.floorNumber);
 
-    const { persistUploadedFile } = await import('../../common/upload');
-    const floorPlanUrl = await persistUploadedFile(file, `units/${propertyId}/${unitId}`);
+    // Store using local storage (same as documents pattern)
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const uploadDir = path.join(process.cwd(), 'uploads', 'units', propertyId, unitId);
+    await fs.mkdir(uploadDir, { recursive: true });
+    const ext = path.extname(file.originalname);
+    const filename = `floor-plan${ext}`;
+    await fs.writeFile(path.join(uploadDir, filename), file.buffer);
+    const floorPlanUrl = `/uploads/units/${propertyId}/${unitId}/${filename}`;
 
     return prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl } });
   }

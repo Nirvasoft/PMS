@@ -124,7 +124,7 @@ export class PaymentVouchersService {
             })),
           },
         }),
-      } as any,
+      },
       include: {
         property: { select: { id: true, name: true } },
         allocations: {
@@ -133,7 +133,7 @@ export class PaymentVouchersService {
           },
         },
         creator: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
-      } as any,
+      },
     });
 
     logger.info(`Created payment voucher ${voucherNumber} for ${totalAmount} ${dto.currency}`);
@@ -166,7 +166,7 @@ export class PaymentVouchersService {
           },
           bankAccount: { select: { id: true, bankName: true, accountNumber: true } },
           creator: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
-        } as any,
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -220,7 +220,7 @@ export class PaymentVouchersService {
       try {
         const vendorNames = [...new Set(voucher.allocations.map(a => (a.apInvoice as any)?.vendorName).filter(Boolean))];
         const vendorLabel = voucher.vendorName || (vendorNames.length > 0 ? vendorNames.join(', ') : 'Cash Payment');
-        const voucherPropertyId = (voucher as any).propertyId || (voucher.allocations[0]?.apInvoice as any)?.propertyId || undefined;
+        const voucherPropertyId = voucher.propertyId || (voucher.allocations[0]?.apInvoice as any)?.propertyId || undefined;
         const pmConfig = await glService.resolvePaymentMethodConfig(companyId, voucher.paymentMethod, voucherPropertyId);
         const creditAccountCode = pmConfig?.glAccountCode || '1000';
 

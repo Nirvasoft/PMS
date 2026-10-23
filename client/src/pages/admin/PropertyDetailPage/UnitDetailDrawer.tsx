@@ -437,14 +437,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { toast.error('Max file size is 10MB'); return; }
-    const isAllowed = file.type.startsWith('image/') || file.type === 'application/pdf' || /\.(pdf|png|jpe?g|webp|gif|avif|bmp|svg)$/i.test(file.name);
-    if (!isAllowed) { toast.error('Only image or PDF files are allowed'); return; }
+    if (!/\.(pdf|png|jpe?g)$/i.test(file.name)) { toast.error('Only PDF, PNG, JPEG allowed'); return; }
     try {
       await uploadFloorPlan({ propertyId, unitId, file }).unwrap();
       toast.success('Unit photo uploaded');
-    } catch (err: any) {
-      toast.error(err?.data?.errors?.[0]?.message || 'Upload failed');
-    }
+    } catch { toast.error('Upload failed'); }
     // Reset input so same file can be re-uploaded
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -1596,69 +1593,60 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
           )}
 
           {/* ═══ UNIT PHOTO TAB ═══ */}
-          {activeTab === 'floor_plan' && (() => {
-            const floorPlanSrc = unit.floorPlanUrl
-              ? (unit.floorPlanUrl.startsWith('http') || unit.floorPlanUrl.startsWith('/api/v1')
-                  ? unit.floorPlanUrl
-                  : `/api/v1${unit.floorPlanUrl}`)
-              : '';
-            const isPdf = unit.floorPlanUrl ? /\.pdf(\?|$)/i.test(unit.floorPlanUrl) : false;
+          {activeTab === 'floor_plan' && (
+            <div className="drawer-floorplan">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                style={{ display: 'none' }}
+                onChange={handleFloorPlanUpload}
+              />
 
-            return (
-              <div className="drawer-floorplan">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,.pdf"
-                  style={{ display: 'none' }}
-                  onChange={handleFloorPlanUpload}
-                />
-
-                {unit.floorPlanUrl ? (
-                  <div className="fp-preview">
-                    {!isPdf ? (
-                      <img
-                        src={floorPlanSrc}
-                        alt="Unit photo"
-                        className="fp-image"
-                      />
-                    ) : (
-                      <div className="fp-pdf-card">
-                        <FileImage size={32} />
-                        <span>Unit Photo (PDF)</span>
-                        <a
-                          href={floorPlanSrc}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="fp-open-link"
-                        >
-                          <ExternalLink size={12} /> Open
-                        </a>
-                      </div>
-                    )}
-                    <div className="fp-actions">
-                      <PermissionGuard permission="unit.update">
-                        <button className="btn-fp-replace" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                          <Upload size={13} /> {uploading ? 'Uploading…' : 'Replace'}
-                        </button>
-                      </PermissionGuard>
+              {unit.floorPlanUrl ? (
+                <div className="fp-preview">
+                  {/\.(png|jpe?g)$/i.test(unit.floorPlanUrl) ? (
+                    <img
+                      src={`/api/v1${unit.floorPlanUrl}`}
+                      alt="Unit photo"
+                      className="fp-image"
+                    />
+                  ) : (
+                    <div className="fp-pdf-card">
+                      <FileImage size={32} />
+                      <span>Unit Photo (PDF)</span>
+                      <a
+                        href={`/api/v1${unit.floorPlanUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="fp-open-link"
+                      >
+                        <ExternalLink size={12} /> Open
+                      </a>
                     </div>
-                  </div>
-                ) : (
-                  <div className="fp-empty">
-                    <FileImage size={36} />
-                    <p>No unit photo uploaded</p>
+                  )}
+                  <div className="fp-actions">
                     <PermissionGuard permission="unit.update">
-                      <button className="btn-fp-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                        <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Unit Photo'}
+                      <button className="btn-fp-replace" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                        <Upload size={13} /> {uploading ? 'Uploading…' : 'Replace'}
                       </button>
                     </PermissionGuard>
-                    <span className="fp-hint">Image or PDF — max 10MB</span>
                   </div>
-                )}
-              </div>
-            );
-          })()}
+                </div>
+              ) : (
+                <div className="fp-empty">
+                  <FileImage size={36} />
+                  <p>No unit photo uploaded</p>
+                  <PermissionGuard permission="unit.update">
+                    <button className="btn-fp-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                      <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Unit Photo'}
+                    </button>
+                  </PermissionGuard>
+                  <span className="fp-hint">PDF, PNG, or JPEG — max 10MB</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ═══ LEASES TAB ═══ */}
           {activeTab === 'leases' && (

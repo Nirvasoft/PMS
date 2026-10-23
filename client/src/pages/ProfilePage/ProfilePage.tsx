@@ -72,17 +72,10 @@ export default function ProfilePage() {
       const data = await res.json();
       if (data.success) {
         setAvatarUrl(data.data.avatarUrl);
-        refetch();
         toast.success('Avatar updated!');
-      } else {
-        toast.error(data?.errors?.[0]?.message || 'Upload failed');
-      }
-    } catch {
-      toast.error('Upload error');
-    } finally {
-      setUploadingAvatar(false);
-      e.target.value = '';
-    }
+      } else { toast.error('Upload failed'); }
+    } catch { toast.error('Upload error'); }
+    finally { setUploadingAvatar(false); }
   };
 
   const handleSendVerification = async () => {

@@ -68,7 +68,7 @@ export default function TenantCreditsPage() {
 
   // Get invoices for the apply modal tenant
   const { data: tenantInvoicesRes } = useGetInvoicesQuery(
-    { tenantId: applyModal?.tenant?.id, status: undefined, page: 1, limit: 100 },
+    { tenantId: applyModal?.tenant.id, status: undefined, page: 1, limit: 100 },
     { skip: !applyModal },
   );
   const outstandingInvoices = useMemo(() =>

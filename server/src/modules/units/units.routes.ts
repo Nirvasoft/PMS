@@ -181,10 +181,7 @@ unitsRouter.get('/:unitId/status-history', requirePermission('unit.read'), async
 
 /** POST /properties/:propertyId/units/:unitId/floor-plan */
 unitsRouter.post('/:unitId/floor-plan', requirePermission('unit.update'), upload.single('floorPlan'), asyncHandler(async (req, res) => {
-  if (!req.file) {
-    res.status(400).json({ success: false, errors: [{ message: 'No file uploaded' }] });
-    return;
-  }
+  if (!req.file) throw new Error('No file uploaded');
   const floorScope = await getUserFloorScope(req.user!.sub);
   const data = await unitsService.uploadFloorPlan(p(req, 'propertyId'), p(req, 'unitId'), req.file, floorScope);
   res.json({ success: true, data });

@@ -15,6 +15,7 @@ import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   ArrowLeft, User, Calendar, Mail, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
@@ -196,6 +197,7 @@ export default function LeadDetailPage() {
         <ConvertLeadModal
           leadId={lead.id}
           leadName={displayName}
+          propertyId={lead.property?.id}
           onClose={() => setShowConvert(false)}
         />
       )}
@@ -336,6 +338,8 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
     businessType: lead.loiDetails?.businessType || '',
     doorType: lead.loiDetails?.doorType || '',
     productPlan: lead.loiDetails?.productPlan || '',
+    ceiling: lead.loiDetails?.ceiling || '',
+    currentShop: lead.loiDetails?.currentShop || '',
     priority: lead.priority || 'medium',
     source: lead.source || '',
     assignedTo: lead.agent?.id || '',
@@ -367,7 +371,8 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
 
       const loiDetails: Record<string, unknown> = {};
       [['address', form.address], ['applicantDate', form.applicantDate], ['shopName', form.shopName],
-       ['businessType', form.businessType], ['doorType', form.doorType], ['productPlan', form.productPlan]].forEach(([key, value]) => {
+       ['businessType', form.businessType], ['doorType', form.doorType], ['productPlan', form.productPlan],
+       ['ceiling', form.ceiling], ['currentShop', form.currentShop]].forEach(([key, value]) => {
         if (value !== '') loiDetails[key as string] = value;
       });
       if (JSON.stringify(loiDetails) !== JSON.stringify(lead.loiDetails || {})) payload.loiDetails = loiDetails;
@@ -433,6 +438,8 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
             <div className="info-row"><span className="info-label">Business Type</span><span className="info-value">{lead.loiDetails?.businessType?.replace(/_/g, ' ') || '—'}</span></div>
             <div className="info-row"><span className="info-label">Door Type</span><span className="info-value">{lead.loiDetails?.doorType?.replace(/_/g, ' ') || '—'}</span></div>
             <div className="info-row"><span className="info-label">Product Plan</span><span className="info-value">{PRODUCT_PLAN_LABELS[lead.loiDetails?.productPlan] || '—'}</span></div>
+            <div className="info-row"><span className="info-label">Ceiling</span><span className="info-value">{lead.loiDetails?.ceiling ? lead.loiDetails.ceiling.charAt(0).toUpperCase() + lead.loiDetails.ceiling.slice(1) : '—'}</span></div>
+            <div className="info-row"><span className="info-label">Current Shop</span><span className="info-value">{lead.loiDetails?.currentShop ? lead.loiDetails.currentShop.charAt(0).toUpperCase() + lead.loiDetails.currentShop.slice(1) : '—'}</span></div>
           </div>
           <div className="lead-info-section">
             <h3>Pipeline Details</h3>
@@ -613,17 +620,21 @@ function InfoTab({ lead, leadId }: { lead: any; leadId: string }) {
 
 // ── Convert Lead Modal ─────────────────────────
 
-function ConvertLeadModal({ leadId, leadName, onClose }: { leadId: string; leadName: string; onClose: () => void }) {
+function ConvertLeadModal({ leadId, leadName, propertyId, onClose }: { leadId: string; leadName: string; propertyId?: string; onClose: () => void }) {
   const navigate = useNavigate();
+  const activeProperty = useSelectedPropertyFilter();
+  const effectivePropertyId = activeProperty || propertyId || undefined;
   const [tenantSearch, setTenantSearch] = useState('');
   const [selectedTenantId, setSelectedTenantId] = useState('');
 
   // Only KYC-verified, non-blacklisted tenants can be put on a lease.
+  // Scoped to active property (or lead's assigned property) if selected.
   const { data: tenantsData, isFetching: isFetchingTenants } = useGetTenantsQuery(
     {
       search: tenantSearch || undefined,
       kycStatus: 'verified',
       isBlacklisted: false,
+      propertyId: effectivePropertyId,
       page: 1,
       limit: 20,
     },
@@ -639,6 +650,7 @@ function ConvertLeadModal({ leadId, leadName, onClose }: { leadId: string; leadN
       return;
     }
     const params = new URLSearchParams({ leadId, tenantId: selectedTenantId });
+    if (effectivePropertyId) params.set('propertyId', effectivePropertyId);
     onClose();
     navigate(`/admin/leases/new?${params.toString()}`);
   };
