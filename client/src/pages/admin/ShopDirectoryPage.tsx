@@ -8,7 +8,7 @@ import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import {
   Store, Search, X, Maximize2, Calendar, DollarSign,
   Star, Tag, Building2, ChevronRight, Grid3x3, List, Map as MapIcon, Edit3,
-  TrendingUp, Percent, ExternalLink, Layers, Plus,
+  TrendingUp, Percent, ExternalLink, Layers, Package, Plus,
   FileText, Shield, Wrench, Receipt,
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
