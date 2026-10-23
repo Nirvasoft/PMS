@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import ReactGridLayout, { useContainerWidth, getCompactor } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import toast from 'react-hot-toast';
-import { RotateCw, X, Pencil, Save, Wand2, Plus, Maximize2, Trash2 } from 'lucide-react';
+import { RotateCw, X, Pencil, Save, Plus, Maximize2, Trash2, LayoutGrid, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
 import { useGetFloorPlanQuery, useSaveFloorPlanMutation } from '../../../store/api/mallApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  autoArrange, findFreeSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
+  SHOP_CATEGORIES, findFreeSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
   sizeUnitTile, tileSizeFromSqft, unitKey,
   type MapItem, type TileKind,
 } from './shopMapLayout';
@@ -77,10 +77,113 @@ function DecorIcon({ kind, size = 14 }: { kind: Exclude<TileKind, 'unit' | 'corr
       );
     case 'exit':
       return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-          <path d="M16 17l5-5-5-5" />
-          <path d="M21 12H9" />
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14.5 3.5H20a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1h-5.5" />
+          <rect x="15.5" y="4.5" width="4.5" height="15" fill="currentColor" fillOpacity="0.2" stroke="none" />
+          <circle cx="8.5" cy="5.5" r="2" fill="currentColor" stroke="none" />
+          <path d="M3.5 10.5l3.2-2 3.8 1 2.2 2.8" />
+          <path d="M7.2 13L4.5 19.5" />
+          <path d="M7.5 12.8l3.5 1.4 1.5 5.3" />
+          <path d="M14 12h4.5m0 0l-2-2m2 2l-2 2" />
+        </svg>
+      );
+  }
+}
+
+function CategoryIcon({ category, size = 26 }: { category: string; size?: number }) {
+  switch (category) {
+    case 'Dining':
+      return (
+        <svg width={size} height={size} viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          {/* Fork */}
+          <path d="M4.5 4v6.5a2 2 0 0 0 2 2v11.5" />
+          <path d="M6.5 4v5.5" />
+          <path d="M8.5 4v6.5a2 2 0 0 1-2 2" />
+          {/* Plate */}
+          <circle cx="14.5" cy="14" r="5.5" strokeWidth="2" />
+          <circle cx="14.5" cy="14" r="3.2" fill="currentColor" fillOpacity="0.22" strokeWidth="1.5" />
+          {/* Knife */}
+          <path d="M23 4v11h-2V7.5A3.5 3.5 0 0 1 23 4Z" fill="currentColor" fillOpacity="0.22" />
+          <path d="M23 15v9" />
+        </svg>
+      );
+    case 'Health/Pharmacy':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3.5" y="5.5" width="17" height="14" rx="2.5" />
+          <path d="M9 5.5V4a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 4v1.5" />
+          <path d="M12 9.5v6M9 12.5h6" strokeWidth="2.2" />
+        </svg>
+      );
+    case 'ATMs':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+          <line x1="2.5" y1="9.5" x2="21.5" y2="9.5" />
+          <line x1="6.5" y1="14.5" x2="10.5" y2="14.5" strokeWidth="2.2" />
+          <circle cx="16.5" cy="14.5" r="1.5" fill="currentColor" />
+        </svg>
+      );
+    case 'Beauty & Wellness':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3Z" fill="currentColor" fillOpacity="0.18" />
+          <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z" />
+          <path d="M5 16l.7 1.6L7.3 18.3l-1.6.7L5 20.6l-.7-1.6-1.6-.7 1.6-.7L5 16Z" />
+        </svg>
+      );
+    case 'Education':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="12 4 2 9 12 14 22 9 12 4" fill="currentColor" fillOpacity="0.18" />
+          <path d="M6 11.5v5c0 1.8 2.7 3.5 6 3.5s6-1.7 6-3.5v-5" />
+          <path d="M22 9v6" />
+        </svg>
+      );
+    case 'Fashion & Accessories':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 7h12l1.2 13H4.8L6 7Z" fill="currentColor" fillOpacity="0.16" />
+          <path d="M9 7V5.5a3 3 0 0 1 6 0V7" />
+        </svg>
+      );
+    case 'Services':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="7" width="18" height="13" rx="2" />
+          <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          <line x1="3" y1="13" x2="21" y2="13" />
+        </svg>
+      );
+    case 'Sports & Lifestyle':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6.5 6.5v11M3.5 8.5v7M17.5 6.5v11M20.5 8.5v7M6.5 12h11" />
+        </svg>
+      );
+    case 'Supermarket':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="9" cy="20" r="1.5" fill="currentColor" />
+          <circle cx="18" cy="20" r="1.5" fill="currentColor" />
+          <path d="M2.5 4h2.5l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.8a1.5 1.5 0 0 0 1.4-1.1L21 7H6" />
+        </svg>
+      );
+    case 'Watches & Jewellery':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="6 4 18 4 22 9 12 21 2 9 6 4" fill="currentColor" fillOpacity="0.16" />
+          <line x1="2" y1="9" x2="22" y2="9" />
+          <polyline points="9.5 4 7.5 9 12 21 16.5 9 14.5 4" />
+        </svg>
+      );
+    default:
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 9l1.8-5h14.4L21 9" />
+          <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+          <path d="M5 12v8h14v-8" />
+          <path d="M10 15h4v5h-4z" />
         </svg>
       );
   }
@@ -277,6 +380,26 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
         ),
     [floorShops, placedUnitIds],
   );
+  const placedCategories = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    placedShops.forEach((s) => {
+      const cat = (s.tradeCategory || 'Other').trim() || 'Other';
+      const list = groups.get(cat) || [];
+      list.push(s);
+      groups.set(cat, list);
+    });
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => {
+        const ia = (SHOP_CATEGORIES as readonly string[]).indexOf(a);
+        const ib = (SHOP_CATEGORIES as readonly string[]).indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b);
+      })
+      .map(([category, shopsList]) => ({ category, shops: shopsList }));
+  }, [placedShops]);
+
   const placedDecorKinds = useMemo(
     () =>
       Array.from(
@@ -291,14 +414,14 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
   const cellPx = Math.max(6, Math.floor(((width || 900) - 16) / columns));
 
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
-  const [connector, setConnector] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [connector, setConnector] = useState<{ x1: number; y1: number; x2: number; y2: number; points: string } | null>(null);
 
   useEffect(() => {
     setSelectedUnitId(null);
   }, [floor]);
 
   useEffect(() => {
-    if (!fullScreen || !selectedUnitId) {
+    if (editing || !selectedUnitId) {
       setConnector(null);
       return;
     }
@@ -314,23 +437,17 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
       const wrapRect = wrap.getBoundingClientRect();
       const infoRect = infoEl.getBoundingClientRect();
       const tileRect = tileEl.getBoundingClientRect();
-      const icx = infoRect.left + infoRect.width / 2 - wrapRect.left + wrap.scrollLeft;
-      const icy = infoRect.top + infoRect.height / 2 - wrapRect.top + wrap.scrollTop;
-      const tcx = tileRect.left + tileRect.width / 2 - wrapRect.left + wrap.scrollLeft;
-      const tcy = tileRect.top + tileRect.height / 2 - wrapRect.top + wrap.scrollTop;
-      const dx = icx - tcx;
-      const dy = icy - tcy;
-      const ihw = Math.max(1, infoRect.width / 2);
-      const ihh = Math.max(1, infoRect.height / 2);
-      const thw = Math.max(1, tileRect.width / 2);
-      const thh = Math.max(1, tileRect.height / 2);
-      const iScale = dx === 0 && dy === 0 ? 0 : 1 / Math.max(Math.abs(dx) / ihw, Math.abs(dy) / ihh);
-      const tScale = dx === 0 && dy === 0 ? 0 : 1 / Math.max(Math.abs(dx) / thw, Math.abs(dy) / thh);
-      const x1 = icx - dx * iScale;
-      const y1 = icy - dy * iScale;
-      const x2 = tcx + dx * tScale;
-      const y2 = tcy + dy * tScale;
-      setConnector({ x1, y1, x2, y2 });
+      const boxEl = infoEl.closest('.shop-map-directory-overlays') as HTMLElement | null;
+      const boxRect = boxEl ? boxEl.getBoundingClientRect() : infoRect;
+
+      const x1 = infoRect.left + infoRect.width / 2 - wrapRect.left + wrap.scrollLeft;
+      const y1 = infoRect.top - wrapRect.top + wrap.scrollTop;
+      const x2 = tileRect.left + tileRect.width / 2 - wrapRect.left + wrap.scrollLeft;
+      const y2 = tileRect.bottom - wrapRect.top + wrap.scrollTop;
+      const boxTop = boxRect.top - wrapRect.top + wrap.scrollTop;
+      const yMid = Math.max(y2, Math.min(y1, boxTop) - 14);
+      const points = `${x1},${y1} ${x1},${yMid} ${x2},${yMid} ${x2},${y2}`;
+      setConnector({ x1, y1, x2, y2, points });
     };
     const raf = requestAnimationFrame(compute);
     const wrap = containerRef.current as HTMLElement | null;
@@ -341,7 +458,7 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
       window.removeEventListener('resize', compute);
       wrap?.removeEventListener('scroll', compute);
     };
-  }, [fullScreen, selectedUnitId, items, width, cellPx, containerRef]);
+  }, [editing, selectedUnitId, items, width, cellPx, containerRef]);
 
   const update = (fn: (prev: MapItem[]) => MapItem[]) => {
     setItems((prev) => fn(prev));
@@ -440,10 +557,16 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
 
   const rows = Math.max(10, ...items.map((i) => i.y + i.h)) + (editing ? 6 : 1);
 
+  const [mapView, setMapView] = useState<'default' | 'photo'>(() => {
+    const v = new URLSearchParams(window.location.search).get('view');
+    return v === 'photo' ? 'photo' : 'default';
+  });
+
   const openFullScreenTab = () => {
     const params = new URLSearchParams();
     if (propertyId) params.set('propertyId', propertyId);
     if (floor) params.set('floor', floor);
+    if (mapView === 'photo') params.set('view', 'photo');
     window.open(`/admin/mall/shops/map?${params.toString()}`, '_blank', 'noopener,noreferrer');
   };
 
@@ -452,15 +575,33 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
   return (
     <div className={`shop-map ${fullScreen ? 'shop-map-fullscreen' : ''}`}>
       <div className="shop-map-toolbar">
-        <select
-          className="shop-map-floor-select"
-          value={floor}
-          onChange={(e) => switchFloor(e.target.value)}
-        >
-          {floors.map((f) => (
-            <option key={f} value={f}>{f}</option>
-          ))}
-        </select>
+        <div className="shop-map-toolbar-left">
+          <select
+            className="shop-map-floor-select"
+            value={floor}
+            onChange={(e) => switchFloor(e.target.value)}
+          >
+            {floors.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+          <div className="shop-map-view-switch" role="group" aria-label="Map view mode">
+            <button
+              type="button"
+              className={`shop-map-view-opt ${mapView === 'default' ? 'active' : ''}`}
+              onClick={() => setMapView('default')}
+            >
+              <LayoutGrid size={14} /> View 1
+            </button>
+            <button
+              type="button"
+              className={`shop-map-view-opt ${mapView === 'photo' ? 'active' : ''}`}
+              onClick={() => setMapView('photo')}
+            >
+              <ImageIcon size={14} /> View 2
+            </button>
+          </div>
+        </div>
         {!fullScreen && (
           <div className="shop-map-toolbar-actions">
             <button className="btn btn-secondary" onClick={openFullScreenTab} title="Open Full Screen Map in a new tab">
@@ -490,9 +631,6 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
             {Object.entries(DECORATION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
           <button className="btn btn-secondary" onClick={addDecor}><Plus size={14} /> Add</button>
-          <button className="btn btn-secondary" onClick={() => update((p) => autoArrange(p, columns))}>
-            <Wand2 size={14} /> Auto-arrange
-          </button>
           <button
             className="btn btn-secondary shop-map-clear-btn"
             onClick={() => update(() => [])}
@@ -508,14 +646,36 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
       <div className="shop-map-body">
         <div
           ref={containerRef as any}
-          className={`shop-map-canvas-wrap ${editing ? 'editing' : ''} ${fullScreen && !editing && selectedUnitId ? 'has-routed-unit' : ''}`}
+          className={`shop-map-canvas-wrap ${editing ? 'editing' : ''} ${!editing && selectedUnitId ? 'has-routed-unit' : ''}`}
           onClick={() => { if (selectedUnitId) setSelectedUnitId(null); }}
         >
           {isFetching && items.length === 0 ? (
-            <div className="shop-map-tray-empty">Loading…</div>
+            <div className="shop-map-empty-state">
+              <div className="shop-map-empty-icon">
+                <MapIcon size={26} />
+              </div>
+              <h4 className="shop-map-empty-title">Loading Floor Map…</h4>
+            </div>
           ) : items.length === 0 && !editing ? (
-            <div className="shop-map-tray-empty">
-              No layout yet for {floor}. Use “Edit Layout” to place shops on the map.
+            <div className="shop-map-empty-state">
+              <div className="shop-map-empty-icon">
+                <MapIcon size={28} />
+              </div>
+              <h4 className="shop-map-empty-title">{floor} Map Not Configured</h4>
+              <p className="shop-map-empty-desc">
+                {floorShops.length > 0
+                  ? `${floorShops.length} ${floorShops.length === 1 ? 'unit is' : 'units are'} available on this floor and ready to be arranged on the interactive map.`
+                  : 'No units or landmarks have been placed on this floor layout yet.'}
+              </p>
+              {!fullScreen && (
+                <PermissionGuard permission="mall-shops.write" hideWhenDenied>
+                  <div className="shop-map-empty-actions">
+                    <button type="button" className="btn btn-primary" onClick={() => setEditing(true)}>
+                      <Pencil size={14} /> Edit Layout
+                    </button>
+                  </div>
+                </PermissionGuard>
+              )}
             </div>
           ) : (
             <ReactGridLayout
@@ -546,15 +706,25 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
                 const sharpClasses = cm
                   ? `${cm.tlSharp ? 'sharp-tl' : ''} ${cm.trSharp ? 'sharp-tr' : ''} ${cm.blSharp ? 'sharp-bl' : ''} ${cm.brSharp ? 'sharp-br' : ''}`
                   : '';
+                const unitLabel = shop?.unit?.unitNumber || shop?.shopNumber || '';
+                const rawPhotoUrl = shop?.unit?.floorPlanUrl as string | undefined | null;
+                const isImagePhoto = Boolean(rawPhotoUrl && /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(rawPhotoUrl));
+                const photoSrc = rawPhotoUrl
+                  ? rawPhotoUrl.startsWith('http')
+                    ? rawPhotoUrl
+                    : `/api/v1${rawPhotoUrl}`
+                  : null;
+                const showPhotoMode = !decor && mapView === 'photo';
+                const hasUnitPhoto = showPhotoMode && isImagePhoto && Boolean(photoSrc);
                 const title = decor
                   ? decorLabel
-                  : `${shop?.brandName || shop?.unit?.unitNumber || ''} • ${shop?.unit?.unitNumber || ''} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}`;
+                  : `${shop?.brandName || unitLabel} • ${unitLabel} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}`;
                 return (
                   <div
                     key={it.key}
                     title={title}
                     data-tile-unit-id={it.unitId || undefined}
-                    className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''}`}
+                    className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''}`}
                     onClick={() => { if (!editing && shop) onOpenShop(shop); }}
                   >
                     {decor ? (
@@ -584,63 +754,21 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
                               className="shop-map-corridor-bridge"
                             />
                           ))}
-                          {cm.topSegs.map(([u1, u2], idx) => (
-                            <line
-                              key={`t-${idx}`}
-                              x1={u1 * cellPx}
-                              y1={0.75}
-                              x2={u2 * cellPx}
-                              y2={0.75}
-                              className="shop-map-corridor-border"
-                            />
+                          {[
+                            ...cm.topSegs.map(([u1, u2]) => ({ x1: u1 * cellPx, y1: 0.75, x2: u2 * cellPx, y2: 0.75 })),
+                            ...cm.bottomSegs.map(([u1, u2]) => ({ x1: u1 * cellPx, y1: hPx - 0.75, x2: u2 * cellPx, y2: hPx - 0.75 })),
+                            ...cm.leftSegs.map(([v1, v2]) => ({ x1: 0.75, y1: v1 * cellPx, x2: 0.75, y2: v2 * cellPx })),
+                            ...cm.rightSegs.map(([v1, v2]) => ({ x1: wPx - 0.75, y1: v1 * cellPx, x2: wPx - 0.75, y2: v2 * cellPx })),
+                          ].map((seg, idx) => (
+                            <line key={`b-${idx}`} {...seg} className="shop-map-corridor-border" />
                           ))}
-                          {cm.bottomSegs.map(([u1, u2], idx) => (
-                            <line
-                              key={`b-${idx}`}
-                              x1={u1 * cellPx}
-                              y1={hPx - 0.75}
-                              x2={u2 * cellPx}
-                              y2={hPx - 0.75}
-                              className="shop-map-corridor-border"
-                            />
-                          ))}
-                          {cm.leftSegs.map(([v1, v2], idx) => (
-                            <line
-                              key={`l-${idx}`}
-                              x1={0.75}
-                              y1={v1 * cellPx}
-                              x2={0.75}
-                              y2={v2 * cellPx}
-                              className="shop-map-corridor-border"
-                            />
-                          ))}
-                          {cm.rightSegs.map(([v1, v2], idx) => (
-                            <line
-                              key={`r-${idx}`}
-                              x1={wPx - 0.75}
-                              y1={v1 * cellPx}
-                              x2={wPx - 0.75}
-                              y2={v2 * cellPx}
-                              className="shop-map-corridor-border"
-                            />
-                          ))}
-                          {!cm.vertical ? (
-                            <line
-                              x1={cm.start * cellPx + (cm.start < 0 ? -1 : 0)}
-                              y1={hPx / 2}
-                              x2={cm.end * cellPx + (cm.end > it.w ? 1 : 0)}
-                              y2={hPx / 2}
-                              className="shop-map-corridor-centerline"
-                            />
-                          ) : (
-                            <line
-                              x1={wPx / 2}
-                              y1={cm.start * cellPx + (cm.start < 0 ? -1 : 0)}
-                              x2={wPx / 2}
-                              y2={cm.end * cellPx + (cm.end > it.h ? 1 : 0)}
-                              className="shop-map-corridor-centerline"
-                            />
-                          )}
+                          <line
+                            x1={cm.vertical ? wPx / 2 : cm.start * cellPx + (cm.start < 0 ? -1 : 0)}
+                            y1={cm.vertical ? cm.start * cellPx + (cm.start < 0 ? -1 : 0) : hPx / 2}
+                            x2={cm.vertical ? wPx / 2 : cm.end * cellPx + (cm.end > it.w ? 1 : 0)}
+                            y2={cm.vertical ? cm.end * cellPx + (cm.end > it.h ? 1 : 0) : hPx / 2}
+                            className="shop-map-corridor-centerline"
+                          />
                         </svg>
                       ) : (
                         <div className="shop-map-decor-badge" style={{ width: badgePx, height: badgePx }}>
@@ -649,8 +777,15 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
                           </span>
                         </div>
                       )
+                    ) : hasUnitPhoto && photoSrc ? (
+                      <img
+                        src={photoSrc}
+                        alt={unitLabel}
+                        className="shop-map-tile-photo"
+                        loading="lazy"
+                      />
                     ) : (
-                      <div className="shop-map-tile-name">{shop?.unit?.unitNumber || shop?.shopNumber}</div>
+                      <div className="shop-map-tile-name">{unitLabel}</div>
                     )}
                     {editing && (
                       <div className="shop-map-tile-actions">
@@ -667,46 +802,22 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
               })}
             </ReactGridLayout>
           )}
-          {fullScreen && !editing && connector && (
+          {!editing && connector && (
             <svg className="shop-map-connector-svg">
-              <line
-                x1={connector.x1}
-                y1={connector.y1}
-                x2={connector.x2}
-                y2={connector.y2}
+              <polyline
+                points={connector.points}
                 className="shop-map-connector-line"
               />
               <circle cx={connector.x1} cy={connector.y1} r={3.5} className="shop-map-connector-dot" />
               <circle cx={connector.x2} cy={connector.y2} r={4.5} className="shop-map-connector-dot target" />
             </svg>
           )}
-          {fullScreen && !editing && (placedShops.length > 0 || placedDecorKinds.length > 0) && (
+          {!editing && (placedCategories.length > 0 || placedDecorKinds.length > 0) && (
             <div className="shop-map-directory-overlays" onClick={(e) => e.stopPropagation()}>
-              {placedShops.length > 0 && (
-                <div
-                  className="shop-map-directory-index"
-                  style={{ '--dir-rows': Math.min(placedShops.length, Math.max(6, Math.ceil(placedShops.length / 5))) } as React.CSSProperties}
-                >
-                  {placedShops.map((s) => (
-                    <div
-                      key={s.unitId}
-                      data-info-unit-id={s.unitId}
-                      className={`shop-map-directory-row ${selectedUnitId === s.unitId ? 'active' : ''}`}
-                      onClick={() => setSelectedUnitId((prev) => (prev === s.unitId ? null : s.unitId))}
-                    >
-                      <span className="shop-map-directory-unit">{s.unit?.unitNumber || s.shopNumber}</span>
-                      <span className="shop-map-directory-name">{s.brandName || 'Vacant'}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
               {placedDecorKinds.length > 0 && (
-                <div
-                  className="shop-map-directory-index"
-                  style={{ '--dir-rows': Math.min(placedDecorKinds.length, 6) } as React.CSSProperties}
-                >
+                <div className="shop-map-landmarks-bar">
                   {placedDecorKinds.map((kind) => (
-                    <div key={`decor-${kind}`} className="shop-map-directory-row is-marker">
+                    <div key={`decor-${kind}`} className="shop-map-landmark-item">
                       {kind === 'corridor' ? (
                         <span className="shop-map-directory-corridor-swatch" />
                       ) : (
@@ -715,6 +826,41 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
                         </span>
                       )}
                       <span className="shop-map-directory-name">{DECORATION_LABELS[kind]}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {placedCategories.length > 0 && (
+                <div className="shop-map-category-grid">
+                  {placedCategories.map(({ category, shops: catShops }) => (
+                    <div key={category} className="shop-map-cat-card">
+                      <div className="shop-map-cat-header">
+                        <span className="shop-map-cat-icon">
+                          <CategoryIcon category={category} size={15} />
+                        </span>
+                        <h4 className="shop-map-cat-title">{category.toUpperCase()}</h4>
+                      </div>
+                      <div className="shop-map-cat-divider" />
+                      <div className="shop-map-cat-cols">
+                        <span>STORE</span>
+                        <span>UNIT</span>
+                      </div>
+                      <div className="shop-map-cat-rows">
+                        {catShops.map((s) => {
+                          const isSelected = selectedUnitId === s.unitId;
+                          return (
+                            <div
+                              key={s.unitId}
+                              data-info-unit-id={s.unitId}
+                              className={`shop-map-cat-row ${isSelected ? 'active' : ''}`}
+                              onClick={() => setSelectedUnitId((prev) => (prev === s.unitId ? null : s.unitId))}
+                            >
+                              <span className="shop-map-cat-store">{s.brandName || 'Vacant'}</span>
+                              <span className="shop-map-cat-unit">{s.unit?.unitNumber || s.shopNumber}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ))}
                 </div>

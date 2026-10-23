@@ -42,7 +42,7 @@ class MallService {
         include: {
           unit: {
             select: {
-              unitNumber: true, status: true, areaSqft: true, floorLabel: true, floorNumber: true,
+              unitNumber: true, status: true, areaSqft: true, floorLabel: true, floorNumber: true, floorPlanUrl: true,
               leases: {
                 where: { status: 'active' },
                 take: 1,
@@ -179,7 +179,7 @@ class MallService {
       include: {
         unit: {
           select: {
-            unitNumber: true, status: true, areaSqft: true, floorLabel: true, floorNumber: true,
+            unitNumber: true, status: true, areaSqft: true, floorLabel: true, floorNumber: true, floorPlanUrl: true,
             leases: {
               where: { status: 'active' }, take: 1,
               include: { tenant: true, commercialLease: true },
@@ -217,7 +217,7 @@ class MallService {
 
     return prisma.shopProfile.upsert({
       where: { unitId },
-      create: { unitId, companyId, propertyId: unit.propertyId, ...data },
+      create: { unitId, companyId, propertyId: unit.propertyId, tradeCategory: 'Other', ...data },
       update: data,
     });
   }

@@ -425,7 +425,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     if (!/\.(pdf|png|jpe?g)$/i.test(file.name)) { toast.error('Only PDF, PNG, JPEG allowed'); return; }
     try {
       await uploadFloorPlan({ propertyId, unitId, file }).unwrap();
-      toast.success('Floor plan uploaded');
+      toast.success('Unit photo uploaded');
     } catch { toast.error('Upload failed'); }
     // Reset input so same file can be re-uploaded
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -677,7 +677,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
             { key: 'info', label: 'Info' },
             { key: 'meters', label: 'Meters' },
             { key: 'charges', label: 'Charges' },
-            { key: 'floor_plan', label: 'Floor Plan' },
+            { key: 'floor_plan', label: 'Unit Photo' },
             { key: 'leases', label: `Leases${unit.leases.length > 0 ? ` (${unit.leases.length})` : ''}` },
             { key: 'history', label: 'History' },
           ] as { key: DrawerTab; label: string }[]).map((t) => (
@@ -1570,7 +1570,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
             </div>
           )}
 
-          {/* ═══ FLOOR PLAN TAB ═══ */}
+          {/* ═══ UNIT PHOTO TAB ═══ */}
           {activeTab === 'floor_plan' && (
             <div className="drawer-floorplan">
               <input
@@ -1586,13 +1586,13 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   {/\.(png|jpe?g)$/i.test(unit.floorPlanUrl) ? (
                     <img
                       src={`/api/v1${unit.floorPlanUrl}`}
-                      alt="Floor plan"
+                      alt="Unit photo"
                       className="fp-image"
                     />
                   ) : (
                     <div className="fp-pdf-card">
                       <FileImage size={32} />
-                      <span>Floor Plan (PDF)</span>
+                      <span>Unit Photo (PDF)</span>
                       <a
                         href={`/api/v1${unit.floorPlanUrl}`}
                         target="_blank"
@@ -1614,10 +1614,10 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
               ) : (
                 <div className="fp-empty">
                   <FileImage size={36} />
-                  <p>No floor plan uploaded</p>
+                  <p>No unit photo uploaded</p>
                   <PermissionGuard permission="unit.update">
                     <button className="btn-fp-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                      <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Floor Plan'}
+                      <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Unit Photo'}
                     </button>
                   </PermissionGuard>
                   <span className="fp-hint">PDF, PNG, or JPEG — max 10MB</span>

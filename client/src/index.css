@@ -12265,7 +12265,6 @@ textarea.form-input {
   padding: 10px 14px; display: flex; align-items: center; gap: 8px;
   font-size: 0.75rem; color: var(--text-secondary);
 }
-.shop-dir-card-cat-icon { font-size: 1.1rem; }
 .shop-dir-card-unit { margin-left: auto; font-weight: 600; font-size: 0.72rem; letter-spacing: 0.5px; text-transform: uppercase; }
 
 .shop-dir-anchor-badge {
@@ -12284,7 +12283,6 @@ textarea.form-input {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 500;
 }
-.shop-dir-tag-zone { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 
 .shop-dir-card-info {
   display: flex; justify-content: space-between; align-items: center;
@@ -12376,12 +12374,7 @@ textarea.form-input {
 .shop-dir-list-brand div { display: flex; flex-direction: column; }
 .shop-dir-list-brand strong { font-weight: 600; }
 .shop-dir-list-brand small { font-size: 0.72rem; color: var(--text-secondary); }
-.shop-dir-list-icon {
-  width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center;
-  justify-content: center; font-size: 1rem; flex-shrink: 0;
-}
 .shop-dir-list-anchor { color: #f59e0b; flex-shrink: 0; }
-.shop-dir-list-zone { color: var(--text-secondary); text-transform: capitalize; }
 .shop-dir-list-rent { font-weight: 600; }
 .shop-dir-list-arrow { color: var(--text-secondary); }
 
@@ -12667,7 +12660,7 @@ textarea.form-input {
   font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
   text-transform: uppercase; letter-spacing: 0.5px;
 }
-.shop-edit-body { padding: 0 24px 16px; }
+.shop-edit-body { padding: 18px 24px 20px; }
 .shop-edit-section { margin-bottom: 20px; }
 .shop-edit-section-title {
   display: flex; align-items: center; gap: 6px;
@@ -12677,10 +12670,10 @@ textarea.form-input {
 }
 
 .shop-edit-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; align-items: end;
 }
 .shop-edit-field {
-  display: flex; flex-direction: column; gap: 4px;
+  display: flex; flex-direction: column; gap: 6px;
 }
 .shop-edit-field span {
   font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);
@@ -12712,7 +12705,10 @@ textarea.form-input {
 
 .shop-edit-checkbox {
   flex-direction: row !important; align-items: center !important; gap: 8px !important;
-  padding: 10px 0; font-size: 0.85rem; font-weight: 600; color: var(--text-primary);
+  height: 40px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--border-color); background-color: var(--bg-body, var(--surface));
+  font-size: 0.85rem; font-weight: 600; color: var(--text-primary); cursor: pointer;
+  box-sizing: border-box;
 }
 .shop-edit-checkbox input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
 .shop-edit-checkbox svg { color: #f59e0b; }

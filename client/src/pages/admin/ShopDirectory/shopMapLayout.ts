@@ -15,13 +15,27 @@ export interface MapItem {
   h: number;
 }
 
+export const SHOP_CATEGORIES = [
+  'ATMs',
+  'Beauty & Wellness',
+  'Dining',
+  'Education',
+  'Fashion & Accessories',
+  'Health/Pharmacy',
+  'Services',
+  'Sports & Lifestyle',
+  'Supermarket',
+  'Watches & Jewellery',
+  'Other',
+] as const;
+
 export const DECORATION_LABELS: Record<Exclude<TileKind, 'unit'>, string> = {
   atrium: 'Atrium',
   stairs: 'Stairs',
   escalator: 'Elevator',
-  corridor: 'Walking Area',
+  corridor: 'Walkway',
   toilet: 'Restroom',
-  marker: 'You are here',
+  marker: 'You Are Here',
   entrance: 'Entrance',
   exit: 'Exit',
 };
@@ -121,26 +135,6 @@ export function resolveOverlaps(items: MapItem[], columns: number): MapItem[] {
   // keep the caller's original order
   const byKey = new Map(placed.map((p) => [p.key, p]));
   return items.map((it) => byKey.get(it.key)!);
-}
-
-/** Starter layout: pack the given tiles into rows, left to right, top to bottom. */
-export function autoArrange(items: MapItem[], columns: number): MapItem[] {
-  let x = 0;
-  let y = 0;
-  let rowH = 0;
-  const out = new Map<string, MapItem>();
-  for (const it of items) {
-    const w = Math.min(it.w, columns);
-    if (x + w > columns) {
-      x = 0;
-      y += rowH;
-      rowH = 0;
-    }
-    out.set(it.key, { ...it, w, x, y });
-    x += w;
-    rowH = Math.max(rowH, it.h);
-  }
-  return items.map((it) => out.get(it.key)!);
 }
 
 /**

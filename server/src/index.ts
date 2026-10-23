@@ -111,6 +111,7 @@ async function bootstrap() {
 
   // Serve static files BEFORE auth middleware (public access)
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+  app.use('/api/v1/uploads', express.static(path.join(process.cwd(), 'uploads')));
   app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos')));
   app.use('/storage', express.static(path.join(process.cwd(), 'storage')));
 

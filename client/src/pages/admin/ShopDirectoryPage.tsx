@@ -8,30 +8,49 @@ import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import {
   Store, Search, X, Maximize2, Calendar, DollarSign,
   Star, Tag, Building2, ChevronRight, Grid3x3, List, Map as MapIcon, Edit3,
-  TrendingUp, Percent, ExternalLink, Package, Layers, Plus,
+  TrendingUp, Percent, ExternalLink, Layers, Plus,
   FileText, Shield, Wrench, Receipt,
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import ShopMapView from './ShopDirectory/ShopMapView';
+import { SHOP_CATEGORIES as CATEGORIES } from './ShopDirectory/shopMapLayout';
 
-const CATEGORIES = ['F&B', 'Fashion', 'Electronics', 'Beauty', 'Services', 'Entertainment', 'Anchor', 'Other'];
+const INITIAL_CREATE_FORM = { unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Other' };
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
-  'F&B':           { bg: 'rgba(245, 158, 11, 0.12)', text: '#f59e0b', icon: '🍽️' },
-  'Fashion':       { bg: 'rgba(99, 102, 241, 0.12)', text: '#6366f1', icon: '👗' },
-  'Electronics':   { bg: 'rgba(59, 130, 246, 0.12)', text: '#3b82f6', icon: '💻' },
-  'Beauty':        { bg: 'rgba(236, 72, 153, 0.12)', text: '#ec4899', icon: '💄' },
-  'Services':      { bg: 'rgba(20, 184, 166, 0.12)', text: '#14b8a6', icon: '🛎️' },
-  'Entertainment': { bg: 'rgba(168, 85, 247, 0.12)', text: '#a855f7', icon: '🎬' },
-  'Anchor':        { bg: 'rgba(245, 158, 11, 0.12)', text: '#f59e0b', icon: '⭐' },
-  'Other':         { bg: 'rgba(107, 114, 128, 0.12)', text: '#6b7280', icon: '🏪' },
+const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+  'ATMs':                  { bg: 'rgba(6, 182, 212, 0.12)',   text: '#06b6d4' },
+  'Beauty & Wellness':     { bg: 'rgba(236, 72, 153, 0.12)',  text: '#ec4899' },
+  'Dining':                { bg: 'rgba(245, 158, 11, 0.12)',  text: '#f59e0b' },
+  'Education':             { bg: 'rgba(59, 130, 246, 0.12)',  text: '#3b82f6' },
+  'Fashion & Accessories': { bg: 'rgba(99, 102, 241, 0.12)',  text: '#6366f1' },
+  'Health/Pharmacy':       { bg: 'rgba(16, 185, 129, 0.12)',  text: '#10b981' },
+  'Services':              { bg: 'rgba(20, 184, 166, 0.12)',  text: '#14b8a6' },
+  'Sports & Lifestyle':    { bg: 'rgba(249, 115, 22, 0.12)',  text: '#f97316' },
+  'Supermarket':           { bg: 'rgba(34, 197, 94, 0.12)',   text: '#22c55e' },
+  'Watches & Jewellery':   { bg: 'rgba(168, 85, 247, 0.12)',  text: '#a855f7' },
+  'Other':                 { bg: 'rgba(107, 114, 128, 0.12)', text: '#6b7280' },
 };
 
 function getCatStyle(cat: string) { return CATEGORY_COLORS[cat] || CATEGORY_COLORS['Other']; }
 
 function daysUntil(dateStr: string) {
-  const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  return diff;
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
+function extractFloors(units: any[]) {
+  const map = new Map<string, { value: string; label: string; floorNumber: number }>();
+  for (const u of units) {
+    if (!u) continue;
+    const key = String(u.floorNumber ?? u.floorLabel ?? '1');
+    if (!map.has(key)) {
+      map.set(key, {
+        value: key,
+        label: u.floorLabel || `Floor ${u.floorNumber ?? 1}`,
+        floorNumber: Number(u.floorNumber ?? 1),
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.floorNumber - b.floorNumber);
 }
 
 export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScreenMap?: boolean } = {}) {
@@ -48,7 +67,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const [formData, setFormData] = useState<any>({});
   const [showCreateShop, setShowCreateShop] = useState(false);
   const [createSubmitted, setCreateSubmitted] = useState(false);
-  const [createForm, setCreateForm] = useState<any>({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion' });
+  const [createForm, setCreateForm] = useState<any>(INITIAL_CREATE_FORM);
   const [unitSearch, setUnitSearch] = useState('');
   const [unitFloorFilter, setUnitFloorFilter] = useState('');
   const [showLeaseEdit, setShowLeaseEdit] = useState(false);
@@ -63,20 +82,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const { data: availRes } = useGetAvailableUnitsQuery({ propertyId }, { skip: !propertyId || !showCreateShop });
   const availableUnits = availRes?.data || [];
 
-  const availableFloors = useMemo(() => {
-    const map = new Map<string, { value: string; label: string; floorNumber: number }>();
-    for (const u of availableUnits) {
-      const key = String(u.floorNumber ?? u.floorLabel ?? '1');
-      if (!map.has(key)) {
-        map.set(key, {
-          value: key,
-          label: u.floorLabel || `Floor ${u.floorNumber ?? 1}`,
-          floorNumber: Number(u.floorNumber ?? 1),
-        });
-      }
-    }
-    return Array.from(map.values()).sort((a, b) => a.floorNumber - b.floorNumber);
-  }, [availableUnits]);
+  const availableFloors = useMemo(() => extractFloors(availableUnits), [availableUnits]);
 
   const filteredAvailableUnits = useMemo(() => {
     return availableUnits.filter((u: any) => {
@@ -103,27 +109,12 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const allShops = shopsData?.data || [];
   const mix = mixData?.data;
 
-  const shopFloors = useMemo(() => {
-    const map = new Map<string, { value: string; label: string; floorNumber: number }>();
-    for (const s of allShops) {
-      const u = s.unit;
-      if (!u) continue;
-      const key = String(u.floorNumber ?? u.floorLabel ?? '1');
-      if (!map.has(key)) {
-        map.set(key, {
-          value: key,
-          label: u.floorLabel || `Floor ${u.floorNumber ?? 1}`,
-          floorNumber: Number(u.floorNumber ?? 1),
-        });
-      }
-    }
-    return Array.from(map.values()).sort((a, b) => a.floorNumber - b.floorNumber);
-  }, [allShops]);
+  const shopFloors = useMemo(() => extractFloors(allShops.map((s: any) => s.unit)), [allShops]);
 
   // Client-side category, anchor, floor & search filter (for Grid & List views)
   const shops = useMemo(() => {
     return allShops.filter((s: any) => {
-      if (filters.tradeCategory && s.tradeCategory !== filters.tradeCategory) return false;
+      if (filters.tradeCategory && (s.tradeCategory || 'Other') !== filters.tradeCategory) return false;
       if (filters.isAnchor && !s.isAnchor) return false;
       if (floorFilter) {
         const u = s.unit;
@@ -135,7 +126,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
       return (
         (s.brandName || '').toLowerCase().includes(q) ||
         (s.shopNumber || '').toLowerCase().includes(q) ||
-        (s.tradeCategory || '').toLowerCase().includes(q) ||
+        (s.tradeCategory || 'Other').toLowerCase().includes(q) ||
         (s.franchiseGroup || '').toLowerCase().includes(q) ||
         (s.unit?.unitNumber || '').toLowerCase().includes(q)
       );
@@ -159,7 +150,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
     setFormData({
       shopNumber: shop.shopNumber || '',
       brandName: shop.brandName || '',
-      tradeCategory: shop.tradeCategory || '',
+      tradeCategory: shop.tradeCategory || 'Other',
       tradeSubcategory: shop.tradeSubcategory || '',
       franchiseGroup: shop.franchiseGroup || '',
       isAnchor: shop.isAnchor || false,
@@ -240,7 +231,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
         data: {
           shopNumber: createForm.shopNumber || undefined,
           brandName: createForm.brandName || undefined,
-          tradeCategory: createForm.tradeCategory || undefined,
+          tradeCategory: createForm.tradeCategory || 'Other',
           tradeSubcategory: createForm.tradeSubcategory || undefined,
         },
       }).unwrap();
@@ -248,7 +239,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
       setCreateSubmitted(false);
       setUnitFloorFilter('');
       setUnitSearch('');
-      setCreateForm({ unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Fashion' });
+      setCreateForm(INITIAL_CREATE_FORM);
     } catch (e) { console.error(e); }
   };
 
@@ -325,8 +316,8 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                   const cats = mix.byCategory;
                   const total = cats.reduce((s: number, c: any) => s + c.glaSqft, 0) || 1;
                   let cum = 0;
-                  const palette = ['#f59e0b', '#6366f1', '#3b82f6', '#ec4899', '#14b8a6', '#a855f7', '#ef4444', '#6b7280'];
-                  return cats.map((c: any, i: number) => {
+                  return cats.map((c: any) => {
+                    const color = getCatStyle(c.category).text;
                     const pct = c.glaSqft / total;
                     const startAngle = cum * 2 * Math.PI - Math.PI / 2;
                     cum += pct;
@@ -341,7 +332,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                       <path
                         key={c.category}
                         d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                        fill={palette[i % palette.length]}
+                        fill={color}
                         stroke="var(--card-bg, var(--surface))"
                         strokeWidth={2}
                         opacity={0.85}
@@ -362,22 +353,21 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
 
               {/* Legend */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 200 }}>
-                {mix.byCategory.map((c: any, i: number) => {
-                  const palette = ['#f59e0b', '#6366f1', '#3b82f6', '#ec4899', '#14b8a6', '#a855f7', '#ef4444', '#6b7280'];
+                {mix.byCategory.map((c: any) => {
                   const catInfo = getCatStyle(c.category);
                   return (
                     <div key={c.category} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 12, height: 12, borderRadius: 3, background: palette[i % palette.length], flexShrink: 0 }} />
+                      <div style={{ width: 12, height: 12, borderRadius: 3, background: catInfo.text, flexShrink: 0 }} />
                       <span style={{ flex: 1, fontSize: '0.82rem', color: 'var(--text-primary)' }}>
-                        {catInfo.icon} {c.category}
+                        {c.category}
                       </span>
                       <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', minWidth: 40, textAlign: 'right' }}>
                         {c.shopCount}
                       </span>
                       <div style={{ width: 80, height: 6, borderRadius: 3, background: 'var(--border-color, var(--border))', overflow: 'hidden' }}>
-                        <div style={{ width: `${c.pct}%`, height: '100%', borderRadius: 3, background: palette[i % palette.length] }} />
+                        <div style={{ width: `${c.pct}%`, height: '100%', borderRadius: 3, background: catInfo.text }} />
                       </div>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: palette[i % palette.length], minWidth: 38, textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: catInfo.text, minWidth: 38, textAlign: 'right' }}>
                         {c.pct}%
                       </span>
                     </div>
@@ -492,7 +482,6 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
               >
                 {/* Card Top Banner */}
                 <div className="shop-dir-card-banner" style={{ background: cat.bg }}>
-                  <span className="shop-dir-card-cat-icon">{cat.icon}</span>
                   {shop.isAnchor && <span className="shop-dir-anchor-badge"><Star size={10} /> Anchor</span>}
                   <span className="shop-dir-card-unit">{shop.shopNumber || shop.unit?.unitNumber}</span>
                 </div>
@@ -506,7 +495,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
 
                   <div className="shop-dir-card-tags">
                     <span className="shop-dir-tag" style={{ background: cat.bg, color: cat.text }}>
-                      <Tag size={10} /> {shop.tradeCategory}
+                      <Tag size={10} /> {shop.tradeCategory || 'Other'}
                     </span>
                   </div>
 
@@ -570,9 +559,6 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
             return (
               <div key={shop.unitId} className="shop-dir-list-row" onClick={() => openDetail(shop)}>
                 <div className="shop-dir-list-brand">
-                  <span className="shop-dir-list-icon" style={{ background: cat.bg, color: cat.text }}>
-                    {cat.icon}
-                  </span>
                   <div>
                     <strong>{shop.brandName || 'Unnamed'}</strong>
                     <small>{shop.shopNumber || shop.unit?.unitNumber}</small>
@@ -580,7 +566,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                   {shop.isAnchor && <Star size={14} className="shop-dir-list-anchor" />}
                 </div>
                 <span className="shop-dir-tag" style={{ background: cat.bg, color: cat.text }}>
-                  {shop.tradeCategory}
+                  {shop.tradeCategory || 'Other'}
                 </span>
                 <span>{Number(shop.unit?.areaSqft || 0).toLocaleString()} sqft</span>
                 <span className={`shop-dir-card-status shop-dir-status-${shop.unit?.status}`}>
@@ -629,7 +615,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                 background: getCatStyle(detailShop.tradeCategory).bg,
                 color: getCatStyle(detailShop.tradeCategory).text,
               }}>
-                <Tag size={10} /> {detailShop.tradeCategory}
+                <Tag size={10} /> {detailShop.tradeCategory || 'Other'}
               </span>
             </div>
 
@@ -862,60 +848,41 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
             </div>
 
             <div className="shop-edit-body">
-              {/* Section: Identity */}
-              <div className="shop-edit-section">
-                <h4 className="shop-edit-section-title"><Store size={14} /> Shop Identity</h4>
-                <div className="shop-edit-grid">
-                  <label className="shop-edit-field">
-                    <span>Shop Number</span>
-                    <input value={formData.shopNumber} onChange={e => setFormData({ ...formData, shopNumber: e.target.value })} />
-                  </label>
-                  <label className="shop-edit-field">
-                    <span>Brand Name</span>
-                    <input value={formData.brandName} onChange={e => setFormData({ ...formData, brandName: e.target.value })} />
-                  </label>
-                  <label className="shop-edit-field">
-                    <span>Franchise Group</span>
-                    <input value={formData.franchiseGroup} onChange={e => setFormData({ ...formData, franchiseGroup: e.target.value })} placeholder="e.g., H&M Group" />
-                  </label>
-                  <label className="shop-edit-field shop-edit-checkbox">
-                    <input type="checkbox" checked={formData.isAnchor} onChange={e => setFormData({ ...formData, isAnchor: e.target.checked })} />
-                    <Star size={14} /> Anchor Tenant
-                  </label>
-                </div>
-              </div>
-
-              {/* Section: Classification */}
-              <div className="shop-edit-section">
-                <h4 className="shop-edit-section-title"><Tag size={14} /> Classification</h4>
-                <div className="shop-edit-grid">
-                  <label className="shop-edit-field">
-                    <span>Trade Category</span>
-                    <select value={formData.tradeCategory} onChange={e => setFormData({ ...formData, tradeCategory: e.target.value })}>
-                      <option value="">Select category...</option>
-                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </label>
-                  <label className="shop-edit-field">
-                    <span>Sub-category</span>
-                    <input value={formData.tradeSubcategory} onChange={e => setFormData({ ...formData, tradeSubcategory: e.target.value })} placeholder="e.g., Coffee, Sportswear" />
-                  </label>
-                </div>
-              </div>
-
-              {/* Section: POS */}
-              <div className="shop-edit-section">
-                <h4 className="shop-edit-section-title"><ExternalLink size={14} /> POS Integration</h4>
-                <div className="shop-edit-grid">
-                  <label className="shop-edit-field">
-                    <span>POS System</span>
-                    <input value={formData.posSystem} onChange={e => setFormData({ ...formData, posSystem: e.target.value })} placeholder="e.g., square, lightspeed" />
-                  </label>
-                  <label className="shop-edit-field">
-                    <span>POS Store ID</span>
-                    <input value={formData.posStoreId} onChange={e => setFormData({ ...formData, posStoreId: e.target.value })} placeholder="e.g., POS-001" />
-                  </label>
-                </div>
+              <div className="shop-edit-grid">
+                <label className="shop-edit-field">
+                  <span>Shop Number</span>
+                  <input value={formData.shopNumber} onChange={e => setFormData({ ...formData, shopNumber: e.target.value })} />
+                </label>
+                <label className="shop-edit-field">
+                  <span>Brand Name</span>
+                  <input value={formData.brandName} onChange={e => setFormData({ ...formData, brandName: e.target.value })} />
+                </label>
+                <label className="shop-edit-field">
+                  <span>Trade Category</span>
+                  <select value={formData.tradeCategory || 'Other'} onChange={e => setFormData({ ...formData, tradeCategory: e.target.value })}>
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+                <label className="shop-edit-field">
+                  <span>Sub-category</span>
+                  <input value={formData.tradeSubcategory} onChange={e => setFormData({ ...formData, tradeSubcategory: e.target.value })} placeholder="e.g., Coffee, Sportswear" />
+                </label>
+                <label className="shop-edit-field">
+                  <span>POS System</span>
+                  <input value={formData.posSystem} onChange={e => setFormData({ ...formData, posSystem: e.target.value })} placeholder="e.g., square, lightspeed" />
+                </label>
+                <label className="shop-edit-field">
+                  <span>POS Store ID</span>
+                  <input value={formData.posStoreId} onChange={e => setFormData({ ...formData, posStoreId: e.target.value })} placeholder="e.g., POS-001" />
+                </label>
+                <label className="shop-edit-field">
+                  <span>Franchise Group</span>
+                  <input value={formData.franchiseGroup} onChange={e => setFormData({ ...formData, franchiseGroup: e.target.value })} placeholder="e.g., H&M Group" />
+                </label>
+                <label className="shop-edit-field shop-edit-checkbox">
+                  <input type="checkbox" checked={formData.isAnchor} onChange={e => setFormData({ ...formData, isAnchor: e.target.checked })} />
+                  <Star size={14} /> Anchor Tenant
+                </label>
               </div>
             </div>
 
