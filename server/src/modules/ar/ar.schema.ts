@@ -6,7 +6,8 @@ const dateString = z.string().refine((val) => !isNaN(Date.parse(val)), { message
 
 export const createReceiptSchema = z.object({
   body: z.object({
-    tenantId: z.string().uuid(),
+    tenantId: z.string().uuid().optional().nullable(),
+    isCash: z.boolean().optional(),
     propertyId: z.string().uuid().optional(),
     receiptDate: dateString.optional(),
     paymentMethod: z.string().min(1, 'Payment method is required').max(50),

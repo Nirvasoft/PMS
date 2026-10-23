@@ -59,6 +59,7 @@ paymentVouchersRouter.get('/', asyncHandler(async (req, res) => {
   const result = await paymentVouchersService.findAll(req.user!.companyId, {
     status: req.query.status as string,
     vendorName: req.query.vendorName as string,
+    propertyId: req.query.propertyId as string,
     page: parseInt(req.query.page as string) || 1,
     limit: Math.min(parseInt(req.query.limit as string) || 20, 100),
   });

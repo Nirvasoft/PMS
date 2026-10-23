@@ -52,11 +52,11 @@ export class ReceiptsService {
     const amount = dto.amount as number;
 
     // Auto-allocate if no manual allocations provided
-    if (allocations.length === 0) {
+    if (allocations.length === 0 && dto.tenantId) {
       const outstanding = await prisma.invoice.findMany({
         where: {
           companyId,
-          tenantId: dto.tenantId as string,
+          tenantId: ((dto.tenantId as string) || null) as any,
           invoiceType: 'invoice',
           status: { in: ['issued', 'sent', 'partially_paid', 'overdue'] },
         },
@@ -90,7 +90,7 @@ export class ReceiptsService {
       const rct = await tx.receipt.create({
         data: {
           companyId,
-          tenantId: dto.tenantId as string,
+          tenantId: ((dto.tenantId as string) || null) as any,
           propertyId: (dto.propertyId as string) || null,
           receiptNumber,
           receiptDate: dto.receiptDate ? new Date(dto.receiptDate as string) : new Date(),
@@ -139,11 +139,11 @@ export class ReceiptsService {
 
       // Handle overpayment → create tenant credit
       const overpayment = amount - totalAllocated;
-      if (overpayment > 0.01) {
+      if (overpayment > 0.01 && dto.tenantId) {
         await tx.tenantCredit.create({
           data: {
             companyId,
-            tenantId: dto.tenantId as string,
+            tenantId: ((dto.tenantId as string) || null) as any,
             amount: overpayment,
             currency: (dto.currency as string) || 'USD',
             sourceType: 'overpayment',

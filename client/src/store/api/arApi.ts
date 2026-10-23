@@ -15,7 +15,7 @@ export interface ReceiptListItem {
   status: string;
   notes: string | null;
   createdAt: string;
-  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
+  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string } | null;
   property: { id: string; name: string } | null;
   _count: { allocations: number };
 }
@@ -93,7 +93,7 @@ export interface RefundListItem {
   createdAt: string;
   approvedAt: string | null;
   paidAt: string | null;
-  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
+  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string } | null;
 }
 
 export interface TenantCreditItem {
@@ -109,7 +109,7 @@ export interface TenantCreditItem {
 }
 
 export interface TenantCreditWithTenant extends TenantCreditItem {
-  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string };
+  tenant: { id: string; firstName: string | null; lastName: string | null; companyName: string | null; tenantType: string } | null;
 }
 
 export interface CreditsSummary {

@@ -97,7 +97,7 @@ export default function ReceiptsPage() {
   };
 
   const { data: paymentMethods = [] } = useGetPaymentMethodsQuery(
-    propertyId ? { propertyId } : undefined,
+    propertyId ? { propertyId } : skipToken,
   );
   const paymentMethodMap = useMemo(() => {
     const map = new Map<string, string>();

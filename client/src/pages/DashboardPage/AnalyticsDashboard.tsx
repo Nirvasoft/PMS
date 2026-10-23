@@ -393,7 +393,15 @@ function WidgetRenderer({ data, onDrillDown }: { data: WidgetData; onDrillDown: 
 // ═══════════════════════════════════════════════════
 function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: (k?: string) => void }) {
   const formatValue = (v: number, unit: string) => {
-    if (unit === 'USD') return `$${v.toLocaleString()}`;
+    if (/^[A-Z]{3}$/.test(unit || '')) {
+      let symbol = unit;
+      try {
+        symbol = new Intl.NumberFormat('en', { style: 'currency', currency: unit, currencyDisplay: 'narrowSymbol' })
+          .formatToParts(0).find(p => p.type === 'currency')?.value || unit;
+      } catch { /* unknown code: fall back to the code itself */ }
+      if (symbol === unit && unit === 'MMK') symbol = 'K';
+      return `${symbol}${v.toLocaleString()}`;
+    }
     if (unit === '%') return `${v}%`;
     if (unit) return `${unit} ${v.toLocaleString()}`;
     return v.toLocaleString();

@@ -56,6 +56,7 @@ export interface ApInvoiceDetail extends ApInvoiceListItem {
 
 export interface PaymentVoucherListItem {
   id: string;
+  propertyId?: string | null;
   voucherNumber: string;
   voucherDate: string;
   paymentMethod: string;
@@ -66,10 +67,11 @@ export interface PaymentVoucherListItem {
   status: string;
   paidAt: string | null;
   createdAt: string;
+  property?: { id: string; name: string } | null;
   allocations: Array<{
     id: string;
     amount: string;
-    apInvoice: { id: string; apInvoiceNumber: string; vendorName: string };
+    apInvoice: { id: string; apInvoiceNumber: true | string; vendorName: string };
   }>;
   bankAccount: { id: string; bankName: string; accountNumber: string } | null;
   creator: { id: string; email: string; profile?: { firstName: string; lastName: string } };

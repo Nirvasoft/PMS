@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
   useGetPaymentMethodsQuery,
   useCreatePaymentMethodMutation,
@@ -24,16 +25,16 @@ import '../BillingPage/BillingPage.css';
 export default function PaymentMethodSetupPage() {
   const propertyId = useSelectedPropertyId();
   const { data: paymentMethods = [], isFetching } = useGetPaymentMethodsQuery(
-    propertyId ? { propertyId } : undefined
+    propertyId ? { propertyId } : skipToken
   );
   const { data: glAccounts = [], isLoading: loadingGlAccounts } = useGetGlAccountsQuery(
-    propertyId ? { propertyId } : {}
+    propertyId ? { propertyId } : skipToken
   );
   const { data: departmentCenters = [] } = useGetDepartmentCentersQuery(
-    propertyId ? { propertyId } : undefined
+    propertyId ? { propertyId } : skipToken
   );
   const { data: costCenters = [] } = useGetCostCentersQuery(
-    propertyId ? { propertyId } : undefined
+    propertyId ? { propertyId } : skipToken
   );
   const [createPaymentMethod, { isLoading: creating }] = useCreatePaymentMethodMutation();
   const [updatePaymentMethod, { isLoading: updating }] = useUpdatePaymentMethodMutation();
@@ -220,6 +221,12 @@ export default function PaymentMethodSetupPage() {
     }
     return true;
   });
+
+  // Close form modal when the active property changes
+  useEffect(() => {
+    closeForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyId]);
 
   // Reset pagination when search, filters, or active property change
   useEffect(() => {

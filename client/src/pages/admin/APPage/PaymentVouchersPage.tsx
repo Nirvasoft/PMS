@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
   useGetPaymentVouchersQuery, useCreatePaymentVoucherMutation, useMarkVoucherPaidMutation,
   useGetApInvoicesQuery,
@@ -25,6 +26,7 @@ export default function PaymentVouchersPage() {
   const [limit, setLimit] = useState(20);
   const [showCreate, setShowCreate] = useState(false);
   const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
+  const [isCash, setIsCash] = useState(false);
   const [payId, setPayId] = useState<string | null>(null);
   const [payRef, setPayRef] = useState('');
   const [hasAttemptedPay, setHasAttemptedPay] = useState(false);
@@ -35,21 +37,35 @@ export default function PaymentVouchersPage() {
   const properties = propertiesData?.data || [];
   const selectedPropertyName = properties.find((p) => p.id === selectedProperty)?.name || '';
 
-  // Reset page whenever the active property changes.
-  useEffect(() => { setPage(1); }, [selectedProperty]);
+  // Reset page and modal whenever the active property changes.
+  useEffect(() => {
+    setPage(1);
+    setShowCreate(false);
+    setHasAttemptedCreate(false);
+    setAllocations([]);
+  }, [selectedProperty]);
 
-  const { data: vouchersData, isLoading } = useGetPaymentVouchersQuery({
-    status: statusFilter || undefined,
-    propertyId: selectedProperty || undefined,
-    page: String(page), limit: String(limit),
-  });
-  const { data: approvedInvoices } = useGetApInvoicesQuery({
-    status: 'approved',
-    propertyId: selectedProperty || undefined,
-    limit: '100',
-  });
+  const { data: vouchersData, isLoading } = useGetPaymentVouchersQuery(
+    selectedProperty
+      ? {
+          status: statusFilter || undefined,
+          propertyId: selectedProperty,
+          page: String(page),
+          limit: String(limit),
+        }
+      : skipToken,
+  );
+  const { data: approvedInvoices } = useGetApInvoicesQuery(
+    selectedProperty
+      ? {
+          status: 'approved',
+          propertyId: selectedProperty,
+          limit: '100',
+        }
+      : skipToken,
+  );
   const { data: paymentMethods = [] } = useGetPaymentMethodsQuery(
-    selectedProperty ? { propertyId: selectedProperty } : undefined,
+    selectedProperty ? { propertyId: selectedProperty } : skipToken,
   );
   const activePaymentMethods = useMemo(
     () => paymentMethods.filter((pm) => pm.isActive),
@@ -87,6 +103,7 @@ export default function PaymentVouchersPage() {
     voucherDate: format(new Date(), 'yyyy-MM-dd'),
     paymentMethod: '' as string,
     vendorName: '', vendorBankName: '', vendorBankAcc: '',
+    amount: '',
     currency: 'USD', notes: '',
   });
   const [allocations, setAllocations] = useState<Array<{ apInvoiceId: string; amount: number }>>([]);
@@ -94,34 +111,57 @@ export default function PaymentVouchersPage() {
   useEffect(() => {
     if (activePaymentMethods.length > 0 && (!form.paymentMethod || !activePaymentMethods.some((pm) => pm.code === form.paymentMethod))) {
       setForm((f) => ({ ...f, paymentMethod: defaultPaymentMethodCode }));
+    } else if (activePaymentMethods.length === 0 && form.paymentMethod) {
+      setForm((f) => ({ ...f, paymentMethod: '' }));
     }
   }, [activePaymentMethods, defaultPaymentMethodCode, form.paymentMethod]);
 
   const totalAllocated = allocations.reduce((s, a) => s + a.amount, 0);
+  const effectiveAmount = parseFloat(form.amount) || totalAllocated;
 
   const addAllocation = (invId: string) => {
+    if (isCash) return;
     const inv = availableInvoices.find((i: any) => i.id === invId);
     if (!inv || allocations.find(a => a.apInvoiceId === invId)) return;
-    setAllocations(prev => [...prev, { apInvoiceId: invId, amount: inv.outstanding }]);
-    if (!form.vendorName) setForm(f => ({ ...f, vendorName: inv.vendorName, currency: inv.currency }));
+    const nextAllocations = [...allocations, { apInvoiceId: invId, amount: inv.outstanding }];
+    const nextSum = Math.round(nextAllocations.reduce((s, a) => s + a.amount, 0) * 100) / 100;
+    setAllocations(nextAllocations);
+    setForm(f => ({
+      ...f,
+      vendorName: f.vendorName || inv.vendorName,
+      currency: f.vendorName ? f.currency : inv.currency,
+      amount: String(nextSum),
+    }));
   };
 
-  const removeAllocation = (idx: number) => setAllocations(prev => prev.filter((_, i) => i !== idx));
+  const removeAllocation = (idx: number) => {
+    const nextAllocations = allocations.filter((_, i) => i !== idx);
+    const nextSum = Math.round(nextAllocations.reduce((s, a) => s + a.amount, 0) * 100) / 100;
+    setAllocations(nextAllocations);
+    setForm(f => ({ ...f, amount: nextSum > 0 ? String(nextSum) : '' }));
+  };
 
   const handleCreate = async () => {
     setHasAttemptedCreate(true);
     if (!selectedProperty) return toast.error('Please select a property from the sidebar first');
-    if (!form.voucherDate || !form.paymentMethod || !form.vendorName.trim()) return toast.error('Please fill in all required fields');
-    if (allocations.length === 0) return toast.error('At least one AP invoice allocation is required');
+    if (!form.voucherDate || !form.paymentMethod || (!isCash && !form.vendorName.trim()) || effectiveAmount <= 0) {
+      return toast.error('Please fill in all required fields');
+    }
+    if (!isCash && allocations.length === 0) return toast.error('At least one AP invoice allocation is required');
     try {
       await createPaymentVoucher({
         ...form,
-        allocations,
+        propertyId: selectedProperty,
+        isCash,
+        amount: effectiveAmount,
+        vendorName: isCash ? '' : form.vendorName.trim(),
+        allocations: isCash ? [] : allocations,
       }).unwrap();
       toast.success('Payment Voucher created');
       setShowCreate(false);
       setHasAttemptedCreate(false);
-      setForm({ voucherDate: format(new Date(), 'yyyy-MM-dd'), paymentMethod: defaultPaymentMethodCode, vendorName: '', vendorBankName: '', vendorBankAcc: '', currency: 'USD', notes: '' });
+      setIsCash(false);
+      setForm({ voucherDate: format(new Date(), 'yyyy-MM-dd'), paymentMethod: defaultPaymentMethodCode, vendorName: '', vendorBankName: '', vendorBankAcc: '', amount: '', currency: 'USD', notes: '' });
       setAllocations([]);
     } catch { toast.error('Failed to create payment voucher'); }
   };
@@ -159,6 +199,7 @@ export default function PaymentVouchersPage() {
             onClick={() => {
               const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
               setForm((f) => ({ ...f, currency: propertyCurrency || 'USD', paymentMethod: f.paymentMethod || defaultPaymentMethodCode }));
+              setIsCash(false);
               setHasAttemptedCreate(false);
               setShowCreate(true);
             }}
@@ -212,10 +253,10 @@ export default function PaymentVouchersPage() {
                 <tr key={pv.id}>
                   <td><strong>{pv.voucherNumber}</strong></td>
                   <td>{format(new Date(pv.voucherDate), 'dd MMM yyyy')}</td>
-                  <td>{pv.vendorName}</td>
+                  <td>{pv.vendorName || '—'}</td>
                   <td style={{ textTransform: 'capitalize' }}>{formatPaymentMethod(pv.paymentMethod)}</td>
                   <td className="amount-neutral">{fmt(pv.totalAmount)} {pv.currency}</td>
-                  <td>{pv.allocations.map((a: any) => a.apInvoice.apInvoiceNumber).join(', ')}</td>
+                  <td>{pv.allocations.map((a: any) => a.apInvoice.apInvoiceNumber).join(', ') || '—'}</td>
                   <td><span className={`ap-status ${pv.status}`}>{pv.status}</span></td>
                   <td>{pv.paidAt ? format(new Date(pv.paidAt), 'dd MMM yyyy') : '—'}</td>
                   <td>
@@ -327,14 +368,78 @@ export default function PaymentVouchersPage() {
                   </select>
                 </div>
                 <div className="ap-form-group">
-                  <label>Vendor Name <span className="req">*</span></label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label style={{ margin: 0 }}>
+                      Vendor Name {!isCash && <span className="req">*</span>}
+                    </label>
+                    <label
+                      htmlFor="voucher-cash-checkbox"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        cursor: 'pointer',
+                        textTransform: 'none',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--text-primary)',
+                        letterSpacing: 'normal',
+                        userSelect: 'none',
+                        margin: 0,
+                      }}
+                    >
+                      <input
+                        id="voucher-cash-checkbox"
+                        type="checkbox"
+                        checked={isCash}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setIsCash(checked);
+                          if (checked) {
+                            setForm(f => ({ ...f, vendorName: '' }));
+                            setAllocations([]);
+                          }
+                        }}
+                        style={{
+                          width: 15,
+                          height: 15,
+                          padding: 0,
+                          border: 'none',
+                          background: 'transparent',
+                          boxShadow: 'none',
+                          cursor: 'pointer',
+                          accentColor: 'var(--primary)',
+                          margin: 0,
+                        }}
+                      />
+                      Cash
+                    </label>
+                  </div>
                   <input
-                    className={hasAttemptedCreate && !form.vendorName.trim() ? 'ap-input-error' : ''}
+                    disabled={isCash}
+                    placeholder={isCash ? 'Disabled for Cash voucher' : ''}
+                    className={hasAttemptedCreate && !isCash && !form.vendorName.trim() ? 'ap-input-error' : ''}
                     value={form.vendorName}
                     onChange={e => setForm(f => ({ ...f, vendorName: e.target.value }))}
+                    style={isCash ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                   />
-                  {hasAttemptedCreate && !form.vendorName.trim() && (
+                  {hasAttemptedCreate && !isCash && !form.vendorName.trim() && (
                     <span className="ap-error-text">Vendor name is required</span>
+                  )}
+                </div>
+                <div className="ap-form-group">
+                  <label>Amount <span className="req">*</span></label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    className={hasAttemptedCreate && effectiveAmount <= 0 ? 'ap-input-error' : ''}
+                    value={form.amount}
+                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                  />
+                  {hasAttemptedCreate && effectiveAmount <= 0 && (
+                    <span className="ap-error-text">Valid amount is required</span>
                   )}
                 </div>
                 <div className="ap-form-group">
@@ -361,24 +466,26 @@ export default function PaymentVouchersPage() {
               <div className="ap-line-items">
                 <h3><DollarSign size={16} /> Allocate AP Invoices</h3>
                 <div className="ap-form-group" style={{ marginBottom: '0.75rem' }}>
-                  <label>Select Approved Invoice <span className="req">*</span></label>
+                  <label>Select Approved Invoice {!isCash && <span className="req">*</span>}</label>
                   <select
-                    className={hasAttemptedCreate && allocations.length === 0 ? 'ap-input-error' : ''}
+                    disabled={isCash}
+                    className={hasAttemptedCreate && !isCash && allocations.length === 0 ? 'ap-input-error' : ''}
+                    style={isCash ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                     onChange={e => { addAllocation(e.target.value); e.target.value = ''; }}
                   >
-                    <option value="">— Select an approved AP invoice —</option>
-                    {availableInvoices.filter((i: any) => !allocations.find(a => a.apInvoiceId === i.id)).map((inv: any) => (
+                    <option value="">{isCash ? '— Disabled for Cash voucher —' : '— Select an approved AP invoice —'}</option>
+                    {!isCash && availableInvoices.filter((i: any) => !allocations.find(a => a.apInvoiceId === i.id)).map((inv: any) => (
                       <option key={inv.id} value={inv.id}>
                         {inv.apInvoiceNumber} — {inv.vendorName} — Outstanding: {fmt(inv.outstanding)} {inv.currency}
                       </option>
                     ))}
                   </select>
-                  {hasAttemptedCreate && allocations.length === 0 && (
+                  {hasAttemptedCreate && !isCash && allocations.length === 0 && (
                     <span className="ap-error-text">At least one approved AP invoice must be allocated</span>
                   )}
                 </div>
 
-                {allocations.length > 0 && (
+                {!isCash && allocations.length > 0 && (
                   <TableScrollWrapper>
                     <table className="ap-table" style={{ marginBottom: '0.5rem' }}>
                       <thead>
@@ -399,7 +506,13 @@ export default function PaymentVouchersPage() {
                               <td>
                                 <input type="number" min={0.01} step={0.01} value={alloc.amount}
                                   style={{ width: 120, padding: '0.25rem 0.5rem' }}
-                                  onChange={e => setAllocations(prev => prev.map((a, i) => i === idx ? { ...a, amount: parseFloat(e.target.value) || 0 } : a))}
+                                  onChange={e => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    const nextAllocations = allocations.map((a, i) => i === idx ? { ...a, amount: val } : a);
+                                    const nextSum = Math.round(nextAllocations.reduce((s, a) => s + a.amount, 0) * 100) / 100;
+                                    setAllocations(nextAllocations);
+                                    setForm(f => ({ ...f, amount: nextSum > 0 ? String(nextSum) : '' }));
+                                  }}
                                 />
                               </td>
                               <td><button className="ap-btn icon-only ghost" onClick={() => removeAllocation(idx)}><X size={14} /></button></td>
@@ -412,7 +525,7 @@ export default function PaymentVouchersPage() {
                 )}
 
                 <div style={{ textAlign: 'right', fontSize: '1rem', fontWeight: 700 }}>
-                  Total: {fmt(totalAllocated)} {form.currency}
+                  Total: {fmt(effectiveAmount)} {form.currency}
                 </div>
               </div>
             </div>

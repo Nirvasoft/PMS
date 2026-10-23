@@ -39,18 +39,27 @@ export const rejectApInvoiceSchema = z.object({
 
 export const createPaymentVoucherSchema = z.object({
   body: z.object({
+    propertyId: z.string().uuid().optional(),
     voucherDate: dateString,
     paymentMethod: z.string().min(1, 'Payment method is required').max(50),
     bankAccountId: z.string().uuid().optional(),
-    vendorName: z.string().min(1).max(255),
+    isCash: z.boolean().optional(),
+    vendorName: z.string().max(255).optional().nullable(),
     vendorBankName: z.string().max(100).optional(),
     vendorBankAcc: z.string().max(50).optional(),
+    amount: z.number().nonnegative().optional(),
     currency: z.string().length(3),
     notes: z.string().optional(),
     allocations: z.array(z.object({
       apInvoiceId: z.string().uuid(),
       amount: z.number().positive(),
-    })).min(1, 'At least one AP invoice allocation is required'),
+    })).optional().default([]),
+  }).refine((data) => data.isCash || (data.vendorName && data.vendorName.trim().length > 0), {
+    message: 'Vendor name is required unless Cash is selected',
+    path: ['vendorName'],
+  }).refine((data) => data.isCash || (data.allocations && data.allocations.length > 0), {
+    message: 'At least one AP invoice allocation is required unless Cash is selected',
+    path: ['allocations'],
   }),
 });
 

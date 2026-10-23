@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { skipToken } from '@reduxjs/toolkit/query/react';
 import { useCreateReceiptMutation } from '../../../store/api/arApi';
 import { useGetInvoicesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
@@ -16,15 +17,15 @@ interface Props { onClose: () => void; }
 export default function CreateReceiptModal({ onClose }: Props) {
   // Active property — tenants and payment methods are scoped to this property.
   const activePropertyId = useSelectedPropertyId();
-  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery({
-    isActive: true,
-    propertyId: activePropertyId || undefined,
-  });
+  const { data: paymentMethods = [] } = useGetPaymentMethodsQuery(
+    activePropertyId ? { isActive: true, propertyId: activePropertyId } : skipToken,
+  );
   const activePaymentMethods = useMemo(
     () => paymentMethods.filter((pm) => pm.isActive),
     [paymentMethods]
   );
 
+  const [isCash, setIsCash] = useState(false);
   const [tenantId, setTenantId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
@@ -41,6 +42,8 @@ export default function CreateReceiptModal({ onClose }: Props) {
         activePaymentMethods.find((pm) => pm.code.toUpperCase() === 'BANK_TRANSFER')?.code ||
         activePaymentMethods[0].code;
       setPaymentMethod(preferred);
+    } else if (activePaymentMethods.length === 0 && paymentMethod) {
+      setPaymentMethod('');
     }
   }, [activePaymentMethods, paymentMethod]);
 
@@ -63,10 +66,14 @@ export default function CreateReceiptModal({ onClose }: Props) {
     const rates = currencyRatesData?.data || [];
     return [...new Set(rates.map(r => r.currency))].sort();
   }, [currencyRatesData]);
+  const baseCurrency = useMemo(() => {
+    const rates = currencyRatesData?.data || [];
+    return rates.find(r => r.isBaseCurrency)?.currency || rates[0]?.currency || '';
+  }, [currencyRatesData]);
 
   const { data: invoicesData } = useGetInvoicesQuery(
     { tenantId: tenantId || undefined, propertyId: activePropertyId || undefined, page: 1, limit: 50 },
-    { skip: !tenantId },
+    { skip: !tenantId || isCash },
   );
   const outstandingInvoices = useMemo(() => {
     return (invoicesData?.data || []).filter(inv =>
@@ -76,15 +83,17 @@ export default function CreateReceiptModal({ onClose }: Props) {
 
   const [createReceipt, { isLoading }] = useCreateReceiptMutation();
 
-  // Auto-bind currency from the selected tenant's currency field.
+  // Auto-bind currency from the selected tenant's currency field (or property base currency for Cash).
   // Allow manual override — re-sync only when the tenant changes.
   const manualCurrency = useRef(false);
   useEffect(() => { manualCurrency.current = false; }, [tenantId]);
   useEffect(() => {
     if (tenantCurrency && !manualCurrency.current) {
       setCurrency(tenantCurrency);
+    } else if (isCash && !currency && baseCurrency && !manualCurrency.current) {
+      setCurrency(baseCurrency);
     }
-  }, [tenantCurrency]);
+  }, [tenantCurrency, isCash, currency, baseCurrency]);
 
   // Reset tenant selection whenever the active property changes.
   useEffect(() => {
@@ -102,14 +111,14 @@ export default function CreateReceiptModal({ onClose }: Props) {
     setAllocations(prev => ({ ...prev, [invoiceId]: n }));
   };
 
-  const isTenantMissing = hasAttemptedSubmit && !tenantId;
+  const isTenantMissing = hasAttemptedSubmit && !isCash && !tenantId;
   const isPaymentMethodMissing = hasAttemptedSubmit && !paymentMethod;
   const isReceiptDateMissing = hasAttemptedSubmit && !receiptDate;
   const isAmountMissing = hasAttemptedSubmit && (!amount.trim() || amountNum <= 0);
 
   const handleSubmit = async () => {
     setHasAttemptedSubmit(true);
-    if (!tenantId || !paymentMethod || !receiptDate || !amount.trim() || amountNum <= 0) {
+    if ((!isCash && !tenantId) || !paymentMethod || !receiptDate || !amount.trim() || amountNum <= 0) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -119,18 +128,21 @@ export default function CreateReceiptModal({ onClose }: Props) {
     }
 
     try {
-      const allocArr = Object.entries(allocations)
-        .filter(([, v]) => v > 0)
-        .map(([invoiceId, amt]) => ({ invoiceId, amount: amt }));
+      const allocArr = isCash
+        ? []
+        : Object.entries(allocations)
+            .filter(([, v]) => v > 0)
+            .map(([invoiceId, amt]) => ({ invoiceId, amount: amt }));
 
       await createReceipt({
-        tenantId,
+        tenantId: isCash ? undefined : tenantId,
+        isCash,
         propertyId: activePropertyId || undefined,
         receiptDate,
         paymentMethod,
         paymentReference: paymentReference || undefined,
         amount: amountNum,
-        currency,
+        currency: currency || baseCurrency || undefined,
         notes: notes || undefined,
         allocations: allocArr,
       }).unwrap();
@@ -167,20 +179,56 @@ export default function CreateReceiptModal({ onClose }: Props) {
           <button className="btn-icon" onClick={onClose} style={{ marginLeft: 'auto' }}><X size={18} /></button>
         </h2>
 
-        {/* Tenant Selection */}
+        {/* Tenant Selection + Cash Checkbox */}
         <div className="ar-form-grid">
           <div className={`ar-field ${isTenantMissing ? 'ar-field-error' : ''}`} style={{ gridColumn: '1 / -1' }}>
-            <label>Tenant <span className="req">*</span></label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ margin: 0 }}>
+                Tenant {!isCash && <span className="req">*</span>}
+              </label>
+              <label
+                htmlFor="receipt-cash-checkbox"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  textTransform: 'none',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  letterSpacing: 'normal',
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  id="receipt-cash-checkbox"
+                  type="checkbox"
+                  checked={isCash}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setIsCash(checked);
+                    if (checked) {
+                      setTenantId('');
+                      setAllocations({});
+                    }
+                  }}
+                  style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--primary)', margin: 0 }}
+                />
+                Cash
+              </label>
+            </div>
             <ComboBox
               id="receipt-tenant"
               value={tenantId}
-              placeholder="Select tenant…"
+              disabled={isCash}
+              placeholder={isCash ? 'Disabled for Cash receipt' : 'Select tenant…'}
               emptyText="No KYC-verified tenants found"
               options={tenantComboOptions}
               onChange={val => { setTenantId(val); setAllocations({}); }}
             />
             {isTenantMissing && <span className="ar-error-text">Tenant is required</span>}
-            {tenants.length === 0 && (
+            {!isCash && tenants.length === 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#f59e0b' }}>
                 <AlertTriangle size={13} />
                 No KYC-verified tenants found for this property.
@@ -258,7 +306,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
         </div>
 
         {/* Invoice Allocations */}
-        {tenantId && (
+        {!isCash && tenantId && (
           <div className="alloc-section">
             <h4>Allocate to Invoices ({outstandingInvoices.length} outstanding)</h4>
             {outstandingInvoices.length === 0 ? (

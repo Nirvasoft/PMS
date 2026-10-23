@@ -10,9 +10,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // ORGANIZATION (minimal for auth FK)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Company {
   id             String    @id @default(uuid()) @db.Uuid
@@ -53,7 +53,7 @@ model Company {
   roles            Role[]
   userInvitations  UserInvitation[]
 
-  // Relations — Organization (Module 1.3)
+  // Relations â€” Organization (Module 1.3)
   branches      Branch[]
   regions       Region[]
   businessUnits BusinessUnit[]
@@ -62,54 +62,54 @@ model Company {
   currencyRates         CurrencyRate[]
   currencyRateHistories CurrencyRateHistory[]
 
-  // Relations — Workflow (Module 1.4)
+  // Relations â€” Workflow (Module 1.4)
   workflowDefinitions WorkflowDefinition[]
   workflowInstances   WorkflowInstance[]
   workflowSlaJobs     WorkflowSlaJob[]
 
-  // Relations — Notifications (Module 1.5)
+  // Relations â€” Notifications (Module 1.5)
   notificationTemplates  NotificationTemplate[]
   notificationLogs       NotificationLog[]
   inAppNotifications     InAppNotification[]
   scheduledNotifications ScheduledNotification[] @relation("ScheduledNotifications")
   notificationQueue      NotificationQueueItem[] @relation("NotificationQueue")
 
-  // Relations — SSO
+  // Relations â€” SSO
   ssoConfigs SsoConfig[]
 
-  // Relations — Documents (Module 1.6)
+  // Relations â€” Documents (Module 1.6)
   documentFolders DocumentFolder[]
   documents       Document[]
 
-  // Relations — Dashboard (Module 1.7)
+  // Relations â€” Dashboard (Module 1.7)
   savedReports SavedReport[]
 
-  // Relations — Units (Module 2.2)
+  // Relations â€” Units (Module 2.2)
   towers        Tower[]
   units         Unit[]
   utilityMeters UtilityMeter[]
 
-  // Relations — Tenants (Module 2.3)
+  // Relations â€” Tenants (Module 2.3)
   tenants         Tenant[]
   kycRequirements KycRequirement[]
   blacklistLogs   TenantBlacklistLog[]
 
-  // Relations — Leases (Module 2.4)
+  // Relations â€” Leases (Module 2.4)
   leases         Lease[]
   leaseTemplates LeaseTemplate[]
   leaseClauses   LeaseClause[]
 
-  // Relations — CRM (Module 2.5)
+  // Relations â€” CRM (Module 2.5)
   leads              Lead[]
   marketingCampaigns MarketingCampaign[]
 
-  // Relations — Parking (Module 2.6)
+  // Relations â€” Parking (Module 2.6)
   parkingZones       ParkingZone[]
   parkingSlots       ParkingSlot[]
   parkingAllocations ParkingAllocation[]
   tenantVehicles     TenantVehicle[]
 
-  // Relations — Billing (Module 3.1)
+  // Relations â€” Billing (Module 3.1)
   chargeCategories      ChargeCategory[]
   chargeTypes           ChargeType[]
   meterSetups           MeterSetup[]
@@ -119,12 +119,12 @@ model Company {
   penaltyConfigurations PenaltyConfiguration[]
   taxConfigurations     TaxConfiguration[]
 
-  // Relations — AR (Module 3.2)
+  // Relations â€” AR (Module 3.2)
   receipts       Receipt[]
   refundRequests RefundRequest[]
   tenantCredits  TenantCredit[]
 
-  // Relations — GL (Module 3.4)
+  // Relations â€” GL (Module 3.4)
   glAccounts        GlAccount[]
   departmentCenters DepartmentCenter[]
   costCenters       CostCenter[]
@@ -132,16 +132,16 @@ model Company {
   fiscalPeriods     FiscalPeriod[]
   journalEntries    JournalEntry[]
 
-  // Relations — Budgets & Assets (Module 3.5)
+  // Relations â€” Budgets & Assets (Module 3.5)
   budgets     Budget[]
   fixedAssets FixedAsset[]
 
-  // Relations — Banking (Module 3.6)
+  // Relations â€” Banking (Module 3.6)
   bankAccounts         BankAccount[]
   bankStatementImports BankStatementImport[]
   paymentGatewayTxns   PaymentGatewayTransaction[]
 
-  // Relations — Maintenance (Module 4.1)
+  // Relations â€” Maintenance (Module 4.1)
   maintenanceCategories   MaintenanceCategory[]
   maintenanceSlaConfigs   MaintenanceSlaConfig[]
   maintenanceTickets      MaintenanceTicket[]
@@ -170,13 +170,13 @@ model Company {
   patrolLogs              PatrolLog[]
   accessControlEvents     AccessControlEvent[]
 
-  // Relations — Portal (Module 5.1)
+  // Relations â€” Portal (Module 5.1)
   residents           Resident[]
   residentAccessCards ResidentAccessCard[]
   portalSessions      PortalSession[]
   portalQuickActions  PortalQuickAction[]
 
-  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  // Relations â€” Visitors/Booking/Community (Module 5.2-5.4)
   visitors             Visitor[]
   walkinApprovals      WalkinApproval[]
   visitorBlacklist     VisitorBlacklist[]
@@ -190,7 +190,7 @@ model Company {
   communityComplaints  CommunityComplaint[]
   moveRequests         MoveRequest[]
 
-  // Relations — Mall (Module 6.1)
+  // Relations â€” Mall (Module 6.1)
   mallProperties     MallProperty[]
   shopProfiles       ShopProfile[]
   commercialLeases   CommercialLease[]
@@ -205,7 +205,7 @@ model Company {
   biForecasts        BiForecast[]
   biAnomalies        BiAnomaly[]
 
-  // Relations — Condo (Module 6.2)
+  // Relations â€” Condo (Module 6.2)
   smartMeterReadings SmartMeterReading[]
   smartMeterDevices  SmartMeterDevice[]
   fundAccounts       FundAccount[]
@@ -217,7 +217,7 @@ model Company {
   bylaws             Bylaw[]
   bylawViolations    BylawViolation[]
 
-  // Module 6.3 — Enterprise Integrations
+  // Module 6.3 â€” Enterprise Integrations
   integrationConfigs    IntegrationConfig[]
   integrationSyncLogs   IntegrationSyncLog[]
   integrationEntityMaps IntegrationEntityMap[]
@@ -228,10 +228,10 @@ model Company {
   bmsDevices            BmsDevice[]
   bmsReadings           BmsReading[]
 
-  // Relations — Company Sequences (Phase 2 Cross-Cutting)
+  // Relations â€” Company Sequences (Phase 2 Cross-Cutting)
   companySequences CompanySequence[]
 
-  // Relations — AP (Module 3.3)
+  // Relations â€” AP (Module 3.3)
   apInvoices      ApInvoice[]
   paymentVouchers PaymentVoucher[]
   expenses        Expense[]
@@ -240,9 +240,9 @@ model Company {
   @@map("companies")
 }
 
-// ─────────────────────────────────────────────
-// COMPANY SEQUENCES — per-company sequential counters
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// COMPANY SEQUENCES â€” per-company sequential counters
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model CompanySequence {
   companyId   String   @map("company_id") @db.Uuid
@@ -259,9 +259,9 @@ model CompanySequence {
   @@map("company_sequences")
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // AUTH SCHEMA
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model User {
   id                 String    @id @default(uuid()) @db.Uuid
@@ -284,7 +284,7 @@ model User {
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt          DateTime? @map("deleted_at") @db.Timestamptz
 
-  // Relations — Auth (Module 1.1)
+  // Relations â€” Auth (Module 1.1)
   company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   refreshTokens           RefreshToken[]
   devices                 UserDevice[]
@@ -295,7 +295,7 @@ model User {
   createdIpPolicies       IpPolicy[]               @relation("IpPolicyCreator")
   userIpPolicies          IpPolicy[]               @relation("IpPolicyUser")
 
-  // Relations — User & Role (Module 1.2)
+  // Relations â€” User & Role (Module 1.2)
   profile             UserProfile?
   userRoles           UserRole[]
   permissionOverrides UserPermissionOverride[] @relation("UserOverrides")
@@ -306,12 +306,12 @@ model User {
   grantedUserRoles    UserRole[]               @relation("UserRoleGrantor")
   sentInvitations     UserInvitation[]         @relation("InvitationSender")
 
-  // Relations — Organization (Module 1.3)
+  // Relations â€” Organization (Module 1.3)
   managedBranches      Branch[]       @relation("BranchManager")
   managedRegions       Region[]       @relation("RegionManager")
   managedBusinessUnits BusinessUnit[] @relation("BusinessUnitManager")
 
-  // Relations — Workflow (Module 1.4)
+  // Relations â€” Workflow (Module 1.4)
   createdDefinitions WorkflowDefinition[] @relation("WfDefinitionCreator")
   initiatedInstances WorkflowInstance[]   @relation("WfInstanceInitiator")
   assignedTasks      WorkflowTask[]       @relation("WfTaskAssignee")
@@ -320,46 +320,46 @@ model User {
   escalatedToTasks   WorkflowTask[]       @relation("WfTaskEscalator")
   wfHistoryActions   WorkflowHistory[]    @relation("WfHistoryPerformer")
 
-  // Relations — Notifications (Module 1.5)
+  // Relations â€” Notifications (Module 1.5)
   notificationLogs        NotificationLog[]        @relation("NotificationRecipient")
   inAppNotifications      InAppNotification[]      @relation("InAppNotifications")
   notificationPreferences NotificationPreference[] @relation("NotificationPreferences")
   pushDeviceTokens        PushDeviceToken[]        @relation("PushDeviceTokens")
   scheduledNotifications  ScheduledNotification[]  @relation("ScheduledNotificationCreator")
 
-  // Relations — SSO
+  // Relations â€” SSO
   ssoIdentities SsoIdentity[] @relation("UserSsoIdentities")
 
-  // Relations — Documents (Module 1.6)
+  // Relations â€” Documents (Module 1.6)
   uploadedDocuments  Document[]          @relation("DocumentUploader")
   uploadedVersions   DocumentVersion[]   @relation("VersionUploader")
   documentAccessLogs DocumentAccessLog[] @relation("DocumentAccessor")
   documentShares     DocumentShare[]     @relation("ShareCreator")
 
-  // Relations — Dashboard (Module 1.7)
+  // Relations â€” Dashboard (Module 1.7)
   dashboardLayouts DashboardLayout[] @relation("UserDashboardLayouts")
   savedReports     SavedReport[]     @relation("ReportCreator")
 
-  // Relations — Properties (Module 2.1)
+  // Relations â€” Properties (Module 2.1)
   managedProperties     Property[]              @relation("PropertyManager")
   uploadedPhotos        PropertyPhoto[]         @relation("PhotoUploader")
   propertyStatusChanges PropertyStatusHistory[] @relation("StatusChanger")
 
-  // Relations — Units (Module 2.2)
+  // Relations â€” Units (Module 2.2)
   unitStatusChanges  UnitStatusHistory[]   @relation("UnitStatusChanger")
   meterReadingsTaken MeterReadingHistory[] @relation("MeterReadingRecorder")
   unitChargeChanges  UnitChargeHistory[]   @relation("UnitChargeChanger")
   meterRateChanges    MeterSetupHistory[]   @relation("MeterRateChanger")
   currencyRateChanges CurrencyRateHistory[] @relation("CurrencyRateChanger")
 
-  // Relations — Tenants (Module 2.3)
+  // Relations â€” Tenants (Module 2.3)
   kycVerifications    Tenant[]             @relation("KycVerifier")
   tenantBlacklists    Tenant[]             @relation("TenantBlacklister")
   kycReviews          TenantKycDocument[]  @relation("KycReviewer")
   blacklistActions    TenantBlacklistLog[] @relation("BlacklistActioner")
   tenantNotesAuthored TenantNote[]         @relation("TenantNoteAuthor")
 
-  // Relations — Leases (Module 2.4)
+  // Relations â€” Leases (Module 2.4)
   leasesCreated         Lease[]          @relation("LeaseCreator")
   leasesApproved        Lease[]          @relation("LeaseApprover")
   leaseTemplatesCreated LeaseTemplate[]  @relation("LeaseTemplateCreator")
@@ -367,23 +367,23 @@ model User {
   amendmentsCreated     LeaseAmendment[] @relation("AmendmentCreator")
   leaseClausesCreated   LeaseClause[]    @relation("LeaseClauseCreator")
 
-  // Relations — CRM (Module 2.5)
+  // Relations â€” CRM (Module 2.5)
   assignedLeads           Lead[]              @relation("LeadAgent")
   leadViewingsAgent       LeadViewing[]       @relation("ViewingAgent")
   leadActivitiesPerformed LeadActivity[]      @relation("ActivityPerformer")
   campaignsCreated        MarketingCampaign[] @relation("CampaignCreator")
   leadBlacklists          Lead[]              @relation("LeadBlacklister")
 
-  // Relations — Parking (Module 2.6)
+  // Relations â€” Parking (Module 2.6)
   parkingAllocationsCreated ParkingAllocation[]  @relation("AllocationCreator")
   visitorPassesIssued       VisitorParkingPass[] @relation("PassIssuer")
 
-  // Relations — AR (Module 3.2)
+  // Relations â€” AR (Module 3.2)
   receiptsCreated Receipt[]       @relation("ReceiptCreator")
   refundsApproved RefundRequest[] @relation("RefundApprover")
   refundsCreated  RefundRequest[] @relation("RefundCreator")
 
-  // Relations — AP (Module 3.3)
+  // Relations â€” AP (Module 3.3)
   apInvoicesCreated       ApInvoice[]      @relation("ApInvoiceCreator")
   apInvoicesApproved      ApInvoice[]      @relation("ApInvoiceApprover")
   paymentVouchersCreated  PaymentVoucher[] @relation("PvCreator")
@@ -391,7 +391,7 @@ model User {
   expensesSubmitted       Expense[]        @relation("ExpenseSubmitter")
   expensesApproved        Expense[]        @relation("ExpenseApprover")
 
-  // Relations — Maintenance (Module 4.1)
+  // Relations â€” Maintenance (Module 4.1)
   technicianProfile         TechnicianProfile?
   ticketsReportedByUser     MaintenanceTicket[]    @relation("TicketReportedByUser")
   ticketsAssignedTo         MaintenanceTicket[]    @relation("TicketAssignedTo")
@@ -407,28 +407,28 @@ model User {
   facilityAssetsResponsible FacilityAsset[]        @relation("AssetResponsiblePerson")
   camCostEntriesCreated     CamCostEntry[]         @relation("CamCostCreatedBy")
 
-  // Relations — Inventory (Module 4.4)
+  // Relations â€” Inventory (Module 4.4)
   stockMovementsPerformed StockMovement[]       @relation("MovementPerformedBy")
   purchaseReqsCreated     PurchaseRequisition[] @relation("PrRequestedBy")
   purchaseReqsApproved    PurchaseRequisition[] @relation("PrApprovedBy")
 
-  // Relations — Housekeeping (Module 4.5)
+  // Relations â€” Housekeeping (Module 4.5)
   cleaningSchedulesAssigned CleaningSchedule[]       @relation("CleaningAssignedTo")
   cleaningTasksAssigned     CleaningTask[]           @relation("CleaningTaskAssigned")
   inspectionsPerformed      HousekeepingInspection[] @relation("InspectedBy")
 
-  // Relations — Security (Module 4.6)
+  // Relations â€” Security (Module 4.6)
   incidentsReported       SecurityIncident[] @relation("IncidentReportedBy")
   incidentsAssigned       SecurityIncident[] @relation("IncidentAssignedTo")
   patrolSchedulesAssigned PatrolSchedule[]   @relation("PatrolAssignedTo")
   patrolLogsGuard         PatrolLog[]        @relation("PatrolGuard")
 
-  // Relations — Portal (Module 5.1)
+  // Relations â€” Portal (Module 5.1)
   residents         Resident[]           @relation("ResidentUser")
   portalSessions    PortalSession[]      @relation("PortalSessionUser")
   issuedAccessCards ResidentAccessCard[] @relation("AccessCardIssuer")
 
-  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  // Relations â€” Visitors/Booking/Community (Module 5.2-5.4)
   visitorsHosted        Visitor[]             @relation("VisitorHost")
   visitorsCheckedIn     Visitor[]             @relation("VisitorCheckInGuard")
   walkinResponses       WalkinApproval[]      @relation("WalkinResponder")
@@ -444,12 +444,12 @@ model User {
   moveRequestsInspected MoveRequest[]         @relation("MoveInspector")
   moveRequestsApproved  MoveRequest[]         @relation("MoveApprover")
 
-  // Relations — Mall (Module 6.1)
+  // Relations â€” Mall (Module 6.1)
   gtoSubmissionsCreated  GtoSubmission[] @relation("GtoSubmitter")
   gtoSubmissionsVerified GtoSubmission[] @relation("GtoVerifier")
   mallEventsCreated      MallEvent[]     @relation("EventCreator")
 
-  // Relations — Condo (Module 6.2)
+  // Relations â€” Condo (Module 6.2)
   fundTransactionsCreated  FundTransaction[] @relation("FundTxnCreator")
   fundTransactionsApproved FundTransaction[] @relation("FundTxnApprover")
   meetingsCreated          GeneralMeeting[]  @relation("MeetingCreator")
@@ -457,14 +457,14 @@ model User {
   bylawsCreated            Bylaw[]           @relation("BylawCreator")
   violationsReported       BylawViolation[]  @relation("ViolationReporter")
 
-  // Relations — Enterprise Integrations (Module 6.3)
+  // Relations â€” Enterprise Integrations (Module 6.3)
   integrationsCreated IntegrationConfig[]  @relation("IntegrationCreator")
   syncsInitiated      IntegrationSyncLog[] @relation("SyncInitiator")
   webhooksCreated     WebhookEndpoint[]    @relation("WebhookCreator")
   apiKeysCreated      ApiKey[]             @relation("ApiKeyCreator")
   biReportsCreated    BiReport[]           @relation("BiReportCreator")
 
-  // Relations — Integrations (Google Calendar, etc.)
+  // Relations â€” Integrations (Google Calendar, etc.)
   integrations UserIntegration[] @relation("UserIntegrations")
 
   @@unique([email, companyId], name: "uq_users_email_company")
@@ -634,9 +634,9 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 1.2 — USER & ROLE MANAGEMENT
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 1.2 â€” USER & ROLE MANAGEMENT
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model UserProfile {
   userId        String    @id @map("user_id") @db.Uuid
@@ -681,8 +681,8 @@ model Department {
   positions Position[]
   profiles  UserProfile[]
 
-  // Relations — AP (Module 3.3)
-  apInvoices ApInvoice[]
+  // Relations â€” AP (Module 3.3)
+  apInvoices      ApInvoice[]
   expenses   Expense[]
 
   @@unique([code, companyId], name: "uq_dept_code_company")
@@ -859,9 +859,9 @@ model UserInvitation {
   @@map("user_invitations")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 1.3 — ORGANIZATION MANAGEMENT
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 1.3 â€” ORGANIZATION MANAGEMENT
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Branch {
   id           String   @id @default(uuid()) @db.Uuid
@@ -955,7 +955,7 @@ model Property {
   totalAreaSqm   Decimal?  @map("total_area_sqm") @db.Decimal(12, 2)
   totalAreaSqft  Decimal?  @map("total_area_sqft") @db.Decimal(12, 2)
   coverImageUrl  String?   @map("cover_image_url") @db.VarChar(500)
-  imageUrl       String?   @map("image_url") @db.VarChar(500) // legacy — use coverImageUrl
+  imageUrl       String?   @map("image_url") @db.VarChar(500) // legacy â€” use coverImageUrl
   managerId      String?   @map("manager_id") @db.Uuid
   billingCycle   String    @default("monthly") @map("billing_cycle") @db.VarChar(50)
   billingDay     Int       @default(1) @map("billing_day") @db.SmallInt
@@ -979,7 +979,7 @@ model Property {
   contacts         PropertyContact[]
   statusHistory    PropertyStatusHistory[]
 
-  // Relations — Units (Module 2.2)
+  // Relations â€” Units (Module 2.2)
   towers        Tower[]
   units         Unit[]
   utilityMeters UtilityMeter[]
@@ -988,26 +988,26 @@ model Property {
   currencyRates         CurrencyRate[]
   currencyRateHistories CurrencyRateHistory[]
 
-  // Relations — Tenants (Module 2.3)
+  // Relations â€” Tenants (Module 2.3)
   blacklistScoped TenantBlacklistLog[]
   homeTenants     Tenant[]            @relation("TenantHomeProperty")
 
-  // Relations — Leases (Module 2.4)
+  // Relations â€” Leases (Module 2.4)
   leases Lease[]
 
-  // Relations — CRM (Module 2.5)
+  // Relations â€” CRM (Module 2.5)
   leads              Lead[]
   leadViewings       LeadViewing[]       @relation("ViewingProperty")
   marketingCampaigns MarketingCampaign[]
 
-  // Relations — Parking (Module 2.6)
+  // Relations â€” Parking (Module 2.6)
   parkingZones         ParkingZone[]
   parkingSlots         ParkingSlot[]
   parkingAllocations   ParkingAllocation[]
   visitorParkingPasses VisitorParkingPass[]
   rfidAccessEvents     RfidAccessEvent[]
 
-  // Relations — Billing (Module 3.1)
+  // Relations â€” Billing (Module 3.1)
   chargeCategories    ChargeCategory[]
   chargeTypes         ChargeType[]
   meterSetups         MeterSetup[]
@@ -1016,23 +1016,24 @@ model Property {
   invoices         Invoice[]              @relation("InvoiceProperty")
   penaltyConfigs   PenaltyConfiguration[] @relation("PenaltyProperty")
 
-  // Relations — GL (Module 3.4)
+  // Relations â€” GL (Module 3.4)
   departmentCenters DepartmentCenter[]
   costCenters       CostCenter[]
   paymentMethods    PaymentMethod[]
   glAccounts        GlAccount[]
 
-  // Relations — AR (Module 3.2)
+  // Relations â€” AR (Module 3.2)
   receipts Receipt[] @relation("ReceiptProperty")
 
-  // Relations — AP (Module 3.3)
-  apInvoices ApInvoice[]
+  // Relations â€” AP (Module 3.3)
+  apInvoices      ApInvoice[]
+  paymentVouchers PaymentVoucher[]
   expenses   Expense[]
 
-  // Relations — Banking (Module 3.6)
+  // Relations â€” Banking (Module 3.6)
   paymentGatewayTxns PaymentGatewayTransaction[]
 
-  // Relations — Maintenance (Module 4.1)
+  // Relations â€” Maintenance (Module 4.1)
   maintenanceTickets      MaintenanceTicket[]
   pmSchedules             PmSchedule[]
   facilityAssets          FacilityAsset[]
@@ -1050,12 +1051,12 @@ model Property {
   patrolLogs              PatrolLog[]
   accessControlEvents     AccessControlEvent[]
 
-  // Relations — Portal (Module 5.1)
+  // Relations â€” Portal (Module 5.1)
   residents           Resident[]
   residentAccessCards ResidentAccessCard[]
   portalQuickActions  PortalQuickAction[]
 
-  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  // Relations â€” Visitors/Booking/Community (Module 5.2-5.4)
   visitors             Visitor[]
   facilityBookingRules FacilityBookingRule[]
   facilityBookings     FacilityBooking[]
@@ -1065,7 +1066,7 @@ model Property {
   communityComplaints  CommunityComplaint[]
   moveRequests         MoveRequest[]
 
-  // Relations — Mall (Module 6.1)
+  // Relations â€” Mall (Module 6.1)
   mallProperty       MallProperty?
   shopProfiles       ShopProfile[]
   gtoSubmissions     GtoSubmission[]
@@ -1077,7 +1078,7 @@ model Property {
   footfallSensors    FootfallSensor[]
   footfallCounts     FootfallCount[]
 
-  // Relations — Condo (Module 6.2)
+  // Relations â€” Condo (Module 6.2)
   smartMeterReadings SmartMeterReading[] @relation("ReadingProperty")
   smartMeterDevices  SmartMeterDevice[]  @relation("DeviceProperty")
   fundAccounts       FundAccount[]
@@ -1085,7 +1086,7 @@ model Property {
   bylaws             Bylaw[]
   bylawViolations    BylawViolation[]    @relation("ViolationProperty")
 
-  // Relations — BI (Module 6.3)
+  // Relations â€” BI (Module 6.3)
   biForecasts BiForecast[]
   biAnomalies BiAnomaly[]
   bmsDevices  BmsDevice[]
@@ -1107,9 +1108,9 @@ model RegionProperty {
   @@map("region_properties")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 2.1 — PROPERTY MANAGEMENT (Phase 2)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 2.1 â€” PROPERTY MANAGEMENT (Phase 2)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model PropertyType {
   id          String  @id @default(uuid()) @db.Uuid
@@ -1171,7 +1172,7 @@ model PropertyFacility {
   property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   facilityType FacilityType @relation(fields: [facilityTypeId], references: [id])
 
-  // Relations — Booking (Module 5.3)
+  // Relations â€” Booking (Module 5.3)
   bookingRule   FacilityBookingRule?
   bookings      FacilityBooking[]
   blackoutDates BookingBlackoutDate[]
@@ -1214,9 +1215,9 @@ model PropertyStatusHistory {
   @@map("property_status_history")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 2.2 — TOWER, BLOCK & UNIT MANAGEMENT
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 2.2 â€” TOWER, BLOCK & UNIT MANAGEMENT
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Tower {
   id          String   @id @default(uuid()) @db.Uuid
@@ -1320,47 +1321,47 @@ model Unit {
   unitCharges         UnitCharge[]
   unitChargeHistory   UnitChargeHistory[]
 
-  // Relations — Leases (Module 2.4)
+  // Relations â€” Leases (Module 2.4)
   leases         Lease[]
   amendmentUnits LeaseAmendment[] @relation("AmendmentUnit")
 
-  // Relations — CRM (Module 2.5)
+  // Relations â€” CRM (Module 2.5)
   leadViewings LeadViewing[] @relation("ViewingUnit")
 
-  // Relations — Parking (Module 2.6)
+  // Relations â€” Parking (Module 2.6)
   parkingZones         ParkingZone[]
   parkingSlots         ParkingSlot[]
   parkingAllocations   ParkingAllocation[]  @relation("AllocationUnit")
   visitorParkingPasses VisitorParkingPass[] @relation("PassUnit")
 
-  // Relations — Billing (Module 3.1)
+  // Relations â€” Billing (Module 3.1)
   billingSchedules    BillingSchedule[]    @relation("ScheduleUnit")
   invoices            Invoice[]            @relation("InvoiceUnit")
   meterRecordLists    MeterRecordList[]
 
-  // Relations — Maintenance (Module 4.1)
+  // Relations â€” Maintenance (Module 4.1)
   maintenanceTickets MaintenanceTicket[]
 
-  // Relations — Facility (Module 4.3)
+  // Relations â€” Facility (Module 4.3)
   facilityAssets    FacilityAsset[]
   securityIncidents SecurityIncident[]
 
-  // Relations — Portal (Module 5.1)
+  // Relations â€” Portal (Module 5.1)
   residents Resident[]
 
-  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  // Relations â€” Visitors/Booking/Community (Module 5.2-5.4)
   visitors            Visitor[]
   facilityBookings    FacilityBooking[]
   communityComplaints CommunityComplaint[]
   moveRequests        MoveRequest[]
 
-  // Relations — Mall (Module 6.1)
+  // Relations â€” Mall (Module 6.1)
   shopProfile        ShopProfile?
   gtoSubmissions     GtoSubmission[]
   camBillings        CamBilling[]
   camReconciliations CamReconciliation[]
 
-  // Relations — Condo (Module 6.2)
+  // Relations â€” Condo (Module 6.2)
   smartMeterReadings SmartMeterReading[] @relation("ReadingUnit")
   fundTransactions   FundTransaction[]   @relation("FundTxnUnit")
   meetingProxies     MeetingProxy[]
@@ -1451,7 +1452,7 @@ model UtilityMeter {
   property           Property              @relation(fields: [propertyId], references: [id], onDelete: Restrict)
   company            Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
   readingHistory     MeterReadingHistory[]
-  // Relations — Condo (Module 6.2)
+  // Relations â€” Condo (Module 6.2)
   smartMeterReadings SmartMeterReading[]
   smartMeterDevice   SmartMeterDevice?
 
@@ -1494,18 +1495,18 @@ model UnitAmenity {
   @@map("unit_amenities")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 2.3 — TENANT MANAGEMENT (Phase 2)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 2.3 â€” TENANT MANAGEMENT (Phase 2)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Tenant {
   id         String  @id @default(uuid()) @db.Uuid
   companyId  String  @map("company_id") @db.Uuid
-  // Home property — the property under which this tenant was first created.
+  // Home property â€” the property under which this tenant was first created.
   // Nullable: existing tenants (pre-migration) have no home property.
   propertyId String? @map("property_id") @db.Uuid
   tenantType String  @default("individual") @map("tenant_type") @db.VarChar(50) // 'individual' | 'company'
-  // The "Code" shown on the Tenants list/detail page — previously stored in `firstName`
+  // The "Code" shown on the Tenants list/detail page â€” previously stored in `firstName`
   // for individual tenants only, with no equivalent for company tenants. Backfilled from
   // `firstName` for existing individual tenants; company tenants start out unset.
   code       String? @db.VarChar(50)
@@ -1578,36 +1579,36 @@ model Tenant {
   blacklistLog      TenantBlacklistLog[]
   tenantNotes       TenantNote[]
 
-  // Relations — Leases (Module 2.4)
+  // Relations â€” Leases (Module 2.4)
   leases Lease[]
 
-  // Relations — CRM (Module 2.5)
+  // Relations â€” CRM (Module 2.5)
   convertedLeads Lead[] @relation("ConvertedTenant")
 
-  // Relations — Parking (Module 2.6)
+  // Relations â€” Parking (Module 2.6)
   parkingAllocations ParkingAllocation[] @relation("AllocationTenant")
   tenantVehicles     TenantVehicle[]
 
-  // Relations — Billing (Module 3.1)
+  // Relations â€” Billing (Module 3.1)
   billingSchedules BillingSchedule[] @relation("ScheduleTenant")
   invoices         Invoice[]         @relation("InvoiceTenant")
 
-  // Relations — AR (Module 3.2)
+  // Relations â€” AR (Module 3.2)
   receipts       Receipt[]       @relation("ReceiptTenant")
   refundRequests RefundRequest[] @relation("RefundTenant")
   tenantCredits  TenantCredit[]  @relation("CreditTenant")
 
-  // Relations — Maintenance (Module 4.1)
+  // Relations â€” Maintenance (Module 4.1)
   maintenanceTickets MaintenanceTicket[] @relation("TicketReportedByTenant")
   securityIncidents  SecurityIncident[]
 
-  // Relations — Banking (Module 3.6)
+  // Relations â€” Banking (Module 3.6)
   paymentGatewayTxns PaymentGatewayTransaction[] @relation("GatewayTenant")
 
-  // Relations — Portal (Module 5.1)
+  // Relations â€” Portal (Module 5.1)
   residents Resident[] @relation("ResidentTenant")
 
-  // Relations — Mall (Module 6.1)
+  // Relations â€” Mall (Module 6.1)
   gtoSubmissions     GtoSubmission[]
   camBillings        CamBilling[]        @relation("CamBillingTenant")
   camReconciliations CamReconciliation[] @relation("CamReconTenant")
@@ -1720,9 +1721,9 @@ model TenantNote {
   @@map("tenant_notes")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 2.4 — LEASE MANAGEMENT (Phase 2)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 2.4 â€” LEASE MANAGEMENT (Phase 2)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model LeaseTemplate {
   id           String  @id @default(uuid()) @db.Uuid
@@ -1766,7 +1767,7 @@ model Lease {
 
   rentAmount     Decimal  @map("rent_amount") @db.Decimal(15, 2)
   currency       String   @default("USD") @db.VarChar(3)
-  // Snapshot of the matching Currency Setup rate as of lease creation — not
+  // Snapshot of the matching Currency Setup rate as of lease creation â€” not
   // recalculated later even if the Currency Setup row itself changes.
   currencyRate   Decimal? @map("currency_rate") @db.Decimal(18, 6)
   billingCycle   String   @default("monthly") @map("billing_cycle") @db.VarChar(50)
@@ -1841,23 +1842,23 @@ model Lease {
   escalationSchedule LeaseEscalationSchedule[]
   esignRecipients    EsignRecipient[]
 
-  // Relations — CRM (Module 2.5)
+  // Relations â€” CRM (Module 2.5)
   convertedLeads Lead[] @relation("ConvertedLease")
 
-  // Relations — Parking (Module 2.6)
+  // Relations â€” Parking (Module 2.6)
   parkingAllocations ParkingAllocation[] @relation("AllocationLease")
 
-  // Relations — Billing (Module 3.1)
+  // Relations â€” Billing (Module 3.1)
   billingSchedules BillingSchedule[] @relation("ScheduleLease")
   invoices         Invoice[]         @relation("InvoiceLease")
 
-  // Relations — Portal (Module 5.1)
+  // Relations â€” Portal (Module 5.1)
   residents Resident[] @relation("ResidentLease")
 
-  // Relations — Community (Module 5.4)
+  // Relations â€” Community (Module 5.4)
   moveRequests MoveRequest[] @relation("MoveRequestLease")
 
-  // Relations — Mall (Module 6.1)
+  // Relations â€” Mall (Module 6.1)
   commercialLease CommercialLease?
   gtoSubmissions  GtoSubmission[]
   camBillings     CamBilling[]     @relation("CamBillingLease")
@@ -1952,9 +1953,9 @@ model EsignRecipient {
   @@map("esign_recipients")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 1.4 — WORKFLOW ENGINE
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 1.4 â€” WORKFLOW ENGINE
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model WorkflowDefinition {
   id          String    @id @default(uuid()) @db.Uuid
@@ -2088,9 +2089,9 @@ model WorkflowSlaJob {
   @@map("workflow_sla_jobs")
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 1.5 — NOTIFICATION CENTER
-// ═══════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 1.5 â€” NOTIFICATION CENTER
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 model NotificationTemplate {
   id          String   @id @default(uuid()) @db.Uuid
@@ -2261,9 +2262,9 @@ model NotificationQueueItem {
   @@map("notification_queue")
 }
 
-// ─────────────────────────────────────────────
-// SSO — SINGLE SIGN-ON (FUTURE-READY)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// SSO â€” SINGLE SIGN-ON (FUTURE-READY)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Stores SSO/IdP configuration per company.
 /// Supports OIDC (Azure AD, Okta, Google Workspace) and SAML.
@@ -2294,7 +2295,7 @@ model SsoConfig {
   autoProvision     Boolean @default(false) @map("auto_provision") // JIT user creation
   defaultRoleId     String? @map("default_role_id") @db.Uuid // Role for JIT-provisioned users
   domainRestriction String? @map("domain_restriction") @db.VarChar(255) // e.g. "acme.com"
-  attributeMapping  Json    @default("{}") @map("attribute_mapping") // Map IdP claims → PMS fields
+  attributeMapping  Json    @default("{}") @map("attribute_mapping") // Map IdP claims â†’ PMS fields
   settings          Json    @default("{}") // Extra provider-specific config
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -2329,9 +2330,9 @@ model SsoIdentity {
   @@map("sso_identities")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 1.6 — DOCUMENT MANAGEMENT
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 1.6 â€” DOCUMENT MANAGEMENT
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model DocumentFolder {
   id           String   @id @default(uuid()) @db.Uuid
@@ -2459,9 +2460,9 @@ model DocumentShare {
   @@map("document_shares")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 1.7 — DASHBOARD & ANALYTICS
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 1.7 â€” DASHBOARD & ANALYTICS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model WidgetDefinition {
   id                  String   @id @default(uuid()) @db.Uuid
@@ -2513,9 +2514,9 @@ model SavedReport {
   @@map("saved_reports")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 2.5 — CRM & LEASING
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 2.5 â€” CRM & LEASING
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Lead {
   id                 String    @id @default(uuid()) @db.Uuid
@@ -2644,9 +2645,9 @@ model LeadActivity {
   @@map("lead_activities")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 2.6 — PARKING MANAGEMENT
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 2.6 â€” PARKING MANAGEMENT
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model ParkingZone {
   id         String   @id @default(uuid()) @db.Uuid
@@ -2805,9 +2806,9 @@ model RfidAccessEvent {
   @@map("rfid_access_events")
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // BILLING SCHEMA (Phase 3.1)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model ChargeCategory {
   id          String   @id @default(uuid()) @db.Uuid
@@ -2838,7 +2839,7 @@ model ChargeType {
   costCenterId       String?  @map("cost_center_id") @db.Uuid
   code               String   @db.VarChar(50)
   name               String   @db.VarChar(150)
-  category           String   @db.VarChar(50) // code of a ChargeCategory (dynamic — see ChargeCategory model)
+  category           String   @db.VarChar(50) // code of a ChargeCategory (dynamic â€” see ChargeCategory model)
   glAccountCode      String?  @map("gl_account_code") @db.VarChar(50)
   isTaxable          Boolean  @default(false) @map("is_taxable")
   taxRate            Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 4)
@@ -2921,7 +2922,7 @@ model MeterSetupHistory {
   @@map("meter_setup_history")
 }
 
-/// One row per imported billing cycle for a meter — a backend-only audit log behind the
+/// One row per imported billing cycle for a meter â€” a backend-only audit log behind the
 /// Property Detail page's "Meter Records" Import (Property, Meter No, P Unit, Meter Type,
 /// Category, Rate, Start/End Unit, Start/End Date, Bill Date). Not surfaced in any UI list;
 /// each importable row also feeds a BillingSchedule (quantity = End Unit - Start Unit) when
@@ -2931,7 +2932,7 @@ model MeterRecordList {
   companyId  String   @map("company_id") @db.Uuid
   propertyId String   @map("property_id") @db.Uuid
   unitId     String?  @map("unit_id") @db.Uuid
-  // Not a foreign key — holds the Tenant Code text as-is from the Tenant List (Tenant.code),
+  // Not a foreign key â€” holds the Tenant Code text as-is from the Tenant List (Tenant.code),
   // exactly as it appeared in the imported Excel's "Tenant" column.
   tenantCode String?  @map("tenant_code") @db.VarChar(50)
   meterNo    String   @map("meter_no") @db.VarChar(50)
@@ -2981,13 +2982,13 @@ model FloorSetup {
 model CurrencyRate {
   id             String   @id @default(uuid()) @db.Uuid
   companyId      String   @map("company_id") @db.Uuid
-  propertyId     String?  @map("property_id") @db.Uuid // one base currency per property — see isBaseCurrency. Nullable for pre-existing company-scoped rows that predate this column.
-  baseCurrency   String   @default("MMK") @map("base_currency") @db.VarChar(10) // the currency `rate` is expressed in — auto-derived from whichever row has isBaseCurrency
-  currency       String   @db.VarChar(10) // ISO code, e.g. "USD" — see CURRENCIES on the client
+  propertyId     String?  @map("property_id") @db.Uuid // one base currency per property â€” see isBaseCurrency. Nullable for pre-existing company-scoped rows that predate this column.
+  baseCurrency   String   @default("MMK") @map("base_currency") @db.VarChar(10) // the currency `rate` is expressed in â€” auto-derived from whichever row has isBaseCurrency
+  currency       String   @db.VarChar(10) // ISO code, e.g. "USD" â€” see CURRENCIES on the client
   description    String?  @db.VarChar(100) // full currency name, e.g. "US Dollar"
   symbol         String?  @db.VarChar(20) // e.g. "$"
-  isBaseCurrency Boolean  @default(false) @map("is_base_currency") // marks `currency` as the property's base/local currency as of effectiveDate — must equal the property's own `currency`
-  operator       String   @default("multiply") @db.VarChar(10) // 'multiply' | 'divide' — how `rate` converts to baseCurrency
+  isBaseCurrency Boolean  @default(false) @map("is_base_currency") // marks `currency` as the property's base/local currency as of effectiveDate â€” must equal the property's own `currency`
+  operator       String   @default("multiply") @db.VarChar(10) // 'multiply' | 'divide' â€” how `rate` converts to baseCurrency
   rate           Decimal  @db.Decimal(18, 6) // units of `baseCurrency` per 1 unit of `currency`, as of effectiveDate
   effectiveDate  DateTime @default(now()) @map("effective_date") @db.Date
   remarks        String?  @db.VarChar(255)
@@ -2999,7 +3000,7 @@ model CurrencyRate {
   property Property?             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   history  CurrencyRateHistory[]
 
-  // One rate history — multiple dated entries per currency pair are expected.
+  // One rate history â€” multiple dated entries per currency pair are expected.
   @@unique([propertyId, baseCurrency, currency, effectiveDate], map: "uq_currency_rate_property_pair_date")
   @@index([companyId])
   @@index([propertyId])
@@ -3141,22 +3142,22 @@ model Invoice {
   creditNotes      Invoice[]         @relation("CreditNoteInvoice")
   lines            InvoiceLine[]
 
-  // Relations — AR (Module 3.2)
+  // Relations â€” AR (Module 3.2)
   receiptAllocations ReceiptAllocation[]
 
-  // Relations — Booking (Module 5.3)
+  // Relations â€” Booking (Module 5.3)
   facilityBookings FacilityBooking[] @relation("BookingInvoice")
 
-  // Relations — Mall (Module 6.1)
+  // Relations â€” Mall (Module 6.1)
   gtoSubmissions     GtoSubmission[]     @relation("GtoInvoice")
   camBillings        CamBilling[]        @relation("CamBillingInvoice")
   camReconciliations CamReconciliation[] @relation("CamReconInvoice")
   boothRentals       BoothRental[]       @relation("BoothInvoice")
 
-  // Relations — Condo (Module 6.2)
+  // Relations â€” Condo (Module 6.2)
   bylawViolations BylawViolation[] @relation("ViolationInvoice")
 
-  // Relations — Banking (Module 3.6)
+  // Relations â€” Banking (Module 3.6)
   paymentGatewayTxns PaymentGatewayTransaction[]
 
   @@index([tenantId])
@@ -3235,15 +3236,15 @@ model TaxConfiguration {
   @@map("tax_configurations")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 3.2 — ACCOUNTS RECEIVABLE
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 3.2 â€” ACCOUNTS RECEIVABLE
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Receipt {
   id                 String   @id @default(uuid()) @db.Uuid
   companyId          String   @map("company_id") @db.Uuid
   propertyId         String?  @map("property_id") @db.Uuid
-  tenantId           String   @map("tenant_id") @db.Uuid
+  tenantId           String?  @map("tenant_id") @db.Uuid
   receiptNumber      String   @unique @map("receipt_number") @db.VarChar(50)
   receiptDate        DateTime @map("receipt_date") @db.Date
   paymentMethod      String   @map("payment_method") @db.VarChar(30)
@@ -3266,7 +3267,7 @@ model Receipt {
 
   company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   property       Property?           @relation("ReceiptProperty", fields: [propertyId], references: [id])
-  tenant         Tenant              @relation("ReceiptTenant", fields: [tenantId], references: [id])
+  tenant         Tenant?             @relation("ReceiptTenant", fields: [tenantId], references: [id])
   creator        User?               @relation("ReceiptCreator", fields: [createdBy], references: [id])
   allocations    ReceiptAllocation[]
   refundRequests RefundRequest[]     @relation("RefundReceipt")
@@ -3345,9 +3346,9 @@ model TenantCredit {
   @@map("tenant_credits")
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // GENERAL LEDGER (Module 3.4)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model DepartmentCenter {
   id          String   @id @default(uuid()) @db.Uuid
@@ -3553,9 +3554,9 @@ model JournalEntryLine {
   @@map("journal_entry_lines")
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // BUDGETING (Module 3.5)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Budget {
   id             String   @id @default(uuid()) @db.Uuid
@@ -3580,9 +3581,9 @@ model Budget {
   @@map("budgets")
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // FIXED ASSETS (Module 3.5)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model FixedAsset {
   id                      String    @id @default(uuid()) @db.Uuid
@@ -3657,9 +3658,9 @@ model AssetTransfer {
   @@map("asset_transfers")
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // BANKING & RECONCILIATION (Module 3.6)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model BankAccount {
   id             String   @id @default(uuid()) @db.Uuid
@@ -3778,9 +3779,9 @@ model PaymentGatewayTransaction {
   @@map("payment_gateway_transactions")
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // MAINTENANCE MANAGEMENT (Module 4.1)
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model MaintenanceCategory {
   id          String   @id @default(uuid()) @db.Uuid
@@ -4023,9 +4024,9 @@ model SlaBreachEvent {
   @@map("sla_breach_events")
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 4.2 — PREVENTIVE MAINTENANCE
-// ═══════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 4.2 â€” PREVENTIVE MAINTENANCE
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 model PmSchedule {
   id                String    @id @default(uuid()) @db.Uuid
@@ -4094,9 +4095,9 @@ model PmWorkOrder {
   @@map("pm_work_orders")
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 4.3 — FACILITY MANAGEMENT
-// ═══════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 4.3 â€” FACILITY MANAGEMENT
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 model FacilityAsset {
   id                    String    @id @default(uuid()) @db.Uuid
@@ -4190,9 +4191,9 @@ model UtilitySystem {
   @@map("utility_systems")
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 4.4 — INVENTORY & STORE MANAGEMENT
-// ═══════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 4.4 â€” INVENTORY & STORE MANAGEMENT
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 model Store {
   id         String   @id @default(uuid()) @db.Uuid
@@ -4308,9 +4309,9 @@ model PurchaseRequisition {
   @@map("purchase_requisitions")
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 4.5 — HOUSEKEEPING MANAGEMENT
-// ═══════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 4.5 â€” HOUSEKEEPING MANAGEMENT
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 model HousekeepingZone {
   id         String   @id @default(uuid()) @db.Uuid
@@ -4412,9 +4413,9 @@ model HousekeepingInspection {
   @@map("housekeeping_inspections")
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 4.6 — SECURITY MANAGEMENT
-// ═══════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 4.6 â€” SECURITY MANAGEMENT
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 model SecurityIncident {
   id               String    @id @default(uuid()) @db.Uuid
@@ -4540,9 +4541,9 @@ model AccessControlEvent {
   @@map("access_control_events")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 5.1 — TENANT & RESIDENT PORTAL
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 5.1 â€” TENANT & RESIDENT PORTAL
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Resident {
   id              String    @id @default(uuid()) @db.Uuid
@@ -4581,13 +4582,13 @@ model Resident {
   tenant      Tenant?              @relation("ResidentTenant", fields: [tenantId], references: [id])
   accessCards ResidentAccessCard[]
 
-  // Relations — Visitors/Booking/Community (Module 5.2-5.4)
+  // Relations â€” Visitors/Booking/Community (Module 5.2-5.4)
   visitorsHosted      Visitor[]
   facilityBookings    FacilityBooking[]
   complaintsSubmitted CommunityComplaint[]
   moveRequests        MoveRequest[]
 
-  // Relations — Condo (Module 6.2)
+  // Relations â€” Condo (Module 6.2)
   bylawViolations BylawViolation[] @relation("ViolationResident")
 
   @@index([unitId])
@@ -4663,9 +4664,9 @@ model PortalQuickAction {
   @@map("portal_quick_actions")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 5.2 — VISITOR MANAGEMENT
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 5.2 â€” VISITOR MANAGEMENT
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Visitor {
   id                    String    @id @default(uuid()) @db.Uuid
@@ -4769,9 +4770,9 @@ model VisitorBlacklist {
   @@map("visitor_blacklist")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 5.3 — FACILITY BOOKING
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 5.3 â€” FACILITY BOOKING
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model FacilityBookingRule {
   id                 String   @id @default(uuid()) @db.Uuid
@@ -4876,9 +4877,9 @@ model BookingBlackoutDate {
   @@map("booking_blackout_dates")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 5.4 — COMMUNITY MANAGEMENT
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 5.4 â€” COMMUNITY MANAGEMENT
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Announcement {
   id             String    @id @default(uuid()) @db.Uuid
@@ -5048,9 +5049,9 @@ model MoveRequest {
   @@map("move_requests")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 6.1 — SHOPPING MALL MODULES
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 6.1 â€” SHOPPING MALL MODULES
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model MallProperty {
   propertyId        String   @id @map("property_id") @db.Uuid
@@ -5373,7 +5374,7 @@ model FootfallCount {
 
 // Shop Directory "Map" view: one row per tile on a floor's grid (a unit or a decoration).
 // floorKey is the floor's display label (unit.floorLabel, or "Floor N") so it does not
-// depend on FloorSetup. Plain columns (no FK) — orphans are filtered when read.
+// depend on FloorSetup. Plain columns (no FK) â€” orphans are filtered when read.
 model MallFloorPlanItem {
   id         String   @id @default(uuid()) @db.Uuid
   companyId  String   @map("company_id") @db.Uuid
@@ -5410,9 +5411,9 @@ model MallFloorPlanSetting {
 }
 
 
-// ─────────────────────────────────────────────
-// MODULE 6.2 — CONDO & RESIDENTIAL MODELS
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 6.2 â€” CONDO & RESIDENTIAL MODELS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model SmartMeterReading {
   id               String   @id @default(uuid()) @db.Uuid
@@ -5690,9 +5691,9 @@ model BylawViolation {
   @@map("bylaw_violations")
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 6.3 — ENTERPRISE INTEGRATIONS
-// ═══════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 6.3 â€” ENTERPRISE INTEGRATIONS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 model IntegrationConfig {
   id              String    @id @default(uuid()) @db.Uuid
@@ -5831,9 +5832,9 @@ model ApiKey {
   @@map("api_keys")
 }
 
-// ────────────────────────────────────────────────
-//  Module 6.3 — BI & Analytics
-// ────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Module 6.3 â€” BI & Analytics
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model BiReport {
   id          String    @id @default(uuid()) @db.Uuid
@@ -5897,9 +5898,9 @@ model BiAnomaly {
   @@map("bi_anomalies")
 }
 
-// ═══════════════════════════════════════════════
-// BMS — Building Management System (Module 6.4)
-// ═══════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// BMS â€” Building Management System (Module 6.4)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 model BmsDevice {
   id             String    @id @default(uuid()) @db.Uuid
@@ -5944,9 +5945,9 @@ model BmsReading {
   @@map("bms_readings")
 }
 
-// ─────────────────────────────────────────────
-// MODULE 3.3 — ACCOUNTS PAYABLE
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MODULE 3.3 â€” ACCOUNTS PAYABLE
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model ApInvoice {
   id              String    @id @default(uuid()) @db.Uuid
@@ -6017,6 +6018,7 @@ model PaymentVoucher {
   id               String    @id @default(uuid()) @db.Uuid
   companyId        String    @map("company_id") @db.Uuid
   voucherNumber    String    @unique @map("voucher_number") @db.VarChar(50)
+  propertyId       String?   @map("property_id") @db.Uuid
   voucherDate      DateTime  @map("voucher_date") @db.Date
   paymentMethod    String    @map("payment_method") @db.VarChar(30)
   bankAccountId    String?   @map("bank_account_id") @db.Uuid
@@ -6037,11 +6039,13 @@ model PaymentVoucher {
 
   company     Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bankAccount BankAccount?   @relation(fields: [bankAccountId], references: [id])
+  property    Property?      @relation(fields: [propertyId], references: [id], onDelete: SetNull)
   approver    User?          @relation("PvApprover", fields: [approvedBy], references: [id])
   creator     User           @relation("PvCreator", fields: [createdBy], references: [id])
   allocations PvAllocation[]
 
   @@index([companyId])
+  @@index([propertyId])
   @@index([status])
   @@map("payment_vouchers")
 }
@@ -6088,9 +6092,9 @@ model Expense {
   @@map("expenses")
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CRON JOB CONFIGURATION & LOGS
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model CronJobConfig {
   id             String    @id @default(uuid()) @db.Uuid

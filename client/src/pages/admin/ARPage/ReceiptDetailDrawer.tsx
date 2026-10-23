@@ -1,4 +1,5 @@
 import { useGetReceiptQuery, useReverseReceiptMutation } from '../../../store/api/arApi';
+import { skipToken } from '@reduxjs/toolkit/query/react';
 import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { X, RotateCcw } from 'lucide-react';
@@ -14,11 +15,11 @@ interface Props { receiptId: string; onClose: () => void; }
 export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
   const selectedPropertyId = useSelectedPropertyId();
   const { data, isLoading } = useGetReceiptQuery(receiptId);
+  const receipt = data?.data;
   const { data: paymentMethods = [] } = useGetPaymentMethodsQuery(
-    selectedPropertyId ? { propertyId: selectedPropertyId } : undefined,
+    (receipt?.property?.id || selectedPropertyId) ? { propertyId: receipt?.property?.id || selectedPropertyId } : skipToken,
   );
   const [reverseReceipt, { isLoading: reversing }] = useReverseReceiptMutation();
-  const receipt = data?.data;
   const paymentMethodLabel = receipt
     ? paymentMethods.find((pm) => pm.code.toLowerCase() === (receipt.paymentMethod || '').toLowerCase())?.name ||
       (receipt.paymentMethod || '').replace(/_/g, ' ')
