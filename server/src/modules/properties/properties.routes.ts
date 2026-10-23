@@ -125,7 +125,10 @@ propertiesRouter.get('/:id/photos', requirePermission('properties.read'), proper
 /** POST /properties/:id/photos — multipart upload */
 propertiesRouter.post('/:id/photos', requirePermission('properties.update'), propertyAccessGuard, memoryUpload.array('photos', 20), asyncHandler(async (req: Request, res: Response) => {
   const files = req.files as Express.Multer.File[];
-  if (!files?.length) throw new Error('No photos uploaded');
+  if (!files?.length) {
+    res.status(400).json({ success: false, errors: [{ message: 'No photos uploaded' }] });
+    return;
+  }
   const data = await propertiesService.uploadPhotos(p(req, 'id'), files, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));

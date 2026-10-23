@@ -652,7 +652,7 @@
 
 .ul-header {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr 44px;
+  grid-template-columns: 1.5fr 1fr 0.7fr 0.9fr 1.1fr 1fr 44px;
   gap: 12px;
   padding: 0 16px;
   font-size: 0.68rem;
@@ -661,18 +661,18 @@
   letter-spacing: 0.06em;
   color: var(--text-muted);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  min-width: 720px;
+  min-width: 640px;
   height: 40px;
   align-items: center;
   box-sizing: border-box;
 }
 .ul-header.with-select {
-  grid-template-columns: 28px 1.5fr 1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr 44px;
+  grid-template-columns: 28px 1.5fr 1fr 0.7fr 0.9fr 1.1fr 1fr 44px;
 }
 
 .ul-row {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr 44px;
+  grid-template-columns: 1.5fr 1fr 0.7fr 0.9fr 1.1fr 1fr 44px;
   gap: 12px;
   align-items: center;
   padding: 0 16px;
@@ -680,12 +680,12 @@
   cursor: pointer;
   transition: background 0.12s;
   font-size: 0.82rem;
-  min-width: 720px;
+  min-width: 640px;
   height: 48px;
   box-sizing: border-box;
 }
 .ul-row.with-select {
-  grid-template-columns: 28px 1.5fr 1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr 44px;
+  grid-template-columns: 28px 1.5fr 1fr 0.7fr 0.9fr 1.1fr 1fr 44px;
 }
 .ul-row:last-child { border-bottom: none; }
 .ul-row:hover { background: rgba(255, 255, 255, 0.025); }

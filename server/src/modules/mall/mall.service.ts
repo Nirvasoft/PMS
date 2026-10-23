@@ -196,6 +196,7 @@ class MallService {
         companyId,
         propertyId,
         isActive: true,
+        status: 'occupied',
         shopProfile: { is: null }, // units without a shop profile
       },
       select: {
@@ -215,9 +216,13 @@ class MallService {
     const unit = await prisma.unit.findFirst({ where: { id: unitId, companyId } });
     if (!unit) throw AppError.notFound('Unit');
 
+    if (data.tradeCategory && data.tradeCategory !== unit.zone) {
+      await prisma.unit.update({ where: { id: unitId }, data: { zone: data.tradeCategory } });
+    }
+
     return prisma.shopProfile.upsert({
       where: { unitId },
-      create: { unitId, companyId, propertyId: unit.propertyId, tradeCategory: 'Other', ...data },
+      create: { unitId, companyId, propertyId: unit.propertyId, tradeCategory: unit.zone || 'Other', ...data },
       update: data,
     });
   }

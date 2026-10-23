@@ -128,11 +128,13 @@ function GeneralTab() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { toast.error('Please select an image'); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be less than 5MB'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error('Image must be less than 10MB'); return; }
     try {
       await uploadLogo(file).unwrap();
       toast.success('Logo updated');
-    } catch { toast.error('Failed to upload logo'); }
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to upload logo');
+    }
     e.target.value = '';
   };
 
@@ -219,7 +221,7 @@ function GeneralTab() {
             </div>
           )}
           {canManage && (
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+            <input ref={fileRef} type="file" accept="image/*" onClick={(e) => e.stopPropagation()} onChange={handleLogoUpload} style={{ display: 'none' }} />
           )}
         </div>
 

@@ -45,23 +45,22 @@ export default function ImportLeadModal({ onClose }: Props) {
   // Reset page when search changes
   useEffect(() => { setPage(1); }, [debouncedSearch]);
 
-  // Fetch leads that are NOT in the excluded stages.
-  // We load without stage filter and filter client-side (API supports single stage
-  // filter; to exclude multiple we filter after fetch).
+  // Fetch leads and filter out excluded stages (new, contacted, lease_signed),
+  // then paginate the eligible leads accurately on the client side.
   const { data, isFetching } = useGetLeadsQuery({
     search: debouncedSearch || undefined,
-    page,
-    limit: LEADS_PER_PAGE * 3, // fetch more to account for client-side filtering
+    page: 1,
+    limit: 100,
   });
 
   const allLeads  = data?.data || [];
   const eligible  = allLeads.filter(l => !EXCLUDED_STAGES.has(l.stage));
-  const totalPages = Math.max(1, Math.ceil((data?.meta?.total ?? 0) / LEADS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(eligible.length / LEADS_PER_PAGE));
+  const paginatedLeads = eligible.slice((page - 1) * LEADS_PER_PAGE, page * LEADS_PER_PAGE);
 
   const handleSelect = (lead: LeadListItem) => {
     const params = new URLSearchParams();
     params.set('leadId', lead.id);
-    if (lead.property?.id) params.set('propertyId', lead.property.id);
     navigate(`/admin/leases/new?${params.toString()}`);
     onClose();
   };
@@ -104,7 +103,6 @@ export default function ImportLeadModal({ onClose }: Props) {
             <span>Date</span>
             <span>Lead Number</span>
             <span>Name</span>
-            <span>Property</span>
             <span>Stage</span>
             <span>Priority</span>
           </div>
@@ -114,12 +112,12 @@ export default function ImportLeadModal({ onClose }: Props) {
               <div className="il-state">
                 <div className="il-lp" /><div className="il-lp" /><div className="il-lp" />
               </div>
-            ) : eligible.length === 0 ? (
+            ) : paginatedLeads.length === 0 ? (
               <div className="il-state il-empty">
                 No eligible leads found
                 {search && <span> — try clearing your search</span>}
               </div>
-            ) : eligible.map(lead => {
+            ) : paginatedLeads.map(lead => {
               const stageMeta = STAGE_META[lead.stage];
               return (
                 <div key={lead.id} className="il-row" onClick={() => handleSelect(lead)}>
@@ -128,7 +126,6 @@ export default function ImportLeadModal({ onClose }: Props) {
                   </span>
                   <span className="il-cell il-mono">{lead.leadNumber || '—'}</span>
                   <span className="il-cell il-name">{leadName(lead)}</span>
-                  <span className="il-cell il-dim">{lead.property?.name || '—'}</span>
                   <span className="il-cell">
                     {stageMeta ? (
                       <span

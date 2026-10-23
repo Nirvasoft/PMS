@@ -4,7 +4,6 @@ import {
   useGetLeadStatsQuery, useGetLeadsQuery,
   type LeadListItem,
 } from '../../../store/api/crmApi';
-import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { Target, Plus, Search, X, ShieldOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
@@ -33,7 +32,6 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 export default function LeadPipelinePage() {
   const navigate = useNavigate();
-  const propertyFilter = useSelectedPropertyFilter();
 
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
@@ -44,11 +42,10 @@ export default function LeadPipelinePage() {
 
   useEffect(() => {
     setPage(1);
-  }, [propertyFilter, debouncedSearch, stageFilter, priorityFilter]);
+  }, [debouncedSearch, stageFilter, priorityFilter]);
 
-  const { data: statsData } = useGetLeadStatsQuery({ propertyId: propertyFilter || undefined });
+  const { data: statsData } = useGetLeadStatsQuery({});
   const { data: leadsData, isFetching } = useGetLeadsQuery({
-    propertyId: propertyFilter || undefined,
     search: debouncedSearch || undefined,
     stage: stageFilter || undefined,
     priority: priorityFilter || undefined,

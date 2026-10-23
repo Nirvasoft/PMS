@@ -15,6 +15,7 @@ import {
 } from '../../../store/api/unitsApi';
 import { useGetFloorSetupsQuery, useGetPropertyQuery } from '../../../store/api/propertiesApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { mallApi } from '../../../store/api/mallApi';
 import type { UnitListItem, Tower, FloorPlanMatrix } from '../../../store/api/unitsApi';
 import {
   List, Layers, Plus, Search, Building2,
@@ -576,7 +577,6 @@ export default function UnitsTab() {
                       <span>Type</span>
                       <span>Floor</span>
                       <span>Area</span>
-                      <span>Bed / Bath</span>
                       <span>Status</span>
                       <span>Furnishing</span>
                       <span></span>
@@ -858,7 +858,6 @@ function UnitListRow({ unit, selectionEnabled, selected, onToggleSelect, onClick
       </div>
       <div className="ul-cell-muted">{unit.floorLabel ?? (unit.floorNumber != null ? `${unit.floorNumber}F` : '—')}</div>
       <div className="ul-cell-muted">{unit.areaSqft ? `${unit.areaSqft} ft²` : '—'}</div>
-      <div className="ul-cell-muted">{unit.bedroomCount}bd · {unit.bathroomCount}ba</div>
       <div>
         <span
           className="ul-status-badge"
@@ -910,7 +909,6 @@ function UnitGridCard({ unit, onClick }: { unit: UnitListItem; onClick: () => vo
             </span>
           )}
           {unit.areaSqft && <span>{unit.areaSqft} ft²</span>}
-          {unit.bedroomCount > 0 && <span>{unit.bedroomCount}bd / {unit.bathroomCount}ba</span>}
         </div>
         {unit.meters.length > 0 && (
           <div className="ug-meters">
@@ -957,11 +955,10 @@ function CreateUnitModal({
   const defaultFloorLabel = defaultFloorSetup?.floorLabel ?? '';
 
   const [form, setForm] = useState({
-    unitNumber: '', unitType: '', zone: '', towerId: selectedTowerId, sectionId: '',
+    unitNumber: '', unitType: '', zone: '', shopName: '', towerId: selectedTowerId, sectionId: '',
     floorNumber: defaultFloorNumber != null ? String(defaultFloorNumber) : '',
     floorLabel: defaultFloorLabel,
     areaSqft: '', areaSqm: '',
-    bedroomCount: '0', bathroomCount: '0',
     direction: '', furnishing: 'unfurnished', ownershipType: 'company',
     rentalPeriod: '', rentalPeriodUnit: 'month', calculationOn: 'fixed', rate: '', currency: '',
     description: '',
@@ -1022,15 +1019,14 @@ function CreateUnitModal({
         data: {
           unitNumber:    fullUnitNumber,
           unitType:      form.unitType,
-          zone:          form.zone        || undefined,
-          towerId:       form.towerId     || undefined,
-          sectionId:     form.sectionId   || undefined,
+          zone:          form.zone            || undefined,
+          shopName:      form.shopName.trim() || undefined,
+          towerId:       form.towerId         || undefined,
+          sectionId:     form.sectionId       || undefined,
           floorNumber:   form.floorNumber ? Number(form.floorNumber) : undefined,
           floorLabel:    form.floorLabel  || undefined,
           areaSqft:      form.areaSqft    ? Number(form.areaSqft)    : undefined,
           areaSqm:       form.areaSqm     ? Number(form.areaSqm)     : undefined,
-          bedroomCount:  Number(form.bedroomCount) || 0,
-          bathroomCount: Number(form.bathroomCount) || 0,
           direction:     form.direction   || undefined,
           furnishing:    form.furnishing,
           ownershipType: form.ownershipType,
@@ -1043,6 +1039,9 @@ function CreateUnitModal({
           commonBillCalculate: form.commonBillCalculate,
         } as any,
       }).unwrap();
+      if (form.shopName.trim()) {
+        dispatch(mallApi.util.invalidateTags(['Shops']));
+      }
       toast.success(`P-Unit ${fullUnitNumber} created`);
       close();
     } catch (e: any) {
@@ -1217,7 +1216,7 @@ function CreateUnitModal({
             </div>
           </div>
 
-          {/* Row 4: Currency + Zone */}
+          {/* Row 4: Currency + Category */}
           <div className="cu-grid">
             <div className="cu-field">
               <label>Currency *</label>
@@ -1236,12 +1235,22 @@ function CreateUnitModal({
               {isCurrencyMissing && <span className="cu-error-text">Currency is required</span>}
             </div>
             <div className="cu-field">
-              <label>Zone <span className="cu-opt">(optional)</span></label>
+              <label>Category <span className="cu-opt">(optional)</span></label>
               <select value={form.zone} onChange={(e) => set('zone', e.target.value)}>
                 <option value="">-</option>
                 {ZONE_OPTIONS.map((z) => <option key={z} value={z}>{z}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Row 4b: Shop Name (optional) */}
+          <div className="cu-field">
+            <label>Shop Name <span className="cu-opt">(optional)</span></label>
+            <input
+              placeholder="e.g. Nike, Starbucks"
+              value={form.shopName}
+              onChange={(e) => set('shopName', e.target.value)}
+            />
           </div>
 
           {/* Row 5: Area (sqft) + Area (sqm) */}
@@ -1299,16 +1308,8 @@ function CreateUnitModal({
             </div>
           </div>
 
-          {/* Row 7: Bedrooms + Bathrooms + Furnishing + Ownership */}
-          <div className="cu-grid cu-grid-4">
-            <div className="cu-field">
-              <label>Bedrooms</label>
-              <input type="number" min={0} value={form.bedroomCount} onChange={(e) => set('bedroomCount', e.target.value)} />
-            </div>
-            <div className="cu-field">
-              <label>Bathrooms</label>
-              <input type="number" min={0} value={form.bathroomCount} onChange={(e) => set('bathroomCount', e.target.value)} />
-            </div>
+          {/* Row 7: Furnishing + Ownership */}
+          <div className="cu-grid">
             <div className="cu-field">
               <label>Furnishing</label>
               <select value={form.furnishing} onChange={(e) => set('furnishing', e.target.value)}>

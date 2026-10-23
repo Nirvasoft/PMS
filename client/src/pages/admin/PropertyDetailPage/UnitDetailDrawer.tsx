@@ -9,6 +9,8 @@ import {
 } from '../../../store/api/unitsApi';
 import { useGetMeterSetupsQuery, useGetChargeTypesQuery, useGetBillingSchedulesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetFloorSetupsQuery, useGetPropertyQuery } from '../../../store/api/propertiesApi';
+import { useGetLeaseQuery } from '../../../store/api/leasesApi';
+import { mallApi } from '../../../store/api/mallApi';
 import { CATEGORIES as METER_CATEGORIES, METER_TYPES } from '../BillingPage/MeterSetupPage';
 import { ZONE_OPTIONS } from './zoneOptions';
 import {
@@ -112,6 +114,17 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const { data, isLoading, isError, error } = useGetUnitQuery({ propertyId, unitId });
   const unit = data?.data;
 
+  // Fallback to the unit's active/latest lease's shopName (resolved from Rental Agreement or Lead)
+  const latestUnitLease = unit?.leases?.find((l) => l.status !== 'cancelled') || unit?.leases?.[0];
+  const { data: latestLeaseDetail } = useGetLeaseQuery(latestUnitLease?.id ?? '', {
+    skip: !latestUnitLease?.id || !!unit?.shopProfile?.brandName,
+  });
+  const effectiveShopName =
+    unit?.shopProfile?.brandName ||
+    latestLeaseDetail?.data?.shopName ||
+    latestLeaseDetail?.data?.rentalAgreement?.shopName ||
+    '';
+
   const [updateUnit, { isLoading: saving }] = useUpdateUnitMutation();
   const [updateStatus] = useUpdateUnitStatusMutation();
   const [addMeter] = useAddMeterMutation();
@@ -184,12 +197,11 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       unitNumber: unit.unitNumber,
       unitType: unit.unitType,
       zone: unit.zone ?? '',
+      shopName: effectiveShopName,
       floorNumber: unit.floorNumber ?? '',
       floorLabel: unit.floorLabel ?? '',
       areaSqft: unit.areaSqft ?? '',
       areaSqm: unit.areaSqm ?? '',
-      bedroomCount: unit.bedroomCount,
-      bathroomCount: unit.bathroomCount,
       direction: unit.direction ?? '',
       furnishing: unit.furnishing,
       ownershipType: unit.ownershipType,
@@ -208,7 +220,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       commonBillCalculate: unit.commonBillCalculate ?? false,
     });
     setEditing(true);
-  }, [unit, floorSetups]);
+  }, [unit, floorSetups, effectiveShopName]);
 
   const cancelEditing = () => {
     setEditing(false);
@@ -234,12 +246,12 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       if (editForm.unitNumber !== unit!.unitNumber) payload.unitNumber = editForm.unitNumber;
       if (editForm.unitType !== unit!.unitType) payload.unitType = editForm.unitType;
       if (editForm.zone !== (unit!.zone ?? '')) payload.zone = editForm.zone || null;
+      const trimmedShopName = String(editForm.shopName ?? '').trim();
+      if (trimmedShopName !== effectiveShopName) payload.shopName = trimmedShopName;
       if (editForm.floorNumber !== '' && Number(editForm.floorNumber) !== unit!.floorNumber) payload.floorNumber = Number(editForm.floorNumber);
       if (editForm.floorLabel !== (unit!.floorLabel ?? '')) payload.floorLabel = editForm.floorLabel || null;
       if (editForm.areaSqft !== '' && Number(editForm.areaSqft) !== unit!.areaSqft) payload.areaSqft = Number(editForm.areaSqft);
       if (editForm.areaSqm !== '' && Number(editForm.areaSqm) !== unit!.areaSqm) payload.areaSqm = Number(editForm.areaSqm);
-      if (editForm.bedroomCount !== unit!.bedroomCount) payload.bedroomCount = Number(editForm.bedroomCount);
-      if (editForm.bathroomCount !== unit!.bathroomCount) payload.bathroomCount = Number(editForm.bathroomCount);
       if (editForm.direction !== (unit!.direction ?? '')) payload.direction = editForm.direction || null;
       if (editForm.furnishing !== unit!.furnishing) payload.furnishing = editForm.furnishing;
       if (editForm.ownershipType !== unit!.ownershipType) payload.ownershipType = editForm.ownershipType;
@@ -266,6 +278,9 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
       }
 
       await updateUnit({ propertyId, unitId, data: payload }).unwrap();
+      if (payload.shopName !== undefined || payload.zone !== undefined) {
+        dispatch(mallApi.util.invalidateTags(['Shops']));
+      }
       toast.success('Unit updated');
       setEditing(false);
     } catch (e: any) {
@@ -422,11 +437,14 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { toast.error('Max file size is 10MB'); return; }
-    if (!/\.(pdf|png|jpe?g)$/i.test(file.name)) { toast.error('Only PDF, PNG, JPEG allowed'); return; }
+    const isAllowed = file.type.startsWith('image/') || file.type === 'application/pdf' || /\.(pdf|png|jpe?g|webp|gif|avif|bmp|svg)$/i.test(file.name);
+    if (!isAllowed) { toast.error('Only image or PDF files are allowed'); return; }
     try {
       await uploadFloorPlan({ propertyId, unitId, file }).unwrap();
       toast.success('Unit photo uploaded');
-    } catch { toast.error('Upload failed'); }
+    } catch (err: any) {
+      toast.error(err?.data?.errors?.[0]?.message || 'Upload failed');
+    }
     // Reset input so same file can be re-uploaded
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -845,12 +863,22 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       {isEditCurrencyMissing && <span className="field-warn">Currency is required</span>}
                     </div>
                     <div className="ef-field">
-                      <label>Zone</label>
+                      <label>Category</label>
                       <select value={editForm.zone ?? ''} onChange={(e) => ef('zone', e.target.value)}>
                         <option value="">-</option>
                         {ZONE_OPTIONS.map((z) => <option key={z} value={z}>{z}</option>)}
                       </select>
                     </div>
+                  </div>
+
+                  <div className="ef-field full-width">
+                    <label>Shop Name <span style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Nike, Starbucks"
+                      value={editForm.shopName ?? ''}
+                      onChange={(e) => ef('shopName', e.target.value)}
+                    />
                   </div>
 
                   <div className="ef-grid">
@@ -870,8 +898,6 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       hasError={isEditAreaMissing}
                       error={isEditAreaMissing ? 'Area is required' : undefined}
                     />
-                    <EditField label="Bedrooms" type="number" value={editForm.bedroomCount} onChange={(v) => ef('bedroomCount', v)} />
-                    <EditField label="Bathrooms" type="number" value={editForm.bathroomCount} onChange={(v) => ef('bathroomCount', v)} />
                   </div>
                   <div className="ef-grid">
                     <div className="ef-field">
@@ -963,7 +989,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       <InfoItem label="Unit Number" value={unit.unitNumber} />
                       <InfoItem label="Unit Type"   value={unit.unitType.replace(/_/g, ' ')} />
                       <InfoItem label="Currency"    value={unit.currency || '—'} />
-                      <InfoItem label="Zone"        value={unit.zone || '—'} />
+                      <InfoItem label="Category"    value={unit.zone || '—'} />
+                      <InfoItem label="Shop Name"   value={effectiveShopName || '—'} />
                       <InfoItem label="Area (sqft)" value={unit.areaSqft ? `${unit.areaSqft}` : '—'} />
                       <InfoItem label="Area (sqm)"  value={unit.areaSqm  ? `${unit.areaSqm}` : '—'} />
                     </div>
@@ -971,8 +998,6 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
                   <div className="info-section">
                     <div className="info-grid">
-                      <InfoItem label="Bedrooms"    value={String(unit.bedroomCount)} />
-                      <InfoItem label="Bathrooms"   value={String(unit.bathroomCount)} />
                       <InfoItem label="Direction"   value={unit.direction || '—'} />
                       <InfoItem label="Furnishing"  value={unit.furnishing.replace(/_/g, ' ')} />
                     </div>
@@ -1571,60 +1596,69 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
           )}
 
           {/* ═══ UNIT PHOTO TAB ═══ */}
-          {activeTab === 'floor_plan' && (
-            <div className="drawer-floorplan">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.png,.jpg,.jpeg"
-                style={{ display: 'none' }}
-                onChange={handleFloorPlanUpload}
-              />
+          {activeTab === 'floor_plan' && (() => {
+            const floorPlanSrc = unit.floorPlanUrl
+              ? (unit.floorPlanUrl.startsWith('http') || unit.floorPlanUrl.startsWith('/api/v1')
+                  ? unit.floorPlanUrl
+                  : `/api/v1${unit.floorPlanUrl}`)
+              : '';
+            const isPdf = unit.floorPlanUrl ? /\.pdf(\?|$)/i.test(unit.floorPlanUrl) : false;
 
-              {unit.floorPlanUrl ? (
-                <div className="fp-preview">
-                  {/\.(png|jpe?g)$/i.test(unit.floorPlanUrl) ? (
-                    <img
-                      src={`/api/v1${unit.floorPlanUrl}`}
-                      alt="Unit photo"
-                      className="fp-image"
-                    />
-                  ) : (
-                    <div className="fp-pdf-card">
-                      <FileImage size={32} />
-                      <span>Unit Photo (PDF)</span>
-                      <a
-                        href={`/api/v1${unit.floorPlanUrl}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="fp-open-link"
-                      >
-                        <ExternalLink size={12} /> Open
-                      </a>
+            return (
+              <div className="drawer-floorplan">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,.pdf"
+                  style={{ display: 'none' }}
+                  onChange={handleFloorPlanUpload}
+                />
+
+                {unit.floorPlanUrl ? (
+                  <div className="fp-preview">
+                    {!isPdf ? (
+                      <img
+                        src={floorPlanSrc}
+                        alt="Unit photo"
+                        className="fp-image"
+                      />
+                    ) : (
+                      <div className="fp-pdf-card">
+                        <FileImage size={32} />
+                        <span>Unit Photo (PDF)</span>
+                        <a
+                          href={floorPlanSrc}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="fp-open-link"
+                        >
+                          <ExternalLink size={12} /> Open
+                        </a>
+                      </div>
+                    )}
+                    <div className="fp-actions">
+                      <PermissionGuard permission="unit.update">
+                        <button className="btn-fp-replace" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                          <Upload size={13} /> {uploading ? 'Uploading…' : 'Replace'}
+                        </button>
+                      </PermissionGuard>
                     </div>
-                  )}
-                  <div className="fp-actions">
+                  </div>
+                ) : (
+                  <div className="fp-empty">
+                    <FileImage size={36} />
+                    <p>No unit photo uploaded</p>
                     <PermissionGuard permission="unit.update">
-                      <button className="btn-fp-replace" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                        <Upload size={13} /> {uploading ? 'Uploading…' : 'Replace'}
+                      <button className="btn-fp-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                        <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Unit Photo'}
                       </button>
                     </PermissionGuard>
+                    <span className="fp-hint">Image or PDF — max 10MB</span>
                   </div>
-                </div>
-              ) : (
-                <div className="fp-empty">
-                  <FileImage size={36} />
-                  <p>No unit photo uploaded</p>
-                  <PermissionGuard permission="unit.update">
-                    <button className="btn-fp-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                      <Upload size={13} /> {uploading ? 'Uploading…' : 'Upload Unit Photo'}
-                    </button>
-                  </PermissionGuard>
-                  <span className="fp-hint">PDF, PNG, or JPEG — max 10MB</span>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            );
+          })()}
 
           {/* ═══ LEASES TAB ═══ */}
           {activeTab === 'leases' && (

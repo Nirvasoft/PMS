@@ -6,7 +6,7 @@ import {
   useCreateLeaseMutation,
 } from '../../../store/api/leasesApi';
 import { useConvertLeadMutation, useGetLeadQuery } from '../../../store/api/crmApi';
-import { useGetUnitChargesQuery, useUpdateUnitChargeMutation } from '../../../store/api/unitsApi';
+import { useGetUnitChargesQuery, useUpdateUnitChargeMutation, useUpdateUnitMutation } from '../../../store/api/unitsApi';
 import { useGetCompanyQuery } from '../../../store/api/organizationApi';
 import { useGetTenantQuery } from '../../../store/api/tenantsApi';
 import { ArrowLeft, ArrowRight, Check, Building2, FileText, DollarSign, List, FileSignature } from 'lucide-react';
@@ -63,6 +63,7 @@ export default function CreateLeasePage() {
   }));
   const [createLease, { isLoading }] = useCreateLeaseMutation();
   const [convertLead] = useConvertLeadMutation();
+  const [updateUnit] = useUpdateUnitMutation();
   const { data: templatesData } = useGetLeaseTemplatesQuery();
   const { data: clausesData } = useGetLeaseClausesQuery();
 
@@ -205,6 +206,25 @@ export default function CreateLeasePage() {
             },
           }).unwrap();
         }));
+      }
+
+      // Sync Shop Name (from Rental Agreement or Lead) to the P-Unit so it shows in P-Unit Info
+      const shopNameToSync = (
+        form.rentalAgreement.shopName
+        || (leadData?.data as any)?.loiDetails?.shopName
+        || (leadData?.data as any)?.companyName
+        || ''
+      ).trim();
+      if (shopNameToSync && form.propertyId && form.unitId) {
+        try {
+          await updateUnit({
+            propertyId: form.propertyId,
+            unitId: form.unitId,
+            data: { shopName: shopNameToSync } as any,
+          }).unwrap();
+        } catch {
+          // Non-blocking if unit update fails
+        }
       }
 
       toast.success(`Lease ${result.data.leaseNumber} created`);

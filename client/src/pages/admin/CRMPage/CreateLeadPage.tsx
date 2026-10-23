@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCreateLeadMutation } from '../../../store/api/crmApi';
-import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
-import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -14,27 +12,14 @@ import './CreateLeadPage.css';
 export default function CreateLeadPage() {
   const navigate = useNavigate();
   const [createLead, { isLoading }] = useCreateLeadMutation();
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
-  const properties = propertiesData?.data || [];
   const { data: usersData } = useGetUsersQuery({ page: '1', limit: '200' });
   const users = usersData?.data || [];
   const { data: unitTypesData } = useGetUnitTypesQuery();
   const unitTypes = unitTypesData?.data || [];
 
-  // Locked to the sidebar's Active Property, same convention as Expenses/Payment
-  // Vouchers/New Lease/New Floor — only when "All Properties" is active can the
-  // property be chosen here.
-  const activeProperty = useSelectedPropertyFilter();
-  const propertyLocked = !!activeProperty;
-  // /properties requires properties.read, which a CRM-only role may lack — use the
-  // permission-free /properties/my-scope endpoint so the locked field still resolves
-  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
-  const { data: scopeData } = useGetMyPropertyScopeQuery();
-  const lockedPropertyName = (scopeData?.data || []).find((p) => p.id === activeProperty)?.name;
-
   const [form, setForm] = useState({
     lastName: '', email: '', phone: '',
-    propertyId: '', source: 'website', priority: 'medium', assignedTo: '',
+    source: 'website', priority: 'medium', assignedTo: '',
     budgetMin: '', budgetMax: '', unitTypePreference: '', leaseTermMonths: '',
   });
 
@@ -46,18 +31,6 @@ export default function CreateLeadPage() {
 
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const isNameMissing = hasAttemptedSubmit && !form.lastName.trim();
-
-  // Track the previous lock state so switching to "All Properties" clears the
-  // field back to "Select property" instead of leaving the old locked value behind.
-  const prevPropertyLockedRef = useRef(propertyLocked);
-  useEffect(() => {
-    if (propertyLocked) {
-      if (form.propertyId !== activeProperty) setForm((f) => ({ ...f, propertyId: activeProperty }));
-    } else if (prevPropertyLockedRef.current) {
-      setForm((f) => ({ ...f, propertyId: '' }));
-    }
-    prevPropertyLockedRef.current = propertyLocked;
-  }, [propertyLocked, activeProperty]);
 
   const set = (key: string, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -92,7 +65,6 @@ export default function CreateLeadPage() {
         lastName: form.lastName,
         email: form.email ? form.email.trim().toLowerCase() : undefined,
         phone: form.phone || undefined,
-        propertyId: form.propertyId || undefined,
         source: form.source || undefined,
         priority: form.priority,
         assignedTo: form.assignedTo || undefined,
@@ -139,11 +111,6 @@ export default function CreateLeadPage() {
         <div className="cl-section">
           <h3>Requirements</h3>
           <div className="form-grid">
-            <SelectField label="Property" value={form.propertyId} onChange={(v) => set('propertyId', v)}
-              options={propertyLocked
-                ? [[activeProperty, lockedPropertyName || 'Loading…']]
-                : [['', '— Select property —'], ...properties.map((p: any) => [p.id, p.name] as [string, string])]}
-              span={2} disabled={propertyLocked} />
             <SelectField label="Unit Type Preference" value={form.unitTypePreference} onChange={(v) => set('unitTypePreference', v)}
               options={[['', 'Select…'], ...[...unitTypes].sort((a, b) => a.name.localeCompare(b.name)).map((t) => [t.code, t.name] as [string, string])]} />
             <Field label="Lease Term (months)" value={form.leaseTermMonths} onChange={(v) => set('leaseTermMonths', v)} type="number" min={0} placeholder="12" />

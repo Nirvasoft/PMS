@@ -199,6 +199,34 @@ export class LeadsService {
       });
     }
 
+    // Sync Lead's Shop Name to the leased P-Unit's shopProfile
+    if (leaseId) {
+      const leadShopName = ((lead.loiDetails as any)?.shopName || lead.companyName || '').trim();
+      if (leadShopName) {
+        const lease = await prisma.lease.findFirst({
+          where: { id: leaseId, companyId },
+          include: { unit: true },
+        });
+        if (lease?.unit) {
+          await prisma.shopProfile.upsert({
+            where: { unitId: lease.unitId },
+            create: {
+              unitId: lease.unitId,
+              companyId,
+              propertyId: lease.propertyId,
+              brandName: leadShopName,
+              shopNumber: lease.unit.unitNumber,
+              tradeCategory: lease.unit.zone || 'Other',
+            },
+            update: {
+              brandName: leadShopName,
+              ...(lease.unit.zone ? { tradeCategory: lease.unit.zone } : {}),
+            },
+          });
+        }
+      }
+    }
+
     // Log activity
     await prisma.leadActivity.create({
       data: {

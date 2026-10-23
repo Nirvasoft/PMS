@@ -25,10 +25,12 @@ function buildStorage(subdir: string) {
 }
 
 function imageFilter(_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
-  if (/^image\/(jpeg|png|gif|webp)$/i.test(file.mimetype)) {
+  const okMime = /^image\//i.test(file.mimetype);
+  const okExt = /\.(jpe?g|png|gif|webp|avif|bmp|svg|heic|heif)$/i.test(file.originalname);
+  if (okMime || okExt) {
     cb(null, true);
   } else {
-    cb(new Error('Only JPEG, PNG, GIF, WEBP images are allowed'));
+    cb(new Error('Only image files are allowed'));
   }
 }
 
@@ -47,13 +49,13 @@ function csvFilter(_req: Express.Request, file: Express.Multer.File, cb: multer.
 export const avatarUpload = multer({
   storage: isSpacesEnabled() ? multer.memoryStorage() : buildStorage('avatars'),
   fileFilter: imageFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
 export const logoUpload = multer({
   storage: isSpacesEnabled() ? multer.memoryStorage() : buildStorage('logos'),
   fileFilter: imageFilter,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
 /**
@@ -71,7 +73,7 @@ export function getFileUrl(subdir: string, filename: string): string {
 export const memoryUpload = multer({
   storage: multer.memoryStorage(),
   fileFilter: imageFilter,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
 export const csvUpload = multer({
@@ -94,7 +96,7 @@ export async function persistUploadedFile(
   file: Express.Multer.File,
   subdir: string,
 ): Promise<string> {
-  const ext = path.extname(file.originalname).toLowerCase();
+  const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
   const filename = `${crypto.randomBytes(16).toString('hex')}${ext}`;
 
   if (isSpacesEnabled()) {
@@ -114,23 +116,31 @@ export async function persistUploadedFile(
  * Supports both local filesystem and DigitalOcean Spaces.
  */
 export async function processAvatar(buffer: Buffer): Promise<string> {
-  const filename = `${crypto.randomBytes(16).toString('hex')}.webp`;
-  const processed = await sharp(buffer)
-    .resize(300, 300, { fit: 'cover' })
-    .webp({ quality: 80 })
-    .toBuffer();
+  let processed: Buffer;
+  let ext = '.webp';
+  let mimeType = 'image/webp';
+  try {
+    processed = await sharp(buffer)
+      .resize(300, 300, { fit: 'cover' })
+      .webp({ quality: 80 })
+      .toBuffer();
+  } catch {
+    processed = buffer;
+    ext = '.jpg';
+    mimeType = 'image/jpeg';
+  }
+  const filename = `${crypto.randomBytes(16).toString('hex')}${ext}`;
 
   if (isSpacesEnabled()) {
-    await uploadToSpaces(`avatars/${filename}`, processed, 'image/webp', { isPublic: true });
+    await uploadToSpaces(`avatars/${filename}`, processed, mimeType, { isPublic: true });
     return getSpacesCdnUrl(`avatars/${filename}`);
   }
 
   // Local filesystem
-  const p = path.join(UPLOAD_DIR, 'avatars', filename);
-  await sharp(buffer)
-    .resize(300, 300, { fit: 'cover' })
-    .webp({ quality: 80 })
-    .toFile(p);
+  const dirPath = path.join(UPLOAD_DIR, 'avatars');
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+  const p = path.join(dirPath, filename);
+  await fs.promises.writeFile(p, processed);
   return getFileUrl('avatars', filename);
 }
 

@@ -510,7 +510,7 @@
 .il-table-wrap { flex: 1; overflow-y: auto; min-height: 0; }
 .il-table-head {
   display: grid;
-  grid-template-columns: 100px 90px 1fr 140px 160px 80px;
+  grid-template-columns: 100px 100px 1fr 160px 90px;
   gap: 10px;
   padding: 8px 20px;
   background: rgba(255,255,255,.03);
@@ -523,7 +523,7 @@
 .il-table-body { display: flex; flex-direction: column; }
 .il-row {
   display: grid;
-  grid-template-columns: 100px 90px 1fr 140px 160px 80px;
+  grid-template-columns: 100px 100px 1fr 160px 90px;
   gap: 10px; align-items: center;
   padding: 10px 20px;
   border-bottom: 1px solid rgba(255,255,255,.03);

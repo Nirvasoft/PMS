@@ -173,6 +173,7 @@ export class UnitsService {
           unitTypeRef: { select: { id: true, code: true, name: true, category: true } },
           meters:      { where: { isActive: true }, select: { meterType: true, meterSerialNo: true } },
           amenities:   { select: { amenity: true } },
+          shopProfile: { select: { brandName: true, tradeCategory: true, shopNumber: true } },
         },
         orderBy: [{ floorNumber: 'asc' }, { unitNumber: 'asc' }],
         skip: (page - 1) * limit,
@@ -228,6 +229,7 @@ export class UnitsService {
         unitTypeRef:  true,
         meters:       { where: { isActive: true } },
         amenities:    true,
+        shopProfile:  { select: { brandName: true, tradeCategory: true, shopNumber: true } },
         statusHistory: {
           include: {
             changedByUser: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
@@ -279,6 +281,57 @@ export class UnitsService {
     });
     if (!unit) throw AppError.notFound('Unit');
     this.assertFloorAllowed(floorScope, unit.floorNumber);
+
+    // If unit doesn't have a shopProfile brandName yet, check its latest non-cancelled lease / converted lead
+    if (!unit.shopProfile?.brandName && unit.leases && unit.leases.length > 0) {
+      const targetLease = unit.leases.find((l) => l.status !== 'cancelled') || unit.leases[0];
+      if (targetLease) {
+        let fallbackShopName = '';
+        try {
+          const raRows = await prisma.$queryRaw<Array<{ rental_agreement: any }>>`
+            SELECT "rental_agreement" FROM "leases" WHERE "id" = ${targetLease.id}::uuid
+          `;
+          fallbackShopName = (raRows[0]?.rental_agreement?.shopName || '').trim();
+        } catch (_e) {}
+
+        if (!fallbackShopName) {
+          const convertedLead = await prisma.lead.findFirst({
+            where: {
+              companyId: unit.companyId,
+              deletedAt: null,
+              OR: [
+                { convertedLeaseId: targetLease.id },
+                ...(targetLease.tenant?.id ? [{ convertedTenantId: targetLease.tenant.id }] : []),
+              ],
+            },
+            select: { companyName: true, loiDetails: true },
+            orderBy: { updatedAt: 'desc' },
+          });
+          fallbackShopName = ((convertedLead?.loiDetails as any)?.shopName || convertedLead?.companyName || '').trim();
+        }
+
+        if (fallbackShopName) {
+          const synced = await prisma.shopProfile.upsert({
+            where: { unitId: unit.id },
+            create: {
+              unitId: unit.id,
+              companyId: unit.companyId,
+              propertyId: unit.propertyId,
+              brandName: fallbackShopName,
+              shopNumber: unit.unitNumber,
+              tradeCategory: unit.zone || 'Other',
+            },
+            update: {
+              brandName: fallbackShopName,
+              ...(unit.zone ? { tradeCategory: unit.zone } : {}),
+            },
+            select: { brandName: true, tradeCategory: true, shopNumber: true },
+          });
+          (unit as any).shopProfile = synced;
+        }
+      }
+    }
+
     return unit;
   }
   // ── Check conflicts (case-insensitive) ─────
@@ -295,7 +348,7 @@ export class UnitsService {
 
   // ── Create ─────────────────────────────────
   async create(propertyId: string, companyId: string, dto: Record<string, unknown>, userId: string, floorScope?: number[] | null) {
-    const { amenities, ...unitData } = dto;
+    const { amenities, shopName, ...unitData } = dto;
 
     this.assertFloorAllowed(floorScope, unitData.floorNumber);
     autoConvertArea(unitData);
@@ -316,6 +369,25 @@ export class UnitsService {
           : undefined,
       },
     });
+
+    const trimmedShopName = typeof shopName === 'string' ? shopName.trim() : '';
+    if (trimmedShopName) {
+      await prisma.shopProfile.upsert({
+        where: { unitId: unit.id },
+        create: {
+          unitId: unit.id,
+          companyId,
+          propertyId,
+          brandName: trimmedShopName,
+          shopNumber: unit.unitNumber,
+          tradeCategory: unit.zone || 'Other',
+        },
+        update: {
+          brandName: trimmedShopName,
+          ...(unit.zone ? { tradeCategory: unit.zone } : {}),
+        },
+      });
+    }
 
     // Record initial status
     await prisma.unitStatusHistory.create({
@@ -453,7 +525,7 @@ export class UnitsService {
       throw new AppError(403, 'PARKING_UNIT_LOCKED', 'This unit has zones/slots created under Parking Management and cannot be updated here');
     }
 
-    const { amenities, ...unitData } = dto;
+    const { amenities, shopName, ...unitData } = dto;
     this.assertFloorAllowed(floorScope, unitData.floorNumber);
     autoConvertArea(unitData);
 
@@ -467,6 +539,40 @@ export class UnitsService {
     }
 
     const updatedUnit = await prisma.unit.update({ where: { id: unitId }, data: unitData as any });
+
+    if (shopName !== undefined) {
+      const trimmedShopName = typeof shopName === 'string' ? shopName.trim() : '';
+      if (trimmedShopName) {
+        await prisma.shopProfile.upsert({
+          where: { unitId },
+          create: {
+            unitId,
+            companyId: unit.companyId,
+            propertyId,
+            brandName: trimmedShopName,
+            shopNumber: updatedUnit.unitNumber,
+            tradeCategory: updatedUnit.zone || 'Other',
+          },
+          update: {
+            brandName: trimmedShopName,
+            ...(unitData.zone !== undefined ? { tradeCategory: updatedUnit.zone || 'Other' } : {}),
+          },
+        });
+      } else {
+        await prisma.shopProfile.updateMany({
+          where: { unitId },
+          data: {
+            brandName: null,
+            ...(unitData.zone !== undefined ? { tradeCategory: updatedUnit.zone || 'Other' } : {}),
+          },
+        });
+      }
+    } else if (unitData.zone !== undefined) {
+      await prisma.shopProfile.updateMany({
+        where: { unitId },
+        data: { tradeCategory: updatedUnit.zone || 'Other' },
+      });
+    }
 
     // Recalculate any per_sqft unit charges when areaSqft changes
     if (unitData.areaSqft !== undefined && Number(unitData.areaSqft) !== Number(unit.areaSqft)) {
@@ -741,15 +847,8 @@ export class UnitsService {
     if (!unit) throw AppError.notFound('Unit');
     this.assertFloorAllowed(floorScope, unit.floorNumber);
 
-    // Store using local storage (same as documents pattern)
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const uploadDir = path.join(process.cwd(), 'uploads', 'units', propertyId, unitId);
-    await fs.mkdir(uploadDir, { recursive: true });
-    const ext = path.extname(file.originalname);
-    const filename = `floor-plan${ext}`;
-    await fs.writeFile(path.join(uploadDir, filename), file.buffer);
-    const floorPlanUrl = `/uploads/units/${propertyId}/${unitId}/${filename}`;
+    const { persistUploadedFile } = await import('../../common/upload');
+    const floorPlanUrl = await persistUploadedFile(file, `units/${propertyId}/${unitId}`);
 
     return prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl } });
   }

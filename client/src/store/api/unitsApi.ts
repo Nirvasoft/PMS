@@ -141,6 +141,7 @@ export interface UnitListItem {
   section: { id: string; name: string } | null;
   meters: Array<{ meterType: string; meterSerialNo: string }>;
   amenities: Array<{ amenity: string }>;
+  shopProfile?: { brandName: string | null; tradeCategory: string | null; shopNumber: string | null } | null;
 }
 
 export interface UnitDetail extends UnitListItem {

@@ -272,6 +272,34 @@ export class LeasesService {
       await prisma.$executeRaw`UPDATE "leases" SET "rental_agreement" = ${JSON.stringify(rentalAgreement)}::jsonb WHERE "id" = ${lease.id}::uuid`;
     }
 
+    // Sync Shop Name from rentalAgreement (or converted lead) to P-Unit's shopProfile
+    let resolvedLeaseShopName = typeof rentalAgreement?.shopName === 'string' ? rentalAgreement.shopName.trim() : '';
+    if (!resolvedLeaseShopName && tenantId) {
+      const convertedLead = await prisma.lead.findFirst({
+        where: { companyId, convertedTenantId: tenantId, deletedAt: null },
+        select: { companyName: true, loiDetails: true },
+        orderBy: { updatedAt: 'desc' },
+      });
+      resolvedLeaseShopName = ((convertedLead?.loiDetails as any)?.shopName || convertedLead?.companyName || '').trim();
+    }
+    if (resolvedLeaseShopName) {
+      await prisma.shopProfile.upsert({
+        where: { unitId },
+        create: {
+          unitId,
+          companyId,
+          propertyId,
+          brandName: resolvedLeaseShopName,
+          shopNumber: unit.unitNumber,
+          tradeCategory: unit.zone || 'Other',
+        },
+        update: {
+          brandName: resolvedLeaseShopName,
+          ...(unit.zone ? { tradeCategory: unit.zone } : {}),
+        },
+      });
+    }
+
     // paymentType / partialAmount — written via raw SQL so they work even if
     // the Prisma client was generated before the migration ran.
     const pt = paymentType || 'fully';

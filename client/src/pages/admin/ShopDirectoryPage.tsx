@@ -80,7 +80,15 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const { data: mixData } = useGetTenantMixQuery({ propertyId }, { skip: !propertyId });
   const [upsertProfile, { isLoading: isSaving }] = useUpsertShopProfileMutation();
   const { data: availRes } = useGetAvailableUnitsQuery({ propertyId }, { skip: !propertyId || !showCreateShop });
-  const availableUnits = availRes?.data || [];
+
+  const allShops = shopsData?.data || [];
+  const mix = mixData?.data;
+
+  const availableUnits = useMemo(() => {
+    const raw = availRes?.data || [];
+    const takenUnitIds = new Set(allShops.map((s: any) => s.unitId));
+    return raw.filter((u: any) => u.status === 'occupied' && !takenUnitIds.has(u.id));
+  }, [availRes?.data, allShops]);
 
   const availableFloors = useMemo(() => extractFloors(availableUnits), [availableUnits]);
 
@@ -105,9 +113,6 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   );
   const [upsertLease, { isLoading: isSavingLease }] = useUpsertCommercialLeaseMutation();
   const commercialLease = clData?.data;
-
-  const allShops = shopsData?.data || [];
-  const mix = mixData?.data;
 
   const shopFloors = useMemo(() => extractFloors(allShops.map((s: any) => s.unit)), [allShops]);
 

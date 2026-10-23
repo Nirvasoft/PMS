@@ -63,6 +63,7 @@ export const mallApi = createApi({
     }),
     getAvailableUnits: builder.query<any, { propertyId: string }>({
       query: ({ propertyId }) => ({ url: '/shops/available-units', params: { propertyId } }),
+      providesTags: ['Shops'],
     }),
 
     // ── Commercial Leases ──

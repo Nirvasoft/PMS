@@ -98,7 +98,9 @@ async function bootstrap() {
   httpServer.requestTimeout = 300_000;
 
   // Global middleware
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
   app.use(cors({
     origin: config.frontendUrl,
     credentials: true,
@@ -114,6 +116,7 @@ async function bootstrap() {
   app.use('/api/v1/uploads', express.static(path.join(process.cwd(), 'uploads')));
   app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos')));
   app.use('/storage', express.static(path.join(process.cwd(), 'storage')));
+  app.use('/api/v1/storage', express.static(path.join(process.cwd(), 'storage')));
 
   // Public API routes (no auth required)
   app.get('/api/v1/health', (_req, res) => {

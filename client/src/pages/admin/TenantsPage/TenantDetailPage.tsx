@@ -52,7 +52,9 @@ export default function TenantDetailPage() {
       await uploadAvatar({ id, file }).unwrap();
       toast.success('Avatar updated successfully');
     } catch (err: any) {
-      toast.error(err.data?.errors?.[0]?.message || 'Failed to upload avatar');
+      toast.error(err?.data?.errors?.[0]?.message || 'Failed to upload avatar');
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -91,7 +93,14 @@ export default function TenantDetailPage() {
               </div>
             )}
             {canEditAvatar && (
-              <input type="file" ref={avatarInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleAvatarUpload} />
+              <input
+                type="file"
+                ref={avatarInputRef}
+                style={{ display: 'none' }}
+                accept="image/*"
+                onClick={(e) => e.stopPropagation()}
+                onChange={handleAvatarUpload}
+              />
             )}
           </div>
           <div className="td-info">
