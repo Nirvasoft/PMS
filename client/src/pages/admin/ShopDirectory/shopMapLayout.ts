@@ -71,6 +71,10 @@ export function unitNumberOf(shop: any): string {
   return shop?.unit?.unitNumber || shop?.shopNumber || '';
 }
 
+export function compareShopsByUnitNumber(a: any, b: any): number {
+  return unitNumberOf(a).localeCompare(unitNumberOf(b), undefined, { numeric: true });
+}
+
 export function shopDisplayName(shop: any, fallback = ''): string {
   const name = typeof shop?.brandName === 'string' ? shop.brandName.trim() : '';
   return name || unitNumberOf(shop) || fallback;
@@ -86,6 +90,19 @@ export function matchesShopQuery(shop: any, query: string): boolean {
     (shop?.franchiseGroup || '').toLowerCase().includes(q) ||
     (shop?.unit?.unitNumber || '').toLowerCase().includes(q)
   );
+}
+
+export function scoreShopSearchMatch(shop: any, query: string): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return 0;
+  const brand = (shop?.brandName || '').trim().toLowerCase();
+  const unitNo = unitNumberOf(shop).toLowerCase();
+  const shopNo = (shop?.shopNumber || '').trim().toLowerCase();
+  if (unitNo === q || brand === q || shopNo === q) return 4;
+  if (unitNo.startsWith(q) || brand.startsWith(q) || shopNo.startsWith(q)) return 3;
+  if (unitNo.includes(q) || brand.includes(q) || shopNo.includes(q)) return 2;
+  if (matchesShopQuery(shop, q)) return 1;
+  return 0;
 }
 
 /**
@@ -625,42 +642,57 @@ function buildDecorMapItem(it: any, seq: number): MapItem {
   };
 }
 
+function extractSavedDecorAndUnitEntries(saved: any[]): {
+  decorItems: MapItem[];
+  decorSeq: number;
+  unitEntries: any[];
+} {
+  const decorItems: MapItem[] = [];
+  const unitEntries: any[] = [];
+  let d = 1;
+  let hasMarker = false;
+
+  for (const it of saved) {
+    if (it.kind === 'unit') {
+      unitEntries.push(it);
+    } else {
+      if (it.kind === 'marker') {
+        if (hasMarker) continue;
+        hasMarker = true;
+      }
+      decorItems.push(buildDecorMapItem(it, d++));
+    }
+  }
+  return { decorItems, decorSeq: d, unitEntries };
+}
+
 export function parseFloorPlanData(
   planData: any,
   shopByUnit: Map<string, any>,
 ): { sqftPerCell: number; columns: number; decorSeq: number; items: MapItem[] } {
   const { spc, cols, saved } = extractSavedPlanBase(planData);
-  const next: MapItem[] = [];
-  let d = 1;
-  let hasMarker = false;
+  const { decorItems, decorSeq, unitEntries } = extractSavedDecorAndUnitEntries(saved);
+  const next: MapItem[] = [...decorItems];
 
-  saved.forEach((it) => {
-    if (it.kind === 'unit') {
-      const shop = shopByUnit.get(it.unitId);
-      if (!shop) return;
-      const size = sizeUnitTile({ w: it.w, h: it.h }, shop.unit?.areaSqft, spc, cols);
-      next.push({
-        key: unitKey(it.unitId),
-        kind: 'unit',
-        unitId: it.unitId,
-        label: it.label ?? null,
-        x: it.x,
-        y: it.y,
-        ...size,
-      });
-    } else {
-      if (it.kind === 'marker') {
-        if (hasMarker) return;
-        hasMarker = true;
-      }
-      next.push(buildDecorMapItem(it, d++));
-    }
-  });
+  for (const it of unitEntries) {
+    const shop = shopByUnit.get(it.unitId);
+    if (!shop) continue;
+    const size = sizeUnitTile({ w: it.w, h: it.h }, shop.unit?.areaSqft, spc, cols);
+    next.push({
+      key: unitKey(it.unitId),
+      kind: 'unit',
+      unitId: it.unitId,
+      label: it.label ?? null,
+      x: it.x,
+      y: it.y,
+      ...size,
+    });
+  }
 
   return {
     sqftPerCell: spc,
     columns: cols,
-    decorSeq: d,
+    decorSeq,
     items: resolveOverlaps(next, cols),
   };
 }
@@ -689,38 +721,25 @@ export function buildCopiedFloorLayout(
   includeUnits = true,
 ): { sqftPerCell: number; columns: number; decorSeq: number; items: MapItem[]; matchedUnits: number } {
   const { spc, cols, saved } = extractSavedPlanBase(sourcePlanData);
-  const next: MapItem[] = [];
-  let d = 1;
-  let hasMarker = false;
+  const { decorItems, decorSeq, unitEntries } = extractSavedDecorAndUnitEntries(saved);
+  const next: MapItem[] = [...decorItems];
 
-  const sourceUnitSlots: Array<{ x: number; y: number; w: number; h: number; suffix: string; orderKey: string }> = [];
-
-  saved.forEach((it) => {
-    if (it.kind === 'unit') {
-      const srcShop = it.unitId ? allShopByUnit.get(it.unitId) : null;
-      const srcNum = unitNumberOf(srcShop);
-      sourceUnitSlots.push({
-        x: Number(it.x) || 0,
-        y: Number(it.y) || 0,
-        w: Math.max(1, Number(it.w) || 5),
-        h: Math.max(1, Number(it.h) || 3),
-        suffix: srcNum ? unitSuffixKey(srcNum) : '',
-        orderKey: srcNum || `${String(it.y).padStart(4, '0')}:${String(it.x).padStart(4, '0')}`,
-      });
-    } else {
-      if (it.kind === 'marker') {
-        if (hasMarker) return;
-        hasMarker = true;
-      }
-      next.push(buildDecorMapItem(it, d++));
-    }
+  const sourceUnitSlots = unitEntries.map((it) => {
+    const srcShop = it.unitId ? allShopByUnit.get(it.unitId) : null;
+    const srcNum = unitNumberOf(srcShop);
+    return {
+      x: Number(it.x) || 0,
+      y: Number(it.y) || 0,
+      w: Math.max(1, Number(it.w) || 5),
+      h: Math.max(1, Number(it.h) || 3),
+      suffix: srcNum ? unitSuffixKey(srcNum) : '',
+      orderKey: srcNum || `${String(it.y).padStart(4, '0')}:${String(it.x).padStart(4, '0')}`,
+    };
   });
 
   let matchedUnits = 0;
   if (includeUnits && targetFloorShops.length > 0) {
-    const sortedTargetShops = [...targetFloorShops].sort((a, b) =>
-      unitNumberOf(a).localeCompare(unitNumberOf(b), undefined, { numeric: true }),
-    );
+    const sortedTargetShops = [...targetFloorShops].sort(compareShopsByUnitNumber);
     const sortedSlots = [...sourceUnitSlots].sort((a, b) =>
       a.orderKey.localeCompare(b.orderKey, undefined, { numeric: true }),
     );
@@ -766,7 +785,7 @@ export function buildCopiedFloorLayout(
   return {
     sqftPerCell: spc,
     columns: cols,
-    decorSeq: d,
+    decorSeq,
     items: resolveOverlaps(next, cols),
     matchedUnits,
   };

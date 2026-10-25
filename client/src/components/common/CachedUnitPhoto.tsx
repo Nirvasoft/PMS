@@ -27,8 +27,6 @@ export interface CachedUnitPhotoProps {
   wrapperAs?: 'div' | 'span';
   wrapperClassName?: string;
   loading?: 'lazy' | 'eager';
-  readyClassName?: string;
-  loadingClassName?: string;
   forceLoading?: boolean;
 }
 
@@ -45,8 +43,6 @@ export function CachedUnitPhoto({
   wrapperAs,
   wrapperClassName,
   loading = 'lazy',
-  readyClassName = 'is-ready',
-  loadingClassName = 'is-loading',
   forceLoading = false,
 }: CachedUnitPhotoProps) {
   const [domLoadedUrl, setDomLoadedUrl] = useState<string | null>(null);
@@ -69,7 +65,7 @@ export function CachedUnitPhoto({
         <img
           src={src}
           alt={alt}
-          className={`${imgClassName} ${isReady ? readyClassName : loadingClassName}`}
+          className={`${imgClassName} ${isReady ? 'is-ready' : 'is-loading'}`}
           loading={loading}
           decoding="async"
           onLoad={() => {

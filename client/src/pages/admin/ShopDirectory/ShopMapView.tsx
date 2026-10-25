@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import ReactGridLayout, { useContainerWidth, getCompactor } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import {
   RotateCw, X, Pencil, Save, Plus, Maximize2, Trash2, LayoutGrid,
   Map as MapIcon, QrCode, Navigation, MapPin,
-  Printer, Copy, ExternalLink, Info, ArrowRight, Camera, WifiOff,
+  Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
@@ -18,8 +18,8 @@ import {
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
-  SHOP_CATEGORIES, findFreeSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
-  tileSizeFromSqft, unitKey, unitNumberOf, shopDisplayName,
+  SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
+  tileSizeFromSqft, unitKey, unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
   computeWalkwayPath, findDefaultStartItem, findNearestFacilityItem,
   rotateMapLayout, parseRotationAngle, getCorridorMergeData,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
@@ -30,14 +30,13 @@ import {
   preloadUnitPhotosBatch,
 } from '../../../utils/unitPhotoCache';
 import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
-import { QrScannerModal } from '../../../components/common/QrScannerModal';
 import './ShopMapView.css';
 
 interface Props {
   shops: any[];
   propertyId: string | undefined | null;
   propertyName?: string;
-  matches: (shop: any) => boolean;
+  searchQuery?: string;
   onOpenShop: (shop: any) => void;
   fullScreen?: boolean;
   initialFloor?: string;
@@ -238,7 +237,7 @@ export default function ShopMapView({
   shops,
   propertyId,
   propertyName,
-  matches,
+  searchQuery = '',
   onOpenShop,
   fullScreen = false,
   initialFloor,
@@ -324,7 +323,6 @@ export default function ShopMapView({
   const [showFloorQrModal, setShowFloorQrModal] = useState(false);
   const [qrModalFloor, setQrModalFloor] = useState<string>('');
   const [showRouteQrModal, setShowRouteQrModal] = useState(false);
-  const [showQrScannerModal, setShowQrScannerModal] = useState(false);
   const [viewport, setViewport] = useState(() => ({
     w: typeof window !== 'undefined' ? window.innerWidth : 1280,
     h: typeof window !== 'undefined' ? window.innerHeight : 800,
@@ -397,12 +395,7 @@ export default function ShopMapView({
 
   const placedUnitIds = useMemo(() => new Set(items.filter((i) => i.unitId).map((i) => i.unitId as string)), [items]);
   const placedShops = useMemo(
-    () =>
-      floorShops
-        .filter((s) => placedUnitIds.has(s.unitId))
-        .sort((a, b) =>
-          unitNumberOf(a).localeCompare(unitNumberOf(b), undefined, { numeric: true }),
-        ),
+    () => floorShops.filter((s) => placedUnitIds.has(s.unitId)).sort(compareShopsByUnitNumber),
     [floorShops, placedUnitIds],
   );
   const otherFloorShops = useMemo(
@@ -494,6 +487,76 @@ export default function ShopMapView({
       }
     }
   }, [crossFloorUnitId, floor, displayItems, allShopByUnit]);
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const hasActiveSearch = Boolean(!editing && normalizedSearch.length > 0);
+  const searchRoutedRef = useRef(false);
+  const lastScrolledKeyRef = useRef('');
+
+  // When searching for a unit/shop, automatically switch to its floor if needed
+  useEffect(() => {
+    if (!hasActiveSearch) {
+      if (searchRoutedRef.current) {
+        searchRoutedRef.current = false;
+        lastScrolledKeyRef.current = '';
+        setTargetKey('');
+        setCrossFloorUnitId(null);
+      }
+      return;
+    }
+    const matched = shops
+      .map((s) => ({
+        shop: s,
+        score: scoreShopSearchMatch(s, normalizedSearch),
+        onCurrentFloor: floorKeyOf(s) === floor ? 1 : 0,
+      }))
+      .filter((x) => x.score > 0)
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.onCurrentFloor - a.onCurrentFloor ||
+          compareShopsByUnitNumber(a.shop, b.shop),
+      );
+    if (matched.length === 0) return;
+    const bestFloor = floorKeyOf(matched[0].shop);
+    if (bestFloor && bestFloor !== floor && floors.includes(bestFloor)) {
+      setFloor(bestFloor);
+    }
+  }, [hasActiveSearch, normalizedSearch, shops, floor, floors]);
+
+  // Once on the floor, route to the best matched unit and scroll the map to its tile
+  useEffect(() => {
+    if (!hasActiveSearch) return;
+    const placedMatches = displayItems
+      .filter((it) => it.kind === 'unit' && it.unitId)
+      .map((it) => {
+        const s = shopByUnit.get(it.unitId as string);
+        const score = s ? scoreShopSearchMatch(s, normalizedSearch) : 0;
+        return score > 0 ? { item: it, shop: s, score } : null;
+      })
+      .filter((x): x is { item: MapItem; shop: any; score: number } => Boolean(x))
+      .sort((a, b) => b.score - a.score || compareShopsByUnitNumber(a.shop, b.shop));
+
+    if (placedMatches.length === 0) return;
+    const bestKey = placedMatches[0].item.key;
+    searchRoutedRef.current = true;
+    setCrossFloorUnitId(null);
+    if (targetKey !== bestKey) {
+      setTargetKey(bestKey);
+    }
+
+    const scrollSig = `${floor}:${bestKey}:${normalizedSearch}`;
+    if (lastScrolledKeyRef.current !== scrollSig) {
+      lastScrolledKeyRef.current = scrollSig;
+      requestAnimationFrame(() => {
+        const wrapEl = containerRef.current;
+        const tileEl = wrapEl?.querySelector(`[data-tile-key="${bestKey}"]`) as HTMLElement | null;
+        if (tileEl) {
+          tileEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }
+      });
+    }
+  }, [hasActiveSearch, normalizedSearch, displayItems, shopByUnit, floor, targetKey, containerRef]);
 
   const crossFloorShop = useMemo(
     () => (crossFloorUnitId ? allShopByUnit.get(crossFloorUnitId) || null : null),
@@ -730,41 +793,9 @@ export default function ShopMapView({
 
   const [mapView, setMapView] = useState<'default' | 'photo'>(() => {
     const v = new URLSearchParams(window.location.search).get('view');
-    return v === 'photo' ? 'photo' : 'default';
+    if (v === 'photo' || v === 'default') return v;
+    return publicMode ? 'photo' : 'default';
   });
-
-  const handleQrDetected = (rawValue: string) => {
-    try {
-      const parsed = rawValue.startsWith('http')
-        ? new URL(rawValue)
-        : new URL(rawValue, window.location.origin);
-      const scannedPropertyId = parsed.searchParams.get('propertyId');
-      const scannedFloor = parsed.searchParams.get('floor');
-      const scannedFrom = parsed.searchParams.get('from');
-      const scannedTo = parsed.searchParams.get('to');
-      const scannedRotate = parsed.searchParams.get('rotate');
-      const scannedView = parsed.searchParams.get('view');
-
-      if (scannedPropertyId && propertyId && scannedPropertyId !== propertyId && publicMode) {
-        setShowQrScannerModal(false);
-        window.location.href = parsed.toString();
-        return;
-      }
-
-      if (scannedFloor && floors.includes(scannedFloor)) {
-        setFloor(scannedFloor);
-      }
-      if (scannedFrom !== null) setCustomStartKey(scannedFrom);
-      if (scannedTo !== null) setTargetKey(scannedTo);
-      if (scannedRotate !== null) setMapRotation(parseRotationAngle(scannedRotate));
-      if (scannedView === 'photo' || scannedView === 'default') setMapView(scannedView);
-
-      setShowQrScannerModal(false);
-      toast.success(scannedFloor ? `Loaded ${scannedFloor} from QR code` : 'QR code applied');
-    } catch {
-      toast.error('Invalid QR code link');
-    }
-  };
 
   const openFullScreenTab = () => {
     const params = new URLSearchParams();
@@ -781,24 +812,24 @@ export default function ShopMapView({
   };
 
   const activeQrFloor = qrModalFloor || floor;
-  const floorQrUrl = useMemo(() => {
-    if (!propertyId || !activeQrFloor) return '';
-    const params = new URLSearchParams();
-    params.set('propertyId', propertyId);
-    params.set('floor', activeQrFloor);
+  const buildPublicNavUrl = (targetFloor: string, extra?: Record<string, string>) => {
+    if (!propertyId || !targetFloor) return '';
+    const params = new URLSearchParams({ propertyId, floor: targetFloor, view: 'photo', ...extra });
     if (mapRotation) params.set('rotate', String(mapRotation));
     return `${window.location.origin}/mall/navigate?${params.toString()}`;
-  }, [propertyId, activeQrFloor, mapRotation]);
+  };
+
+  const floorQrUrl = useMemo(
+    () => buildPublicNavUrl(activeQrFloor),
+    [propertyId, activeQrFloor, mapRotation],
+  );
 
   const routeQrUrl = useMemo(() => {
-    if (!propertyId || !floor || !activeStartItem || !effectiveTargetItem) return '';
-    const params = new URLSearchParams();
-    params.set('propertyId', propertyId);
-    params.set('floor', floor);
-    params.set('from', activeStartItem.key);
-    params.set('to', effectiveTargetItem.key);
-    if (mapRotation) params.set('rotate', String(mapRotation));
-    return `${window.location.origin}/mall/navigate?${params.toString()}`;
+    if (!activeStartItem || !effectiveTargetItem) return '';
+    return buildPublicNavUrl(floor, {
+      from: activeStartItem.key,
+      to: effectiveTargetItem.key,
+    });
   }, [propertyId, floor, activeStartItem, effectiveTargetItem, mapRotation]);
 
   const { data: floorQrRes } = useGetMallQrCodeQuery(
@@ -860,7 +891,7 @@ export default function ShopMapView({
   const tileActionIconPx = isMobile ? 8 : 9;
 
   return (
-    <div className={`shop-map ${fullScreen ? 'shop-map-fullscreen' : ''} ${mapView === 'photo' ? 'shop-map-view2' : 'shop-map-view1'}`}>
+    <div className={`shop-map ${fullScreen ? 'shop-map-fullscreen' : ''} ${mapView === 'photo' ? 'shop-map-view2' : ''}`}>
       <div className="shop-map-toolbar">
         <div className="shop-map-toolbar-left">
           <select
@@ -900,16 +931,6 @@ export default function ShopMapView({
               title="Rotate map"
             >
               <RotateCw size={toolbarIconPx} /> Rotate{mapRotation !== 0 ? ` (${mapRotation}°)` : ''}
-            </button>
-          )}
-          {!editing && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setShowQrScannerModal(true)}
-              title="Scan Floor or Route QR Code with Camera"
-            >
-              <Camera size={toolbarIconPx} /> Scan QR
             </button>
           )}
           {!publicMode && (
@@ -1255,9 +1276,14 @@ export default function ShopMapView({
                 {displayItems.map((it) => {
                   const shop = it.unitId ? shopByUnit.get(it.unitId) : null;
                   const decor = it.kind !== 'unit';
+                  const isSearchMatch = Boolean(hasActiveSearch && !decor && shop && matchesShopQuery(shop, normalizedSearch));
                   const isTarget = Boolean(!editing && effectiveTargetItem && it.key === effectiveTargetItem.key);
-                  const isStart = Boolean(!editing && activeStartItem && it.key === activeStartItem.key);
-                  const dim = !decor && shop ? !matches(shop) : false;
+                  const isStart = Boolean(!editing && isRoutingActive && !hasActiveSearch && activeStartItem && it.key === activeStartItem.key);
+                  const dim = Boolean(
+                    !editing &&
+                      hasActiveSearch &&
+                      (decor ? it.kind !== 'corridor' : !isSearchMatch),
+                  );
                   const wPx = Math.max(1, it.w * cellPx);
                   const hPx = Math.max(1, it.h * cellPx);
                   const isVerticalTile = !decor && it.h > it.w;
@@ -1301,8 +1327,9 @@ export default function ShopMapView({
                   return (
                     <div
                       key={it.key}
+                      data-tile-key={it.key}
                       title={title}
-                      className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
+                      className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${isSearchMatch ? 'search-match' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
                       onClick={(e) => {
                         if (editing) return;
                         e.stopPropagation();
@@ -1379,7 +1406,6 @@ export default function ShopMapView({
                               alt={tileDisplayLabel}
                               imgClassName="shop-map-tile-photo"
                               skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
-                              readyClassName="is-loaded"
                               loading="eager"
                             />
                           )}
@@ -1434,11 +1460,11 @@ export default function ShopMapView({
           {!editing && (placedCategories.length > 0 || placedDecorKinds.length > 0) && (
             <div className="shop-map-directory-overlays" onClick={(e) => e.stopPropagation()}>
               {placedDecorKinds.length > 0 && (
-                <div className="shop-map-landmarks-bar">
+                <div className={`shop-map-landmarks-bar ${hasActiveSearch ? 'dim' : ''}`}>
                   {placedDecorKinds.map((kind) => (
                     <div
                       key={`decor-${kind}`}
-                      className="shop-map-landmark-item clickable"
+                      className={`shop-map-landmark-item ${kind !== 'corridor' ? 'clickable' : ''}`}
                       onClick={() => {
                         if (kind !== 'corridor') handleQuickFacility([kind]);
                       }}
@@ -1475,10 +1501,12 @@ export default function ShopMapView({
                         {catShops.map((s) => {
                           const uKey = unitKey(s.unitId);
                           const isSelected = targetKey === uKey || selectedUnitId === s.unitId;
+                          const isRowMatch = Boolean(hasActiveSearch && matchesShopQuery(s, normalizedSearch));
+                          const isRowDim = Boolean(hasActiveSearch && !isRowMatch);
                           return (
                             <div
                               key={s.unitId}
-                              className={`shop-map-cat-row ${isSelected ? 'active' : ''}`}
+                              className={`shop-map-cat-row ${isSelected ? 'active' : ''} ${isRowMatch ? 'search-match' : ''} ${isRowDim ? 'dim' : ''}`}
                               onClick={() => {
                                 setCrossFloorUnitId(null);
                                 setTargetKey((prev) => (prev === uKey ? '' : uKey));
@@ -1649,12 +1677,6 @@ export default function ShopMapView({
         </div>,
         document.body,
       )}
-
-      <QrScannerModal
-        open={showQrScannerModal}
-        onClose={() => setShowQrScannerModal(false)}
-        onDetected={handleQrDetected}
-      />
     </div>
   );
 }

@@ -131,11 +131,15 @@ function daysUntil(dateStr: string) {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
+function unitFloorFilterKey(u: any): string {
+  return String(u?.floorNumber ?? u?.floorLabel ?? '1');
+}
+
 function extractFloors(units: any[]) {
   const map = new Map<string, { value: string; label: string; floorNumber: number }>();
   for (const u of units) {
     if (!u) continue;
-    const key = String(u.floorNumber ?? u.floorLabel ?? '1');
+    const key = unitFloorFilterKey(u);
     if (!map.has(key)) {
       map.set(key, {
         value: key,
@@ -236,7 +240,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
 
   const filteredAvailableUnits = useMemo(() => {
     return availableUnits.filter((u: any) => {
-      if (unitFloorFilter && String(u.floorNumber ?? u.floorLabel ?? '1') !== unitFloorFilter) {
+      if (unitFloorFilter && unitFloorFilterKey(u) !== unitFloorFilter) {
         return false;
       }
       if (!unitSearch.trim()) return true;
@@ -263,16 +267,10 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
     return allShops.filter((s: any) => {
       if (filters.tradeCategory && (s.tradeCategory || 'Other') !== filters.tradeCategory) return false;
       if (filters.isAnchor && !s.isAnchor) return false;
-      if (floorFilter) {
-        const u = s.unit;
-        const key = String(u?.floorNumber ?? u?.floorLabel ?? '1');
-        if (key !== floorFilter) return false;
-      }
+      if (floorFilter && unitFloorFilterKey(s.unit) !== floorFilter) return false;
       return matchesShopQuery(s, search);
     });
   }, [allShops, filters.tradeCategory, filters.isAnchor, floorFilter, search]);
-
-  const matchesMapSearch = (s: any) => matchesShopQuery(s, search);
 
   const openDetail = (shop: any) => setDetailShop(shop);
   const closeDetail = () => { setDetailShop(null); setShowLeaseEdit(false); };
@@ -681,7 +679,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
         <ShopMapView
           shops={allShops}
           propertyId={propertyId}
-          matches={matchesMapSearch}
+          searchQuery={search}
           onOpenShop={openDetail}
           fullScreen={fullScreenMap}
           initialFloor={initialFloor}

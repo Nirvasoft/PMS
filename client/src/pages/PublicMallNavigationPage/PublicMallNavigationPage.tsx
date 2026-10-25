@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Store, Search, X, MapPin, Tag, Star, Layers, Maximize2, Camera } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Store, Search, X, MapPin, Tag, Star, Layers, Maximize2 } from 'lucide-react';
 import { useGetPublicDirectoryQuery } from '../../store/api/mallApi';
 import { isUnitPhotoImage } from '../../utils/unitPhotoCache';
 import { CachedUnitPhoto, useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
-import { QrScannerModal } from '../../components/common/QrScannerModal';
 import ShopMapView from '../admin/ShopDirectory/ShopMapView';
 import {
   floorKeyOf,
   getCachedDirectory,
-  matchesShopQuery,
   saveCachedDirectory,
   shopDisplayName,
   unitNumberOf,
@@ -24,7 +21,6 @@ export default function PublicMallNavigationPage() {
 
   const [search, setSearch] = useState('');
   const [detailShop, setDetailShop] = useState<any>(null);
-  const [showQrScanner, setShowQrScanner] = useState(false);
 
   const { data, isLoading, isError } = useGetPublicDirectoryQuery(
     { propertyId },
@@ -44,20 +40,6 @@ export default function PublicMallNavigationPage() {
   const property = data?.data?.property ?? cachedDir?.property;
   const allShops = data?.data?.shops ?? cachedDir?.shops ?? [];
 
-  const handleQrDetected = (rawValue: string) => {
-    try {
-      const parsed = rawValue.startsWith('http')
-        ? new URL(rawValue)
-        : new URL(rawValue, window.location.origin);
-      setShowQrScanner(false);
-      window.location.href = parsed.toString();
-    } catch {
-      toast.error('Invalid QR code link');
-    }
-  };
-
-  const matchesMapSearch = (s: any) => matchesShopQuery(s, search);
-
   if (!propertyId) {
     return (
       <div className="shop-map-fullscreen-page public-mall-empty-page">
@@ -67,17 +49,7 @@ export default function PublicMallNavigationPage() {
           </div>
           <h4 className="shop-map-empty-title">Missing Property Link</h4>
           <p className="shop-map-empty-desc">Please scan a valid floor QR code to open the indoor navigation map.</p>
-          <div className="shop-map-empty-actions">
-            <button type="button" className="btn btn-primary" onClick={() => setShowQrScanner(true)}>
-              <Camera size={15} /> Scan Floor QR Code
-            </button>
-          </div>
         </div>
-        <QrScannerModal
-          open={showQrScanner}
-          onClose={() => setShowQrScanner(false)}
-          onDetected={handleQrDetected}
-        />
       </div>
     );
   }
@@ -137,7 +109,7 @@ export default function PublicMallNavigationPage() {
           shops={allShops}
           propertyId={propertyId}
           propertyName={property?.name}
-          matches={matchesMapSearch}
+          searchQuery={search}
           onOpenShop={(shop) => setDetailShop(shop)}
           fullScreen
           initialFloor={initialFloor}
@@ -168,7 +140,7 @@ export default function PublicMallNavigationPage() {
                   wrapperAs="div"
                   wrapperClassName="public-mall-shop-photo-wrap"
                   imgClassName="public-mall-shop-photo"
-                  skeletonClassName="shop-photo-skeleton"
+                  skeletonClassName="shop-map-tile-skeleton"
                   loading="eager"
                 />
               )}

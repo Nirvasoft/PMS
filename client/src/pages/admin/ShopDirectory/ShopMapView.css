@@ -189,7 +189,6 @@
 .shop-map-fullscreen .shop-map-tile {
   border-radius: 8px;
 }
-.shop-map-tile.dim { opacity: 0.22; }
 .shop-map-tile.editing { cursor: grab; }
 .shop-map-tile-name {
   font-weight: 700;
@@ -203,11 +202,7 @@
 .shop-map-tile.is-vertical-tile .shop-map-tile-name {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-height: 100%;
-  max-width: 100%;
   line-height: 1;
 }
 .shop-map-tile.tiny .shop-map-tile-name { display: none; }
@@ -298,17 +293,14 @@
 .shop-map-tile-photo.is-loading {
   opacity: 0;
 }
-.shop-map-tile-photo.is-loaded {
+.shop-map-tile-photo.is-ready {
   opacity: 1;
 }
 
 /* ── Distinct Decoration / Landmark Tiles ── */
-.shop-map-tile.st-decor {
+.shop-map-tile.st-decor:not(.editing) {
   cursor: default;
-  align-items: center;
-  justify-content: center;
 }
-.shop-map-tile.st-decor.editing { cursor: grab; }
 
 .shop-map-decor-badge {
   position: relative;
@@ -504,102 +496,250 @@
 [data-theme="light"] .shop-map-tile.st-decor-exit,
 [data-theme="light"] .shop-map-directory-marker-badge.lg-exit      { --decor-fg: #c2410c; --decor-bg: rgba(249, 115, 22, 0.14); }
 
-/* ── View 2: Cute 3D Cube Card + Soft Solid Color Fill for Landmarks ── */
-.shop-map-view2 .shop-map-tile:not(.st-decor) {
+/* ── View 2: 3D Crystal Glassmorphism for Units, Photos, Landmarks & Directory Cards ── */
+.shop-map-view2 .shop-map-canvas-wrap:not(.editing) {
+  background-image:
+    radial-gradient(circle at 18% 20%, rgba(16, 185, 129, 0.08) 0%, transparent 52%),
+    radial-gradient(circle at 82% 76%, rgba(59, 130, 246, 0.08) 0%, transparent 54%);
+}
+
+/* Status-tinted crystal glass variables for unit tiles (Dark Mode) */
+.shop-map-view2 .shop-map-tile.st-occupied {
+  --glass-fill-top: rgba(16, 185, 129, 0.24);
+  --glass-fill-bot: rgba(5, 150, 105, 0.10);
+  --glass-rim: rgba(110, 231, 183, 0.52);
+  --glass-lip: rgba(6, 95, 70, 0.68);
+}
+.shop-map-view2 .shop-map-tile.st-reserved {
+  --glass-fill-top: rgba(59, 130, 246, 0.24);
+  --glass-fill-bot: rgba(37, 99, 235, 0.10);
+  --glass-rim: rgba(147, 197, 253, 0.52);
+  --glass-lip: rgba(30, 64, 175, 0.68);
+}
+.shop-map-view2 .shop-map-tile.st-expiring {
+  --glass-fill-top: rgba(245, 158, 11, 0.25);
+  --glass-fill-bot: rgba(217, 119, 6, 0.10);
+  --glass-rim: rgba(252, 211, 77, 0.52);
+  --glass-lip: rgba(146, 64, 14, 0.68);
+}
+.shop-map-view2 .shop-map-tile.st-vacant {
+  --glass-fill-top: rgba(148, 163, 184, 0.20);
+  --glass-fill-bot: rgba(51, 65, 85, 0.12);
+  --glass-rim: rgba(226, 232, 240, 0.38);
+  --glass-lip: rgba(15, 23, 42, 0.62);
+}
+
+/* Status-tinted crystal glass variables for unit tiles (Light Mode) */
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-occupied {
+  --glass-fill-top: rgba(209, 250, 229, 0.62);
+  --glass-fill-bot: rgba(167, 243, 208, 0.34);
+  --glass-rim: rgba(52, 211, 153, 0.68);
+  --glass-lip: rgba(16, 185, 129, 0.52);
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-reserved {
+  --glass-fill-top: rgba(219, 234, 254, 0.64);
+  --glass-fill-bot: rgba(191, 219, 254, 0.36);
+  --glass-rim: rgba(96, 165, 250, 0.68);
+  --glass-lip: rgba(59, 130, 246, 0.52);
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-expiring {
+  --glass-fill-top: rgba(254, 243, 199, 0.66);
+  --glass-fill-bot: rgba(253, 230, 138, 0.38);
+  --glass-rim: rgba(251, 191, 36, 0.72);
+  --glass-lip: rgba(245, 158, 11, 0.55);
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-vacant {
+  --glass-fill-top: rgba(255, 255, 255, 0.68);
+  --glass-fill-bot: rgba(226, 232, 240, 0.42);
+  --glass-rim: rgba(148, 163, 184, 0.58);
+  --glass-lip: rgba(100, 116, 139, 0.48);
+}
+
+/* Translucent 3D crystal color palette per landmark in View 2 (Dark Mode) */
+.shop-map-view2 .shop-map-tile.st-decor-entrance,
+.shop-map-view2 .shop-map-directory-marker-badge.lg-entrance {
+  --glass-fill-top: rgba(16, 185, 129, 0.34);
+  --glass-fill-bot: rgba(5, 150, 105, 0.16);
+  --glass-rim: rgba(110, 231, 183, 0.58);
+  --glass-lip: rgba(6, 95, 70, 0.72);
+  --decor-fg: #ecfdf5;
+}
+.shop-map-view2 .shop-map-tile.st-decor-exit,
+.shop-map-view2 .shop-map-directory-marker-badge.lg-exit {
+  --glass-fill-top: rgba(249, 115, 22, 0.34);
+  --glass-fill-bot: rgba(234, 88, 12, 0.16);
+  --glass-rim: rgba(253, 186, 116, 0.58);
+  --glass-lip: rgba(154, 52, 18, 0.72);
+  --decor-fg: #fff7ed;
+}
+.shop-map-view2 .shop-map-tile.st-decor-toilet,
+.shop-map-view2 .shop-map-directory-marker-badge.lg-toilet {
+  --glass-fill-top: rgba(59, 130, 246, 0.34);
+  --glass-fill-bot: rgba(37, 99, 235, 0.16);
+  --glass-rim: rgba(147, 197, 253, 0.58);
+  --glass-lip: rgba(30, 64, 175, 0.72);
+  --decor-fg: #eff6ff;
+}
+.shop-map-view2 .shop-map-tile.st-decor-escalator,
+.shop-map-view2 .shop-map-directory-marker-badge.lg-escalator {
+  --glass-fill-top: rgba(6, 182, 212, 0.34);
+  --glass-fill-bot: rgba(8, 145, 178, 0.16);
+  --glass-rim: rgba(103, 232, 249, 0.58);
+  --glass-lip: rgba(21, 94, 117, 0.72);
+  --decor-fg: #ecfeff;
+}
+.shop-map-view2 .shop-map-tile.st-decor-stairs,
+.shop-map-view2 .shop-map-directory-marker-badge.lg-stairs {
+  --glass-fill-top: rgba(245, 158, 11, 0.34);
+  --glass-fill-bot: rgba(217, 119, 6, 0.16);
+  --glass-rim: rgba(252, 211, 77, 0.58);
+  --glass-lip: rgba(146, 64, 14, 0.72);
+  --decor-fg: #fffbeb;
+}
+.shop-map-view2 .shop-map-tile.st-decor-atrium,
+.shop-map-view2 .shop-map-directory-marker-badge.lg-atrium {
+  --glass-fill-top: rgba(139, 92, 246, 0.34);
+  --glass-fill-bot: rgba(124, 58, 237, 0.16);
+  --glass-rim: rgba(196, 181, 253, 0.58);
+  --glass-lip: rgba(76, 29, 149, 0.72);
+  --decor-fg: #f5f3ff;
+}
+.shop-map-view2 .shop-map-tile.st-decor-marker,
+.shop-map-view2 .shop-map-directory-marker-badge.lg-marker {
+  --glass-fill-top: rgba(236, 72, 153, 0.36);
+  --glass-fill-bot: rgba(219, 39, 119, 0.16);
+  --glass-rim: rgba(249, 168, 212, 0.62);
+  --glass-lip: rgba(131, 24, 67, 0.72);
+  --decor-fg: #fdf2f8;
+}
+
+/* Translucent 3D crystal color palette per landmark in View 2 (Light Mode) */
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-entrance,
+[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-entrance {
+  --glass-fill-top: rgba(209, 250, 229, 0.68);
+  --glass-fill-bot: rgba(167, 243, 208, 0.38);
+  --glass-rim: rgba(52, 211, 153, 0.68);
+  --glass-lip: rgba(16, 185, 129, 0.55);
+  --decor-fg: #065f46;
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-exit,
+[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-exit {
+  --glass-fill-top: rgba(255, 237, 213, 0.68);
+  --glass-fill-bot: rgba(254, 215, 170, 0.38);
+  --glass-rim: rgba(251, 146, 60, 0.68);
+  --glass-lip: rgba(249, 115, 22, 0.55);
+  --decor-fg: #9a3412;
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-toilet,
+[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-toilet {
+  --glass-fill-top: rgba(219, 234, 254, 0.68);
+  --glass-fill-bot: rgba(191, 219, 254, 0.38);
+  --glass-rim: rgba(96, 165, 250, 0.68);
+  --glass-lip: rgba(59, 130, 246, 0.55);
+  --decor-fg: #1e40af;
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-escalator,
+[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-escalator {
+  --glass-fill-top: rgba(207, 250, 254, 0.68);
+  --glass-fill-bot: rgba(165, 243, 252, 0.38);
+  --glass-rim: rgba(34, 211, 238, 0.68);
+  --glass-lip: rgba(6, 182, 212, 0.55);
+  --decor-fg: #155e75;
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-stairs,
+[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-stairs {
+  --glass-fill-top: rgba(254, 243, 199, 0.68);
+  --glass-fill-bot: rgba(253, 230, 138, 0.38);
+  --glass-rim: rgba(251, 191, 36, 0.72);
+  --glass-lip: rgba(245, 158, 11, 0.55);
+  --decor-fg: #92400e;
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-atrium,
+[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-atrium {
+  --glass-fill-top: rgba(237, 233, 254, 0.68);
+  --glass-fill-bot: rgba(221, 214, 254, 0.38);
+  --glass-rim: rgba(167, 139, 250, 0.68);
+  --glass-lip: rgba(139, 92, 246, 0.55);
+  --decor-fg: #5b21b6;
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-marker,
+[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-marker {
+  --glass-fill-top: rgba(252, 231, 243, 0.68);
+  --glass-fill-bot: rgba(251, 207, 232, 0.38);
+  --glass-rim: rgba(244, 114, 182, 0.68);
+  --glass-lip: rgba(236, 72, 153, 0.55);
+  --decor-fg: #9d174d;
+}
+
+/* Unified 3D Crystal Glass Block for all non-corridor tiles (Units & Landmarks) */
+.shop-map-view2 .shop-map-tile:not(.st-decor-corridor) {
   border-radius: 8px;
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.96) 0%, rgba(15, 23, 42, 0.98) 100%);
-  background-image: none;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-bottom: 3px solid rgba(2, 6, 23, 0.72);
-  border-right: 2px solid rgba(2, 6, 23, 0.56);
+  background: linear-gradient(
+    145deg,
+    var(--glass-fill-top, rgba(148, 163, 184, 0.20)) 0%,
+    var(--glass-fill-bot, rgba(30, 41, 59, 0.14)) 100%
+  );
+  backdrop-filter: blur(10px) saturate(148%);
+  -webkit-backdrop-filter: blur(10px) saturate(148%);
+  border-top: 1px solid var(--glass-rim, rgba(255, 255, 255, 0.42));
+  border-left: 1px solid var(--glass-rim, rgba(255, 255, 255, 0.32));
+  border-right: 2px solid var(--glass-lip, rgba(2, 6, 23, 0.55));
+  border-bottom: 3px solid var(--glass-lip, rgba(2, 6, 23, 0.68));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 4px 10px rgba(2, 6, 23, 0.34);
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 1px 0 0 rgba(255, 255, 255, 0.20),
+    0 4px 12px rgba(2, 6, 23, 0.24);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.shop-map-view2 .shop-map-tile:not(.st-decor):hover {
+.shop-map-view2 .shop-map-tile:not(.st-decor-corridor):hover {
   transform: translateY(-1.5px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    0 6px 14px rgba(2, 6, 23, 0.44);
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 1px 0 0 rgba(255, 255, 255, 0.28),
+    0 6px 16px rgba(2, 6, 23, 0.32);
 }
 
-[data-theme="light"] .shop-map-view2 .shop-map-tile:not(.st-decor) {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid #cbd5e1;
-  border-bottom: 3px solid #64748b;
-  border-right: 2px solid #94a3b8;
+[data-theme="light"] .shop-map-view2 .shop-map-tile:not(.st-decor-corridor) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 1px 0 0 rgba(255, 255, 255, 0.55),
+    0 4px 12px rgba(15, 23, 42, 0.10);
+}
+
+[data-theme="light"] .shop-map-view2 .shop-map-tile:not(.st-decor-corridor):hover {
   box-shadow:
     inset 0 1px 0 #ffffff,
-    0 4px 10px rgba(15, 23, 42, 0.12);
+    inset 1px 0 0 rgba(255, 255, 255, 0.72),
+    0 6px 15px rgba(15, 23, 42, 0.16);
 }
 
-[data-theme="light"] .shop-map-view2 .shop-map-tile:not(.st-decor):hover {
-  box-shadow:
-    inset 0 1px 0 #ffffff,
-    0 6px 14px rgba(15, 23, 42, 0.18);
-}
-
-/* ── 3D Extruded Cube Effect for Uploaded Photo Tiles in View 2 ── */
+/* ── 3D Crystal Glass Frame for Uploaded Photo Tiles in View 2 ── */
 .shop-map-view2 .shop-map-tile.has-unit-photo {
-  border-radius: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.42);
-  border-left: 1px solid rgba(255, 255, 255, 0.30);
-  border-right: 2px solid #0f172a;
-  border-bottom: 3px solid #020617;
+  background: rgba(15, 23, 42, 0.28);
   box-shadow:
-    0 4px 10px rgba(2, 6, 23, 0.40),
-    0 1.5px 3px rgba(2, 6, 23, 0.26);
+    0 4px 12px rgba(2, 6, 23, 0.32),
+    0 1.5px 3px rgba(2, 6, 23, 0.20);
   transform: translateY(-0.5px);
-}
-.shop-map-view2 .shop-map-tile.st-occupied.has-unit-photo {
-  border-top-color: #6ee7b7;
-  border-left-color: #34d399;
-  border-right-color: #059669;
-  border-bottom-color: #065f46;
-}
-.shop-map-view2 .shop-map-tile.st-reserved.has-unit-photo {
-  border-top-color: #93c5fd;
-  border-left-color: #60a5fa;
-  border-right-color: #2563eb;
-  border-bottom-color: #1e40af;
-}
-.shop-map-view2 .shop-map-tile.st-expiring.has-unit-photo {
-  border-top-color: #fcd34d;
-  border-left-color: #fbbf24;
-  border-right-color: #d97706;
-  border-bottom-color: #92400e;
-}
-.shop-map-view2 .shop-map-tile.st-vacant.has-unit-photo {
-  border-top-color: #cbd5e1;
-  border-left-color: #94a3b8;
-  border-right-color: #475569;
-  border-bottom-color: #1e293b;
 }
 
 [data-theme="light"] .shop-map-view2 .shop-map-tile.has-unit-photo {
+  background: rgba(255, 255, 255, 0.45);
   box-shadow:
-    0 4px 10px rgba(15, 23, 42, 0.18),
-    0 1.5px 4px rgba(15, 23, 42, 0.12);
-}
-[data-theme="light"] .shop-map-view2 .shop-map-tile.st-vacant.has-unit-photo {
-  border-top-color: #e2e8f0;
-  border-left-color: #cbd5e1;
-  border-right-color: #94a3b8;
-  border-bottom-color: #64748b;
+    0 4px 12px rgba(15, 23, 42, 0.14),
+    0 1.5px 4px rgba(15, 23, 42, 0.09);
 }
 
 .shop-map-view2 .shop-map-tile.has-unit-photo:hover {
   transform: translateY(-2px);
   box-shadow:
-    0 7px 15px rgba(2, 6, 23, 0.46),
-    0 2.5px 5px rgba(2, 6, 23, 0.30);
+    0 7px 16px rgba(2, 6, 23, 0.40),
+    0 2.5px 5px rgba(2, 6, 23, 0.24);
 }
 [data-theme="light"] .shop-map-view2 .shop-map-tile.has-unit-photo:hover {
   box-shadow:
-    0 7px 15px rgba(15, 23, 42, 0.24),
-    0 2.5px 5px rgba(15, 23, 42, 0.15);
+    0 7px 16px rgba(15, 23, 42, 0.20),
+    0 2.5px 5px rgba(15, 23, 42, 0.12);
 }
 
 .shop-map-view2 .shop-map-tile.has-unit-photo::after {
@@ -610,203 +750,85 @@
   pointer-events: none;
   border-radius: inherit;
   background: linear-gradient(
-    165deg,
-    rgba(255, 255, 255, 0.24) 0%,
-    rgba(255, 255, 255, 0.05) 34%,
-    rgba(0, 0, 0, 0) 62%,
-    rgba(2, 6, 23, 0.20) 100%
+    145deg,
+    rgba(255, 255, 255, 0.32) 0%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0) 58%,
+    rgba(2, 6, 23, 0.16) 100%
   );
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.50),
-    inset 1px 0 0 rgba(255, 255, 255, 0.28),
-    inset 0 -2px 3px rgba(2, 6, 23, 0.32),
-    inset -1px 0 2px rgba(2, 6, 23, 0.22);
-}
-
-/* Soft solid 3D color palette per landmark in View 2 (Dark Mode) */
-.shop-map-view2 .shop-map-tile.st-decor-entrance,
-.shop-map-view2 .shop-map-directory-marker-badge.lg-entrance {
-  --cube-fill-top: #10b981;
-  --cube-fill-bot: #059669;
-  --cube-border: #34d399;
-  --cube-lip: #065f46;
-  --decor-fg: #ffffff;
-}
-.shop-map-view2 .shop-map-tile.st-decor-exit,
-.shop-map-view2 .shop-map-directory-marker-badge.lg-exit {
-  --cube-fill-top: #f97316;
-  --cube-fill-bot: #ea580c;
-  --cube-border: #fb923c;
-  --cube-lip: #9a3412;
-  --decor-fg: #ffffff;
-}
-.shop-map-view2 .shop-map-tile.st-decor-toilet,
-.shop-map-view2 .shop-map-directory-marker-badge.lg-toilet {
-  --cube-fill-top: #3b82f6;
-  --cube-fill-bot: #2563eb;
-  --cube-border: #60a5fa;
-  --cube-lip: #1e40af;
-  --decor-fg: #ffffff;
-}
-.shop-map-view2 .shop-map-tile.st-decor-escalator,
-.shop-map-view2 .shop-map-directory-marker-badge.lg-escalator {
-  --cube-fill-top: #06b6d4;
-  --cube-fill-bot: #0891b2;
-  --cube-border: #22d3ee;
-  --cube-lip: #155e75;
-  --decor-fg: #ffffff;
-}
-.shop-map-view2 .shop-map-tile.st-decor-stairs,
-.shop-map-view2 .shop-map-directory-marker-badge.lg-stairs {
-  --cube-fill-top: #f59e0b;
-  --cube-fill-bot: #d97706;
-  --cube-border: #fbbf24;
-  --cube-lip: #92400e;
-  --decor-fg: #ffffff;
-}
-.shop-map-view2 .shop-map-tile.st-decor-atrium,
-.shop-map-view2 .shop-map-directory-marker-badge.lg-atrium {
-  --cube-fill-top: #8b5cf6;
-  --cube-fill-bot: #7c3aed;
-  --cube-border: #a78bfa;
-  --cube-lip: #4c1d95;
-  --decor-fg: #ffffff;
-}
-.shop-map-view2 .shop-map-tile.st-decor-marker,
-.shop-map-view2 .shop-map-directory-marker-badge.lg-marker {
-  --cube-fill-top: #ec4899;
-  --cube-fill-bot: #db2777;
-  --cube-border: #f472b6;
-  --cube-lip: #831843;
-  --decor-fg: #ffffff;
-}
-
-/* Soft pastel 3D color palette per landmark in View 2 (Light Mode) */
-[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-entrance,
-[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-entrance {
-  --cube-fill-top: #d1fae5;
-  --cube-fill-bot: #a7f3d0;
-  --cube-border: #6ee7b7;
-  --cube-lip: #34d399;
-  --decor-fg: #065f46;
-}
-[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-exit,
-[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-exit {
-  --cube-fill-top: #ffedd5;
-  --cube-fill-bot: #fed7aa;
-  --cube-border: #fdba74;
-  --cube-lip: #fb923c;
-  --decor-fg: #9a3412;
-}
-[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-toilet,
-[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-toilet {
-  --cube-fill-top: #dbeafe;
-  --cube-fill-bot: #bfdbfe;
-  --cube-border: #93c5fd;
-  --cube-lip: #60a5fa;
-  --decor-fg: #1e40af;
-}
-[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-escalator,
-[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-escalator {
-  --cube-fill-top: #cffafe;
-  --cube-fill-bot: #a5f3fc;
-  --cube-border: #67e8f9;
-  --cube-lip: #22d3ee;
-  --decor-fg: #155e75;
-}
-[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-stairs,
-[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-stairs {
-  --cube-fill-top: #fef3c7;
-  --cube-fill-bot: #fde68a;
-  --cube-border: #fcd34d;
-  --cube-lip: #fbbf24;
-  --decor-fg: #92400e;
-}
-[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-atrium,
-[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-atrium {
-  --cube-fill-top: #ede9fe;
-  --cube-fill-bot: #ddd6fe;
-  --cube-border: #c4b5fd;
-  --cube-lip: #a78bfa;
-  --decor-fg: #5b21b6;
-}
-[data-theme="light"] .shop-map-view2 .shop-map-tile.st-decor-marker,
-[data-theme="light"] .shop-map-view2 .shop-map-directory-marker-badge.lg-marker {
-  --cube-fill-top: #fce7f3;
-  --cube-fill-bot: #fbcfe8;
-  --cube-border: #f9a8d4;
-  --cube-lip: #f472b6;
-  --decor-fg: #9d174d;
-}
-
-.shop-map-view2 .shop-map-tile.st-decor:not(.st-decor-corridor) {
-  border-radius: 8px;
-  background: linear-gradient(180deg, var(--cube-fill-top) 0%, var(--cube-fill-bot) 100%);
-  border: 1px solid var(--cube-border);
-  border-bottom: 3px solid var(--cube-lip);
-  border-right: 2px solid var(--cube-lip);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.32),
-    0 4px 10px rgba(15, 23, 42, 0.18);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.shop-map-view2 .shop-map-tile.st-decor:not(.st-decor-corridor):hover {
-  transform: translateY(-1.5px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 6px 14px rgba(15, 23, 42, 0.24);
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    inset 1px 0 0 rgba(255, 255, 255, 0.36),
+    inset 0 -1.5px 2.5px rgba(2, 6, 23, 0.24);
 }
 
 .shop-map-view2 .shop-map-decor-badge {
   border-radius: 8px;
   color: var(--decor-fg);
-  background: rgba(255, 255, 255, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.16);
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.18);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 2px 4px rgba(15, 23, 42, 0.12);
+    inset 0 1px 0 rgba(255, 255, 255, 0.48),
+    0 2px 6px rgba(15, 23, 42, 0.14);
 }
 
 [data-theme="light"] .shop-map-view2 .shop-map-decor-badge {
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-bottom: 2px solid var(--cube-border);
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-bottom: 2px solid var(--glass-rim);
   box-shadow:
     inset 0 1px 0 #ffffff,
-    0 2px 4px rgba(15, 23, 42, 0.08);
+    0 2px 5px rgba(15, 23, 42, 0.08);
 }
 
 .shop-map-view2 .shop-map-directory-marker-badge:not(.lg-corridor) {
   border-radius: 6px;
   color: var(--decor-fg);
-  background: linear-gradient(180deg, var(--cube-fill-top) 0%, var(--cube-fill-bot) 100%);
-  border: 1px solid var(--cube-border);
-  border-bottom: 2px solid var(--cube-lip);
+  background: linear-gradient(145deg, var(--glass-fill-top) 0%, var(--glass-fill-bot) 100%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--glass-rim);
+  border-bottom: 2px solid var(--glass-lip);
   box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12);
 }
 
 .shop-map-view2 .shop-map-tile.st-decor-corridor {
-  background: rgba(148, 163, 184, 0.08);
+  background: rgba(148, 163, 184, 0.07);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 .shop-map-view2 .shop-map-corridor-bridge {
-  fill: rgba(148, 163, 184, 0.08);
+  fill: rgba(148, 163, 184, 0.07);
 }
 .shop-map-view2 .shop-map-corridor-border {
-  stroke: rgba(148, 163, 184, 0.45);
+  stroke: rgba(148, 163, 184, 0.42);
 }
 .shop-map-view2 .shop-map-corridor-centerline {
-  stroke: rgba(148, 163, 184, 0.35);
+  stroke: rgba(148, 163, 184, 0.34);
 }
 
+.shop-map-view2 .shop-map-landmarks-bar,
 .shop-map-view2 .shop-map-cat-card {
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.22);
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(12px) saturate(145%);
+  -webkit-backdrop-filter: blur(12px) saturate(145%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 2px solid rgba(2, 6, 23, 0.48);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 6px 16px rgba(2, 6, 23, 0.24);
 }
+[data-theme="light"] .shop-map-view2 .shop-map-landmarks-bar,
 [data-theme="light"] .shop-map-view2 .shop-map-cat-card {
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.07);
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-bottom: 2px solid rgba(148, 163, 184, 0.42);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 5px 14px rgba(15, 23, 42, 0.08);
 }
 .shop-map-view2 .shop-map-cat-icon,
 .shop-map-view2 .shop-map-cat-title,
@@ -814,7 +836,7 @@
   color: var(--text-primary);
 }
 .shop-map-view2 .shop-map-cat-divider {
-  background: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.32);
 }
 
 .shop-map-tile-actions { position: absolute; top: 1px; right: 1px; display: flex; gap: 2px; z-index: 3; }
@@ -1004,11 +1026,16 @@
 .shop-map-landmark-item.clickable:hover {
   background: rgba(16, 185, 129, 0.14);
 }
-.shop-map-canvas-wrap.has-routed-unit .shop-map-tile:not(.active-target):not(.active-start):not(.st-decor-corridor) {
+.shop-map-canvas-wrap.has-routed-unit .shop-map-tile:not(.active-target):not(.active-start):not(.st-decor-corridor):not(.search-match) {
   opacity: 0.38;
 }
-.shop-map-canvas-wrap.has-routed-unit .shop-map-cat-row:not(.active) {
+.shop-map-canvas-wrap.has-routed-unit .shop-map-cat-row:not(.active):not(.search-match) {
   opacity: 0.55;
+}
+.shop-map-tile.dim,
+.shop-map-landmarks-bar.dim,
+.shop-map-cat-row.dim {
+  opacity: 0.22 !important;
 }
 .shop-map-tile.active-start {
   opacity: 1 !important;
@@ -1372,108 +1399,6 @@
   flex-shrink: 0;
 }
 
-/* ── Responsive Camera QR Scanner Modal ── */
-.qr-scanner-modal {
-  max-width: 440px;
-}
-.qr-scanner-body {
-  gap: 12px;
-}
-.qr-scanner-viewport {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  max-height: 52dvh;
-  margin: 0 auto;
-  border-radius: 14px;
-  overflow: hidden;
-  background: #0f172a;
-  border: 1.5px solid rgba(16, 185, 129, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.qr-scanner-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.qr-scanner-frame {
-  position: absolute;
-  inset: 14%;
-  pointer-events: none;
-  border-radius: 12px;
-  box-shadow: 0 0 0 999px rgba(15, 23, 42, 0.38);
-}
-.qr-corner {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  border-color: #10b981;
-  border-style: solid;
-  border-width: 0;
-}
-.qr-corner.tl { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; border-top-left-radius: 8px; }
-.qr-corner.tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; border-top-right-radius: 8px; }
-.qr-corner.bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; border-bottom-left-radius: 8px; }
-.qr-corner.br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; border-bottom-right-radius: 8px; }
-
-@keyframes qrScannerLaserMove {
-  0%, 100% { top: 8%; opacity: 0.75; }
-  50% { top: 88%; opacity: 1; }
-}
-.qr-scanner-laser {
-  position: absolute;
-  left: 6%;
-  right: 6%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #10b981, transparent);
-  box-shadow: 0 0 10px #10b981;
-  animation: qrScannerLaserMove 2.2s ease-in-out infinite;
-}
-.qr-scanner-starting,
-.qr-scanner-fallback {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 20px;
-  text-align: center;
-  color: #e2e8f0;
-  font-size: 0.8rem;
-  background: rgba(15, 23, 42, 0.85);
-}
-.qr-scanner-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-.qr-scanner-manual {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.qr-scanner-manual input {
-  flex: 1;
-  min-width: 0;
-  padding: 7px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color, var(--border));
-  background: var(--bg-body, var(--bg));
-  color: var(--text-primary);
-  font-size: 0.78rem;
-  outline: none;
-}
-.qr-scanner-manual input:focus {
-  border-color: var(--accent, #10b981);
-}
-
 .shop-map-directory-marker-badge {
   width: 18px;
   height: 18px;
@@ -1741,9 +1666,6 @@
   .shop-map-qr-modal {
     max-width: 520px;
     max-height: 94dvh;
-  }
-  .qr-scanner-viewport {
-    max-height: 44dvh;
   }
   .shop-map-qr-img,
   .shop-map-qr-loading {
