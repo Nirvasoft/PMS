@@ -1,21 +1,110 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
+import { useAppDispatch } from '../../store';
 import {
+  mallApi,
   useGetShopsQuery, useGetTenantMixQuery, useUpsertShopProfileMutation,
   useGetAvailableUnitsQuery, useGetCommercialLeaseQuery, useUpsertCommercialLeaseMutation,
 } from '../../store/api/mallApi';
+import {
+  useUploadFloorPlanMutation,
+  useDeleteFloorPlanMutation,
+} from '../../store/api/unitsApi';
 import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 import {
   Store, Search, X, Maximize2, Calendar, DollarSign,
   Star, Tag, Building2, ChevronRight, Grid3x3, List, Map as MapIcon, Edit3,
   TrendingUp, Percent, ExternalLink, Layers, Package, Plus,
-  FileText, Shield, Wrench, Receipt,
+  FileText, Shield, Wrench, Receipt, Upload, Trash2, FileImage,
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { CachedUnitPhoto, useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
 import ShopMapView from './ShopDirectory/ShopMapView';
 import { SHOP_CATEGORIES as CATEGORIES } from './ShopDirectory/shopMapLayout';
+import {
+  evictUnitPhotoCache,
+  isImageFileName,
+  isUnitPhotoImage,
+  preloadUnitPhotosBatch,
+  syncUploadedUnitPhotoCache,
+  validateUnitPhotoFile,
+} from '../../utils/unitPhotoCache';
 
 const INITIAL_CREATE_FORM = { unitId: '', brandName: '', shopNumber: '', tradeCategory: 'Other' };
+
+interface ShopModalPhotoBoxProps {
+  photoUrl?: string | null;
+  title: string;
+  subtitle: string;
+  uploadLabel: string;
+  canRemove: boolean;
+  isUploading?: boolean;
+  isDeleting?: boolean;
+  onUploadClick: () => void;
+  onRemoveClick: () => void;
+  noMargin?: boolean;
+}
+
+function ShopModalPhotoBox({
+  photoUrl,
+  title,
+  subtitle,
+  uploadLabel,
+  canRemove,
+  isUploading = false,
+  isDeleting = false,
+  onUploadClick,
+  onRemoveClick,
+  noMargin = false,
+}: ShopModalPhotoBoxProps) {
+  const hasImg = isUnitPhotoImage(photoUrl);
+  return (
+    <div className="shop-edit-photo-box" style={noMargin ? { marginBottom: 0 } : undefined}>
+      <div className="shop-edit-photo-preview">
+        {hasImg || isUploading ? (
+          <CachedUnitPhoto
+            photoUrl={hasImg ? photoUrl : null}
+            alt="Shop photo"
+            wrapperAs="div"
+            wrapperClassName="shop-edit-photo-frame"
+            imgClassName="shop-edit-photo-img"
+            skeletonClassName="shop-photo-mini-skeleton"
+            forceLoading={isUploading}
+          />
+        ) : (
+          <div className="shop-edit-photo-placeholder">
+            <FileImage size={22} />
+          </div>
+        )}
+        <div className="shop-edit-photo-meta">
+          <strong>{title}</strong>
+          <span>{subtitle}</span>
+        </div>
+      </div>
+      <div className="shop-detail-photo-actions">
+        <button
+          type="button"
+          className="btn btn-sm btn-outline"
+          onClick={onUploadClick}
+          disabled={isUploading || isDeleting}
+        >
+          <Upload size={13} /> {isUploading ? 'Uploading…' : uploadLabel}
+        </button>
+        {canRemove && (
+          <button
+            type="button"
+            className="shop-photo-remove-btn"
+            onClick={onRemoveClick}
+            disabled={isUploading || isDeleting}
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   'ATMs':                  { bg: 'rgba(6, 182, 212, 0.12)',   text: '#06b6d4' },
@@ -54,6 +143,8 @@ function extractFloors(units: any[]) {
 }
 
 export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScreenMap?: boolean } = {}) {
+  const dispatch = useAppDispatch();
+  useUnitPhotoCache();
   const selectedPropertyId = useSelectedPropertyId();
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const propertyId = urlParams.get('propertyId') || selectedPropertyId;
@@ -73,22 +164,61 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const [showLeaseEdit, setShowLeaseEdit] = useState(false);
   const [leaseFormData, setLeaseFormData] = useState<any>({});
 
+  // Unit/Shop Photo state & refs
+  const shopPhotoInputRef = useRef<HTMLInputElement>(null);
+  const createShopPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [createPhotoFile, setCreatePhotoFile] = useState<File | null>(null);
+  const [createPhotoPreviewUrl, setCreatePhotoPreviewUrl] = useState<string | null>(null);
+  const [removeExistingUnitPhotoOnCreate, setRemoveExistingUnitPhotoOnCreate] = useState(false);
+
   const { data: shopsData, isLoading } = useGetShopsQuery(
     { propertyId },
     { skip: !propertyId }
   );
   const { data: mixData } = useGetTenantMixQuery({ propertyId }, { skip: !propertyId });
   const [upsertProfile, { isLoading: isSaving }] = useUpsertShopProfileMutation();
+  const [uploadFloorPlan, { isLoading: isUploadingPhoto }] = useUploadFloorPlanMutation();
+  const [deleteFloorPlan, { isLoading: isDeletingPhoto }] = useDeleteFloorPlanMutation();
   const { data: availRes } = useGetAvailableUnitsQuery({ propertyId }, { skip: !propertyId || !showCreateShop });
 
   const allShops = shopsData?.data || [];
   const mix = mixData?.data;
+
+  useEffect(() => {
+    if (allShops.length === 0) return;
+    preloadUnitPhotosBatch(allShops.map((s: any) => s?.unit?.floorPlanUrl));
+  }, [allShops]);
+
+  useEffect(() => {
+    if (!availRes?.data?.length) return;
+    preloadUnitPhotosBatch(availRes.data.map((u: any) => u?.floorPlanUrl));
+  }, [availRes?.data]);
+
+  // Keep detailShop synced when allShops refetches (e.g. after photo upload in P-Units or Shop Directory)
+  useEffect(() => {
+    if (!detailShop?.unitId) return;
+    const fresh = allShops.find((s: any) => s.unitId === detailShop.unitId);
+    if (fresh && fresh !== detailShop) {
+      setDetailShop(fresh);
+    }
+  }, [allShops, detailShop]);
+
+  useEffect(() => {
+    return () => {
+      if (createPhotoPreviewUrl) URL.revokeObjectURL(createPhotoPreviewUrl);
+    };
+  }, [createPhotoPreviewUrl]);
 
   const availableUnits = useMemo(() => {
     const raw = availRes?.data || [];
     const takenUnitIds = new Set(allShops.map((s: any) => s.unitId));
     return raw.filter((u: any) => u.status === 'occupied' && !takenUnitIds.has(u.id));
   }, [availRes?.data, allShops]);
+
+  const selectedCreateUnit = useMemo(
+    () => availableUnits.find((u: any) => u.id === createForm.unitId) || null,
+    [availableUnits, createForm.unitId],
+  );
 
   const availableFloors = useMemo(() => extractFloors(availableUnits), [availableUnits]);
 
@@ -174,6 +304,68 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
     } catch (e) { console.error(e); }
   };
 
+  const handleShopPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file || !detailShop?.unitId || !propertyId) return;
+    const validationErr = validateUnitPhotoFile(file);
+    if (validationErr) {
+      toast.error(validationErr);
+      return;
+    }
+    const previousUrl = detailShop.unit?.floorPlanUrl;
+    try {
+      const updated = await uploadFloorPlan({ propertyId, unitId: detailShop.unitId, file }).unwrap();
+      const newUrl = updated?.data?.floorPlanUrl || null;
+      syncUploadedUnitPhotoCache(previousUrl, newUrl, file);
+      setDetailShop((prev: any) =>
+        prev ? { ...prev, unit: { ...prev.unit, floorPlanUrl: newUrl } } : prev,
+      );
+      dispatch(mallApi.util.invalidateTags(['Shops']));
+      toast.success('Photo uploaded & synced to Unit Photo');
+    } catch {
+      toast.error('Failed to upload photo');
+    }
+  };
+
+  const handleShopPhotoRemove = async () => {
+    if (!detailShop?.unitId || !propertyId) return;
+    const previousUrl = detailShop.unit?.floorPlanUrl;
+    try {
+      await deleteFloorPlan({ propertyId, unitId: detailShop.unitId }).unwrap();
+      evictUnitPhotoCache(previousUrl);
+      setDetailShop((prev: any) =>
+        prev ? { ...prev, unit: { ...prev.unit, floorPlanUrl: null } } : prev,
+      );
+      dispatch(mallApi.util.invalidateTags(['Shops']));
+      toast.success('Photo removed from Shop & Unit Photo');
+    } catch {
+      toast.error('Failed to remove photo');
+    }
+  };
+
+  const handleCreatePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file) return;
+    const validationErr = validateUnitPhotoFile(file);
+    if (validationErr) {
+      toast.error(validationErr);
+      return;
+    }
+    if (createPhotoPreviewUrl) URL.revokeObjectURL(createPhotoPreviewUrl);
+    setCreatePhotoFile(file);
+    setRemoveExistingUnitPhotoOnCreate(false);
+    setCreatePhotoPreviewUrl(isImageFileName(file.name) ? URL.createObjectURL(file) : null);
+  };
+
+  const resetCreatePhotoState = () => {
+    if (createPhotoPreviewUrl) URL.revokeObjectURL(createPhotoPreviewUrl);
+    setCreatePhotoFile(null);
+    setCreatePhotoPreviewUrl(null);
+    setRemoveExistingUnitPhotoOnCreate(false);
+  };
+
   const openLeaseEdit = () => {
     const cl = commercialLease || {};
     setLeaseFormData({
@@ -240,11 +432,27 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
           tradeSubcategory: createForm.tradeSubcategory || undefined,
         },
       }).unwrap();
+      if (propertyId && createPhotoFile) {
+        const previousUrl = selectedCreateUnit?.floorPlanUrl;
+        const updated = await uploadFloorPlan({
+          propertyId,
+          unitId: createForm.unitId,
+          file: createPhotoFile,
+        }).unwrap();
+        syncUploadedUnitPhotoCache(previousUrl, updated?.data?.floorPlanUrl, createPhotoFile);
+        dispatch(mallApi.util.invalidateTags(['Shops']));
+      } else if (propertyId && removeExistingUnitPhotoOnCreate && selectedCreateUnit?.floorPlanUrl) {
+        const previousUrl = selectedCreateUnit.floorPlanUrl;
+        await deleteFloorPlan({ propertyId, unitId: createForm.unitId }).unwrap();
+        evictUnitPhotoCache(previousUrl);
+        dispatch(mallApi.util.invalidateTags(['Shops']));
+      }
       setShowCreateShop(false);
       setCreateSubmitted(false);
       setUnitFloorFilter('');
       setUnitSearch('');
       setCreateForm(INITIAL_CREATE_FORM);
+      resetCreatePhotoState();
     } catch (e) { console.error(e); }
   };
 
@@ -452,6 +660,22 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
       </div>
       )}
 
+      {/* Shared hidden file inputs for Shop / Unit Photo */}
+      <input
+        ref={shopPhotoInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.gif"
+        style={{ display: 'none' }}
+        onChange={handleShopPhotoUpload}
+      />
+      <input
+        ref={createShopPhotoInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.gif"
+        style={{ display: 'none' }}
+        onChange={handleCreatePhotoSelect}
+      />
+
       {/* Content */}
       {isLoading ? (
         <div className="module-skeleton-grid">
@@ -479,14 +703,27 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
             const lease = shop.unit?.leases?.[0];
             const cat = getCatStyle(shop.tradeCategory || 'Other');
             const leaseEnd = lease?.endDate ? daysUntil(lease.endDate) : null;
+            const photoUrl = shop.unit?.floorPlanUrl;
+            const hasPhoto = isUnitPhotoImage(photoUrl);
             return (
               <div
                 key={shop.unitId}
                 className={`shop-dir-card ${shop.isAnchor ? 'shop-dir-card-anchor' : ''}`}
                 onClick={() => openDetail(shop)}
               >
-                {/* Card Top Banner */}
-                <div className="shop-dir-card-banner" style={{ background: cat.bg }}>
+                {/* Card Top Banner / Photo Header */}
+                <div
+                  className={`shop-dir-card-banner ${hasPhoto ? 'has-photo' : ''}`}
+                  style={hasPhoto ? undefined : { background: cat.bg }}
+                >
+                  {hasPhoto && (
+                    <CachedUnitPhoto
+                      photoUrl={photoUrl}
+                      alt={shop.brandName || shop.unit?.unitNumber || 'Shop'}
+                      imgClassName="shop-dir-card-photo"
+                      skeletonClassName="shop-dir-card-photo-skeleton"
+                    />
+                  )}
                   {shop.isAnchor && <span className="shop-dir-anchor-badge"><Star size={10} /> Anchor</span>}
                   <span className="shop-dir-card-unit">{shop.shopNumber || shop.unit?.unitNumber}</span>
                 </div>
@@ -561,9 +798,21 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
           {shops.map((shop: any) => {
             const lease = shop.unit?.leases?.[0];
             const cat = getCatStyle(shop.tradeCategory || 'Other');
+            const photoUrl = shop.unit?.floorPlanUrl;
+            const hasPhoto = isUnitPhotoImage(photoUrl);
             return (
               <div key={shop.unitId} className="shop-dir-list-row" onClick={() => openDetail(shop)}>
                 <div className="shop-dir-list-brand">
+                  {hasPhoto && (
+                    <CachedUnitPhoto
+                      photoUrl={photoUrl}
+                      alt={shop.brandName || 'Shop'}
+                      wrapperAs="span"
+                      wrapperClassName="shop-photo-thumb-frame"
+                      imgClassName="shop-dir-list-thumb"
+                      skeletonClassName="shop-photo-mini-skeleton"
+                    />
+                  )}
                   <div>
                     <strong>{shop.brandName || 'Unnamed'}</strong>
                     <small>{shop.shopNumber || shop.unit?.unitNumber}</small>
@@ -623,6 +872,88 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                 <Tag size={10} /> {detailShop.tradeCategory || 'Other'}
               </span>
             </div>
+
+            {/* Shop / Unit Photo Section (Synced with P-Units -> Unit Photo) */}
+            {(() => {
+              const photoUrl = detailShop.unit?.floorPlanUrl;
+              const isImg = isUnitPhotoImage(photoUrl);
+              return (
+                <div className="shop-detail-photo-section">
+                  <div className="shop-detail-photo-header">
+                    <span className="shop-detail-photo-title">
+                      <FileImage size={14} /> Shop / Unit Photo
+                    </span>
+                    <PermissionGuard permission="mall-shops.write">
+                      <div className="shop-detail-photo-actions">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline"
+                          onClick={() => shopPhotoInputRef.current?.click()}
+                          disabled={isUploadingPhoto || isDeletingPhoto}
+                        >
+                          <Upload size={13} /> {isUploadingPhoto ? 'Uploading…' : photoUrl ? 'Replace' : 'Upload Photo'}
+                        </button>
+                        {photoUrl && (
+                          <button
+                            type="button"
+                            className="shop-photo-remove-btn"
+                            onClick={handleShopPhotoRemove}
+                            disabled={isUploadingPhoto || isDeletingPhoto}
+                          >
+                            <Trash2 size={13} /> {isDeletingPhoto ? 'Removing…' : 'Remove'}
+                          </button>
+                        )}
+                      </div>
+                    </PermissionGuard>
+                  </div>
+                  {photoUrl ? (
+                    isImg ? (
+                      <CachedUnitPhoto
+                        photoUrl={photoUrl}
+                        alt={detailShop.brandName || detailShop.unit?.unitNumber || 'Unit photo'}
+                        wrapperAs="div"
+                        wrapperClassName="shop-detail-photo-frame"
+                        imgClassName="shop-detail-photo-img"
+                        skeletonClassName="shop-detail-photo-skeleton"
+                        loading="eager"
+                        forceLoading={isUploadingPhoto}
+                      />
+                    ) : (
+                      <div className="shop-detail-photo-pdf">
+                        <FileImage size={24} />
+                        <span>Unit Photo (PDF)</span>
+                        <a
+                          href={`/api/v1${photoUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-sm btn-outline"
+                        >
+                          <ExternalLink size={12} /> Open
+                        </a>
+                      </div>
+                    )
+                  ) : isUploadingPhoto ? (
+                    <CachedUnitPhoto
+                      photoUrl={null}
+                      alt="Uploading"
+                      wrapperAs="div"
+                      wrapperClassName="shop-detail-photo-frame"
+                      imgClassName="shop-detail-photo-img"
+                      skeletonClassName="shop-detail-photo-skeleton"
+                      forceLoading
+                    />
+                  ) : (
+                    <div
+                      className="shop-detail-photo-empty"
+                      onClick={() => shopPhotoInputRef.current?.click()}
+                    >
+                      <FileImage size={22} />
+                      <span>No photo uploaded yet — click Upload Photo (syncs with P-Unit Photo)</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Info Grid */}
             <div className="shop-detail-info-grid">
@@ -853,6 +1184,23 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
             </div>
 
             <div className="shop-edit-body">
+              {/* Shop / Unit Photo in Edit Modal */}
+              <ShopModalPhotoBox
+                photoUrl={detailShop?.unit?.floorPlanUrl}
+                title="Shop / Unit Photo"
+                subtitle={
+                  detailShop?.unit?.floorPlanUrl
+                    ? 'Synced with P-Units → Unit Photo'
+                    : 'Upload a photo for this shop & P-Unit'
+                }
+                uploadLabel={detailShop?.unit?.floorPlanUrl ? 'Replace' : 'Upload'}
+                canRemove={Boolean(detailShop?.unit?.floorPlanUrl)}
+                isUploading={isUploadingPhoto}
+                isDeleting={isDeletingPhoto}
+                onUploadClick={() => shopPhotoInputRef.current?.click()}
+                onRemoveClick={handleShopPhotoRemove}
+              />
+
               <div className="shop-edit-grid">
                 <label className="shop-edit-field">
                   <span>Shop Number</span>
@@ -1062,7 +1410,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                   Assign a shop profile to an available unit
                 </span>
               </div>
-              <button className="mall-modal-close" onClick={() => setShowCreateShop(false)}>✕</button>
+              <button className="mall-modal-close" onClick={() => { setShowCreateShop(false); resetCreatePhotoState(); }}>✕</button>
             </div>
             <div className="mall-modal-body">
               {availableUnits.length === 0 ? (
@@ -1081,6 +1429,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                         setUnitFloorFilter(e.target.value);
                         if (createForm.unitId) {
                           setCreateForm({ ...createForm, unitId: '', shopNumber: '' });
+                          resetCreatePhotoState();
                         }
                       }}
                     >
@@ -1108,6 +1457,7 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                           <button type="button" className="shop-unit-picker-clear" onClick={() => {
                             setCreateForm({ ...createForm, unitId: '', shopNumber: '' });
                             setUnitSearch('');
+                            resetCreatePhotoState();
                           }}><X size={14} /></button>
                         )}
                       </div>
@@ -1130,8 +1480,19 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                                 onClick={() => {
                                   setCreateForm({ ...createForm, unitId: u.id, shopNumber: u.unitNumber });
                                   setUnitSearch('');
+                                  resetCreatePhotoState();
                                 }}
                               >
+                                {isUnitPhotoImage(u.floorPlanUrl) && (
+                                  <CachedUnitPhoto
+                                    photoUrl={u.floorPlanUrl}
+                                    alt={u.unitNumber}
+                                    wrapperAs="span"
+                                    wrapperClassName="shop-photo-thumb-frame"
+                                    imgClassName="shop-unit-picker-thumb"
+                                    skeletonClassName="shop-photo-mini-skeleton"
+                                  />
+                                )}
                                 <span className="shop-unit-picker-num">{u.unitNumber}</span>
                                 <span className="shop-unit-picker-meta">
                                   {u.floorLabel || `Floor ${u.floorNumber}`} · {Number(u.areaSqft || 0).toLocaleString()} sqft
@@ -1175,17 +1536,59 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
                     <span>Sub-Category</span>
                     <input value={createForm.tradeSubcategory || ''} onChange={e => setCreateForm({ ...createForm, tradeSubcategory: e.target.value })} placeholder="e.g. Coffee" />
                   </label>
+
+                  {/* Shop / Unit Photo in Create Shop Modal */}
+                  <div className="mall-form-field" style={{ gridColumn: '1 / -1' }}>
+                    <span className="mall-form-field-label">Shop / Unit Photo (Syncs with P-Unit Photo)</span>
+                    {(() => {
+                      const existingUnitPhotoUrl =
+                        !removeExistingUnitPhotoOnCreate && selectedCreateUnit?.floorPlanUrl
+                          ? selectedCreateUnit.floorPlanUrl
+                          : null;
+                      return (
+                        <ShopModalPhotoBox
+                          photoUrl={createPhotoPreviewUrl || existingUnitPhotoUrl}
+                          title={
+                            createPhotoFile
+                              ? createPhotoFile.name
+                              : existingUnitPhotoUrl
+                                ? 'Unit already has a photo (Auto-synced from P-Unit)'
+                                : 'No photo selected'
+                          }
+                          subtitle={
+                            createPhotoFile
+                              ? 'Will upload & update P-Unit Photo on create'
+                              : existingUnitPhotoUrl
+                                ? 'Will automatically show in Shop Directory'
+                                : 'Upload PNG, JPG, WEBP, GIF or PDF (max 10MB)'
+                          }
+                          uploadLabel={createPhotoFile || existingUnitPhotoUrl ? 'Replace' : 'Upload Photo'}
+                          canRemove={Boolean(createPhotoFile || existingUnitPhotoUrl)}
+                          isUploading={isUploadingPhoto}
+                          onUploadClick={() => createShopPhotoInputRef.current?.click()}
+                          onRemoveClick={() => {
+                            if (createPhotoFile) {
+                              resetCreatePhotoState();
+                            } else if (existingUnitPhotoUrl) {
+                              setRemoveExistingUnitPhotoOnCreate(true);
+                            }
+                          }}
+                          noMargin
+                        />
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
             </div>
             <div className="mall-modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowCreateShop(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => { setShowCreateShop(false); resetCreatePhotoState(); }}>Cancel</button>
               <button
                 className="btn btn-primary"
                 onClick={handleCreateShop}
-                disabled={isSaving}
+                disabled={isSaving || isUploadingPhoto}
               >
-                {isSaving ? 'Creating...' : '+ Create Shop'}
+                {isSaving || isUploadingPhoto ? 'Creating...' : '+ Create Shop'}
               </button>
             </div>
           </div>

@@ -5,7 +5,7 @@ import 'react-grid-layout/css/styles.css';
 import toast from 'react-hot-toast';
 import {
   RotateCw, X, Pencil, Save, Plus, Maximize2, Trash2, LayoutGrid,
-  Image as ImageIcon, Map as MapIcon, QrCode, Navigation, MapPin,
+  Map as MapIcon, QrCode, Navigation, MapPin,
   Printer, Copy, ExternalLink, Info, ArrowRight,
 } from 'lucide-react';
 import {
@@ -20,8 +20,14 @@ import {
   SHOP_CATEGORIES, findFreeSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
   sizeUnitTile, tileSizeFromSqft, unitKey,
   computeWalkwayPath, findDefaultStartItem, findNearestFacilityItem,
-  type MapItem, type TileKind,
+  rotateMapLayout, parseRotationAngle, getCorridorMergeData,
+  type MapItem, type TileKind, type MapRotationAngle,
 } from './shopMapLayout';
+import {
+  isUnitPhotoImage,
+  preloadUnitPhotosBatch,
+} from '../../../utils/unitPhotoCache';
+import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
 import './ShopMapView.css';
 
 interface Props {
@@ -36,6 +42,16 @@ interface Props {
 }
 
 const noCompaction = getCompactor(null as any, false, true);
+
+function Cute3DCubeIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2.5 21 7.5 12 12.5 3 7.5 12 2.5" fill="currentColor" fillOpacity="0.28" />
+      <polygon points="3 7.5 12 12.5 12 21.5 3 16.5 3 7.5" fill="currentColor" fillOpacity="0.14" />
+      <polygon points="21 7.5 12 12.5 12 21.5 21 16.5 21 7.5" fill="currentColor" fillOpacity="0.06" />
+    </svg>
+  );
+}
 
 function DecorIcon({ kind, size = 14 }: { kind: Exclude<TileKind, 'unit' | 'corridor'>; size?: number }) {
   switch (kind) {
@@ -215,108 +231,6 @@ function statusClass(shop: any): string {
   return 'st-vacant';
 }
 
-function subtractIntervals(total: number, removals: Array<[number, number]>): Array<[number, number]> {
-  let result: Array<[number, number]> = [[0, total]];
-  for (const [rStart, rEnd] of removals) {
-    const a = Math.max(0, rStart);
-    const b = Math.min(total, rEnd);
-    if (b <= a) continue;
-    const next: Array<[number, number]> = [];
-    for (const [s, e] of result) {
-      if (b <= s || a >= e) {
-        next.push([s, e]);
-      } else {
-        if (a > s) next.push([s, a]);
-        if (b < e) next.push([b, e]);
-      }
-    }
-    result = next;
-  }
-  return result;
-}
-
-function isCorridorVertical(c: MapItem, all: MapItem[]): boolean {
-  if (c.h !== c.w) return c.h > c.w;
-  return all.some(
-    (o) =>
-      o.key !== c.key &&
-      Math.min(c.x + c.w, o.x + o.w) > Math.max(c.x, o.x) &&
-      (o.y + o.h === c.y || o.y === c.y + c.h),
-  );
-}
-
-function getCorridorMergeData(it: MapItem, corridors: MapItem[]) {
-  const others = corridors.filter((c) => c.key !== it.key);
-  const topTouched: Array<[number, number]> = [];
-  const bottomTouched: Array<[number, number]> = [];
-  const leftTouched: Array<[number, number]> = [];
-  const rightTouched: Array<[number, number]> = [];
-
-  const touchesTop = (o: MapItem) => o.y < it.y && o.y + o.h >= it.y;
-  const touchesBottom = (o: MapItem) => o.y <= it.y + it.h && o.y + o.h > it.y + it.h;
-  const touchesLeft = (o: MapItem) => o.x < it.x && o.x + o.w >= it.x;
-  const touchesRight = (o: MapItem) => o.x <= it.x + it.w && o.x + o.w > it.x + it.w;
-  const overlapsX = (o: MapItem) => Math.min(it.x + it.w, o.x + o.w) > Math.max(it.x, o.x);
-  const overlapsY = (o: MapItem) => Math.min(it.y + it.h, o.y + o.h) > Math.max(it.y, o.y);
-
-  for (const o of others) {
-    const u1 = Math.max(0, o.x - it.x);
-    const u2 = Math.min(it.w, o.x + o.w - it.x);
-    if (u2 > u1) {
-      if (touchesTop(o)) topTouched.push([u1, u2]);
-      if (touchesBottom(o)) bottomTouched.push([u1, u2]);
-    }
-    const v1 = Math.max(0, o.y - it.y);
-    const v2 = Math.min(it.h, o.y + o.h - it.y);
-    if (v2 > v1) {
-      if (touchesLeft(o)) leftTouched.push([v1, v2]);
-      if (touchesRight(o)) rightTouched.push([v1, v2]);
-    }
-  }
-
-  const vertical = isCorridorVertical(it, corridors);
-  let start = 0.35;
-  let end = (vertical ? it.h : it.w) - 0.35;
-
-  if (!vertical) {
-    const leftN = others.find((o) => touchesLeft(o) && overlapsY(o));
-    const leftCorner = !leftN && others.find((o) => isCorridorVertical(o, corridors) && o.x <= it.x + 0.5 && o.x + o.w > it.x && (touchesTop(o) || touchesBottom(o)));
-    if (leftN) start = isCorridorVertical(leftN, corridors) ? leftN.x + leftN.w / 2 - it.x : 0;
-    else if (leftCorner) start = leftCorner.x + leftCorner.w / 2 - it.x;
-
-    const rightN = others.find((o) => touchesRight(o) && overlapsY(o));
-    const rightCorner = !rightN && others.find((o) => isCorridorVertical(o, corridors) && o.x < it.x + it.w && o.x + o.w >= it.x + it.w - 0.5 && (touchesTop(o) || touchesBottom(o)));
-    if (rightN) end = isCorridorVertical(rightN, corridors) ? rightN.x + rightN.w / 2 - it.x : it.w;
-    else if (rightCorner) end = rightCorner.x + rightCorner.w / 2 - it.x;
-  } else {
-    const topN = others.find((o) => touchesTop(o) && overlapsX(o));
-    const topCorner = !topN && others.find((o) => !isCorridorVertical(o, corridors) && o.y <= it.y + 0.5 && o.y + o.h > it.y && (touchesLeft(o) || touchesRight(o)));
-    if (topN) start = !isCorridorVertical(topN, corridors) ? topN.y + topN.h / 2 - it.y : 0;
-    else if (topCorner) start = topCorner.y + topCorner.h / 2 - it.y;
-
-    const bottomN = others.find((o) => touchesBottom(o) && overlapsX(o));
-    const bottomCorner = !bottomN && others.find((o) => !isCorridorVertical(o, corridors) && o.y < it.y + it.h && o.y + o.h >= it.y + it.h - 0.5 && (touchesLeft(o) || touchesRight(o)));
-    if (bottomN) end = !isCorridorVertical(bottomN, corridors) ? bottomN.y + bottomN.h / 2 - it.y : it.h;
-    else if (bottomCorner) end = bottomCorner.y + bottomCorner.h / 2 - it.y;
-  }
-
-  return {
-    topSegs: subtractIntervals(it.w, topTouched),
-    bottomSegs: subtractIntervals(it.w, bottomTouched),
-    leftSegs: subtractIntervals(it.h, leftTouched),
-    rightSegs: subtractIntervals(it.h, rightTouched),
-    bottomTouched,
-    rightTouched,
-    tlSharp: topTouched.some(([a]) => a <= 0.01) || leftTouched.some(([a]) => a <= 0.01),
-    trSharp: topTouched.some(([, b]) => b >= it.w - 0.01) || rightTouched.some(([a]) => a <= 0.01),
-    blSharp: bottomTouched.some(([a]) => a <= 0.01) || leftTouched.some(([, b]) => b >= it.h - 0.01),
-    brSharp: bottomTouched.some(([, b]) => b >= it.w - 0.01) || rightTouched.some(([, b]) => b >= it.h - 0.01),
-    vertical,
-    start,
-    end,
-  };
-}
-
 export default function ShopMapView({
   shops,
   propertyId,
@@ -330,6 +244,7 @@ export default function ShopMapView({
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const initialFromParam = urlParams.get('from') || '';
   const initialToParam = urlParams.get('to') || '';
+  const initialRotateParam = parseRotationAngle(urlParams.get('rotate'));
 
   const floors = useMemo(() => {
     const m = new Map<string, number>();
@@ -352,6 +267,22 @@ export default function ShopMapView({
   const floorShops = useMemo(() => shops.filter((s) => floorKeyOf(s) === floor), [shops, floor]);
   const shopByUnit = useMemo(() => new Map(floorShops.map((s) => [s.unitId, s])), [floorShops]);
   const allShopByUnit = useMemo(() => new Map(shops.map((s) => [s.unitId, s])), [shops]);
+  useUnitPhotoCache();
+
+  // Preload and cache unit photos in the background as soon as shops load
+  useEffect(() => {
+    let cancelled = false;
+    const currentFloorUrls = floorShops.map((s) => s?.unit?.floorPlanUrl);
+    const otherFloorUrls = shops.filter((s) => floorKeyOf(s) !== floor).map((s) => s?.unit?.floorPlanUrl);
+
+    preloadUnitPhotosBatch(currentFloorUrls).then(() => {
+      if (!cancelled) preloadUnitPhotosBatch(otherFloorUrls);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [floorShops, shops, floor]);
 
   const adminPlanQuery = useGetFloorPlanQuery(
     { propertyId: propertyId as string, floor },
@@ -371,10 +302,11 @@ export default function ShopMapView({
   const [items, setItems] = useState<MapItem[]>([]);
   const [sqftPerCell, setSqftPerCell] = useState(DEFAULT_SQFT_PER_CELL);
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
-  const [decorKind, setDecorKind] = useState<Exclude<TileKind, 'unit'>>('corridor');
+  const [decorKind, setDecorKind] = useState<Exclude<TileKind, 'unit'>>('marker');
   const [decorSeq, setDecorSeq] = useState(1);
 
-  // Indoor Navigation & Floor QR state
+  // Indoor Navigation, Map Rotation & Floor QR state
+  const [mapRotation, setMapRotation] = useState<MapRotationAngle>(initialRotateParam);
   const [customStartKey, setCustomStartKey] = useState<string>(initialFromParam);
   const [targetKey, setTargetKey] = useState<string>(initialToParam);
   const [crossFloorUnitId, setCrossFloorUnitId] = useState<string | null>(null);
@@ -394,6 +326,7 @@ export default function ShopMapView({
     const saved: any[] = planData?.items || [];
     const next: MapItem[] = [];
     let d = 1;
+    let hasMarker = false;
     saved.forEach((it) => {
       if (it.kind === 'unit') {
         const shop = shopByUnit.get(it.unitId);
@@ -401,6 +334,10 @@ export default function ShopMapView({
         const size = sizeUnitTile({ w: it.w, h: it.h }, shop.unit?.areaSqft, spc, cols);
         next.push({ key: unitKey(it.unitId), kind: 'unit', unitId: it.unitId, label: it.label ?? null, x: it.x, y: it.y, ...size });
       } else {
+        if (it.kind === 'marker') {
+          if (hasMarker) return;
+          hasMarker = true;
+        }
         next.push({ key: `d:${d++}`, kind: it.kind, unitId: null, label: it.label ?? null, x: it.x, y: it.y, w: it.w, h: it.h });
       }
     });
@@ -409,6 +346,14 @@ export default function ShopMapView({
     setDecorSeq(d);
     setItems(resolveOverlaps(next, cols));
   }, [planData, shopByUnit, dirty]);
+
+  const effectiveRotation: MapRotationAngle = editing ? 0 : mapRotation;
+  const rotatedLayout = useMemo(
+    () => rotateMapLayout(items, columns, effectiveRotation),
+    [items, columns, effectiveRotation],
+  );
+  const displayItems = rotatedLayout.items;
+  const displayColumns = rotatedLayout.columns;
 
   const placedUnitIds = useMemo(() => new Set(items.filter((i) => i.unitId).map((i) => i.unitId as string)), [items]);
   const placedShops = useMemo(
@@ -461,28 +406,28 @@ export default function ShopMapView({
       ),
     [items],
   );
-  const corridors = useMemo(() => items.filter((i) => i.kind === 'corridor'), [items]);
+  const corridors = useMemo(() => displayItems.filter((i) => i.kind === 'corridor'), [displayItems]);
   const unplaced = floorShops.filter((s) => !placedUnitIds.has(s.unitId));
 
   const { width, containerRef } = useContainerWidth();
   const gridWidth = Math.max(0, (width || 900) - 16);
-  const cellPx = Math.max(6, Math.floor(gridWidth / columns));
-  const colStepPx = columns > 0 ? (gridWidth - (columns - 1)) / columns + 1 : cellPx + 1;
+  const cellPx = Math.max(6, Math.floor(gridWidth / displayColumns));
+  const colStepPx = displayColumns > 0 ? (gridWidth - (displayColumns - 1)) / displayColumns + 1 : cellPx + 1;
   const rowStepPx = cellPx + 1;
 
   // Resolve starting point ("You Are Here" by default, or user-selected shop/landmark)
-  const defaultStartItem = useMemo(() => findDefaultStartItem(items), [items]);
+  const defaultStartItem = useMemo(() => findDefaultStartItem(displayItems), [displayItems]);
   const activeStartItem = useMemo(() => {
     if (customStartKey) {
-      const found = items.find((i) => i.key === customStartKey);
+      const found = displayItems.find((i) => i.key === customStartKey);
       if (found) return found;
     }
     if (transitArrivalMode) {
-      const transit = items.find((i) => i.kind === 'escalator' || i.kind === 'stairs');
+      const transit = displayItems.find((i) => i.kind === 'escalator' || i.kind === 'stairs');
       if (transit) return transit;
     }
     return defaultStartItem;
-  }, [items, customStartKey, transitArrivalMode, defaultStartItem]);
+  }, [displayItems, customStartKey, transitArrivalMode, defaultStartItem]);
 
   // If we arrived on a new floor via multi-floor navigation, automatically target the cross-floor unit
   useEffect(() => {
@@ -490,13 +435,13 @@ export default function ShopMapView({
       const targetShop = allShopByUnit.get(crossFloorUnitId);
       if (targetShop && floorKeyOf(targetShop) === floor) {
         const uKey = unitKey(crossFloorUnitId);
-        if (items.some((i) => i.key === uKey)) {
+        if (displayItems.some((i) => i.key === uKey)) {
           setTargetKey(uKey);
           setCrossFloorUnitId(null);
         }
       }
     }
-  }, [crossFloorUnitId, floor, items, allShopByUnit]);
+  }, [crossFloorUnitId, floor, displayItems, allShopByUnit]);
 
   const crossFloorShop = useMemo(
     () => (crossFloorUnitId ? allShopByUnit.get(crossFloorUnitId) || null : null),
@@ -506,11 +451,11 @@ export default function ShopMapView({
   // Resolve effective target item on the current floor
   const effectiveTargetItem = useMemo(() => {
     if (crossFloorShop && floorKeyOf(crossFloorShop) !== floor) {
-      return findNearestFacilityItem(items, activeStartItem, ['escalator', 'stairs', 'exit']);
+      return findNearestFacilityItem(displayItems, activeStartItem, ['escalator', 'stairs', 'exit']);
     }
     if (!targetKey) return null;
-    return items.find((i) => i.key === targetKey) || null;
-  }, [crossFloorShop, floor, items, activeStartItem, targetKey]);
+    return displayItems.find((i) => i.key === targetKey) || null;
+  }, [crossFloorShop, floor, displayItems, activeStartItem, targetKey]);
 
   const selectedUnitId = useMemo(() => {
     if (effectiveTargetItem?.kind === 'unit' && effectiveTargetItem.unitId) {
@@ -528,25 +473,28 @@ export default function ShopMapView({
   const walkwayRoute = useMemo(() => {
     if (editing || !activeStartItem || !effectiveTargetItem) return null;
     if (activeStartItem.key === effectiveTargetItem.key) return null;
-    return computeWalkwayPath(items, activeStartItem, effectiveTargetItem, columns, sqftPerCell);
-  }, [editing, activeStartItem, effectiveTargetItem, items, columns, sqftPerCell]);
+    return computeWalkwayPath(displayItems, activeStartItem, effectiveTargetItem, displayColumns, sqftPerCell);
+  }, [editing, activeStartItem, effectiveTargetItem, displayItems, displayColumns, sqftPerCell]);
+
+  const shopDisplayName = (s: any): string => {
+    const name = typeof s?.brandName === 'string' ? s.brandName.trim() : '';
+    if (name) return name;
+    return s?.unit?.unitNumber || s?.shopNumber || 'Shop';
+  };
 
   const describeTile = (it: MapItem | null): string => {
     if (!it) return '—';
     if (it.kind === 'unit' && it.unitId) {
-      const s = shopByUnit.get(it.unitId);
-      const uNum = s?.unit?.unitNumber || s?.shopNumber || '';
-      return s?.brandName ? `${s.brandName} (${uNum})` : uNum || 'Shop';
+      return shopDisplayName(shopByUnit.get(it.unitId));
     }
-    const base = DECORATION_LABELS[it.kind as Exclude<TileKind, 'unit'>] || it.label || it.kind;
-    return it.kind === 'marker' ? `📍 ${base}` : base;
+    return DECORATION_LABELS[it.kind as Exclude<TileKind, 'unit'>] || it.label || it.kind;
   };
 
   const startOptions = useMemo(() => {
-    const landmarks = items.filter((i) => i.kind !== 'unit' && i.kind !== 'corridor');
-    const unitItems = items.filter((i) => i.kind === 'unit' && i.unitId);
+    const landmarks = displayItems.filter((i) => i.kind !== 'unit' && i.kind !== 'corridor');
+    const unitItems = displayItems.filter((i) => i.kind === 'unit' && i.unitId);
     return { landmarks, unitItems };
-  }, [items]);
+  }, [displayItems]);
 
   const handleSelectDestination = (val: string) => {
     if (!val) {
@@ -566,7 +514,7 @@ export default function ShopMapView({
 
   const handleQuickFacility = (kinds: TileKind[]) => {
     setCrossFloorUnitId(null);
-    const nearest = findNearestFacilityItem(items, activeStartItem, kinds);
+    const nearest = findNearestFacilityItem(displayItems, activeStartItem, kinds);
     if (!nearest) {
       toast.error('Not available on this floor map');
       return;
@@ -579,6 +527,10 @@ export default function ShopMapView({
     setCrossFloorUnitId(null);
     setTransitArrivalMode(false);
     setOriginFloorBeforeTransit(null);
+  };
+
+  const cycleMapRotation = () => {
+    setMapRotation((prev) => (((prev + 90) % 360) as MapRotationAngle));
   };
 
   const update = (fn: (prev: MapItem[]) => MapItem[]) => {
@@ -595,6 +547,7 @@ export default function ShopMapView({
   };
 
   const addDecor = () => {
+    if (decorKind === 'marker' && items.some((i) => i.kind === 'marker')) return;
     const { w, h } = DECORATION_DEFAULT_SIZES[decorKind] || { w: 6, h: 4 };
     update((prev) => {
       const pos = findFreeSpot(prev, w, h, columns);
@@ -608,7 +561,8 @@ export default function ShopMapView({
       resolveOverlaps(prev.map((i) => (i.key === key ? { ...i, w: Math.min(i.h, columns), h: i.w } : i)), columns),
     );
 
-  const remove = (key: string) => update((prev) => prev.filter((i) => i.key !== key));
+  const remove = (key: string) =>
+    update((prev) => prev.filter((i) => i.key !== key || i.kind === 'marker'));
 
   const onLayoutChange = (layout: readonly any[]) => {
     if (!editing) return;
@@ -622,6 +576,28 @@ export default function ShopMapView({
     });
     if (changed) {
       setItems(next);
+      setDirty(true);
+    }
+  };
+
+  const startEditingLayout = () => {
+    setDecorKind('marker');
+    setEditing(true);
+    if (!items.some((i) => i.kind === 'marker')) {
+      const { w, h } = DECORATION_DEFAULT_SIZES.marker;
+      const pos = findFreeSpot(items, w, h, columns);
+      const nextItem: MapItem = {
+        key: `d:${decorSeq}`,
+        kind: 'marker',
+        unitId: null,
+        label: DECORATION_LABELS.marker,
+        x: pos.x,
+        y: pos.y,
+        w,
+        h,
+      };
+      setItems((prev) => [...prev, nextItem]);
+      setDecorSeq((n) => n + 1);
       setDirty(true);
     }
   };
@@ -685,13 +661,13 @@ export default function ShopMapView({
     switchFloor(nextFloor, true);
   };
 
-  const layout = items.map((i) => ({
+  const layout = displayItems.map((i) => ({
     i: i.key, x: i.x, y: i.y, w: i.w, h: i.h,
     isResizable: editing,
     isDraggable: editing,
   }));
 
-  const rows = Math.max(10, ...items.map((i) => i.y + i.h)) + (editing ? 6 : 1);
+  const rows = Math.max(10, ...displayItems.map((i) => i.y + i.h)) + (editing ? 6 : 1);
 
   const [mapView, setMapView] = useState<'default' | 'photo'>(() => {
     const v = new URLSearchParams(window.location.search).get('view');
@@ -703,6 +679,7 @@ export default function ShopMapView({
     if (propertyId) params.set('propertyId', propertyId);
     if (floor) params.set('floor', floor);
     if (mapView === 'photo') params.set('view', 'photo');
+    if (mapRotation) params.set('rotate', String(mapRotation));
     window.open(`/admin/mall/shops/map?${params.toString()}`, '_blank', 'noopener,noreferrer');
   };
 
@@ -717,8 +694,9 @@ export default function ShopMapView({
     const params = new URLSearchParams();
     params.set('propertyId', propertyId);
     params.set('floor', activeQrFloor);
+    if (mapRotation) params.set('rotate', String(mapRotation));
     return `${window.location.origin}/mall/navigate?${params.toString()}`;
-  }, [propertyId, activeQrFloor]);
+  }, [propertyId, activeQrFloor, mapRotation]);
 
   const routeQrUrl = useMemo(() => {
     if (!propertyId || !floor || !activeStartItem || !effectiveTargetItem) return '';
@@ -727,8 +705,9 @@ export default function ShopMapView({
     params.set('floor', floor);
     params.set('from', activeStartItem.key);
     params.set('to', effectiveTargetItem.key);
+    if (mapRotation) params.set('rotate', String(mapRotation));
     return `${window.location.origin}/mall/navigate?${params.toString()}`;
-  }, [propertyId, floor, activeStartItem, effectiveTargetItem]);
+  }, [propertyId, floor, activeStartItem, effectiveTargetItem, mapRotation]);
 
   const { data: floorQrRes } = useGetMallQrCodeQuery(
     { text: floorQrUrl },
@@ -780,7 +759,7 @@ export default function ShopMapView({
   const isRoutingActive = Boolean(!editing && walkwayRoute && activeStartItem && effectiveTargetItem);
 
   return (
-    <div className={`shop-map ${fullScreen ? 'shop-map-fullscreen' : ''}`}>
+    <div className={`shop-map ${fullScreen ? 'shop-map-fullscreen' : ''} ${mapView === 'photo' ? 'shop-map-view2' : 'shop-map-view1'}`}>
       <div className="shop-map-toolbar">
         <div className="shop-map-toolbar-left">
           <select
@@ -797,21 +776,35 @@ export default function ShopMapView({
               type="button"
               className={`shop-map-view-opt ${mapView === 'default' ? 'active' : ''}`}
               onClick={() => setMapView('default')}
+              title="Layout View"
+              aria-label="Layout View"
             >
-              <LayoutGrid size={14} /> View 1
+              <LayoutGrid size={15} />
             </button>
             <button
               type="button"
               className={`shop-map-view-opt ${mapView === 'photo' ? 'active' : ''}`}
               onClick={() => setMapView('photo')}
+              title="3D Photo View"
+              aria-label="3D Photo View"
             >
-              <ImageIcon size={14} /> View 2
+              <Cute3DCubeIcon size={16} />
             </button>
           </div>
+          {!editing && (
+            <button
+              type="button"
+              className={`btn btn-secondary ${mapRotation !== 0 ? 'active' : ''}`}
+              onClick={cycleMapRotation}
+              title="Rotate map"
+            >
+              <RotateCw size={14} /> Rotate
+            </button>
+          )}
           {!publicMode && (
             <button
               type="button"
-              className="btn btn-secondary shop-map-qr-btn"
+              className="btn btn-secondary"
               onClick={openFloorQr}
               title="Generate or Print QR Code for this Floor"
             >
@@ -826,7 +819,7 @@ export default function ShopMapView({
             </button>
             <PermissionGuard permission="mall-shops.write" hideWhenDenied>
               {!editing ? (
-                <button className="btn btn-secondary" onClick={() => setEditing(true)}>
+                <button className="btn btn-secondary" onClick={startEditingLayout}>
                   <Pencil size={14} /> Edit Layout
                 </button>
               ) : (
@@ -862,7 +855,7 @@ export default function ShopMapView({
                   <optgroup label="Floor Landmarks & Entrances">
                     {startOptions.landmarks.map((lm) => (
                       <option key={lm.key} value={lm.key}>
-                        {describeTile(lm)}{defaultStartItem?.key === lm.key ? ' (Default)' : ''}
+                        {describeTile(lm)}
                       </option>
                     ))}
                   </optgroup>
@@ -895,7 +888,7 @@ export default function ShopMapView({
                   <optgroup label={`Shops on ${floor}`}>
                     {placedShops.map((s) => (
                       <option key={s.unitId} value={unitKey(s.unitId)}>
-                        {s.brandName || 'Vacant'} ({s.unit?.unitNumber || s.shopNumber})
+                        {shopDisplayName(s)}
                       </option>
                     ))}
                   </optgroup>
@@ -913,7 +906,7 @@ export default function ShopMapView({
                   <optgroup label="Other Floors (Multi-Floor Route)">
                     {otherFloorShops.map((s) => (
                       <option key={s.unitId} value={`cross:${s.unitId}`}>
-                        [{floorKeyOf(s)}] {s.brandName || 'Vacant'} ({s.unit?.unitNumber || s.shopNumber})
+                        [{floorKeyOf(s)}] {shopDisplayName(s)}
                       </option>
                     ))}
                   </optgroup>
@@ -1042,11 +1035,17 @@ export default function ShopMapView({
           <select value={decorKind} onChange={(e) => setDecorKind(e.target.value as any)}>
             {Object.entries(DECORATION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-          <button className="btn btn-secondary" onClick={addDecor}><Plus size={14} /> Add</button>
+          <button
+            className="btn btn-secondary"
+            onClick={addDecor}
+            disabled={decorKind === 'marker' && items.some((i) => i.kind === 'marker')}
+          >
+            <Plus size={14} /> Add
+          </button>
           <button
             className="btn btn-secondary shop-map-clear-btn"
-            onClick={() => update(() => [])}
-            disabled={items.length === 0}
+            onClick={() => update((prev) => prev.filter((i) => i.kind === 'marker'))}
+            disabled={items.every((i) => i.kind === 'marker')}
             title="Remove all tiles from this floor"
           >
             <Trash2 size={14} /> Clear All
@@ -1062,11 +1061,15 @@ export default function ShopMapView({
           onClick={() => { if (targetKey || crossFloorUnitId) clearRoute(); }}
         >
           {isFetching && items.length === 0 ? (
-            <div className="shop-map-empty-state">
-              <div className="shop-map-empty-icon">
-                <MapIcon size={26} />
-              </div>
-              <h4 className="shop-map-empty-title">Loading Floor Map…</h4>
+            <div className="shop-map-skeleton-wrap" aria-hidden="true">
+              <div className="shop-map-skeleton-block wide" />
+              <div className="shop-map-skeleton-block" />
+              <div className="shop-map-skeleton-block tall" />
+              <div className="shop-map-skeleton-block" />
+              <div className="shop-map-skeleton-block wide" />
+              <div className="shop-map-skeleton-block" />
+              <div className="shop-map-skeleton-block" />
+              <div className="shop-map-skeleton-block wide" />
             </div>
           ) : items.length === 0 && !editing ? (
             <div className="shop-map-empty-state">
@@ -1082,7 +1085,7 @@ export default function ShopMapView({
               {!fullScreen && !publicMode && (
                 <PermissionGuard permission="mall-shops.write" hideWhenDenied>
                   <div className="shop-map-empty-actions">
-                    <button type="button" className="btn btn-primary" onClick={() => setEditing(true)}>
+                    <button type="button" className="btn btn-primary" onClick={startEditingLayout}>
                       <Pencil size={14} /> Edit Layout
                     </button>
                   </div>
@@ -1093,7 +1096,7 @@ export default function ShopMapView({
             <ReactGridLayout
               width={gridWidth}
               layout={layout as any}
-              gridConfig={{ cols: columns, rowHeight: cellPx, margin: [1, 1], containerPadding: [0, 0], maxRows: rows } as any}
+              gridConfig={{ cols: displayColumns, rowHeight: cellPx, margin: [1, 1], containerPadding: [0, 0], maxRows: rows } as any}
               dragConfig={{ enabled: editing, cancel: '.shop-map-tile-btn' } as any}
               resizeConfig={{ enabled: editing } as any}
               compactor={noCompaction as any}
@@ -1101,7 +1104,7 @@ export default function ShopMapView({
               onDrag={onLayoutChange as any}
               onResize={onLayoutChange as any}
             >
-              {items.map((it) => {
+              {displayItems.map((it) => {
                 const shop = it.unitId ? shopByUnit.get(it.unitId) : null;
                 const decor = it.kind !== 'unit';
                 const isTarget = Boolean(!editing && effectiveTargetItem && it.key === effectiveTargetItem.key);
@@ -1120,15 +1123,10 @@ export default function ShopMapView({
                   ? `${cm.tlSharp ? 'sharp-tl' : ''} ${cm.trSharp ? 'sharp-tr' : ''} ${cm.blSharp ? 'sharp-bl' : ''} ${cm.brSharp ? 'sharp-br' : ''}`
                   : '';
                 const unitLabel = shop?.unit?.unitNumber || shop?.shopNumber || '';
-                const rawPhotoUrl = shop?.unit?.floorPlanUrl as string | undefined | null;
-                const isImagePhoto = Boolean(rawPhotoUrl && /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(rawPhotoUrl));
-                const photoSrc = rawPhotoUrl
-                  ? rawPhotoUrl.startsWith('http')
-                    ? rawPhotoUrl
-                    : `/api/v1${rawPhotoUrl}`
-                  : null;
+                const rawPhotoUrl = shop?.unit?.floorPlanUrl as string | undefined;
+                const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl);
                 const showPhotoMode = !decor && mapView === 'photo';
-                const hasUnitPhoto = showPhotoMode && isImagePhoto && Boolean(photoSrc);
+                const hasUnitPhoto = showPhotoMode && hasPhotoImage;
                 const title = decor
                   ? decorLabel
                   : `${shop?.brandName || unitLabel} • ${unitLabel} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}`;
@@ -1136,8 +1134,6 @@ export default function ShopMapView({
                   <div
                     key={it.key}
                     title={title}
-                    data-tile-key={it.key}
-                    data-tile-unit-id={it.unitId || undefined}
                     className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
                     onClick={(e) => {
                       if (editing) return;
@@ -1207,24 +1203,31 @@ export default function ShopMapView({
                           </span>
                         </div>
                       )
-                    ) : hasUnitPhoto && photoSrc ? (
-                      <img
-                        src={photoSrc}
-                        alt={unitLabel}
-                        className="shop-map-tile-photo"
-                        loading="lazy"
-                      />
                     ) : (
-                      <div className="shop-map-tile-name">{unitLabel}</div>
+                      <>
+                        {hasPhotoImage && (
+                          <CachedUnitPhoto
+                            photoUrl={rawPhotoUrl}
+                            alt={unitLabel}
+                            imgClassName="shop-map-tile-photo"
+                            skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
+                            readyClassName="is-loaded"
+                            loading="eager"
+                          />
+                        )}
+                        <div className="shop-map-tile-name">{unitLabel}</div>
+                      </>
                     )}
                     {editing && (
                       <div className="shop-map-tile-actions">
                         <button className="shop-map-tile-btn rot" title="Rotate 90°" onClick={(e) => { e.stopPropagation(); rotate(it.key); }}>
                           <RotateCw size={9} />
                         </button>
-                        <button className="shop-map-tile-btn" title="Remove" onClick={(e) => { e.stopPropagation(); remove(it.key); }}>
-                          <X size={9} />
-                        </button>
+                        {it.kind !== 'marker' && (
+                          <button className="shop-map-tile-btn" title="Remove" onClick={(e) => { e.stopPropagation(); remove(it.key); }}>
+                            <X size={9} />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1243,9 +1246,9 @@ export default function ShopMapView({
             const startPt = pxPoints[0];
             const endPt = pxPoints[pxPoints.length - 1];
             return (
-              <svg className="shop-map-connector-svg shop-map-nav-svg">
+              <svg className="shop-map-connector-svg">
                 <polyline points={polyStr} className="shop-map-nav-glow" />
-                <polyline points={polyStr} className="shop-map-connector-line shop-map-nav-line" />
+                <polyline points={polyStr} className="shop-map-connector-line" />
                 <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
                 <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
                 <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
@@ -1301,7 +1304,6 @@ export default function ShopMapView({
                           return (
                             <div
                               key={s.unitId}
-                              data-info-unit-id={s.unitId}
                               className={`shop-map-cat-row ${isSelected ? 'active' : ''}`}
                               onClick={() => {
                                 setCrossFloorUnitId(null);
@@ -1328,15 +1330,28 @@ export default function ShopMapView({
             {unplaced.length === 0 ? (
               <div className="shop-map-tray-empty">All shops on this floor are placed.</div>
             ) : (
-              unplaced.map((s) => (
-                <div key={s.unitId} className="shop-map-tray-item">
-                  <div className="grow">
-                    {s.brandName || s.unit?.unitNumber}
-                    <small>{s.unit?.unitNumber} · {s.unit?.areaSqft ?? '—'} sqft</small>
+              unplaced.map((s) => {
+                const trayPhotoUrl = s.unit?.floorPlanUrl as string | undefined;
+                return (
+                  <div key={s.unitId} className="shop-map-tray-item">
+                    {trayPhotoUrl && isUnitPhotoImage(trayPhotoUrl) && (
+                      <CachedUnitPhoto
+                        photoUrl={trayPhotoUrl}
+                        alt={s.brandName || s.unit?.unitNumber || 'Unit'}
+                        wrapperAs="span"
+                        wrapperClassName="shop-photo-thumb-frame"
+                        imgClassName="shop-dir-list-thumb"
+                        skeletonClassName="shop-photo-mini-skeleton"
+                      />
+                    )}
+                    <div className="grow">
+                      {s.brandName || s.unit?.unitNumber}
+                      <small>{s.unit?.unitNumber} · {s.unit?.areaSqft ?? '—'} sqft</small>
+                    </div>
+                    <button className="btn btn-secondary" onClick={() => place(s)}>Place</button>
                   </div>
-                  <button className="btn btn-secondary" onClick={() => place(s)}>Place</button>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}

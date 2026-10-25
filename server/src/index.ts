@@ -109,11 +109,12 @@ async function bootstrap() {
   app.use(cookieParser());
   app.use(requestContextMiddleware);
 
-  // Serve static files BEFORE auth middleware (public access)
-  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
-  app.use('/api/v1/uploads', express.static(path.join(process.cwd(), 'uploads')));
-  app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos')));
-  app.use('/storage', express.static(path.join(process.cwd(), 'storage')));
+  // Serve static files BEFORE auth middleware (public access) with browser caching
+  const staticCacheOpts = { maxAge: '7d', etag: true, lastModified: true };
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), staticCacheOpts));
+  app.use('/api/v1/uploads', express.static(path.join(process.cwd(), 'uploads'), staticCacheOpts));
+  app.use('/seed-photos', express.static(path.join(process.cwd(), 'public/seed-photos'), staticCacheOpts));
+  app.use('/storage', express.static(path.join(process.cwd(), 'storage'), staticCacheOpts));
 
   // Public API routes (no auth required)
   app.get('/api/v1/health', (_req, res) => {

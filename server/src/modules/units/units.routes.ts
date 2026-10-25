@@ -180,10 +180,17 @@ unitsRouter.get('/:unitId/status-history', requirePermission('unit.read'), async
 }));
 
 /** POST /properties/:propertyId/units/:unitId/floor-plan */
-unitsRouter.post('/:unitId/floor-plan', requirePermission('unit.update'), upload.single('floorPlan'), asyncHandler(async (req, res) => {
+unitsRouter.post('/:unitId/floor-plan', requirePermission('unit.update', 'mall-shops.write'), upload.single('floorPlan'), asyncHandler(async (req, res) => {
   if (!req.file) throw new Error('No file uploaded');
   const floorScope = await getUserFloorScope(req.user!.sub);
   const data = await unitsService.uploadFloorPlan(p(req, 'propertyId'), p(req, 'unitId'), req.file, floorScope);
+  res.json({ success: true, data });
+}));
+
+/** DELETE /properties/:propertyId/units/:unitId/floor-plan */
+unitsRouter.delete('/:unitId/floor-plan', requirePermission('unit.update', 'mall-shops.write'), asyncHandler(async (req, res) => {
+  const floorScope = await getUserFloorScope(req.user!.sub);
+  const data = await unitsService.deleteFloorPlan(p(req, 'propertyId'), p(req, 'unitId'), floorScope);
   res.json({ success: true, data });
 }));
 

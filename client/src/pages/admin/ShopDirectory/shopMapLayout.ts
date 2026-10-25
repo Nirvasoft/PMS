@@ -30,14 +30,14 @@ export const SHOP_CATEGORIES = [
 ] as const;
 
 export const DECORATION_LABELS: Record<Exclude<TileKind, 'unit'>, string> = {
-  atrium: 'Atrium',
-  stairs: 'Stairs',
-  escalator: 'Elevator',
-  corridor: 'Walkway',
-  toilet: 'Restroom',
   marker: 'You Are Here',
+  corridor: 'Walkway',
   entrance: 'Entrance',
   exit: 'Exit',
+  escalator: 'Elevator',
+  stairs: 'Stairs',
+  toilet: 'Restroom',
+  atrium: 'Atrium',
 };
 
 export const DECORATION_DEFAULT_SIZES: Record<Exclude<TileKind, 'unit'>, { w: number; h: number }> = {
@@ -154,6 +154,89 @@ export function sizeUnitTile(
   return tileSizeFromSqft(areaSqft, sqftPerCell, columns);
 }
 
+export type MapRotationAngle = 0 | 90 | 180 | 270;
+
+export function parseRotationAngle(val: string | number | null | undefined): MapRotationAngle {
+  const n = ((Number(val) % 360) + 360) % 360;
+  if (n === 90 || n === 180 || n === 270) return n;
+  return 0;
+}
+
+/**
+ * Rotates the map layout by 0°, 90°, 180°, or 270° clockwise around the occupied bounding box
+ * while keeping individual tile text and icons upright.
+ */
+export function rotateMapLayout(
+  items: MapItem[],
+  columns: number,
+  rotation: MapRotationAngle,
+): { items: MapItem[]; columns: number } {
+  if (!rotation || items.length === 0) {
+    return { items, columns };
+  }
+
+  const minX = Math.min(...items.map((i) => i.x));
+  const maxX = Math.max(...items.map((i) => i.x + i.w));
+  const minY = Math.min(...items.map((i) => i.y));
+  const maxY = Math.max(...items.map((i) => i.y + i.h));
+
+  const spanX = Math.max(1, maxX - minX);
+  const spanY = Math.max(1, maxY - minY);
+
+  if (rotation === 90) {
+    const rotatedCols = Math.max(12, spanY + 2);
+    const padX = Math.max(0, Math.floor((rotatedCols - spanY) / 2));
+    return {
+      columns: rotatedCols,
+      items: items.map((it) => {
+        const lx = it.x - minX;
+        const ly = it.y - minY;
+        return {
+          ...it,
+          x: padX + (spanY - (ly + it.h)),
+          y: 1 + lx,
+          w: it.h,
+          h: it.w,
+        };
+      }),
+    };
+  }
+
+  if (rotation === 180) {
+    return {
+      columns,
+      items: items.map((it) => {
+        const lx = it.x - minX;
+        const ly = it.y - minY;
+        return {
+          ...it,
+          x: Math.max(0, minX + (spanX - (lx + it.w))),
+          y: Math.max(0, minY + (spanY - (ly + it.h))),
+          w: it.w,
+          h: it.h,
+        };
+      }),
+    };
+  }
+
+  const rotatedCols = Math.max(12, spanY + 2);
+  const padX = Math.max(0, Math.floor((rotatedCols - spanY) / 2));
+  return {
+    columns: rotatedCols,
+    items: items.map((it) => {
+      const lx = it.x - minX;
+      const ly = it.y - minY;
+      return {
+        ...it,
+        x: padX + ly,
+        y: 1 + (spanX - (lx + it.w)),
+        w: it.h,
+        h: it.w,
+      };
+    }),
+  };
+}
+
 /**
  * Resolve the default starting point ("You Are Here") on a floor plan.
  * Priority: 'marker' (You Are Here) -> 'entrance' -> 'escalator' -> 'stairs' -> 'atrium'.
@@ -198,8 +281,6 @@ export function findNearestFacilityItem(
 export interface WalkwayRouteResult {
   /** Waypoints in grid coordinates (0..columns, 0..rows). Multiply by cellPx for SVG pixels. */
   points: Array<{ x: number; y: number }>;
-  /** Total path length in grid cells */
-  cellDistance: number;
   /** Estimated walking distance in feet */
   distanceFeet: number;
   /** Estimated walking distance in meters */
@@ -413,10 +494,111 @@ export function computeWalkwayPath(
 
   return {
     points: simplified,
-    cellDistance,
     distanceFeet,
     distanceMeters,
     estimatedMinutes,
+  };
+}
+
+function subtractIntervals(total: number, removals: Array<[number, number]>): Array<[number, number]> {
+  let result: Array<[number, number]> = [[0, total]];
+  for (const [rStart, rEnd] of removals) {
+    const a = Math.max(0, rStart);
+    const b = Math.min(total, rEnd);
+    if (b <= a) continue;
+    const next: Array<[number, number]> = [];
+    for (const [s, e] of result) {
+      if (b <= s || a >= e) {
+        next.push([s, e]);
+      } else {
+        if (a > s) next.push([s, a]);
+        if (b < e) next.push([b, e]);
+      }
+    }
+    result = next;
+  }
+  return result;
+}
+
+function isCorridorVertical(c: MapItem, all: MapItem[]): boolean {
+  if (c.h !== c.w) return c.h > c.w;
+  return all.some(
+    (o) =>
+      o.key !== c.key &&
+      Math.min(c.x + c.w, o.x + o.w) > Math.max(c.x, o.x) &&
+      (o.y + o.h === c.y || o.y === c.y + c.h),
+  );
+}
+
+export function getCorridorMergeData(it: MapItem, corridors: MapItem[]) {
+  const others = corridors.filter((c) => c.key !== it.key);
+  const topTouched: Array<[number, number]> = [];
+  const bottomTouched: Array<[number, number]> = [];
+  const leftTouched: Array<[number, number]> = [];
+  const rightTouched: Array<[number, number]> = [];
+
+  const touchesTop = (o: MapItem) => o.y < it.y && o.y + o.h >= it.y;
+  const touchesBottom = (o: MapItem) => o.y <= it.y + it.h && o.y + o.h > it.y + it.h;
+  const touchesLeft = (o: MapItem) => o.x < it.x && o.x + o.w >= it.x;
+  const touchesRight = (o: MapItem) => o.x <= it.x + it.w && o.x + o.w > it.x + it.w;
+  const overlapsX = (o: MapItem) => Math.min(it.x + it.w, o.x + o.w) > Math.max(it.x, o.x);
+  const overlapsY = (o: MapItem) => Math.min(it.y + it.h, o.y + o.h) > Math.max(it.y, o.y);
+
+  for (const o of others) {
+    const u1 = Math.max(0, o.x - it.x);
+    const u2 = Math.min(it.w, o.x + o.w - it.x);
+    if (u2 > u1) {
+      if (touchesTop(o)) topTouched.push([u1, u2]);
+      if (touchesBottom(o)) bottomTouched.push([u1, u2]);
+    }
+    const v1 = Math.max(0, o.y - it.y);
+    const v2 = Math.min(it.h, o.y + o.h - it.y);
+    if (v2 > v1) {
+      if (touchesLeft(o)) leftTouched.push([v1, v2]);
+      if (touchesRight(o)) rightTouched.push([v1, v2]);
+    }
+  }
+
+  const vertical = isCorridorVertical(it, corridors);
+  let start = 0.35;
+  let end = (vertical ? it.h : it.w) - 0.35;
+
+  if (!vertical) {
+    const leftN = others.find((o) => touchesLeft(o) && overlapsY(o));
+    const leftCorner = !leftN && others.find((o) => isCorridorVertical(o, corridors) && o.x <= it.x + 0.5 && o.x + o.w > it.x && (touchesTop(o) || touchesBottom(o)));
+    if (leftN) start = isCorridorVertical(leftN, corridors) ? leftN.x + leftN.w / 2 - it.x : 0;
+    else if (leftCorner) start = leftCorner.x + leftCorner.w / 2 - it.x;
+
+    const rightN = others.find((o) => touchesRight(o) && overlapsY(o));
+    const rightCorner = !rightN && others.find((o) => isCorridorVertical(o, corridors) && o.x < it.x + it.w && o.x + o.w >= it.x + it.w - 0.5 && (touchesTop(o) || touchesBottom(o)));
+    if (rightN) end = isCorridorVertical(rightN, corridors) ? rightN.x + rightN.w / 2 - it.x : it.w;
+    else if (rightCorner) end = rightCorner.x + rightCorner.w / 2 - it.x;
+  } else {
+    const topN = others.find((o) => touchesTop(o) && overlapsX(o));
+    const topCorner = !topN && others.find((o) => !isCorridorVertical(o, corridors) && o.y <= it.y + 0.5 && o.y + o.h > it.y && (touchesLeft(o) || touchesRight(o)));
+    if (topN) start = !isCorridorVertical(topN, corridors) ? topN.y + topN.h / 2 - it.y : 0;
+    else if (topCorner) start = topCorner.y + topCorner.h / 2 - it.y;
+
+    const bottomN = others.find((o) => touchesBottom(o) && overlapsX(o));
+    const bottomCorner = !bottomN && others.find((o) => !isCorridorVertical(o, corridors) && o.y < it.y + it.h && o.y + o.h >= it.y + it.h - 0.5 && (touchesLeft(o) || touchesRight(o)));
+    if (bottomN) end = !isCorridorVertical(bottomN, corridors) ? bottomN.y + bottomN.h / 2 - it.y : it.h;
+    else if (bottomCorner) end = bottomCorner.y + bottomCorner.h / 2 - it.y;
+  }
+
+  return {
+    topSegs: subtractIntervals(it.w, topTouched),
+    bottomSegs: subtractIntervals(it.w, bottomTouched),
+    leftSegs: subtractIntervals(it.h, leftTouched),
+    rightSegs: subtractIntervals(it.h, rightTouched),
+    bottomTouched,
+    rightTouched,
+    tlSharp: topTouched.some(([a]) => a <= 0.01) || leftTouched.some(([a]) => a <= 0.01),
+    trSharp: topTouched.some(([, b]) => b >= it.w - 0.01) || rightTouched.some(([a]) => a <= 0.01),
+    blSharp: bottomTouched.some(([a]) => a <= 0.01) || leftTouched.some(([, b]) => b >= it.h - 0.01),
+    brSharp: bottomTouched.some(([, b]) => b >= it.w - 0.01) || rightTouched.some(([, b]) => b >= it.h - 0.01),
+    vertical,
+    start,
+    end,
   };
 }
 

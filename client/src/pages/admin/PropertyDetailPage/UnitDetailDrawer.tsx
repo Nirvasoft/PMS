@@ -1,10 +1,10 @@
-import { useState, useRef, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useAppDispatch } from '../../../store';
 import { closeDrawer } from '../../../store/slices/unitsSlice';
 import {
   useGetUnitQuery, useUpdateUnitMutation, useUpdateUnitStatusMutation,
   useAddMeterMutation, useDeleteMeterMutation, useUpdateMeterMutation,
-  useSetAmenitiesMutation, useUploadFloorPlanMutation, useGetUnitTypesQuery,
+  useSetAmenitiesMutation, useUploadFloorPlanMutation, useDeleteFloorPlanMutation, useGetUnitTypesQuery,
   useGetUnitChargesQuery, useAddUnitChargeMutation, useUpdateUnitChargeMutation, useDeleteUnitChargeMutation,
 } from '../../../store/api/unitsApi';
 import { useGetMeterSetupsQuery, useGetChargeTypesQuery, useGetBillingSchedulesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
@@ -20,6 +20,14 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import {
+  evictUnitPhotoCache,
+  isUnitPhotoImage,
+  preloadUnitPhoto,
+  syncUploadedUnitPhotoCache,
+  validateUnitPhotoFile,
+} from '../../../utils/unitPhotoCache';
+import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
 import './UnitDetailDrawer.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -132,6 +140,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const [updateMeter] = useUpdateMeterMutation();
   const [setAmenities] = useSetAmenitiesMutation();
   const [uploadFloorPlan, { isLoading: uploading }] = useUploadFloorPlanMutation();
+  const [deleteFloorPlan, { isLoading: deletingPhoto }] = useDeleteFloorPlanMutation();
   const { data: typesData } = useGetUnitTypesQuery();
   const unitTypes = typesData?.data || [];
 
@@ -431,19 +440,47 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     } catch { toast.error('Failed to update amenities'); }
   };
 
-  // ── Floor plan upload ───────────────────────
+  // ── Floor plan upload & cache preload ───────
   const fileInputRef = useRef<HTMLInputElement>(null);
+  useUnitPhotoCache();
+
+  useEffect(() => {
+    if (unit?.floorPlanUrl) {
+      preloadUnitPhoto(unit.floorPlanUrl);
+    }
+  }, [unit?.floorPlanUrl]);
+
   const handleFloorPlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast.error('Max file size is 10MB'); return; }
-    if (!/\.(pdf|png|jpe?g)$/i.test(file.name)) { toast.error('Only PDF, PNG, JPEG allowed'); return; }
+    const validationError = validateUnitPhotoFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    const previousUrl = unit?.floorPlanUrl;
     try {
-      await uploadFloorPlan({ propertyId, unitId, file }).unwrap();
+      const updated = await uploadFloorPlan({ propertyId, unitId, file }).unwrap();
+      syncUploadedUnitPhotoCache(previousUrl, updated?.data?.floorPlanUrl, file);
+      dispatch(mallApi.util.invalidateTags(['Shops']));
       toast.success('Unit photo uploaded');
     } catch { toast.error('Upload failed'); }
     // Reset input so same file can be re-uploaded
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleFloorPlanDelete = async () => {
+    const previousUrl = unit?.floorPlanUrl;
+    try {
+      await deleteFloorPlan({ propertyId, unitId }).unwrap();
+      if (previousUrl) {
+        evictUnitPhotoCache(previousUrl);
+      }
+      dispatch(mallApi.util.invalidateTags(['Shops']));
+      toast.success('Unit photo removed');
+    } catch {
+      toast.error('Failed to remove unit photo');
+    }
   };
 
   // ── Unit Charges ─────────────────────────────
@@ -617,7 +654,22 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
     <>
       <div className="drawer-overlay" />
       <div className="unit-drawer loading">
-        <div className="drawer-spinner" />
+        <div className="drawer-skeleton">
+          <div className="drawer-skel-header">
+            <div className="drawer-skel-line drawer-skel-title" />
+            <div className="drawer-skel-line drawer-skel-pill" />
+          </div>
+          <div className="drawer-skel-tabs">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="drawer-skel-line drawer-skel-tab" />
+            ))}
+          </div>
+          <div className="drawer-skel-grid">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="drawer-skel-box" />
+            ))}
+          </div>
+        </div>
       </div>
     </>
   );
@@ -1605,11 +1657,17 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
               {unit.floorPlanUrl ? (
                 <div className="fp-preview">
-                  {/\.(png|jpe?g)$/i.test(unit.floorPlanUrl) ? (
-                    <img
-                      src={`/api/v1${unit.floorPlanUrl}`}
+                  {isUnitPhotoImage(unit.floorPlanUrl) ? (
+                    <CachedUnitPhoto
+                      photoUrl={unit.floorPlanUrl}
                       alt="Unit photo"
-                      className="fp-image"
+                      wrapperAs="div"
+                      wrapperClassName="fp-image-frame"
+                      imgClassName="fp-image"
+                      skeletonClassName="fp-image-skeleton"
+                      skeletonChildren={<FileImage size={28} />}
+                      loading="eager"
+                      forceLoading={uploading}
                     />
                   ) : (
                     <div className="fp-pdf-card">
@@ -1627,11 +1685,43 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                   )}
                   <div className="fp-actions">
                     <PermissionGuard permission="unit.update">
-                      <button className="btn-fp-replace" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                      <button className="btn-fp-replace" onClick={() => fileInputRef.current?.click()} disabled={uploading || deletingPhoto}>
                         <Upload size={13} /> {uploading ? 'Uploading…' : 'Replace'}
+                      </button>
+                      <button
+                        className="btn-fp-remove"
+                        onClick={handleFloorPlanDelete}
+                        disabled={uploading || deletingPhoto}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 12px',
+                          borderRadius: 6,
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          background: 'rgba(239, 68, 68, 0.08)',
+                          color: '#ef4444',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Trash2 size={13} /> {deletingPhoto ? 'Removing…' : 'Remove'}
                       </button>
                     </PermissionGuard>
                   </div>
+                </div>
+              ) : uploading ? (
+                <div className="fp-preview">
+                  <CachedUnitPhoto
+                    photoUrl={null}
+                    alt="Uploading unit photo"
+                    wrapperAs="div"
+                    wrapperClassName="fp-image-frame"
+                    imgClassName="fp-image"
+                    skeletonClassName="fp-image-skeleton"
+                    skeletonChildren={<FileImage size={28} />}
+                  />
                 </div>
               ) : (
                 <div className="fp-empty">

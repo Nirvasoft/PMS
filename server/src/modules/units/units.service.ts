@@ -752,7 +752,7 @@ export class UnitsService {
       select: {
         id: true, unitNumber: true, unitType: true, areaSqft: true,
         status: true, furnishing: true, floorNumber: true, floorLabel: true,
-        towerId: true,
+        floorPlanUrl: true, towerId: true,
         tower: { select: { id: true, name: true } },
       },
       orderBy: [{ floorNumber: 'desc' }, { unitNumber: 'asc' }],
@@ -855,9 +855,17 @@ export class UnitsService {
     const ext = path.extname(file.originalname);
     const filename = `floor-plan${ext}`;
     await fs.writeFile(path.join(uploadDir, filename), file.buffer);
-    const floorPlanUrl = `/uploads/units/${propertyId}/${unitId}/${filename}`;
+    const floorPlanUrl = `/uploads/units/${propertyId}/${unitId}/${filename}?v=${Date.now()}`;
 
     return prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl } });
+  }
+
+  async deleteFloorPlan(propertyId: string, unitId: string, floorScope?: number[] | null) {
+    const unit = await prisma.unit.findFirst({ where: { id: unitId, propertyId, deletedAt: null } });
+    if (!unit) throw AppError.notFound('Unit');
+    this.assertFloorAllowed(floorScope, unit.floorNumber);
+
+    return prisma.unit.update({ where: { id: unitId }, data: { floorPlanUrl: null } });
   }
 
   // ── Amenities ──────────────────────────────

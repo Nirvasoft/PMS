@@ -34,6 +34,7 @@ import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { ZONE_OPTIONS } from './zoneOptions';
+import { preloadUnitPhotosBatch } from '../../../utils/unitPhotoCache';
 import './UnitsTab.css';
 
 /* ── Status config (single source of truth) ── */
@@ -165,6 +166,25 @@ export default function UnitsTab() {
     { skip: viewMode === 'floor_plan' }
   );
   const meta = listData?.meta;
+
+  useEffect(() => {
+    const urls: Array<string | null | undefined> = [];
+    if (listData?.data) {
+      for (const u of listData.data) {
+        if (u.floorPlanUrl) urls.push(u.floorPlanUrl);
+      }
+    }
+    if (floorPlanData?.data?.floors) {
+      for (const floor of floorPlanData.data.floors) {
+        for (const u of floor.units) {
+          if (u.floorPlanUrl) urls.push(u.floorPlanUrl);
+        }
+      }
+    }
+    if (urls.length > 0) {
+      preloadUnitPhotosBatch(urls);
+    }
+  }, [listData, floorPlanData]);
 
   /* "Select all" fetches every id matching the current filters (not just the current page) */
   const [fetchAllUnitIds, { isFetching: selectAllLoading }] = useLazyGetUnitIdsQuery();

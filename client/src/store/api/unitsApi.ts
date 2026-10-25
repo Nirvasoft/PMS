@@ -137,6 +137,7 @@ export interface UnitListItem {
   status: string;
   furnishing: string;
   currency: string | null;
+  floorPlanUrl?: string | null;
   tower: { id: string; name: string; code: string | null } | null;
   section: { id: string; name: string } | null;
   meters: Array<{ meterType: string; meterSerialNo: string }>;
@@ -180,6 +181,7 @@ export interface FloorPlanMatrix {
       areaSqft: number | null;
       status: string;
       furnishing: string;
+      floorPlanUrl?: string | null;
       tower: { id: string; name: string } | null;
     }>;
   }>;
@@ -415,7 +417,24 @@ export const unitsApi = createApi({
           body: formData,
         };
       },
-      invalidatesTags: (_, __, { unitId }) => [{ type: 'Units', id: unitId }],
+      invalidatesTags: (_, __, { propertyId, unitId }) => [
+        { type: 'Units', id: unitId },
+        'Units',
+        { type: 'FloorPlan', id: propertyId },
+        'FloorPlan',
+      ],
+    }),
+    deleteFloorPlan: builder.mutation<ApiResponse<UnitDetail>, { propertyId: string; unitId: string }>({
+      query: ({ propertyId, unitId }) => ({
+        url: `/properties/${propertyId}/units/${unitId}/floor-plan`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_, __, { propertyId, unitId }) => [
+        { type: 'Units', id: unitId },
+        'Units',
+        { type: 'FloorPlan', id: propertyId },
+        'FloorPlan',
+      ],
     }),
 
     // Floor plan matrix
@@ -495,6 +514,7 @@ export const {
   useBulkUpdateUnitStatusMutation,
   useSetAmenitiesMutation,
   useUploadFloorPlanMutation,
+  useDeleteFloorPlanMutation,
   useGetFloorPlanQuery,
   useGetUnitStatsQuery,
   useGetMetersQuery,

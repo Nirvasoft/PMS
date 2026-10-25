@@ -207,6 +207,7 @@ class MallService {
         floorNumber: true,
         areaSqft: true,
         status: true,
+        floorPlanUrl: true,
       },
       orderBy: { unitNumber: 'asc' },
     });
