@@ -27,7 +27,7 @@ import {
   syncUploadedUnitPhotoCache,
   validateUnitPhotoFile,
 } from '../../../utils/unitPhotoCache';
-import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
+import { CachedUnitPhoto } from '../../../components/common/CachedUnitPhoto';
 import './UnitDetailDrawer.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -442,7 +442,6 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
 
   // ── Floor plan upload & cache preload ───────
   const fileInputRef = useRef<HTMLInputElement>(null);
-  useUnitPhotoCache();
 
   useEffect(() => {
     if (unit?.floorPlanUrl) {

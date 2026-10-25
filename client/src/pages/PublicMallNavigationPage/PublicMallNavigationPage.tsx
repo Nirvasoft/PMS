@@ -20,6 +20,7 @@ export default function PublicMallNavigationPage() {
 
   const [search, setSearch] = useState('');
   const [detailShop, setDetailShop] = useState<any>(null);
+  const [brandImgError, setBrandImgError] = useState(false);
 
   const { data, isLoading, isError } = useGetPublicDirectoryQuery(
     { propertyId },
@@ -38,6 +39,11 @@ export default function PublicMallNavigationPage() {
   const cachedDir = useMemo(() => getCachedDirectory(propertyId), [propertyId, data]);
   const property = data?.data?.property ?? cachedDir?.property;
   const allShops = data?.data?.shops ?? cachedDir?.shops ?? [];
+  const propertyImageUrl = property?.coverImageUrl || property?.imageUrl || null;
+
+  useEffect(() => {
+    setBrandImgError(false);
+  }, [propertyImageUrl]);
 
   if (!propertyId) {
     return (
@@ -59,7 +65,16 @@ export default function PublicMallNavigationPage() {
       <div className="public-mall-header">
         <div className="public-mall-brand">
           <div className="public-mall-brand-icon">
-            <Store size={20} />
+            {propertyImageUrl && !brandImgError ? (
+              <img
+                src={propertyImageUrl}
+                alt={property?.name || 'Property'}
+                className="public-mall-brand-img"
+                onError={() => setBrandImgError(true)}
+              />
+            ) : (
+              <Store size={20} />
+            )}
           </div>
           <div>
             <h2 className="public-mall-brand-title">

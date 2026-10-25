@@ -1522,7 +1522,21 @@ class MallService {
   async getPublicDirectory(propertyId: string) {
     const property = await prisma.property.findUnique({
       where: { id: propertyId },
-      select: { id: true, companyId: true, name: true, code: true, addressLine1: true, city: true },
+      select: {
+        id: true,
+        companyId: true,
+        name: true,
+        code: true,
+        addressLine1: true,
+        city: true,
+        coverImageUrl: true,
+        imageUrl: true,
+        photos: {
+          orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }],
+          take: 1,
+          select: { url: true },
+        },
+      },
     });
     if (!property) {
       throw AppError.notFound('Property not found');
@@ -1560,6 +1574,7 @@ class MallService {
         name: property.name,
         code: property.code,
         address: [property.addressLine1, property.city].filter(Boolean).join(', '),
+        coverImageUrl: property.coverImageUrl ?? property.photos[0]?.url ?? property.imageUrl ?? null,
       },
       shops,
     };
