@@ -152,6 +152,7 @@ import AccessCardsPage from './pages/admin/AccessCardsPage/AccessCardsPage';
 import PortalBrandingPage from './pages/admin/PortalBrandingPage/PortalBrandingPage';
 import MallDashboard from './pages/admin/MallDashboard';
 import ShopDirectoryPage from './pages/admin/ShopDirectoryPage';
+import PublicMallNavigationPage from './pages/PublicMallNavigationPage/PublicMallNavigationPage';
 import GtoManagementPage from './pages/admin/GtoManagementPage';
 import CamManagementPage from './pages/admin/CamManagementPage';
 import MallEventsPage from './pages/admin/MallEventsPage';
@@ -229,8 +230,9 @@ function AppRoutes() {
       {/* SSO callback — outside PublicRoute (handles auth transition) */}
       <Route path="/sso/complete" element={<SsoCompletePage />} />
 
-      {/* Public shared document viewer — no auth required */}
+      {/* Public shared document viewer & Mall Indoor Navigation — no auth required */}
       <Route path="/shared/documents/:token" element={<SharedDocumentPage />} />
+      <Route path="/mall/navigate" element={<PublicMallNavigationPage />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>

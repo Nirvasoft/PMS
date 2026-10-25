@@ -232,6 +232,27 @@ export const mallApi = createApi({
       query: (params) => ({ url: '/pos/sales-history', params }),
       providesTags: ['GtoSubmissions'],
     }),
+
+    // ── Public Indoor Navigation (No Auth Required) ──
+    getPublicDirectory: builder.query<any, { propertyId: string }>({
+      query: ({ propertyId }) => ({
+        url: `${window.location.origin}/api/v1/public/mall/properties/${propertyId}/directory`,
+      }),
+      providesTags: ['Shops'],
+    }),
+    getPublicFloorPlan: builder.query<any, { propertyId: string; floor: string }>({
+      query: ({ propertyId, floor }) => ({
+        url: `${window.location.origin}/api/v1/public/mall/properties/${propertyId}/floor-plan`,
+        params: { floor },
+      }),
+      providesTags: ['FloorPlan'],
+    }),
+    getMallQrCode: builder.query<any, { text: string }>({
+      query: ({ text }) => ({
+        url: `${window.location.origin}/api/v1/public/mall/qr`,
+        params: { text },
+      }),
+    }),
   }),
 });
 
@@ -280,4 +301,8 @@ export const {
   useGetPosConfigQuery,
   useIngestPosSalesMutation,
   useGetPosSalesHistoryQuery,
+  useGetPublicDirectoryQuery,
+  useGetPublicFloorPlanQuery,
+  useGetMallQrCodeQuery,
 } = mallApi;
+

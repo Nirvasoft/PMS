@@ -153,3 +153,270 @@ export function sizeUnitTile(
   }
   return tileSizeFromSqft(areaSqft, sqftPerCell, columns);
 }
+
+/**
+ * Resolve the default starting point ("You Are Here") on a floor plan.
+ * Priority: 'marker' (You Are Here) -> 'entrance' -> 'escalator' -> 'stairs' -> 'atrium'.
+ */
+export function findDefaultStartItem(items: MapItem[]): MapItem | null {
+  if (!items || items.length === 0) return null;
+  const priorities: TileKind[] = ['marker', 'entrance', 'escalator', 'stairs', 'atrium'];
+  for (const kind of priorities) {
+    const found = items.find((i) => i.kind === kind);
+    if (found) return found;
+  }
+  return items[0] || null;
+}
+
+/**
+ * Find the nearest tile matching any of the given kinds from `fromItem` (by Euclidean center distance).
+ */
+export function findNearestFacilityItem(
+  items: MapItem[],
+  fromItem: MapItem | null,
+  kinds: TileKind[],
+): MapItem | null {
+  const candidates = items.filter((i) => kinds.includes(i.kind) && (!fromItem || i.key !== fromItem.key));
+  if (candidates.length === 0) return null;
+  if (!fromItem) return candidates[0];
+  const fx = fromItem.x + fromItem.w / 2;
+  const fy = fromItem.y + fromItem.h / 2;
+  let best = candidates[0];
+  let bestDist = Infinity;
+  for (const c of candidates) {
+    const cx = c.x + c.w / 2;
+    const cy = c.y + c.h / 2;
+    const d = Math.hypot(cx - fx, cy - fy);
+    if (d < bestDist) {
+      bestDist = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
+export interface WalkwayRouteResult {
+  /** Waypoints in grid coordinates (0..columns, 0..rows). Multiply by cellPx for SVG pixels. */
+  points: Array<{ x: number; y: number }>;
+  /** Total path length in grid cells */
+  cellDistance: number;
+  /** Estimated walking distance in feet */
+  distanceFeet: number;
+  /** Estimated walking distance in meters */
+  distanceMeters: number;
+  /** Estimated walking time in minutes */
+  estimatedMinutes: number;
+}
+
+/**
+ * Computes an orthogonal indoor walking path from `fromItem` to `toItem` that follows
+ * `corridor` (Walkway) centerlines and avoids cutting through other shop units.
+ */
+export function computeWalkwayPath(
+  items: MapItem[],
+  fromItem: MapItem,
+  toItem: MapItem,
+  columns: number,
+  sqftPerCell: number = DEFAULT_SQFT_PER_CELL,
+): WalkwayRouteResult {
+  const cols = Math.max(columns, ...items.map((i) => i.x + i.w), 12);
+  const rows = Math.max(12, ...items.map((i) => i.y + i.h)) + 3;
+
+  const startCx = Math.max(0, Math.min(cols - 1, Math.floor(fromItem.x + fromItem.w / 2)));
+  const startCy = Math.max(0, Math.min(rows - 1, Math.floor(fromItem.y + fromItem.h / 2)));
+  const endCx = Math.max(0, Math.min(cols - 1, Math.floor(toItem.x + toItem.w / 2)));
+  const endCy = Math.max(0, Math.min(rows - 1, Math.floor(toItem.y + toItem.h / 2)));
+
+  const isInside = (cx: number, cy: number, it: MapItem) =>
+    cx >= it.x && cx < it.x + it.w && cy >= it.y && cy < it.y + it.h;
+
+  // Precompute cell traversal cost
+  const cellCost = new Float32Array(cols * rows);
+  cellCost.fill(6.5); // Default empty grid space (bridges small gaps between shop & corridor)
+
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const idx = cy * cols + cx;
+      if (isInside(cx, cy, fromItem) || isInside(cx, cy, toItem)) {
+        cellCost[idx] = 0.85;
+        continue;
+      }
+      // Check if covered by any item
+      let matched: MapItem | null = null;
+      for (const it of items) {
+        if (isInside(cx, cy, it)) {
+          matched = it;
+          break;
+        }
+      }
+      if (!matched) continue;
+
+      if (matched.kind === 'corridor') {
+        const centerOffset =
+          matched.w >= matched.h
+            ? Math.abs(cy + 0.5 - (matched.y + matched.h / 2))
+            : Math.abs(cx + 0.5 - (matched.x + matched.w / 2));
+        cellCost[idx] = 1.0 + 0.16 * centerOffset;
+      } else if (
+        matched.kind === 'atrium' ||
+        matched.kind === 'marker' ||
+        matched.kind === 'entrance' ||
+        matched.kind === 'escalator' ||
+        matched.kind === 'stairs'
+      ) {
+        cellCost[idx] = 1.8;
+      } else {
+        // Other shop units / restrooms — strongly avoid cutting through them
+        cellCost[idx] = 48.0;
+      }
+    }
+  }
+
+  // Dijkstra with 4 directions (0: E, 1: W, 2: S, 3: N, 4: initial)
+  const DIRS = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ] as const;
+  const stateCount = cols * rows * 5;
+  const dist = new Float32Array(stateCount);
+  dist.fill(Infinity);
+  const parent = new Int32Array(stateCount);
+  parent.fill(-1);
+
+  const startState = (startCy * cols + startCx) * 5 + 4;
+  dist[startState] = 0;
+
+  // Simple binary min-heap on state index
+  const heap: number[] = [startState];
+  const pushHeap = (s: number) => {
+    heap.push(s);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (dist[heap[p]] <= dist[heap[i]]) break;
+      const tmp = heap[p];
+      heap[p] = heap[i];
+      heap[i] = tmp;
+      i = p;
+    }
+  };
+  const popHeap = (): number => {
+    const top = heap[0];
+    const last = heap.pop()!;
+    if (heap.length > 0) {
+      heap[0] = last;
+      let i = 0;
+      const n = heap.length;
+      while (true) {
+        let smallest = i;
+        const l = i * 2 + 1;
+        const r = i * 2 + 2;
+        if (l < n && dist[heap[l]] < dist[heap[smallest]]) smallest = l;
+        if (r < n && dist[heap[r]] < dist[heap[smallest]]) smallest = r;
+        if (smallest === i) break;
+        const tmp = heap[i];
+        heap[i] = heap[smallest];
+        heap[smallest] = tmp;
+        i = smallest;
+      }
+    }
+    return top;
+  };
+
+  let goalState = -1;
+  while (heap.length > 0) {
+    const cur = popHeap();
+    const curCost = dist[cur];
+    const dir = cur % 5;
+    const cellIdx = (cur - dir) / 5;
+    const cx = cellIdx % cols;
+    const cy = (cellIdx - cx) / cols;
+
+    if (cx === endCx && cy === endCy) {
+      goalState = cur;
+      break;
+    }
+
+    for (let nd = 0; nd < 4; nd++) {
+      const nx = cx + DIRS[nd][0];
+      const ny = cy + DIRS[nd][1];
+      if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+      const nCellIdx = ny * cols + nx;
+      const turnPenalty = dir !== 4 && dir !== nd ? 0.35 : 0;
+      const nextCost = curCost + cellCost[nCellIdx] + turnPenalty;
+      const nextState = nCellIdx * 5 + nd;
+      if (nextCost < dist[nextState]) {
+        dist[nextState] = nextCost;
+        parent[nextState] = cur;
+        pushHeap(nextState);
+      }
+    }
+  }
+
+  // Reconstruct cell centers
+  const rawCells: Array<{ cx: number; cy: number }> = [];
+  if (goalState !== -1) {
+    let cur = goalState;
+    while (cur !== -1) {
+      const dir = cur % 5;
+      const cellIdx = (cur - dir) / 5;
+      const cx = cellIdx % cols;
+      const cy = (cellIdx - cx) / cols;
+      rawCells.push({ cx, cy });
+      cur = parent[cur];
+    }
+    rawCells.reverse();
+  } else {
+    rawCells.push({ cx: startCx, cy: startCy }, { cx: endCx, cy: endCy });
+  }
+
+  const rawPoints = rawCells.map(({ cx, cy }) => ({ x: cx + 0.5, y: cy + 0.5 }));
+  // Snap exact start and end tile centers
+  const exactStart = { x: fromItem.x + fromItem.w / 2, y: fromItem.y + fromItem.h / 2 };
+  const exactEnd = { x: toItem.x + toItem.w / 2, y: toItem.y + toItem.h / 2 };
+  if (rawPoints.length > 0) {
+    rawPoints[0] = exactStart;
+    rawPoints[rawPoints.length - 1] = exactEnd;
+  }
+
+  // Simplify collinear consecutive segments
+  const simplified: Array<{ x: number; y: number }> = [];
+  for (const pt of rawPoints) {
+    if (simplified.length === 0) {
+      simplified.push(pt);
+      continue;
+    }
+    const prev = simplified[simplified.length - 1];
+    if (Math.abs(prev.x - pt.x) < 0.01 && Math.abs(prev.y - pt.y) < 0.01) continue;
+    if (simplified.length >= 2) {
+      const prev2 = simplified[simplified.length - 2];
+      const sameX = Math.abs(prev2.x - prev.x) < 0.01 && Math.abs(prev.x - pt.x) < 0.01;
+      const sameY = Math.abs(prev2.y - prev.y) < 0.01 && Math.abs(prev.y - pt.y) < 0.01;
+      if (sameX || sameY) {
+        simplified[simplified.length - 1] = pt;
+        continue;
+      }
+    }
+    simplified.push(pt);
+  }
+
+  let cellDistance = 0;
+  for (let i = 1; i < simplified.length; i++) {
+    cellDistance += Math.hypot(simplified[i].x - simplified[i - 1].x, simplified[i].y - simplified[i - 1].y);
+  }
+  const cellSideFeet = Math.sqrt(Math.max(10, sqftPerCell || DEFAULT_SQFT_PER_CELL));
+  const distanceFeet = Math.max(10, Math.round(cellDistance * cellSideFeet));
+  const distanceMeters = Math.max(3, Math.round(distanceFeet * 0.3048));
+  const estimatedMinutes = Math.max(1, Math.ceil(distanceFeet / 220));
+
+  return {
+    points: simplified,
+    cellDistance,
+    distanceFeet,
+    distanceMeters,
+    estimatedMinutes,
+  };
+}
+

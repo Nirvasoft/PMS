@@ -1,14 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import ReactGridLayout, { useContainerWidth, getCompactor } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import toast from 'react-hot-toast';
-import { RotateCw, X, Pencil, Save, Plus, Maximize2, Trash2, LayoutGrid, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
-import { useGetFloorPlanQuery, useSaveFloorPlanMutation } from '../../../store/api/mallApi';
+import {
+  RotateCw, X, Pencil, Save, Plus, Maximize2, Trash2, LayoutGrid,
+  Image as ImageIcon, Map as MapIcon, QrCode, Navigation, MapPin,
+  Printer, Copy, ExternalLink, Info, ArrowRight,
+} from 'lucide-react';
+import {
+  useGetFloorPlanQuery,
+  useGetPublicFloorPlanQuery,
+  useSaveFloorPlanMutation,
+  useGetMallQrCodeQuery,
+} from '../../../store/api/mallApi';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
   SHOP_CATEGORIES, findFreeSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
   sizeUnitTile, tileSizeFromSqft, unitKey,
+  computeWalkwayPath, findDefaultStartItem, findNearestFacilityItem,
   type MapItem, type TileKind,
 } from './shopMapLayout';
 import './ShopMapView.css';
@@ -16,10 +27,12 @@ import './ShopMapView.css';
 interface Props {
   shops: any[];
   propertyId: string | undefined | null;
+  propertyName?: string;
   matches: (shop: any) => boolean;
   onOpenShop: (shop: any) => void;
   fullScreen?: boolean;
   initialFloor?: string;
+  publicMode?: boolean;
 }
 
 const noCompaction = getCompactor(null as any, false, true);
@@ -304,7 +317,20 @@ function getCorridorMergeData(it: MapItem, corridors: MapItem[]) {
   };
 }
 
-export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fullScreen = false, initialFloor }: Props) {
+export default function ShopMapView({
+  shops,
+  propertyId,
+  propertyName,
+  matches,
+  onOpenShop,
+  fullScreen = false,
+  initialFloor,
+  publicMode = false,
+}: Props) {
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const initialFromParam = urlParams.get('from') || '';
+  const initialToParam = urlParams.get('to') || '';
+
   const floors = useMemo(() => {
     const m = new Map<string, number>();
     shops.forEach((s) => {
@@ -325,11 +351,19 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
 
   const floorShops = useMemo(() => shops.filter((s) => floorKeyOf(s) === floor), [shops, floor]);
   const shopByUnit = useMemo(() => new Map(floorShops.map((s) => [s.unitId, s])), [floorShops]);
+  const allShopByUnit = useMemo(() => new Map(shops.map((s) => [s.unitId, s])), [shops]);
 
-  const { data: plan, isFetching } = useGetFloorPlanQuery(
+  const adminPlanQuery = useGetFloorPlanQuery(
     { propertyId: propertyId as string, floor },
-    { skip: !propertyId || !floor },
+    { skip: !propertyId || !floor || publicMode },
   );
+  const publicPlanQuery = useGetPublicFloorPlanQuery(
+    { propertyId: propertyId as string, floor },
+    { skip: !propertyId || !floor || !publicMode },
+  );
+  const plan = publicMode ? publicPlanQuery.data : adminPlanQuery.data;
+  const isFetching = publicMode ? publicPlanQuery.isFetching : adminPlanQuery.isFetching;
+
   const [savePlan, { isLoading: saving }] = useSaveFloorPlanMutation();
 
   const [editing, setEditing] = useState(false);
@@ -339,6 +373,16 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [decorKind, setDecorKind] = useState<Exclude<TileKind, 'unit'>>('corridor');
   const [decorSeq, setDecorSeq] = useState(1);
+
+  // Indoor Navigation & Floor QR state
+  const [customStartKey, setCustomStartKey] = useState<string>(initialFromParam);
+  const [targetKey, setTargetKey] = useState<string>(initialToParam);
+  const [crossFloorUnitId, setCrossFloorUnitId] = useState<string | null>(null);
+  const [transitArrivalMode, setTransitArrivalMode] = useState(false);
+  const [originFloorBeforeTransit, setOriginFloorBeforeTransit] = useState<string | null>(null);
+  const [showFloorQrModal, setShowFloorQrModal] = useState(false);
+  const [qrModalFloor, setQrModalFloor] = useState<string>('');
+  const [showRouteQrModal, setShowRouteQrModal] = useState(false);
 
   const planData: any = (plan as any)?.data ?? plan;
 
@@ -380,6 +424,16 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
         ),
     [floorShops, placedUnitIds],
   );
+  const otherFloorShops = useMemo(
+    () =>
+      shops
+        .filter((s) => floorKeyOf(s) !== floor)
+        .sort((a, b) =>
+          String(floorKeyOf(a)).localeCompare(String(floorKeyOf(b))) ||
+          String(a.brandName || a.unit?.unitNumber || '').localeCompare(String(b.brandName || b.unit?.unitNumber || '')),
+        ),
+    [shops, floor],
+  );
   const placedCategories = useMemo(() => {
     const groups = new Map<string, any[]>();
     placedShops.forEach((s) => {
@@ -411,54 +465,121 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
   const unplaced = floorShops.filter((s) => !placedUnitIds.has(s.unitId));
 
   const { width, containerRef } = useContainerWidth();
-  const cellPx = Math.max(6, Math.floor(((width || 900) - 16) / columns));
+  const gridWidth = Math.max(0, (width || 900) - 16);
+  const cellPx = Math.max(6, Math.floor(gridWidth / columns));
+  const colStepPx = columns > 0 ? (gridWidth - (columns - 1)) / columns + 1 : cellPx + 1;
+  const rowStepPx = cellPx + 1;
 
-  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
-  const [connector, setConnector] = useState<{ x1: number; y1: number; x2: number; y2: number; points: string } | null>(null);
+  // Resolve starting point ("You Are Here" by default, or user-selected shop/landmark)
+  const defaultStartItem = useMemo(() => findDefaultStartItem(items), [items]);
+  const activeStartItem = useMemo(() => {
+    if (customStartKey) {
+      const found = items.find((i) => i.key === customStartKey);
+      if (found) return found;
+    }
+    if (transitArrivalMode) {
+      const transit = items.find((i) => i.kind === 'escalator' || i.kind === 'stairs');
+      if (transit) return transit;
+    }
+    return defaultStartItem;
+  }, [items, customStartKey, transitArrivalMode, defaultStartItem]);
 
+  // If we arrived on a new floor via multi-floor navigation, automatically target the cross-floor unit
   useEffect(() => {
-    setSelectedUnitId(null);
-  }, [floor]);
+    if (crossFloorUnitId) {
+      const targetShop = allShopByUnit.get(crossFloorUnitId);
+      if (targetShop && floorKeyOf(targetShop) === floor) {
+        const uKey = unitKey(crossFloorUnitId);
+        if (items.some((i) => i.key === uKey)) {
+          setTargetKey(uKey);
+          setCrossFloorUnitId(null);
+        }
+      }
+    }
+  }, [crossFloorUnitId, floor, items, allShopByUnit]);
 
-  useEffect(() => {
-    if (editing || !selectedUnitId) {
-      setConnector(null);
+  const crossFloorShop = useMemo(
+    () => (crossFloorUnitId ? allShopByUnit.get(crossFloorUnitId) || null : null),
+    [crossFloorUnitId, allShopByUnit],
+  );
+
+  // Resolve effective target item on the current floor
+  const effectiveTargetItem = useMemo(() => {
+    if (crossFloorShop && floorKeyOf(crossFloorShop) !== floor) {
+      return findNearestFacilityItem(items, activeStartItem, ['escalator', 'stairs', 'exit']);
+    }
+    if (!targetKey) return null;
+    return items.find((i) => i.key === targetKey) || null;
+  }, [crossFloorShop, floor, items, activeStartItem, targetKey]);
+
+  const selectedUnitId = useMemo(() => {
+    if (effectiveTargetItem?.kind === 'unit' && effectiveTargetItem.unitId) {
+      return effectiveTargetItem.unitId;
+    }
+    return null;
+  }, [effectiveTargetItem]);
+
+  const selectedShop = useMemo(
+    () => (selectedUnitId ? shopByUnit.get(selectedUnitId) || null : null),
+    [selectedUnitId, shopByUnit],
+  );
+
+  // Compute walkway path along corridors
+  const walkwayRoute = useMemo(() => {
+    if (editing || !activeStartItem || !effectiveTargetItem) return null;
+    if (activeStartItem.key === effectiveTargetItem.key) return null;
+    return computeWalkwayPath(items, activeStartItem, effectiveTargetItem, columns, sqftPerCell);
+  }, [editing, activeStartItem, effectiveTargetItem, items, columns, sqftPerCell]);
+
+  const describeTile = (it: MapItem | null): string => {
+    if (!it) return '—';
+    if (it.kind === 'unit' && it.unitId) {
+      const s = shopByUnit.get(it.unitId);
+      const uNum = s?.unit?.unitNumber || s?.shopNumber || '';
+      return s?.brandName ? `${s.brandName} (${uNum})` : uNum || 'Shop';
+    }
+    const base = DECORATION_LABELS[it.kind as Exclude<TileKind, 'unit'>] || it.label || it.kind;
+    return it.kind === 'marker' ? `📍 ${base}` : base;
+  };
+
+  const startOptions = useMemo(() => {
+    const landmarks = items.filter((i) => i.kind !== 'unit' && i.kind !== 'corridor');
+    const unitItems = items.filter((i) => i.kind === 'unit' && i.unitId);
+    return { landmarks, unitItems };
+  }, [items]);
+
+  const handleSelectDestination = (val: string) => {
+    if (!val) {
+      setTargetKey('');
+      setCrossFloorUnitId(null);
       return;
     }
-    const compute = () => {
-      const wrap = containerRef.current as HTMLElement | null;
-      if (!wrap) return;
-      const infoEl = wrap.querySelector(`[data-info-unit-id="${selectedUnitId}"]`) as HTMLElement | null;
-      const tileEl = wrap.querySelector(`[data-tile-unit-id="${selectedUnitId}"]`) as HTMLElement | null;
-      if (!infoEl || !tileEl) {
-        setConnector(null);
-        return;
-      }
-      const wrapRect = wrap.getBoundingClientRect();
-      const infoRect = infoEl.getBoundingClientRect();
-      const tileRect = tileEl.getBoundingClientRect();
-      const boxEl = infoEl.closest('.shop-map-directory-overlays') as HTMLElement | null;
-      const boxRect = boxEl ? boxEl.getBoundingClientRect() : infoRect;
+    if (val.startsWith('cross:')) {
+      const uId = val.slice('cross:'.length);
+      setCrossFloorUnitId(uId);
+      setTargetKey('');
+      return;
+    }
+    setCrossFloorUnitId(null);
+    setTargetKey(val);
+  };
 
-      const x1 = infoRect.left + infoRect.width / 2 - wrapRect.left + wrap.scrollLeft;
-      const y1 = infoRect.top - wrapRect.top + wrap.scrollTop;
-      const x2 = tileRect.left + tileRect.width / 2 - wrapRect.left + wrap.scrollLeft;
-      const y2 = tileRect.bottom - wrapRect.top + wrap.scrollTop;
-      const boxTop = boxRect.top - wrapRect.top + wrap.scrollTop;
-      const yMid = Math.max(y2, Math.min(y1, boxTop) - 14);
-      const points = `${x1},${y1} ${x1},${yMid} ${x2},${yMid} ${x2},${y2}`;
-      setConnector({ x1, y1, x2, y2, points });
-    };
-    const raf = requestAnimationFrame(compute);
-    const wrap = containerRef.current as HTMLElement | null;
-    window.addEventListener('resize', compute);
-    wrap?.addEventListener('scroll', compute);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', compute);
-      wrap?.removeEventListener('scroll', compute);
-    };
-  }, [editing, selectedUnitId, items, width, cellPx, containerRef]);
+  const handleQuickFacility = (kinds: TileKind[]) => {
+    setCrossFloorUnitId(null);
+    const nearest = findNearestFacilityItem(items, activeStartItem, kinds);
+    if (!nearest) {
+      toast.error('Not available on this floor map');
+      return;
+    }
+    setTargetKey((prev) => (prev === nearest.key ? '' : nearest.key));
+  };
+
+  const clearRoute = () => {
+    setTargetKey('');
+    setCrossFloorUnitId(null);
+    setTransitArrivalMode(false);
+    setOriginFloorBeforeTransit(null);
+  };
 
   const update = (fn: (prev: MapItem[]) => MapItem[]) => {
     setItems((prev) => fn(prev));
@@ -541,12 +662,27 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
     }
   };
 
-  const switchFloor = (f: string) => {
+  const switchFloor = (f: string, keepTransit = false) => {
     if (f === floor) return;
     if (dirty && !window.confirm('Discard unsaved map changes?')) return;
     setDirty(false);
     setEditing(false);
+    setCustomStartKey('');
+    if (!keepTransit) {
+      setTargetKey('');
+      setCrossFloorUnitId(null);
+      setTransitArrivalMode(false);
+      setOriginFloorBeforeTransit(null);
+    }
     setFloor(f);
+  };
+
+  const proceedToDestinationFloor = () => {
+    if (!crossFloorShop) return;
+    const nextFloor = floorKeyOf(crossFloorShop);
+    setOriginFloorBeforeTransit(floor);
+    setTransitArrivalMode(true);
+    switchFloor(nextFloor, true);
   };
 
   const layout = items.map((i) => ({
@@ -570,7 +706,78 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
     window.open(`/admin/mall/shops/map?${params.toString()}`, '_blank', 'noopener,noreferrer');
   };
 
+  const openFloorQr = () => {
+    setQrModalFloor(floor);
+    setShowFloorQrModal(true);
+  };
+
+  const activeQrFloor = qrModalFloor || floor;
+  const floorQrUrl = useMemo(() => {
+    if (!propertyId || !activeQrFloor) return '';
+    const params = new URLSearchParams();
+    params.set('propertyId', propertyId);
+    params.set('floor', activeQrFloor);
+    return `${window.location.origin}/mall/navigate?${params.toString()}`;
+  }, [propertyId, activeQrFloor]);
+
+  const routeQrUrl = useMemo(() => {
+    if (!propertyId || !floor || !activeStartItem || !effectiveTargetItem) return '';
+    const params = new URLSearchParams();
+    params.set('propertyId', propertyId);
+    params.set('floor', floor);
+    params.set('from', activeStartItem.key);
+    params.set('to', effectiveTargetItem.key);
+    return `${window.location.origin}/mall/navigate?${params.toString()}`;
+  }, [propertyId, floor, activeStartItem, effectiveTargetItem]);
+
+  const { data: floorQrRes } = useGetMallQrCodeQuery(
+    { text: floorQrUrl },
+    { skip: !showFloorQrModal || !floorQrUrl },
+  );
+  const { data: routeQrRes } = useGetMallQrCodeQuery(
+    { text: routeQrUrl },
+    { skip: !showRouteQrModal || !routeQrUrl },
+  );
+  const floorQrDataUrl = floorQrRes?.data?.dataUrl || '';
+  const routeQrDataUrl = routeQrRes?.data?.dataUrl || '';
+
+  const handlePrintFloorQr = () => {
+    if (!floorQrDataUrl) return;
+    const win = window.open('', '_blank', 'width=520,height=680');
+    if (!win) return;
+    const titleText = propertyName ? `${propertyName} — ${activeQrFloor}` : activeQrFloor;
+    win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Floor QR — ${titleText}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 32px; display: flex; justify-content: center; background: #fff; color: #0f172a; }
+    .card { border: 2px solid #0f172a; border-radius: 20px; padding: 32px 28px; text-align: center; max-width: 380px; width: 100%; }
+    .badge { display: inline-block; background: #10b981; color: #fff; font-weight: 800; font-size: 14px; padding: 6px 16px; border-radius: 999px; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 12px; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    p.sub { margin: 0 0 20px; font-size: 14px; color: #475569; }
+    img { width: 260px; height: 260px; display: block; margin: 0 auto 16px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; }
+    .hint { font-size: 13px; color: #334155; font-weight: 600; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">Indoor Navigation</div>
+    <h1>${titleText}</h1>
+    <p class="sub">Interactive Floor Directory &amp; Wayfinding</p>
+    <img src="${floorQrDataUrl}" alt="Floor QR Code" />
+    <div class="hint">Scan with your phone camera to see "You Are Here" and walking directions to any shop on ${activeQrFloor}.</div>
+  </div>
+  <script>window.onload = () => { window.print(); };</script>
+</body>
+</html>`);
+    win.document.close();
+  };
+
   if (floors.length === 0) return null;
+
+  const hasMarkerOnFloor = items.some((i) => i.kind === 'marker');
+  const isRoutingActive = Boolean(!editing && walkwayRoute && activeStartItem && effectiveTargetItem);
 
   return (
     <div className={`shop-map ${fullScreen ? 'shop-map-fullscreen' : ''}`}>
@@ -601,8 +808,18 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
               <ImageIcon size={14} /> View 2
             </button>
           </div>
+          {!publicMode && (
+            <button
+              type="button"
+              className="btn btn-secondary shop-map-qr-btn"
+              onClick={openFloorQr}
+              title="Generate or Print QR Code for this Floor"
+            >
+              <QrCode size={14} /> Floor QR Code
+            </button>
+          )}
         </div>
-        {!fullScreen && (
+        {!fullScreen && !publicMode && (
           <div className="shop-map-toolbar-actions">
             <button className="btn btn-secondary" onClick={openFullScreenTab} title="Open Full Screen Map in a new tab">
               <Maximize2 size={14} /> View Full Screen
@@ -625,6 +842,201 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
         )}
       </div>
 
+      {/* ── Indoor Wayfinding / Navigation Bar ── */}
+      {!editing && items.length > 0 && (
+        <div className="shop-map-nav-bar">
+          <div className="shop-map-nav-controls">
+            <div className="shop-map-nav-field">
+              <span className="shop-map-nav-label">
+                <MapPin size={13} className="nav-pin-start-icon" /> From:
+              </span>
+              <select
+                className="shop-map-nav-select"
+                value={activeStartItem?.key || ''}
+                onChange={(e) => {
+                  setTransitArrivalMode(false);
+                  setCustomStartKey(e.target.value);
+                }}
+              >
+                {startOptions.landmarks.length > 0 && (
+                  <optgroup label="Floor Landmarks & Entrances">
+                    {startOptions.landmarks.map((lm) => (
+                      <option key={lm.key} value={lm.key}>
+                        {describeTile(lm)}{defaultStartItem?.key === lm.key ? ' (Default)' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {startOptions.unitItems.length > 0 && (
+                  <optgroup label={`Shops on ${floor} (Standing Near)`}>
+                    {startOptions.unitItems.map((u) => (
+                      <option key={u.key} value={u.key}>
+                        {describeTile(u)}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+
+            <ArrowRight size={14} className="shop-map-nav-arrow" />
+
+            <div className="shop-map-nav-field">
+              <span className="shop-map-nav-label">
+                <Navigation size={13} className="nav-pin-dest-icon" /> To:
+              </span>
+              <select
+                className="shop-map-nav-select"
+                value={crossFloorUnitId ? `cross:${crossFloorUnitId}` : targetKey}
+                onChange={(e) => handleSelectDestination(e.target.value)}
+              >
+                <option value="">Select destination shop or facility…</option>
+                {placedShops.length > 0 && (
+                  <optgroup label={`Shops on ${floor}`}>
+                    {placedShops.map((s) => (
+                      <option key={s.unitId} value={unitKey(s.unitId)}>
+                        {s.brandName || 'Vacant'} ({s.unit?.unitNumber || s.shopNumber})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {startOptions.landmarks.length > 0 && (
+                  <optgroup label={`Facilities on ${floor}`}>
+                    {startOptions.landmarks.map((lm) => (
+                      <option key={lm.key} value={lm.key}>
+                        {describeTile(lm)}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {otherFloorShops.length > 0 && (
+                  <optgroup label="Other Floors (Multi-Floor Route)">
+                    {otherFloorShops.map((s) => (
+                      <option key={s.unitId} value={`cross:${s.unitId}`}>
+                        [{floorKeyOf(s)}] {s.brandName || 'Vacant'} ({s.unit?.unitNumber || s.shopNumber})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+
+            <div className="shop-map-nav-quick">
+              {items.some((i) => i.kind === 'toilet') && (
+                <button
+                  type="button"
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'toilet' ? 'active' : ''}`}
+                  onClick={() => handleQuickFacility(['toilet'])}
+                >
+                  Restroom
+                </button>
+              )}
+              {items.some((i) => i.kind === 'escalator' || i.kind === 'stairs') && (
+                <button
+                  type="button"
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'escalator' || effectiveTargetItem?.kind === 'stairs' ? 'active' : ''}`}
+                  onClick={() => handleQuickFacility(['escalator', 'stairs'])}
+                >
+                  Elevator / Stairs
+                </button>
+              )}
+              {items.some((i) => i.kind === 'exit') && (
+                <button
+                  type="button"
+                  className={`shop-map-quick-pill ${effectiveTargetItem?.kind === 'exit' ? 'active' : ''}`}
+                  onClick={() => handleQuickFacility(['exit'])}
+                >
+                  Exit
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Active Route Summary Banner */}
+          {(isRoutingActive || crossFloorShop || originFloorBeforeTransit) && (
+            <div className="shop-map-route-summary">
+              <div className="shop-map-route-info">
+                {crossFloorShop && floorKeyOf(crossFloorShop) !== floor ? (
+                  <span className="shop-map-route-steps">
+                    <strong>Step 1 ({floor}):</strong> Walk from <em>{describeTile(activeStartItem)}</em> to{' '}
+                    <em>{describeTile(effectiveTargetItem)}</em>, then go to <strong>{floorKeyOf(crossFloorShop)}</strong> for{' '}
+                    <strong>{crossFloorShop.brandName || crossFloorShop.unit?.unitNumber}</strong>.
+                  </span>
+                ) : walkwayRoute ? (
+                  <span className="shop-map-route-steps">
+                    <strong>{describeTile(activeStartItem)}</strong> → <strong>{describeTile(effectiveTargetItem)}</strong>
+                    <span className="shop-map-route-metrics">
+                      ~{walkwayRoute.distanceMeters} m ({walkwayRoute.distanceFeet} ft) · {walkwayRoute.estimatedMinutes} min walk
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="shop-map-route-actions">
+                {originFloorBeforeTransit && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => switchFloor(originFloorBeforeTransit)}
+                  >
+                    ← Back to {originFloorBeforeTransit}
+                  </button>
+                )}
+                {crossFloorShop && floorKeyOf(crossFloorShop) !== floor && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={proceedToDestinationFloor}
+                  >
+                    Switch to {floorKeyOf(crossFloorShop)} →
+                  </button>
+                )}
+                {effectiveTargetItem && effectiveTargetItem.key !== activeStartItem?.key && !crossFloorShop && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setCustomStartKey(effectiveTargetItem.key);
+                      setTargetKey('');
+                      toast.success(`Starting point set to ${describeTile(effectiveTargetItem)}`);
+                    }}
+                    title="I am standing here now — use this as my starting location"
+                  >
+                    <MapPin size={12} /> Start From Here
+                  </button>
+                )}
+                {selectedShop && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => onOpenShop(selectedShop)}
+                  >
+                    <Info size={12} /> Shop Info
+                  </button>
+                )}
+                {isRoutingActive && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setShowRouteQrModal(true)}
+                    title="Scan QR to carry this route on your phone"
+                  >
+                    <QrCode size={12} /> Phone QR
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={clearRoute}
+                >
+                  <X size={12} /> Clear
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {editing && (
         <div className="shop-map-edit-bar">
           <select value={decorKind} onChange={(e) => setDecorKind(e.target.value as any)}>
@@ -646,8 +1058,8 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
       <div className="shop-map-body">
         <div
           ref={containerRef as any}
-          className={`shop-map-canvas-wrap ${editing ? 'editing' : ''} ${!editing && selectedUnitId ? 'has-routed-unit' : ''}`}
-          onClick={() => { if (selectedUnitId) setSelectedUnitId(null); }}
+          className={`shop-map-canvas-wrap ${editing ? 'editing' : ''} ${isRoutingActive ? 'has-routed-unit' : ''}`}
+          onClick={() => { if (targetKey || crossFloorUnitId) clearRoute(); }}
         >
           {isFetching && items.length === 0 ? (
             <div className="shop-map-empty-state">
@@ -667,7 +1079,7 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
                   ? `${floorShops.length} ${floorShops.length === 1 ? 'unit is' : 'units are'} available on this floor and ready to be arranged on the interactive map.`
                   : 'No units or landmarks have been placed on this floor layout yet.'}
               </p>
-              {!fullScreen && (
+              {!fullScreen && !publicMode && (
                 <PermissionGuard permission="mall-shops.write" hideWhenDenied>
                   <div className="shop-map-empty-actions">
                     <button type="button" className="btn btn-primary" onClick={() => setEditing(true)}>
@@ -679,7 +1091,7 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
             </div>
           ) : (
             <ReactGridLayout
-              width={Math.max(0, (width || 900) - 16)}
+              width={gridWidth}
               layout={layout as any}
               gridConfig={{ cols: columns, rowHeight: cellPx, margin: [1, 1], containerPadding: [0, 0], maxRows: rows } as any}
               dragConfig={{ enabled: editing, cancel: '.shop-map-tile-btn' } as any}
@@ -692,7 +1104,8 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
               {items.map((it) => {
                 const shop = it.unitId ? shopByUnit.get(it.unitId) : null;
                 const decor = it.kind !== 'unit';
-                const isTarget = !decor && Boolean(selectedUnitId && it.unitId === selectedUnitId);
+                const isTarget = Boolean(!editing && effectiveTargetItem && it.key === effectiveTargetItem.key);
+                const isStart = Boolean(!editing && activeStartItem && it.key === activeStartItem.key);
                 const dim = !decor && shop ? !matches(shop) : false;
                 const tiny = !decor && (it.w * cellPx < 24 || it.h * cellPx < 18);
                 const minSidePx = Math.min(it.w, it.h) * cellPx;
@@ -723,9 +1136,26 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
                   <div
                     key={it.key}
                     title={title}
+                    data-tile-key={it.key}
                     data-tile-unit-id={it.unitId || undefined}
-                    className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''}`}
-                    onClick={() => { if (!editing && shop) onOpenShop(shop); }}
+                    className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
+                    onClick={(e) => {
+                      if (editing) return;
+                      e.stopPropagation();
+                      if (it.kind === 'corridor') return;
+                      if (targetKey === it.key && shop) {
+                        onOpenShop(shop);
+                      } else {
+                        setCrossFloorUnitId(null);
+                        setTargetKey(it.key);
+                      }
+                    }}
+                    onDoubleClick={(e) => {
+                      if (!editing && shop) {
+                        e.stopPropagation();
+                        onOpenShop(shop);
+                      }
+                    }}
                   >
                     {decor ? (
                       it.kind === 'corridor' && cm ? (
@@ -802,22 +1232,41 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
               })}
             </ReactGridLayout>
           )}
-          {!editing && connector && (
-            <svg className="shop-map-connector-svg">
-              <polyline
-                points={connector.points}
-                className="shop-map-connector-line"
-              />
-              <circle cx={connector.x1} cy={connector.y1} r={3.5} className="shop-map-connector-dot" />
-              <circle cx={connector.x2} cy={connector.y2} r={4.5} className="shop-map-connector-dot target" />
-            </svg>
-          )}
+
+          {/* ── Walkway Indoor Navigation Route Overlay ── */}
+          {isRoutingActive && walkwayRoute && walkwayRoute.points.length >= 2 && (() => {
+            const pxPoints = walkwayRoute.points.map((pt) => ({
+              x: 8 + pt.x * colStepPx - 0.5,
+              y: 8 + pt.y * rowStepPx - 0.5,
+            }));
+            const polyStr = pxPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+            const startPt = pxPoints[0];
+            const endPt = pxPoints[pxPoints.length - 1];
+            return (
+              <svg className="shop-map-connector-svg shop-map-nav-svg">
+                <polyline points={polyStr} className="shop-map-nav-glow" />
+                <polyline points={polyStr} className="shop-map-connector-line shop-map-nav-line" />
+                <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
+                <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
+                <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
+                <circle cx={endPt.x} cy={endPt.y} r={5} className="shop-map-connector-dot target" />
+              </svg>
+            );
+          })()}
+
           {!editing && (placedCategories.length > 0 || placedDecorKinds.length > 0) && (
             <div className="shop-map-directory-overlays" onClick={(e) => e.stopPropagation()}>
               {placedDecorKinds.length > 0 && (
                 <div className="shop-map-landmarks-bar">
                   {placedDecorKinds.map((kind) => (
-                    <div key={`decor-${kind}`} className="shop-map-landmark-item">
+                    <div
+                      key={`decor-${kind}`}
+                      className="shop-map-landmark-item clickable"
+                      onClick={() => {
+                        if (kind !== 'corridor') handleQuickFacility([kind]);
+                      }}
+                      title={kind !== 'corridor' ? `Click to route to nearest ${DECORATION_LABELS[kind]}` : undefined}
+                    >
                       {kind === 'corridor' ? (
                         <span className="shop-map-directory-corridor-swatch" />
                       ) : (
@@ -847,13 +1296,17 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
                       </div>
                       <div className="shop-map-cat-rows">
                         {catShops.map((s) => {
-                          const isSelected = selectedUnitId === s.unitId;
+                          const uKey = unitKey(s.unitId);
+                          const isSelected = targetKey === uKey || selectedUnitId === s.unitId;
                           return (
                             <div
                               key={s.unitId}
                               data-info-unit-id={s.unitId}
                               className={`shop-map-cat-row ${isSelected ? 'active' : ''}`}
-                              onClick={() => setSelectedUnitId((prev) => (prev === s.unitId ? null : s.unitId))}
+                              onClick={() => {
+                                setCrossFloorUnitId(null);
+                                setTargetKey((prev) => (prev === uKey ? '' : uKey));
+                              }}
                             >
                               <span className="shop-map-cat-store">{s.brandName || 'Vacant'}</span>
                               <span className="shop-map-cat-unit">{s.unit?.unitNumber || s.shopNumber}</span>
@@ -888,6 +1341,126 @@ export default function ShopMapView({ shops, propertyId, matches, onOpenShop, fu
           </div>
         )}
       </div>
+
+      {/* ── Floor QR Code Modal (1 QR Code per Floor) ── */}
+      {showFloorQrModal && createPortal(
+        <div className="shop-map-qr-backdrop" onClick={() => setShowFloorQrModal(false)}>
+          <div className="shop-map-qr-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="shop-map-qr-header">
+              <div>
+                <h3><QrCode size={18} /> Floor QR Code</h3>
+                <p>One QR code per floor — shoppers scan to navigate from "You Are Here"</p>
+              </div>
+              <button type="button" className="shop-map-qr-close" onClick={() => setShowFloorQrModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="shop-map-qr-body">
+              <div className="shop-map-qr-floor-picker">
+                <label>Select Floor:</label>
+                <select
+                  className="shop-map-floor-select"
+                  value={activeQrFloor}
+                  onChange={(e) => setQrModalFloor(e.target.value)}
+                >
+                  {floors.map((f) => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="shop-map-qr-preview">
+                <div className="shop-map-qr-badge">{activeQrFloor}</div>
+                {floorQrDataUrl ? (
+                  <img src={floorQrDataUrl} alt={`QR Code for ${activeQrFloor}`} className="shop-map-qr-img" />
+                ) : (
+                  <div className="shop-map-qr-loading">Generating QR…</div>
+                )}
+                <div className="shop-map-qr-caption">
+                  Scan with phone camera to open <strong>{activeQrFloor}</strong> Indoor Navigation
+                </div>
+              </div>
+
+              {activeQrFloor === floor && (
+                <div className={`shop-map-qr-status ${hasMarkerOnFloor ? 'ok' : 'warn'}`}>
+                  <MapPin size={14} />
+                  <span>
+                    {hasMarkerOnFloor
+                      ? 'Default starting point is linked to this floor\'s "You Are Here" marker.'
+                      : 'Tip: Place a "You Are Here" marker in Edit Layout where this floor QR sign is posted.'}
+                  </span>
+                </div>
+              )}
+
+              <div className="shop-map-qr-url-box">
+                <input type="text" readOnly value={floorQrUrl} />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(floorQrUrl);
+                    toast.success('Floor navigation link copied');
+                  }}
+                >
+                  <Copy size={13} /> Copy
+                </button>
+              </div>
+            </div>
+
+            <div className="shop-map-qr-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => window.open(floorQrUrl, '_blank', 'noopener,noreferrer')}
+              >
+                <ExternalLink size={14} /> Open Public Map
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handlePrintFloorQr}
+                disabled={!floorQrDataUrl}
+              >
+                <Printer size={14} /> Print Floor QR
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ── Take Route on Phone QR Modal (Kiosk -> Mobile Handoff) ── */}
+      {showRouteQrModal && createPortal(
+        <div className="shop-map-qr-backdrop" onClick={() => setShowRouteQrModal(false)}>
+          <div className="shop-map-qr-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="shop-map-qr-header">
+              <div>
+                <h3><QrCode size={18} /> Take Route on Your Phone</h3>
+                <p>{describeTile(activeStartItem)} → {describeTile(effectiveTargetItem)}</p>
+              </div>
+              <button type="button" className="shop-map-qr-close" onClick={() => setShowRouteQrModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="shop-map-qr-body">
+              <div className="shop-map-qr-preview">
+                <div className="shop-map-qr-badge">{floor} Route</div>
+                {routeQrDataUrl ? (
+                  <img src={routeQrDataUrl} alt="Route QR Code" className="shop-map-qr-img" />
+                ) : (
+                  <div className="shop-map-qr-loading">Generating QR…</div>
+                )}
+                <div className="shop-map-qr-caption">
+                  Scan to open this exact walking route on your mobile phone
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
+

@@ -1,4 +1,5 @@
 import { Router, Request } from 'express';
+import QRCode from 'qrcode';
 import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { mallService } from './mall.service';
@@ -13,6 +14,7 @@ import {
 } from './mall.schema';
 
 const router = Router();
+const publicRouter = Router();
 
 // Helper
 const getCompanyId = (req: Request) => (req as any).user.companyId;
@@ -340,4 +342,37 @@ router.get('/pos/sales-history', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
+// ═══════════════════════════════════════
+//  PUBLIC DIRECTORY & INDOOR NAVIGATION (No Auth Required)
+// ═══════════════════════════════════════
+
+publicRouter.get('/properties/:propertyId/directory', asyncHandler(async (req, res) => {
+  const data = await mallService.getPublicDirectory(String(req.params.propertyId));
+  res.json({ success: true, data });
+}));
+
+publicRouter.get('/properties/:propertyId/floor-plan', asyncHandler(async (req, res) => {
+  const data = await mallService.getPublicFloorPlan(
+    String(req.params.propertyId),
+    String(req.query.floor ?? ''),
+  );
+  res.json({ success: true, data });
+}));
+
+publicRouter.get('/qr', asyncHandler(async (req, res) => {
+  const text = String(req.query.text || '').trim();
+  if (!text || text.length > 2048) {
+    res.status(400).json({ success: false, message: 'Invalid QR text' });
+    return;
+  }
+  const dataUrl = await QRCode.toDataURL(text, {
+    width: 360,
+    margin: 2,
+    color: { dark: '#0f172a', light: '#ffffff' },
+  });
+  res.json({ success: true, data: { dataUrl } });
+}));
+
 export const mallRouter = router;
+export const publicMallRouter = publicRouter;
+

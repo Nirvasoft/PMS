@@ -1513,6 +1513,68 @@ class MallService {
       verified: s.verified,
     }));
   }
+
+  // ═══════════════════════════════════════
+  //  PUBLIC DIRECTORY & INDOOR NAVIGATION
+  // ═══════════════════════════════════════
+
+  async getPublicDirectory(propertyId: string) {
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { id: true, companyId: true, name: true, code: true, addressLine1: true, city: true },
+    });
+    if (!property) {
+      throw AppError.notFound('Property not found');
+    }
+
+    const shops = await prisma.shopProfile.findMany({
+      where: { companyId: property.companyId, propertyId },
+      orderBy: { shopNumber: 'asc' },
+      select: {
+        unitId: true,
+        shopNumber: true,
+        brandName: true,
+        tradeCategory: true,
+        tradeSubcategory: true,
+        franchiseGroup: true,
+        isAnchor: true,
+        shopZone: true,
+        unit: {
+          select: {
+            id: true,
+            unitNumber: true,
+            status: true,
+            areaSqft: true,
+            floorLabel: true,
+            floorNumber: true,
+            floorPlanUrl: true,
+          },
+        },
+      },
+    });
+
+    return {
+      property: {
+        id: property.id,
+        name: property.name,
+        code: property.code,
+        address: [property.addressLine1, property.city].filter(Boolean).join(', '),
+      },
+      shops,
+    };
+  }
+
+  async getPublicFloorPlan(propertyId: string, floorKey: string) {
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { id: true, companyId: true },
+    });
+    if (!property) {
+      throw AppError.notFound('Property not found');
+    }
+    return this.getFloorPlan(property.companyId, propertyId, floorKey);
+  }
 }
 
 export const mallService = new MallService();
+

@@ -81,7 +81,7 @@ import { visitorsRouter, portalVisitorsRouter, blacklistRouter } from './modules
 import { facilitiesRouter, bookingRulesRouter, portalBookingsRouter, adminFacilityBookingsRouter } from './modules/facility-booking/booking.routes';
 import { portalCommunityRouter, adminCommunityRouter } from './modules/community/community.routes';
 import { tenantPortalGuard } from './modules/auth/guards/tenantPortalGuard';
-import { mallRouter } from './modules/mall/mall.routes';
+import { mallRouter, publicMallRouter } from './modules/mall/mall.routes';
 import { condoRouter } from './modules/condo/condo.routes';
 import { biRouter } from './modules/bi/bi.routes';
 import { integrationsRouter, developerRouter } from './modules/integrations/integrations.routes';
@@ -120,6 +120,7 @@ async function bootstrap() {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' });
   });
   app.use('/api/v1/shared/documents', sharedDocumentsRouter);
+  app.use('/api/v1/public/mall', publicMallRouter);
   app.use('/api/v1/webhooks', stripeWebhookRouter);  // Stripe webhook — uses signature, not JWT
 
   app.use(authMiddleware);
