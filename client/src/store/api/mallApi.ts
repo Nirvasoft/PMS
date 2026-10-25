@@ -260,6 +260,7 @@ export const {
   useGetMallPropertyQuery,
   useUpsertMallPropertyMutation,
   useGetFloorPlanQuery,
+  useLazyGetFloorPlanQuery,
   useSaveFloorPlanMutation,
   useGetShopsQuery,
   useGetShopProfileQuery,

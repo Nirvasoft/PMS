@@ -72,6 +72,31 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+.shop-map-copy-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 1px dashed var(--border-color, var(--border));
+}
+.shop-map-copy-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.shop-map-offline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.36);
+}
 
 .shop-map-body { display: flex; gap: 12px; align-items: flex-start; }
 .shop-map-canvas-wrap {
@@ -149,10 +174,16 @@
   gap: 10px;
 }
 
+.shop-map-stage {
+  position: relative;
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
 .shop-map-tile {
-  box-sizing: border-box; overflow: hidden; border-radius: 6px; padding: 3px 5px; position: relative;
+  box-sizing: border-box; overflow: hidden; border-radius: 6px; padding: 2px 4px; position: relative;
   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1px;
-  border: 1.5px solid; color: var(--text-primary); font-size: 0.76rem; line-height: 1.15; cursor: pointer;
+  border: 1.5px solid; color: var(--text-primary); font-size: 0.76rem; line-height: 1.12; cursor: pointer;
   transition: opacity 0.15s ease;
 }
 .shop-map-fullscreen .shop-map-tile {
@@ -160,7 +191,25 @@
 }
 .shop-map-tile.dim { opacity: 0.22; }
 .shop-map-tile.editing { cursor: grab; }
-.shop-map-tile-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.shop-map-tile-name {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.shop-map-tile.is-vertical-tile .shop-map-tile-name {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 100%;
+  max-width: 100%;
+  line-height: 1;
+}
 .shop-map-tile.tiny .shop-map-tile-name { display: none; }
 
 .shop-map-tile.st-occupied { background: rgba(16, 185, 129, 0.22); border-color: #10b981; }
@@ -206,11 +255,12 @@
 }
 
 .shop-map-tile.has-unit-photo {
+  container-type: size;
   padding: 0;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(15, 23, 42, 0.78);
 }
 [data-theme="light"] .shop-map-tile.has-unit-photo {
-  background: #ffffff;
+  background: #f8fafc;
 }
 .shop-map-tile.has-unit-photo .shop-map-tile-name {
   display: none;
@@ -226,11 +276,21 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: cover;
+  object-position: center;
   display: none;
   pointer-events: none;
   user-select: none;
-  transition: opacity 0.18s ease;
+  z-index: 1;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.shop-map-tile.is-vertical-tile.has-unit-photo .shop-map-tile-photo {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: 100cqh;
+  height: 100cqw;
+  transform: translate(-50%, -50%) rotate(-90deg);
 }
 .shop-map-tile.has-unit-photo .shop-map-tile-photo {
   display: block;
@@ -446,39 +506,121 @@
 
 /* ── View 2: Cute 3D Cube Card + Soft Solid Color Fill for Landmarks ── */
 .shop-map-view2 .shop-map-tile:not(.st-decor) {
-  border-radius: 10px;
+  border-radius: 8px;
   background: linear-gradient(180deg, rgba(30, 41, 59, 0.96) 0%, rgba(15, 23, 42, 0.98) 100%);
   background-image: none;
-  border: 1.5px solid rgba(148, 163, 184, 0.28);
-  border-bottom: 4px solid rgba(2, 6, 23, 0.72);
-  border-right: 2.5px solid rgba(2, 6, 23, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-bottom: 3px solid rgba(2, 6, 23, 0.72);
+  border-right: 2px solid rgba(2, 6, 23, 0.56);
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.16),
-    0 5px 12px rgba(2, 6, 23, 0.36);
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 4px 10px rgba(2, 6, 23, 0.34);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .shop-map-view2 .shop-map-tile:not(.st-decor):hover {
   transform: translateY(-1.5px);
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.22),
-    0 7px 15px rgba(2, 6, 23, 0.44);
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 6px 14px rgba(2, 6, 23, 0.44);
 }
 
 [data-theme="light"] .shop-map-view2 .shop-map-tile:not(.st-decor) {
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  border: 1.5px solid #cbd5e1;
-  border-bottom: 4px solid #94a3b8;
-  border-right: 2.5px solid #cbd5e1;
+  border: 1px solid #cbd5e1;
+  border-bottom: 3px solid #64748b;
+  border-right: 2px solid #94a3b8;
   box-shadow:
-    inset 0 1.5px 0 #ffffff,
-    0 4px 10px rgba(15, 23, 42, 0.10);
+    inset 0 1px 0 #ffffff,
+    0 4px 10px rgba(15, 23, 42, 0.12);
 }
 
 [data-theme="light"] .shop-map-view2 .shop-map-tile:not(.st-decor):hover {
   box-shadow:
-    inset 0 1.5px 0 #ffffff,
-    0 6px 14px rgba(15, 23, 42, 0.14);
+    inset 0 1px 0 #ffffff,
+    0 6px 14px rgba(15, 23, 42, 0.18);
+}
+
+/* ── 3D Extruded Cube Effect for Uploaded Photo Tiles in View 2 ── */
+.shop-map-view2 .shop-map-tile.has-unit-photo {
+  border-radius: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.42);
+  border-left: 1px solid rgba(255, 255, 255, 0.30);
+  border-right: 2px solid #0f172a;
+  border-bottom: 3px solid #020617;
+  box-shadow:
+    0 4px 10px rgba(2, 6, 23, 0.40),
+    0 1.5px 3px rgba(2, 6, 23, 0.26);
+  transform: translateY(-0.5px);
+}
+.shop-map-view2 .shop-map-tile.st-occupied.has-unit-photo {
+  border-top-color: #6ee7b7;
+  border-left-color: #34d399;
+  border-right-color: #059669;
+  border-bottom-color: #065f46;
+}
+.shop-map-view2 .shop-map-tile.st-reserved.has-unit-photo {
+  border-top-color: #93c5fd;
+  border-left-color: #60a5fa;
+  border-right-color: #2563eb;
+  border-bottom-color: #1e40af;
+}
+.shop-map-view2 .shop-map-tile.st-expiring.has-unit-photo {
+  border-top-color: #fcd34d;
+  border-left-color: #fbbf24;
+  border-right-color: #d97706;
+  border-bottom-color: #92400e;
+}
+.shop-map-view2 .shop-map-tile.st-vacant.has-unit-photo {
+  border-top-color: #cbd5e1;
+  border-left-color: #94a3b8;
+  border-right-color: #475569;
+  border-bottom-color: #1e293b;
+}
+
+[data-theme="light"] .shop-map-view2 .shop-map-tile.has-unit-photo {
+  box-shadow:
+    0 4px 10px rgba(15, 23, 42, 0.18),
+    0 1.5px 4px rgba(15, 23, 42, 0.12);
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.st-vacant.has-unit-photo {
+  border-top-color: #e2e8f0;
+  border-left-color: #cbd5e1;
+  border-right-color: #94a3b8;
+  border-bottom-color: #64748b;
+}
+
+.shop-map-view2 .shop-map-tile.has-unit-photo:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 7px 15px rgba(2, 6, 23, 0.46),
+    0 2.5px 5px rgba(2, 6, 23, 0.30);
+}
+[data-theme="light"] .shop-map-view2 .shop-map-tile.has-unit-photo:hover {
+  box-shadow:
+    0 7px 15px rgba(15, 23, 42, 0.24),
+    0 2.5px 5px rgba(15, 23, 42, 0.15);
+}
+
+.shop-map-view2 .shop-map-tile.has-unit-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.24) 0%,
+    rgba(255, 255, 255, 0.05) 34%,
+    rgba(0, 0, 0, 0) 62%,
+    rgba(2, 6, 23, 0.20) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.50),
+    inset 1px 0 0 rgba(255, 255, 255, 0.28),
+    inset 0 -2px 3px rgba(2, 6, 23, 0.32),
+    inset -1px 0 2px rgba(2, 6, 23, 0.22);
 }
 
 /* Soft solid 3D color palette per landmark in View 2 (Dark Mode) */
@@ -598,42 +740,42 @@
 }
 
 .shop-map-view2 .shop-map-tile.st-decor:not(.st-decor-corridor) {
-  border-radius: 10px;
+  border-radius: 8px;
   background: linear-gradient(180deg, var(--cube-fill-top) 0%, var(--cube-fill-bot) 100%);
-  border: 1.5px solid var(--cube-border);
-  border-bottom: 4px solid var(--cube-lip);
-  border-right: 2.5px solid var(--cube-lip);
+  border: 1px solid var(--cube-border);
+  border-bottom: 3px solid var(--cube-lip);
+  border-right: 2px solid var(--cube-lip);
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.35),
-    0 5px 12px rgba(15, 23, 42, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 4px 10px rgba(15, 23, 42, 0.18);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .shop-map-view2 .shop-map-tile.st-decor:not(.st-decor-corridor):hover {
   transform: translateY(-1.5px);
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
-    0 7px 15px rgba(15, 23, 42, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    0 6px 14px rgba(15, 23, 42, 0.24);
 }
 
 .shop-map-view2 .shop-map-decor-badge {
-  border-radius: 10px;
+  border-radius: 8px;
   color: var(--decor-fg);
   background: rgba(255, 255, 255, 0.22);
-  border: 1.5px solid rgba(255, 255, 255, 0.42);
-  border-bottom: 3px solid rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.16);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 2px 5px rgba(15, 23, 42, 0.14);
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    0 2px 4px rgba(15, 23, 42, 0.12);
 }
 
 [data-theme="light"] .shop-map-view2 .shop-map-decor-badge {
   background: rgba(255, 255, 255, 0.65);
-  border: 1.5px solid rgba(255, 255, 255, 0.85);
-  border-bottom: 3px solid var(--cube-border);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-bottom: 2px solid var(--cube-border);
   box-shadow:
     inset 0 1px 0 #ffffff,
-    0 2px 5px rgba(15, 23, 42, 0.08);
+    0 2px 4px rgba(15, 23, 42, 0.08);
 }
 
 .shop-map-view2 .shop-map-directory-marker-badge:not(.lg-corridor) {
@@ -641,7 +783,7 @@
   color: var(--decor-fg);
   background: linear-gradient(180deg, var(--cube-fill-top) 0%, var(--cube-fill-bot) 100%);
   border: 1px solid var(--cube-border);
-  border-bottom: 2.5px solid var(--cube-lip);
+  border-bottom: 2px solid var(--cube-lip);
   box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12);
 }
 
@@ -656,13 +798,6 @@
 }
 .shop-map-view2 .shop-map-corridor-centerline {
   stroke: rgba(148, 163, 184, 0.35);
-}
-.shop-map-view2 .shop-map-directory-marker-badge.lg-corridor {
-  background: rgba(148, 163, 184, 0.12);
-  border-color: rgba(148, 163, 184, 0.45);
-}
-.shop-map-view2 .shop-map-directory-marker-badge.lg-corridor::after {
-  border-top-color: rgba(148, 163, 184, 0.55);
 }
 
 .shop-map-view2 .shop-map-cat-card {
@@ -1090,6 +1225,9 @@
 .shop-map-qr-modal {
   width: 100%;
   max-width: 420px;
+  max-height: 92dvh;
+  display: flex;
+  flex-direction: column;
   border-radius: 16px;
   border: 1px solid var(--border-color, var(--border));
   background: var(--card-bg, var(--surface));
@@ -1104,6 +1242,7 @@
   gap: 12px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color, var(--border));
+  flex-shrink: 0;
 }
 .shop-map-qr-header h3 {
   margin: 0;
@@ -1134,6 +1273,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow-y: auto;
 }
 .shop-map-qr-floor-picker {
   display: flex;
@@ -1147,7 +1287,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 18px;
+  padding: 16px;
   border-radius: 12px;
   border: 1px solid var(--border-color, var(--border));
   background: #ffffff;
@@ -1167,14 +1307,14 @@
   margin-bottom: 10px;
 }
 .shop-map-qr-img {
-  width: 220px;
-  height: 220px;
+  width: min(220px, 60vw);
+  height: min(220px, 60vw);
   object-fit: contain;
   display: block;
 }
 .shop-map-qr-loading {
-  width: 220px;
-  height: 220px;
+  width: min(220px, 60vw);
+  height: min(220px, 60vw);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1223,11 +1363,115 @@
 }
 .shop-map-qr-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 20px;
   border-top: 1px solid var(--border-color, var(--border));
+  flex-shrink: 0;
+}
+
+/* ── Responsive Camera QR Scanner Modal ── */
+.qr-scanner-modal {
+  max-width: 440px;
+}
+.qr-scanner-body {
+  gap: 12px;
+}
+.qr-scanner-viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 52dvh;
+  margin: 0 auto;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0f172a;
+  border: 1.5px solid rgba(16, 185, 129, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qr-scanner-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.qr-scanner-frame {
+  position: absolute;
+  inset: 14%;
+  pointer-events: none;
+  border-radius: 12px;
+  box-shadow: 0 0 0 999px rgba(15, 23, 42, 0.38);
+}
+.qr-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: #10b981;
+  border-style: solid;
+  border-width: 0;
+}
+.qr-corner.tl { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; border-top-left-radius: 8px; }
+.qr-corner.tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; border-top-right-radius: 8px; }
+.qr-corner.bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; border-bottom-left-radius: 8px; }
+.qr-corner.br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; border-bottom-right-radius: 8px; }
+
+@keyframes qrScannerLaserMove {
+  0%, 100% { top: 8%; opacity: 0.75; }
+  50% { top: 88%; opacity: 1; }
+}
+.qr-scanner-laser {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #10b981, transparent);
+  box-shadow: 0 0 10px #10b981;
+  animation: qrScannerLaserMove 2.2s ease-in-out infinite;
+}
+.qr-scanner-starting,
+.qr-scanner-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  background: rgba(15, 23, 42, 0.85);
+}
+.qr-scanner-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.qr-scanner-manual {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.qr-scanner-manual input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, var(--border));
+  background: var(--bg-body, var(--bg));
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  outline: none;
+}
+.qr-scanner-manual input:focus {
+  border-color: var(--accent, #10b981);
 }
 
 .shop-map-directory-marker-badge {
@@ -1272,13 +1516,6 @@
   text-overflow: ellipsis;
 }
 
-@media (max-width: 900px) {
-  .shop-map-body { flex-direction: column; }
-  .shop-map-tray { width: 100%; max-height: none; }
-  .shop-map-category-grid { grid-template-columns: 1fr; }
-  .shop-map-nav-arrow { display: none; }
-}
-
 /* ── Public Mall Navigation Header & Shop Info Modal ── */
 .public-mall-empty-page {
   align-items: center;
@@ -1300,6 +1537,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 .public-mall-brand-icon {
   width: 38px;
@@ -1310,6 +1548,7 @@
   justify-content: center;
   background: rgba(16, 185, 129, 0.14);
   color: var(--accent, #10b981);
+  flex-shrink: 0;
 }
 .public-mall-brand-title {
   margin: 0;
@@ -1330,8 +1569,9 @@
   border-radius: 8px;
   border: 1px solid var(--border-color, var(--border));
   background: var(--bg-body, var(--bg));
-  min-width: 240px;
-  flex: 0 1 320px;
+  min-width: 180px;
+  flex: 1 1 220px;
+  max-width: 340px;
 }
 .public-mall-search-icon {
   color: var(--text-secondary);
@@ -1351,6 +1591,21 @@
   color: var(--text-secondary);
   cursor: pointer;
   padding: 2px;
+}
+.public-mall-shop-photo-wrap {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-color, var(--border));
+  background: var(--bg-body, var(--bg));
+}
+.public-mall-shop-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .public-mall-tags {
   display: flex;
@@ -1382,4 +1637,117 @@
 .public-mall-info-val {
   font-weight: 700;
   margin-top: 2px;
+}
+
+/* ── Tablet & Mobile Responsive Breakpoints ── */
+@media (max-width: 1024px) {
+  .shop-map-directory-marker-badge {
+    width: 16px;
+    height: 16px;
+  }
+  .shop-map-directory-corridor-swatch {
+    width: 16px;
+    height: 11px;
+  }
+  .public-mall-brand-icon {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 900px) {
+  .shop-map-body { flex-direction: column; }
+  .shop-map-tray { width: 100%; max-height: none; }
+  .shop-map-nav-arrow { display: none; }
+}
+
+@media (max-width: 640px) {
+  .shop-map-fullscreen-page {
+    padding: 10px 12px;
+  }
+  .public-mall-header {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .public-mall-brand-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+  .public-mall-search {
+    width: 100%;
+    max-width: none;
+  }
+  .shop-map-toolbar {
+    gap: 6px;
+  }
+  .shop-map-toolbar-left,
+  .shop-map-toolbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .shop-map-view-opt {
+    width: 28px;
+    height: 26px;
+  }
+  .shop-map-nav-bar {
+    padding: 8px 10px;
+  }
+  .shop-map-nav-field {
+    flex: 1 1 100%;
+  }
+  .shop-map-route-summary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .shop-map-route-actions {
+    width: 100%;
+  }
+  .shop-map-directory-marker-badge {
+    width: 15px;
+    height: 15px;
+  }
+  .shop-map-directory-corridor-swatch {
+    width: 14px;
+    height: 10px;
+  }
+  .shop-map-tile-btn {
+    width: 14px;
+    height: 14px;
+  }
+  .shop-map-cat-card {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .shop-map-qr-backdrop {
+    padding: 10px;
+  }
+  .shop-map-qr-header,
+  .shop-map-qr-body,
+  .shop-map-qr-footer {
+    padding: 12px 14px;
+  }
+  .shop-map-qr-footer .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .public-mall-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-height: 540px) and (orientation: landscape) {
+  .shop-map-qr-modal {
+    max-width: 520px;
+    max-height: 94dvh;
+  }
+  .qr-scanner-viewport {
+    max-height: 44dvh;
+  }
+  .shop-map-qr-img,
+  .shop-map-qr-loading {
+    width: 140px;
+    height: 140px;
+  }
 }

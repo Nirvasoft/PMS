@@ -1,35 +1,62 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Store, Search, X, MapPin, Tag, Star, Layers, Maximize2 } from 'lucide-react';
+import { Store, Search, X, MapPin, Tag, Star, Layers, Maximize2, Camera } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useGetPublicDirectoryQuery } from '../../store/api/mallApi';
+import { isUnitPhotoImage } from '../../utils/unitPhotoCache';
+import { CachedUnitPhoto, useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
+import { QrScannerModal } from '../../components/common/QrScannerModal';
 import ShopMapView from '../admin/ShopDirectory/ShopMapView';
+import {
+  floorKeyOf,
+  getCachedDirectory,
+  matchesShopQuery,
+  saveCachedDirectory,
+  shopDisplayName,
+  unitNumberOf,
+} from '../admin/ShopDirectory/shopMapLayout';
 
 export default function PublicMallNavigationPage() {
+  useUnitPhotoCache();
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const propertyId = urlParams.get('propertyId') || '';
   const initialFloor = urlParams.get('floor') || '';
 
   const [search, setSearch] = useState('');
   const [detailShop, setDetailShop] = useState<any>(null);
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   const { data, isLoading, isError } = useGetPublicDirectoryQuery(
     { propertyId },
     { skip: !propertyId },
   );
 
-  const property = data?.data?.property;
-  const allShops = data?.data?.shops || [];
+  useEffect(() => {
+    if (propertyId && Array.isArray(data?.data?.shops)) {
+      saveCachedDirectory(propertyId, {
+        property: data.data.property,
+        shops: data.data.shops,
+      });
+    }
+  }, [propertyId, data]);
 
-  const matchesMapSearch = (s: any) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      (s.brandName || '').toLowerCase().includes(q) ||
-      (s.shopNumber || '').toLowerCase().includes(q) ||
-      (s.tradeCategory || '').toLowerCase().includes(q) ||
-      (s.unit?.unitNumber || '').toLowerCase().includes(q)
-    );
+  const cachedDir = useMemo(() => getCachedDirectory(propertyId), [propertyId, data]);
+  const property = data?.data?.property ?? cachedDir?.property;
+  const allShops = data?.data?.shops ?? cachedDir?.shops ?? [];
+
+  const handleQrDetected = (rawValue: string) => {
+    try {
+      const parsed = rawValue.startsWith('http')
+        ? new URL(rawValue)
+        : new URL(rawValue, window.location.origin);
+      setShowQrScanner(false);
+      window.location.href = parsed.toString();
+    } catch {
+      toast.error('Invalid QR code link');
+    }
   };
+
+  const matchesMapSearch = (s: any) => matchesShopQuery(s, search);
 
   if (!propertyId) {
     return (
@@ -40,7 +67,17 @@ export default function PublicMallNavigationPage() {
           </div>
           <h4 className="shop-map-empty-title">Missing Property Link</h4>
           <p className="shop-map-empty-desc">Please scan a valid floor QR code to open the indoor navigation map.</p>
+          <div className="shop-map-empty-actions">
+            <button type="button" className="btn btn-primary" onClick={() => setShowQrScanner(true)}>
+              <Camera size={15} /> Scan Floor QR Code
+            </button>
+          </div>
         </div>
+        <QrScannerModal
+          open={showQrScanner}
+          onClose={() => setShowQrScanner(false)}
+          onDetected={handleQrDetected}
+        />
       </div>
     );
   }
@@ -83,14 +120,14 @@ export default function PublicMallNavigationPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading && allShops.length === 0 ? (
         <div className="shop-map-empty-state">
           <div className="shop-map-empty-icon">
             <Store size={26} />
           </div>
           <h4 className="shop-map-empty-title">Loading Directory…</h4>
         </div>
-      ) : isError ? (
+      ) : isError && allShops.length === 0 ? (
         <div className="shop-map-empty-state">
           <h4 className="shop-map-empty-title">Unable to load floor directory</h4>
           <p className="shop-map-empty-desc">Please check the QR code link and try again.</p>
@@ -115,15 +152,26 @@ export default function PublicMallNavigationPage() {
             <div className="shop-map-qr-header">
               <div>
                 <h3>
-                  <Store size={18} /> {detailShop.brandName || 'Shop'}
+                  <Store size={18} /> {shopDisplayName(detailShop, 'Shop')}
                 </h3>
-                <p>Unit {detailShop.unit?.unitNumber || detailShop.shopNumber || '—'}</p>
+                <p>Unit {unitNumberOf(detailShop) || '—'}</p>
               </div>
               <button type="button" className="shop-map-qr-close" onClick={() => setDetailShop(null)}>
                 <X size={18} />
               </button>
             </div>
             <div className="shop-map-qr-body">
+              {detailShop.unit?.floorPlanUrl && isUnitPhotoImage(detailShop.unit.floorPlanUrl) && (
+                <CachedUnitPhoto
+                  photoUrl={detailShop.unit.floorPlanUrl}
+                  alt={shopDisplayName(detailShop, 'Shop')}
+                  wrapperAs="div"
+                  wrapperClassName="public-mall-shop-photo-wrap"
+                  imgClassName="public-mall-shop-photo"
+                  skeletonClassName="shop-photo-skeleton"
+                  loading="eager"
+                />
+              )}
               <div className="public-mall-tags">
                 <span className="shop-map-quick-pill active public-mall-tag-pill">
                   <Tag size={12} /> {detailShop.tradeCategory || 'Other'}
@@ -141,7 +189,7 @@ export default function PublicMallNavigationPage() {
                     <Layers size={11} /> Floor
                   </div>
                   <div className="public-mall-info-val">
-                    {detailShop.unit?.floorLabel || `Floor ${detailShop.unit?.floorNumber ?? 1}`}
+                    {floorKeyOf(detailShop)}
                   </div>
                 </div>
                 <div>
@@ -149,7 +197,7 @@ export default function PublicMallNavigationPage() {
                     <MapPin size={11} /> Unit Number
                   </div>
                   <div className="public-mall-info-val">
-                    {detailShop.unit?.unitNumber || detailShop.shopNumber || '—'}
+                    {unitNumberOf(detailShop) || '—'}
                   </div>
                 </div>
                 {detailShop.tradeSubcategory && (

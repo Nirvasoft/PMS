@@ -21,7 +21,12 @@ import {
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { CachedUnitPhoto, useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
 import ShopMapView from './ShopDirectory/ShopMapView';
-import { SHOP_CATEGORIES as CATEGORIES } from './ShopDirectory/shopMapLayout';
+import {
+  SHOP_CATEGORIES as CATEGORIES,
+  getCachedDirectory,
+  matchesShopQuery,
+  saveCachedDirectory,
+} from './ShopDirectory/shopMapLayout';
 import {
   evictUnitPhotoCache,
   isImageFileName,
@@ -181,7 +186,14 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
   const [deleteFloorPlan, { isLoading: isDeletingPhoto }] = useDeleteFloorPlanMutation();
   const { data: availRes } = useGetAvailableUnitsQuery({ propertyId }, { skip: !propertyId || !showCreateShop });
 
-  const allShops = shopsData?.data || [];
+  useEffect(() => {
+    if (propertyId && Array.isArray(shopsData?.data)) {
+      saveCachedDirectory(propertyId, { shops: shopsData.data });
+    }
+  }, [propertyId, shopsData]);
+
+  const cachedShops = useMemo(() => getCachedDirectory(propertyId)?.shops, [propertyId, shopsData]);
+  const allShops = shopsData?.data ?? cachedShops ?? [];
   const mix = mixData?.data;
 
   useEffect(() => {
@@ -256,27 +268,11 @@ export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScree
         const key = String(u?.floorNumber ?? u?.floorLabel ?? '1');
         if (key !== floorFilter) return false;
       }
-      if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      return (
-        (s.brandName || '').toLowerCase().includes(q) ||
-        (s.shopNumber || '').toLowerCase().includes(q) ||
-        (s.tradeCategory || 'Other').toLowerCase().includes(q) ||
-        (s.franchiseGroup || '').toLowerCase().includes(q) ||
-        (s.unit?.unitNumber || '').toLowerCase().includes(q)
-      );
+      return matchesShopQuery(s, search);
     });
   }, [allShops, filters.tradeCategory, filters.isAnchor, floorFilter, search]);
 
-  const matchesMapSearch = (s: any) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      (s.brandName || '').toLowerCase().includes(q) ||
-      (s.shopNumber || '').toLowerCase().includes(q) ||
-      (s.unit?.unitNumber || '').toLowerCase().includes(q)
-    );
-  };
+  const matchesMapSearch = (s: any) => matchesShopQuery(s, search);
 
   const openDetail = (shop: any) => setDetailShop(shop);
   const closeDetail = () => { setDetailShop(null); setShowLeaseEdit(false); };

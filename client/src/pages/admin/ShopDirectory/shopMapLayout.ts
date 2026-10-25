@@ -67,6 +67,27 @@ export function unitKey(unitId: string): string {
   return `u:${unitId}`;
 }
 
+export function unitNumberOf(shop: any): string {
+  return shop?.unit?.unitNumber || shop?.shopNumber || '';
+}
+
+export function shopDisplayName(shop: any, fallback = ''): string {
+  const name = typeof shop?.brandName === 'string' ? shop.brandName.trim() : '';
+  return name || unitNumberOf(shop) || fallback;
+}
+
+export function matchesShopQuery(shop: any, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    (shop?.brandName || '').toLowerCase().includes(q) ||
+    (shop?.shopNumber || '').toLowerCase().includes(q) ||
+    (shop?.tradeCategory || '').toLowerCase().includes(q) ||
+    (shop?.franchiseGroup || '').toLowerCase().includes(q) ||
+    (shop?.unit?.unitNumber || '').toLowerCase().includes(q)
+  );
+}
+
 /**
  * Tile size in grid cells for a unit: area ∝ sqft, slightly landscape (1.4:1)
  * with a larger default minimum (5×3) so unit cards are easy to see and click.
@@ -183,25 +204,6 @@ export function rotateMapLayout(
   const spanX = Math.max(1, maxX - minX);
   const spanY = Math.max(1, maxY - minY);
 
-  if (rotation === 90) {
-    const rotatedCols = Math.max(12, spanY + 2);
-    const padX = Math.max(0, Math.floor((rotatedCols - spanY) / 2));
-    return {
-      columns: rotatedCols,
-      items: items.map((it) => {
-        const lx = it.x - minX;
-        const ly = it.y - minY;
-        return {
-          ...it,
-          x: padX + (spanY - (ly + it.h)),
-          y: 1 + lx,
-          w: it.h,
-          h: it.w,
-        };
-      }),
-    };
-  }
-
   if (rotation === 180) {
     return {
       columns,
@@ -228,8 +230,8 @@ export function rotateMapLayout(
       const ly = it.y - minY;
       return {
         ...it,
-        x: padX + ly,
-        y: 1 + (spanX - (lx + it.w)),
+        x: rotation === 90 ? padX + (spanY - (ly + it.h)) : padX + ly,
+        y: rotation === 90 ? 1 + lx : 1 + (spanX - (lx + it.w)),
         w: it.h,
         h: it.w,
       };
@@ -601,4 +603,232 @@ export function getCorridorMergeData(it: MapItem, corridors: MapItem[]) {
     end,
   };
 }
+
+function extractSavedPlanBase(planData: any): { spc: number; cols: number; saved: any[] } {
+  return {
+    spc: Number(planData?.sqftPerCell) || DEFAULT_SQFT_PER_CELL,
+    cols: Number(planData?.columns) || DEFAULT_COLUMNS,
+    saved: Array.isArray(planData?.items) ? planData.items : [],
+  };
+}
+
+function buildDecorMapItem(it: any, seq: number): MapItem {
+  return {
+    key: `d:${seq}`,
+    kind: it.kind,
+    unitId: null,
+    label: it.label ?? DECORATION_LABELS[it.kind as Exclude<TileKind, 'unit'>] ?? null,
+    x: Number(it.x) || 0,
+    y: Number(it.y) || 0,
+    w: Math.max(1, Number(it.w) || 4),
+    h: Math.max(1, Number(it.h) || 3),
+  };
+}
+
+export function parseFloorPlanData(
+  planData: any,
+  shopByUnit: Map<string, any>,
+): { sqftPerCell: number; columns: number; decorSeq: number; items: MapItem[] } {
+  const { spc, cols, saved } = extractSavedPlanBase(planData);
+  const next: MapItem[] = [];
+  let d = 1;
+  let hasMarker = false;
+
+  saved.forEach((it) => {
+    if (it.kind === 'unit') {
+      const shop = shopByUnit.get(it.unitId);
+      if (!shop) return;
+      const size = sizeUnitTile({ w: it.w, h: it.h }, shop.unit?.areaSqft, spc, cols);
+      next.push({
+        key: unitKey(it.unitId),
+        kind: 'unit',
+        unitId: it.unitId,
+        label: it.label ?? null,
+        x: it.x,
+        y: it.y,
+        ...size,
+      });
+    } else {
+      if (it.kind === 'marker') {
+        if (hasMarker) return;
+        hasMarker = true;
+      }
+      next.push(buildDecorMapItem(it, d++));
+    }
+  });
+
+  return {
+    sqftPerCell: spc,
+    columns: cols,
+    decorSeq: d,
+    items: resolveOverlaps(next, cols),
+  };
+}
+
+function unitSuffixKey(unitNum: string): string {
+  const trimmed = unitNum.trim();
+  const dashIdx = trimmed.lastIndexOf('-');
+  if (dashIdx !== -1 && dashIdx < trimmed.length - 1) {
+    return trimmed.slice(dashIdx + 1).toLowerCase();
+  }
+  const digits = trimmed.match(/\d+$/)?.[0];
+  if (digits && digits.length >= 2) {
+    return digits.slice(-2);
+  }
+  return trimmed.toLowerCase();
+}
+
+/**
+ * Copies landmarks, walkways, and (optionally) unit slot positions from a source floor plan
+ * onto the current floor, matching current floor units to source unit slots.
+ */
+export function buildCopiedFloorLayout(
+  sourcePlanData: any,
+  targetFloorShops: any[],
+  allShopByUnit: Map<string, any>,
+  includeUnits = true,
+): { sqftPerCell: number; columns: number; decorSeq: number; items: MapItem[]; matchedUnits: number } {
+  const { spc, cols, saved } = extractSavedPlanBase(sourcePlanData);
+  const next: MapItem[] = [];
+  let d = 1;
+  let hasMarker = false;
+
+  const sourceUnitSlots: Array<{ x: number; y: number; w: number; h: number; suffix: string; orderKey: string }> = [];
+
+  saved.forEach((it) => {
+    if (it.kind === 'unit') {
+      const srcShop = it.unitId ? allShopByUnit.get(it.unitId) : null;
+      const srcNum = unitNumberOf(srcShop);
+      sourceUnitSlots.push({
+        x: Number(it.x) || 0,
+        y: Number(it.y) || 0,
+        w: Math.max(1, Number(it.w) || 5),
+        h: Math.max(1, Number(it.h) || 3),
+        suffix: srcNum ? unitSuffixKey(srcNum) : '',
+        orderKey: srcNum || `${String(it.y).padStart(4, '0')}:${String(it.x).padStart(4, '0')}`,
+      });
+    } else {
+      if (it.kind === 'marker') {
+        if (hasMarker) return;
+        hasMarker = true;
+      }
+      next.push(buildDecorMapItem(it, d++));
+    }
+  });
+
+  let matchedUnits = 0;
+  if (includeUnits && targetFloorShops.length > 0) {
+    const sortedTargetShops = [...targetFloorShops].sort((a, b) =>
+      unitNumberOf(a).localeCompare(unitNumberOf(b), undefined, { numeric: true }),
+    );
+    const sortedSlots = [...sourceUnitSlots].sort((a, b) =>
+      a.orderKey.localeCompare(b.orderKey, undefined, { numeric: true }),
+    );
+    const usedSlotIndices = new Set<number>();
+    const placedTargetUnitIds = new Set<string>();
+
+    const assignUnitToSlot = (shop: any, sl: { x: number; y: number; w: number; h: number }) => {
+      placedTargetUnitIds.add(shop.unitId);
+      next.push({
+        key: unitKey(shop.unitId),
+        kind: 'unit',
+        unitId: shop.unitId,
+        label: null,
+        x: sl.x,
+        y: sl.y,
+        w: Math.min(cols, sl.w),
+        h: sl.h,
+      });
+      matchedUnits++;
+    };
+
+    // Pass 1: Match by unit number suffix (e.g., 101 -> 201, G-05 -> L2-05)
+    sortedTargetShops.forEach((shop) => {
+      const sfx = unitSuffixKey(unitNumberOf(shop));
+      if (!sfx) return;
+      const slotIdx = sortedSlots.findIndex((sl, idx) => !usedSlotIndices.has(idx) && sl.suffix && sl.suffix === sfx);
+      if (slotIdx !== -1) {
+        usedSlotIndices.add(slotIdx);
+        assignUnitToSlot(shop, sortedSlots[slotIdx]);
+      }
+    });
+
+    // Pass 2: Match remaining shops in reading/unit-number order to remaining source slots
+    const remainingSlots = sortedSlots.filter((_, idx) => !usedSlotIndices.has(idx));
+    let slotCursor = 0;
+    sortedTargetShops.forEach((shop) => {
+      if (!placedTargetUnitIds.has(shop.unitId) && slotCursor < remainingSlots.length) {
+        assignUnitToSlot(shop, remainingSlots[slotCursor++]);
+      }
+    });
+  }
+
+  return {
+    sqftPerCell: spc,
+    columns: cols,
+    decorSeq: d,
+    items: resolveOverlaps(next, cols),
+    matchedUnits,
+  };
+}
+
+// ── Offline / Low-Connection Local Storage Cache for Floor Plans & Directory ──
+const FLOOR_PLAN_CACHE_PREFIX = 'pms_mall_fp_v1:';
+const DIRECTORY_CACHE_PREFIX = 'pms_mall_dir_v1:';
+
+function readLocalJson<T>(key: string): T | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalJson(key: string, value: unknown): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+export function saveCachedFloorPlan(propertyId: string | null | undefined, floor: string, planData: any): void {
+  if (!propertyId || !floor || !planData) return;
+  writeLocalJson(`${FLOOR_PLAN_CACHE_PREFIX}${propertyId}:${floor}`, {
+    data: planData,
+    updatedAt: Date.now(),
+  });
+}
+
+export function getCachedFloorPlan(propertyId: string | null | undefined, floor: string): any | null {
+  if (!propertyId || !floor) return null;
+  return readLocalJson<{ data?: any }>(`${FLOOR_PLAN_CACHE_PREFIX}${propertyId}:${floor}`)?.data ?? null;
+}
+
+export function saveCachedDirectory(
+  propertyId: string | null | undefined,
+  payload: { property?: any; shops: any[] },
+): void {
+  if (!propertyId || !Array.isArray(payload?.shops)) return;
+  const existing = getCachedDirectory(propertyId);
+  writeLocalJson(`${DIRECTORY_CACHE_PREFIX}${propertyId}`, {
+    property: payload.property ?? existing?.property ?? null,
+    shops: payload.shops,
+    updatedAt: Date.now(),
+  });
+}
+
+export function getCachedDirectory(
+  propertyId: string | null | undefined,
+): { property?: any; shops: any[]; updatedAt?: number } | null {
+  if (!propertyId) return null;
+  const parsed = readLocalJson<{ property?: any; shops: any[]; updatedAt?: number }>(
+    `${DIRECTORY_CACHE_PREFIX}${propertyId}`,
+  );
+  return parsed && Array.isArray(parsed.shops) ? parsed : null;
+}
+
 

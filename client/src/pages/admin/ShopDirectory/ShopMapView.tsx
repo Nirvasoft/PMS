@@ -6,10 +6,11 @@ import toast from 'react-hot-toast';
 import {
   RotateCw, X, Pencil, Save, Plus, Maximize2, Trash2, LayoutGrid,
   Map as MapIcon, QrCode, Navigation, MapPin,
-  Printer, Copy, ExternalLink, Info, ArrowRight,
+  Printer, Copy, ExternalLink, Info, ArrowRight, Camera, WifiOff,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
+  useLazyGetFloorPlanQuery,
   useGetPublicFloorPlanQuery,
   useSaveFloorPlanMutation,
   useGetMallQrCodeQuery,
@@ -18,9 +19,10 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
   SHOP_CATEGORIES, findFreeSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
-  sizeUnitTile, tileSizeFromSqft, unitKey,
+  tileSizeFromSqft, unitKey, unitNumberOf, shopDisplayName,
   computeWalkwayPath, findDefaultStartItem, findNearestFacilityItem,
   rotateMapLayout, parseRotationAngle, getCorridorMergeData,
+  parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
   type MapItem, type TileKind, type MapRotationAngle,
 } from './shopMapLayout';
 import {
@@ -28,6 +30,7 @@ import {
   preloadUnitPhotosBatch,
 } from '../../../utils/unitPhotoCache';
 import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
+import { QrScannerModal } from '../../../components/common/QrScannerModal';
 import './ShopMapView.css';
 
 interface Props {
@@ -292,6 +295,7 @@ export default function ShopMapView({
     { propertyId: propertyId as string, floor },
     { skip: !propertyId || !floor || !publicMode },
   );
+  const [fetchSourceFloorPlan, { isFetching: isCopyingFloor }] = useLazyGetFloorPlanQuery();
   const plan = publicMode ? publicPlanQuery.data : adminPlanQuery.data;
   const isFetching = publicMode ? publicPlanQuery.isFetching : adminPlanQuery.isFetching;
 
@@ -304,6 +308,11 @@ export default function ShopMapView({
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [decorKind, setDecorKind] = useState<Exclude<TileKind, 'unit'>>('marker');
   const [decorSeq, setDecorSeq] = useState(1);
+  const [copySourceFloor, setCopySourceFloor] = useState<string>('');
+  const [copyIncludeUnits, setCopyIncludeUnits] = useState<boolean>(true);
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  );
 
   // Indoor Navigation, Map Rotation & Floor QR state
   const [mapRotation, setMapRotation] = useState<MapRotationAngle>(initialRotateParam);
@@ -315,45 +324,76 @@ export default function ShopMapView({
   const [showFloorQrModal, setShowFloorQrModal] = useState(false);
   const [qrModalFloor, setQrModalFloor] = useState<string>('');
   const [showRouteQrModal, setShowRouteQrModal] = useState(false);
+  const [showQrScannerModal, setShowQrScannerModal] = useState(false);
+  const [viewport, setViewport] = useState(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    h: typeof window !== 'undefined' ? window.innerHeight : 800,
+  }));
 
-  const planData: any = (plan as any)?.data ?? plan;
+  useEffect(() => {
+    const onResize = () => {
+      setViewport({ w: window.innerWidth, h: window.innerHeight });
+    };
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
-  // (Re)load draft from server whenever floor / data changes and there are no unsaved edits.
+  const otherFloorsForCopy = useMemo(() => floors.filter((f) => f !== floor), [floors, floor]);
+  useEffect(() => {
+    if (!copySourceFloor || !otherFloorsForCopy.includes(copySourceFloor)) {
+      setCopySourceFloor(otherFloorsForCopy[0] || '');
+    }
+  }, [otherFloorsForCopy, copySourceFloor]);
+
+  const networkPlanData: any = (plan as any)?.data ?? plan;
+  useEffect(() => {
+    if (networkPlanData && propertyId && floor) {
+      saveCachedFloorPlan(propertyId, floor, networkPlanData);
+    }
+  }, [networkPlanData, propertyId, floor]);
+
+  const planData = useMemo(
+    () => networkPlanData ?? getCachedFloorPlan(propertyId, floor),
+    [networkPlanData, propertyId, floor],
+  );
+
+  const applyParsedLayout = (parsed: {
+    sqftPerCell: number;
+    columns: number;
+    decorSeq: number;
+    items: MapItem[];
+  }) => {
+    setSqftPerCell(parsed.sqftPerCell);
+    setColumns(parsed.columns);
+    setDecorSeq(parsed.decorSeq);
+    setItems(parsed.items);
+  };
+
+  // (Re)load draft from server or local offline cache whenever floor / data changes and there are no unsaved edits.
   useEffect(() => {
     if (dirty) return;
-    const spc = Number(planData?.sqftPerCell) || DEFAULT_SQFT_PER_CELL;
-    const cols = Number(planData?.columns) || DEFAULT_COLUMNS;
-    const saved: any[] = planData?.items || [];
-    const next: MapItem[] = [];
-    let d = 1;
-    let hasMarker = false;
-    saved.forEach((it) => {
-      if (it.kind === 'unit') {
-        const shop = shopByUnit.get(it.unitId);
-        if (!shop) return;
-        const size = sizeUnitTile({ w: it.w, h: it.h }, shop.unit?.areaSqft, spc, cols);
-        next.push({ key: unitKey(it.unitId), kind: 'unit', unitId: it.unitId, label: it.label ?? null, x: it.x, y: it.y, ...size });
-      } else {
-        if (it.kind === 'marker') {
-          if (hasMarker) return;
-          hasMarker = true;
-        }
-        next.push({ key: `d:${d++}`, kind: it.kind, unitId: null, label: it.label ?? null, x: it.x, y: it.y, w: it.w, h: it.h });
-      }
-    });
-    setSqftPerCell(spc);
-    setColumns(cols);
-    setDecorSeq(d);
-    setItems(resolveOverlaps(next, cols));
+    applyParsedLayout(parseFloorPlanData(planData, shopByUnit));
   }, [planData, shopByUnit, dirty]);
 
   const effectiveRotation: MapRotationAngle = editing ? 0 : mapRotation;
+  const isQuarterTurn = effectiveRotation === 90 || effectiveRotation === 270;
   const rotatedLayout = useMemo(
     () => rotateMapLayout(items, columns, effectiveRotation),
     [items, columns, effectiveRotation],
   );
   const displayItems = rotatedLayout.items;
   const displayColumns = rotatedLayout.columns;
+  const rows = Math.max(10, ...displayItems.map((i) => i.y + i.h)) + (editing ? 6 : 1);
 
   const placedUnitIds = useMemo(() => new Set(items.filter((i) => i.unitId).map((i) => i.unitId as string)), [items]);
   const placedShops = useMemo(
@@ -361,11 +401,7 @@ export default function ShopMapView({
       floorShops
         .filter((s) => placedUnitIds.has(s.unitId))
         .sort((a, b) =>
-          String(a.unit?.unitNumber || a.shopNumber || '').localeCompare(
-            String(b.unit?.unitNumber || b.shopNumber || ''),
-            undefined,
-            { numeric: true },
-          ),
+          unitNumberOf(a).localeCompare(unitNumberOf(b), undefined, { numeric: true }),
         ),
     [floorShops, placedUnitIds],
   );
@@ -374,8 +410,8 @@ export default function ShopMapView({
       shops
         .filter((s) => floorKeyOf(s) !== floor)
         .sort((a, b) =>
-          String(floorKeyOf(a)).localeCompare(String(floorKeyOf(b))) ||
-          String(a.brandName || a.unit?.unitNumber || '').localeCompare(String(b.brandName || b.unit?.unitNumber || '')),
+          floorKeyOf(a).localeCompare(floorKeyOf(b)) ||
+          shopDisplayName(a).localeCompare(shopDisplayName(b)),
         ),
     [shops, floor],
   );
@@ -410,8 +446,24 @@ export default function ShopMapView({
   const unplaced = floorShops.filter((s) => !placedUnitIds.has(s.unitId));
 
   const { width, containerRef } = useContainerWidth();
-  const gridWidth = Math.max(0, (width || 900) - 16);
-  const cellPx = Math.max(6, Math.floor(gridWidth / displayColumns));
+  const availWidth = Math.max(0, (width || viewport.w || 900) - 16);
+  const minDeviceCellPx = editing ? 6 : viewport.w <= 480 ? 10 : viewport.w <= 768 ? 11 : 8;
+  const rawCellPx = Math.floor(availWidth / Math.max(1, displayColumns));
+  const maxCanvasHeight = Math.max(340, Math.round(viewport.h * (fullScreen ? 0.72 : 0.65)));
+  const maxCellByHeight = Math.max(minDeviceCellPx, Math.floor(maxCanvasHeight / Math.max(1, rows)));
+  const cellPx = editing
+    ? Math.max(6, rawCellPx)
+    : isQuarterTurn
+      ? Math.max(minDeviceCellPx, Math.min(rawCellPx, maxCellByHeight, 26))
+      : Math.max(minDeviceCellPx, rawCellPx);
+  const naturalGridWidth = displayColumns * (cellPx + 1);
+  const gridWidth = editing
+    ? availWidth
+    : isQuarterTurn && naturalGridWidth < availWidth
+      ? Math.max(240, naturalGridWidth)
+      : naturalGridWidth > availWidth
+        ? naturalGridWidth
+        : availWidth;
   const colStepPx = displayColumns > 0 ? (gridWidth - (displayColumns - 1)) / displayColumns + 1 : cellPx + 1;
   const rowStepPx = cellPx + 1;
 
@@ -476,16 +528,10 @@ export default function ShopMapView({
     return computeWalkwayPath(displayItems, activeStartItem, effectiveTargetItem, displayColumns, sqftPerCell);
   }, [editing, activeStartItem, effectiveTargetItem, displayItems, displayColumns, sqftPerCell]);
 
-  const shopDisplayName = (s: any): string => {
-    const name = typeof s?.brandName === 'string' ? s.brandName.trim() : '';
-    if (name) return name;
-    return s?.unit?.unitNumber || s?.shopNumber || 'Shop';
-  };
-
   const describeTile = (it: MapItem | null): string => {
     if (!it) return '—';
     if (it.kind === 'unit' && it.unitId) {
-      return shopDisplayName(shopByUnit.get(it.unitId));
+      return shopDisplayName(shopByUnit.get(it.unitId), 'Shop');
     }
     return DECORATION_LABELS[it.kind as Exclude<TileKind, 'unit'>] || it.label || it.kind;
   };
@@ -546,12 +592,12 @@ export default function ShopMapView({
     });
   };
 
-  const addDecor = () => {
-    if (decorKind === 'marker' && items.some((i) => i.kind === 'marker')) return;
-    const { w, h } = DECORATION_DEFAULT_SIZES[decorKind] || { w: 6, h: 4 };
+  const addDecor = (kind: Exclude<TileKind, 'unit'> = decorKind) => {
+    if (kind === 'marker' && items.some((i) => i.kind === 'marker')) return;
+    const { w, h } = DECORATION_DEFAULT_SIZES[kind] || { w: 6, h: 4 };
     update((prev) => {
       const pos = findFreeSpot(prev, w, h, columns);
-      return [...prev, { key: `d:${decorSeq}`, kind: decorKind, unitId: null, label: DECORATION_LABELS[decorKind], x: pos.x, y: pos.y, w, h }];
+      return [...prev, { key: `d:${decorSeq}`, kind, unitId: null, label: DECORATION_LABELS[kind], x: pos.x, y: pos.y, w, h }];
     });
     setDecorSeq((n) => n + 1);
   };
@@ -583,23 +629,7 @@ export default function ShopMapView({
   const startEditingLayout = () => {
     setDecorKind('marker');
     setEditing(true);
-    if (!items.some((i) => i.kind === 'marker')) {
-      const { w, h } = DECORATION_DEFAULT_SIZES.marker;
-      const pos = findFreeSpot(items, w, h, columns);
-      const nextItem: MapItem = {
-        key: `d:${decorSeq}`,
-        kind: 'marker',
-        unitId: null,
-        label: DECORATION_LABELS.marker,
-        x: pos.x,
-        y: pos.y,
-        w,
-        h,
-      };
-      setItems((prev) => [...prev, nextItem]);
-      setDecorSeq((n) => n + 1);
-      setDirty(true);
-    }
+    addDecor('marker');
   };
 
   const discard = () => {
@@ -607,21 +637,52 @@ export default function ShopMapView({
     setEditing(false);
   };
 
+  const handleCopyFromFloor = async () => {
+    if (!propertyId || !copySourceFloor) return;
+    try {
+      let srcData: any = null;
+      try {
+        const res = await fetchSourceFloorPlan({ propertyId: propertyId as string, floor: copySourceFloor }).unwrap();
+        srcData = (res as any)?.data ?? res;
+        if (srcData) saveCachedFloorPlan(propertyId, copySourceFloor, srcData);
+      } catch {
+        srcData = getCachedFloorPlan(propertyId, copySourceFloor);
+      }
+      const srcItems: any[] = Array.isArray(srcData?.items) ? srcData.items : [];
+      if (srcItems.length === 0) {
+        toast.error(`No saved layout found on ${copySourceFloor}`);
+        return;
+      }
+      const copied = buildCopiedFloorLayout(srcData, floorShops, allShopByUnit, copyIncludeUnits);
+      applyParsedLayout(copied);
+      setDirty(true);
+      toast.success(
+        copyIncludeUnits
+          ? `Copied layout from ${copySourceFloor} (${copied.matchedUnits} units matched)`
+          : `Copied landmarks & walkways from ${copySourceFloor}`,
+      );
+    } catch {
+      toast.error(`Failed to copy layout from ${copySourceFloor}`);
+    }
+  };
+
   const save = async () => {
     if (hasAnyOverlap(items)) {
       toast.error('Some tiles overlap. Please separate them before saving.');
       return;
     }
+    const payloadData = {
+      sqftPerCell,
+      columns,
+      items: items.map((i) => ({ kind: i.kind, unitId: i.unitId, label: i.label, x: i.x, y: i.y, w: i.w, h: i.h })),
+    };
     try {
       await savePlan({
         propertyId: propertyId as string,
         floor,
-        data: {
-          sqftPerCell,
-          columns,
-          items: items.map((i) => ({ kind: i.kind, unitId: i.unitId, label: i.label, x: i.x, y: i.y, w: i.w, h: i.h })),
-        },
+        data: payloadData,
       } as any).unwrap();
+      saveCachedFloorPlan(propertyId, floor, payloadData);
       toast.success('Floor plan saved');
       setDirty(false);
       setEditing(false);
@@ -667,12 +728,43 @@ export default function ShopMapView({
     isDraggable: editing,
   }));
 
-  const rows = Math.max(10, ...displayItems.map((i) => i.y + i.h)) + (editing ? 6 : 1);
-
   const [mapView, setMapView] = useState<'default' | 'photo'>(() => {
     const v = new URLSearchParams(window.location.search).get('view');
     return v === 'photo' ? 'photo' : 'default';
   });
+
+  const handleQrDetected = (rawValue: string) => {
+    try {
+      const parsed = rawValue.startsWith('http')
+        ? new URL(rawValue)
+        : new URL(rawValue, window.location.origin);
+      const scannedPropertyId = parsed.searchParams.get('propertyId');
+      const scannedFloor = parsed.searchParams.get('floor');
+      const scannedFrom = parsed.searchParams.get('from');
+      const scannedTo = parsed.searchParams.get('to');
+      const scannedRotate = parsed.searchParams.get('rotate');
+      const scannedView = parsed.searchParams.get('view');
+
+      if (scannedPropertyId && propertyId && scannedPropertyId !== propertyId && publicMode) {
+        setShowQrScannerModal(false);
+        window.location.href = parsed.toString();
+        return;
+      }
+
+      if (scannedFloor && floors.includes(scannedFloor)) {
+        setFloor(scannedFloor);
+      }
+      if (scannedFrom !== null) setCustomStartKey(scannedFrom);
+      if (scannedTo !== null) setTargetKey(scannedTo);
+      if (scannedRotate !== null) setMapRotation(parseRotationAngle(scannedRotate));
+      if (scannedView === 'photo' || scannedView === 'default') setMapView(scannedView);
+
+      setShowQrScannerModal(false);
+      toast.success(scannedFloor ? `Loaded ${scannedFloor} from QR code` : 'QR code applied');
+    } catch {
+      toast.error('Invalid QR code link');
+    }
+  };
 
   const openFullScreenTab = () => {
     const params = new URLSearchParams();
@@ -757,6 +849,15 @@ export default function ShopMapView({
 
   const hasMarkerOnFloor = items.some((i) => i.kind === 'marker');
   const isRoutingActive = Boolean(!editing && walkwayRoute && activeStartItem && effectiveTargetItem);
+  const isMobile = viewport.w <= 640;
+  const isTablet = viewport.w > 640 && viewport.w <= 1024;
+  const toolbarIconPx = isMobile ? 12 : isTablet ? 13 : 14;
+  const viewSwitchGridPx = isMobile ? 13 : isTablet ? 14 : 15;
+  const viewSwitchCubePx = isMobile ? 14 : isTablet ? 15 : 16;
+  const navIconPx = isMobile ? 11 : isTablet ? 12 : 13;
+  const legendIconPx = isMobile ? 9 : isTablet ? 10 : 11;
+  const categoryIconPx = isMobile ? 13 : isTablet ? 14 : 15;
+  const tileActionIconPx = isMobile ? 8 : 9;
 
   return (
     <div className={`shop-map ${fullScreen ? 'shop-map-fullscreen' : ''} ${mapView === 'photo' ? 'shop-map-view2' : 'shop-map-view1'}`}>
@@ -779,7 +880,7 @@ export default function ShopMapView({
               title="Layout View"
               aria-label="Layout View"
             >
-              <LayoutGrid size={15} />
+              <LayoutGrid size={viewSwitchGridPx} />
             </button>
             <button
               type="button"
@@ -788,7 +889,7 @@ export default function ShopMapView({
               title="3D Photo View"
               aria-label="3D Photo View"
             >
-              <Cute3DCubeIcon size={16} />
+              <Cute3DCubeIcon size={viewSwitchCubePx} />
             </button>
           </div>
           {!editing && (
@@ -798,7 +899,17 @@ export default function ShopMapView({
               onClick={cycleMapRotation}
               title="Rotate map"
             >
-              <RotateCw size={14} /> Rotate
+              <RotateCw size={toolbarIconPx} /> Rotate{mapRotation !== 0 ? ` (${mapRotation}°)` : ''}
+            </button>
+          )}
+          {!editing && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowQrScannerModal(true)}
+              title="Scan Floor or Route QR Code with Camera"
+            >
+              <Camera size={toolbarIconPx} /> Scan QR
             </button>
           )}
           {!publicMode && (
@@ -808,25 +919,30 @@ export default function ShopMapView({
               onClick={openFloorQr}
               title="Generate or Print QR Code for this Floor"
             >
-              <QrCode size={14} /> Floor QR Code
+              <QrCode size={toolbarIconPx} /> Floor QR Code
             </button>
+          )}
+          {!isOnline && (
+            <span className="shop-map-offline-badge" title="Offline mode — showing saved map from device cache">
+              <WifiOff size={toolbarIconPx - 1} /> Offline Mode
+            </span>
           )}
         </div>
         {!fullScreen && !publicMode && (
           <div className="shop-map-toolbar-actions">
             <button className="btn btn-secondary" onClick={openFullScreenTab} title="Open Full Screen Map in a new tab">
-              <Maximize2 size={14} /> View Full Screen
+              <Maximize2 size={toolbarIconPx} /> View Full Screen
             </button>
             <PermissionGuard permission="mall-shops.write" hideWhenDenied>
               {!editing ? (
                 <button className="btn btn-secondary" onClick={startEditingLayout}>
-                  <Pencil size={14} /> Edit Layout
+                  <Pencil size={toolbarIconPx} /> Edit Layout
                 </button>
               ) : (
                 <>
                   <button className="btn btn-secondary" onClick={discard} disabled={saving}>Cancel</button>
                   <button className="btn btn-primary" onClick={save} disabled={saving || !dirty}>
-                    <Save size={14} /> {saving ? 'Saving…' : 'Save'}
+                    <Save size={toolbarIconPx} /> {saving ? 'Saving…' : 'Save'}
                   </button>
                 </>
               )}
@@ -841,7 +957,7 @@ export default function ShopMapView({
           <div className="shop-map-nav-controls">
             <div className="shop-map-nav-field">
               <span className="shop-map-nav-label">
-                <MapPin size={13} className="nav-pin-start-icon" /> From:
+                <MapPin size={navIconPx} className="nav-pin-start-icon" /> From:
               </span>
               <select
                 className="shop-map-nav-select"
@@ -872,11 +988,11 @@ export default function ShopMapView({
               </select>
             </div>
 
-            <ArrowRight size={14} className="shop-map-nav-arrow" />
+            <ArrowRight size={navIconPx + 1} className="shop-map-nav-arrow" />
 
             <div className="shop-map-nav-field">
               <span className="shop-map-nav-label">
-                <Navigation size={13} className="nav-pin-dest-icon" /> To:
+                <Navigation size={navIconPx} className="nav-pin-dest-icon" /> To:
               </span>
               <select
                 className="shop-map-nav-select"
@@ -953,7 +1069,7 @@ export default function ShopMapView({
                   <span className="shop-map-route-steps">
                     <strong>Step 1 ({floor}):</strong> Walk from <em>{describeTile(activeStartItem)}</em> to{' '}
                     <em>{describeTile(effectiveTargetItem)}</em>, then go to <strong>{floorKeyOf(crossFloorShop)}</strong> for{' '}
-                    <strong>{crossFloorShop.brandName || crossFloorShop.unit?.unitNumber}</strong>.
+                    <strong>{shopDisplayName(crossFloorShop)}</strong>.
                   </span>
                 ) : walkwayRoute ? (
                   <span className="shop-map-route-steps">
@@ -1037,7 +1153,7 @@ export default function ShopMapView({
           </select>
           <button
             className="btn btn-secondary"
-            onClick={addDecor}
+            onClick={() => addDecor()}
             disabled={decorKind === 'marker' && items.some((i) => i.kind === 'marker')}
           >
             <Plus size={14} /> Add
@@ -1050,6 +1166,37 @@ export default function ShopMapView({
           >
             <Trash2 size={14} /> Clear All
           </button>
+          {otherFloorsForCopy.length > 0 && (
+            <div className="shop-map-copy-group">
+              <span className="shop-map-copy-label">Copy from:</span>
+              <select
+                value={copySourceFloor}
+                onChange={(e) => setCopySourceFloor(e.target.value)}
+                title="Select floor to copy layout from"
+              >
+                {otherFloorsForCopy.map((f) => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+              <select
+                value={copyIncludeUnits ? 'all' : 'landmarks'}
+                onChange={(e) => setCopyIncludeUnits(e.target.value === 'all')}
+                title="Choose what to copy from the selected floor"
+              >
+                <option value="all">Landmarks + Match Units</option>
+                <option value="landmarks">Landmarks & Walkways Only</option>
+              </select>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleCopyFromFloor}
+                disabled={isCopyingFloor || !copySourceFloor}
+                title={`Copy layout from ${copySourceFloor} to ${floor}`}
+              >
+                <Copy size={13} /> {isCopyingFloor ? 'Copying…' : 'Copy Layout'}
+              </button>
+            </div>
+          )}
           {dirty && <span className="shop-map-dirty">● Unsaved changes</span>}
         </div>
       )}
@@ -1093,169 +1240,196 @@ export default function ShopMapView({
               )}
             </div>
           ) : (
-            <ReactGridLayout
-              width={gridWidth}
-              layout={layout as any}
-              gridConfig={{ cols: displayColumns, rowHeight: cellPx, margin: [1, 1], containerPadding: [0, 0], maxRows: rows } as any}
-              dragConfig={{ enabled: editing, cancel: '.shop-map-tile-btn' } as any}
-              resizeConfig={{ enabled: editing } as any}
-              compactor={noCompaction as any}
-              onLayoutChange={onLayoutChange as any}
-              onDrag={onLayoutChange as any}
-              onResize={onLayoutChange as any}
-            >
-              {displayItems.map((it) => {
-                const shop = it.unitId ? shopByUnit.get(it.unitId) : null;
-                const decor = it.kind !== 'unit';
-                const isTarget = Boolean(!editing && effectiveTargetItem && it.key === effectiveTargetItem.key);
-                const isStart = Boolean(!editing && activeStartItem && it.key === activeStartItem.key);
-                const dim = !decor && shop ? !matches(shop) : false;
-                const tiny = !decor && (it.w * cellPx < 24 || it.h * cellPx < 18);
-                const minSidePx = Math.min(it.w, it.h) * cellPx;
-                const badgePx = Math.max(18, Math.min(96, Math.round(minSidePx * 0.68)));
-                const iconPx = Math.max(12, Math.round(badgePx * 0.62));
-                const decorType = it.kind as Exclude<TileKind, 'unit'>;
-                const decorLabel = DECORATION_LABELS[decorType] || it.label || '';
-                const cm = it.kind === 'corridor' ? getCorridorMergeData(it, corridors) : null;
-                const wPx = Math.max(1, it.w * cellPx);
-                const hPx = Math.max(1, it.h * cellPx);
-                const sharpClasses = cm
-                  ? `${cm.tlSharp ? 'sharp-tl' : ''} ${cm.trSharp ? 'sharp-tr' : ''} ${cm.blSharp ? 'sharp-bl' : ''} ${cm.brSharp ? 'sharp-br' : ''}`
-                  : '';
-                const unitLabel = shop?.unit?.unitNumber || shop?.shopNumber || '';
-                const rawPhotoUrl = shop?.unit?.floorPlanUrl as string | undefined;
-                const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl);
-                const showPhotoMode = !decor && mapView === 'photo';
-                const hasUnitPhoto = showPhotoMode && hasPhotoImage;
-                const title = decor
-                  ? decorLabel
-                  : `${shop?.brandName || unitLabel} • ${unitLabel} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}`;
-                return (
-                  <div
-                    key={it.key}
-                    title={title}
-                    className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
-                    onClick={(e) => {
-                      if (editing) return;
-                      e.stopPropagation();
-                      if (it.kind === 'corridor') return;
-                      if (targetKey === it.key && shop) {
-                        onOpenShop(shop);
-                      } else {
-                        setCrossFloorUnitId(null);
-                        setTargetKey(it.key);
-                      }
-                    }}
-                    onDoubleClick={(e) => {
-                      if (!editing && shop) {
+            <div className="shop-map-stage" style={{ width: gridWidth }}>
+              <ReactGridLayout
+                width={gridWidth}
+                layout={layout as any}
+                gridConfig={{ cols: displayColumns, rowHeight: cellPx, margin: [1, 1], containerPadding: [0, 0], maxRows: rows } as any}
+                dragConfig={{ enabled: editing, cancel: '.shop-map-tile-btn' } as any}
+                resizeConfig={{ enabled: editing } as any}
+                compactor={noCompaction as any}
+                onLayoutChange={onLayoutChange as any}
+                onDrag={onLayoutChange as any}
+                onResize={onLayoutChange as any}
+              >
+                {displayItems.map((it) => {
+                  const shop = it.unitId ? shopByUnit.get(it.unitId) : null;
+                  const decor = it.kind !== 'unit';
+                  const isTarget = Boolean(!editing && effectiveTargetItem && it.key === effectiveTargetItem.key);
+                  const isStart = Boolean(!editing && activeStartItem && it.key === activeStartItem.key);
+                  const dim = !decor && shop ? !matches(shop) : false;
+                  const wPx = Math.max(1, it.w * cellPx);
+                  const hPx = Math.max(1, it.h * cellPx);
+                  const isVerticalTile = !decor && it.h > it.w;
+                  const longSidePx = isVerticalTile ? hPx : wPx;
+                  const shortSidePx = isVerticalTile ? wPx : hPx;
+                  const tiny = !decor && (longSidePx < 18 || shortSidePx < 14);
+                  const minSidePx = Math.min(it.w, it.h) * cellPx;
+                  const maxBadgeForTile = Math.max(10, minSidePx - (isMobile ? 3 : 5));
+                  const minBadgePx = isMobile ? 12 : isTablet ? 14 : 16;
+                  const maxBadgePx = isMobile ? 42 : isTablet ? 64 : 88;
+                  const badgeScale = isMobile ? 0.60 : isTablet ? 0.64 : 0.68;
+                  const badgePx = Math.min(
+                    maxBadgeForTile,
+                    Math.max(minBadgePx, Math.min(maxBadgePx, Math.round(minSidePx * badgeScale))),
+                  );
+                  const iconPx = Math.max(isMobile ? 8 : 10, Math.round(badgePx * 0.60));
+                  const decorType = it.kind as Exclude<TileKind, 'unit'>;
+                  const decorLabel = DECORATION_LABELS[decorType] || it.label || '';
+                  const cm = it.kind === 'corridor' ? getCorridorMergeData(it, corridors) : null;
+                  const sharpClasses = cm
+                    ? `${cm.tlSharp ? 'sharp-tl' : ''} ${cm.trSharp ? 'sharp-tr' : ''} ${cm.blSharp ? 'sharp-bl' : ''} ${cm.brSharp ? 'sharp-br' : ''}`
+                    : '';
+                  const unitNumberLabel = unitNumberOf(shop);
+                  const tileDisplayLabel = shopDisplayName(shop);
+                  const labelLen = Math.max(2, tileDisplayLabel.length);
+                  const minTileFontPx = isMobile ? 7 : 8;
+                  const tileFontPx = Math.max(
+                    minTileFontPx,
+                    Math.min(
+                      13,
+                      Math.floor(Math.min(shortSidePx * 0.38, (longSidePx - 6) / Math.max(2.4, labelLen * 0.54))),
+                    ),
+                  );
+                  const rawPhotoUrl = shop?.unit?.floorPlanUrl as string | undefined;
+                  const hasPhotoImage = isUnitPhotoImage(rawPhotoUrl);
+                  const showPhotoMode = !decor && mapView === 'photo';
+                  const hasUnitPhoto = showPhotoMode && hasPhotoImage;
+                  const title = decor
+                    ? decorLabel
+                    : `${tileDisplayLabel}${tileDisplayLabel !== unitNumberLabel && unitNumberLabel ? ` • ${unitNumberLabel}` : ''} • ${shop?.unit?.areaSqft ?? '—'} sqft • ${shop?.unit?.status || ''}`;
+                  return (
+                    <div
+                      key={it.key}
+                      title={title}
+                      className={`shop-map-tile ${decor ? `st-decor st-decor-${it.kind} ${sharpClasses}` : statusClass(shop)} ${hasUnitPhoto ? 'has-unit-photo' : ''} ${isVerticalTile ? 'is-vertical-tile' : ''} ${editing ? 'editing' : ''} ${dim ? 'dim' : ''} ${tiny ? 'tiny' : ''} ${isTarget ? 'active-target' : ''} ${isStart ? 'active-start' : ''}`}
+                      onClick={(e) => {
+                        if (editing) return;
                         e.stopPropagation();
-                        onOpenShop(shop);
-                      }
-                    }}
-                  >
-                    {decor ? (
-                      it.kind === 'corridor' && cm ? (
-                        <svg
-                          className="shop-map-corridor-svg"
-                          viewBox={`0 0 ${wPx} ${hPx}`}
-                          preserveAspectRatio="none"
-                        >
-                          {cm.bottomTouched.map(([u1, u2], idx) => (
-                            <rect
-                              key={`bb-${idx}`}
-                              x={u1 * cellPx}
-                              y={hPx - 1}
-                              width={(u2 - u1) * cellPx}
-                              height={3}
-                              className="shop-map-corridor-bridge"
+                        if (it.kind === 'corridor') return;
+                        if (targetKey === it.key && shop) {
+                          onOpenShop(shop);
+                        } else {
+                          setCrossFloorUnitId(null);
+                          setTargetKey(it.key);
+                        }
+                      }}
+                      onDoubleClick={(e) => {
+                        if (!editing && shop) {
+                          e.stopPropagation();
+                          onOpenShop(shop);
+                        }
+                      }}
+                    >
+                      {decor ? (
+                        it.kind === 'corridor' && cm ? (
+                          <svg
+                            className="shop-map-corridor-svg"
+                            viewBox={`0 0 ${wPx} ${hPx}`}
+                            preserveAspectRatio="none"
+                          >
+                            {cm.bottomTouched.map(([u1, u2], idx) => (
+                              <rect
+                                key={`bb-${idx}`}
+                                x={u1 * cellPx}
+                                y={hPx - 1}
+                                width={(u2 - u1) * cellPx}
+                                height={3}
+                                className="shop-map-corridor-bridge"
+                              />
+                            ))}
+                            {cm.rightTouched.map(([v1, v2], idx) => (
+                              <rect
+                                key={`rb-${idx}`}
+                                x={wPx - 1}
+                                y={v1 * cellPx}
+                                width={3}
+                                height={(v2 - v1) * cellPx}
+                                className="shop-map-corridor-bridge"
+                              />
+                            ))}
+                            {[
+                              ...cm.topSegs.map(([u1, u2]) => ({ x1: u1 * cellPx, y1: 0.75, x2: u2 * cellPx, y2: 0.75 })),
+                              ...cm.bottomSegs.map(([u1, u2]) => ({ x1: u1 * cellPx, y1: hPx - 0.75, x2: u2 * cellPx, y2: hPx - 0.75 })),
+                              ...cm.leftSegs.map(([v1, v2]) => ({ x1: 0.75, y1: v1 * cellPx, x2: 0.75, y2: v2 * cellPx })),
+                              ...cm.rightSegs.map(([v1, v2]) => ({ x1: wPx - 0.75, y1: v1 * cellPx, x2: wPx - 0.75, y2: v2 * cellPx })),
+                            ].map((seg, idx) => (
+                              <line key={`b-${idx}`} {...seg} className="shop-map-corridor-border" />
+                            ))}
+                            <line
+                              x1={cm.vertical ? wPx / 2 : cm.start * cellPx + (cm.start < 0 ? -1 : 0)}
+                              y1={cm.vertical ? cm.start * cellPx + (cm.start < 0 ? -1 : 0) : hPx / 2}
+                              x2={cm.vertical ? wPx / 2 : cm.end * cellPx + (cm.end > it.w ? 1 : 0)}
+                              y2={cm.vertical ? cm.end * cellPx + (cm.end > it.h ? 1 : 0) : hPx / 2}
+                              className="shop-map-corridor-centerline"
                             />
-                          ))}
-                          {cm.rightTouched.map(([v1, v2], idx) => (
-                            <rect
-                              key={`rb-${idx}`}
-                              x={wPx - 1}
-                              y={v1 * cellPx}
-                              width={3}
-                              height={(v2 - v1) * cellPx}
-                              className="shop-map-corridor-bridge"
-                            />
-                          ))}
-                          {[
-                            ...cm.topSegs.map(([u1, u2]) => ({ x1: u1 * cellPx, y1: 0.75, x2: u2 * cellPx, y2: 0.75 })),
-                            ...cm.bottomSegs.map(([u1, u2]) => ({ x1: u1 * cellPx, y1: hPx - 0.75, x2: u2 * cellPx, y2: hPx - 0.75 })),
-                            ...cm.leftSegs.map(([v1, v2]) => ({ x1: 0.75, y1: v1 * cellPx, x2: 0.75, y2: v2 * cellPx })),
-                            ...cm.rightSegs.map(([v1, v2]) => ({ x1: wPx - 0.75, y1: v1 * cellPx, x2: wPx - 0.75, y2: v2 * cellPx })),
-                          ].map((seg, idx) => (
-                            <line key={`b-${idx}`} {...seg} className="shop-map-corridor-border" />
-                          ))}
-                          <line
-                            x1={cm.vertical ? wPx / 2 : cm.start * cellPx + (cm.start < 0 ? -1 : 0)}
-                            y1={cm.vertical ? cm.start * cellPx + (cm.start < 0 ? -1 : 0) : hPx / 2}
-                            x2={cm.vertical ? wPx / 2 : cm.end * cellPx + (cm.end > it.w ? 1 : 0)}
-                            y2={cm.vertical ? cm.end * cellPx + (cm.end > it.h ? 1 : 0) : hPx / 2}
-                            className="shop-map-corridor-centerline"
-                          />
-                        </svg>
+                          </svg>
+                        ) : (
+                          <div className="shop-map-decor-badge" style={{ width: badgePx, height: badgePx }}>
+                            <span className="shop-map-decor-icon">
+                              <DecorIcon kind={decorType as Exclude<TileKind, 'unit' | 'corridor'>} size={iconPx} />
+                            </span>
+                          </div>
+                        )
                       ) : (
-                        <div className="shop-map-decor-badge" style={{ width: badgePx, height: badgePx }}>
-                          <span className="shop-map-decor-icon">
-                            <DecorIcon kind={decorType as Exclude<TileKind, 'unit' | 'corridor'>} size={iconPx} />
-                          </span>
-                        </div>
-                      )
-                    ) : (
-                      <>
-                        {hasPhotoImage && (
-                          <CachedUnitPhoto
-                            photoUrl={rawPhotoUrl}
-                            alt={unitLabel}
-                            imgClassName="shop-map-tile-photo"
-                            skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
-                            readyClassName="is-loaded"
-                            loading="eager"
-                          />
-                        )}
-                        <div className="shop-map-tile-name">{unitLabel}</div>
-                      </>
-                    )}
-                    {editing && (
-                      <div className="shop-map-tile-actions">
-                        <button className="shop-map-tile-btn rot" title="Rotate 90°" onClick={(e) => { e.stopPropagation(); rotate(it.key); }}>
-                          <RotateCw size={9} />
-                        </button>
-                        {it.kind !== 'marker' && (
-                          <button className="shop-map-tile-btn" title="Remove" onClick={(e) => { e.stopPropagation(); remove(it.key); }}>
-                            <X size={9} />
+                        <>
+                          {hasPhotoImage && (
+                            <CachedUnitPhoto
+                              photoUrl={rawPhotoUrl}
+                              alt={tileDisplayLabel}
+                              imgClassName="shop-map-tile-photo"
+                              skeletonClassName={hasUnitPhoto ? 'shop-map-tile-skeleton' : undefined}
+                              readyClassName="is-loaded"
+                              loading="eager"
+                            />
+                          )}
+                          <div
+                            className="shop-map-tile-name"
+                            style={{ fontSize: `${tileFontPx}px` }}
+                          >
+                            {tileDisplayLabel}
+                          </div>
+                        </>
+                      )}
+                      {editing && (
+                        <div className="shop-map-tile-actions">
+                          <button className="shop-map-tile-btn rot" title="Rotate 90°" onClick={(e) => { e.stopPropagation(); rotate(it.key); }}>
+                            <RotateCw size={tileActionIconPx} />
                           </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </ReactGridLayout>
-          )}
+                          {it.kind !== 'marker' && (
+                            <button className="shop-map-tile-btn" title="Remove" onClick={(e) => { e.stopPropagation(); remove(it.key); }}>
+                              <X size={tileActionIconPx} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </ReactGridLayout>
 
-          {/* ── Walkway Indoor Navigation Route Overlay ── */}
-          {isRoutingActive && walkwayRoute && walkwayRoute.points.length >= 2 && (() => {
-            const pxPoints = walkwayRoute.points.map((pt) => ({
-              x: 8 + pt.x * colStepPx - 0.5,
-              y: 8 + pt.y * rowStepPx - 0.5,
-            }));
-            const polyStr = pxPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-            const startPt = pxPoints[0];
-            const endPt = pxPoints[pxPoints.length - 1];
-            return (
-              <svg className="shop-map-connector-svg">
-                <polyline points={polyStr} className="shop-map-nav-glow" />
-                <polyline points={polyStr} className="shop-map-connector-line" />
-                <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
-                <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
-                <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
-                <circle cx={endPt.x} cy={endPt.y} r={5} className="shop-map-connector-dot target" />
-              </svg>
-            );
-          })()}
+              {/* ── Walkway Indoor Navigation Route Overlay ── */}
+              {isRoutingActive && walkwayRoute && walkwayRoute.points.length >= 2 && (() => {
+                const pxPoints = walkwayRoute.points.map((pt) => ({
+                  x: pt.x * colStepPx - 0.5,
+                  y: pt.y * rowStepPx - 0.5,
+                }));
+                const polyStr = pxPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+                const startPt = pxPoints[0];
+                const endPt = pxPoints[pxPoints.length - 1];
+                return (
+                  <svg className="shop-map-connector-svg">
+                    <polyline points={polyStr} className="shop-map-nav-glow" />
+                    <polyline points={polyStr} className="shop-map-connector-line" />
+                    <circle cx={startPt.x} cy={startPt.y} r={8} className="shop-map-nav-pulse start" />
+                    <circle cx={startPt.x} cy={startPt.y} r={4.5} className="shop-map-connector-dot start" />
+                    <circle cx={endPt.x} cy={endPt.y} r={9} className="shop-map-nav-pulse target" />
+                    <circle cx={endPt.x} cy={endPt.y} r={5} className="shop-map-connector-dot target" />
+                  </svg>
+                );
+              })()}
+            </div>
+          )}
 
           {!editing && (placedCategories.length > 0 || placedDecorKinds.length > 0) && (
             <div className="shop-map-directory-overlays" onClick={(e) => e.stopPropagation()}>
@@ -1274,7 +1448,7 @@ export default function ShopMapView({
                         <span className="shop-map-directory-corridor-swatch" />
                       ) : (
                         <span className={`shop-map-directory-marker-badge lg-${kind}`}>
-                          <DecorIcon kind={kind} size={11} />
+                          <DecorIcon kind={kind} size={legendIconPx} />
                         </span>
                       )}
                       <span className="shop-map-directory-name">{DECORATION_LABELS[kind]}</span>
@@ -1288,7 +1462,7 @@ export default function ShopMapView({
                     <div key={category} className="shop-map-cat-card">
                       <div className="shop-map-cat-header">
                         <span className="shop-map-cat-icon">
-                          <CategoryIcon category={category} size={15} />
+                          <CategoryIcon category={category} size={categoryIconPx} />
                         </span>
                         <h4 className="shop-map-cat-title">{category.toUpperCase()}</h4>
                       </div>
@@ -1311,7 +1485,7 @@ export default function ShopMapView({
                               }}
                             >
                               <span className="shop-map-cat-store">{s.brandName || 'Vacant'}</span>
-                              <span className="shop-map-cat-unit">{s.unit?.unitNumber || s.shopNumber}</span>
+                              <span className="shop-map-cat-unit">{unitNumberOf(s)}</span>
                             </div>
                           );
                         })}
@@ -1337,7 +1511,7 @@ export default function ShopMapView({
                     {trayPhotoUrl && isUnitPhotoImage(trayPhotoUrl) && (
                       <CachedUnitPhoto
                         photoUrl={trayPhotoUrl}
-                        alt={s.brandName || s.unit?.unitNumber || 'Unit'}
+                        alt={shopDisplayName(s, 'Unit')}
                         wrapperAs="span"
                         wrapperClassName="shop-photo-thumb-frame"
                         imgClassName="shop-dir-list-thumb"
@@ -1345,8 +1519,8 @@ export default function ShopMapView({
                       />
                     )}
                     <div className="grow">
-                      {s.brandName || s.unit?.unitNumber}
-                      <small>{s.unit?.unitNumber} · {s.unit?.areaSqft ?? '—'} sqft</small>
+                      {shopDisplayName(s)}
+                      <small>{unitNumberOf(s)} · {s.unit?.areaSqft ?? '—'} sqft</small>
                     </div>
                     <button className="btn btn-secondary" onClick={() => place(s)}>Place</button>
                   </div>
@@ -1475,6 +1649,12 @@ export default function ShopMapView({
         </div>,
         document.body,
       )}
+
+      <QrScannerModal
+        open={showQrScannerModal}
+        onClose={() => setShowQrScannerModal(false)}
+        onDetected={handleQrDetected}
+      />
     </div>
   );
 }
