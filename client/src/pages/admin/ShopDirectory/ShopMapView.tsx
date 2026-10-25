@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import {
   RotateCw, X, Pencil, Save, Plus, Maximize2, Trash2, LayoutGrid,
   Map as MapIcon, QrCode, Navigation, MapPin,
-  Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff,
+  Printer, Copy, ExternalLink, Info, ArrowRight, WifiOff, ChevronDown,
 } from 'lucide-react';
 import {
   useGetFloorPlanQuery,
@@ -19,7 +19,8 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import {
   DECORATION_DEFAULT_SIZES, DECORATION_LABELS, DEFAULT_COLUMNS, DEFAULT_SQFT_PER_CELL,
   SHOP_CATEGORIES, compareShopsByUnitNumber, findFreeSpot, floorKeyOf, hasAnyOverlap, resolveOverlaps,
-  tileSizeFromSqft, unitKey, unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
+  tileSizeFromSqft, calibrateSqftPerCell, syncUnitTilesToSqft,
+  unitKey, unitNumberOf, shopDisplayName, matchesShopQuery, scoreShopSearchMatch,
   computeWalkwayPath, findDefaultStartItem, findNearestFacilityItem,
   rotateMapLayout, parseRotationAngle, getCorridorMergeData,
   parseFloorPlanData, buildCopiedFloorLayout, saveCachedFloorPlan, getCachedFloorPlan,
@@ -29,7 +30,7 @@ import {
   isUnitPhotoImage,
   preloadUnitPhotosBatch,
 } from '../../../utils/unitPhotoCache';
-import { CachedUnitPhoto, useUnitPhotoCache } from '../../../components/common/CachedUnitPhoto';
+import { CachedUnitPhoto } from '../../../components/common/CachedUnitPhoto';
 import './ShopMapView.css';
 
 interface Props {
@@ -44,6 +45,163 @@ interface Props {
 }
 
 const noCompaction = getCompactor(null as any, false, true);
+
+function QrModalDialog({
+  title,
+  subtitle,
+  onClose,
+  children,
+  footer,
+}: {
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  return createPortal(
+    <div className="shop-map-qr-backdrop" onClick={onClose}>
+      <div className="shop-map-qr-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="shop-map-qr-header">
+          <div>
+            <h3><QrCode size={18} /> {title}</h3>
+            <p>{subtitle}</p>
+          </div>
+          <button type="button" className="shop-map-qr-close" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="shop-map-qr-body">{children}</div>
+        {footer && <div className="shop-map-qr-footer">{footer}</div>}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function QrPreviewCard({
+  badge,
+  dataUrl,
+  alt,
+  caption,
+}: {
+  badge: string;
+  dataUrl: string;
+  alt: string;
+  caption: React.ReactNode;
+}) {
+  return (
+    <div className="shop-map-qr-preview">
+      <div className="shop-map-qr-badge">{badge}</div>
+      {dataUrl ? (
+        <img src={dataUrl} alt={alt} className="shop-map-qr-img" />
+      ) : (
+        <div className="shop-map-qr-loading">Generating QR…</div>
+      )}
+      <div className="shop-map-qr-caption">{caption}</div>
+    </div>
+  );
+}
+
+interface MapNavOptionGroup {
+  label: string;
+  options: { value: string; label: string }[];
+}
+
+function MapNavSelect({
+  value,
+  placeholder,
+  groups,
+  onChange,
+}: {
+  value: string;
+  placeholder?: string;
+  groups: MapNavOptionGroup[];
+  onChange: (nextVal: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  const selectedLabel = useMemo(() => {
+    for (const g of groups) {
+      const match = g.options.find((o) => o.value === value);
+      if (match) return match.label;
+    }
+    return placeholder || 'Select…';
+  }, [groups, value, placeholder]);
+
+  return (
+    <div className="shop-map-nav-select-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className={`shop-map-nav-select-btn ${open ? 'open' : ''}`}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+      >
+        <span className="shop-map-nav-select-text">{selectedLabel}</span>
+        <ChevronDown size={13} className="shop-map-nav-select-chevron" />
+      </button>
+      {open && (
+        <div className="shop-map-nav-menu" role="listbox">
+          {placeholder && (
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === ''}
+              className={`shop-map-nav-option placeholder ${value === '' ? 'selected' : ''}`}
+              onClick={() => {
+                onChange('');
+                setOpen(false);
+              }}
+            >
+              {placeholder}
+            </button>
+          )}
+          {groups.map((group) =>
+            group.options.length > 0 ? (
+              <div key={group.label} className="shop-map-nav-group">
+                <div className="shop-map-nav-group-header">{group.label}</div>
+                {group.options.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="option"
+                    aria-selected={value === opt.value}
+                    className={`shop-map-nav-option ${value === opt.value ? 'selected' : ''}`}
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            ) : null,
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Cute3DCubeIcon({ size = 15 }: { size?: number }) {
   return (
@@ -269,7 +427,6 @@ export default function ShopMapView({
   const floorShops = useMemo(() => shops.filter((s) => floorKeyOf(s) === floor), [shops, floor]);
   const shopByUnit = useMemo(() => new Map(floorShops.map((s) => [s.unitId, s])), [floorShops]);
   const allShopByUnit = useMemo(() => new Map(shops.map((s) => [s.unitId, s])), [shops]);
-  useUnitPhotoCache();
 
   // Preload and cache unit photos in the background as soon as shops load
   useEffect(() => {
@@ -584,12 +741,17 @@ export default function ShopMapView({
     [selectedUnitId, shopByUnit],
   );
 
+  const effectiveSqftPerCell = useMemo(
+    () => calibrateSqftPerCell(displayItems, shopByUnit, sqftPerCell),
+    [displayItems, shopByUnit, sqftPerCell],
+  );
+
   // Compute walkway path along corridors
   const walkwayRoute = useMemo(() => {
     if (editing || !activeStartItem || !effectiveTargetItem) return null;
     if (activeStartItem.key === effectiveTargetItem.key) return null;
-    return computeWalkwayPath(displayItems, activeStartItem, effectiveTargetItem, displayColumns, sqftPerCell);
-  }, [editing, activeStartItem, effectiveTargetItem, displayItems, displayColumns, sqftPerCell]);
+    return computeWalkwayPath(displayItems, activeStartItem, effectiveTargetItem, displayColumns, effectiveSqftPerCell);
+  }, [editing, activeStartItem, effectiveTargetItem, displayItems, displayColumns, effectiveSqftPerCell]);
 
   const describeTile = (it: MapItem | null): string => {
     if (!it) return '—';
@@ -600,10 +762,29 @@ export default function ShopMapView({
   };
 
   const startOptions = useMemo(() => {
-    const landmarks = displayItems.filter((i) => i.kind !== 'unit' && i.kind !== 'corridor');
+    const rawLandmarks = displayItems.filter((i) => i.kind !== 'unit' && i.kind !== 'corridor');
+    const startByLabel = new Map<string, MapItem>();
+    const destByLabel = new Map<string, MapItem>();
+    for (const lm of rawLandmarks) {
+      const label = describeTile(lm);
+      if (!startByLabel.has(label) || lm.key === activeStartItem?.key) {
+        startByLabel.set(label, lm);
+      }
+      if (!destByLabel.has(label)) {
+        const nearest = findNearestFacilityItem(displayItems, activeStartItem, [lm.kind]) || lm;
+        destByLabel.set(label, nearest);
+      }
+      if (lm.key === targetKey) {
+        destByLabel.set(label, lm);
+      }
+    }
     const unitItems = displayItems.filter((i) => i.kind === 'unit' && i.unitId);
-    return { landmarks, unitItems };
-  }, [displayItems]);
+    return {
+      startLandmarks: Array.from(startByLabel.values()),
+      destLandmarks: Array.from(destByLabel.values()),
+      unitItems,
+    };
+  }, [displayItems, activeStartItem, targetKey, shopByUnit]);
 
   const handleSelectDestination = (val: string) => {
     if (!val) {
@@ -648,11 +829,23 @@ export default function ShopMapView({
   };
 
   const place = (shop: any) => {
-    const { w, h } = tileSizeFromSqft(shop.unit?.areaSqft, sqftPerCell, columns);
+    const { w, h } = tileSizeFromSqft(shop.unit?.areaSqft, effectiveSqftPerCell, columns);
     update((prev) => {
       const pos = findFreeSpot(prev, w, h, columns);
       return [...prev, { key: unitKey(shop.unitId), kind: 'unit', unitId: shop.unitId, label: null, x: pos.x, y: pos.y, w, h }];
     });
+  };
+
+  const handleSyncUnitSqft = () => {
+    const res = syncUnitTilesToSqft(items, shopByUnit, effectiveSqftPerCell, columns);
+    setItems(res.items);
+    setSqftPerCell(res.calibratedSqftPerCell);
+    if (res.updatedCount > 0) {
+      setDirty(true);
+      toast.success(`Synced ${res.updatedCount} unit tiles to database sqft (${res.calibratedSqftPerCell} sqft/cell)`);
+    } else {
+      toast.success(`Unit tiles already match database sqft (${res.calibratedSqftPerCell} sqft/cell)`);
+    }
   };
 
   const addDecor = (kind: Exclude<TileKind, 'unit'> = decorKind) => {
@@ -735,7 +928,7 @@ export default function ShopMapView({
       return;
     }
     const payloadData = {
-      sqftPerCell,
+      sqftPerCell: effectiveSqftPerCell,
       columns,
       items: items.map((i) => ({ kind: i.kind, unitId: i.unitId, label: i.label, x: i.x, y: i.y, w: i.w, h: i.h })),
     };
@@ -980,33 +1173,29 @@ export default function ShopMapView({
               <span className="shop-map-nav-label">
                 <MapPin size={navIconPx} className="nav-pin-start-icon" /> From:
               </span>
-              <select
-                className="shop-map-nav-select"
+              <MapNavSelect
                 value={activeStartItem?.key || ''}
-                onChange={(e) => {
+                onChange={(val) => {
                   setTransitArrivalMode(false);
-                  setCustomStartKey(e.target.value);
+                  setCustomStartKey(val);
                 }}
-              >
-                {startOptions.landmarks.length > 0 && (
-                  <optgroup label="Floor Landmarks & Entrances">
-                    {startOptions.landmarks.map((lm) => (
-                      <option key={lm.key} value={lm.key}>
-                        {describeTile(lm)}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {startOptions.unitItems.length > 0 && (
-                  <optgroup label={`Shops on ${floor} (Standing Near)`}>
-                    {startOptions.unitItems.map((u) => (
-                      <option key={u.key} value={u.key}>
-                        {describeTile(u)}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
+                groups={[
+                  {
+                    label: 'Floor Landmarks & Entrances',
+                    options: startOptions.startLandmarks.map((lm) => ({
+                      value: lm.key,
+                      label: describeTile(lm),
+                    })),
+                  },
+                  {
+                    label: `Shops on ${floor} (Standing Near)`,
+                    options: startOptions.unitItems.map((u) => ({
+                      value: u.key,
+                      label: describeTile(u),
+                    })),
+                  },
+                ]}
+              />
             </div>
 
             <ArrowRight size={navIconPx + 1} className="shop-map-nav-arrow" />
@@ -1015,40 +1204,34 @@ export default function ShopMapView({
               <span className="shop-map-nav-label">
                 <Navigation size={navIconPx} className="nav-pin-dest-icon" /> To:
               </span>
-              <select
-                className="shop-map-nav-select"
+              <MapNavSelect
                 value={crossFloorUnitId ? `cross:${crossFloorUnitId}` : targetKey}
-                onChange={(e) => handleSelectDestination(e.target.value)}
-              >
-                <option value="">Select destination shop or facility…</option>
-                {placedShops.length > 0 && (
-                  <optgroup label={`Shops on ${floor}`}>
-                    {placedShops.map((s) => (
-                      <option key={s.unitId} value={unitKey(s.unitId)}>
-                        {shopDisplayName(s)}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {startOptions.landmarks.length > 0 && (
-                  <optgroup label={`Facilities on ${floor}`}>
-                    {startOptions.landmarks.map((lm) => (
-                      <option key={lm.key} value={lm.key}>
-                        {describeTile(lm)}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {otherFloorShops.length > 0 && (
-                  <optgroup label="Other Floors (Multi-Floor Route)">
-                    {otherFloorShops.map((s) => (
-                      <option key={s.unitId} value={`cross:${s.unitId}`}>
-                        [{floorKeyOf(s)}] {shopDisplayName(s)}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
+                placeholder="Select destination shop or facility…"
+                onChange={handleSelectDestination}
+                groups={[
+                  {
+                    label: `Shops on ${floor}`,
+                    options: placedShops.map((s) => ({
+                      value: unitKey(s.unitId),
+                      label: shopDisplayName(s),
+                    })),
+                  },
+                  {
+                    label: `Facilities on ${floor}`,
+                    options: startOptions.destLandmarks.map((lm) => ({
+                      value: lm.key,
+                      label: describeTile(lm),
+                    })),
+                  },
+                  {
+                    label: 'Other Floors',
+                    options: otherFloorShops.map((s) => ({
+                      value: `cross:${s.unitId}`,
+                      label: shopDisplayName(s),
+                    })),
+                  },
+                ]}
+              />
             </div>
 
             <div className="shop-map-nav-quick">
@@ -1178,6 +1361,15 @@ export default function ShopMapView({
             disabled={decorKind === 'marker' && items.some((i) => i.kind === 'marker')}
           >
             <Plus size={14} /> Add
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleSyncUnitSqft}
+            disabled={!items.some((i) => i.kind === 'unit')}
+            title={`Resize placed unit tiles proportionally to their database areaSqft (Scale: 1 cell ≈ ${effectiveSqftPerCell} sqft)`}
+          >
+            <Maximize2 size={13} /> Auto-Size by Sqft ({Math.round(effectiveSqftPerCell)} sqft/cell)
           </button>
           <button
             className="btn btn-secondary shop-map-clear-btn"
@@ -1560,72 +1752,13 @@ export default function ShopMapView({
       </div>
 
       {/* ── Floor QR Code Modal (1 QR Code per Floor) ── */}
-      {showFloorQrModal && createPortal(
-        <div className="shop-map-qr-backdrop" onClick={() => setShowFloorQrModal(false)}>
-          <div className="shop-map-qr-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="shop-map-qr-header">
-              <div>
-                <h3><QrCode size={18} /> Floor QR Code</h3>
-                <p>One QR code per floor — shoppers scan to navigate from "You Are Here"</p>
-              </div>
-              <button type="button" className="shop-map-qr-close" onClick={() => setShowFloorQrModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="shop-map-qr-body">
-              <div className="shop-map-qr-floor-picker">
-                <label>Select Floor:</label>
-                <select
-                  className="shop-map-floor-select"
-                  value={activeQrFloor}
-                  onChange={(e) => setQrModalFloor(e.target.value)}
-                >
-                  {floors.map((f) => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="shop-map-qr-preview">
-                <div className="shop-map-qr-badge">{activeQrFloor}</div>
-                {floorQrDataUrl ? (
-                  <img src={floorQrDataUrl} alt={`QR Code for ${activeQrFloor}`} className="shop-map-qr-img" />
-                ) : (
-                  <div className="shop-map-qr-loading">Generating QR…</div>
-                )}
-                <div className="shop-map-qr-caption">
-                  Scan with phone camera to open <strong>{activeQrFloor}</strong> Indoor Navigation
-                </div>
-              </div>
-
-              {activeQrFloor === floor && (
-                <div className={`shop-map-qr-status ${hasMarkerOnFloor ? 'ok' : 'warn'}`}>
-                  <MapPin size={14} />
-                  <span>
-                    {hasMarkerOnFloor
-                      ? 'Default starting point is linked to this floor\'s "You Are Here" marker.'
-                      : 'Tip: Place a "You Are Here" marker in Edit Layout where this floor QR sign is posted.'}
-                  </span>
-                </div>
-              )}
-
-              <div className="shop-map-qr-url-box">
-                <input type="text" readOnly value={floorQrUrl} />
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(floorQrUrl);
-                    toast.success('Floor navigation link copied');
-                  }}
-                >
-                  <Copy size={13} /> Copy
-                </button>
-              </div>
-            </div>
-
-            <div className="shop-map-qr-footer">
+      {showFloorQrModal && (
+        <QrModalDialog
+          title="Floor QR Code"
+          subtitle='One QR code per floor — shoppers scan to navigate from "You Are Here"'
+          onClose={() => setShowFloorQrModal(false)}
+          footer={
+            <>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -1641,41 +1774,74 @@ export default function ShopMapView({
               >
                 <Printer size={14} /> Print Floor QR
               </button>
-            </div>
+            </>
+          }
+        >
+          <div className="shop-map-qr-floor-picker">
+            <label>Select Floor:</label>
+            <select
+              className="shop-map-floor-select"
+              value={activeQrFloor}
+              onChange={(e) => setQrModalFloor(e.target.value)}
+            >
+              {floors.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
           </div>
-        </div>,
-        document.body,
+
+          <QrPreviewCard
+            badge={activeQrFloor}
+            dataUrl={floorQrDataUrl}
+            alt={`QR Code for ${activeQrFloor}`}
+            caption={
+              <>
+                Scan with phone camera to open <strong>{activeQrFloor}</strong> Indoor Navigation
+              </>
+            }
+          />
+
+          {activeQrFloor === floor && (
+            <div className={`shop-map-qr-status ${hasMarkerOnFloor ? 'ok' : 'warn'}`}>
+              <MapPin size={14} />
+              <span>
+                {hasMarkerOnFloor
+                  ? 'Default starting point is linked to this floor\'s "You Are Here" marker.'
+                  : 'Tip: Place a "You Are Here" marker in Edit Layout where this floor QR sign is posted.'}
+              </span>
+            </div>
+          )}
+
+          <div className="shop-map-qr-url-box">
+            <input type="text" readOnly value={floorQrUrl} />
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                navigator.clipboard.writeText(floorQrUrl);
+                toast.success('Floor navigation link copied');
+              }}
+            >
+              <Copy size={13} /> Copy
+            </button>
+          </div>
+        </QrModalDialog>
       )}
 
       {/* ── Take Route on Phone QR Modal (Kiosk -> Mobile Handoff) ── */}
-      {showRouteQrModal && createPortal(
-        <div className="shop-map-qr-backdrop" onClick={() => setShowRouteQrModal(false)}>
-          <div className="shop-map-qr-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="shop-map-qr-header">
-              <div>
-                <h3><QrCode size={18} /> Take Route on Your Phone</h3>
-                <p>{describeTile(activeStartItem)} → {describeTile(effectiveTargetItem)}</p>
-              </div>
-              <button type="button" className="shop-map-qr-close" onClick={() => setShowRouteQrModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="shop-map-qr-body">
-              <div className="shop-map-qr-preview">
-                <div className="shop-map-qr-badge">{floor} Route</div>
-                {routeQrDataUrl ? (
-                  <img src={routeQrDataUrl} alt="Route QR Code" className="shop-map-qr-img" />
-                ) : (
-                  <div className="shop-map-qr-loading">Generating QR…</div>
-                )}
-                <div className="shop-map-qr-caption">
-                  Scan to open this exact walking route on your mobile phone
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body,
+      {showRouteQrModal && (
+        <QrModalDialog
+          title="Take Route on Your Phone"
+          subtitle={`${describeTile(activeStartItem)} → ${describeTile(effectiveTargetItem)}`}
+          onClose={() => setShowRouteQrModal(false)}
+        >
+          <QrPreviewCard
+            badge={`${floor} Route`}
+            dataUrl={routeQrDataUrl}
+            alt="Route QR Code"
+            caption="Scan to open this exact walking route on your mobile phone"
+          />
+        </QrModalDialog>
       )}
     </div>
   );

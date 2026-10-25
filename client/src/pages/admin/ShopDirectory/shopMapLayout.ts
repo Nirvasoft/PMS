@@ -192,6 +192,68 @@ export function sizeUnitTile(
   return tileSizeFromSqft(areaSqft, sqftPerCell, columns);
 }
 
+/**
+ * Automatically calibrates sqft-per-cell from the actual database `areaSqft`
+ * of placed unit tiles divided by their occupied grid cells:
+ *   sqftPerCell = sum(unit.areaSqft) / sum(tile.w * tile.h)
+ */
+export function calibrateSqftPerCell(
+  items: MapItem[],
+  shopByUnit: Map<string, any>,
+  fallbackSqftPerCell = DEFAULT_SQFT_PER_CELL,
+): number {
+  let totalSqft = 0;
+  let totalCells = 0;
+  for (const it of items) {
+    if (it.kind !== 'unit' || !it.unitId) continue;
+    const rawSqft = Number(shopByUnit.get(it.unitId)?.unit?.areaSqft);
+    const cells = Math.max(1, it.w * it.h);
+    if (rawSqft > 0) {
+      totalSqft += rawSqft;
+      totalCells += cells;
+    }
+  }
+  if (totalSqft > 0 && totalCells > 0) {
+    const calibrated = totalSqft / totalCells;
+    return Math.max(4, Math.min(500, Math.round(calibrated * 10) / 10));
+  }
+  return fallbackSqftPerCell > 0 ? fallbackSqftPerCell : DEFAULT_SQFT_PER_CELL;
+}
+
+/**
+ * Resizes placed unit tiles proportionally to their real database `areaSqft`
+ * while preserving each tile's horizontal/vertical orientation.
+ */
+export function syncUnitTilesToSqft(
+  items: MapItem[],
+  shopByUnit: Map<string, any>,
+  sqftPerCell: number,
+  columns: number,
+): { items: MapItem[]; updatedCount: number; calibratedSqftPerCell: number } {
+  const effectiveSpc = calibrateSqftPerCell(items, shopByUnit, sqftPerCell);
+  let updatedCount = 0;
+  const resized = items.map((it) => {
+    if (it.kind !== 'unit' || !it.unitId) return it;
+    const rawSqft = Number(shopByUnit.get(it.unitId)?.unit?.areaSqft);
+    if (!(rawSqft > 0)) return it;
+    const isVertical = it.h > it.w;
+    const base = tileSizeFromSqft(rawSqft, effectiveSpc, columns);
+    const nextW = Math.min(columns, isVertical ? base.h : base.w);
+    const nextH = isVertical ? base.w : base.h;
+    if (nextW !== it.w || nextH !== it.h) {
+      updatedCount++;
+    }
+    return { ...it, w: nextW, h: nextH };
+  });
+  const resolved = resolveOverlaps(resized, columns);
+  const finalSpc = calibrateSqftPerCell(resolved, shopByUnit, effectiveSpc);
+  return {
+    items: resolved,
+    updatedCount,
+    calibratedSqftPerCell: finalSpc,
+  };
+}
+
 export type MapRotationAngle = 0 | 90 | 180 | 270;
 
 export function parseRotationAngle(val: string | number | null | undefined): MapRotationAngle {
@@ -689,11 +751,12 @@ export function parseFloorPlanData(
     });
   }
 
+  const resolved = resolveOverlaps(next, cols);
   return {
-    sqftPerCell: spc,
+    sqftPerCell: calibrateSqftPerCell(resolved, shopByUnit, spc),
     columns: cols,
     decorSeq,
-    items: resolveOverlaps(next, cols),
+    items: resolved,
   };
 }
 
@@ -782,11 +845,12 @@ export function buildCopiedFloorLayout(
     });
   }
 
+  const resolved = resolveOverlaps(next, cols);
   return {
-    sqftPerCell: spc,
+    sqftPerCell: calibrateSqftPerCell(resolved, allShopByUnit, spc),
     columns: cols,
     decorSeq,
-    items: resolveOverlaps(next, cols),
+    items: resolved,
     matchedUnits,
   };
 }

@@ -19,7 +19,7 @@ import {
   FileText, Shield, Wrench, Receipt, Upload, Trash2, FileImage,
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
-import { CachedUnitPhoto, useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
+import { CachedUnitPhoto } from '../../components/common/CachedUnitPhoto';
 import ShopMapView from './ShopDirectory/ShopMapView';
 import {
   SHOP_CATEGORIES as CATEGORIES,
@@ -153,7 +153,6 @@ function extractFloors(units: any[]) {
 
 export default function ShopDirectoryPage({ fullScreenMap = false }: { fullScreenMap?: boolean } = {}) {
   const dispatch = useAppDispatch();
-  useUnitPhotoCache();
   const selectedPropertyId = useSelectedPropertyId();
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const propertyId = urlParams.get('propertyId') || selectedPropertyId;

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Store, Search, X, MapPin, Tag, Star, Layers, Maximize2 } from 'lucide-react';
 import { useGetPublicDirectoryQuery } from '../../store/api/mallApi';
 import { isUnitPhotoImage } from '../../utils/unitPhotoCache';
-import { CachedUnitPhoto, useUnitPhotoCache } from '../../components/common/CachedUnitPhoto';
+import { CachedUnitPhoto } from '../../components/common/CachedUnitPhoto';
 import ShopMapView from '../admin/ShopDirectory/ShopMapView';
 import {
   floorKeyOf,
@@ -14,7 +14,6 @@ import {
 } from '../admin/ShopDirectory/shopMapLayout';
 
 export default function PublicMallNavigationPage() {
-  useUnitPhotoCache();
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const propertyId = urlParams.get('propertyId') || '';
   const initialFloor = urlParams.get('floor') || '';

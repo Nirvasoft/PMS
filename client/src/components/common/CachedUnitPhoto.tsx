@@ -9,7 +9,7 @@ import {
 /**
  * Subscribes a component to shared unit photo cache updates (preload, upload, replace, delete).
  */
-export function useUnitPhotoCache(): void {
+function useUnitPhotoCache(): void {
   const [, setTick] = useState(0);
   useEffect(() => {
     return subscribeUnitPhotoCache(() => {
@@ -45,6 +45,7 @@ export function CachedUnitPhoto({
   loading = 'lazy',
   forceLoading = false,
 }: CachedUnitPhotoProps) {
+  useUnitPhotoCache();
   const [domLoadedUrl, setDomLoadedUrl] = useState<string | null>(null);
   const src = getCachedUnitPhotoSrc(photoUrl);
   const isReady = Boolean(
