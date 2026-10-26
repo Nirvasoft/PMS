@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../components/TableScrollWrapper';
+import { formatCompactAmount } from '../../utils/formatCurrency';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#ef4444',
@@ -84,7 +85,13 @@ export default function ExecutiveDashboardPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
           <KpiCard icon={<Building2 size={20} />} label="Properties" value={portfolio.totalProperties} color="#6366f1" />
           <KpiCard icon={<Users size={20} />} label="Total Units" value={portfolio.totalUnits} sub={`${portfolio.occupancyRate}% occupied`} color="#06b6d4" />
-          <KpiCard icon={<DollarSign size={20} />} label="Revenue YTD" value={`$${(portfolio.totalRevenueYtd / 1000).toFixed(0)}K`} sub={portfolio.revenueTrend} color="#22c55e" />
+          <KpiCard
+            icon={<DollarSign size={20} />}
+            label="Revenue YTD"
+            value={`$${formatCompactAmount(portfolio.totalRevenueYtd || 0)}`}
+            sub={portfolio.revenueTrend}
+            color="#22c55e"
+          />
           <KpiCard icon={<PieChart size={20} />} label="Collection Rate" value={`${portfolio.collectionRate}%`} color="#eab308" />
           <KpiCard icon={<Wrench size={20} />} label="Open Tickets" value={portfolio.openMaintenanceTickets} sub={`${portfolio.criticalTickets} critical`} color="#f97316" />
         </div>
@@ -121,7 +128,9 @@ export default function ExecutiveDashboardPage() {
                           {p.occupancyRate}%
                         </span>
                       </td>
-                      <td style={{ textAlign: 'right' }}>${(p.revenueYtd / 1000).toFixed(0)}K</td>
+                      <td style={{ textAlign: 'right' }} title={`$${Number(p.revenueYtd || 0).toLocaleString()}`}>
+                        {`$${formatCompactAmount(p.revenueYtd || 0)}`}
+                      </td>
                       <td style={{ textAlign: 'right' }}>
                         <span style={{ fontWeight: 600, color: p.collectionRate > 90 ? '#22c55e' : '#eab308' }}>
                           {p.collectionRate}%

@@ -10,7 +10,7 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 
-const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
 export default function AssetDetailPage() {

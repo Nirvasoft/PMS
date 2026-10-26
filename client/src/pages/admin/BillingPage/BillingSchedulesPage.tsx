@@ -19,21 +19,16 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import ComboBox from '../../../components/ComboBox';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
 import toast from 'react-hot-toast';
+import {
+  formatFullAmount,
+  formatCompactAmount as formatCompactAmountHelper,
+} from '../../../utils/formatCurrency';
 import './BillingPage.css';
 
 const formatAmount = (amount: string | number) =>
-  new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount) || 0);
-const formatCompactAmount = (amount: string | number) => {
-  const num = Number(amount) || 0;
-  const abs = Math.abs(num);
-  if (abs >= 1_000_000_000) {
-    return `${(num / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '')}B`;
-  }
-  if (abs >= 1_000_000) {
-    return `${(num / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`;
-  }
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
-};
+  formatFullAmount(amount, { minDecimals: 2, maxDecimals: 2 });
+const formatCompactAmount = (amount: string | number) =>
+  formatCompactAmountHelper(amount, { minDecimals: 2, maxDecimals: 2 });
 
 const BILLING_CYCLES = ['monthly', 'quarterly', 'semi_annual', 'annual'] as const;
 

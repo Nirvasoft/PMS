@@ -9,8 +9,10 @@ import { Banknote, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ComboBox from '../../../components/ComboBox';
 
+import { formatCurrency as formatCurrencyHelper } from '../../../utils/formatCurrency';
+
 const formatCurrency = (amount: number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(amount);
+  formatCurrencyHelper(amount, currency, 'code');
 
 interface Props { onClose: () => void; }
 

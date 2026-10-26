@@ -165,7 +165,9 @@ export default function LeadPipelinePage() {
                   <div key={lead.id} className="lead-row" onClick={() => navigate(`/admin/crm/leads/${lead.id}`)}>
                     <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
                     <span>{lead.leadNumber || '–'}</span>
-                    <span>{lead.convertedLease?.leaseNumber || '–'}</span>
+                    <span style={lead.convertedLease?.leaseNumber ? { color: 'var(--accent)', fontWeight: 600, fontFamily: 'monospace' } : undefined}>
+                      {lead.convertedLease?.leaseNumber || '–'}
+                    </span>
                     <span className="lc-name">
                       {leadDisplayName(lead)}
                       {lead.isBlacklisted && <span className="blacklist-chip"><ShieldOff size={9} /> Blacklisted</span>}

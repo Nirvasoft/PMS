@@ -8,6 +8,7 @@ import { useGetPropertiesQuery } from '../../store/api/propertiesApi';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../components/TableScrollWrapper';
+import { formatCompactAmount } from '../../utils/formatCurrency';
 import {
   FileBarChart, Plus, X, Trash2, Play, Clock, Building2, DollarSign,
   Wrench, BarChart3, PieChart, Users, CheckCircle, AlertCircle,
@@ -360,6 +361,10 @@ function OccupancyResult({ data }: { data: any[] }) {
   );
 }
 
+function fmtDollar(val: number): string {
+  return `$${formatCompactAmount(val)}`;
+}
+
 // ─── Revenue Result ──────────────────────────────────────
 function RevenueResult({ data }: { data: any[] }) {
   if (!data?.length) return <EmptyResult />;
@@ -371,8 +376,8 @@ function RevenueResult({ data }: { data: any[] }) {
   return (
     <div>
       <div style={styles.kpiRow}>
-        <KpiMini icon={<DollarSign size={18} />} label="Total Invoiced" value={`$${(totalInvoiced / 1000).toFixed(0)}K`} color="#f59e0b" />
-        <KpiMini icon={<CheckCircle size={18} />} label="Total Collected" value={`$${(totalCollected / 1000).toFixed(0)}K`} color="#22c55e" />
+        <KpiMini icon={<DollarSign size={18} />} label="Total Invoiced" value={fmtDollar(totalInvoiced)} color="#f59e0b" />
+        <KpiMini icon={<CheckCircle size={18} />} label="Total Collected" value={fmtDollar(totalCollected)} color="#22c55e" />
         <KpiMini icon={<PieChart size={18} />} label="Collection Rate" value={`${collectionRate}%`} color="#8b5cf6" />
         <KpiMini icon={<Calendar size={18} />} label="Months" value={data.length} color="#06b6d4" />
       </div>
@@ -420,8 +425,8 @@ function RevenueResult({ data }: { data: any[] }) {
                 return (
                   <tr key={d.month}>
                     <td>{new Date(d.month).toLocaleDateString('en', { month: 'long', year: 'numeric' })}</td>
-                    <td style={{ textAlign: 'right' }}>${d.invoiced.toLocaleString()}</td>
-                    <td style={{ textAlign: 'right', color: '#22c55e' }}>${d.collected.toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }} title={`$${d.invoiced.toLocaleString()}`}>{fmtDollar(d.invoiced)}</td>
+                    <td style={{ textAlign: 'right', color: '#22c55e' }} title={`$${d.collected.toLocaleString()}`}>{fmtDollar(d.collected)}</td>
                     <td style={{ textAlign: 'right' }}>{d.invoiceCount}</td>
                     <td style={{ textAlign: 'right' }}><RateBar value={rate} /></td>
                   </tr>
@@ -502,7 +507,7 @@ function PortfolioResult({ data }: { data: any }) {
         <KpiMini icon={<Building2 size={18} />} label="Properties" value={portfolio.totalProperties} color="#6366f1" />
         <KpiMini icon={<Users size={18} />} label="Units" value={portfolio.totalUnits} color="#06b6d4" />
         <KpiMini icon={<Activity size={18} />} label="Occupancy" value={`${portfolio.occupancyRate}%`} color="#22c55e" />
-        <KpiMini icon={<DollarSign size={18} />} label="Revenue YTD" value={`$${(portfolio.totalRevenueYtd / 1000).toFixed(0)}K`} color="#f59e0b" />
+        <KpiMini icon={<DollarSign size={18} />} label="Revenue YTD" value={fmtDollar(portfolio.totalRevenueYtd)} color="#f59e0b" />
         <KpiMini icon={<PieChart size={18} />} label="Collection" value={`${portfolio.collectionRate}%`} color="#8b5cf6" />
       </div>
 
@@ -524,7 +529,7 @@ function PortfolioResult({ data }: { data: any }) {
                   <tr key={p.propertyId}>
                     <td>{p.name}</td>
                     <td style={{ textAlign: 'right' }}><RateBar value={p.occupancyRate} /></td>
-                    <td style={{ textAlign: 'right' }}>${Number(p.revenueYtd).toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }} title={`$${Number(p.revenueYtd).toLocaleString()}`}>{fmtDollar(Number(p.revenueYtd))}</td>
                     <td style={{ textAlign: 'right' }}>{p.collectionRate}%</td>
                     <td style={{ textAlign: 'right' }}>{p.openTickets}</td>
                   </tr>

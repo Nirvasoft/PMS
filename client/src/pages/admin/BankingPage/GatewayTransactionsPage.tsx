@@ -17,8 +17,7 @@ import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 import '../BillingPage/BillingPage.css';
 
-const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
+import { formatCurrency } from '../../../utils/formatCurrency';
 
 const GATEWAY_MAP: Record<string, { label: string; color: string; bg: string; icon: typeof CreditCard }> = {
   stripe:  { label: 'Stripe',  color: '#635bff', bg: 'rgba(99,91,255,0.1)',  icon: CreditCard },

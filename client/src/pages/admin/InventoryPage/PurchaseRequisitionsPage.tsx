@@ -13,6 +13,7 @@ import {
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import { formatCompactAmount } from '../../../utils/formatCurrency';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
@@ -97,7 +98,7 @@ export default function PurchaseRequisitionsPage() {
 
   const formatCurrency = (val: any) => {
     if (!val) return '—';
-    return `${currency} ${Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `${currency} ${formatCompactAmount(val, { minDecimals: 2, maxDecimals: 2 })}`;
   };
 
   // Count by status

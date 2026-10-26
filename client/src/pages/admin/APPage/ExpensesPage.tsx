@@ -15,7 +15,7 @@ import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { CURRENCIES } from '../../../constants/currencies';
 import './APPage.css';
 
-const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatCompactAmount as fmt } from '../../../utils/formatCurrency';
 
 const EXPENSE_CATEGORIES = [
   'maintenance', 'utilities', 'office_supplies', 'travel', 'food',

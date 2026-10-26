@@ -10,7 +10,7 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { skipToken } from '@reduxjs/toolkit/query';
 import '../GLPage/GLPage.css';
 
-const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 
 const BANK_ICONS: Record<string, string> = {
   'DBS': '🏦', 'OCBC': '🏛️', 'UOB': '🏢', 'HSBC': '🌐', 'Citi': '🌍', 'Standard Chartered': '🏗️',

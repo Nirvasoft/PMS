@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { openLeaseFormPrintPreview, openLeasePreviewReport } from './utils/leasePrintPreview';
+import { formatCompactAmount } from '../../../utils/formatCurrency';
 import './LeaseDetailPage.css';
 
 // Tabs
@@ -175,8 +176,18 @@ export default function LeaseDetailPage() {
 
       {/* Key metrics bar */}
       <div className="ld-metrics">
-        <Metric label="Rent"     value={`${lease.currency} ${Number(lease.rentAmount).toLocaleString()}`} sub={lease.billingCycle} />
-        <Metric label="Deposit"  value={`${lease.currency} ${Number(lease.securityDeposit).toLocaleString()}`} sub={lease.depositPaid ? '✓ Paid' : 'Unpaid'} highlight={!lease.depositPaid} />
+        <Metric
+          label="Rent"
+          value={`${lease.currency} ${formatCompactAmount(lease.rentAmount)}`}
+          title={`${lease.currency} ${Number(lease.rentAmount).toLocaleString()}`}
+          sub={lease.billingCycle}
+        />
+        <Metric
+          label="Deposit"
+          value={`${lease.currency} ${formatCompactAmount(lease.securityDeposit)}`}
+          title={`${lease.currency} ${Number(lease.securityDeposit).toLocaleString()}`}
+          sub={lease.depositPaid ? '✓ Paid' : 'Unpaid'}
+        />
         <Metric label="Start"    value={new Date(lease.startDate).toLocaleDateString()} />
         <Metric label="End"      value={new Date(lease.endDate).toLocaleDateString()} sub={`${lease.leaseTermMonths}mo term`} />
         <Metric label="E-Sign"   value={lease.esignStatus.replace(/_/g,' ')} sub="status" />
@@ -210,9 +221,9 @@ export default function LeaseDetailPage() {
   );
 }
 
-function Metric({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) {
+function Metric({ label, value, sub, highlight, title }: { label: string; value: string; sub?: string; highlight?: boolean; title?: string }) {
   return (
-    <div className="metric-card">
+    <div className="metric-card" title={title}>
       <div className="metric-label">{label}</div>
       <div className="metric-value" style={highlight ? { color: '#e74c3c' } : {}}>{value}</div>
       {sub && <div className="metric-sub">{sub}</div>}

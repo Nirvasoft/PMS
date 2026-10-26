@@ -7,8 +7,10 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
+import { formatCurrency as formatCurrencyHelper } from '../../../utils/formatCurrency';
+
 const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(Number(amount));
+  formatCurrencyHelper(amount, currency, 'code');
 
 interface Props { receiptId: string; onClose: () => void; }
 

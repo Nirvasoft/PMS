@@ -17,7 +17,7 @@ import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { CURRENCIES } from '../../../constants/currencies';
 import './APPage.css';
 
-const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatCompactAmount as fmt } from '../../../utils/formatCurrency';
 
 interface LineItem { description: string; quantity: number; unitPrice: number; taxRate: number; chargeTypeId?: string; glAccountCode?: string; }
 

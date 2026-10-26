@@ -13,7 +13,7 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './APPage.css';
 
-const fmt = (v: string | number) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatCompactAmount as fmt } from '../../../utils/formatCurrency';
 
 export default function ApInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();

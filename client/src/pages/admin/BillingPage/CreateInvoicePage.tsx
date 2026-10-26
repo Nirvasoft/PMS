@@ -22,8 +22,10 @@ interface LineItem {
   taxRate: number;
 }
 
+import { formatCurrency as formatCurrencyHelper } from '../../../utils/formatCurrency';
+
 const formatCurrency = (amount: number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', currencyDisplay: 'code' }).format(amount);
+  formatCurrencyHelper(amount, currency, 'code');
 
 const formatRate = (rate: string | number) => {
   const n = Number(rate);

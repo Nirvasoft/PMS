@@ -4,7 +4,7 @@ import { useGetPnLQuery } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import './GLPage.css';
 
-const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 
 // Simple CSS bar chart component (no external deps)
 function BarChart({ data, maxVal }: { data: Array<{ label: string; current: number; previous: number }>; maxVal: number }) {

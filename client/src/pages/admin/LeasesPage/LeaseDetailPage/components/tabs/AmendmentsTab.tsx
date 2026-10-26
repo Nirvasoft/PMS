@@ -2,6 +2,7 @@ import { Plus, PenLine } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApproveAmendmentMutation, type LeaseDetail, type LeaseAmendment } from '../../../../../../store/api/leasesApi';
 import { PermissionGuard } from '../../../../../../components/guards/PermissionGuard';
+import { formatCompactAmount } from '../../../../../../utils/formatCurrency';
 
 export function AmendmentsTab({ leaseId, lease, onAddAmendment }: { leaseId: string; lease: LeaseDetail; onAddAmendment: () => void }) {
   const [approveAmendment] = useApproveAmendmentMutation();
@@ -33,7 +34,7 @@ export function AmendmentsTab({ leaseId, lease, onAddAmendment }: { leaseId: str
             <div className="ac-desc">{a.description}</div>
             <div className="ac-meta">
               Effective: {new Date(a.effectiveDate).toLocaleDateString()}
-              {a.newRentAmount && ` · New rent: ${Number(a.newRentAmount).toLocaleString()}`}
+              {a.newRentAmount && ` · New rent: ${formatCompactAmount(a.newRentAmount)}`}
               {a.newEndDate    && ` · New end: ${new Date(a.newEndDate).toLocaleDateString()}`}
             </div>
             {a.status === 'pending_approval' && (

@@ -16,6 +16,7 @@ import type { LayoutItem, WidgetData, KpiCardData, LineChartData, BarChartData, 
 import { useAppSelector, useAppDispatch } from '../../store';
 import { setDatePreset, toggleEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } from '../../store/slices/dashboardSlice';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
+import { formatCompactAmount, formatFullAmount } from '../../utils/formatCurrency';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -392,7 +393,10 @@ function WidgetRenderer({ data, onDrillDown }: { data: WidgetData; onDrillDown: 
 // KPI CARD
 // ═══════════════════════════════════════════════════
 function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: (k?: string) => void }) {
-  const formatValue = (v: number, unit: string) => {
+  const formatNum = (v: number, compact = true) =>
+    compact ? formatCompactAmount(v) : formatFullAmount(v);
+
+  const formatValue = (v: number, unit: string, compact = true) => {
     if (/^[A-Z]{3}$/.test(unit || '')) {
       let symbol = unit;
       try {
@@ -400,11 +404,11 @@ function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: 
           .formatToParts(0).find(p => p.type === 'currency')?.value || unit;
       } catch { /* unknown code: fall back to the code itself */ }
       if (symbol === unit && unit === 'MMK') symbol = 'K';
-      return `${symbol}${v.toLocaleString()}`;
+      return `${symbol}${formatNum(v, compact)}`;
     }
     if (unit === '%') return `${v}%`;
-    if (unit) return `${unit} ${v.toLocaleString()}`;
-    return v.toLocaleString();
+    if (unit) return `${unit} ${formatNum(v, compact)}`;
+    return formatNum(v, compact);
   };
 
   return (
@@ -449,7 +453,7 @@ function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: 
           </div>
         )}
       </div>
-      <div className="kpi-value">{formatValue(data.value, data.unit)}</div>
+      <div className="kpi-value" title={formatValue(data.value, data.unit, false)}>{formatValue(data.value, data.unit, true)}</div>
       {data.trend?.label && <span className="kpi-sublabel">{data.trend.label}</span>}
       {data.breakdown && (
         <div className="kpi-breakdown">

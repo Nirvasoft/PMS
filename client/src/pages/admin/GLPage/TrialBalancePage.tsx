@@ -5,7 +5,7 @@ import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import './GLPage.css';
 
-const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 
 export default function TrialBalancePage() {
   const selectedPropertyId = useSelectedPropertyId();

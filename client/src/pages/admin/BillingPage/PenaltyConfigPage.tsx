@@ -6,6 +6,7 @@ import { Shield, Plus, AlertTriangle, Clock, X, ChevronLeft, ChevronRight } from
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
+import { formatCurrency } from '../../../utils/formatCurrency';
 import './BillingPage.css';
 
 const PENALTY_TYPES: Record<string, string> = {
@@ -114,9 +115,6 @@ export default function PenaltyConfigPage() {
     const ct = chargeTypes.find(c => c.id === id);
     return ct ? ct.name : id;
   };
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
   const totalItems = configs.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;

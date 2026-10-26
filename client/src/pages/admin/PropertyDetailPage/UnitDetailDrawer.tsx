@@ -28,6 +28,7 @@ import {
   validateUnitPhotoFile,
 } from '../../../utils/unitPhotoCache';
 import { CachedUnitPhoto } from '../../../components/common/CachedUnitPhoto';
+import { formatCompactAmount } from '../../../utils/formatCurrency';
 import './UnitDetailDrawer.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -486,7 +487,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
   const unitAreaSqft = Number(unit?.areaSqft || 0);
   const unitCurrency = unit?.currency || currencyOptions.find((cr) => cr.isBaseCurrency)?.currency || '';
   const fmtChargeMoney = (val: number | string) => {
-    const formatted = Number(val || 0).toLocaleString();
+    const formatted = formatCompactAmount(val);
     return unitCurrency ? `${unitCurrency} ${formatted}` : formatted;
   };
   const computePerSqftAmount = (rateStr: string): string => {
@@ -1055,7 +1056,7 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                     <div className="info-grid">
                       <InfoItem label="Rental Period"   value={unit.rentalPeriod ? `${unit.rentalPeriod} ${unit.rentalPeriodUnit || 'month'}${unit.rentalPeriod === 1 ? '' : 's'}` : '—'} />
                       <InfoItem label="Calculation on"  value={unit.calculationOn === 'per_sqft' ? 'PerSqFt' : 'Fixed'} />
-                      <InfoItem label="Rate"            value={unit.rate ? Number(unit.rate).toLocaleString() : '—'} />
+                      <InfoItem label="Rate"            value={unit.rate ? fmtChargeMoney(unit.rate) : '—'} />
                     </div>
                   </div>
 
@@ -1065,8 +1066,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                       <InfoItem label="Owner"          value={unit.ownerName || '—'} />
                       <InfoItem label="Contact"        value={unit.ownerContact || '—'} />
                       <InfoItem label="Purchase Date"  value={unit.purchaseDate ? new Date(unit.purchaseDate).toLocaleDateString() : '—'} />
-                      <InfoItem label="Purchase Price" value={unit.purchasePrice ? Number(unit.purchasePrice).toLocaleString() : '—'} />
-                      <InfoItem label="Market Value"   value={unit.currentMarketValue ? Number(unit.currentMarketValue).toLocaleString() : '—'} />
+                      <InfoItem label="Purchase Price" value={unit.purchasePrice ? fmtChargeMoney(unit.purchasePrice) : '—'} />
+                      <InfoItem label="Market Value"   value={unit.currentMarketValue ? fmtChargeMoney(unit.currentMarketValue) : '—'} />
                     </div>
                   </div>
 
@@ -1763,8 +1764,8 @@ export function UnitDetailDrawer({ propertyId, unitId }: { propertyId: string; u
                           </div>
                           <div className="lease-detail-row">
                             <span className="lease-term">{lease.leaseTermMonths} mo</span>
-                            <span className="lease-rent">
-                              {lease.currency} {Number(lease.rentAmount).toLocaleString()}
+                            <span className="lease-rent" title={`${lease.currency} ${Number(lease.rentAmount).toLocaleString()}/${lease.billingCycle}`}>
+                              {lease.currency} {formatCompactAmount(lease.rentAmount)}
                               <span className="lease-cycle">/{lease.billingCycle}</span>
                             </span>
                           </div>

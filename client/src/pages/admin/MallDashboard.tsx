@@ -10,6 +10,7 @@ import {
   Settings, X, Building2, Percent, Hash, Maximize2,
 } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { formatCompactAmount } from '../../utils/formatCurrency';
 import toast from 'react-hot-toast';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -167,7 +168,9 @@ export default function MallDashboard() {
               </div>
               <div className="mall-kpi-content">
                 <span className="mall-kpi-label">GTO This Month</span>
-                <span className="mall-kpi-value">${((gto?.totalGto || 0) / 1000).toFixed(0)}K</span>
+                <span className="mall-kpi-value" title={`$${(gto?.totalGto || 0).toLocaleString()}`}>
+                  {`$${formatCompactAmount(gto?.totalGto || 0)}`}
+                </span>
               </div>
             </div>
 
@@ -258,17 +261,21 @@ export default function MallDashboard() {
                   <div className="module-stat-row">
                     <div className="mall-gto-stat">
                       <span className="mall-gto-stat-label">Total GTO</span>
-                      <span className="mall-gto-stat-value">${(gto?.totalGto || 0).toLocaleString()}</span>
+                      <span className="mall-gto-stat-value" title={`$${(gto?.totalGto || 0).toLocaleString()}`}>
+                        {`$${formatCompactAmount(gto?.totalGto || 0)}`}
+                      </span>
                     </div>
                     <div className="mall-gto-stat">
                       <span className="mall-gto-stat-label">Base Rent</span>
-                      <span className="mall-gto-stat-value">${(gto?.totalBaseRent || 0).toLocaleString()}</span>
+                      <span className="mall-gto-stat-value" title={`$${(gto?.totalBaseRent || 0).toLocaleString()}`}>
+                        {`$${formatCompactAmount(gto?.totalBaseRent || 0)}`}
+                      </span>
                     </div>
                   </div>
                   <div className="mall-gto-stat">
                     <span className="mall-gto-stat-label">Percentage Rent</span>
-                    <span className="mall-gto-stat-value mall-gto-pct-rent">
-                      +${(gto?.totalPercentageRent || 0).toLocaleString()}
+                    <span className="mall-gto-stat-value mall-gto-pct-rent" title={`+$${(gto?.totalPercentageRent || 0).toLocaleString()}`}>
+                      {`+$${formatCompactAmount(gto?.totalPercentageRent || 0)}`}
                     </span>
                   </div>
                 </div>

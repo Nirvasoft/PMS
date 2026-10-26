@@ -14,8 +14,7 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ARPage.css';
 
-const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
+import { formatCurrency } from '../../../utils/formatCurrency';
 
 type ActionType = 'approve' | 'reject' | 'mark_paid';
 

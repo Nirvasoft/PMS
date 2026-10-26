@@ -5,8 +5,7 @@ import { FileText, Search, Download } from 'lucide-react';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ARPage.css';
 
-const formatCurrency = (amount: number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+import { formatCurrency } from '../../../utils/formatCurrency';
 
 export default function TenantStatementPage() {
   const today = new Date();

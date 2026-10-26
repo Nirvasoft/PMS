@@ -17,8 +17,10 @@ import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { openInvoicePrintPreview } from './utils/invoicePrintPreview';
 import './BillingPage.css';
 
+import { formatCompactAmount } from '../../../utils/formatCurrency';
+
 const formatCurrency = (amount: string | number, _currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount));
+  formatCompactAmount(amount);
 
 const formatRate = (rate: string | number) => {
   const n = Number(rate);

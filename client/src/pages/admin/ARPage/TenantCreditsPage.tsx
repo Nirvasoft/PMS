@@ -18,8 +18,7 @@ import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import '../BillingPage/BillingPage.css';
 import './ARPage.css';
 
-const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(amount));
+import { formatCurrency } from '../../../utils/formatCurrency';
 
 const SOURCE_TYPE_MAP: Record<string, { label: string; color: string; bg: string; icon: typeof CreditCard }> = {
   overpayment: { label: 'Overpayment', color: '#2563eb', bg: 'rgba(37,99,235,0.1)', icon: Wallet },

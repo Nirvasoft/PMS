@@ -69,6 +69,9 @@ async function ensureCurrencyRateHistoryTable(): Promise<void> {
         )
       `);
       await prisma.$executeRawUnsafe(
+        `ALTER TABLE "currency_rate_history" ALTER COLUMN "id" SET DEFAULT gen_random_uuid()`,
+      );
+      await prisma.$executeRawUnsafe(
         `CREATE INDEX IF NOT EXISTS "currency_rate_history_company_id_idx" ON "currency_rate_history"("company_id")`,
       );
       await prisma.$executeRawUnsafe(
@@ -82,6 +85,7 @@ async function ensureCurrencyRateHistoryTable(): Promise<void> {
       );
       await prisma.$executeRawUnsafe(`
         INSERT INTO "currency_rate_history" (
+          "id",
           "company_id",
           "property_id",
           "currency_rate_id",
@@ -95,6 +99,7 @@ async function ensureCurrencyRateHistoryTable(): Promise<void> {
           "changed_at"
         )
         SELECT
+          gen_random_uuid(),
           cr."company_id",
           cr."property_id",
           cr."id",
@@ -150,6 +155,7 @@ export class CurrencyRatesService {
     const newRateNum = params.newRate !== null && params.newRate !== undefined ? Number(params.newRate) : null;
     await prisma.$executeRaw`
       INSERT INTO "currency_rate_history" (
+        "id",
         "company_id",
         "property_id",
         "currency_rate_id",
@@ -162,6 +168,7 @@ export class CurrencyRatesService {
         "remarks",
         "changed_by"
       ) VALUES (
+        gen_random_uuid(),
         ${params.companyId}::uuid,
         ${params.propertyId}::uuid,
         ${params.currencyRateId}::uuid,

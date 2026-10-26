@@ -1,5 +1,6 @@
 import React from 'react';
 import { type LeaseDetail, type EscalationEntry } from '../../../../../../store/api/leasesApi';
+import { formatCompactAmount } from '../../../../../../utils/formatCurrency';
 
 export function TermsTab({ lease }: { lease: LeaseDetail }) {
   return (
@@ -35,7 +36,9 @@ export function TermsTab({ lease }: { lease: LeaseDetail }) {
                   <tr key={c.id}>
                     <td>{c.chargeType.name}</td>
                     <td>{c.chargeType.category}</td>
-                    <td>{lease.currency} {Number(c.amount).toLocaleString()}</td>
+                    <td title={`${lease.currency} ${Number(c.amount).toLocaleString()}`}>
+                      {lease.currency} {formatCompactAmount(c.amount)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -53,7 +56,9 @@ export function TermsTab({ lease }: { lease: LeaseDetail }) {
               {lease.escalationSchedule.map((e: EscalationEntry) => (
                 <tr key={e.id} className={e.applied ? 'applied' : ''}>
                   <td>{new Date(e.effectiveDate).toLocaleDateString()}</td>
-                  <td>{lease.currency} {Number(e.newRent).toLocaleString()}</td>
+                  <td title={`${lease.currency} ${Number(e.newRent).toLocaleString()}`}>
+                    {lease.currency} {formatCompactAmount(e.newRent)}
+                  </td>
                   <td>{e.applied ? <span className="applied-badge">✓ Applied</span> : <span className="pending-badge">Pending</span>}</td>
                 </tr>
               ))}

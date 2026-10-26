@@ -11,18 +11,21 @@
 .ld-header { display: flex; flex-direction: column; gap: 12px; }
 .ld-hero { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .ld-hero-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.lease-num-lg { font-family: monospace; font-size: 1.3rem; font-weight: 800; }
+.lease-num-lg { font-family: monospace; font-size: 1.3rem; font-weight: 800; color: var(--accent, #10b981); }
 .status-pill-lg { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 8px; font-size: .8rem; font-weight: 700; border: 1px solid; text-transform: capitalize; }
 .exp-badge { display: flex; align-items: center; gap: 5px; padding: 3px 9px; background: rgba(243,156,18,.12); border: 1px solid rgba(243,156,18,.3); border-radius: 6px; font-size: .72rem; color: #f39c12; }
 
 /* Action buttons */
 .ld-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .ld-actions button { display: flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; font-size: .8rem; font-weight: 600; cursor: pointer; border: 1px solid; transition: all .15s; }
-.btn-action-report   { background: transparent; border-color: rgba(255,255,255,.12); color: var(--text-secondary); }
-.btn-action-report:hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.2); color: var(--text-primary); }
+.btn-action-report,
+.btn-action-preview,
+.btn-action-amend    { background: transparent; border-color: rgba(255,255,255,.12); color: var(--text-secondary); }
+.btn-action-report:hover,
+.btn-action-preview:hover,
+.btn-action-amend:hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.2); color: var(--text-primary); }
 .btn-action-submit   { background: rgba(52,152,219,.12); border-color: rgba(52,152,219,.3);   color: #74b9ff; }
 .btn-action-activate { background: rgba(46,204,113,.12); border-color: rgba(46,204,113,.3);   color: #2ecc71; }
-.btn-action-amend    { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.1);  color: var(--text-muted); }
 .btn-action-renew    { background: rgba(26,188,156,.1);  border-color: rgba(26,188,156,.3);   color: #1abc9c; }
 .btn-action-terminate{ background: rgba(231,76,60,.1);   border-color: rgba(231,76,60,.3);    color: #e74c3c; }
 .btn-action-cancel   { background: rgba(127,140,141,.1); border-color: rgba(127,140,141,.3);  color: #95a5a6; }
@@ -47,8 +50,9 @@
 /* Tabs */
 .ld-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,.06); gap: 0; }
 .ld-tabs button { display: flex; align-items: center; gap: 6px; padding: 10px 18px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-size: .82rem; cursor: pointer; transition: all .15s; }
-.ld-tabs button.active { color: #6c5ce7; border-bottom-color: #6c5ce7; }
-.tab-cnt { padding: 1px 5px; background: rgba(108,92,231,.2); border-radius: 4px; font-size: .65rem; font-weight: 700; color: #a29bfe; }
+.ld-tabs button:hover { color: var(--text-primary); }
+.ld-tabs button.active { color: var(--accent, #10b981); border-bottom-color: var(--accent, #10b981); font-weight: 600; }
+.tab-cnt { padding: 1px 5px; background: rgba(16, 185, 129, 0.15); border-radius: 4px; font-size: .65rem; font-weight: 700; color: var(--accent, #10b981); }
 
 /* Tab panel */
 .tab-panel { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
@@ -111,7 +115,8 @@
 
 /* Amendments */
 .tab-toolbar { display: flex; justify-content: flex-end; margin-bottom: 4px; }
-.btn-add-amendment { display: flex; align-items: center; gap: 5px; padding: 7px 14px; background: rgba(108,92,231,.15); border: 1px solid rgba(108,92,231,.3); border-radius: 8px; color: #a29bfe; font-size: .8rem; cursor: pointer; }
+.btn-add-amendment { display: flex; align-items: center; gap: 5px; padding: 7px 14px; background: var(--gradient-primary); border: none; border-radius: 8px; color: #fff; font-size: .8rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+.btn-add-amendment:hover { background: linear-gradient(135deg, #047857, #059669); box-shadow: 0 4px 12px var(--accent-glow); }
 .amendment-card { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 12px; padding: 14px; }
 .amendment-card.approved { border-color: rgba(46,204,113,.2); }
 .amendment-card.pending_approval { border-color: rgba(243,156,18,.2); }
@@ -120,7 +125,7 @@
 .amend-status { padding: 2px 8px; border-radius: 5px; font-size: .7rem; font-weight: 700; text-transform: capitalize; }
 .amend-status.approved { background: rgba(46,204,113,.12); color: #2ecc71; }
 .amend-status.pending_approval { background: rgba(243,156,18,.12); color: #f39c12; }
-.ac-type { font-size: .78rem; color: var(--purple-lt); text-transform: capitalize; margin-bottom: 4px; }
+.ac-type { font-size: .78rem; color: var(--accent, #10b981); text-transform: capitalize; margin-bottom: 4px; }
 .ac-desc { font-size: .83rem; margin-bottom: 6px; }
 .ac-meta { font-size: .72rem; color: var(--text-muted); }
 .btn-approve-amendment { margin-top: 10px; padding: 6px 12px; background: rgba(46,204,113,.15); border: 1px solid rgba(46,204,113,.3); border-radius: 7px; color: #2ecc71; font-size: .78rem; cursor: pointer; }
@@ -128,7 +133,8 @@
 /* ESign */
 .esign-overview { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 12px; }
 .esign-status-lg { font-size: 1rem; font-weight: 700; text-transform: capitalize; }
-.btn-send-esign { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(108,92,231,.15); border: 1px solid rgba(108,92,231,.3); border-radius: 8px; color: #a29bfe; font-size: .82rem; cursor: pointer; }
+.btn-send-esign { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--gradient-primary); border: none; border-radius: 8px; color: #fff; font-size: .82rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+.btn-send-esign:hover { background: linear-gradient(135deg, #047857, #059669); box-shadow: 0 4px 12px var(--accent-glow); }
 .recipient-row { display: flex; align-items: center; gap: 14px; padding: 10px 14px; background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 10px; }
 .rr-left { flex: 1; }
 .rr-name { font-size: .84rem; font-weight: 600; }
@@ -242,8 +248,6 @@
 
 /* Edit button */
 .btn-action-edit     { background: rgba(108,92,231,.1);  border-color: rgba(108,92,231,.3);   color: #6c5ce7; }
-/* Preview button */
-.btn-action-preview  { background: rgba(52,152,219,.1);  border-color: rgba(52,152,219,.3);   color: #74b9ff; }
 
 /* ═══ Invoice Preview Modal ═══════════════════ */
 .invoice-modal-box { max-width: 1400px; width: 97vw; }

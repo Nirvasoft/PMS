@@ -3,8 +3,7 @@ import { TrendingUp, DollarSign, AlertTriangle, CheckCircle, BarChart3, Building
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ARPage.css';
 
-const formatCurrency = (amount: number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+import { formatCurrency } from '../../../utils/formatCurrency';
 
 export default function CollectionDashboard() {
   const { data, isFetching } = useGetCollectionSummaryQuery({});
@@ -213,7 +212,7 @@ export default function CollectionDashboard() {
                 return (
                   <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: p.overdueAmount > 0 ? '#f87171' : 'var(--text-tertiary)' }}>
-                      {p.overdueAmount > 0 ? `$${(p.overdueAmount / 1000).toFixed(1)}k` : '—'}
+                      {p.overdueAmount > 0 ? formatCurrency(p.overdueAmount) : '—'}
                     </span>
                     <div style={{
                       width: '100%', maxWidth: 48, height: barH, borderRadius: '6px 6px 2px 2px',

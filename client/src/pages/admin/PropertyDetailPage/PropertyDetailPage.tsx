@@ -13,7 +13,8 @@ import {
 import { useGetUnitStatsQuery } from '../../../store/api/unitsApi';
 import { useGetLeasesQuery } from '../../../store/api/leasesApi';
 import { useGetDocumentsQuery } from '../../../store/api/documentsApi';
-import { useGetInvoicesQuery, useGetBillingSchedulesQuery } from '../../../store/api/billingApi';
+import { useGetInvoicesQuery, useGetBillingSchedulesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { formatFullAmount, formatCompactAmount } from '../../../utils/formatCurrency';
 import { usePreviewMeterRecordsMutation, useImportMeterRecordsMutation, type MeterRecordPreviewRow } from '../../../store/api/meterRecordsApi';
 import UnitsTab from './UnitsTab';
 import FloorSetupTab from './FloorSetupTab';
@@ -964,6 +965,9 @@ function SettingsTab({ property }: { property: any }) {
   );
 }
 
+const getTenantDisplayName = (tenant?: { lastName?: string | null; companyName?: string | null; firstName?: string | null } | null) =>
+  tenant?.lastName || tenant?.companyName || tenant?.firstName || '—';
+
 // ═══════════════════════════════════════════════════
 // LEASES TAB
 // ═══════════════════════════════════════════════════
@@ -1029,7 +1033,7 @@ function LeasesTab({ propertyId }: { propertyId: string }) {
                     <Link to={`/admin/leases/${lease.id}`} className="lease-link">{lease.leaseNumber}</Link>
                   </td>
                   <td className="tenant-cell">
-                    <span className="tenant-name">{lease.tenant.displayName}</span>
+                    <span className="tenant-name">{getTenantDisplayName(lease.tenant)}</span>
                     <span className="tenant-type">{lease.tenant.tenantType}</span>
                   </td>
                   <td>{lease.unit.unitNumber}</td>
@@ -1039,7 +1043,11 @@ function LeasesTab({ propertyId }: { propertyId: string }) {
                     </span>
                   </td>
                   <td>{lease.leaseTermMonths}mo</td>
-                  <td><span className="rent-amount">{lease.currency} {Number(lease.rentAmount).toLocaleString()}</span></td>
+                  <td>
+                    <span className="rent-amount" title={`${lease.currency} ${formatFullAmount(lease.rentAmount)}`} style={{ cursor: 'help' }}>
+                      {lease.currency} {formatCompactAmount(lease.rentAmount)}
+                    </span>
+                  </td>
                   <td>
                     <span className={`expiry-text ${lease.daysUntilExpiry <= 30 ? 'expiring-soon' : ''}`}>
                       {new Date(lease.endDate).toLocaleDateString()}
@@ -1122,17 +1130,38 @@ function DocumentsTab({ propertyId }: { propertyId: string }) {
 // FINANCE TAB
 // ═══════════════════════════════════════════════════
 function FinanceTab({ property }: { property: any }) {
-  const { data: invData, isLoading: invLoading } = useGetInvoicesQuery({ propertyId: property.id, limit: 10 });
+  const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId: property.id });
+  const currencyRates = currencyRatesData?.data ?? [];
+  const currency = currencyRates.find(r => r.isBaseCurrency)?.currency || property.currency || 'USD';
+
+  const { data: invData, isLoading: invLoading } = useGetInvoicesQuery({
+    propertyId: property.id,
+    limit: 10,
+    includeTotals: true,
+  });
   const { data: schedData } = useGetBillingSchedulesQuery({ propertyId: property.id, status: 'active', limit: 20 });
   const invoices = invData?.data || [];
   const schedules = schedData?.data || [];
 
-  // Compute KPIs from invoice data
-  const totalInvoiced = invoices.reduce((s, inv) => s + parseFloat(inv.totalAmount || '0'), 0);
-  const totalPaid = invoices.reduce((s, inv) => s + parseFloat(inv.paidAmount || '0'), 0);
-  const totalOutstanding = invoices.reduce((s, inv) => s + (inv.outstandingAmount || 0), 0);
+  const toBase = (amount: number, fromCurrency: string): number => {
+    if (!fromCurrency || fromCurrency === currency) return amount;
+    const row = currencyRates.find(r => r.currency === fromCurrency);
+    if (!row) return amount;
+    return row.operator === 'divide' ? amount / Number(row.rate) : amount * Number(row.rate);
+  };
+
+  // Compute KPIs from all property invoices (via totalsByCurrency when available) converted to base currency
+  const totalsByCurrency = invData?.meta?.totalsByCurrency;
+  const totalInvoiced = totalsByCurrency
+    ? Object.entries(totalsByCurrency).reduce((s, [cur, g]) => s + toBase(Number(g.total || 0), cur), 0)
+    : invoices.reduce((s, inv) => s + toBase(parseFloat(inv.totalAmount || '0'), inv.currency || currency), 0);
+  const totalPaid = totalsByCurrency
+    ? Object.entries(totalsByCurrency).reduce((s, [cur, g]) => s + toBase(Number(g.paid || 0), cur), 0)
+    : invoices.reduce((s, inv) => s + toBase(parseFloat(inv.paidAmount || '0'), inv.currency || currency), 0);
+  const totalOutstanding = totalsByCurrency
+    ? Object.entries(totalsByCurrency).reduce((s, [cur, g]) => s + toBase(Number(g.outstanding || 0), cur), 0)
+    : invoices.reduce((s, inv) => s + toBase(Number(inv.outstandingAmount || 0), inv.currency || currency), 0);
   const overdueCount = invoices.filter(inv => inv.status === 'overdue').length;
-  const currency = property.currency || 'USD';
 
   const INV_STATUS_COLORS: Record<string, string> = {
     draft: '#6c757d', pending: '#f39c12', sent: '#3498db',
@@ -1152,24 +1181,30 @@ function FinanceTab({ property }: { property: any }) {
       {/* KPI Cards */}
       <div className="finance-cards">
         <div className="finance-card">
-          <div className="fc-icon" style={{ background: 'rgba(108,92,231,.12)', color: '#6c5ce7' }}><DollarSign size={20} /></div>
+          <div className="fc-icon" style={{ background: 'rgba(16, 185, 129, .12)', color: 'var(--accent, #10b981)' }}><DollarSign size={20} /></div>
           <div className="fc-body">
             <span className="fc-label">Total Invoiced</span>
-            <span className="fc-value">{currency} {totalInvoiced.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+            <span className="fc-value" title={`${currency} ${formatFullAmount(totalInvoiced)}`} style={{ cursor: 'help' }}>
+              {currency} {formatCompactAmount(totalInvoiced)}
+            </span>
           </div>
         </div>
         <div className="finance-card">
           <div className="fc-icon" style={{ background: 'rgba(39,174,96,.12)', color: '#27ae60' }}><CheckCircle size={20} /></div>
           <div className="fc-body">
             <span className="fc-label">Total Paid</span>
-            <span className="fc-value">{currency} {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+            <span className="fc-value" title={`${currency} ${formatFullAmount(totalPaid)}`} style={{ cursor: 'help' }}>
+              {currency} {formatCompactAmount(totalPaid)}
+            </span>
           </div>
         </div>
         <div className="finance-card">
           <div className="fc-icon" style={{ background: 'rgba(243,156,18,.12)', color: '#f39c12' }}><AlertCircle size={20} /></div>
           <div className="fc-body">
             <span className="fc-label">Outstanding</span>
-            <span className="fc-value">{currency} {totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+            <span className="fc-value" title={`${currency} ${formatFullAmount(totalOutstanding)}`} style={{ cursor: 'help' }}>
+              {currency} {formatCompactAmount(totalOutstanding)}
+            </span>
           </div>
         </div>
         <div className="finance-card">
@@ -1197,6 +1232,15 @@ function FinanceTab({ property }: { property: any }) {
       ) : (
         <div className="leases-table-wrap">
           <table className="leases-table">
+            <colgroup>
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '19%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '19%' }} />
+              <col style={{ width: '11%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Invoice #</th>
@@ -1209,25 +1253,36 @@ function FinanceTab({ property }: { property: any }) {
               </tr>
             </thead>
             <tbody>
-              {invoices.map(inv => (
-                <tr key={inv.id}>
-                  <td>
-                    <Link to={`/admin/billing/invoices/${inv.id}`} className="lease-link">{inv.invoiceNumber}</Link>
-                  </td>
-                  <td>{inv.tenant.companyName || [inv.tenant.firstName, inv.tenant.lastName].filter(Boolean).join(' ')}</td>
-                  <td>
-                    <span className="status-badge" style={{ background: `${INV_STATUS_COLORS[inv.status] || '#6c757d'}22`, color: INV_STATUS_COLORS[inv.status] || '#6c757d' }}>
-                      {inv.status.replace(/_/g, ' ')}
-                    </span>
-                  </td>
-                  <td className="rent-amount">{currency} {parseFloat(inv.totalAmount).toLocaleString()}</td>
-                  <td>{currency} {parseFloat(inv.paidAmount).toLocaleString()}</td>
-                  <td className={inv.outstandingAmount > 0 ? 'expiring-soon' : ''} style={{ fontWeight: inv.outstandingAmount > 0 ? 600 : 400 }}>
-                    {currency} {inv.outstandingAmount.toLocaleString()}
-                  </td>
-                  <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
-                </tr>
-              ))}
+              {invoices.map(inv => {
+                const invCurrency = inv.currency || currency;
+                return (
+                  <tr key={inv.id}>
+                    <td>
+                      <Link to={`/admin/billing/invoices/${inv.id}`} className="lease-link">{inv.invoiceNumber}</Link>
+                    </td>
+                    <td>{getTenantDisplayName(inv.tenant)}</td>
+                    <td>
+                      <span className="status-badge" style={{ background: `${INV_STATUS_COLORS[inv.status] || '#6c757d'}22`, color: INV_STATUS_COLORS[inv.status] || '#6c757d' }}>
+                        {inv.status.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td className="rent-amount" title={`${invCurrency} ${formatFullAmount(inv.totalAmount)}`} style={{ cursor: 'help' }}>
+                      {invCurrency} {formatCompactAmount(inv.totalAmount)}
+                    </td>
+                    <td title={`${invCurrency} ${formatFullAmount(inv.paidAmount)}`} style={{ cursor: 'help' }}>
+                      {invCurrency} {formatCompactAmount(inv.paidAmount)}
+                    </td>
+                    <td
+                      className={inv.outstandingAmount > 0 ? 'expiring-soon' : ''}
+                      style={{ fontWeight: inv.outstandingAmount > 0 ? 600 : 400, cursor: 'help' }}
+                      title={`${invCurrency} ${formatFullAmount(inv.outstandingAmount)}`}
+                    >
+                      {invCurrency} {formatCompactAmount(inv.outstandingAmount)}
+                    </td>
+                    <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1237,27 +1292,38 @@ function FinanceTab({ property }: { property: any }) {
       {schedules.length > 0 && (
         <>
           <h4 className="finance-sub-title">Active Billing Schedules</h4>
-          <div className="documents-grid">
-            {schedules.map(s => (
-              <div key={s.id} className="document-card" style={{ cursor: 'default' }}>
-                <div className="doc-icon">
-                  <Calendar size={14} />
-                </div>
-                <div className="doc-info">
-                  <span className="doc-name">{s.chargeType.name}</span>
-                  <span className="doc-meta">
-                    {s.tenant.companyName || [s.tenant.firstName, s.tenant.lastName].filter(Boolean).join(' ')}
-                    {s.unit ? ` · Unit ${s.unit.unitNumber}` : ''}
-                  </span>
-                </div>
-                <div className="doc-status">
-                  <span className="rent-amount">{s.currency} {parseFloat(s.amount).toLocaleString()}</span>
-                </div>
-                <div className="doc-expiry">
-                  {s.billingCycle} · Day {s.billingDay}
-                </div>
-              </div>
-            ))}
+          <div className="leases-table-wrap">
+            <table className="leases-table">
+              <thead>
+                <tr>
+                  <th>Charge Type</th>
+                  <th>Tenant</th>
+                  <th>Unit</th>
+                  <th>Cycle</th>
+                  <th>Billing Day</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {schedules.map(s => {
+                  const tenantName = getTenantDisplayName(s.tenant);
+                  return (
+                    <tr key={s.id}>
+                      <td title={s.chargeType.name}>
+                        <span style={{ fontWeight: 600 }}>{s.chargeType.name}</span>
+                      </td>
+                      <td title={tenantName}>{tenantName}</td>
+                      <td>{s.unit ? s.unit.unitNumber : '—'}</td>
+                      <td className="capitalize">{(s.billingCycle || '').replace(/_/g, ' ')}</td>
+                      <td>Day {s.billingDay}</td>
+                      <td className="rent-amount" title={`${s.currency} ${formatFullAmount(s.amount)}`} style={{ cursor: 'help' }}>
+                        {s.currency} {formatCompactAmount(s.amount)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </>
       )}

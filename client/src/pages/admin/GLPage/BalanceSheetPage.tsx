@@ -4,7 +4,7 @@ import { useGetBalanceSheetQuery } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import './GLPage.css';
 
-const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 
 export default function BalanceSheetPage() {
   const selectedPropertyId = useSelectedPropertyId();

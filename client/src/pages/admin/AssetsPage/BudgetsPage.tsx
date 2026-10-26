@@ -17,7 +17,7 @@ import { PermissionGuard, usePermission } from '../../../components/guards/Permi
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 
-const fmtAmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 export default function BudgetsPage() {
@@ -609,7 +609,7 @@ function VarianceTab({ year }: { year: number }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                   <XAxis
                     type="number"
-                    tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
+                    tickFormatter={(v: number) => fmtAmt(v)}
                     stroke="var(--text-secondary)"
                     fontSize={11}
                     axisLine={false}
@@ -672,7 +672,7 @@ function VarianceTab({ year }: { year: number }) {
                     tickLine={false}
                   />
                   <YAxis
-                    tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
+                    tickFormatter={(v: number) => fmtAmt(v)}
                     stroke="var(--text-secondary)"
                     fontSize={11}
                     axisLine={false}

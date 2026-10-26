@@ -9,6 +9,7 @@ import { useAlertDialog } from '../../components/DialogProvider';
 import { Wallet, Plus, CheckCircle, XCircle, Clock, ShieldCheck } from 'lucide-react';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../components/TableScrollWrapper';
+import { formatCompactAmount } from '../../utils/formatCurrency';
 
 const FUND_TYPES = ['sinking_fund', 'management_fund', 'reserve_fund'];
 const TXN_TYPES = ['contribution', 'expenditure', 'interest', 'transfer'];
@@ -83,7 +84,7 @@ export default function FundsPage() {
 
   const pendingCount = transactions.filter((t: any) => t.status === 'pending_approval').length;
 
-  const fmt = (n: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  const fmt = (n: number) => formatCompactAmount(n, { minDecimals: 2, maxDecimals: 2 });
 
   if (!propertyId) return <div className="page-content"><div className="condo-empty-state"><Wallet size={40} /><h3>Select a Property</h3><p>Choose a property to manage funds</p></div></div>;
 

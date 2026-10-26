@@ -3,6 +3,7 @@ import { Activity } from 'lucide-react';
 import { useGetCashFlowQuery } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
+import { formatCompactAmount } from '../../../utils/formatCurrency';
 import './GLPage.css';
 
 export default function CashFlowPage() {
@@ -17,8 +18,7 @@ export default function CashFlowPage() {
   });
 
   const fmt = (n: number) => {
-    const abs = Math.abs(n);
-    const formatted = abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formatted = formatCompactAmount(Math.abs(n), { minDecimals: 2, maxDecimals: 2 });
     if (n < -0.01) return `(${formatted})`;
     return formatted;
   };

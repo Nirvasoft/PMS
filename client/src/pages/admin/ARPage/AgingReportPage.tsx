@@ -4,8 +4,7 @@ import { Clock, Search, Download, ChevronLeft, ChevronRight } from 'lucide-react
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ARPage.css';
 
-const formatCurrency = (amount: number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+import { formatCurrency } from '../../../utils/formatCurrency';
 
 export default function AgingReportPage() {
   const [asOfDate, setAsOfDate] = useState('');

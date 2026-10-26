@@ -22,6 +22,7 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../components/DialogProvider';
 import { TableScrollWrapper } from '../../components/TableScrollWrapper';
+import { formatCompactAmount as formatCompactAxisValue } from '../../utils/formatCurrency';
 import '../admin/MaintenancePage/MaintenancePage.css';
 import './ReportsPage.css';
 
@@ -527,7 +528,9 @@ function KpiReportView({ data }: { data: any }) {
   return (
     <div className="kpi-report">
       <div className="kpi-big-value">
-        <span className="value">{data.unit === 'USD' ? `$${Number(data.value).toLocaleString()}` : data.unit === '%' ? `${data.value}%` : Number(data.value).toLocaleString()}</span>
+        <span className="value" title={data.unit === 'USD' ? `$${Number(data.value).toLocaleString()}` : data.unit === '%' ? `${data.value}%` : Number(data.value).toLocaleString()}>
+          {data.unit === 'USD' ? `$${formatCompactAxisValue(Number(data.value))}` : data.unit === '%' ? `${data.value}%` : formatCompactAxisValue(Number(data.value))}
+        </span>
         <span className="label">{data.label}</span>
       </div>
       {data.trend && (
@@ -607,14 +610,6 @@ function LineReportView({ data }: { data: any }) {
       </LineChart>
     </ResponsiveContainer>
   );
-}
-
-function formatCompactAxisValue(v: number): string {
-  const abs = Math.abs(v);
-  if (abs >= 1_000_000_000) return `${+(v / 1_000_000_000).toFixed(1)}B`;
-  if (abs >= 1_000_000) return `${+(v / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${+(v / 1_000).toFixed(1)}K`;
-  return Number(v).toLocaleString();
 }
 
 function BarReportView({ data }: { data: any }) {

@@ -18,18 +18,10 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from './components/TableScrollWrapper';
 import './BillingPage.css';
 
-const formatCurrency = (amount: number, currency = 'USD') => {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency || 'USD',
-      currencyDisplay: 'code',
-      maximumFractionDigits: currency === 'MMK' ? 0 : 2,
-    }).format(amount);
-  } catch {
-    return `${currency || 'USD'} ${Number(amount).toLocaleString()}`;
-  }
-};
+import { formatCurrency as formatCurrencyHelper } from '../../../utils/formatCurrency';
+
+const formatCurrency = (amount: number, currency = 'USD') =>
+  formatCurrencyHelper(amount, currency, 'code');
 
 function getHumanSchedule(expr: string, tz: string): string {
   const parts = expr.trim().split(/\s+/);

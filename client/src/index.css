@@ -6973,8 +6973,9 @@ select.input-full:focus {
   background: rgba(217,119,6,0.04);
 }
 [data-theme="light"] .ln-badge {
-  background: rgba(0,0,0,0.06);
-  color: var(--text-secondary);
+  background: rgba(5, 150, 105, 0.1);
+  color: var(--accent, #059669);
+  font-weight: 600;
 }
 [data-theme="light"] .table-empty {
   color: rgba(0,0,0,0.12);
@@ -7060,6 +7061,14 @@ select.input-full:focus {
 [data-theme="light"] .ld-tabs button {
   color: var(--text-muted);
 }
+[data-theme="light"] .ld-tabs button:hover {
+  color: var(--text-primary);
+}
+[data-theme="light"] .ld-tabs button.active {
+  color: var(--accent, #059669);
+  border-bottom-color: var(--accent, #059669);
+  font-weight: 600;
+}
 [data-theme="light"] .info-card {
   background: var(--surface);
   border-color: var(--border);
@@ -7134,12 +7143,16 @@ select.input-full:focus {
 }
 
 /* ── Action buttons in light mode ── */
-[data-theme="light"] .btn-action-report {
+[data-theme="light"] .btn-action-report,
+[data-theme="light"] .btn-action-preview,
+[data-theme="light"] .btn-action-amend {
   background: transparent;
   border-color: var(--border);
   color: var(--text-secondary);
 }
-[data-theme="light"] .btn-action-report:hover {
+[data-theme="light"] .btn-action-report:hover,
+[data-theme="light"] .btn-action-preview:hover,
+[data-theme="light"] .btn-action-amend:hover {
   background: rgba(0, 0, 0, 0.04);
   color: var(--text-primary);
 }
@@ -7152,11 +7165,6 @@ select.input-full:focus {
   background: rgba(22,163,74,0.08);
   border-color: rgba(22,163,74,0.25);
   color: #16a34a;
-}
-[data-theme="light"] .btn-action-amend {
-  background: rgba(0,0,0,0.04);
-  border-color: rgba(0,0,0,0.12);
-  color: var(--text-secondary);
 }
 [data-theme="light"] .btn-action-renew {
   background: rgba(5,150,105,0.08);

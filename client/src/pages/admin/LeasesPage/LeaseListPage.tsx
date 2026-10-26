@@ -12,6 +12,10 @@ import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import ImportLeadModal from './ImportLeadModal';
+import {
+  formatFullAmount as formatRentDetail,
+  formatCompactAmount as formatCompactRent,
+} from '../../../utils/formatCurrency';
 import './LeaseListPage.css';
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -82,7 +86,7 @@ export default function LeaseListPage() {
             <Archive size={14} /> Clauses
           </button>
           <PermissionGuard permission="leases.create">
-            <button className="btn-import-lead" onClick={() => setShowImportModal(true)}>
+            <button className="btn-ghost" onClick={() => setShowImportModal(true)}>
               <Import size={14} /> Import Lead
             </button>
           </PermissionGuard>
@@ -226,8 +230,12 @@ export default function LeaseListPage() {
                         </div>
                       </td>
                       <td className="col-rent text-right">
-                        <div className="lease-rent" style={{ justifyContent: 'flex-end' }}>
-                          <span className="rent-val" style={{ fontWeight: 600 }}>{Number(lease.rentAmount || 0).toLocaleString()}</span>
+                        <div
+                          className="lease-rent"
+                          style={{ justifyContent: 'flex-end', cursor: 'help' }}
+                          title={`${formatRentDetail(lease.rentAmount)} ${lease.currency || 'USD'}`}
+                        >
+                          <span className="rent-val" style={{ fontWeight: 600 }}>{formatCompactRent(lease.rentAmount)}</span>
                           <span className="rent-cur">{lease.currency || 'USD'}</span>
                         </div>
                       </td>

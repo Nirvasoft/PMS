@@ -1,4 +1,5 @@
 import { type LeaseDetail } from '../../../../../../store/api/leasesApi';
+import { formatCompactAmount } from '../../../../../../utils/formatCurrency';
 
 export function OverviewTab({ lease }: { lease: LeaseDetail }) {
   return (
@@ -32,7 +33,10 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
         </InfoCard>
 
         <InfoCard title="Security Deposit">
-          <InfoRow label="Amount"   value={`${lease.currency} ${Number(lease.securityDeposit).toLocaleString()}`} />
+          <InfoRow
+            label="Amount"
+            value={`${lease.currency} ${formatCompactAmount(lease.securityDeposit)}`}
+          />
           <InfoRow label="Status"   value={lease.depositPaid ? '✓ Paid' : '✗ Unpaid'} />
           {lease.depositPaid && lease.depositPaidAt && (
             <InfoRow label="Paid On"  value={new Date(lease.depositPaidAt).toLocaleDateString()} />
@@ -57,7 +61,12 @@ export function OverviewTab({ lease }: { lease: LeaseDetail }) {
             <InfoRow label="Date"   value={new Date(lease.terminationDate).toLocaleDateString()} />
             <InfoRow label="Type"   value={lease.terminationType || '—'} />
             <InfoRow label="Reason" value={lease.terminationReason || '—'} />
-            {lease.earlyTerminationPenalty && <InfoRow label="Penalty" value={`${Number(lease.earlyTerminationPenalty).toLocaleString()}`} />}
+            {lease.earlyTerminationPenalty && (
+              <InfoRow
+                label="Penalty"
+                value={formatCompactAmount(lease.earlyTerminationPenalty)}
+              />
+            )}
           </InfoCard>
         )}
 

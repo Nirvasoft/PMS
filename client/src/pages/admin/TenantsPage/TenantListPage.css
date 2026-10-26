@@ -357,14 +357,14 @@
 }
 .tenant-property-name { color: var(--text-muted); font-size: 0.8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tenant-contact { color: var(--text-muted); font-size: 0.8rem; }
-.tenant-active-leases { font-size: 0.8rem; font-weight: 600; color: #a29bfe; white-space: nowrap; }
+.tenant-active-leases { font-size: 0.8rem; font-weight: 600; color: var(--accent, #10b981); white-space: nowrap; }
 
 .type-badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; text-transform: capitalize;
   white-space: nowrap;
 }
-.type-badge.individual { background: rgba(108,92,231,0.12); color: #a29bfe; }
+.type-badge.individual { background: rgba(16, 185, 129, 0.12); color: var(--accent, #10b981); }
 .type-badge.company    { background: rgba(9,132,227,0.12);  color: #74b9ff; }
 
 .kyc-badge {
@@ -469,7 +469,7 @@
 
 /* Light mode support */
 [data-theme="light"] .tenant-active-leases {
-  color: var(--text-primary, #0f172a);
+  color: var(--accent, #059669);
 }
 
 [data-theme="light"] .tenant-table-wrap {

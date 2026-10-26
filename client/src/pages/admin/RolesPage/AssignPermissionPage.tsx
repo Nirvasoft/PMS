@@ -525,13 +525,8 @@ export default function AssignPermissionPage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <button className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => navigate('/admin/roles')}>← Back</button>
-        <h1>{isViewOnly ? '🔒 View Permissions' : 'Assign Permission'}</h1>
-        <p className="text-secondary">
-          {isViewOnly
-            ? 'System roles have all permissions and cannot be modified.'
-            : 'Pick a role, then tag the permissions it should have'}
-        </p>
+        <h1 style={{ margin: 0 }}>{isViewOnly ? 'View Permissions' : 'Assign Permission'}</h1>
+        <button className="btn btn-sm" onClick={() => navigate('/admin/roles')}>← Back</button>
       </div>
 
       <form onSubmit={handleSubmit} className="detail-form">

@@ -23,6 +23,11 @@ import {
 import { useGetDocumentsQuery, useUploadDocumentMutation, useDeleteDocumentMutation, type DocumentItem } from '../../../store/api/documentsApi';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard, usePermission } from '../../../components/guards/PermissionGuard';
+import {
+  formatFullAmount as formatRentDetail,
+  formatCompactAmount as formatCompactRent,
+} from '../../../utils/formatCurrency';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import GlAccountLookupField from '../../../components/GlAccountLookupField';
 import toast from 'react-hot-toast';
 import './TenantDetailPage.css';
@@ -979,42 +984,70 @@ function LeasesTab({ tenantId }: { tenantId: string }) {
         <span className="lease-stat">{leases.length} total leases</span>
         {active > 0 && <span className="lease-stat active">{active} active</span>}
       </div>
-      <div className="tenant-leases-list">
-        <div className="lease-row header">
-          <span>Lease #</span><span>Property</span><span>Unit</span>
-          <span>Period</span><span>Rent</span><span>Status</span>
-        </div>
-        {leases.map((l: LeaseHistoryItem) => {
-          const sc = LEASE_STATUS_COLORS[l.status] || '#95a5a6';
-          return (
-            <div key={l.id} className="lease-row">
-              <span
-                className="lease-num"
-                role="button"
-                tabIndex={0}
-                style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                onClick={() => navigate(`/admin/leases/${l.id}`)}
-                onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/admin/leases/${l.id}`); }}
-              >
-                {l.leaseNumber}
-              </span>
-              <span className="lease-prop">{l.propertyName}</span>
-              <span className="lease-unit">{l.unitNumber}</span>
-              <span className="lease-period">
-                {new Date(l.startDate).toLocaleDateString()} — {new Date(l.endDate).toLocaleDateString()}
-              </span>
-              <span className="lease-rent">
-                {l.currency} {l.rentAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                <span className="rent-cycle">/{l.billingCycle.replace('ly','')}</span>
-              </span>
-              <span>
-                <span className="lease-status" style={{ color: sc, background: sc + '18', borderColor: sc + '40' }}>
-                  {l.status.replace(/_/g, ' ')}
-                </span>
-              </span>
-            </div>
-          );
-        })}
+      <div className="tenant-leases-table-wrap">
+        <TableScrollWrapper className="tenant-leases-scroll">
+          <table className="tenant-leases-table">
+            <thead>
+              <tr>
+                <th className="col-tl-num">Lease #</th>
+                <th className="col-tl-prop">Property</th>
+                <th className="col-tl-unit">Unit</th>
+                <th className="col-tl-period">Period</th>
+                <th className="col-tl-rent text-right">Rent</th>
+                <th className="col-tl-status">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leases.map((l: LeaseHistoryItem) => {
+                const sc = LEASE_STATUS_COLORS[l.status] || '#95a5a6';
+                const cycleShort = l.billingCycle.replace('ly', '');
+                const fullRentLabel = `${l.currency} ${formatRentDetail(l.rentAmount)} /${cycleShort}`;
+                return (
+                  <tr
+                    key={l.id}
+                    className="tenant-lease-tr"
+                    onClick={() => navigate(`/admin/leases/${l.id}`)}
+                  >
+                    <td className="col-tl-num">
+                      <span
+                        className="lease-num"
+                        role="button"
+                        tabIndex={0}
+                        style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                        onClick={(e) => { e.stopPropagation(); navigate(`/admin/leases/${l.id}`); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/admin/leases/${l.id}`); }}
+                      >
+                        {l.leaseNumber}
+                      </span>
+                    </td>
+                    <td className="col-tl-prop" title={l.propertyName}>
+                      <span className="lease-prop">{l.propertyName}</span>
+                    </td>
+                    <td className="col-tl-unit" title={l.unitNumber}>
+                      <span className="lease-unit">{l.unitNumber}</span>
+                    </td>
+                    <td className="col-tl-period">
+                      <span className="lease-period">
+                        {new Date(l.startDate).toLocaleDateString()} — {new Date(l.endDate).toLocaleDateString()}
+                      </span>
+                    </td>
+                    <td className="col-tl-rent text-right">
+                      <span className="lease-rent" title={fullRentLabel}>
+                        {l.currency} {formatCompactRent(l.rentAmount)}
+                        <span className="rent-cycle">/{cycleShort}</span>
+                      </span>
+                    </td>
+                    <td className="col-tl-status">
+                      <span className="lease-status" style={{ color: sc, background: sc + '18', borderColor: sc + '40' }}>
+                        {l.status.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
       </div>
     </div>
   );

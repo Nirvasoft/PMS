@@ -15,9 +15,11 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ARPage.css';
 
+import { formatCurrency as formatCurrencyHelper } from '../../../utils/formatCurrency';
+
 const STATUS_OPTIONS = ['', 'pending', 'confirmed', 'reversed', 'refunded'];
 const formatCurrency = (amount: string | number, currency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency, currencyDisplay: 'code' }).format(Number(amount));
+  formatCurrencyHelper(amount, currency, 'code');
 
 export default function ReceiptsPage() {
   const [page, setPage] = useState(1);
