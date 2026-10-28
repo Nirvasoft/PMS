@@ -98,12 +98,12 @@ export default function ParkingOverviewPage() {
       {/* Header */}
       <div className="page-header" style={{ marginBottom: 16 }}>
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
+          <div className="page-icon-lg">
             <Car size={22} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Parking Management</h1>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Manage zones, slots, and occupancy</p>
+            <h1>Parking Management</h1>
+            <p>Manage zones, slots, and occupancy</p>
           </div>
         </div>
       </div>
@@ -192,11 +192,35 @@ export default function ParkingOverviewPage() {
 
 // ── Occupancy Overview ─────────────────────────
 
-function OccupancyOverview({ propertyId, unitId }: { propertyId: string; unitId: string }) {
-  const { data } = useGetOccupancyQuery({ propertyId, unitId }, { refetchOnMountOrArgChange: true });
-  const occ = data?.data;
-  if (!occ) return <div className="table-loading"><div className="lp" /><div className="lp" /></div>;
+interface OccupancyBreakdownGroup {
+  id: string;
+  name: string;
+  badge?: string | null;
+  allocated?: number;
+  visitor?: number;
+  available?: number;
+  total?: number;
+}
 
+function OccupancyDashboard({
+  occ,
+  groupTitle,
+  groups,
+  emptyMessage,
+}: {
+  occ: {
+    total: number;
+    available: number;
+    allocated: number;
+    visitor: number;
+    blocked: number;
+    maintenance: number;
+    occupancyRate: number;
+  };
+  groupTitle: string;
+  groups: OccupancyBreakdownGroup[];
+  emptyMessage: string;
+}) {
   const segments = [
     { key: 'allocated', color: STATUS_COLORS.allocated, value: occ.allocated },
     { key: 'visitor', color: STATUS_COLORS.visitor, value: occ.visitor },
@@ -205,7 +229,6 @@ function OccupancyOverview({ propertyId, unitId }: { propertyId: string; unitId:
     { key: 'available', color: STATUS_COLORS.available, value: occ.available },
   ];
 
-  // Build conic-gradient
   const gradientParts: string[] = [];
   let cumulative = 0;
   segments.forEach(s => {
@@ -249,19 +272,18 @@ function OccupancyOverview({ propertyId, unitId }: { propertyId: string; unitId:
             <div className="pqs-card"><div className="pqs-value" style={{ color: '#f59e0b' }}>{occ.visitor}</div><div className="pqs-label">Visitor</div></div>
           </div>
 
-          {/* Zone breakdown cards */}
-          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--text-secondary)' }}>By Zone</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--text-secondary)' }}>{groupTitle}</h3>
           <div className="zone-cards-grid">
-            {occ.byZone.map((z: any) => {
-              const allocated = z.allocated || 0;
-              const visitor = z.visitor || 0;
-              const available = z.available || 0;
-              const total = z.total || 1;
+            {groups.map((g) => {
+              const allocated = g.allocated || 0;
+              const visitor = g.visitor || 0;
+              const available = g.available || 0;
+              const total = g.total || 1;
               return (
-                <div key={z.id} className="zone-card">
+                <div key={g.id} className="zone-card">
                   <div className="zc-header">
-                    <span className="zc-name">{z.name}</span>
-                    <span className="zc-type">{z.zoneType}</span>
+                    <span className="zc-name">{g.name}</span>
+                    {g.badge && <span className="zc-type">{g.badge}</span>}
                   </div>
                   <div className="zc-bar">
                     <div className="zc-bar-seg" style={{ width: `${(allocated / total) * 100}%`, background: STATUS_COLORS.allocated }} />
@@ -277,11 +299,26 @@ function OccupancyOverview({ propertyId, unitId }: { propertyId: string; unitId:
                 </div>
               );
             })}
-            {occ.byZone.length === 0 && <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: 20 }}>No zones configured</div>}
+            {groups.length === 0 && <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: 20 }}>{emptyMessage}</div>}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function OccupancyOverview({ propertyId, unitId }: { propertyId: string; unitId: string }) {
+  const { data } = useGetOccupancyQuery({ propertyId, unitId }, { refetchOnMountOrArgChange: true });
+  const occ = data?.data;
+  if (!occ) return <div className="table-loading"><div className="lp" /><div className="lp" /></div>;
+
+  return (
+    <OccupancyDashboard
+      occ={occ}
+      groupTitle="By Zone"
+      groups={occ.byZone.map((z: any) => ({ ...z, badge: z.zoneType }))}
+      emptyMessage="No zones configured"
+    />
   );
 }
 
@@ -292,90 +329,13 @@ function OccupancyOverviewAll() {
   const occ = data?.data;
   if (!occ) return <div className="table-loading"><div className="lp" /><div className="lp" /></div>;
 
-  const segments = [
-    { key: 'allocated', color: STATUS_COLORS.allocated, value: occ.allocated },
-    { key: 'visitor', color: STATUS_COLORS.visitor, value: occ.visitor },
-    { key: 'blocked', color: STATUS_COLORS.blocked, value: occ.blocked },
-    { key: 'maintenance', color: STATUS_COLORS.maintenance, value: occ.maintenance },
-    { key: 'available', color: STATUS_COLORS.available, value: occ.available },
-  ];
-
-  const gradientParts: string[] = [];
-  let cumulative = 0;
-  segments.forEach(s => {
-    if (s.value > 0 && occ.total > 0) {
-      const pct = (s.value / occ.total) * 100;
-      gradientParts.push(`${s.color} ${cumulative}% ${cumulative + pct}%`);
-      cumulative += pct;
-    }
-  });
-  const gradient = gradientParts.length > 0
-    ? `conic-gradient(${gradientParts.join(', ')})`
-    : 'conic-gradient(var(--border-subtle) 0% 100%)';
-
   return (
-    <div>
-      <div className="occupancy-row">
-        <div className="occupancy-donut-card">
-          <div className="donut-container">
-            <div className="donut-ring" style={{ background: gradient }}>
-              <div className="donut-center">
-                <span className="donut-pct">{occ.occupancyRate}%</span>
-                <span className="donut-label">Occupied</span>
-              </div>
-            </div>
-          </div>
-          <div className="donut-legend">
-            {segments.filter(s => s.value > 0).map(s => (
-              <span key={s.key} className="donut-legend-item">
-                <span className="dl-dot" style={{ background: s.color }} />
-                <span className="dl-count">{s.value}</span> {s.key}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <div className="parking-quick-stats">
-            <div className="pqs-card"><div className="pqs-value">{occ.total}</div><div className="pqs-label">Total Slots</div></div>
-            <div className="pqs-card"><div className="pqs-value" style={{ color: '#10b981' }}>{occ.available}</div><div className="pqs-label">Available</div></div>
-            <div className="pqs-card"><div className="pqs-value" style={{ color: '#3b82f6' }}>{occ.allocated}</div><div className="pqs-label">Allocated</div></div>
-            <div className="pqs-card"><div className="pqs-value" style={{ color: '#f59e0b' }}>{occ.visitor}</div><div className="pqs-label">Visitor</div></div>
-          </div>
-
-          {/* Per-property breakdown — zone names collide across properties, so this groups by property instead. */}
-          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--text-secondary)' }}>By Property</h3>
-          <div className="zone-cards-grid">
-            {occ.byProperty.map((p) => {
-              const allocated = p.allocated || 0;
-              const visitor = p.visitor || 0;
-              const available = p.available || 0;
-              const total = p.total || 1;
-              return (
-                <div key={p.id} className="zone-card">
-                  <div className="zc-header">
-                    <span className="zc-name">{p.name}</span>
-                    {p.code && <span className="zc-type">{p.code}</span>}
-                  </div>
-                  <div className="zc-bar">
-                    <div className="zc-bar-seg" style={{ width: `${(allocated / total) * 100}%`, background: STATUS_COLORS.allocated }} />
-                    <div className="zc-bar-seg" style={{ width: `${(visitor / total) * 100}%`, background: STATUS_COLORS.visitor }} />
-                    <div className="zc-bar-seg" style={{ width: `${(available / total) * 100}%`, background: STATUS_COLORS.available }} />
-                  </div>
-                  <div className="zc-stats">
-                    <span><span className="dl-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS.allocated, display: 'inline-block' }} /> {allocated}</span>
-                    <span><span className="dl-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS.visitor, display: 'inline-block' }} /> {visitor}</span>
-                    <span><span className="dl-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS.available, display: 'inline-block' }} /> {available}</span>
-                    <span>Total: {total}</span>
-                  </div>
-                </div>
-              );
-            })}
-            {occ.byProperty.length === 0 && <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: 20 }}>No parking set up yet</div>}
-          </div>
-        </div>
-      </div>
-    </div>
+    <OccupancyDashboard
+      occ={occ}
+      groupTitle="By Property"
+      groups={occ.byProperty.map((p) => ({ ...p, badge: p.code }))}
+      emptyMessage="No parking set up yet"
+    />
   );
 }
 

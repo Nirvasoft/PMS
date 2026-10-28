@@ -186,6 +186,16 @@ export default function CurrencyRatesPage() {
     );
   }, [editing, historyList]);
 
+  const [editHistoryPageSize, setEditHistoryPageSize] = useState(10);
+  const [editHistoryPage, setEditHistoryPage] = useState(1);
+  useEffect(() => { setEditHistoryPage(1); }, [editing?.id, editHistoryPageSize]);
+  const totalEditHistoryPages = Math.max(1, Math.ceil(editingCurrencyHistory.length / editHistoryPageSize));
+  const currentEditHistoryPage = Math.min(editHistoryPage, totalEditHistoryPages);
+  const paginatedEditingHistory = editingCurrencyHistory.slice(
+    (currentEditHistoryPage - 1) * editHistoryPageSize,
+    currentEditHistoryPage * editHistoryPageSize,
+  );
+
   // No rows yet for this property means no base currency is set — the row about to be
   // created must be it, so Code/Base Currency below bind to and lock onto the property's
   // own currency instead of offering a free choice.
@@ -360,13 +370,6 @@ export default function CurrencyRatesPage() {
               <button type="submit" form="currency-rate-form" className="btn btn-primary" disabled={creating || updating} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Save size={14} /> {creating || updating ? 'Saving…' : 'Save'}
               </button>
-              {editing && (
-                <PermissionGuard permission="currency-rate.delete">
-                  <button type="button" className="btn btn-danger" onClick={() => handleDelete(editing)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Trash2 size={14} /> Delete
-                  </button>
-                </PermissionGuard>
-              )}
             </div>
           )}
         </div>
@@ -409,15 +412,16 @@ export default function CurrencyRatesPage() {
                   <th>Symbol</th>
                   <th>Operator</th>
                   <th>Rate</th>
+                  <th style={{ width: 60, textAlign: 'center' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {isFetching && rates.length === 0 ? (
-                  <TableSkeletonRows columns={5} />
+                  <TableSkeletonRows columns={6} />
                 ) : rates.length === 0 ? (
-                  <tr><td colSpan={5} className="billing-empty">No currency rates set up yet</td></tr>
+                  <tr><td colSpan={6} className="billing-empty">No currency rates set up yet</td></tr>
                 ) : filteredRates.length === 0 ? (
-                  <tr><td colSpan={5} className="billing-empty">No currency rates match your filters</td></tr>
+                  <tr><td colSpan={6} className="billing-empty">No currency rates match your filters</td></tr>
                 ) : paginatedRates.map((r) => (
                   <tr key={r.id}>
                     <td>
@@ -447,13 +451,28 @@ export default function CurrencyRatesPage() {
                     </td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.operator === 'divide' ? '/' : '*'}</td>
                     <td><span className="cell-mono">{formatRate(r.rate)}</span></td>
+                    <td className="text-center">
+                      <PermissionGuard permission="currency-rate.delete">
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          title="Delete"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(r); }}
+                          style={{ color: 'var(--text-muted)' }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </PermissionGuard>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             </TableScrollWrapper>
 
-            {filteredRates.length >= 10 && (
+            {filteredRates.length > 0 && (
               <div className="positions-pagination billing-pagination">
                 <div className="pagination-left">
                   <div className="page-size-selector">
@@ -590,7 +609,7 @@ export default function CurrencyRatesPage() {
               </table>
             </TableScrollWrapper>
 
-            {filteredHistory.length >= 10 && (
+            {filteredHistory.length > 0 && (
               <div className="positions-pagination billing-pagination">
                 <div className="pagination-left">
                   <div className="page-size-selector">
@@ -769,7 +788,7 @@ export default function CurrencyRatesPage() {
                   <tbody>
                     {editingCurrencyHistory.length === 0 ? (
                       <tr><td colSpan={8} className="billing-empty">No rate update history for {editing.currency} yet</td></tr>
-                    ) : editingCurrencyHistory.map((h) => (
+                    ) : paginatedEditingHistory.map((h) => (
                       <tr key={h.id}>
                         <td style={{ whiteSpace: 'nowrap', color: 'var(--text-secondary)', fontSize: 12.5 }}>
                           {formatDateTime(h.changedAt)}
@@ -790,6 +809,51 @@ export default function CurrencyRatesPage() {
                   </tbody>
                 </table>
               </TableScrollWrapper>
+
+              {editingCurrencyHistory.length > 0 && (
+                <div className="positions-pagination billing-pagination">
+                  <div className="pagination-left">
+                    <div className="page-size-selector">
+                      <label htmlFor="cr-edit-history-page-size">Rows per page:</label>
+                      <select
+                        id="cr-edit-history-page-size"
+                        value={editHistoryPageSize}
+                        onChange={(e) => {
+                          setEditHistoryPageSize(Number(e.target.value));
+                          setEditHistoryPage(1);
+                        }}
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="page-btns">
+                    <button
+                      type="button"
+                      disabled={currentEditHistoryPage === 1}
+                      onClick={() => setEditHistoryPage((p) => p - 1)}
+                      title="Previous page"
+                    >
+                      <ChevronLeft size={15} />
+                    </button>
+                    <span className="page-num-display">
+                      Page {currentEditHistoryPage} of {totalEditHistoryPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={currentEditHistoryPage >= totalEditHistoryPages}
+                      onClick={() => setEditHistoryPage((p) => p + 1)}
+                      title="Next page"
+                    >
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

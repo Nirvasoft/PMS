@@ -20,7 +20,7 @@ import { usePreviewMeterRecordsMutation, useImportMeterRecordsMutation, type Met
 import UnitsTab from './UnitsTab';
 import FloorSetupTab from './FloorSetupTab';
 import {
-  ArrowLeft, Building2, MapPin, Calendar, Users, Phone, Mail,
+  List, Building2, MapPin, Calendar, Users, Phone, Mail,
   Globe, Clock, Star, Trash2, Plus, Upload, CheckCircle,
   AlertCircle, Wrench, ChevronRight, ChevronLeft, X, Camera, Edit3, GripVertical,
   Waves, Dumbbell, Flame, TreePine, Lock, Zap, Car, Coffee, FileText, DollarSign, Briefcase,
@@ -118,7 +118,14 @@ export default function PropertyDetailPage() {
     <div className="property-detail">
       {/* Header */}
       <div className="detail-header">
-        <button className="back-btn" onClick={() => navigate('/admin/properties')}><ArrowLeft size={16} /> Properties</button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6 }}
+          onClick={() => navigate('/admin/properties')}
+        >
+          <List size={14} /> List
+        </button>
 
         <div className="detail-title">
           <div className="property-cover-thumb">

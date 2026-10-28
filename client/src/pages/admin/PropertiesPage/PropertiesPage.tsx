@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   useGetPropertiesQuery, useDeletePropertyMutation, useGetPropertyStatsQuery,
   useUpdatePropertyMutation, useGetPropertyTypesQuery,
@@ -895,7 +895,11 @@ function PropertyCard({ property: p, menuOpen, onMenuOpen, onView, onEdit, onDel
           {TYPE_ICONS[p.propertyType] || <Building2 size={14} />}
           <span>{p.propertyType.replace(/_/g, ' ')}</span>
         </div>
-        <h3 className="card-name">{p.name}</h3>
+        <h3 className="card-name">
+          <Link to={`/admin/properties/${p.id}`} className="user-name-link" onClick={(e) => e.stopPropagation()}>
+            {p.name}
+          </Link>
+        </h3>
         {p.code && <span className="card-code">{p.code}</span>}
         {(p.city || p.country) && (
           <div className="card-location"><MapPin size={12} /><span>{[p.city, p.country].filter(Boolean).join(', ')}</span></div>
@@ -943,7 +947,9 @@ function PropertyRow({ property: p, onView, onEdit, onDelete }: {
             {p.coverImageUrl ? <img src={p.coverImageUrl} alt={p.name} /> : <Building2 size={15} />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span className="name" style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</span>
+            <Link to={`/admin/properties/${p.id}`} className="name user-name-link" onClick={(e) => e.stopPropagation()}>
+              {p.name}
+            </Link>
             {p.code && (
               <span className="role-chip" style={{ fontSize: 11, padding: '1px 7px' }}>
                 {p.code}

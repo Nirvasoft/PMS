@@ -7,7 +7,7 @@ import {
   useSendInvoiceMutation, useCreateCreditNoteMutation, useGetChargeTypesQuery,
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
-import { ArrowLeft, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, Eye, UploadCloud } from 'lucide-react';
+import { List, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, Eye, UploadCloud } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
@@ -228,11 +228,6 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="billing-page">
-      {/* Back button */}
-      <button className="btn btn-secondary" onClick={() => navigate('/admin/billing/invoices')} style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <ArrowLeft size={14} /> Back to Invoices
-      </button>
-
       {/* Header */}
       <div className="invoice-detail-header">
         <div className="inv-number">
@@ -244,6 +239,14 @@ export default function InvoiceDetailPage() {
           )}
         </div>
         <div className="inv-actions">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => navigate('/admin/billing/invoices')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <List size={14} /> List
+          </button>
           <button className="btn btn-primary" onClick={handleViewPdf}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Eye size={14} /> View PDF

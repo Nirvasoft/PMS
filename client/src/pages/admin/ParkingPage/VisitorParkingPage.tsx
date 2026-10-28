@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import {
   useGetVisitorPassesQuery, useIssueVisitorPassMutation, useCancelVisitorPassMutation,
   type VisitorPass,
 } from '../../../store/api/parkingApi';
-import { useGetPropertiesQuery, useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { QRCode, useQRDownload } from '../../../components/QRCode';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -32,7 +31,6 @@ export default function VisitorParkingPage() {
   const [showIssue, setShowIssue] = useState(false);
   const [qrPass, setQrPass] = useState<VisitorPass | null>(null);
 
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const { data, isLoading } = useGetVisitorPassesQuery({
     propertyId: propertyFilter || undefined,
     status: statusFilter || undefined,
@@ -40,7 +38,6 @@ export default function VisitorParkingPage() {
   });
   const [cancelPass] = useCancelVisitorPassMutation();
 
-  const properties = propertiesData?.data || [];
   const passes = data?.data || [];
 
   const handleCancel = async (id: string) => {
@@ -65,12 +62,12 @@ export default function VisitorParkingPage() {
     <div className="parking-page">
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
+          <div className="page-icon-lg">
             <Ticket size={22} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Visitor Parking Passes</h1>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+            <h1>Visitor Parking Passes</h1>
+            <p>
               {data?.meta ? `${data.meta.total} total passes` : 'Loading…'}
             </p>
           </div>
@@ -87,12 +84,6 @@ export default function VisitorParkingPage() {
       </div>
 
       <div className="pipeline-toolbar" style={{ marginBottom: 16 }}>
-        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
-        <select className="filter-select" value={propertyFilter} disabled>
-          {propertyFilter && (
-            <option value={propertyFilter}>{properties.find((p: any) => p.id === propertyFilter)?.name || ''}</option>
-          )}
-        </select>
         <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
@@ -158,7 +149,7 @@ export default function VisitorParkingPage() {
         </div>
       )}
 
-      {showIssue && <IssuePassModal properties={properties} activeProperty={propertyFilter} onClose={() => setShowIssue(false)} />}
+      {showIssue && <IssuePassModal activeProperty={propertyFilter} onClose={() => setShowIssue(false)} />}
       {qrPass && <QRCodeModal pass={qrPass} onClose={() => setQrPass(null)} />}
     </div>
   );
@@ -181,7 +172,6 @@ function QRCodeModal({ pass, onClose }: { pass: VisitorPass; onClose: () => void
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; text-align: center; padding: 40px 20px; }
             h1 { font-size: 20px; margin: 0 0 4px; }
-            .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
             .qr-container { display: inline-block; padding: 16px; border: 2px solid #eee; border-radius: 12px; margin-bottom: 20px; }
             .token { font-family: monospace; font-size: 16px; letter-spacing: 2px; background: #f5f5f5; padding: 8px 16px; border-radius: 8px; margin-bottom: 20px; display: inline-block; }
             .details { text-align: left; max-width: 300px; margin: 0 auto; font-size: 13px; }
@@ -193,8 +183,7 @@ function QRCodeModal({ pass, onClose }: { pass: VisitorPass; onClose: () => void
         </head>
         <body>
           <h1>VISITOR PARKING PASS</h1>
-          <div class="subtitle">${pass.property.name}</div>
-          <div class="qr-container" id="qr-target"></div>
+          <div class="qr-container" id="qr-target" style="margin-top: 20px;"></div>
           <br/>
           <div class="token">${pass.qrToken}</div>
           <div class="details">
@@ -210,7 +199,7 @@ function QRCodeModal({ pass, onClose }: { pass: VisitorPass; onClose: () => void
       </html>
     `);
 
-    // Draw QR on the print page's canvas
+    // Copy the rendered QR canvas from the modal into the print window
     const container = printWindow.document.getElementById('qr-target');
     if (container) {
       const canvas = printWindow.document.createElement('canvas');
@@ -219,30 +208,15 @@ function QRCodeModal({ pass, onClose }: { pass: VisitorPass; onClose: () => void
       canvas.style.imageRendering = 'pixelated';
       container.appendChild(canvas);
 
-      // We need to redraw the QR in the print window context
-      const img = new Image();
-      const localCanvas = document.createElement('canvas');
-      localCanvas.width = 200;
-      localCanvas.height = 200;
-      // Draw using our QR component approach
-      const tempDiv = document.createElement('div');
-      tempDiv.style.display = 'none';
-      document.body.appendChild(tempDiv);
-
-      // Copy the existing QR from modal
-      const existingCanvas = document.querySelector('.qr-modal-code canvas') as HTMLCanvasElement;
+      const existingCanvas = document.querySelector('.qr-modal-code canvas') as HTMLCanvasElement | null;
       if (existingCanvas) {
+        const img = new Image();
         img.src = existingCanvas.toDataURL();
         img.onload = () => {
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, 200, 200);
-          }
-          document.body.removeChild(tempDiv);
+          canvas.getContext('2d')?.drawImage(img, 0, 0, 200, 200);
           setTimeout(() => { printWindow.print(); }, 200);
         };
       } else {
-        document.body.removeChild(tempDiv);
         setTimeout(() => { printWindow.print(); }, 200);
       }
     }
@@ -256,7 +230,6 @@ function QRCodeModal({ pass, onClose }: { pass: VisitorPass; onClose: () => void
         <div className="qr-modal-header">
           <div className="qr-modal-icon"><QrCode size={22} /></div>
           <h2>Visitor Pass QR Code</h2>
-          <p className="qr-modal-subtitle">{pass.property.name}</p>
         </div>
 
         {/* Large QR Code */}
@@ -302,42 +275,33 @@ function QRCodeModal({ pass, onClose }: { pass: VisitorPass; onClose: () => void
 
 // ── Issue Pass Modal ───────────────────────
 
-function IssuePassModal({ properties, activeProperty, onClose }: { properties: any[]; activeProperty: string; onClose: () => void }) {
+function getCurrentDateTimeLocalString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function IssuePassModal({ activeProperty, onClose }: { activeProperty: string; onClose: () => void }) {
   const [issuePass, { isLoading }] = useIssueVisitorPassMutation();
-  // /properties requires properties.read, which a parking-only role may lack — use the
-  // permission-free /properties/my-scope endpoint so the locked field still resolves
-  // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
-  const { data: scopeData } = useGetMyPropertyScopeQuery();
-  const lockedPropertyName = (scopeData?.data || []).find((p: any) => p.id === activeProperty)?.name;
-  const propertyLocked = !!activeProperty;
+  const propertyId = activeProperty;
 
   const [form, setForm] = useState({
-    propertyId: activeProperty || '',
     visitorName: '', visitorVehiclePlate: '',
-    validFrom: '', validTo: '', maxHours: '4',
+    validFrom: getCurrentDateTimeLocalString(), validTo: '', maxHours: '4',
   });
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  // Bound to the sidebar's Active Property; only "All Properties" allows picking one here.
-  // Clears back to "Select property" if the sidebar is switched to "All Properties".
-  const prevPropertyLockedRef = useRef(propertyLocked);
-  useEffect(() => {
-    if (propertyLocked) {
-      if (form.propertyId !== activeProperty) set('propertyId', activeProperty);
-    } else if (prevPropertyLockedRef.current) {
-      set('propertyId', '');
-    }
-    prevPropertyLockedRef.current = propertyLocked;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyLocked, activeProperty]);
-
   const handleSubmit = async () => {
     setHasAttemptedSubmit(true);
-    if (!form.propertyId || !form.visitorName.trim() || !form.validFrom || !form.validTo) return;
+    if (!propertyId || !form.visitorName.trim() || !form.validFrom || !form.validTo) return;
     try {
       await issuePass({
-        propertyId: form.propertyId,
+        propertyId,
         data: {
           visitorName: form.visitorName,
           visitorVehiclePlate: form.visitorVehiclePlate || undefined,
@@ -356,27 +320,15 @@ function IssuePassModal({ properties, activeProperty, onClose }: { properties: a
   return (
     <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()}>
-        <h2>Issue Visitor Pass</h2>
-        <div className="form-group">
-          <label>Property *</label>
-          <select
-            className={`form-input ${hasAttemptedSubmit && !form.propertyId ? 'input-error' : ''}`}
-            value={form.propertyId}
-            disabled={propertyLocked}
-            onChange={e => set('propertyId', e.target.value)}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ marginBottom: 0 }}>Issue Visitor Pass</h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: 4, display: 'flex' }}
           >
-            {propertyLocked ? (
-              <option value={activeProperty}>{lockedPropertyName || 'Loading…'}</option>
-            ) : (
-              <>
-                <option value="">— Select property —</option>
-                {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </>
-            )}
-          </select>
-          {hasAttemptedSubmit && !form.propertyId && (
-            <span className="field-error-text">Property is required</span>
-          )}
+            <X size={18} />
+          </button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="form-group">

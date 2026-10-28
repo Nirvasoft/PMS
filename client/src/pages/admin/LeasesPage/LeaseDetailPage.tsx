@@ -9,7 +9,7 @@ import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetLeadsQuery } from '../../../store/api/crmApi';
 import ComboBox, { type ComboBoxOption } from '../../../components/ComboBox';
 import {
-  ArrowLeft, CheckCircle, XCircle, PenLine, AlertTriangle,
+  List, CheckCircle, XCircle, PenLine, AlertTriangle,
   Send, RefreshCw, Scissors, ChevronRight, Edit2, Save, X, FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -87,8 +87,6 @@ export default function LeaseDetailPage() {
     <div className="lease-detail-page">
       {/* Header */}
       <div className="ld-header">
-        <button className="back-btn" onClick={() => navigate('/admin/leases')}><ArrowLeft size={16}/> Leases</button>
-
         <div className="ld-hero">
           <div className="ld-hero-left">
             <div className="lease-num-lg">{lease.leaseNumber}</div>
@@ -102,6 +100,14 @@ export default function LeaseDetailPage() {
 
           {/* Action toolbar */}
           <div className="ld-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => navigate('/admin/leases')}
+            >
+              <List size={14}/> List
+            </button>
             <button
               className="btn-action-report"
               onClick={() => openLeaseFormPrintPreview(lease, usersData?.data || [], leadsData?.data || [])}

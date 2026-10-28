@@ -318,16 +318,11 @@
   gap: 4px;
 }
 
-/* ── Slot Status Colors ─────────────────────── */
-.slot-available   { --slot-color: #10b981; }
-.slot-allocated   { --slot-color: #3b82f6; }
-.slot-visitor     { --slot-color: #f59e0b; }
-.slot-blocked     { --slot-color: #ef4444; }
-.slot-maintenance { --slot-color: #6b7280; }
+/* ── Shared Parking Tables (Slots, Allocations, Vehicle Registry) ── */
 
-/* ── Slots Table ────────────────────────────── */
-
-.slot-table-wrap {
+.slot-table-wrap,
+.alloc-table-wrap,
+.vr-table-wrap {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 14px;
@@ -341,16 +336,30 @@
   width: 100%;
 }
 .slot-table-header,
-.slot-row {
+.slot-row,
+.alloc-table-header,
+.alloc-row,
+.vr-table-header,
+.vr-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.9fr 0.9fr 0.7fr;
   align-items: center;
   padding: 0 16px;
   gap: 12px;
-  min-width: 720px;
   box-sizing: border-box;
 }
-.slot-table-header {
+.slot-table-header,
+.slot-row {
+  grid-template-columns: 1.2fr 1fr 0.9fr 0.9fr 0.7fr;
+  min-width: 720px;
+}
+.alloc-table-header,
+.alloc-row {
+  grid-template-columns: 1fr 1.5fr 1fr 1fr 0.8fr 0.6fr;
+  min-width: 720px;
+}
+.slot-table-header,
+.alloc-table-header,
+.vr-table-header {
   font-size: 0.68rem;
   font-weight: 700;
   color: var(--text-muted);
@@ -359,15 +368,25 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   height: 40px;
 }
-.slot-row {
+.slot-row,
+.alloc-row,
+.vr-row {
   font-size: 0.82rem;
   color: var(--text-primary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   transition: background 0.12s;
   height: 48px;
 }
-.slot-row:hover { background: rgba(255, 255, 255, 0.025); }
-.slot-row:last-child { border-bottom: none; }
+.slot-row:hover,
+.alloc-row:hover,
+.vr-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+.slot-row:last-child,
+.alloc-row:last-child,
+.vr-row:last-child {
+  border-bottom: none;
+}
 
 .slot-status-badge {
   display: inline-flex;
@@ -380,68 +399,34 @@
   text-transform: capitalize;
 }
 
-/* ── Allocation Table ───────────────────────── */
-
-.alloc-table-wrap {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-.alloc-table-header,
-.alloc-row {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr 1fr 1fr 0.8fr 0.6fr;
-  align-items: center;
-  padding: 0 16px;
-  gap: 12px;
-  min-width: 720px;
-  box-sizing: border-box;
-}
-.alloc-table-header {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  height: 40px;
-}
-.alloc-row {
-  font-size: 0.82rem;
-  color: var(--text-primary);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  transition: background 0.12s;
-  height: 48px;
-}
-.alloc-row:hover { background: rgba(255, 255, 255, 0.025); }
-.alloc-row:last-child { border-bottom: none; }
-
 [data-theme="light"] .slot-table-wrap,
-[data-theme="light"] .alloc-table-wrap {
+[data-theme="light"] .alloc-table-wrap,
+[data-theme="light"] .vr-table-wrap {
   background: #ffffff;
   border: 1px solid var(--border) !important;
   box-shadow: 0 6px 20px -3px rgba(15, 23, 42, 0.10), 0 3px 8px -2px rgba(15, 23, 42, 0.06);
 }
 [data-theme="light"] .slot-table-header,
-[data-theme="light"] .alloc-table-header {
+[data-theme="light"] .alloc-table-header,
+[data-theme="light"] .vr-table-header {
   background: var(--accent, #059669) !important;
   border-bottom: 1px solid #047857 !important;
   color: #ffffff !important;
   font-weight: 650 !important;
 }
 [data-theme="light"] .slot-table-header span,
-[data-theme="light"] .alloc-table-header span {
+[data-theme="light"] .alloc-table-header span,
+[data-theme="light"] .vr-table-header span {
   color: #ffffff !important;
 }
 [data-theme="light"] .slot-row,
-[data-theme="light"] .alloc-row {
+[data-theme="light"] .alloc-row,
+[data-theme="light"] .vr-row {
   border-bottom: 1px solid var(--border-subtle) !important;
 }
 [data-theme="light"] .slot-row:hover,
-[data-theme="light"] .alloc-row:hover {
+[data-theme="light"] .alloc-row:hover,
+[data-theme="light"] .vr-row:hover {
   background: #E8EEF5 !important;
 }
 
@@ -450,7 +435,8 @@
   gap: 4px;
   justify-content: flex-end;
 }
-.row-btn-edit {
+.row-btn-edit,
+.row-btn-delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -466,6 +452,10 @@
 .row-btn-edit:hover {
   background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
   color: var(--accent-primary);
+}
+.row-btn-delete:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
 }
 
 /* ── Edit Allocation Modal ─────────────────── */
@@ -675,10 +665,36 @@
   justify-content: flex-end;
 }
 
+[data-theme="light"] .visitor-pass-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px -3px rgba(15, 23, 42, 0.08), 0 3px 8px -2px rgba(15, 23, 42, 0.04);
+}
+[data-theme="light"] .visitor-pass-card:hover {
+  box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .visitor-pass-card .vpc-qr-section {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
 /* ── QR Code Full View Modal ───────────────── */
 
 .qr-modal { max-width: 440px !important; text-align: center; }
-.qr-modal-header { margin-bottom: 20px; }
+.qr-modal-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 20px;
+}
+.qr-modal-header h2,
+.alloc-edit-header h2,
+.vr-modal-header h2 {
+  padding-right: 0 !important;
+  margin: 0 !important;
+  text-align: center;
+}
 .qr-modal-icon {
   display: flex;
   align-items: center;
@@ -686,14 +702,9 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6c5ce720, #a78bfa18);
-  color: #6c5ce7;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent, #10b981);
   margin: 0 auto 12px;
-}
-.qr-modal-subtitle {
-  font-size: 13px;
-  color: var(--text-tertiary);
-  margin-top: 4px;
 }
 
 .qr-modal-code {
@@ -854,52 +865,38 @@
 
 /* ── Vehicle Registry Page ──────────────────── */
 
-.vr-page-header {
+/* Filter Bar: Tenant ComboBox + Vehicle Search */
+.vr-filter-bar {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 20px;
 }
-.vr-page-header .page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
+.vr-tenant-combobox-wrap {
+  min-width: 280px;
+  flex: 0 1 320px;
 }
-.vr-page-header .page-subtitle {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 4px;
+.vr-tenant-combobox-wrap .combobox-control {
+  height: 38px;
+  border-radius: 10px;
 }
-
-/* Layout: Tenant Selector + Vehicle Panel */
-.vr-layout {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 20px;
-  min-height: 60vh;
-}
-
-/* Tenant Panel */
-.vr-tenant-panel {
-  background: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: calc(100vh - 180px);
+.vr-vehicle-search-wrap {
+  min-width: 260px;
+  flex: 1 1 300px;
+  max-width: 420px;
 }
 
 .vr-search-box {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--surface-base);
-  border: 1px solid var(--border-subtle);
+  height: 38px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
-  padding: 6px 12px;
+  padding: 0 12px;
   color: var(--text-tertiary);
   transition: border-color 0.15s;
 }
@@ -909,281 +906,105 @@
 .vr-search-box .form-input {
   border: none !important;
   background: transparent !important;
-  padding: 4px 0 !important;
-  font-size: 13px;
+  box-shadow: none !important;
+  padding: 0 !important;
+  font-size: 0.84rem;
   flex: 1;
   outline: none;
+  height: 100%;
 }
-.vr-search-sm {
-  flex: 0 0 200px;
-}
-
-.vr-tenant-list {
-  overflow-y: auto;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.vr-tenant-list::-webkit-scrollbar { width: 4px; }
-.vr-tenant-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-.vr-tenant-item {
-  display: flex;
+.vr-search-clear {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  border: 1px solid transparent;
+  justify-content: center;
   background: none;
-  text-align: left;
+  border: none;
+  padding: 2px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.vr-search-clear:hover {
+  color: var(--text-primary);
+}
+
+/* Vehicle Table List (specific columns & cells) */
+.vr-table-inner {
+  min-width: 760px;
   width: 100%;
-  transition: all 0.12s;
-  font: inherit;
-  color: inherit;
 }
-.vr-tenant-item:hover {
-  background: var(--surface-hover);
+.vr-table-header,
+.vr-row {
+  grid-template-columns: 1.05fr 1.35fr 0.85fr 1.2fr 0.85fr 1fr 0.75fr 0.55fr;
+  min-width: 760px;
 }
-.vr-tenant-item.selected {
-  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
-  border-color: color-mix(in srgb, var(--accent-primary) 25%, transparent);
-}
-.vr-tenant-empty {
-  padding: 30px;
-  text-align: center;
-  color: var(--text-tertiary);
-  font-size: 13px;
-}
-
-.vti-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #059669);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.vti-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.vti-avatar span { font-size: 13px; font-weight: 700; color: #fff; }
-
-.vti-info { min-width: 0; flex: 1; }
-.vti-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.vti-meta {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-transform: capitalize;
-}
-
-/* Vehicle Panel */
-.vr-vehicle-panel {
-  min-height: 400px;
-}
-
-.vr-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 80px 40px;
-  color: var(--text-tertiary);
-  text-align: center;
-}
-.vr-empty-state h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin: 0;
-}
-.vr-empty-state p {
-  font-size: 13px;
-  max-width: 340px;
-  margin: 0;
-}
-
-/* Toolbar */
-.vr-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-.vr-toolbar-left { flex: 1; min-width: 0; }
-.vr-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.vr-tenant-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.vr-vehicle-count {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-tertiary);
-  background: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
-  padding: 2px 10px;
-  border-radius: 20px;
-}
-
-/* Vehicle Cards Grid */
-.vr-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
-}
-
-.vehicle-card {
-  background: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.vehicle-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-  border-color: var(--border-default);
-}
-.vehicle-card.inactive {
+.vr-row-inactive {
   opacity: 0.55;
-  filter: grayscale(0.5);
-}
-.vehicle-card.inactive:hover {
-  transform: none;
-  box-shadow: none;
 }
 
-.vehicle-card .vc-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.vc-plate-badge {
-  background: var(--surface-base);
-  border: 2px solid var(--border-default);
-  border-radius: 8px;
-  padding: 6px 14px;
-}
-.vc-plate {
-  font-size: 16px;
-  font-weight: 800;
+.vr-plate-cell {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
   font-family: 'SF Mono', 'Fira Code', monospace;
   color: var(--text-primary);
-  letter-spacing: 1.5px;
+  letter-spacing: 1px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 3px 9px;
 }
 
 .vc-type-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 3px 10px;
   border-radius: 20px;
   font-size: 11px;
   font-weight: 600;
   text-transform: capitalize;
 }
 
-.vehicle-card .vc-details {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.vc-make-model {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.vc-detail-item {
-  display: flex;
+.vc-color-inline {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
 }
 .vc-color-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0,0,0,0.15);
   flex-shrink: 0;
 }
 .vc-rfid {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--accent-primary);
-  font-weight: 500;
-  font-size: 11px;
+  font-weight: 600;
+  font-size: 12px;
 }
 .vc-rfid span {
   font-family: 'SF Mono', 'Fira Code', monospace;
   letter-spacing: 0.5px;
 }
 
-.vehicle-card .vc-actions {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 12px;
-  margin-top: 2px;
+[data-theme="light"] .vr-plate-cell {
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
-.btn-danger-text { color: var(--text-tertiary); }
-.btn-danger-text:hover { color: var(--danger) !important; }
-
-.vc-inactive-badge {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  text-align: center;
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 10px;
-}
-
-.vr-inactive-section {
-  margin-top: 28px;
-}
-.vr-section-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-subtle);
+[data-theme="light"] .vr-search-box {
+  background: var(--surface);
+  border-color: var(--border);
 }
 
 /* Vehicle Form Modal */
 .vr-modal { max-width: 520px !important; }
 .vr-modal-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
   margin-bottom: 20px;
 }
@@ -1194,8 +1015,8 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 15%, transparent), color-mix(in srgb, #8b5cf6 10%, transparent));
-  color: var(--accent-primary);
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent, #10b981);
   margin: 0 auto 12px;
 }
 
@@ -1302,9 +1123,6 @@
   .slot-table-header, .slot-row { grid-template-columns: 1fr 1fr 1fr 1fr; }
   .alloc-table-header, .alloc-row { grid-template-columns: 1fr 1fr 1fr; }
   .visitor-pass-grid { grid-template-columns: 1fr; }
-  .vr-layout { grid-template-columns: 1fr; }
-  .vr-tenant-panel { max-height: 300px; }
-  .vr-cards-grid { grid-template-columns: 1fr; }
-  .vr-toolbar { flex-direction: column; align-items: stretch; }
-  .vr-toolbar-right { flex-wrap: wrap; }
+  .vr-filter-bar { flex-direction: column; align-items: stretch; }
+  .vr-tenant-combobox-wrap, .vr-vehicle-search-wrap { max-width: none; width: 100%; }
 }

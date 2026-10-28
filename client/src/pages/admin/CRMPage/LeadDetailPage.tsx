@@ -17,7 +17,7 @@ import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  ArrowLeft, User, Calendar, Mail, FileText, Eye, Activity,
+  List, User, Calendar, Mail, FileText, Eye, Activity,
   CheckCircle, Clock, MessageSquare, PhoneCall, Send, Target, ChevronRight,
   Edit3, Save, X, Trash2, Repeat, Search, UserPlus, AlertTriangle, RefreshCw,
   ShieldOff, Shield,
@@ -106,9 +106,6 @@ export default function LeadDetailPage() {
       {/* Header */}
       <div className="lead-detail-header">
         <div>
-          <button className="btn-ghost" onClick={() => navigate('/admin/crm/leads')} style={{ marginBottom: 8 }}>
-            <ArrowLeft size={14} /> Back to Pipeline
-          </button>
           <div className="lead-name">{displayName}</div>
           <div className="lead-meta">
             {lead.leadNumber && <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{lead.leadNumber}</span>}
@@ -119,6 +116,14 @@ export default function LeadDetailPage() {
           </div>
         </div>
         <div className="lead-header-actions">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            onClick={() => navigate('/admin/crm/leads')}
+          >
+            <List size={14} /> List
+          </button>
           <PermissionGuard permission="crm-leads.write">
             <button
               className="btn-convert"

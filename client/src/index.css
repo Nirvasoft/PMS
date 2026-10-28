@@ -1443,16 +1443,22 @@ input.input-full:focus {
 .combobox.is-disabled .combobox-control { opacity: 1; cursor: default; }
 .combobox.is-disabled .combobox-caret { opacity: 0.45; }
 
-.combobox-input {
+.combobox-input,
+.form-group .combobox-input,
+.modal-card .form-group .combobox-input {
   flex: 1;
   min-width: 0;
-  padding: 9px 12px;
-  background: none;
-  border: none;
+  padding: 9px 12px !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
   outline: none;
   color: var(--text-primary);
   font-size: 0.84rem;
   font-family: inherit;
+}
+.alloc-field-error .combobox-control {
+  border-color: #ef4444 !important;
 }
 .combobox-input:disabled {
   opacity: 1;
@@ -1618,14 +1624,14 @@ input.input-full:focus {
   position: relative;
   cursor: pointer;
   overflow: hidden;
-  border-radius: 50%;
+  border-radius: 16px;
 }
 
 .user-avatar-lg .avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 50%;
+  border-radius: 16px;
 }
 
 .user-avatar-lg .avatar-overlay {
@@ -1639,7 +1645,7 @@ input.input-full:focus {
   font-size: 20px;
   opacity: 0;
   transition: opacity 0.2s ease;
-  border-radius: 50%;
+  border-radius: 16px;
 }
 
 .user-avatar-lg.clickable:hover .avatar-overlay {
@@ -3577,17 +3583,18 @@ input.input-full:focus {
 }
 
 .user-avatar-sm {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--gradient-primary);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(108, 92, 231, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 0.85rem;
-  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 700;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .user-cell-name {
@@ -3671,7 +3678,7 @@ input.input-full:focus {
 
 #users-table.billing-table th:first-child,
 .users-table th:first-child {
-  padding-left: 30px;
+  padding-left: 20px;
 }
 
 #users-table.billing-table tbody tr,
@@ -3689,6 +3696,11 @@ input.input-full:focus {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+#users-table.billing-table td:first-child,
+.users-table td:first-child {
+  padding-left: 20px;
+}
+
 #users-table.billing-table tbody tr:last-child td,
 .users-table tbody tr:last-child td {
   border-bottom: none;
@@ -3701,9 +3713,10 @@ input.input-full:focus {
 }
 
 #users-table .user-avatar-sm {
-  width: 28px;
-  height: 28px;
-  font-size: 0.75rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 0.9rem;
 }
 
 #users-table .user-cell-name,
@@ -3993,11 +4006,12 @@ input.input-full:focus {
   max-width: 700px;
 }
 
+.modal-card .modal-header,
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--border-subtle);
   position: sticky;
   top: 0;
@@ -4005,24 +4019,33 @@ input.input-full:focus {
   background: var(--surface);
 }
 
+.modal-card .modal-header h2,
 .modal-header h2 {
+  margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
 }
 
+.modal-card .modal-body,
 .modal-body {
-  padding: 24px;
+  padding: 16px 24px 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
+.modal-card .form-group input,
+.modal-card .form-group select {
+  padding: 9px 12px;
+}
+
+.modal-card .modal-actions,
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin: 4px 0 -24px;
-  padding: 14px 0;
+  margin: 4px 0 0;
+  padding: 12px 0 16px;
   border-top: 1px solid var(--border-subtle);
   position: sticky;
   bottom: 0;
@@ -6178,12 +6201,12 @@ select.input-full:focus {
 }
 
 .user-avatar-lg {
-  width: 72px; height: 72px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  width: 64px; height: 64px;
+  border-radius: 16px;
+  background: rgba(108, 92, 231, 0.15);
   display: flex; align-items: center; justify-content: center;
-  font-size: 28px; font-weight: 700;
-  color: #fff;
+  font-size: 1.6rem; font-weight: 800;
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 
@@ -6244,44 +6267,62 @@ select.input-full:focus {
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  padding: 24px;
+  padding: 20px 24px;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: 12px;
   margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .section-header h3 {
-  margin: 0; font-size: 1.1rem;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-/* Detail Grid */
+/* Detail Grid — Simple clean 2-column key-value layout */
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 48px;
+  row-gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .detail-row {
   display: flex;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-subtle);
+  align-items: baseline;
+  gap: 16px;
+  padding: 4px 0;
 }
 
 .detail-label {
-  color: var(--text-secondary);
-  font-size: 13px; font-weight: 500;
-  min-width: 120px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 400;
+  width: 130px;
+  flex-shrink: 0;
 }
 
 .detail-value {
   color: var(--text-primary);
   font-size: 13px;
-  text-align: right;
+  font-weight: 400;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
 }
 
 /* Edit Form */
@@ -7936,6 +7977,17 @@ textarea.form-input {
   background: #fafafa;
   border-color: rgba(0,0,0,0.12);
   color: #111;
+}
+.form-input[type="date"]::-webkit-calendar-picker-indicator,
+.form-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+  cursor: pointer;
+}
+[data-theme="light"] .form-input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] .form-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.7;
 }
 
 /* ── .form-label — Generic label ──────────── */

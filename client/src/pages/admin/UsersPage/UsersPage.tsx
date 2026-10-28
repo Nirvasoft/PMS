@@ -116,14 +116,15 @@ export default function UsersPage() {
 
         {/* Users Table */}
         {isLoading ? (
-          <TableSkeleton columns={4} rows={5} />
+          <TableSkeleton columns={5} rows={5} />
         ) : (
           <div className="users-table-wrap billing-table-wrap">
             <TableScrollWrapper>
               <table className="audit-table billing-table users-table" id="users-table">
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 200, paddingLeft: 30 }}>User</th>
+                    <th style={{ width: 64, paddingLeft: 20 }}>Photo</th>
+                    <th style={{ minWidth: 180 }}>User</th>
                     <th style={{ minWidth: 220 }}>Roles</th>
                     <th style={{ width: 120 }}>Status</th>
                     <th style={{ width: 140 }}>Last Login</th>
@@ -132,13 +133,13 @@ export default function UsersPage() {
                 <tbody>
                   {users.map((user) => (
                     <tr key={user.id}>
+                      <td data-label="Photo" style={{ width: 64, paddingLeft: 20 }}>
+                        <UserAvatar url={user.avatarUrl} name={user.fullName} isActive={user.isActive} />
+                      </td>
                       <td data-label="User">
-                        <div className="user-cell">
-                          <UserAvatar url={user.avatarUrl} name={user.fullName} />
-                          <Link to={`/admin/users/${user.id}`} className="user-cell-name user-name-link">
-                            {user.fullName}
-                          </Link>
-                        </div>
+                        <Link to={`/admin/users/${user.id}`} className="user-cell-name user-name-link">
+                          {user.fullName}
+                        </Link>
                       </td>
                       <td data-label="Roles">
                         <div className="role-chips">
@@ -158,7 +159,7 @@ export default function UsersPage() {
                     </tr>
                   ))}
                   {users.length === 0 && (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '40px' }} className="text-muted">No users found</td></tr>
+                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px' }} className="text-muted">No users found</td></tr>
                   )}
                 </tbody>
               </table>
@@ -218,21 +219,24 @@ export default function UsersPage() {
   );
 }
 
-function UserAvatar({ url, name }: { url: string | null; name: string }) {
+function UserAvatar({ url, name, isActive = true }: { url: string | null; name: string; isActive?: boolean }) {
   const [failed, setFailed] = useState(false);
 
   return (
-    <div className="user-avatar-sm" style={{ overflow: 'hidden' }}>
+    <div
+      className="user-avatar-sm"
+      style={{ background: isActive ? 'rgba(108, 92, 231, 0.15)' : 'rgba(231, 76, 60, 0.15)' }}
+    >
       {url && !failed
         ? (
           <img
             src={url}
             alt=""
             onError={() => setFailed(true)}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         )
-        : name.charAt(0)}
+        : <span>{name.charAt(0).toUpperCase()}</span>}
     </div>
   );
 }

@@ -15,7 +15,7 @@ import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
-  ArrowLeft, User, Building2, Shield, ShieldOff, Phone, Mail,
+  List, User, Building2, Shield, ShieldOff, Phone, Mail,
   Plus, Trash2, Pin, PinOff, CheckCircle, XCircle, Clock,
   AlertCircle, FileText, Edit2, X, Save,
   FolderOpen, Upload, Download, Camera, Pencil, CalendarClock,
@@ -76,8 +76,13 @@ export default function TenantDetailPage() {
     <div className="tenant-detail-page">
       {/* Header */}
       <div className="td-header">
-        <button className="back-btn" onClick={() => navigate('/admin/tenants')}>
-          <ArrowLeft size={16} /> Tenants
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6 }}
+          onClick={() => navigate('/admin/tenants')}
+        >
+          <List size={14} /> List
         </button>
 
         <div className="td-hero">

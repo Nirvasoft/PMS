@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowUpDown, MinusSquare, PlusSquare } from 'lucide-react';
+import { ArrowUpDown, MinusSquare, PlusSquare, List } from 'lucide-react';
 import {
   useGetRolesQuery, useGetRoleQuery, useGetPermissionsQuery, useUpdateRoleMutation,
   type PermissionsByModule,
@@ -526,7 +526,14 @@ export default function AssignPermissionPage() {
     <div className="page-content">
       <div className="page-header">
         <h1 style={{ margin: 0 }}>{isViewOnly ? 'View Permissions' : 'Assign Permission'}</h1>
-        <button className="btn btn-sm" onClick={() => navigate('/admin/roles')}>← Back</button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          onClick={() => navigate('/admin/roles')}
+        >
+          <List size={14} /> List
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="detail-form">

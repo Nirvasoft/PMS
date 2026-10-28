@@ -796,7 +796,7 @@
 .campaign-table-header,
 .campaign-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 0.6fr 0.6fr 0.8fr 0.4fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr 0.6fr 0.6fr 0.8fr 76px;
   align-items: center;
   padding: 0 16px;
   gap: 12px;
@@ -870,7 +870,9 @@
 
 .camp-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
 }
 .campaigns-page .row-btn-edit {
   display: inline-flex;
@@ -1184,6 +1186,11 @@ select.camp-input {
 .camp-input::placeholder {
   color: var(--text-muted);
 }
+.camp-input[type="date"]::-webkit-calendar-picker-indicator,
+.crm-modal input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1);
+  cursor: pointer;
+}
 .camp-input:focus,
 select.camp-input:focus {
   border-color: var(--accent);
@@ -1204,6 +1211,10 @@ select.camp-input option {
   border-color: #cbd5e1;
   color: #0f172a;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+[data-theme="light"] .camp-input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] .crm-modal input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0);
 }
 [data-theme="light"] .camp-input:hover:not(:focus):not(.input-error),
 [data-theme="light"] select.camp-input:hover:not(:focus):not(.input-error) {

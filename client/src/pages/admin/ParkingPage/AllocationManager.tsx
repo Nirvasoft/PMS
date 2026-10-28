@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   useGetAllocationsQuery, useCreateAllocationMutation, useCancelAllocationMutation,
   useUpdateAllocationMutation, useGetVehiclesQuery,
   useGetSlotsQuery, useGetParkingTypesQuery, useGetZonesQuery, type ParkingAllocation, type ParkingUnitType,
 } from '../../../store/api/parkingApi';
-import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import { useGetTenantsQuery, type TenantListItem } from '../../../store/api/tenantsApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { useConfirm } from '../../../components/DialogProvider';
+import ComboBox from '../../../components/ComboBox';
 import { Link2, Plus, Trash2, Car, Edit3, Save, X, Calendar, DollarSign, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import { getTenantDisplay } from './VehicleRegistryPage';
 import './ParkingPage.css';
 
 function ordinalSuffix(n: number): string {
@@ -27,6 +29,10 @@ function getTodayDateString(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function formatAllocationTenantName(tenant: ParkingAllocation['tenant']): string {
+  return (tenant.tenantType !== 'individual' ? tenant.companyName : tenant.lastName) || '—';
 }
 
 export default function AllocationManager() {
@@ -60,12 +66,12 @@ export default function AllocationManager() {
     <div className="parking-page">
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
+          <div className="page-icon-lg">
             <Link2 size={22} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Parking Allocations</h1>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+            <h1>Parking Allocations</h1>
+            <p>
               {meta ? `${meta.total} total allocations` : <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} />}
             </p>
           </div>
@@ -94,7 +100,7 @@ export default function AllocationManager() {
               <div className="table-empty"><Car size={40} /><p>No allocations found</p></div>
             ) : (
               allocations.map((a: ParkingAllocation) => {
-                const tenantName = a.tenant.tenantType !== 'individual' ? a.tenant.companyName : (a.tenant.lastName || '—');
+                const tenantName = formatAllocationTenantName(a.tenant);
                 return (
                   <div key={a.id} className="alloc-row">
                     <div>
@@ -231,9 +237,7 @@ function EditAllocationModal({ allocation, onClose }: { allocation: ParkingAlloc
     }
   };
 
-  const tenantName = allocation.tenant.tenantType !== 'individual'
-    ? allocation.tenant.companyName
-    : (allocation.tenant.lastName || '—');
+  const tenantName = formatAllocationTenantName(allocation.tenant);
 
   return (
     <div className="crm-modal-overlay">
@@ -352,6 +356,14 @@ function CreateAllocationModal({ activeProperty, onClose }: { activeProperty: st
 
   const [parkingType, setParkingType] = useState('');
   const [zoneId, setZoneId] = useState('');
+  const [tenantSearch, setTenantSearch] = useState('');
+  const [tenantDebounced, setTenantDebounced] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setTenantDebounced(tenantSearch), 250);
+    return () => clearTimeout(t);
+  }, [tenantSearch]);
+
   const { data: typesData } = useGetParkingTypesQuery(propertyId, { skip: !propertyId });
   const parkingTypes = typesData?.data || [];
   const { data: zonesData } = useGetZonesQuery({ propertyId, unitType: parkingType || undefined }, { skip: !propertyId });
@@ -360,11 +372,19 @@ function CreateAllocationModal({ activeProperty, onClose }: { activeProperty: st
     { propertyId, unitType: parkingType || undefined, zoneId: zoneId || undefined, status: 'available', limit: 200 },
     { skip: !propertyId },
   );
-  const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 100 });
+  const { data: tenantsData, isFetching: tenantsLoading } = useGetTenantsQuery({
+    search: tenantDebounced || undefined,
+    kycStatus: 'verified',
+    isBlacklisted: false,
+    propertyId: propertyId || undefined,
+    page: 1,
+    limit: 20,
+  });
 
   const [form, setForm] = useState({
     slotId: '',
     tenantId: '',
+    tenantCode: '',
     startDate: getTodayDateString(),
     endDate: '',
     monthlyRate: '',
@@ -383,7 +403,20 @@ function CreateAllocationModal({ activeProperty, onClose }: { activeProperty: st
   }, [propertyId]);
 
   const slots = slotsData?.data || [];
-  const tenants = tenantsData?.data || [];
+  const tenantOptions = useMemo(() => {
+    const list = (tenantsData?.data || []).map((t: TenantListItem) => {
+      const { label, sublabel } = getTenantDisplay(t);
+      return { id: t.id, label, sublabel };
+    });
+    if (form.tenantId && !list.some((t) => t.id === form.tenantId)) {
+      list.unshift({
+        id: form.tenantId,
+        label: form.tenantCode || 'Selected tenant',
+        sublabel: undefined,
+      });
+    }
+    return list;
+  }, [tenantsData?.data, form.tenantId, form.tenantCode]);
 
   const handleSubmit = async () => {
     setHasAttemptedSubmit(true);
@@ -456,16 +489,23 @@ function CreateAllocationModal({ activeProperty, onClose }: { activeProperty: st
             <span className="field-error-text">Available slot is required</span>
           )}
         </div>
-        <div className="form-group">
-          <label>Tenant *</label>
-          <select
-            className={`form-input ${hasAttemptedSubmit && !form.tenantId ? 'input-error' : ''}`}
+        <div className={`form-group${hasAttemptedSubmit && !form.tenantId ? ' alloc-field-error' : ''}`}>
+          <label htmlFor="alloc-tenant">Tenant *</label>
+          <ComboBox
+            id="alloc-tenant"
             value={form.tenantId}
-            onChange={e => set('tenantId', e.target.value)}
-          >
-            <option value="">— Select tenant —</option>
-            {tenants.map((t: any) => <option key={t.id} value={t.id}>{t.tenantType !== 'individual' ? t.companyName : (t.lastName || '—')}</option>)}
-          </select>
+            selectedLabel={form.tenantCode}
+            onChange={(v) => {
+              const opt = tenantOptions.find((t: any) => t.id === v);
+              set('tenantId', v);
+              set('tenantCode', opt?.label || '');
+            }}
+            options={tenantOptions}
+            onSearch={setTenantSearch}
+            loading={tenantsLoading}
+            placeholder="Search id or name"
+            emptyText="No tenants found"
+          />
           {hasAttemptedSubmit && !form.tenantId && (
             <span className="field-error-text">Tenant is required</span>
           )}

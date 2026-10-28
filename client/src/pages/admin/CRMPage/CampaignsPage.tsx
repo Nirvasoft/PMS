@@ -4,7 +4,6 @@ import {
   useDeleteCampaignMutation,
   useGetCampaignROIQuery, type CampaignItem,
 } from '../../../store/api/crmApi';
-import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   Megaphone, Plus, Edit3, Save, X, Calendar, DollarSign, Trash2, AlertTriangle, ChevronLeft, ChevronRight,
@@ -28,11 +27,9 @@ export default function CampaignsPage() {
     propertyId: activePropertyFilter || undefined,
     page, limit: pageSize,
   });
-  const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
 
   const campaigns = data?.data || [];
   const meta = data?.meta;
-  const properties = propertiesData?.data || [];
 
   return (
     <div className="campaigns-page">
@@ -136,7 +133,7 @@ export default function CampaignsPage() {
       {/* Create Modal */}
       {showCreate && (
         <CampaignFormModal
-          properties={properties}
+          activePropertyId={activePropertyFilter}
           onClose={() => setShowCreate(false)}
         />
       )}
@@ -145,7 +142,7 @@ export default function CampaignsPage() {
       {editingCampaign && (
         <CampaignFormModal
           campaign={editingCampaign}
-          properties={properties}
+          activePropertyId={activePropertyFilter}
           onClose={() => setEditingCampaign(null)}
         />
       )}
@@ -175,7 +172,6 @@ function CampaignRow({ campaign, onEdit }: { campaign: CampaignItem; onEdit: () 
           <div className="camp-name">{campaign.name}</div>
           <div className="camp-status-row">
             <span className={`camp-status-badge status-${campaign.status}`}>{campaign.status}</span>
-            {campaign.property && <span className="camp-property-name">{campaign.property.name}</span>}
           </div>
         </div>
         <div>
@@ -240,9 +236,9 @@ function CampaignRow({ campaign, onEdit }: { campaign: CampaignItem; onEdit: () 
 
 // ── Shared Create / Edit Modal ──────────────
 
-function CampaignFormModal({ campaign, properties, onClose }: {
+function CampaignFormModal({ campaign, activePropertyId, onClose }: {
   campaign?: CampaignItem;
-  properties: any[];
+  activePropertyId: string;
   onClose: () => void;
 }) {
   const isEdit = !!campaign;
@@ -253,10 +249,9 @@ function CampaignFormModal({ campaign, properties, onClose }: {
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [form, setForm] = useState({
     name: campaign?.name || '',
-    propertyId: campaign?.property?.id || '',
     channel: campaign?.channel || 'email',
     budget: campaign?.budget ? Number(campaign.budget).toString() : '',
-    startDate: campaign?.startDate ? campaign.startDate.substring(0, 10) : '',
+    startDate: campaign?.startDate ? campaign.startDate.substring(0, 10) : new Date().toISOString().slice(0, 10),
     endDate: campaign?.endDate ? campaign.endDate.substring(0, 10) : '',
     status: campaign?.status || 'active',
   });
@@ -273,7 +268,6 @@ function CampaignFormModal({ campaign, properties, onClose }: {
         // Only send changed fields
         const data: Record<string, unknown> = {};
         if (form.name !== campaign!.name) data.name = form.name;
-        if ((form.propertyId || null) !== (campaign!.property?.id || null)) data.propertyId = form.propertyId || null;
         if (form.channel !== campaign!.channel) data.channel = form.channel;
         const newBudget = form.budget ? Number(form.budget) : null;
         const oldBudget = campaign!.budget ? Number(campaign!.budget) : null;
@@ -293,7 +287,7 @@ function CampaignFormModal({ campaign, properties, onClose }: {
       } else {
         await createCampaign({
           name: form.name,
-          propertyId: form.propertyId || undefined,
+          propertyId: activePropertyId || undefined,
           channel: form.channel || undefined,
           budget: form.budget ? Number(form.budget) : undefined,
           startDate: form.startDate || undefined,
@@ -373,14 +367,6 @@ function CampaignFormModal({ campaign, properties, onClose }: {
                 min="0"
               />
             </div>
-          </div>
-
-          <div className="camp-field">
-            <label>Property <span className="camp-optional">(optional)</span></label>
-            <select className="camp-input" value={form.propertyId} onChange={e => set('propertyId', e.target.value)}>
-              <option value="">All Properties</option>
-              {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
           </div>
 
           <div className="camp-form-grid-2">

@@ -1,48 +1,107 @@
-import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
-import { useState, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import {
   useGetVehiclesQuery, useAddVehicleMutation,
   useUpdateVehicleMutation, useDeactivateVehicleMutation,
   type TenantVehicle,
 } from '../../../store/api/parkingApi';
 import { useGetTenantsQuery, type TenantListItem } from '../../../store/api/tenantsApi';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import ComboBox from '../../../components/ComboBox';
 import {
   Car, Plus, Search, Edit3, Trash2, Save, Wifi,
-  AlertTriangle, Truck, Bike,
+  AlertTriangle, Truck, Bike, X, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ParkingPage.css';
 
 const VEHICLE_TYPES: Record<string, { label: string; icon: ReactNode; color: string }> = {
-  car:        { label: 'Car',        icon: <Car size={14} />,   color: '#3b82f6' },
-  suv:        { label: 'SUV',        icon: <Car size={14} />,   color: '#8b5cf6' },
-  motorcycle: { label: 'Motorcycle', icon: <Bike size={14} />,  color: '#f59e0b' },
-  truck:      { label: 'Truck',      icon: <Truck size={14} />, color: '#ef4444' },
-  van:        { label: 'Van',        icon: <Truck size={14} />, color: '#06b6d4' },
+  car:        { label: 'Car',        icon: <Car size={13} />,   color: '#3b82f6' },
+  suv:        { label: 'SUV',        icon: <Car size={13} />,   color: '#8b5cf6' },
+  motorcycle: { label: 'Motorcycle', icon: <Bike size={13} />,  color: '#f59e0b' },
+  truck:      { label: 'Truck',      icon: <Truck size={13} />, color: '#ef4444' },
+  van:        { label: 'Van',        icon: <Truck size={13} />, color: '#06b6d4' },
 };
 
-function getTenantLabel(t: TenantListItem): string {
-  if (t.tenantType !== 'individual') {
-    return t.companyName || t.displayName || '—';
+export function getTenantDisplay(t: TenantListItem): { label: string; sublabel?: string } {
+  const isCompany = t.tenantType === 'company' || t.tenantType === 'corporate';
+  if (isCompany) {
+    return {
+      label: t.firstName || t.companyName || t.displayName || '—',
+      sublabel: t.firstName ? (t.companyName || t.lastName || undefined) : (t.lastName || undefined),
+    };
   }
-  return t.lastName || t.displayName || '—';
+  return {
+    label: t.firstName || t.lastName || t.displayName || '—',
+    sublabel: t.firstName ? (t.lastName || undefined) : undefined,
+  };
 }
 
 export default function VehicleRegistryPage() {
+  const selectedProperty = useSelectedPropertyFilter();
   const [selectedTenantId, setSelectedTenantId] = useState('');
+  const [selectedTenantCode, setSelectedTenantCode] = useState('');
   const [tenantSearch, setTenantSearch] = useState('');
+  const [tenantDebounced, setTenantDebounced] = useState('');
   const [vehicleSearch, setVehicleSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<TenantVehicle | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TenantVehicle | null>(null);
 
-  // Fetch tenants
-  const { data: tenantsData, isFetching: isFetchingTenants } = useGetTenantsQuery(
-    { search: tenantSearch || undefined, page: 1, limit: 50 }
-  );
+  useEffect(() => {
+    const t = setTimeout(() => setTenantDebounced(tenantSearch), 250);
+    return () => clearTimeout(t);
+  }, [tenantSearch]);
+
+  // Fetch tenants scoped to active property (matching Create Lease's tenant filter)
+  const { data: tenantsData, isFetching: isFetchingTenants } = useGetTenantsQuery({
+    search: tenantDebounced || undefined,
+    kycStatus: 'verified',
+    isBlacklisted: false,
+    propertyId: selectedProperty || undefined,
+    page: 1,
+    limit: 50,
+  });
   const tenants = tenantsData?.data || [];
   const selectedTenant = tenants.find(t => t.id === selectedTenantId);
+
+  const tenantOptions = useMemo(() => {
+    const list = tenants.map((t: TenantListItem) => {
+      const { label, sublabel } = getTenantDisplay(t);
+      return { id: t.id, label, sublabel };
+    });
+    if (selectedTenantId && !list.some(t => t.id === selectedTenantId)) {
+      list.unshift({
+        id: selectedTenantId,
+        label: selectedTenantCode || 'Selected tenant',
+        sublabel: undefined,
+      });
+    }
+    return list;
+  }, [tenants, selectedTenantId, selectedTenantCode]);
+
+  // Auto-select first tenant when list loads or property changes
+  useEffect(() => {
+    if (!tenantDebounced) {
+      if (tenants.length > 0 && (!selectedTenantId || !tenants.some(t => t.id === selectedTenantId))) {
+        const first = tenants[0];
+        const { label } = getTenantDisplay(first);
+        setSelectedTenantId(first.id);
+        setSelectedTenantCode(label);
+      } else if (tenants.length === 0) {
+        setSelectedTenantId('');
+        setSelectedTenantCode('');
+      }
+    }
+  }, [tenants, selectedTenantId, tenantDebounced]);
+
+  // Reset vehicle table pagination when tenant, filter, or page size changes
+  useEffect(() => {
+    setPage(1);
+  }, [selectedTenantId, vehicleSearch, pageSize]);
 
   // Fetch vehicles for selected tenant
   const { data: vehiclesData, isFetching: isFetchingVehicles } = useGetVehiclesQuery(
@@ -51,164 +110,234 @@ export default function VehicleRegistryPage() {
   );
   const allVehicles = vehiclesData?.data || [];
 
-  // Filter vehicles by search
+  // Filter vehicles by search and sort active first
   const vehicles = useMemo(() => {
-    if (!vehicleSearch) return allVehicles;
-    const q = vehicleSearch.toLowerCase();
-    return allVehicles.filter(v =>
-      v.plateNumber.toLowerCase().includes(q) ||
-      v.make?.toLowerCase().includes(q) ||
-      v.model?.toLowerCase().includes(q) ||
-      v.color?.toLowerCase().includes(q) ||
-      v.rfidTagNo?.toLowerCase().includes(q)
-    );
+    const filtered = !vehicleSearch
+      ? allVehicles
+      : allVehicles.filter(v => {
+          const q = vehicleSearch.toLowerCase();
+          return (
+            v.plateNumber.toLowerCase().includes(q) ||
+            v.make?.toLowerCase().includes(q) ||
+            v.model?.toLowerCase().includes(q) ||
+            v.color?.toLowerCase().includes(q) ||
+            v.rfidTagNo?.toLowerCase().includes(q)
+          );
+        });
+    return [...filtered].sort((a, b) => Number(b.isActive) - Number(a.isActive));
   }, [allVehicles, vehicleSearch]);
 
-  const activeVehicles = vehicles.filter(v => v.isActive);
-  const inactiveVehicles = vehicles.filter(v => !v.isActive);
+  const activeCount = useMemo(() => allVehicles.filter(v => v.isActive).length, [allVehicles]);
+  const totalPages = Math.max(1, Math.ceil(vehicles.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedVehicles = useMemo(
+    () => vehicles.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [vehicles, currentPage, pageSize]
+  );
+
+  const selectedDisplay = selectedTenant
+    ? getTenantDisplay(selectedTenant)
+    : { label: selectedTenantCode || '—', sublabel: undefined };
 
   return (
     <div className="parking-page">
+      {/* Header */}
       <div className="page-header">
         <div className="page-title-row">
-          <div className="page-icon-lg" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent)', borderRadius: 12 }}>
+          <div className="page-icon-lg">
             <Car size={22} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Vehicle Registry</h1>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              Manage tenant vehicles, RFID tags, and registrations
+            <h1>Vehicle Registry</h1>
+            <p>
+              {selectedTenantId
+                ? `${allVehicles.length} total vehicle${allVehicles.length !== 1 ? 's' : ''} (${activeCount} active)`
+                : 'Manage tenant vehicles, RFID tags, and registrations'}
             </p>
           </div>
         </div>
+        <PermissionGuard permission="parking-vehicles.write">
+          <button
+            className="btn btn-primary"
+            disabled={!selectedTenantId}
+            onClick={() => { setEditingVehicle(null); setShowAddModal(true); }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Plus size={15} /> Add Vehicle
+          </button>
+        </PermissionGuard>
       </div>
 
-      <div className="vr-layout">
-        {/* Left: Tenant Selector */}
-        <div className="vr-tenant-panel">
+      {/* Filter Bar */}
+      <div className="vr-filter-bar">
+        <div className="parking-filter-field vr-tenant-combobox-wrap">
+          <label>Tenant</label>
+          <ComboBox
+            id="vr-tenant-select"
+            value={selectedTenantId}
+            selectedLabel={selectedTenantCode}
+            onChange={(v) => {
+              const opt = tenantOptions.find(t => t.id === v);
+              setSelectedTenantId(v);
+              setSelectedTenantCode(opt?.label || '');
+            }}
+            options={tenantOptions}
+            onSearch={setTenantSearch}
+            loading={isFetchingTenants}
+            placeholder="Search tenant by code or name…"
+            emptyMessage="No verified tenants found"
+          />
+        </div>
+
+        <div className="parking-filter-field vr-vehicle-search-wrap">
+          <label>Search Vehicles</label>
           <div className="vr-search-box">
             <Search size={14} />
             <input
               className="form-input"
-              value={tenantSearch}
-              onChange={e => setTenantSearch(e.target.value)}
-              placeholder="Search tenants…"
+              value={vehicleSearch}
+              onChange={e => setVehicleSearch(e.target.value)}
+              placeholder="Search plate, make, model, color, RFID…"
             />
+            {vehicleSearch && (
+              <button className="vr-search-clear" onClick={() => setVehicleSearch('')} aria-label="Clear filter">
+                <X size={13} />
+              </button>
+            )}
           </div>
-          <div className="vr-tenant-list">
-            {isFetchingTenants ? (
-              <TableSkeleton columns={4} rows={4} />
-            ) : tenants.length === 0 ? (
-              <div className="vr-tenant-empty">No tenants found</div>
+        </div>
+      </div>
+
+      {/* Full-Width Vehicle List Table */}
+      <div className="vr-table-wrap">
+        <TableScrollWrapper className="tenant-table-scroll">
+          <div className="vr-table-inner">
+            <div className="vr-table-header">
+              <span>Plate No.</span>
+              <span>Tenant</span>
+              <span>Type</span>
+              <span>Make / Model</span>
+              <span>Color</span>
+              <span>RFID Tag</span>
+              <span>Status</span>
+              <span></span>
+            </div>
+            {!selectedTenantId ? (
+              <div className="table-empty">
+                <Car size={40} />
+                <p>Select a tenant above to view their registered vehicles</p>
+              </div>
+            ) : isFetchingVehicles ? (
+              <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
+            ) : vehicles.length === 0 ? (
+              <div className="table-empty">
+                <Car size={40} />
+                <p>{vehicleSearch ? 'No matching vehicles found' : 'No vehicles registered for this tenant'}</p>
+              </div>
             ) : (
-              tenants.map((t: TenantListItem) => {
-                const tenantLabel = getTenantLabel(t);
+              paginatedVehicles.map((v: TenantVehicle) => {
+                const vType = VEHICLE_TYPES[v.vehicleType] || VEHICLE_TYPES.car;
+                const makeModel = [v.make, v.model].filter(Boolean).join(' ') || '—';
                 return (
-                  <button
-                    key={t.id}
-                    className={`vr-tenant-item ${selectedTenantId === t.id ? 'selected' : ''}`}
-                    onClick={() => setSelectedTenantId(t.id)}
-                  >
-                    <div className="vti-avatar">
-                      {t.avatarUrl
-                        ? <img src={t.avatarUrl} alt="" />
-                        : <span>{(tenantLabel[0] || '?').toUpperCase()}</span>
-                      }
+                  <div key={v.id} className={`vr-row ${!v.isActive ? 'vr-row-inactive' : ''}`}>
+                    <div>
+                      <span className="vr-plate-cell">{v.plateNumber}</span>
                     </div>
-                    <div className="vti-info">
-                      <div className="vti-name">{tenantLabel}</div>
-                      <div className="vti-meta">{t.tenantType} {t.email ? `· ${t.email}` : ''}</div>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{selectedDisplay.label}</div>
+                      {selectedDisplay.sublabel && (
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{selectedDisplay.sublabel}</div>
+                      )}
                     </div>
-                  </button>
+                    <div>
+                      <span className="vc-type-badge" style={{ color: vType.color, background: vType.color + '18' }}>
+                        {vType.icon}
+                        {vType.label}
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 500 }}>{makeModel}</div>
+                    <div>
+                      {v.color ? (
+                        <span className="vc-color-inline">
+                          <span className="vc-color-dot" style={{ background: getColorHex(v.color) }} />
+                          {v.color}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+                      )}
+                    </div>
+                    <div>
+                      {v.rfidTagNo ? (
+                        <span className="vc-rfid">
+                          <Wifi size={12} />
+                          <span>{v.rfidTagNo}</span>
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+                      )}
+                    </div>
+                    <div>
+                      <span
+                        className="slot-status-badge"
+                        style={{
+                          background: v.isActive ? '#10b98118' : '#6b728018',
+                          color: v.isActive ? '#10b981' : '#6b7280',
+                        }}
+                      >
+                        {v.isActive ? 'active' : 'inactive'}
+                      </span>
+                    </div>
+                    <div className="alloc-row-actions">
+                      {v.isActive && (
+                        <PermissionGuard permission="parking-vehicles.write">
+                          <button
+                            className="row-btn-edit"
+                            onClick={() => { setEditingVehicle(v); setShowAddModal(true); }}
+                            title="Edit vehicle"
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                          <button
+                            className="row-btn-delete"
+                            onClick={() => setDeleteTarget(v)}
+                            title="Deactivate vehicle"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </PermissionGuard>
+                      )}
+                    </div>
+                  </div>
                 );
               })
             )}
           </div>
-        </div>
+        </TableScrollWrapper>
 
-        {/* Right: Vehicle List */}
-        <div className="vr-vehicle-panel">
-          {!selectedTenantId ? (
-            <div className="vr-empty-state">
-              <Car size={48} />
-              <h3>Select a Tenant</h3>
-              <p>Choose a tenant from the list to view and manage their registered vehicles</p>
-            </div>
-          ) : (
-            <>
-              {/* Toolbar */}
-              <div className="vr-toolbar">
-                <div className="vr-toolbar-left">
-                  <h2 className="vr-tenant-title">
-                    {selectedTenant ? getTenantLabel(selectedTenant) : 'Tenant'}
-                    <span className="vr-vehicle-count">{activeVehicles.length} vehicle{activeVehicles.length !== 1 ? 's' : ''}</span>
-                  </h2>
-                </div>
-                <div className="vr-toolbar-right">
-                  <div className="vr-search-box vr-search-sm">
-                    <Search size={14} />
-                    <input
-                      className="form-input"
-                      value={vehicleSearch}
-                      onChange={e => setVehicleSearch(e.target.value)}
-                      placeholder="Filter vehicles…"
-                    />
-                  </div>
-                  <PermissionGuard permission="parking-vehicles.write">
-                    <button className="btn-primary" onClick={() => { setEditingVehicle(null); setShowAddModal(true); }}>
-                      <Plus size={14} /> Add Vehicle
-                    </button>
-                  </PermissionGuard>
-                </div>
+        {selectedTenantId && vehicles.length > 0 && (
+          <div className="parking-pagination billing-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <span>Rows per page:</span>
+                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
               </div>
-
-              {/* Vehicle Cards */}
-              {isFetchingVehicles ? (
-                <div className="table-loading"><div className="lp" /><div className="lp" /><div className="lp" /></div>
-              ) : activeVehicles.length === 0 && inactiveVehicles.length === 0 ? (
-                <div className="vr-empty-state">
-                  <Car size={40} />
-                  <h3>No Vehicles Registered</h3>
-                  <p>This tenant has no vehicles. Click "Add Vehicle" to register one.</p>
-                </div>
-              ) : (
-                <>
-                  {/* Active Vehicles */}
-                  <div className="vr-cards-grid">
-                    {activeVehicles.map(v => (
-                      <VehicleCard
-                        key={v.id}
-                        vehicle={v}
-                        tenantId={selectedTenantId}
-                        onEdit={() => { setEditingVehicle(v); setShowAddModal(true); }}
-                        onDelete={() => setDeleteTarget(v)}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Inactive Vehicles */}
-                  {inactiveVehicles.length > 0 && (
-                    <div className="vr-inactive-section">
-                      <h4 className="vr-section-title">Deactivated ({inactiveVehicles.length})</h4>
-                      <div className="vr-cards-grid">
-                        {inactiveVehicles.map(v => (
-                          <VehicleCard
-                            key={v.id}
-                            vehicle={v}
-                            tenantId={selectedTenantId}
-                            onEdit={() => { setEditingVehicle(v); setShowAddModal(true); }}
-                            onDelete={() => setDeleteTarget(v)}
-                            inactive
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </div>
+            </div>
+            <div className="page-btns">
+              <button disabled={currentPage <= 1} onClick={() => setPage(p => p - 1)} title="Previous Page">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="page-num-display">Page {currentPage} of {totalPages}</span>
+              <button disabled={currentPage >= totalPages} onClick={() => setPage(p => p + 1)} title="Next Page">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Vehicle Modal */}
@@ -227,70 +356,6 @@ export default function VehicleRegistryPage() {
           tenantId={selectedTenantId}
           onClose={() => setDeleteTarget(null)}
         />
-      )}
-    </div>
-  );
-}
-
-// ── Vehicle Card ─────────────────────────────
-
-function VehicleCard({
-  vehicle: v, tenantId: _tenantId, onEdit, onDelete, inactive,
-}: {
-  vehicle: TenantVehicle;
-  tenantId: string;
-  onEdit: () => void;
-  onDelete: () => void;
-  inactive?: boolean;
-}) {
-  const vType = VEHICLE_TYPES[v.vehicleType] || VEHICLE_TYPES.car;
-
-  return (
-    <div className={`vehicle-card ${inactive ? 'inactive' : ''}`}>
-      <div className="vc-top">
-        <div className="vc-plate-badge">
-          <span className="vc-plate">{v.plateNumber}</span>
-        </div>
-        <div className="vc-type-badge" style={{ color: vType.color, background: vType.color + '18' }}>
-          {vType.icon}
-          {vType.label}
-        </div>
-      </div>
-
-      <div className="vc-details">
-        {(v.make || v.model) && (
-          <div className="vc-make-model">
-            {v.make} {v.model}
-          </div>
-        )}
-        {v.color && (
-          <div className="vc-detail-item">
-            <span className="vc-color-dot" style={{ background: getColorHex(v.color) }} />
-            {v.color}
-          </div>
-        )}
-        {v.rfidTagNo && (
-          <div className="vc-detail-item vc-rfid">
-            <Wifi size={11} />
-            <span>{v.rfidTagNo}</span>
-          </div>
-        )}
-      </div>
-
-      {!inactive && (
-        <PermissionGuard permission="parking-vehicles.write">
-          <div className="vc-actions">
-            <button className="btn-sm btn-ghost" onClick={onEdit} title="Edit">
-              <Edit3 size={13} /> Edit
-            </button>
-            <button className="btn-sm btn-ghost btn-danger-text" onClick={onDelete} title="Deactivate">
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </PermissionGuard>
-      )}
-      {inactive && (
-        <div className="vc-inactive-badge">Deactivated</div>
       )}
     </div>
   );
@@ -355,6 +420,13 @@ function VehicleFormModal({
   return (
     <div className="crm-modal-overlay">
       <div className="crm-modal vr-modal" onClick={e => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          style={{ position: 'absolute', top: 20, right: 20, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: 4, display: 'flex' }}
+        >
+          <X size={18} />
+        </button>
         <div className="vr-modal-header">
           <div className="vr-modal-icon">
             <Car size={20} />
@@ -449,7 +521,7 @@ function DeleteVehicleConfirm({
     <div className="crm-modal-overlay">
       <div className="crm-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <div className="vr-delete-icon"><AlertTriangle size={28} /></div>
-        <h2 style={{ textAlign: 'center' }}>Deactivate Vehicle?</h2>
+        <h2 style={{ textAlign: 'center', paddingRight: 0 }}>Deactivate Vehicle?</h2>
         <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
           This will deactivate <strong>{vehicle.plateNumber}</strong>
           {vehicle.make && ` (${vehicle.make} ${vehicle.model || ''})`}.

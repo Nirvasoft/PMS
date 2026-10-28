@@ -18,7 +18,7 @@ import {
   User, KeyRound, Shield, Activity, Lock, Unlock, Clock,
   CheckCircle2, XCircle, Ban, AlertTriangle, Copy, Camera,
   Loader2, LogOut, RefreshCw, Mail, Laptop, Link2, ShieldAlert,
-  FileText, X,
+  FileText, X, List,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -44,7 +44,9 @@ export default function UserDetailPage() {
       <div className="page-content">
         <div className="info-card" style={{ textAlign: 'center', padding: 60 }}>
           <h3>User not found</h3>
-          <button className="btn btn-primary" onClick={() => navigate('/admin/users')}>← Back to Users</button>
+          <button className="btn btn-primary" onClick={() => navigate('/admin/users')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <List size={14} /> List
+          </button>
         </div>
       </div>
     );
@@ -54,7 +56,14 @@ export default function UserDetailPage() {
     <div className="page-content">
       {/* Header */}
       <div className="user-detail-header">
-        <button className="btn btn-sm" style={{ alignSelf: 'flex-end' }} onClick={() => navigate('/admin/users')}>← Back</button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6 }}
+          onClick={() => navigate('/admin/users')}
+        >
+          <List size={14} /> List
+        </button>
         <div className="user-detail-identity">
           <AvatarUpload user={user} onRefresh={refetch} />
           <div>
