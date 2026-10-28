@@ -1,10 +1,10 @@
-import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetApInvoicesQuery, useCreateApInvoiceMutation,
   useApproveApInvoiceMutation, useRejectApInvoiceMutation,
 } from '../../../store/api/apApi';
+import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
@@ -20,7 +20,14 @@ import './APPage.css';
 
 import { formatCompactAmount as fmt } from '../../../utils/formatCurrency';
 
-interface LineItem { description: string; quantity: number; unitPrice: number; taxRate: number; chargeTypeId?: string; glAccountCode?: string; }
+interface LineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  chargeTypeId?: string;
+  glAccountCode?: string;
+}
 
 export default function ApInvoiceListPage() {
   const navigate = useNavigate();
@@ -83,18 +90,48 @@ export default function ApInvoiceListPage() {
     prevPropertyLockedRef.current = propertyLocked;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyLocked, selectedProperty]);
+
+  const resolvedPropertyId = form.propertyId || selectedProperty || '';
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    resolvedPropertyId ? { propertyId: resolvedPropertyId } : undefined,
+  );
+  const chargeTypes = useMemo(
+    () => (chargeTypesData?.data || []).filter((ct) => ct.isActive !== false),
+    [chargeTypesData],
+  );
+
   const [lines, setLines] = useState<LineItem[]>([
-    { description: '', quantity: 1, unitPrice: 0, taxRate: 0 },
+    { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0, glAccountCode: '' },
   ]);
 
   const lineSubtotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
   const lineTax = lines.reduce((s, l) => s + l.quantity * l.unitPrice * l.taxRate, 0);
   const lineTotal = lineSubtotal + lineTax;
 
-  const addLine = () => setLines(prev => [...prev, { description: '', quantity: 1, unitPrice: 0, taxRate: 0 }]);
+  const addLine = () => setLines(prev => [
+    ...prev,
+    { chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0, glAccountCode: '' },
+  ]);
   const removeLine = (idx: number) => setLines(prev => prev.filter((_, i) => i !== idx));
   const updateLine = (idx: number, field: keyof LineItem, value: string | number) => {
-    setLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l));
+    setLines(prev => prev.map((l, i) => {
+      if (i !== idx) return l;
+      const next: LineItem = { ...l, [field]: value };
+      if (field === 'chargeTypeId') {
+        const ct = chargeTypes.find(c => c.id === value);
+        if (ct) {
+          const prevCt = chargeTypes.find(c => c.id === l.chargeTypeId);
+          if (!l.description.trim() || (prevCt && l.description === prevCt.name)) {
+            next.description = ct.name;
+          }
+          next.taxRate = ct.isTaxable ? (Number(ct.taxRate) || 0) : l.taxRate;
+          next.glAccountCode = ct.glAccountCode || '';
+        } else {
+          next.glAccountCode = '';
+        }
+      }
+      return next;
+    }));
   };
 
   const [rejectId, setRejectId] = useState<string | null>(null);
@@ -110,15 +147,28 @@ export default function ApInvoiceListPage() {
       return toast.error('All line items must have description and positive unit price');
     }
     try {
-      await createApInvoice({ ...form, lines }).unwrap();
+      const payload = Object.fromEntries(
+        Object.entries(form).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+      );
+      const cleanedLines = lines.map((l) => ({
+        description: l.description.trim(),
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        taxRate: l.taxRate,
+        ...(l.chargeTypeId ? { chargeTypeId: l.chargeTypeId } : {}),
+        ...(l.glAccountCode ? { glAccountCode: l.glAccountCode } : {}),
+      }));
+      await createApInvoice({ ...payload, lines: cleanedLines }).unwrap();
       toast.success('AP Invoice created');
       setShowCreate(false);
       setHasAttemptedCreate(false);
       setForm({ vendorName: '', vendorInvoiceNo: '', propertyId: selectedProperty, invoiceDate: format(new Date(), 'yyyy-MM-dd'),
         dueDate: format(new Date(Date.now() + 30 * 86400000), 'yyyy-MM-dd'), description: '', currency: 'USD',
         departmentId: '', costCenter: '', poReference: '', notes: '' });
-      setLines([{ description: '', quantity: 1, unitPrice: 0, taxRate: 0 }]);
-    } catch { toast.error('Failed to create AP invoice'); }
+      setLines([{ chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0, glAccountCode: '' }]);
+    } catch (err: any) {
+      toast.error(err?.data?.error?.message || err?.data?.message || 'Failed to create AP invoice');
+    }
   };
 
   const handleApprove = async (id: string, e: React.MouseEvent) => {
@@ -224,7 +274,7 @@ export default function ApInvoiceListPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <TableSkeletonRows columns={9} />
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem' }}>Loading...</td></tr>
               ) : invoices.length === 0 ? (
                 <tr><td colSpan={9}><div className="ap-empty"><FileText size={40} /><p>No AP invoices found</p></div></td></tr>
               ) : invoices.map((inv: any) => (
@@ -406,54 +456,131 @@ export default function ApInvoiceListPage() {
 
               {/* Line items */}
               <div className="ap-line-items">
-                <h3><FileText size={16} /> Line Items</h3>
-                {lines.map((line, idx) => (
-                  <div className="ap-line-item-row" key={idx}>
-                    <input
-                      className={hasAttemptedCreate && !line.description.trim() ? 'ap-input-error' : ''}
-                      placeholder="Description *"
-                      value={line.description}
-                      onChange={e => updateLine(idx, 'description', e.target.value)}
-                    />
-                    <input
-                      type="number"
-                      placeholder="Qty"
-                      min={0.01}
-                      step={0.01}
-                      value={line.quantity || ''}
-                      onChange={e => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                    />
-                    <input
-                      type="number"
-                      className={hasAttemptedCreate && !(line.unitPrice > 0) ? 'ap-input-error' : ''}
-                      placeholder="Unit Price *"
-                      min={0}
-                      step={0.01}
-                      value={line.unitPrice || ''}
-                      onChange={e => updateLine(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
-                    />
-                    <input
-                      type="number"
-                      placeholder="Tax %"
-                      min={0}
-                      max={100}
-                      step={0.01}
-                      value={line.taxRate ? (line.taxRate * 100) : ''}
-                      onChange={e => updateLine(idx, 'taxRate', (parseFloat(e.target.value) || 0) / 100)}
-                    />
-                    <button className="ap-btn icon-only ghost" onClick={() => removeLine(idx)} disabled={lines.length <= 1}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+                <style>{`
+                  .ap-line-items-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+                  .ap-line-items-header h3 { margin: 0 !important; }
+                  .ap-lines-table { width: 100%; border-collapse: collapse; }
+                  .ap-lines-table thead tr { background: rgba(255, 255, 255, 0.02); }
+                  .ap-lines-table th { padding: 9px 8px; font-size: 10px; font-weight: 700; color: var(--text-tertiary, var(--text-muted)); text-transform: uppercase; letter-spacing: 0.06em; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.06); white-space: nowrap; }
+                  .ap-lines-table th .req { color: #f87171; margin-left: 2px; }
+                  .ap-lines-table td { padding: 8px 6px; vertical-align: middle; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+                  .ap-lines-table tbody tr:last-child td { border-bottom: none; }
+                  .ap-lines-table .ap-line-input, .ap-lines-table .ap-line-select { width: 100%; box-sizing: border-box; padding: 8px 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; color: var(--text-primary); font-size: 12.5px; outline: none; transition: border-color 0.15s; font-family: inherit; }
+                  .ap-lines-table .ap-line-input:focus, .ap-lines-table .ap-line-select:focus { border-color: var(--primary); }
+                  .ap-lines-table .ap-line-select option { background: #1a1f2e; }
+                  .ap-lines-table .ap-line-input.num { font-variant-numeric: tabular-nums; text-align: right; }
+                  .ap-lines-table .ap-line-total { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-primary); text-align: right; padding-right: 6px; white-space: nowrap; }
+                  .ap-lines-table input.ap-input-error, .ap-lines-table select.ap-input-error { border-color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.08) !important; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important; }
+                  [data-theme="light"] .ap-lines-table .ap-line-input, [data-theme="light"] .ap-lines-table .ap-line-select { background: #ffffff; border-color: rgba(0, 0, 0, 0.12); color: #111827; }
+                  [data-theme="light"] .ap-lines-table .ap-line-select option { background: #ffffff; }
+                  [data-theme="light"] .ap-lines-table thead tr { background: #f8fafc; }
+                  [data-theme="light"] .ap-lines-table th { border-bottom-color: rgba(0, 0, 0, 0.08); }
+                  [data-theme="light"] .ap-lines-table td { border-bottom-color: rgba(0, 0, 0, 0.05); }
+                  [data-theme="light"] .ap-lines-table input.ap-input-error, [data-theme="light"] .ap-lines-table select.ap-input-error { border-color: #ef4444 !important; background-color: #fef2f2 !important; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important; }
+                `}</style>
+                <div className="ap-line-items-header">
+                  <h3><FileText size={16} /> Line Items</h3>
+                  <button type="button" className="ap-btn sm ghost" onClick={addLine}><Plus size={14} /> Add Line</button>
+                </div>
+                <table className="ap-lines-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '22%' }}>Charge Type</th>
+                      <th style={{ width: '28%' }}>Description <span className="req">*</span></th>
+                      <th style={{ width: '10%', textAlign: 'right' }}>Qty</th>
+                      <th style={{ width: '15%', textAlign: 'right' }}>Unit Price <span className="req">*</span></th>
+                      <th style={{ width: '10%', textAlign: 'right' }}>Tax %</th>
+                      <th style={{ width: '11%', textAlign: 'right' }}>Total ({form.currency})</th>
+                      <th style={{ width: '4%' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((line, idx) => {
+                      const rowAmt = line.quantity * line.unitPrice;
+                      const rowTax = rowAmt * line.taxRate;
+                      const rowTotal = rowAmt + rowTax;
+                      return (
+                        <tr key={idx}>
+                          <td>
+                            <select
+                              className="ap-line-select"
+                              value={line.chargeTypeId || ''}
+                              onChange={e => updateLine(idx, 'chargeTypeId', e.target.value)}
+                            >
+                              <option value="">— Select charge (optional) —</option>
+                              {chargeTypes.map(ct => (
+                                <option key={ct.id} value={ct.id}>{ct.name}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className={`ap-line-input ${hasAttemptedCreate && !line.description.trim() ? 'ap-input-error' : ''}`}
+                              placeholder="Charge description"
+                              value={line.description}
+                              onChange={e => updateLine(idx, 'description', e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              className="ap-line-input num"
+                              placeholder="Qty"
+                              min={0.01}
+                              step={0.01}
+                              value={line.quantity || ''}
+                              onChange={e => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              className={`ap-line-input num ${hasAttemptedCreate && !(line.unitPrice > 0) ? 'ap-input-error' : ''}`}
+                              placeholder="0.00"
+                              min={0}
+                              step={0.01}
+                              value={line.unitPrice || ''}
+                              onChange={e => updateLine(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              className="ap-line-input num"
+                              placeholder="0"
+                              min={0}
+                              max={100}
+                              step={0.01}
+                              value={line.taxRate ? Math.round(line.taxRate * 10000) / 100 : ''}
+                              onChange={e => updateLine(idx, 'taxRate', (parseFloat(e.target.value) || 0) / 100)}
+                            />
+                          </td>
+                          <td>
+                            <div className="ap-line-total">{fmt(rowTotal)}</div>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="ap-btn icon-only ghost"
+                              onClick={() => removeLine(idx)}
+                              disabled={lines.length <= 1}
+                              title="Remove line"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
                 {hasAttemptedCreate && lines.some(l => !l.description.trim() || !(l.unitPrice > 0)) && (
-                  <span className="ap-error-text" style={{ marginBottom: 8 }}>
+                  <span className="ap-error-text" style={{ marginTop: 8 }}>
                     Each line item requires a description and a unit price greater than 0
                   </span>
                 )}
-                <button className="ap-btn sm ghost" onClick={addLine}><Plus size={14} /> Add Line</button>
 
-                <div style={{ marginTop: '0.75rem', textAlign: 'right', fontSize: '0.875rem' }}>
+                <div style={{ marginTop: '0.85rem', textAlign: 'right', fontSize: '0.875rem' }}>
                   <div>Subtotal: <strong>{fmt(lineSubtotal)}</strong></div>
                   <div>Tax: <strong>{fmt(lineTax)}</strong></div>
                   <div style={{ fontSize: '1.125rem', fontWeight: 700, marginTop: '0.25rem' }}>Total: {fmt(lineTotal)}</div>

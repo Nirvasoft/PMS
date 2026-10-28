@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const dateString = z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Invalid date' });
+const optionalUuid = z.preprocess((v) => (v === '' || v === null ? undefined : v), z.string().uuid().optional());
 
 // ── AP Invoices ────────────────────────────────
 
@@ -8,23 +9,23 @@ export const createApInvoiceSchema = z.object({
   body: z.object({
     vendorName: z.string().min(1, 'Vendor name is required').max(255),
     vendorInvoiceNo: z.string().max(100).optional(),
-    propertyId: z.string().uuid().optional(),
+    propertyId: z.string().uuid('Property is required'),
     invoiceDate: dateString,
     dueDate: dateString,
     description: z.string().optional(),
     currency: z.string().length(3).optional(),
-    departmentId: z.string().uuid().optional(),
+    departmentId: optionalUuid,
     costCenter: z.string().max(100).optional(),
     poReference: z.string().max(100).optional(),
     attachmentUrl: z.string().max(500).optional(),
     notes: z.string().optional(),
     lines: z.array(z.object({
-      chargeTypeId: z.string().uuid().optional(),
+      chargeTypeId: optionalUuid,
       description: z.string().min(1).max(500),
       quantity: z.number().positive().default(1),
       unitPrice: z.number().min(0),
       taxRate: z.number().min(0).max(1).default(0),
-      glAccountCode: z.string().max(20).optional(),
+      glAccountCode: z.string().max(50).optional(),
     })).min(1, 'At least one line item is required'),
   }),
 });
@@ -39,10 +40,10 @@ export const rejectApInvoiceSchema = z.object({
 
 export const createPaymentVoucherSchema = z.object({
   body: z.object({
-    propertyId: z.string().uuid().optional(),
+    propertyId: optionalUuid,
     voucherDate: dateString,
     paymentMethod: z.string().min(1, 'Payment method is required').max(50),
-    bankAccountId: z.string().uuid().optional(),
+    bankAccountId: optionalUuid,
     isCash: z.boolean().optional(),
     vendorName: z.string().max(255).optional().nullable(),
     vendorBankName: z.string().max(100).optional(),
@@ -74,14 +75,14 @@ export const markVoucherPaidSchema = z.object({
 
 export const createExpenseSchema = z.object({
   body: z.object({
-    propertyId: z.string().uuid().optional(),
-    departmentId: z.string().uuid().optional(),
+    propertyId: optionalUuid,
+    departmentId: optionalUuid,
     expenseDate: dateString,
     category: z.string().min(1).max(100),
     description: z.string().min(1),
     amount: z.number().positive(),
     currency: z.string().length(3),
     receiptUrl: z.string().max(500).optional(),
-    glAccountCode: z.string().max(20).optional(),
+    glAccountCode: z.string().max(50).optional(),
   }),
 });

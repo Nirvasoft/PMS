@@ -30,6 +30,19 @@ export class ApInvoicesService {
       unitPrice: number; taxRate: number; glAccountCode?: string;
     }>;
 
+    // Resolve chargeTypes if any line has chargeTypeId
+    const chargeTypeIds = Array.from(
+      new Set(lines.map((l) => l.chargeTypeId).filter((id): id is string => Boolean(id)))
+    );
+    const chargeTypeMap = new Map<string, { glAccountCode: string | null }>();
+    if (chargeTypeIds.length > 0) {
+      const cts = await prisma.chargeType.findMany({
+        where: { id: { in: chargeTypeIds } },
+        select: { id: true, glAccountCode: true },
+      });
+      for (const ct of cts) chargeTypeMap.set(ct.id, ct);
+    }
+
     // Calculate totals
     let subtotal = 0;
     let totalTax = 0;
@@ -39,6 +52,7 @@ export class ApInvoicesService {
       const lineTotal = Math.round((amount + lineTax) * 100) / 100;
       subtotal += amount;
       totalTax += lineTax;
+      const ctGlCode = line.chargeTypeId ? chargeTypeMap.get(line.chargeTypeId)?.glAccountCode?.trim() : null;
       return {
         chargeTypeId: line.chargeTypeId || null,
         description: line.description,
@@ -48,7 +62,7 @@ export class ApInvoicesService {
         taxRate: line.taxRate || 0,
         taxAmount: lineTax,
         lineTotal,
-        glAccountCode: line.glAccountCode || null,
+        glAccountCode: line.glAccountCode?.trim() || ctGlCode || null,
         sortOrder: idx,
       };
     });
@@ -59,7 +73,7 @@ export class ApInvoicesService {
     const invoice = await prisma.apInvoice.create({
       data: {
         companyId,
-        propertyId: (dto.propertyId as string) || null,
+        propertyId: dto.propertyId as string,
         vendorName: dto.vendorName as string,
         vendorInvoiceNo: (dto.vendorInvoiceNo as string) || null,
         apInvoiceNumber,
@@ -167,16 +181,28 @@ export class ApInvoicesService {
 
     // ── GL Auto-Post: Dr Expense accounts / Cr Accounts Payable ──
     try {
-      const glLines: Array<{ accountCode: string; debit: number; credit: number; description?: string }> = [];
+      const glLines: Array<{
+        accountCode: string;
+        debit: number;
+        credit: number;
+        description?: string;
+        departmentCenterId?: string | null;
+        costCenterId?: string | null;
+      }> = [];
 
-      // Debit each line's expense account (use glAccountCode from line, default 5000)
-      for (const line of invoice.lines) {
-        const expenseCode = line.glAccountCode || '5000';
+      // Debit each line's expense account (use ChargeType's glAccountCode or line's glAccountCode, default 5000)
+      for (const line of updated.lines) {
+        const expenseCode =
+          line.chargeType?.glAccountCode?.trim() ||
+          line.glAccountCode?.trim() ||
+          '5000';
         glLines.push({
           accountCode: expenseCode,
           debit: Number(line.amount),
           credit: 0,
           description: `${line.description} — ${invoice.vendorName}`,
+          departmentCenterId: line.chargeType?.departmentCenterId || null,
+          costCenterId: line.chargeType?.costCenterId || null,
         });
       }
 
