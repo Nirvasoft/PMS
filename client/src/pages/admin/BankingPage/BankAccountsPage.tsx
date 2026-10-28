@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Landmark } from 'lucide-react';
@@ -13,10 +14,10 @@ import '../GLPage/GLPage.css';
 import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 
 const BANK_ICONS: Record<string, string> = {
-  'DBS': '🏦', 'OCBC': '🏛️', 'UOB': '🏢', 'HSBC': '🌐', 'Citi': '🌍', 'Standard Chartered': '🏗️',
-  'KBZ': '🏦', 'AYA': '🏛️', 'CB': '🏢',
+  'DBS': 'ðŸ¦', 'OCBC': 'ðŸ›ï¸', 'UOB': 'ðŸ¢', 'HSBC': 'ðŸŒ', 'Citi': 'ðŸŒ', 'Standard Chartered': 'ðŸ—ï¸',
+  'KBZ': 'ðŸ¦', 'AYA': 'ðŸ›ï¸', 'CB': 'ðŸ¢',
 };
-const getBankIcon = (name: string) => Object.entries(BANK_ICONS).find(([k]) => name.toUpperCase().includes(k))?.[1] || '🏦';
+const getBankIcon = (name: string) => Object.entries(BANK_ICONS).find(([k]) => name.toUpperCase().includes(k))?.[1] || 'ðŸ¦';
 
 export default function BankAccountsPage() {
   const navigate = useNavigate();
@@ -54,11 +55,11 @@ export default function BankAccountsPage() {
           </div>
           {activeProperty ? (
             <span className="gl-badge open" style={{ fontSize: '0.85rem', padding: '4px 10px', borderRadius: 8 }}>
-              🏢 {activeProperty.name}
+              ðŸ¢ {activeProperty.name}
             </span>
           ) : (
             <span className="gl-badge closed" style={{ fontSize: '0.85rem', padding: '4px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-              🌐 All Properties
+              ðŸŒ All Properties
             </span>
           )}
         </div>
@@ -75,14 +76,14 @@ export default function BankAccountsPage() {
         <div className="gl-stat-card" style={{ flex: 2 }}>
           <div className="stat-value" style={{ color: 'var(--success, #22c55e)', fontSize: Object.keys(balancesByCurrency).length > 2 ? '1.05rem' : '1.3rem' }}>
             {Object.entries(balancesByCurrency).length > 0 ? (
-              Object.entries(balancesByCurrency).map(([curr, amt]) => `${curr} ${fmtAmt(amt)}`).join('  •  ')
+              Object.entries(balancesByCurrency).map(([curr, amt]) => `${curr} ${fmtAmt(amt)}`).join('  â€¢  ')
             ) : '0.00'}
           </div>
           <div className="stat-label">Total Balance by Currency</div>
         </div>
       </div>
 
-      {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
+      {isLoading ? <TableSkeleton columns={6} rows={6} /> : (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))',gap:16}}>
           {accounts.map(acct => (
             <div key={acct.id} className="gl-card" style={{cursor:'pointer',transition:'transform 0.15s,box-shadow 0.15s'}}
@@ -93,11 +94,11 @@ export default function BankAccountsPage() {
               <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
                 {acct.propertyId ? (
                   <span style={{fontSize:'0.75rem',fontWeight:600,color:'var(--accent, #6366f1)',background:'rgba(99,102,241,0.1)',padding:'2px 8px',borderRadius:6}}>
-                    🏢 {acct.propertyName || 'Property Account'}
+                    ðŸ¢ {acct.propertyName || 'Property Account'}
                   </span>
                 ) : (
                   <span style={{fontSize:'0.75rem',fontWeight:600,color:'var(--text-secondary)',background:'rgba(156,163,175,0.15)',padding:'2px 8px',borderRadius:6}}>
-                    🌐 Company-Wide
+                    ðŸŒ Company-Wide
                   </span>
                 )}
               </div>
@@ -221,9 +222,9 @@ function CreateBankAccountModal({
                 value={form.propertyId}
                 onChange={e => setForm({ ...form, propertyId: e.target.value })}
               >
-                <option value="">🌐 Company-Wide (All Properties)</option>
+                <option value="">ðŸŒ Company-Wide (All Properties)</option>
                 {properties.map(p => (
-                  <option key={p.id} value={p.id}>🏢 {p.name}</option>
+                  <option key={p.id} value={p.id}>ðŸ¢ {p.name}</option>
                 ))}
               </select>
             </div>
@@ -336,7 +337,7 @@ function CreateBankAccountModal({
           <div className="gl-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={isLoading}>
-              {isLoading ? 'Creating…' : 'Create Account'}
+              {isLoading ? 'Creatingâ€¦' : 'Create Account'}
             </button>
           </div>
         </form>

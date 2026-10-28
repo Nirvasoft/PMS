@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo } from 'react';
 import { useGetPenaltyConfigsQuery, useCreatePenaltyConfigMutation, useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
@@ -161,7 +162,7 @@ export default function PenaltyConfigPage() {
           </thead>
           <tbody>
             {isFetching && configs.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
+              <TableSkeletonRows columns={8} />
             ) : configs.length === 0 ? (
               <tr><td colSpan={8} className="billing-empty">
                 <AlertTriangle size={20} style={{ marginBottom: 8, opacity: 0.5 }} /><br />
@@ -186,7 +187,7 @@ export default function PenaltyConfigPage() {
                 </td>
                 <td className="text-right">
                   <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                    {cfg.maxPenaltyPct ? `${Number(cfg.maxPenaltyPct)}%` : '—'}
+                    {cfg.maxPenaltyPct ? `${Number(cfg.maxPenaltyPct)}%` : 'â€”'}
                   </span>
                 </td>
                 <td className="text-center">
@@ -285,7 +286,7 @@ export default function PenaltyConfigPage() {
                       className={hasAttemptedSubmit && isGraceInvalid ? 'inv-input-error' : ''}
                     />
                     {hasAttemptedSubmit && isGraceInvalid && (
-                      <span className="inv-error-text">Grace period (0–90 days) is required</span>
+                      <span className="inv-error-text">Grace period (0â€“90 days) is required</span>
                     )}
                   </div>
                   <div className="inv-field">
@@ -347,7 +348,7 @@ export default function PenaltyConfigPage() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating}>
-                  {creating ? 'Saving…' : 'Create Config'}
+                  {creating ? 'Savingâ€¦' : 'Create Config'}
                 </button>
               </div>
             </form>

@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useState, useEffect, useMemo } from 'react';
 import {
   useGetPreferencesQuery,
@@ -11,7 +12,7 @@ import {
 import toast from 'react-hot-toast';
 import { TableScrollWrapper } from '../../components/TableScrollWrapper';
 
-// Group templates by category prefix (e.g. "invoice_" → "Invoices")
+// Group templates by category prefix (e.g. "invoice_" â†’ "Invoices")
 function guessCategory(code: string): string {
   const map: Record<string, string> = {
     invoice: 'Billing & Invoices',
@@ -103,7 +104,7 @@ export default function NotificationPreferencesPage() {
   if (isLoading) {
     return (
       <div className="page-content">
-        <div className="loading-inline"><div className="loading-spinner" /> Loading preferences...</div>
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
@@ -117,7 +118,7 @@ export default function NotificationPreferencesPage() {
           </div>
           <div>
             <h1>Notification Preferences</h1>
-            <p>{prefs.length} total template{prefs.length !== 1 ? 's' : ''} · Choose how and when you receive notifications for each category</p>
+            <p>{prefs.length} total template{prefs.length !== 1 ? 's' : ''} Â· Choose how and when you receive notifications for each category</p>
           </div>
         </div>
         <button
@@ -209,7 +210,7 @@ export default function NotificationPreferencesPage() {
                                 <span className="toggle-slider" />
                               </label>
                             ) : (
-                              <span style={{ fontSize: '0.75rem', opacity: 0.25 }}>—</span>
+                              <span style={{ fontSize: '0.75rem', opacity: 0.25 }}>â€”</span>
                             )}
                           </td>
                         );

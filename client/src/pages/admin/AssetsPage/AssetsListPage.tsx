@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -57,7 +58,7 @@ export default function AssetsListPage() {
         <PermissionGuard permission="finance-assets.write">
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn-sm" onClick={handleRunDepreciation} disabled={depRunning}>
-              {depRunning ? '⏳ Running…' : '⚙️ Run Depreciation'}
+              {depRunning ? 'â³ Runningâ€¦' : 'âš™ï¸ Run Depreciation'}
             </button>
             <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Asset</button>
           </div>
@@ -92,7 +93,7 @@ export default function AssetsListPage() {
         </div>
       </div>
 
-      {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
+      {isLoading ? <TableSkeleton columns={6} rows={6} /> : (
         <div className="gl-table-wrap">
           <TableScrollWrapper>
             <table className="gl-table">
@@ -114,7 +115,7 @@ export default function AssetsListPage() {
                     <td className="amount negative">{fmtAmt(Number(a.accumulatedDepreciation))}</td>
                     <td className="amount positive">{fmtAmt(a.netBookValue)}</td>
                     <td><span className={`gl-badge ${a.status === 'active' ? 'open' : a.status === 'disposed' ? 'reversed' : 'closed'}`}>{a.status}</span></td>
-                    <td style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{a.currentLocation || '—'}</td>
+                    <td style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{a.currentLocation || 'â€”'}</td>
                   </tr>
                 ))}
                 {assets.length === 0 && (
@@ -287,7 +288,7 @@ function CreateAssetModal({ onClose }: { onClose: () => void }) {
 
           <div className="gl-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Creating…' : 'Register Asset'}</button>
+            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Creatingâ€¦' : 'Register Asset'}</button>
           </div>
         </form>
       </div>

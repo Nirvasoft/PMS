@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect } from 'react';
 import {
   useGetMeterSetupsQuery, useCreateMeterSetupMutation, useUpdateMeterSetupMutation, useDeleteMeterSetupMutation,
@@ -46,7 +47,7 @@ export default function MeterSetupPage() {
   const searchPropertyId = useSelectedPropertyFilter();
   const { data: metersData, isFetching } = useGetMeterSetupsQuery();
   const { data: propertiesData } = useGetPropertiesQuery({ limit: 100 });
-  // /properties requires properties.read, which a billing-only role may lack — use the
+  // /properties requires properties.read, which a billing-only role may lack â€” use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
   const { data: scopeData } = useGetMyPropertyScopeQuery();
@@ -60,7 +61,7 @@ export default function MeterSetupPage() {
   const meters = metersData?.data || [];
   const properties = propertiesData?.data || [];
 
-  // ── Search & Filters ────────────────────────────────
+  // â”€â”€ Search & Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [searchFloorId, setSearchFloorId] = useState('');
@@ -102,7 +103,7 @@ export default function MeterSetupPage() {
     );
   });
 
-  // ── Pagination ───────────────────────────────────────
+  // â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -113,7 +114,7 @@ export default function MeterSetupPage() {
   const totalPages = Math.max(1, Math.ceil(filteredMeters.length / pageSize));
   const paginatedMeters = filteredMeters.slice((page - 1) * pageSize, page * pageSize);
 
-  // ── Counts & Statistics (scoped by selected Property and Floor) ──────
+  // â”€â”€ Counts & Statistics (scoped by selected Property and Floor) â”€â”€â”€â”€â”€â”€
   const scopedMeters = meters.filter((m) => {
     if (searchPropertyId && m.propertyId !== searchPropertyId) return false;
     if (searchFloorId && m.floorId !== searchFloorId) return false;
@@ -266,7 +267,7 @@ export default function MeterSetupPage() {
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Meter Setup</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              {`${totalCount} total meters${selectedFloorLabel ? ` · ${selectedFloorLabel}` : ''}`}
+              {`${totalCount} total meters${selectedFloorLabel ? ` Â· ${selectedFloorLabel}` : ''}`}
             </p>
           </div>
           <PermissionGuard permission="meter.create">
@@ -321,7 +322,7 @@ export default function MeterSetupPage() {
           <div className="bsc-info">
             <span className="bsc-label">CT & Water</span>
             <span className="bsc-value">{ctMeterCount + waterMeterCount}</span>
-            <span className="bsc-sub">{ctMeterCount} CT · {waterMeterCount} Water</span>
+            <span className="bsc-sub">{ctMeterCount} CT Â· {waterMeterCount} Water</span>
           </div>
         </div>
       </div>
@@ -333,7 +334,7 @@ export default function MeterSetupPage() {
             <Search size={15} className="search-icon" />
             <input
               type="text"
-              placeholder="Search meter no, meter type…"
+              placeholder="Search meter no, meter typeâ€¦"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -353,7 +354,7 @@ export default function MeterSetupPage() {
             className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
+            <Filter size={14} /> Filters{hasFilterSelections ? ' â€¢' : ''}
           </button>
         </div>
       </div>
@@ -444,21 +445,21 @@ export default function MeterSetupPage() {
           </thead>
           <tbody>
             {isFetching && meters.length === 0 ? (
-              <tr><td colSpan={9} className="billing-empty">Loading…</td></tr>
+              <TableSkeletonRows columns={9} />
             ) : meters.length === 0 ? (
               <tr><td colSpan={9} className="billing-empty">No meters set up yet</td></tr>
             ) : filteredMeters.length === 0 ? (
               <tr><td colSpan={9} className="billing-empty">No meters match your search</td></tr>
             ) : paginatedMeters.map((m) => (
               <tr key={m.id}>
-                <td>{m.floor?.floorLabel ?? '—'}</td>
+                <td>{m.floor?.floorLabel ?? 'â€”'}</td>
                 <td>{labelFor(METER_TYPES, m.meterType)}</td>
                 <td><span className="cell-mono">{m.meterNo}</span></td>
                 <td>{labelFor(CATEGORIES, m.category)}</td>
-                <td>{m.chargeType?.name ?? '—'}</td>
-                <td className="text-right">{m.rate != null && m.rate !== '' ? Number(m.rate).toFixed(2) : '—'}</td>
-                <td className="text-right">{m.maintenanceFee != null && m.maintenanceFee !== '' ? Number(m.maintenanceFee).toFixed(2) : '—'}</td>
-                <td>{m.usageType ? labelFor(USAGE_TYPES, m.usageType) : '—'}</td>
+                <td>{m.chargeType?.name ?? 'â€”'}</td>
+                <td className="text-right">{m.rate != null && m.rate !== '' ? Number(m.rate).toFixed(2) : 'â€”'}</td>
+                <td className="text-right">{m.maintenanceFee != null && m.maintenanceFee !== '' ? Number(m.maintenanceFee).toFixed(2) : 'â€”'}</td>
+                <td>{m.usageType ? labelFor(USAGE_TYPES, m.usageType) : 'â€”'}</td>
                 <td className="text-center">
                   <PermissionGuard permission="meter.update">
                     <button className="btn-icon" title="Edit" onClick={() => openEdit(m)}>
@@ -541,7 +542,7 @@ export default function MeterSetupPage() {
                     <label>Floor</label>
                     <select value={form.floorId} disabled={!effectiveFormPropertyId}
                       onChange={(e) => setForm({ ...form, floorId: e.target.value })}>
-                      <option value="">Select floor…</option>
+                      <option value="">Select floorâ€¦</option>
                       {floors.map((f) => <option key={f.id} value={f.id}>{f.floorLabel}</option>)}
                     </select>
                   </div>
@@ -552,7 +553,7 @@ export default function MeterSetupPage() {
                       value={form.meterType}
                       onChange={(e) => handleMeterTypeChange(e.target.value)}
                     >
-                      <option value="">Select type…</option>
+                      <option value="">Select typeâ€¦</option>
                       {METER_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                     {isMeterTypeMissing && <span className="inv-error-text">Meter type is required</span>}
@@ -566,7 +567,7 @@ export default function MeterSetupPage() {
                         disabled={!effectiveFormPropertyId}
                         onChange={(e) => setForm({ ...form, mainMeterId: e.target.value })}
                       >
-                        <option value="">Select main meter…</option>
+                        <option value="">Select main meterâ€¦</option>
                         {mainMeterOptions.map((m) => (
                           <option key={m.id} value={m.id}>{m.meterNo}</option>
                         ))}
@@ -591,7 +592,7 @@ export default function MeterSetupPage() {
                       value={form.category}
                       onChange={(e) => setForm({ ...form, category: e.target.value })}
                     >
-                      <option value="">Select category…</option>
+                      <option value="">Select categoryâ€¦</option>
                       {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
                     {isCategoryMissing && <span className="inv-error-text">Category is required</span>}
@@ -603,7 +604,7 @@ export default function MeterSetupPage() {
                       value={form.chargeTypeId}
                       onChange={(e) => setForm({ ...form, chargeTypeId: e.target.value })}
                     >
-                      <option value="">Select charge type…</option>
+                      <option value="">Select charge typeâ€¦</option>
                       {chargeTypes.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
                     </select>
                     {isChargeTypeMissing && <span className="inv-error-text">Charge type is required</span>}
@@ -655,7 +656,7 @@ export default function MeterSetupPage() {
                   <div className="inv-field">
                     <label>Meter Usage Type</label>
                     <select value={form.usageType} onChange={(e) => setForm({ ...form, usageType: e.target.value })}>
-                      <option value="">— Select —</option>
+                      <option value="">â€” Select â€”</option>
                       {USAGE_TYPES.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                     </select>
                   </div>
@@ -665,7 +666,7 @@ export default function MeterSetupPage() {
                 <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button>
                 <PermissionGuard permission={editing ? 'meter.update' : 'meter.create'}>
                   <button type="submit" className="btn btn-primary" disabled={creating || updating}>
-                    {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Meter'}
+                    {creating || updating ? 'Savingâ€¦' : editing ? 'Save Changes' : 'Create Meter'}
                   </button>
                 </PermissionGuard>
               </div>

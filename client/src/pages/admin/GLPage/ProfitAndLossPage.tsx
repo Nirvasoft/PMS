@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { useGetPnLQuery } from '../../../store/api/glApi';
@@ -103,20 +104,20 @@ export default function ProfitAndLossPage() {
         )}
       </div>
 
-      {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : pnl && (
+      {isLoading ? <TableSkeleton columns={6} rows={6} /> : pnl && (
         <>
           {/* Income Section */}
           <div className="report-section">
-            <h4>📈 Revenue / Income</h4>
+            <h4>ðŸ“ˆ Revenue / Income</h4>
             {pnl.income.length > 0 ? pnl.income.map(r => {
               const comp = comparison?.income.find((c: any) => c.code === r.code);
               return (
                 <div key={r.accountId} style={{display:'flex',justifyContent:'space-between',padding:'6px 14px',borderBottom:'1px solid var(--border)', alignItems: 'center'}}>
-                  <span style={{color:'var(--text-primary)', flex: 1}}>{r.code} — {r.name}</span>
+                  <span style={{color:'var(--text-primary)', flex: 1}}>{r.code} â€” {r.name}</span>
                   <span className="amount positive" style={{fontWeight:600, width: 120, textAlign: 'right'}}>{fmtAmt(r.netBalance)}</span>
                   {comp && (
                     <span style={{ width: 100, textAlign: 'right', fontSize: 12, color: comp.variance >= 0 ? '#10b981' : '#ef4444' }}>
-                      {comp.variance >= 0 ? '▲' : '▼'} {fmtAmt(Math.abs(comp.variance))}
+                      {comp.variance >= 0 ? 'â–²' : 'â–¼'} {fmtAmt(Math.abs(comp.variance))}
                     </span>
                   )}
                 </div>
@@ -135,16 +136,16 @@ export default function ProfitAndLossPage() {
 
           {/* Expense Section */}
           <div className="report-section">
-            <h4>📉 Operating Expenses</h4>
+            <h4>ðŸ“‰ Operating Expenses</h4>
             {pnl.expense.length > 0 ? pnl.expense.map(r => {
               const comp = comparison?.expense.find((c: any) => c.code === r.code);
               return (
                 <div key={r.accountId} style={{display:'flex',justifyContent:'space-between',padding:'6px 14px',borderBottom:'1px solid var(--border)', alignItems: 'center'}}>
-                  <span style={{color:'var(--text-primary)', flex: 1}}>{r.code} — {r.name}</span>
+                  <span style={{color:'var(--text-primary)', flex: 1}}>{r.code} â€” {r.name}</span>
                   <span className="amount negative" style={{fontWeight:600, width: 120, textAlign: 'right'}}>{fmtAmt(r.netBalance)}</span>
                   {comp && (
                     <span style={{ width: 100, textAlign: 'right', fontSize: 12, color: comp.variance <= 0 ? '#10b981' : '#ef4444' }}>
-                      {comp.variance <= 0 ? '▼' : '▲'} {fmtAmt(Math.abs(comp.variance))}
+                      {comp.variance <= 0 ? 'â–¼' : 'â–²'} {fmtAmt(Math.abs(comp.variance))}
                     </span>
                   )}
                 </div>
@@ -185,7 +186,7 @@ export default function ProfitAndLossPage() {
           {/* Comparison Chart */}
           {comparison && chartData.length > 0 && (
             <div className="report-section" style={{ marginTop: 16 }}>
-              <h4>📊 Period Comparison</h4>
+              <h4>ðŸ“Š Period Comparison</h4>
               <BarChart data={chartData} maxVal={maxChartVal} />
             </div>
           )}
@@ -193,7 +194,7 @@ export default function ProfitAndLossPage() {
           <p style={{fontSize:'0.75rem',color:'var(--text-muted)',marginTop:8}}>
             Period: {fromDate} to {toDate}
             {comparison && ` vs ${comparison.period.fromDate} to ${comparison.period.toDate}`}
-            {' '}· Generated: {new Date(pnl.generatedAt).toLocaleString()}
+            {' '}Â· Generated: {new Date(pnl.generatedAt).toLocaleString()}
           </p>
         </>
       )}

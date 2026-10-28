@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useRef } from 'react';
 import {
   useGetCompanyQuery, useUpdateCompanyMutation, useUpdateCompanySettingsMutation,
@@ -75,7 +76,7 @@ export default function CompanyPage() {
   );
 }
 
-/* ─── General Tab ──────────────────────────────── */
+/* â”€â”€â”€ General Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function GeneralTab() {
   const { data, isLoading } = useGetCompanyQuery();
@@ -136,7 +137,7 @@ function GeneralTab() {
     e.target.value = '';
   };
 
-  if (isLoading) return <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>;
+  if (isLoading) return <TableSkeleton columns={5} rows={5} />;
   if (!company) return null;
 
   return (
@@ -268,7 +269,7 @@ function GeneralTab() {
   );
 }
 
-/* ─── Branches Tab ─────────────────────────────── */
+/* â”€â”€â”€ Branches Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function BranchesTab() {
   const { data, isLoading } = useGetBranchesQuery();
@@ -309,7 +310,7 @@ function BranchesTab() {
     }
   };
 
-  if (isLoading) return <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>;
+  if (isLoading) return <TableSkeleton columns={5} rows={5} />;
 
   return (
     <>
@@ -331,9 +332,9 @@ function BranchesTab() {
               {b.code && <span className="dept-code">{b.code}</span>}
             </div>
             <div className="org-card-details">
-              <span><Phone size={13} /> {b.phone || '—'}</span>
-              <span><Mail size={13} /> {b.email || '—'}</span>
-              <span><MapPin size={13} /> {[b.city, b.country].filter(Boolean).join(', ') || '—'}</span>
+              <span><Phone size={13} /> {b.phone || 'â€”'}</span>
+              <span><Mail size={13} /> {b.email || 'â€”'}</span>
+              <span><MapPin size={13} /> {[b.city, b.country].filter(Boolean).join(', ') || 'â€”'}</span>
               <span><Home size={13} /> {b._count.properties} properties</span>
               {b.manager && (
                 <span><User size={13} /> {b.manager.profile ? `${b.manager.profile.firstName} ${b.manager.profile.lastName}` : 'Manager assigned'}</span>
@@ -381,7 +382,7 @@ function BranchesTab() {
   );
 }
 
-/* ─── Regions Tab ──────────────────────────────── */
+/* â”€â”€â”€ Regions Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function RegionsTab() {
   const { data, isLoading } = useGetRegionsQuery();
@@ -409,7 +410,7 @@ function RegionsTab() {
     } catch { toast.error('Failed'); }
   };
 
-  if (isLoading) return <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>;
+  if (isLoading) return <TableSkeleton columns={5} rows={5} />;
 
   return (
     <>
@@ -483,7 +484,7 @@ function RegionsTab() {
   );
 }
 
-/* ─── Region Property Picker ───────────────────── */
+/* â”€â”€â”€ Region Property Picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function RegionPropertyPicker({ regionId, onClose }: { regionId: string; onClose: () => void }) {
   const { data: regionProps, isLoading: loadingRegion } = useGetRegionPropertiesQuery(regionId);
@@ -501,11 +502,11 @@ function RegionPropertyPicker({ regionId, onClose }: { regionId: string; onClose
       <div className="modal-card" style={{ maxWidth: 700 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Manage Region Properties</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>âœ•</button>
         </div>
         <div className="modal-body" style={{ maxHeight: 500, overflow: 'auto' }}>
           {(loadingRegion || loadingAll) ? (
-            <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>
+            <TableSkeleton columns={5} rows={5} />
           ) : (
             <>
               <h4>Assigned ({assigned.length})</h4>
@@ -561,7 +562,7 @@ function RegionPropertyPicker({ regionId, onClose }: { regionId: string; onClose
   );
 }
 
-/* ─── Business Units Tab ───────────────────────── */
+/* â”€â”€â”€ Business Units Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function BusinessUnitsTab() {
   const { data, isLoading } = useGetBusinessUnitsQuery();
@@ -589,7 +590,7 @@ function BusinessUnitsTab() {
     } catch { toast.error('Failed'); }
   };
 
-  if (isLoading) return <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>;
+  if (isLoading) return <TableSkeleton columns={5} rows={5} />;
 
   return (
     <>
@@ -611,7 +612,7 @@ function BusinessUnitsTab() {
               {bu.code && <span className="dept-code">{bu.code}</span>}
             </div>
             <div className="org-card-details">
-              <span><MapPin size={13} /> Branch: {bu.branch?.name || '—'}</span>
+              <span><MapPin size={13} /> Branch: {bu.branch?.name || 'â€”'}</span>
               <span><Home size={13} /> {bu._count.properties} properties</span>
               {bu.manager && (
                 <span><User size={13} /> {bu.manager.profile ? `${bu.manager.profile.firstName} ${bu.manager.profile.lastName}` : 'Manager'}</span>
@@ -658,7 +659,7 @@ function BusinessUnitsTab() {
   );
 }
 
-/* ─── Features Tab ─────────────────────────────── */
+/* â”€â”€â”€ Features Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function FeaturesTab() {
   const { data } = useGetCompanyQuery();
@@ -678,7 +679,7 @@ function FeaturesTab() {
     <div className="org-detail-card" style={{ maxWidth: 600 }}>
       <h3>Feature Flags</h3>
       <p className="text-secondary text-small" style={{ marginBottom: 16 }}>
-        Enable or disable modules for your organization. Changes take effect immediately — disabled modules are hidden from the sidebar.
+        Enable or disable modules for your organization. Changes take effect immediately â€” disabled modules are hidden from the sidebar.
       </p>
       <div className="feature-flags-list">
         {Object.entries(FEATURE_FLAGS).map(([key, meta]) => {
@@ -714,16 +715,16 @@ function FeaturesTab() {
   );
 }
 
-/* ─── Shared Components ────────────────────────── */
+/* â”€â”€â”€ Shared Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function InfoRow({ label, value, badge }: { label: string; value: string | null; badge?: boolean }) {
   return (
     <div className="org-info-row">
       <span className="org-info-label">{label}</span>
       {badge ? (
-        <span className="role-chip">{value || '—'}</span>
+        <span className="role-chip">{value || 'â€”'}</span>
       ) : (
-        <span className="org-info-value">{value || '—'}</span>
+        <span className="org-info-value">{value || 'â€”'}</span>
       )}
     </div>
   );
@@ -756,7 +757,7 @@ function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitL
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{title}</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>âœ•</button>
         </div>
         <form
           className="modal-body"
@@ -790,7 +791,7 @@ function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitL
                     value={form[f.key]}
                     onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
                   >
-                    <option value="">— Select —</option>
+                    <option value="">â€” Select â€”</option>
                     {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 ) : f.type === 'user-select' ? (
@@ -799,7 +800,7 @@ function OrgFormModal({ title, fields, onClose, onSubmit, initialValues, submitL
                     value={form[f.key]}
                     onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
                   >
-                    <option value="">— No Manager —</option>
+                    <option value="">â€” No Manager â€”</option>
                     {users.map((u: any) => (
                       <option key={u.id as string} value={u.id as string}>
                         {String(u.fullName || u.email || '')}

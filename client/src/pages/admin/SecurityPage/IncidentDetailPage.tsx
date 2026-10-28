@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -6,7 +7,7 @@ import {
   useUpdateSecurityIncidentMutation,
 } from '../../../store/api/securityApi';
 import {
-  Shield, Loader2, ArrowLeft, MapPin, Clock, User,
+  Shield, ArrowLeft, MapPin, Clock, User,
   CheckCircle2, AlertTriangle, AlertOctagon, Eye, XCircle,
   FileText, Phone, Building2, Users2, CalendarClock,
 } from 'lucide-react';
@@ -14,8 +15,8 @@ import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const TYPE_ICONS: Record<string, string> = {
-  theft: '🔓', vandalism: '🔨', trespassing: '🚷', fire: '🔥',
-  medical: '🏥', accident: '⚠️', suspicious_activity: '🔍', other: '📋',
+  theft: 'Ã°Å¸â€â€œ', vandalism: 'Ã°Å¸â€Â¨', trespassing: 'Ã°Å¸Å¡Â·', fire: 'Ã°Å¸â€Â¥',
+  medical: 'Ã°Å¸ÂÂ¥', accident: 'Ã¢Å¡Â Ã¯Â¸Â', suspicious_activity: 'Ã°Å¸â€Â', other: 'Ã°Å¸â€œâ€¹',
 };
 const SEVERITY_MAP: Record<string, { color: string; bg: string; label: string }> = {
   low: { color: '#6b7280', bg: 'rgba(107,114,128,0.12)', label: 'Low' },
@@ -32,9 +33,9 @@ const STATUS_MAP: Record<string, { color: string; bg: string; icon: typeof Shiel
 };
 
 function fullName(user: any) {
-  if (!user) return '—';
+  if (!user) return 'Ã¢â‚¬â€';
   if (user.profile) return `${user.profile.firstName} ${user.profile.lastName}`;
-  return user.email || '—';
+  return user.email || 'Ã¢â‚¬â€';
 }
 
 export default function IncidentDetailPage() {
@@ -50,7 +51,7 @@ export default function IncidentDetailPage() {
   if (isLoading) {
     return (
       <div className="maint-page">
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading incident...</div>
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
@@ -128,7 +129,7 @@ export default function IncidentDetailPage() {
         <div className="inc-hero-top">
           <div className="inc-hero-left">
             <div className="inc-type-icon" style={{ background: sev.bg }}>
-              {TYPE_ICONS[inc.incidentType] || '📋'}
+              {TYPE_ICONS[inc.incidentType] || 'Ã°Å¸â€œâ€¹'}
             </div>
             <div>
               <div className="inc-hero-meta">
@@ -168,14 +169,14 @@ export default function IncidentDetailPage() {
           {elapsed < 24
             ? `${elapsed}h ago`
             : `${Math.round(elapsed / 24)}d ago`}
-          {' · '}
+          {' Ã‚Â· '}
           {new Date(inc.incidentAt).toLocaleString()}
         </div>
       </div>
 
       {/* Two-column layout */}
       <div className="inc-detail-grid">
-        {/* Left Column — Description & Details */}
+        {/* Left Column Ã¢â‚¬â€ Description & Details */}
         <div className="inc-detail-main">
           {/* Description */}
           <div className="inc-section">
@@ -227,7 +228,7 @@ export default function IncidentDetailPage() {
           )}
         </div>
 
-        {/* Right Column — Sidebar Info */}
+        {/* Right Column Ã¢â‚¬â€ Sidebar Info */}
         <div className="inc-detail-sidebar">
           {/* Key Info */}
           <div className="inc-sidebar-card">
@@ -237,7 +238,7 @@ export default function IncidentDetailPage() {
                 <MapPin size={13} />
                 <div>
                   <span className="inc-info-label">Property</span>
-                  <span className="inc-info-value">{inc.property?.name || '—'}</span>
+                  <span className="inc-info-value">{inc.property?.name || 'Ã¢â‚¬â€'}</span>
                 </div>
               </div>
               {inc.locationDetail && (

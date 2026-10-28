@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import {
@@ -99,7 +100,7 @@ export default function ScheduleManagementPage() {
 
   return (
     <div className="maint-page">
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Calendar size={22} /></div>
@@ -115,7 +116,7 @@ export default function ScheduleManagementPage() {
         </PermissionGuard>
       </div>
 
-      {/* ── Stats ── */}
+      {/* â”€â”€ Stats â”€â”€ */}
       <div className="hk-hero-stats">
         <div className="hk-hero-stat-card" style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -145,7 +146,7 @@ export default function ScheduleManagementPage() {
         })}
       </div>
 
-      {/* ── Toolbar ── */}
+      {/* â”€â”€ Toolbar â”€â”€ */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 200, maxWidth: 320, position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
@@ -155,7 +156,7 @@ export default function ScheduleManagementPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Filter size={13} style={{ color: 'var(--text-tertiary)' }} />
-          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
           <select className="filter-select" value={filterProperty} disabled
             style={{ borderRadius: 10, fontSize: 12, padding: '7px 28px 7px 10px' }}>
             {filterProperty && (
@@ -174,9 +175,9 @@ export default function ScheduleManagementPage() {
         </div>
       </div>
 
-      {/* ── Schedule Cards ── */}
+      {/* â”€â”€ Schedule Cards â”€â”€ */}
       {isLoading ? (
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading schedules...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : filtered.length === 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px', gap: 12 }}>
           <div style={{ width: 64, height: 64, borderRadius: 16, background: 'rgba(107,114,128,0.08)', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Calendar size={28} /></div>
@@ -207,7 +208,7 @@ export default function ScheduleManagementPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 11, color: 'var(--text-tertiary)' }}>
-                      <Building2 size={10} /> {s.zone?.property?.name || s.property?.name || '—'}
+                      <Building2 size={10} /> {s.zone?.property?.name || s.property?.name || 'â€”'}
                     </div>
                   </div>
                   <span style={{
@@ -230,7 +231,7 @@ export default function ScheduleManagementPage() {
                   )}
                   {s.scheduledTime && (
                     <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(0,0,0,0.04)', color: 'var(--text-secondary)' }}>
-                      ⏰ {s.scheduledTime}
+                      â° {s.scheduledTime}
                     </span>
                   )}
                 </div>
@@ -240,10 +241,10 @@ export default function ScheduleManagementPage() {
                   display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-secondary)',
                   paddingTop: 8, borderTop: `1px solid ${freq.color}10`,
                 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={10} /> {s.zone?.name || '—'}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={10} /> {s.zone?.name || 'â€”'}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={10} /> {assignee}</span>
                   {s.durationMinutes && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Timer size={10} /> {s.durationMinutes}m</span>}
-                  {s.staffCount > 1 && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>👥 {s.staffCount}</span>}
+                  {s.staffCount > 1 && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>ðŸ‘¥ {s.staffCount}</span>}
                 </div>
 
                 {/* Checklist Preview */}
@@ -274,7 +275,7 @@ export default function ScheduleManagementPage() {
         </div>
       )}
 
-      {/* ── Create Modal ── */}
+      {/* â”€â”€ Create Modal â”€â”€ */}
       {showCreate && (
         <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '540px', borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>

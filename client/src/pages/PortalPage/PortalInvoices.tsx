@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { useGetPortalInvoicesQuery, useGetPortalPaymentHistoryQuery, usePayPortalInvoiceMutation } from '../../store/api/portalApi';
 import {
@@ -91,7 +92,7 @@ export default function PortalInvoices() {
           </div>
 
           {loadingInvoices ? (
-            <div className="loading-inline"><div className="loading-spinner" /> Loading invoices...</div>
+            <TableSkeleton columns={5} rows={5} />
           ) : !invoiceData?.data?.length ? (
             <div className="portal-card-empty" style={{ padding: '40px' }}>
               <Receipt size={40} style={{ opacity: 0.3 }} />
@@ -186,7 +187,7 @@ export default function PortalInvoices() {
       {tab === 'payments' && (
         <>
           {loadingPayments ? (
-            <div className="loading-inline"><div className="loading-spinner" /> Loading payments...</div>
+            <TableSkeleton columns={5} rows={5} />
           ) : !payments?.length ? (
             <div className="portal-card-empty" style={{ padding: '40px' }}>
               <DollarSign size={40} style={{ opacity: 0.3 }} />

@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import {
   useGetPortalResidentsQuery,
@@ -170,7 +171,7 @@ export default function PortalResidents() {
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Relationship</label>
                 <select value={form.relationship} onChange={e => setForm({ ...form, relationship: e.target.value })}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   <option value="spouse">Spouse</option>
                   <option value="child">Child</option>
                   <option value="parent">Parent</option>
@@ -215,7 +216,7 @@ export default function PortalResidents() {
 
       {/* Resident Cards */}
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading residents...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : !residents?.length ? (
         <div className="portal-card-empty" style={{ padding: '40px' }}>
           <Users size={40} style={{ opacity: 0.3 }} />

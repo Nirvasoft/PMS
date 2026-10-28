@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
@@ -107,10 +108,10 @@ export default function PortalMaintenance() {
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Priority</label>
                 <select value={priority} onChange={e => setPriority(e.target.value)}>
-                  <option value="P1">P1 — Critical</option>
-                  <option value="P2">P2 — High</option>
-                  <option value="P3">P3 — Medium</option>
-                  <option value="P4">P4 — Low</option>
+                  <option value="P1">P1 â€” Critical</option>
+                  <option value="P2">P2 â€” High</option>
+                  <option value="P3">P3 â€” Medium</option>
+                  <option value="P4">P4 â€” Low</option>
                 </select>
               </div>
               <div className="form-group" style={{ flex: 1 }}>
@@ -130,7 +131,7 @@ export default function PortalMaintenance() {
 
       {/* Ticket List */}
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading tickets...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : !tickets?.length ? (
         <div className="portal-card-empty" style={{ padding: '40px' }}>
           <Wrench size={40} style={{ opacity: 0.3 }} />

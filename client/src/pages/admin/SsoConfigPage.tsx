@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import {
   useGetSsoConfigsQuery, useGetSsoConfigQuery,
@@ -14,10 +15,10 @@ import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const PROVIDERS = [
-  { value: 'azure_ad', label: 'Azure AD', icon: '🔷' },
-  { value: 'google', label: 'Google Workspace', icon: '🔴' },
-  { value: 'okta', label: 'Okta', icon: '🟡' },
-  { value: 'oidc', label: 'Generic OIDC', icon: '🔑' },
+  { value: 'azure_ad', label: 'Azure AD', icon: 'ðŸ”·' },
+  { value: 'google', label: 'Google Workspace', icon: 'ðŸ”´' },
+  { value: 'okta', label: 'Okta', icon: 'ðŸŸ¡' },
+  { value: 'oidc', label: 'Generic OIDC', icon: 'ðŸ”‘' },
 ];
 
 const emptyForm = {
@@ -132,10 +133,10 @@ export default function SsoConfigPage() {
             return (
               <div key={config.id} className={`sso-config-card ${config.isEnabled ? 'enabled' : 'disabled'}`}>
                 <div className="sso-config-header">
-                  <span className="sso-provider-icon">{provider?.icon || '🔐'}</span>
+                  <span className="sso-provider-icon">{provider?.icon || 'ðŸ”'}</span>
                   <div className="sso-config-info">
                     <h3>{config.name}</h3>
-                    <span className="text-muted text-small">{provider?.label || config.provider} · {config.protocol.toUpperCase()}</span>
+                    <span className="text-muted text-small">{provider?.label || config.provider} Â· {config.protocol.toUpperCase()}</span>
                   </div>
                   <PermissionGuard permission="company.manage">
                     <button
@@ -247,7 +248,7 @@ function SsoConfigModal({
     return (
       <div className="modal-backdrop">
         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-          <div className="loading-inline"><Loader2 size={20} className="spin" /> Loading...</div>
+          <TableSkeleton columns={5} rows={5} />
         </div>
       </div>
     );
@@ -290,7 +291,7 @@ function SsoConfigModal({
               </div>
               <div className="form-group">
                 <label>Client Secret</label>
-                <input type="password" value={form.clientSecret} onChange={e => set('clientSecret', e.target.value)} placeholder={editId ? '••••••••' : 'Client secret value'} />
+                <input type="password" value={form.clientSecret} onChange={e => set('clientSecret', e.target.value)} placeholder={editId ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : 'Client secret value'} />
               </div>
             </div>
 

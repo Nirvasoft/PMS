@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -39,11 +40,11 @@ const formatCompactAmount = (amount: string | number) =>
   formatCompactAmountHelper(amount, { minDecimals: 2, maxDecimals: 2 });
 
 const getTenantName = (record: { tenant?: { tenantType?: string | null; companyName?: string | null; lastName?: string | null; firstName?: string | null } | null }) => {
-  if (!record.tenant) return '—';
+  if (!record.tenant) return 'â€”';
   if (record.tenant.tenantType && record.tenant.tenantType !== 'individual') {
-    return record.tenant.companyName || '—';
+    return record.tenant.companyName || 'â€”';
   }
-  return record.tenant.lastName || record.tenant.firstName || '—';
+  return record.tenant.lastName || record.tenant.firstName || 'â€”';
 };
 
 function buildCurrencyOptions(
@@ -205,7 +206,7 @@ export default function InvoiceListPage() {
   }>(null);
 
   // Convert an amount from `fromCurrency` to the property's base currency using the
-  // same two-hop method used across the rest of the app (currency → base via rate/operator).
+  // same two-hop method used across the rest of the app (currency â†’ base via rate/operator).
   const toBase = (amount: number, fromCurrency: string): number => {
     if (!fromCurrency || fromCurrency === baseCurrencyCode) return amount;
     const row = currencyRates.find(r => r.currency === fromCurrency);
@@ -213,7 +214,7 @@ export default function InvoiceListPage() {
     return row.operator === 'divide' ? amount / Number(row.rate) : amount * Number(row.rate);
   };
 
-  // Two-hop conversion: fromCurrency → base → toCurrency
+  // Two-hop conversion: fromCurrency â†’ base â†’ toCurrency
   const convertCurrency = (amount: number, fromCurrency: string, toCurrency: string): number => {
     if (!fromCurrency || !toCurrency || fromCurrency === toCurrency) return amount;
     const baseAmount = toBase(amount, fromCurrency);
@@ -240,7 +241,7 @@ export default function InvoiceListPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoices, meta, currencyRates, baseCurrencyCode, displayCurrencyCode]);
 
-  // ── Selection Helpers ──────────────────────
+  // â”€â”€ Selection Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const toggleSelect = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedIds(prev => {
@@ -265,7 +266,7 @@ export default function InvoiceListPage() {
     [invoices, selectedIds],
   );
 
-  // ── Bulk Actions ───────────────────────────
+  // â”€â”€ Bulk Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleBulkSend = async () => {
     const sendable = selectedInvoices.filter(inv => ['draft', 'issued'].includes(inv.status));
     if (sendable.length === 0) return toast.error('No sendable invoices selected (must be draft or issued)');
@@ -329,7 +330,7 @@ export default function InvoiceListPage() {
     }
   };
 
-  // ── V6 ERP Handlers ────────────────────────────────────────────────────────
+  // â”€â”€ V6 ERP Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /** Send ALL issued invoices to V6 ERP (header button) */
   const handleSendAllToV6Erp = async () => {
@@ -350,7 +351,7 @@ export default function InvoiceListPage() {
       const msg = err?.data?.errors?.[0]?.message
         || err?.data?.message
         || err?.error
-        || 'Failed to connect to V6 ERP. Check Developer → Integrations → V6 ERP config.';
+        || 'Failed to connect to V6 ERP. Check Developer â†’ Integrations â†’ V6 ERP config.';
       toast.error(msg);
       console.error('[V6 ERP] push error:', err);
     }
@@ -391,7 +392,7 @@ export default function InvoiceListPage() {
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Invoices</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              {meta ? `${meta.total} total invoices` : 'Loading…'}
+              {meta ? `${meta.total} total invoices` : 'Loadingâ€¦'}
             </p>
           </div>
           <PermissionGuard permission="billing-invoices.write">
@@ -478,7 +479,7 @@ export default function InvoiceListPage() {
             className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasActiveFilters ? ' active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter size={14} /> Filters{hasActiveFilters ? ' •' : ''}
+            <Filter size={14} /> Filters{hasActiveFilters ? ' â€¢' : ''}
           </button>
         </div>
 
@@ -500,7 +501,7 @@ export default function InvoiceListPage() {
                 style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
               >
                 <UploadCloud size={14} />
-                {pushingToV6 ? 'Sending…' : 'Send to V6 ERP'}
+                {pushingToV6 ? 'Sendingâ€¦' : 'Send to V6 ERP'}
               </button>
             )}
             <button className="btn btn-secondary" onClick={() => setRunBillingModalOpen(true)}
@@ -617,7 +618,7 @@ export default function InvoiceListPage() {
               <tr>
                 <td colSpan={9}>
                   <div className="billing-empty">
-                    {isFetching ? 'Loading invoices…' : 'No invoices found.'}
+                    {isFetching ? 'Loading invoicesâ€¦' : 'No invoices found.'}
                   </div>
                 </td>
               </tr>
@@ -650,7 +651,7 @@ export default function InvoiceListPage() {
                     </td>
                     <td>
                       <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-                        {inv.invoiceDate ? format(new Date(inv.invoiceDate), 'yyyy-MM-dd') : '—'}
+                        {inv.invoiceDate ? format(new Date(inv.invoiceDate), 'yyyy-MM-dd') : 'â€”'}
                       </div>
                     </td>
                     <td>
@@ -663,7 +664,7 @@ export default function InvoiceListPage() {
                       <div className="cell-primary">{getTenantName(inv)}</div>
                     </td>
                     <td>
-                      <div className="cell-primary">{inv.unit?.unitNumber || '—'}</div>
+                      <div className="cell-primary">{inv.unit?.unitNumber || 'â€”'}</div>
                     </td>
                     <td className="text-right">
                       <span className="cell-amount" title={formatAmount(displayTotal)}>
@@ -683,7 +684,7 @@ export default function InvoiceListPage() {
                     </td>
                     <td>
                       <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-                        {inv.dueDate ? format(new Date(inv.dueDate), 'yyyy-MM-dd') : '—'}
+                        {inv.dueDate ? format(new Date(inv.dueDate), 'yyyy-MM-dd') : 'â€”'}
                       </div>
                     </td>
                   </tr>
@@ -739,7 +740,7 @@ export default function InvoiceListPage() {
         )}
       </div>
 
-      {/* ═══ Bulk Actions Bar ═══ */}
+      {/* â•â•â• Bulk Actions Bar â•â•â• */}
       {someSelected && (
         <div className="bulk-actions-bar">
           <div className="bulk-info">
@@ -758,7 +759,7 @@ export default function InvoiceListPage() {
               <Download size={14} /> Download PDFs
             </button>
             <PermissionGuard permission="billing-invoices.write">
-              {/* V6 ERP Bulk Push — only issued invoices will be forwarded */}
+              {/* V6 ERP Bulk Push â€” only issued invoices will be forwarded */}
               {isV6Active && (
                 <button
                   className="bulk-btn v6-erp"
@@ -797,30 +798,30 @@ export default function InvoiceListPage() {
         />
       )}
 
-      {/* ═══ V6 ERP Result Modal ═══ */}
+      {/* â•â•â• V6 ERP Result Modal â•â•â• */}
       {v6ErpResult && (
         <div className="mall-modal-overlay" onClick={() => setV6ErpResult(null)}>
           <div className="mall-modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
             <div className="mall-modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <UploadCloud size={18} /> V6 ERP — Push Result
+                <UploadCloud size={18} /> V6 ERP â€” Push Result
               </h3>
-              <button className="mall-modal-close" onClick={() => setV6ErpResult(null)}>✕</button>
+              <button className="mall-modal-close" onClick={() => setV6ErpResult(null)}>âœ•</button>
             </div>
             <div className="mall-modal-body">
               {/* Summary */}
               <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
                 <div style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', textAlign: 'center' }}>
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981' }}>{v6ErpResult.sent}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Sent ✅</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Sent âœ…</div>
                 </div>
                 <div style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', textAlign: 'center' }}>
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#ef4444' }}>{v6ErpResult.failed}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Failed ❌</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Failed âŒ</div>
                 </div>
                 <div style={{ flex: 1, padding: '12px 16px', borderRadius: 10, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', textAlign: 'center' }}>
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#f59e0b' }}>{v6ErpResult.skipped}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Skipped ⚠️</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Skipped âš ï¸</div>
                 </div>
               </div>
 
@@ -839,11 +840,11 @@ export default function InvoiceListPage() {
                           fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
                           color: r.status === 'sent' ? '#10b981' : r.status === 'failed' ? '#ef4444' : '#f59e0b',
                         }}>
-                          {r.status === 'sent' ? '✅ Sent' : r.status === 'failed' ? '❌ Failed' : '⚠️ Skipped'}
+                          {r.status === 'sent' ? 'âœ… Sent' : r.status === 'failed' ? 'âŒ Failed' : 'âš ï¸ Skipped'}
                         </span>
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                        CustomerCode: <strong>{r.customerCode || '—'}</strong>
+                        CustomerCode: <strong>{r.customerCode || 'â€”'}</strong>
                       </div>
                       {r.error && (
                         <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{r.error}</div>
@@ -869,7 +870,7 @@ export default function InvoiceListPage() {
   );
 }
 
-// ── Run Billing Modal ────────────────────────
+// â”€â”€ Run Billing Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
   activeProperty: string;
   onClose: () => void;
@@ -877,7 +878,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
   isLoading: boolean;
 }) {
   const todayStr = new Date().toISOString().split('T')[0];
-  // Locked to the sidebar's Active Property, same convention as elsewhere — only when
+  // Locked to the sidebar's Active Property, same convention as elsewhere â€” only when
   // "All Properties" is active can a specific property (or "All Properties" itself) be
   // chosen here.
   const propertyLocked = !!activeProperty;
@@ -887,7 +888,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
 
   const { data: propertiesData } = useGetPropertiesQuery({ limit: 200 });
   const properties = propertiesData?.data || [];
-  // /properties requires properties.read, which a billing-only role may lack — use the
+  // /properties requires properties.read, which a billing-only role may lack â€” use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
   const { data: scopeData } = useGetMyPropertyScopeQuery();
@@ -928,7 +929,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
               <label>Property</label>
               <select value={propertyId} disabled={propertyLocked} onChange={e => setManualPropertyId(e.target.value)}>
                 {propertyLocked ? (
-                  <option value={propertyId}>{lockedPropertyName || 'Loading…'}</option>
+                  <option value={propertyId}>{lockedPropertyName || 'Loadingâ€¦'}</option>
                 ) : (
                   <>
                     <option value="">All Properties</option>
@@ -958,7 +959,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
                 <span className="text-right">Amount</span>
               </div>
               {schedulesLoading ? (
-                <div className="rb-schedule-empty">Loading…</div>
+                <TableSkeleton columns={4} rows={4} />
               ) : dueSchedules.length === 0 ? (
                 <div className="rb-schedule-empty">No active schedules due on or before this date.</div>
               ) : (
@@ -966,7 +967,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
                   <div key={s.id} className="rb-schedule-row">
                     <span className="rb-schedule-charge">{s.description || s.chargeType.name}</span>
                     <span>{getTenantName(s)}</span>
-                    <span>{s.nextBillingDate ? format(new Date(s.nextBillingDate), 'yyyy-MM-dd') : '—'}</span>
+                    <span>{s.nextBillingDate ? format(new Date(s.nextBillingDate), 'yyyy-MM-dd') : 'â€”'}</span>
                     <span className="text-right">{formatCurrency(s.amount, s.currency)}</span>
                   </div>
                 ))
@@ -985,7 +986,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSubmit} disabled={isLoading}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Play size={14} /> {isLoading ? 'Running…' : 'Run Billing'}
+            <Play size={14} /> {isLoading ? 'Runningâ€¦' : 'Run Billing'}
           </button>
         </div>
       </div>
@@ -993,7 +994,7 @@ function RunBillingModal({ activeProperty, onClose, onSubmit, isLoading }: {
   );
 }
 
-// ── View Invoice Report Modal ────────────────────────
+// â”€â”€ View Invoice Report Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ViewInvoiceReportModal({
   activeProperty,
   onClose,
@@ -1458,7 +1459,7 @@ function ViewInvoiceReportModal({
             disabled={generatingReport}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <Eye size={14} /> {generatingReport ? 'Loading…' : 'View Report'}
+            <Eye size={14} /> {generatingReport ? 'Loadingâ€¦' : 'View Report'}
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +8,7 @@ import {
 } from '../../../store/api/securityApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
-  Shield, Plus, Loader2, AlertTriangle, Eye, CheckCircle2,
+  Shield, Plus, AlertTriangle, Eye, CheckCircle2,
   FileWarning, AlertOctagon, MapPin, Clock, User,
   TrendingUp, DoorOpen, ChevronLeft, ChevronRight,
 } from 'lucide-react';
@@ -16,8 +17,8 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const TYPES = ['theft', 'vandalism', 'trespassing', 'fire', 'medical', 'accident', 'suspicious_activity', 'other'];
 const TYPE_ICONS: Record<string, string> = {
-  theft: '🔓', vandalism: '🔨', trespassing: '🚷', fire: '🔥',
-  medical: '🏥', accident: '⚠️', suspicious_activity: '🔍', other: '📋',
+  theft: 'Ã°Å¸â€â€œ', vandalism: 'Ã°Å¸â€Â¨', trespassing: 'Ã°Å¸Å¡Â·', fire: 'Ã°Å¸â€Â¥',
+  medical: 'Ã°Å¸ÂÂ¥', accident: 'Ã¢Å¡Â Ã¯Â¸Â', suspicious_activity: 'Ã°Å¸â€Â', other: 'Ã°Å¸â€œâ€¹',
 };
 const SEVERITY_MAP: Record<string, { color: string; bg: string; dot: string }> = {
   low: { color: '#6b7280', bg: 'rgba(107,114,128,0.12)', dot: '#9ca3af' },
@@ -111,7 +112,7 @@ export default function SecurityIncidentsPage() {
 
   return (
     <div className="maint-page">
-      {/* ── Header ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Shield size={22} /></div>
@@ -126,7 +127,7 @@ export default function SecurityIncidentsPage() {
         </div>
       </div>
 
-      {/* ── Stats Row ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Stats Row Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {stats && (
         <div className="maint-stats-row">
           <div className="maint-stat-card blue">
@@ -174,7 +175,7 @@ export default function SecurityIncidentsPage() {
         </div>
       )}
 
-      {/* ── Filters ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Filters Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="maint-filters">
         {['', 'low', 'medium', 'high', 'critical'].map((s) => (
           <button key={s || 'all'} className={`filter-chip ${severity === s ? 'active' : ''}`}
@@ -194,9 +195,9 @@ export default function SecurityIncidentsPage() {
         </select>
       </div>
 
-      {/* ── Incident Cards ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Incident Cards Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {isLoading ? (
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : incidents.length === 0 ? (
         <div className="maint-empty"><Shield size={32} /><p>No incidents found</p></div>
       ) : (
@@ -207,7 +208,7 @@ export default function SecurityIncidentsPage() {
             const StIcon = st.icon;
             const reporter = inc.reportedBy?.profile
               ? `${inc.reportedBy.profile.firstName} ${inc.reportedBy.profile.lastName}`
-              : inc.reportedBy?.email || '—';
+              : inc.reportedBy?.email || 'Ã¢â‚¬â€';
             return (
               <div key={inc.id} style={{
                 background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
@@ -228,7 +229,7 @@ export default function SecurityIncidentsPage() {
                   background: sev.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '20px',
                 }}>
-                  {TYPE_ICONS[inc.incidentType] || '📋'}
+                  {TYPE_ICONS[inc.incidentType] || 'Ã°Å¸â€œâ€¹'}
                 </div>
 
                 {/* Main info */}
@@ -273,7 +274,7 @@ export default function SecurityIncidentsPage() {
         </div>
       )}
 
-      {/* ── Pagination ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Pagination Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {meta && meta.total >= 10 && (
         <div className="maint-pagination">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -297,7 +298,7 @@ export default function SecurityIncidentsPage() {
         </div>
       )}
 
-      {/* ── Create Modal ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Create Modal Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {showCreate && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
@@ -344,7 +345,7 @@ export default function SecurityIncidentsPage() {
         </div>
       )}
 
-      {/* ── Resolve Modal ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Resolve Modal Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {resolveId && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>

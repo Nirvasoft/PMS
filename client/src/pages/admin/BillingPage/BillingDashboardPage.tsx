@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -113,7 +114,7 @@ function calculateNextRun(cronExpr: string, isEnabled: boolean, now: Date = new 
 export default function BillingDashboardPage() {
   const navigate = useNavigate();
 
-  // Fetch summary & recent invoices — scoped to the sidebar's Active Property when one is chosen.
+  // Fetch summary & recent invoices â€” scoped to the sidebar's Active Property when one is chosen.
   const activePropertyFilter = useSelectedPropertyFilter();
   const propertyIdParam = activePropertyFilter || undefined;
 
@@ -162,7 +163,7 @@ export default function BillingDashboardPage() {
   };
 
   const getTenantName = (inv: any) => {
-    if (!inv.tenant) return '—';
+    if (!inv.tenant) return 'â€”';
     return inv.tenant.tenantType !== 'individual'
       ? inv.tenant.companyName || ''
       : inv.tenant.lastName || inv.tenant.firstName || '';
@@ -304,13 +305,13 @@ export default function BillingDashboardPage() {
                 <span>
                   {getHumanSchedule(billingJob?.cronExpression || '0 2 * * *', billingJob?.timezone || 'Asia/Yangon')}
                 </span>
-                <span style={{ color: 'var(--border)' }}>—</span>
+                <span style={{ color: 'var(--border)' }}>â€”</span>
                 <span>
                   Next run: <strong style={{ color: 'var(--text-primary)' }}>{calculateNextRun(billingJob?.cronExpression || '0 2 * * *', billingJob?.isEnabled ?? true)}</strong>
                 </span>
                 {billingJob?.lastRunAt && (
                   <>
-                    <span style={{ color: 'var(--border)' }}>•</span>
+                    <span style={{ color: 'var(--border)' }}>â€¢</span>
                     <span style={{ color: 'var(--text-muted)' }}>
                       Last run: {format(new Date(billingJob.lastRunAt), 'MMM d, HH:mm')}
                       {billingJob.lastStatus === 'success' ? (
@@ -343,7 +344,7 @@ export default function BillingDashboardPage() {
                 disabled={runningBilling || billingJob?.isRunning}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '0.45rem 0.85rem' }}
               >
-                <Play size={14} /> {runningBilling || billingJob?.isRunning ? 'Running…' : 'Run Now'}
+                <Play size={14} /> {runningBilling || billingJob?.isRunning ? 'Runningâ€¦' : 'Run Now'}
               </button>
             </PermissionGuard>
           </div>
@@ -400,7 +401,7 @@ export default function BillingDashboardPage() {
               </thead>
               <tbody>
                 {isFetching && !recentInvoices.length ? (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>Loading…</td></tr>
+                  <TableSkeletonRows columns={5} />
                 ) : recentInvoices.length === 0 ? (
                   <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)' }}>No invoices yet</td></tr>
                 ) : recentInvoices.map(inv => (

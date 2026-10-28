@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -6,7 +7,7 @@ import {
 } from '../../../store/api/securityApi';
 import { useGetActiveVisitorsQuery } from '../../../store/api/visitorsApi';
 import {
-  Shield, Loader2, AlertOctagon, Eye, CheckCircle2, AlertTriangle,
+  Shield, AlertOctagon, Eye, CheckCircle2, AlertTriangle,
   MapPin, Clock, DoorOpen, ShieldX,
   ArrowRight, BarChart3, Target, Users, Car,
 } from 'lucide-react';
@@ -19,8 +20,8 @@ const SEVERITY_STYLE: Record<string, { color: string; bg: string }> = {
 };
 
 const TYPE_ICONS: Record<string, string> = {
-  theft: '🔓', vandalism: '🔨', trespassing: '🚷', fire: '🔥',
-  medical: '🏥', accident: '⚠️', suspicious_activity: '🔍', other: '📋',
+  theft: 'Ã°Å¸â€â€œ', vandalism: 'Ã°Å¸â€Â¨', trespassing: 'Ã°Å¸Å¡Â·', fire: 'Ã°Å¸â€Â¥',
+  medical: 'Ã°Å¸ÂÂ¥', accident: 'Ã¢Å¡Â Ã¯Â¸Â', suspicious_activity: 'Ã°Å¸â€Â', other: 'Ã°Å¸â€œâ€¹',
 };
 
 export default function SecurityDashboard() {
@@ -41,7 +42,7 @@ export default function SecurityDashboard() {
   if (isLoading) {
     return (
       <div className="maint-page">
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading security dashboard...</div>
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
@@ -177,7 +178,7 @@ export default function SecurityDashboard() {
                   const pct = Math.round((t.count / maxTypeCount) * 100);
                   return (
                     <div key={t.type} className="sec-type-row">
-                      <span className="sec-type-icon">{TYPE_ICONS[t.type] || '📋'}</span>
+                      <span className="sec-type-icon">{TYPE_ICONS[t.type] || 'Ã°Å¸â€œâ€¹'}</span>
                       <span className="sec-type-label">{t.type.replace(/_/g, ' ')}</span>
                       <div className="sec-type-bar-track">
                         <div className="sec-type-bar-fill" style={{ width: `${pct}%` }} />
@@ -261,14 +262,14 @@ export default function SecurityDashboard() {
                             <Car size={11} /> {v.vehiclePlate} {v.vehicleMake ? `(${v.vehicleMake})` : ''}
                           </span>
                         ) : (
-                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>· Pedestrian</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Ã‚Â· Pedestrian</span>
                         )}
                       </span>
                       <span className="sec-feed-meta">
                         {v.hostUnit?.unitNumber && <>Unit {v.hostUnit.unitNumber}</>}
-                        {v.property?.name && <> · {v.property.name}</>}
-                        {v.visitorCompany && <> · {v.visitorCompany}</>}
-                        {v.checkedInAt && <> · In: {new Date(v.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
+                        {v.property?.name && <> Ã‚Â· {v.property.name}</>}
+                        {v.visitorCompany && <> Ã‚Â· {v.visitorCompany}</>}
+                        {v.checkedInAt && <> Ã‚Â· In: {new Date(v.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
                       </span>
                     </div>
                     <span className="sec-patrol-status" style={{ color: '#10b981', background: 'rgba(16,185,129,0.1)', marginLeft: 'auto', alignSelf: 'center' }}>
@@ -301,14 +302,14 @@ export default function SecurityDashboard() {
                     <div key={inc.id} className="sec-feed-item" style={{ borderLeftColor: s.color }}
                       onClick={() => navigate(`/admin/security/incidents/${inc.id}`)}>
                       <div className="sec-feed-icon" style={{ background: s.bg }}>
-                        {TYPE_ICONS[inc.incidentType] || '📋'}
+                        {TYPE_ICONS[inc.incidentType] || 'Ã°Å¸â€œâ€¹'}
                       </div>
                       <div className="sec-feed-info">
                         <span className="sec-feed-title">{inc.title}</span>
                         <span className="sec-feed-meta">
                           <span className="sec-feed-sev" style={{ color: s.color }}>{inc.severity}</span>
-                          {inc.property?.name && <> · {inc.property.name}</>}
-                          <> · {new Date(inc.incidentAt).toLocaleDateString()}</>
+                          {inc.property?.name && <> Ã‚Â· {inc.property.name}</>}
+                          <> Ã‚Â· {new Date(inc.incidentAt).toLocaleDateString()}</>
                         </span>
                       </div>
                     </div>
@@ -344,7 +345,7 @@ export default function SecurityDashboard() {
                         <Clock size={10} /> {new Date(log.scannedAt).toLocaleString(undefined, {
                           hour: '2-digit', minute: '2-digit',
                         })}
-                        {log.guard && <> · {log.guard.profile?.firstName} {log.guard.profile?.lastName}</>}
+                        {log.guard && <> Ã‚Â· {log.guard.profile?.firstName} {log.guard.profile?.lastName}</>}
                       </span>
                     </div>
                     <span className="sec-patrol-status" style={{
@@ -378,9 +379,9 @@ export default function SecurityDashboard() {
                     <div className="sec-feed-info">
                       <span className="sec-feed-title">{evt.doorName || evt.deviceName || 'Unknown Door'}</span>
                       <span className="sec-feed-meta">
-                        {evt.cardNumber && <><span style={{ fontFamily: 'monospace' }}>{evt.cardNumber}</span> · </>}
+                        {evt.cardNumber && <><span style={{ fontFamily: 'monospace' }}>{evt.cardNumber}</span> Ã‚Â· </>}
                         {evt.denialReason || 'Access denied'}
-                        <> · {new Date(evt.eventAt).toLocaleString(undefined, {
+                        <> Ã‚Â· {new Date(evt.eventAt).toLocaleString(undefined, {
                           hour: '2-digit', minute: '2-digit',
                         })}</>
                       </span>

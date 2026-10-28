@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -27,7 +28,7 @@ export default function ApInvoiceListPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
-  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  // Active property from the sidebar â€” follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
@@ -61,7 +62,7 @@ export default function ApInvoiceListPage() {
     };
   }, [invoices]);
 
-  // Create form — propertyId is seeded from and locked to the active property; only when
+  // Create form â€” propertyId is seeded from and locked to the active property; only when
   // "All Properties" is active can it be chosen in the form itself.
   const propertyLocked = !!selectedProperty;
   const [form, setForm] = useState({
@@ -189,10 +190,10 @@ export default function ApInvoiceListPage() {
 
       {/* Filter */}
       <div className="ap-filters">
-        {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        {/* Property follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
         <select value={selectedProperty} disabled style={{ minWidth: 180 }}>
           {!selectedProperty && <option value="">All Properties</option>}
-          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
+          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loadingâ€¦'}</option>}
         </select>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="">All Statuses</option>
@@ -223,14 +224,14 @@ export default function ApInvoiceListPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem' }}>Loading...</td></tr>
+                <TableSkeletonRows columns={9} />
               ) : invoices.length === 0 ? (
                 <tr><td colSpan={9}><div className="ap-empty"><FileText size={40} /><p>No AP invoices found</p></div></td></tr>
               ) : invoices.map((inv: any) => (
                 <tr key={inv.id} className="clickable" onClick={() => navigate(`/admin/ap/invoices/${inv.id}`)}>
                   <td><strong>{inv.apInvoiceNumber}</strong></td>
                   <td>{inv.vendorName}</td>
-                  <td>{inv.vendorInvoiceNo || '—'}</td>
+                  <td>{inv.vendorInvoiceNo || 'â€”'}</td>
                   <td>{format(new Date(inv.invoiceDate), 'dd MMM yyyy')}</td>
                   <td>{format(new Date(inv.dueDate), 'dd MMM yyyy')}</td>
                   <td className="amount-neutral">{fmt(inv.totalAmount)}</td>
@@ -347,7 +348,7 @@ export default function ApInvoiceListPage() {
                     }}
                   >
                     {propertyLocked ? (
-                      <option value={form.propertyId}>{selectedPropertyName || 'Loading…'}</option>
+                      <option value={form.propertyId}>{selectedPropertyName || 'Loadingâ€¦'}</option>
                     ) : (
                       <>
                         <option value="">Select property</option>
@@ -399,7 +400,7 @@ export default function ApInvoiceListPage() {
                 </div>
                 <div className="ap-form-group full-width">
                   <label>Description</label>
-                  <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Building maintenance services — January 2025" />
+                  <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Building maintenance services â€” January 2025" />
                 </div>
               </div>
 

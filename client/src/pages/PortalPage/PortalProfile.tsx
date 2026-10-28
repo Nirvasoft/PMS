@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useState, useEffect } from 'react';
 import { useGetPortalProfileQuery, useUpdatePortalProfileMutation } from '../../store/api/portalApi';
 import toast from 'react-hot-toast';
@@ -38,7 +39,7 @@ export default function PortalProfile() {
   if (isLoading) {
     return (
       <div className="page-content portal-page">
-        <div className="loading-inline"><div className="loading-spinner" /> Loading profile...</div>
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }

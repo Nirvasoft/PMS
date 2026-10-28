@@ -1,18 +1,16 @@
 import { useState } from 'react';
 import { Scale } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useAppSelector } from '../../../store';
 import { useGetTrialBalanceQuery } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
+import { GlExportExcelButton } from './GlExportExcelButton';
 import './GLPage.css';
 
 import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 
 export default function TrialBalancePage() {
   const selectedPropertyId = useSelectedPropertyId();
-  const accessToken = useAppSelector(s => s.auth.accessToken);
-  const [exporting, setExporting] = useState(false);
   const now = new Date();
   const [fromDate, setFromDate] = useState(`${now.getFullYear()}-01-01`);
   const [toDate, setToDate] = useState(now.toISOString().split('T')[0]);
@@ -22,34 +20,7 @@ export default function TrialBalancePage() {
     propertyId: selectedPropertyId || undefined,
   });
 
-  const handleExportExcel = async () => {
-    setExporting(true);
-    try {
-      const propParam = selectedPropertyId ? `&propertyId=${encodeURIComponent(selectedPropertyId)}` : '';
-      const url = `/api/v1/gl/trial-balance?fromDate=${fromDate}&toDate=${toDate}${propParam}&format=xlsx`;
-      const res = await fetch(url, {
-        credentials: 'include',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-      });
-      if (!res.ok) throw new Error('Export failed');
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = `trial-balance-${toDate}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(objectUrl);
-    } catch {
-      toast.error('Failed to export Trial Balance');
-    } finally {
-      setExporting(false);
-    }
-  };
+  const propParam = selectedPropertyId ? `&propertyId=${encodeURIComponent(selectedPropertyId)}` : '';
 
   return (
     <div className="gl-page">
@@ -73,19 +44,11 @@ export default function TrialBalancePage() {
         <div style={{ flex: 1 }} />
         {tb && (
           <>
-            <button
-              onClick={handleExportExcel}
-              disabled={exporting}
-              style={{
-                padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)', cursor: exporting ? 'wait' : 'pointer',
-                display: 'flex', alignItems: 'center',
-                opacity: exporting ? 0.7 : 1,
-              }}
-            >
-              {exporting ? 'Exporting…' : 'Export Excel'}
-            </button>
+            <GlExportExcelButton
+              url={`/api/v1/gl/trial-balance?fromDate=${fromDate}&toDate=${toDate}${propParam}&format=xlsx`}
+              filename={`trial-balance-${toDate}.xlsx`}
+              errorMessage="Failed to export Trial Balance"
+            />
             <span className={`report-balanced ${tb.summary.isBalanced ? 'yes' : 'no'}`}>
               {tb.summary.isBalanced ? '✓ Balanced' : '✗ Unbalanced'}
             </span>
@@ -93,7 +56,7 @@ export default function TrialBalancePage() {
         )}
       </div>
 
-      {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : tb && (
+      {isLoading ? <TableSkeleton columns={6} rows={6} /> : tb && (
         <div className="gl-table-wrap">
           <TableScrollWrapper>
             <table className="gl-table">

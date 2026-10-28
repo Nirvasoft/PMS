@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import {
@@ -6,7 +7,7 @@ import {
 } from '../../../store/api/securityApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
-  MapPin, Loader2, Plus, Clock, CheckCircle2, XCircle, QrCode,
+  MapPin, Plus, Clock, CheckCircle2, XCircle, QrCode,
   Shield, Copy, Navigation, TrendingUp, Users, Radio,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
@@ -66,11 +67,11 @@ export default function PatrolLogsPage() {
 
   return (
     <div className="maint-page">
-      {/* ── Header ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Shield size={22} /></div>
-          <div><h1>Patrol Management</h1><p>{checkpoints.length} checkpoints · {meta?.total ?? logs.length} total logs</p></div>
+          <div><h1>Patrol Management</h1><p>{checkpoints.length} checkpoints Ã‚Â· {meta?.total ?? logs.length} total logs</p></div>
         </div>
         <div className="header-actions">
           <PermissionGuard permission="security-patrol.write">
@@ -81,7 +82,7 @@ export default function PatrolLogsPage() {
         </div>
       </div>
 
-      {/* ── Stats Row ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Stats Row Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="maint-stats-row">
         <div className="maint-stat-card blue">
           <div className="msc-icon"><QrCode size={18} /></div>
@@ -121,7 +122,7 @@ export default function PatrolLogsPage() {
         )}
       </div>
 
-      {/* ── Tab Bar ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Tab Bar Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="maint-filters" style={{ gap: '4px' }}>
         <button className={`filter-chip ${tab === 'logs' ? 'active' : ''}`} onClick={() => setTab('logs')}>
           <Clock size={12} /> Patrol Logs
@@ -133,16 +134,16 @@ export default function PatrolLogsPage() {
         </button>
       </div>
 
-      {/* ── Logs Tab ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Logs Tab Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {tab === 'logs' && (
-        isLoading ? <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div> :
+        isLoading ? <TableSkeleton columns={5} rows={5} /> :
         logs.length === 0 ? <div className="maint-empty"><Navigation size={32} /><p>No patrol logs yet</p></div> : (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {logs.map((log: any, i: number) => {
                 const guard = log.guard?.profile
                   ? `${log.guard.profile.firstName} ${log.guard.profile.lastName}`
-                  : log.guard?.email || '—';
+                  : log.guard?.email || 'Ã¢â‚¬â€';
                 const scannedAt = new Date(log.scannedAt);
                 const timeFmt = scannedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const dateFmt = scannedAt.toLocaleDateString([], { month: 'short', day: 'numeric' });
@@ -238,7 +239,7 @@ export default function PatrolLogsPage() {
         )
       )}
 
-      {/* ── Checkpoints Tab ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Checkpoints Tab Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {tab === 'checkpoints' && (
         checkpoints.length === 0 ? <div className="maint-empty"><QrCode size={32} /><p>No checkpoints</p></div> : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px' }}>
@@ -306,7 +307,7 @@ export default function PatrolLogsPage() {
         )
       )}
 
-      {/* ── Create Modal ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Create Modal Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>

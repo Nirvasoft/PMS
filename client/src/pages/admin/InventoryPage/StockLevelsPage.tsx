@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState, useEffect } from 'react';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
@@ -9,7 +10,7 @@ import {
   useGetInventoryItemsQuery,
 } from '../../../store/api/inventoryApi';
 import {
-  Layers, Loader2, ArrowDownToLine, ArrowUpFromLine,
+  Layers, ArrowDownToLine, ArrowUpFromLine,
   ArrowLeftRight, ClipboardEdit,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -135,11 +136,11 @@ export default function StockLevelsPage() {
               <h1 style={{ margin: 0 }}>Stock Levels</h1>
               {activeProperty ? (
                 <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
-                  🏢 {activeProperty.name}
+                  Ã°Å¸ÂÂ¢ {activeProperty.name}
                 </span>
               ) : (
                 <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-                  🌐 All Properties
+                  Ã°Å¸Å’Â All Properties
                 </span>
               )}
             </div>
@@ -172,7 +173,7 @@ export default function StockLevelsPage() {
       </div>
 
       {isLoading ? (
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : levels.length === 0 ? (
         <div className="maint-empty"><Layers size={32} /><p>No stock records yet</p></div>
       ) : (
@@ -246,7 +247,7 @@ export default function StockLevelsPage() {
                   onChange={() => setActionErrors(prev => ({ ...prev, itemId: false }))}
                 >
                   <option value="">Select item...</option>
-                  {items.map((i: any) => <option key={i.id} value={i.id}>{i.itemCode} — {i.name}</option>)}
+                  {items.map((i: any) => <option key={i.id} value={i.id}>{i.itemCode} Ã¢â‚¬â€ {i.name}</option>)}
                 </select>
                 {actionErrors.itemId && <span className="maint-error-text">Item is required</span>}
               </div>

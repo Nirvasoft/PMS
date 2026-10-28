@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -5,7 +6,7 @@ import { useGetPmSchedulesQuery } from '../../../store/api/pmApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  Calendar, ChevronLeft, ChevronRight, ArrowLeft, Loader2,
+  Calendar, ChevronLeft, ChevronRight, ArrowLeft,
 } from 'lucide-react';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -22,7 +23,7 @@ export default function PmCalendarPage() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
 
-  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  // Active property from the sidebar Ã¢â‚¬â€ follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
@@ -93,10 +94,10 @@ export default function PmCalendarPage() {
           </div>
         </div>
         <div className="header-actions">
-          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          {/* Property follows the sidebar's "Active Property" selector Ã¢â‚¬â€ not independently choosable here. */}
           <select className="filter-select" value={selectedProperty} disabled>
             {!selectedProperty && <option value="">All Properties</option>}
-            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
+            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'LoadingÃ¢â‚¬Â¦'}</option>}
           </select>
         </div>
       </div>
@@ -110,7 +111,7 @@ export default function PmCalendarPage() {
       </div>
 
       {isLoading ? (
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : (
         <div className="pm-calendar-grid">
           {/* Day headers */}

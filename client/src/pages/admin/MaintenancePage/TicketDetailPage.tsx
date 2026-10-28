@@ -822,7 +822,7 @@ function AssignModal({ ticketId, propertyId, onClose }: { ticketId: string; prop
           <div className="modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? <Loader2 size={16} className="spinner" /> : 'Assign'}
+              {isLoading ? 'Assigning…' : 'Assign'}
             </button>
           </div>
         </form>

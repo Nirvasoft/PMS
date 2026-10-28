@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -25,10 +26,10 @@ const FREQUENCIES: Record<string, string> = {
 };
 
 const SEVERITY_OPTIONS = [
-  { value: 'none', label: 'None — No issues found', color: '#22c55e' },
-  { value: 'monitoring', label: 'Monitoring — Note logged, no action needed', color: '#3b82f6' },
-  { value: 'requires_repair', label: 'Requires Repair — Auto-create P2 ticket', color: '#f59e0b' },
-  { value: 'critical', label: 'Critical — Auto-create P1 ticket + notify manager', color: '#ef4444' },
+  { value: 'none', label: 'None â€” No issues found', color: '#22c55e' },
+  { value: 'monitoring', label: 'Monitoring â€” Note logged, no action needed', color: '#3b82f6' },
+  { value: 'requires_repair', label: 'Requires Repair â€” Auto-create P2 ticket', color: '#f59e0b' },
+  { value: 'critical', label: 'Critical â€” Auto-create P1 ticket + notify manager', color: '#ef4444' },
 ];
 
 export default function PmScheduleDetailPage() {
@@ -53,7 +54,7 @@ export default function PmScheduleDetailPage() {
   const schedule = scheduleData?.data;
   const history = historyData?.data || [];
 
-  if (isLoading) return <div className="maint-page"><div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div></div>;
+  if (isLoading) return <div className="maint-page"><TableSkeleton columns={5} rows={5} /></div>;
   if (!schedule) return <div className="maint-page"><div className="maint-empty"><p>Schedule not found</p></div></div>;
 
   const daysUntilDue = Math.ceil((new Date(schedule.nextDueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -80,7 +81,7 @@ export default function PmScheduleDetailPage() {
           <div className="page-icon-lg"><CalendarClock size={22} /></div>
           <div>
             <h1>{schedule.name}</h1>
-            <p>{schedule.property?.name} · {FREQUENCIES[schedule.frequencyType]} · <span className={`maint-priority ${schedule.priority?.toLowerCase()}`}>{schedule.priority}</span></p>
+            <p>{schedule.property?.name} Â· {FREQUENCIES[schedule.frequencyType]} Â· <span className={`maint-priority ${schedule.priority?.toLowerCase()}`}>{schedule.priority}</span></p>
           </div>
         </div>
         <PermissionGuard permission="maintenance-pm.write">
@@ -142,12 +143,12 @@ export default function PmScheduleDetailPage() {
               <div style={{ marginTop: '4px', fontWeight: 500 }}>
                 {schedule.assignedTo?.profile
                   ? `${schedule.assignedTo.profile.firstName} ${schedule.assignedTo.profile.lastName}`
-                  : schedule.assignedRole || '—'}
+                  : schedule.assignedRole || 'â€”'}
               </div>
             </div>
             <div>
               <span className="cell-secondary">Category</span>
-              <div style={{ marginTop: '4px', fontWeight: 500 }}>{schedule.category?.name || '—'}</div>
+              <div style={{ marginTop: '4px', fontWeight: 500 }}>{schedule.category?.name || 'â€”'}</div>
             </div>
             <div>
               <span className="cell-secondary">Last Performed</span>
@@ -229,10 +230,10 @@ export default function PmScheduleDetailPage() {
                       {wo.status}
                     </span>
                   </td>
-                  <td><span className="cell-secondary">{wo.completedAt ? new Date(wo.completedAt).toLocaleString() : '—'}</span></td>
+                  <td><span className="cell-secondary">{wo.completedAt ? new Date(wo.completedAt).toLocaleString() : 'â€”'}</span></td>
                   <td>
                     <span className="cell-secondary">
-                      {wo.completedBy?.profile ? `${wo.completedBy.profile.firstName} ${wo.completedBy.profile.lastName}` : '—'}
+                      {wo.completedBy?.profile ? `${wo.completedBy.profile.firstName} ${wo.completedBy.profile.lastName}` : 'â€”'}
                     </span>
                   </td>
                   <td>
@@ -242,11 +243,11 @@ export default function PmScheduleDetailPage() {
                       >
                         {wo.ticket.ticketNumber}
                       </span>
-                    ) : '—'}
+                    ) : 'â€”'}
                   </td>
                   <td>
                     <span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                      {wo.findings || '—'}
+                      {wo.findings || 'â€”'}
                     </span>
                   </td>
                   <td>
@@ -271,7 +272,7 @@ export default function PmScheduleDetailPage() {
                         </div>
                       </PermissionGuard>
                     ) : (
-                      <span className="cell-secondary" style={{ fontSize: 11 }}>—</span>
+                      <span className="cell-secondary" style={{ fontSize: 11 }}>â€”</span>
                     )}
                   </td>
                 </tr>
@@ -311,7 +312,7 @@ export default function PmScheduleDetailPage() {
   );
 }
 
-// ── Complete PM Work Order Modal ────────────────
+// â”€â”€ Complete PM Work Order Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function CompletePmWoModal({ woId, checklistTemplate, onClose }: {
   woId: string;
   checklistTemplate: Array<{ item: string; isRequired: boolean; notes?: string }>;
@@ -454,7 +455,7 @@ function CompletePmWoModal({ woId, checklistTemplate, onClose }: {
   );
 }
 
-// ── Skip PM Work Order Modal ────────────────
+// â”€â”€ Skip PM Work Order Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SkipPmWoModal({ woId, onClose }: { woId: string; onClose: () => void }) {
   const [skipPmWo, { isLoading }] = useSkipPmWorkOrderMutation();
   const [reason, setReason] = useState('');
@@ -502,7 +503,7 @@ function SkipPmWoModal({ woId, onClose }: { woId: string; onClose: () => void })
   );
 }
 
-// ── Edit PM Schedule Modal ────────────────
+// â”€â”€ Edit PM Schedule Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const FREQUENCIES_LIST: Record<string, string> = {
   daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly',
   quarterly: 'Quarterly', semi_annual: 'Semi-Annual',
@@ -510,10 +511,10 @@ const FREQUENCIES_LIST: Record<string, string> = {
 };
 
 const PRIORITIES_LIST = [
-  { value: 'P1', label: 'P1 — Emergency' },
-  { value: 'P2', label: 'P2 — Urgent' },
-  { value: 'P3', label: 'P3 — Normal' },
-  { value: 'P4', label: 'P4 — Low' },
+  { value: 'P1', label: 'P1 â€” Emergency' },
+  { value: 'P2', label: 'P2 â€” Urgent' },
+  { value: 'P3', label: 'P3 â€” Normal' },
+  { value: 'P4', label: 'P4 â€” Low' },
 ];
 
 function EditScheduleModal({ schedule, categories, properties, onClose }: {

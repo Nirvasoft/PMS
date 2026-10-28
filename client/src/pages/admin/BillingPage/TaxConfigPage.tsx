@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { useGetTaxConfigsQuery, useCreateTaxConfigMutation, useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
@@ -114,7 +115,7 @@ export default function TaxConfigPage() {
           </thead>
           <tbody>
             {isFetching && taxes.length === 0 ? (
-              <tr><td colSpan={6} className="billing-empty">Loading…</td></tr>
+              <TableSkeletonRows columns={6} />
             ) : taxes.length === 0 ? (
               <tr><td colSpan={6} className="billing-empty">
                 <Calculator size={20} style={{ marginBottom: 8, opacity: 0.5 }} /><br />
@@ -148,7 +149,7 @@ export default function TaxConfigPage() {
                 </td>
                 <td>
                   <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                    {tax.effectiveTo ? format(new Date(tax.effectiveTo), 'MMM d, yyyy') : '—'}
+                    {tax.effectiveTo ? format(new Date(tax.effectiveTo), 'MMM d, yyyy') : 'â€”'}
                   </span>
                 </td>
                 <td>
@@ -247,7 +248,7 @@ export default function TaxConfigPage() {
                       </span>
                     </div>
                     {hasAttemptedSubmit && isRateInvalid && (
-                      <span className="inv-error-text">Valid tax rate (0–1) is required</span>
+                      <span className="inv-error-text">Valid tax rate (0â€“1) is required</span>
                     )}
                   </div>
                   <div className="inv-field">
@@ -297,7 +298,7 @@ export default function TaxConfigPage() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating}>
-                  {creating ? 'Saving…' : 'Create Tax Config'}
+                  {creating ? 'Savingâ€¦' : 'Create Tax Config'}
                 </button>
               </div>
             </form>

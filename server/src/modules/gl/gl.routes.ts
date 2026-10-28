@@ -191,6 +191,99 @@ glRouter.post('/journal-entries/:id/reverse', asyncHandler(async (req, res) => {
 // REPORTS — /api/v1/gl/trial-balance, /gl/reports/*
 // ════════════════════════════════════════════════
 
+interface GlExcelColumn {
+  key: string;
+  header: string;
+  width: number;
+  numeric?: boolean;
+}
+
+function createStyledGlSheet(title: string, subtitle: string, columns: GlExcelColumn[]) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'NirvaSoft PMS';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet(title);
+  sheet.columns = columns.map(c => ({ key: c.key, width: c.width }));
+
+  sheet.mergeCells(1, 1, 1, columns.length);
+  const titleCell = sheet.getCell('A1');
+  titleCell.value = title;
+  titleCell.font = { bold: true, size: 14, color: { argb: 'FF059669' } };
+  titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
+  sheet.getRow(1).height = 26;
+
+  sheet.mergeCells(2, 1, 2, columns.length);
+  const subCell = sheet.getCell('A2');
+  subCell.value = subtitle;
+  subCell.font = { size: 10, color: { argb: 'FF555555' } };
+  sheet.getRow(2).height = 18;
+
+  const headerRow = sheet.getRow(4);
+  headerRow.height = 22;
+  columns.forEach((c, idx) => {
+    const cell = headerRow.getCell(idx + 1);
+    cell.value = c.header;
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } };
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: c.numeric ? 'right' : 'left',
+      wrapText: false,
+    };
+  });
+
+  return { workbook, sheet };
+}
+
+function addGlDataRow(sheet: ExcelJS.Worksheet, values: Array<string | number>, numericStartCol: number) {
+  const row = sheet.addRow(values);
+  row.eachCell((cell, colNum) => {
+    cell.border = { bottom: { style: 'hair', color: { argb: 'FFE0E0E0' } } };
+    if (colNum >= numericStartCol) {
+      cell.numFmt = '#,##0.00';
+      cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: false };
+    } else {
+      cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
+    }
+  });
+}
+
+function addGlSummaryRow(
+  sheet: ExcelJS.Worksheet,
+  values: Array<string | number>,
+  numericStartCol: number,
+  isHighlight = false,
+) {
+  const row = sheet.addRow(values);
+  row.height = 21;
+  row.eachCell((cell, colNum) => {
+    cell.font = { bold: true, size: 11 };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: isHighlight ? 'FFECFDF5' : 'FFF1F5F9' },
+    };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+      bottom: { style: 'thin', color: { argb: 'FF94A3B8' } },
+    };
+    if (colNum >= numericStartCol) {
+      cell.numFmt = '#,##0.00';
+      cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: false };
+    } else {
+      cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
+    }
+  });
+}
+
+async function sendExcelWorkbook(res: any, workbook: ExcelJS.Workbook, filename: string) {
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  return res.send(buffer);
+}
+
 glRouter.get('/trial-balance', asyncHandler(async (req, res) => {
   const fromDate = q(req, 'fromDate') || undefined;
   const toDate = q(req, 'toDate') || undefined;
@@ -201,103 +294,52 @@ glRouter.get('/trial-balance', asyncHandler(async (req, res) => {
   });
 
   if (req.query.format === 'xlsx') {
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'NirvaSoft PMS';
-    workbook.created = new Date();
-
-    const sheet = workbook.addWorksheet('Trial Balance');
-    const columns = [
-      { key: 'code', header: 'Code', width: 14 },
-      { key: 'name', header: 'Account Name', width: 34 },
-      { key: 'accountType', header: 'Type', width: 16 },
-      { key: 'accountSubtype', header: 'Subtype', width: 20 },
-      { key: 'totalDebit', header: 'Debit', width: 18 },
-      { key: 'totalCredit', header: 'Credit', width: 18 },
-      { key: 'netBalance', header: 'Net Balance', width: 18 },
-    ];
-    sheet.columns = columns.map(c => ({ key: c.key, width: c.width }));
-
-    // Title Row
-    sheet.mergeCells(1, 1, 1, columns.length);
-    const titleCell = sheet.getCell('A1');
-    titleCell.value = 'Trial Balance';
-    titleCell.font = { bold: true, size: 14, color: { argb: 'FF059669' } };
-    titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
-    sheet.getRow(1).height = 26;
-
-    // Period & Status Row
-    sheet.mergeCells(2, 1, 2, columns.length);
-    const subCell = sheet.getCell('A2');
     const periodText = fromDate || toDate ? `Period: ${fromDate || 'Start'} to ${toDate || 'Current'}` : 'Period: All Time';
-    subCell.value = `${periodText}   |   Status: ${data.summary.isBalanced ? 'Balanced' : 'Unbalanced'}`;
-    subCell.font = { size: 10, color: { argb: 'FF555555' } };
-    sheet.getRow(2).height = 18;
+    const { workbook, sheet } = createStyledGlSheet(
+      'Trial Balance',
+      `${periodText}   |   Status: ${data.summary.isBalanced ? 'Balanced' : 'Unbalanced'}`,
+      [
+        { key: 'code', header: 'Code', width: 14 },
+        { key: 'name', header: 'Account Name', width: 34 },
+        { key: 'accountType', header: 'Type', width: 16 },
+        { key: 'accountSubtype', header: 'Subtype', width: 20 },
+        { key: 'totalDebit', header: 'Debit', width: 18, numeric: true },
+        { key: 'totalCredit', header: 'Credit', width: 18, numeric: true },
+        { key: 'netBalance', header: 'Net Balance', width: 18, numeric: true },
+      ],
+    );
 
-    // Header Row (Row 4)
-    const headerRow = sheet.getRow(4);
-    headerRow.height = 22;
-    columns.forEach((c, idx) => {
-      const cell = headerRow.getCell(idx + 1);
-      cell.value = c.header;
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } };
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-      cell.alignment = {
-        vertical: 'middle',
-        horizontal: idx >= 4 ? 'right' : 'left',
-      };
-    });
-
-    // Data Rows
     for (const r of data.rows) {
-      const row = sheet.addRow([
-        r.code,
-        r.name,
-        r.accountType,
-        r.accountSubtype || '',
-        Number(r.totalDebit || 0),
-        Number(r.totalCredit || 0),
-        Number(r.netBalance || 0),
-      ]);
-      row.eachCell((cell, colNum) => {
-        cell.border = { bottom: { style: 'hair', color: { argb: 'FFE0E0E0' } } };
-        if (colNum >= 5) {
-          cell.numFmt = '#,##0.00';
-          cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        }
-      });
+      addGlDataRow(
+        sheet,
+        [
+          r.code,
+          r.name,
+          r.accountType,
+          r.accountSubtype || '',
+          Number(r.totalDebit || 0),
+          Number(r.totalCredit || 0),
+          Number(r.netBalance || 0),
+        ],
+        5,
+      );
     }
 
-    //Totals Row
-    const totalRow = sheet.addRow([
-      '',
-      'TOTALS',
-      '',
-      data.summary.isBalanced ? 'Balanced' : 'Unbalanced',
-      Number(data.summary.totalDebit || 0),
-      Number(data.summary.totalCredit || 0),
-      Number((data.summary.totalDebit || 0) - (data.summary.totalCredit || 0)),
-    ]);
-    totalRow.height = 22;
-    totalRow.eachCell((cell, colNum) => {
-      cell.font = { bold: true, size: 11 };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FF94A3B8' } },
-        bottom: { style: 'thin', color: { argb: 'FF94A3B8' } },
-      };
-      if (colNum >= 5) {
-        cell.numFmt = '#,##0.00';
-        cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: false };
-      } else {
-        cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
-      }
-    });
+    addGlSummaryRow(
+      sheet,
+      [
+        '',
+        'TOTALS',
+        '',
+        data.summary.isBalanced ? 'Balanced' : 'Unbalanced',
+        Number(data.summary.totalDebit || 0),
+        Number(data.summary.totalCredit || 0),
+        Number((data.summary.totalDebit || 0) - (data.summary.totalCredit || 0)),
+      ],
+      5,
+    );
 
-    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
-    const filename = `trial-balance-${toDate || 'current'}.xlsx`;
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return res.send(buffer);
+    return sendExcelWorkbook(res, workbook, `trial-balance-${toDate || 'current'}.xlsx`);
   }
 
   if (req.query.format === 'csv') {
@@ -313,6 +355,191 @@ glRouter.get('/trial-balance', asyncHandler(async (req, res) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="trial-balance-${toDate || 'current'}.csv"`);
     return res.send('\uFEFF' + header + rows + totals + balanced);
+  }
+
+  res.json({ success: true, data });
+}));
+
+glRouter.get('/detailed-trial-balance', asyncHandler(async (req, res) => {
+  const fiscalYearRaw = q(req, 'fiscalYear');
+  const data = await glService.getDetailedTrialBalance(req.user!.companyId, {
+    mode: q(req, 'mode') === 'date' ? 'date' : 'period',
+    fiscalYear: fiscalYearRaw ? parseInt(fiscalYearRaw, 10) : undefined,
+    periodFrom: q(req, 'periodFrom') || undefined,
+    periodTo: q(req, 'periodTo') || undefined,
+    fromDate: q(req, 'fromDate') || undefined,
+    toDate: q(req, 'toDate') || undefined,
+    category: q(req, 'category') || undefined,
+    includeZero: q(req, 'includeZero') === 'true',
+    allAccounts: q(req, 'allAccounts') !== 'false',
+    accountFrom: q(req, 'accountFrom') || undefined,
+    accountTo: q(req, 'accountTo') || undefined,
+    costCenterId: q(req, 'costCenterId') || undefined,
+    departmentCenterId: q(req, 'departmentCenterId') || undefined,
+    propertyId: q(req, 'propertyId') || undefined,
+  });
+
+  if (req.query.format === 'xlsx') {
+    const mapEntryMode = (entryType: string) => {
+      const map: Record<string, string> = {
+        ar_invoice: 'SI',
+        ar_receipt: 'CBR',
+        ap_invoice: 'PI',
+        ap_payment: 'CBP',
+        manual: 'JV',
+        adjustment: 'ADJ',
+        depreciation: 'DEP',
+        bank_recon: 'BR',
+      };
+      return map[entryType] || (entryType || 'JV').toUpperCase().slice(0, 4);
+    };
+
+    const fmtDmy = (iso: string) => {
+      const d = iso.split('T')[0].split('-');
+      return d.length === 3 ? `${d[2]}/${d[1]}/${d[0]}` : iso;
+    };
+
+    const { workbook, sheet } = createStyledGlSheet(
+      'Detailed Trial',
+      `Date : ${data.periodLabel}   |   All Amount in MMK`,
+      [
+        { key: 'accCode', header: 'Acc. Code', width: 14 },
+        { key: 'accDesc', header: 'Acc. Description', width: 28 },
+        { key: 'refNo', header: 'Ref.#', width: 16 },
+        { key: 'mode', header: 'Mode', width: 10 },
+        { key: 'date', header: 'Date', width: 14 },
+        { key: 'description', header: 'Description', width: 34 },
+        { key: 'department', header: 'Department', width: 14 },
+        { key: 'cc', header: 'CC', width: 14 },
+        { key: 'curr', header: 'Curr.', width: 10 },
+        { key: 'rate', header: 'Rate', width: 10, numeric: true },
+        { key: 'amount', header: 'Amount', width: 16, numeric: true },
+        { key: 'debit', header: 'Debit', width: 16, numeric: true },
+        { key: 'credit', header: 'Credit', width: 16, numeric: true },
+        { key: 'balance', header: 'Balance', width: 16, numeric: true },
+      ],
+    );
+
+    for (const acc of data.accounts) {
+      if (Math.abs(acc.openingDebit) >= 0.005 || Math.abs(acc.openingCredit) >= 0.005) {
+        const netOpen = Number(acc.openingDebit || 0) - Number(acc.openingCredit || 0);
+        addGlDataRow(
+          sheet,
+          [
+            acc.code,
+            acc.name,
+            'OPENING',
+            'OB',
+            fmtDmy(data.effectiveFromDate),
+            'Opening Balance',
+            acc.department?.code || '-',
+            acc.costCenter?.code || '-',
+            'MMK',
+            1.0,
+            netOpen,
+            Number(acc.openingDebit || 0),
+            Number(acc.openingCredit || 0),
+            '',
+          ],
+          10,
+        );
+      }
+
+      for (const tx of acc.transactions) {
+        const signedAmt = Number(tx.debit || 0) - Number(tx.credit || 0);
+        addGlDataRow(
+          sheet,
+          [
+            acc.code,
+            acc.name,
+            tx.journalNumber,
+            mapEntryMode(tx.entryType),
+            fmtDmy(tx.entryDate),
+            tx.description || acc.name,
+            tx.department?.code || '-',
+            tx.costCenter?.code || '-',
+            'MMK',
+            1.0,
+            signedAmt,
+            Number(tx.debit || 0),
+            Number(tx.credit || 0),
+            '',
+          ],
+          10,
+        );
+      }
+
+      const accTotalDebit = Number(acc.openingDebit || 0) + Number(acc.periodDebit || 0);
+      const accTotalCredit = Number(acc.openingCredit || 0) + Number(acc.periodCredit || 0);
+      const accNet = accTotalDebit - accTotalCredit;
+
+      addGlSummaryRow(
+        sheet,
+        [
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          `Sub Total (${acc.code})`,
+          '',
+          '',
+          accTotalDebit,
+          accTotalCredit,
+          accNet,
+        ],
+        12,
+      );
+
+      addGlSummaryRow(
+        sheet,
+        [
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          `Total (${acc.code})`,
+          '',
+          '',
+          accTotalDebit,
+          accTotalCredit,
+          accNet,
+        ],
+        12,
+      );
+      sheet.addRow([]);
+    }
+
+    addGlSummaryRow(
+      sheet,
+      [
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        'Grand Total',
+        '',
+        '',
+        Number(data.summary.totalDebit || 0),
+        Number(data.summary.totalCredit || 0),
+        Number((data.summary.totalDebit || 0) - (data.summary.totalCredit || 0)),
+      ],
+      12,
+      true,
+    );
+
+    return sendExcelWorkbook(res, workbook, `detailed-trial-balance-${data.effectiveToDate}.xlsx`);
   }
 
   res.json({ success: true, data });
@@ -337,118 +564,42 @@ glRouter.get('/reports/balance-sheet', asyncHandler(async (req, res) => {
   });
 
   if (req.query.format === 'xlsx') {
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'NirvaSoft PMS';
-    workbook.created = new Date();
+    const { workbook, sheet } = createStyledGlSheet(
+      'Balance Sheet',
+      `As of Date: ${asOfDate}   |   Status: ${data.isBalanced ? 'Balanced (A = L + E)' : 'Out of Balance'}`,
+      [
+        { key: 'code', header: 'Code', width: 14 },
+        { key: 'name', header: 'Account Name', width: 38 },
+        { key: 'section', header: 'Section', width: 18 },
+        { key: 'accountSubtype', header: 'Subtype', width: 24 },
+        { key: 'netBalance', header: 'Net Balance', width: 22, numeric: true },
+      ],
+    );
 
-    const sheet = workbook.addWorksheet('Balance Sheet');
-    const columns = [
-      { key: 'code', header: 'Code', width: 14 },
-      { key: 'name', header: 'Account Name', width: 38 },
-      { key: 'section', header: 'Section', width: 18 },
-      { key: 'accountSubtype', header: 'Subtype', width: 24 },
-      { key: 'netBalance', header: 'Net Balance', width: 22 },
-    ];
-    sheet.columns = columns.map(c => ({ key: c.key, width: c.width }));
-
-    // Title Row
-    sheet.mergeCells(1, 1, 1, columns.length);
-    const titleCell = sheet.getCell('A1');
-    titleCell.value = 'Balance Sheet';
-    titleCell.font = { bold: true, size: 14, color: { argb: 'FF059669' } };
-    titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
-    sheet.getRow(1).height = 26;
-
-    // As of Date & Status Row
-    sheet.mergeCells(2, 1, 2, columns.length);
-    const subCell = sheet.getCell('A2');
-    subCell.value = `As of Date: ${asOfDate}   |   Status: ${data.isBalanced ? 'Balanced (A = L + E)' : 'Out of Balance'}`;
-    subCell.font = { size: 10, color: { argb: 'FF555555' } };
-    sheet.getRow(2).height = 18;
-
-    // Header Row (Row 4)
-    const headerRow = sheet.getRow(4);
-    headerRow.height = 22;
-    columns.forEach((c, idx) => {
-      const cell = headerRow.getCell(idx + 1);
-      cell.value = c.header;
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } };
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-      cell.alignment = {
-        vertical: 'middle',
-        horizontal: idx === 4 ? 'right' : 'left',
-        wrapText: false,
-      };
-    });
-
-    const addAccountRow = (code: string, name: string, section: string, subtype: string, balance: number) => {
-      const row = sheet.addRow([code, name, section, subtype, Number(balance || 0)]);
-      row.eachCell((cell, colNum) => {
-        cell.border = { bottom: { style: 'hair', color: { argb: 'FFE0E0E0' } } };
-        if (colNum === 5) {
-          cell.numFmt = '#,##0.00';
-          cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: false };
-        } else {
-          cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
-        }
-      });
-    };
-
-    const addSubtotalRow = (label: string, total: number, isGrandTotal = false) => {
-      const row = sheet.addRow(['', label, '', '', Number(total || 0)]);
-      row.height = 21;
-      row.eachCell((cell, colNum) => {
-        cell.font = { bold: true, size: 11 };
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: isGrandTotal ? 'FFECFDF5' : 'FFF1F5F9' },
-        };
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FF94A3B8' } },
-          bottom: { style: 'thin', color: { argb: 'FF94A3B8' } },
-        };
-        if (colNum === 5) {
-          cell.numFmt = '#,##0.00';
-          cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: false };
-        } else {
-          cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
-        }
-      });
-    };
-
-    // Assets Section
     for (const r of data.assets) {
-      addAccountRow(r.code, r.name, 'Assets', r.accountSubtype || '', r.netBalance);
+      addGlDataRow(sheet, [r.code, r.name, 'Assets', r.accountSubtype || '', Number(r.netBalance || 0)], 5);
     }
-    addSubtotalRow('Total Assets', data.totalAssets, true);
+    addGlSummaryRow(sheet, ['', 'Total Assets', '', '', Number(data.totalAssets || 0)], 5, true);
     sheet.addRow([]);
 
-    // Liabilities Section
     for (const r of data.liabilities) {
-      addAccountRow(r.code, r.name, 'Liabilities', r.accountSubtype || '', r.netBalance);
+      addGlDataRow(sheet, [r.code, r.name, 'Liabilities', r.accountSubtype || '', Number(r.netBalance || 0)], 5);
     }
-    addSubtotalRow('Total Liabilities', data.totalLiabilities);
+    addGlSummaryRow(sheet, ['', 'Total Liabilities', '', '', Number(data.totalLiabilities || 0)], 5);
     sheet.addRow([]);
 
-    // Equity Section
     for (const r of data.equity) {
-      addAccountRow(r.code, r.name, 'Equity', r.accountSubtype || '', r.netBalance);
+      addGlDataRow(sheet, [r.code, r.name, 'Equity', r.accountSubtype || '', Number(r.netBalance || 0)], 5);
     }
     if (data.retainedEarnings !== 0) {
-      addAccountRow('', 'Retained Earnings (Current Period)', 'Equity', 'retained_earnings', data.retainedEarnings);
+      addGlDataRow(sheet, ['', 'Retained Earnings (Current Period)', 'Equity', 'retained_earnings', Number(data.retainedEarnings || 0)], 5);
     }
-    addSubtotalRow('Total Equity', data.totalEquity);
+    addGlSummaryRow(sheet, ['', 'Total Equity', '', '', Number(data.totalEquity || 0)], 5);
     sheet.addRow([]);
 
-    // Total Liabilities + Equity
-    addSubtotalRow('Total Liabilities + Equity', data.totalLiabilitiesAndEquity, true);
+    addGlSummaryRow(sheet, ['', 'Total Liabilities + Equity', '', '', Number(data.totalLiabilitiesAndEquity || 0)], 5, true);
 
-    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
-    const filename = `balance-sheet-${asOfDate}.xlsx`;
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return res.send(buffer);
+    return sendExcelWorkbook(res, workbook, `balance-sheet-${asOfDate}.xlsx`);
   }
 
   res.json({ success: true, data });

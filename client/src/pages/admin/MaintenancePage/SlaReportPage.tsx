@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import './MaintenancePage.css';
 import { useState, useMemo } from 'react';
 import { useGetSlaReportQuery } from '../../../store/api/maintenanceApi';
@@ -13,7 +14,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   P1: '#ef4444', P2: '#f97316', P3: '#3b82f6', P4: '#94a3b8',
 };
 
-// ── SLA Gauge ────────────────────────────────
+// â”€â”€ SLA Gauge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SlaGauge({ label, rate, subtitle }: { label: string; rate: number; subtitle?: string }) {
   const circumference = 2 * Math.PI * 44;
   const offset = circumference - (rate / 100) * circumference;
@@ -40,7 +41,7 @@ function SlaGauge({ label, rate, subtitle }: { label: string; rate: number; subt
   );
 }
 
-// ── Rate Bar ─────────────────────────────────
+// â”€â”€ Rate Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RateBar({ rate, label }: { rate: number; label?: string }) {
   const color = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
   return (
@@ -54,7 +55,7 @@ function RateBar({ rate, label }: { rate: number; label?: string }) {
   );
 }
 
-// ── Group Row ────────────────────────────────
+// â”€â”€ Group Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function GroupRow({ g }: { g: SlaReportGroup }) {
   const priorityColor = PRIORITY_COLORS[g.group];
 
@@ -78,21 +79,21 @@ function GroupRow({ g }: { g: SlaReportGroup }) {
         {g.breaches > 0 ? (
           <span className="sla-breach-count">{g.breaches}</span>
         ) : (
-          <span className="sla-no-breach">—</span>
+          <span className="sla-no-breach">â€”</span>
         )}
       </td>
       <td className="text-center">
         {g.avgResolutionHours !== null ? (
           <span className="sla-res-hours">{g.avgResolutionHours}h</span>
         ) : (
-          <span className="sla-no-data">—</span>
+          <span className="sla-no-data">â€”</span>
         )}
       </td>
     </tr>
   );
 }
 
-// ── Main Page ────────────────────────────────
+// â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function SlaReportPage() {
   const [filters, setFilters] = useState({
     propertyId: '',
@@ -169,7 +170,7 @@ export default function SlaReportPage() {
       </div>
 
       {isLoading ? (
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading SLA report...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : !report || report.totalTickets === 0 ? (
         <div className="maint-empty">
           <div className="empty-icon"><ShieldCheck size={28} /></div>
@@ -213,7 +214,7 @@ export default function SlaReportPage() {
                   <div className="sla-stat-icon"><TrendingUp size={18} /></div>
                   <div>
                     <div className="sla-stat-value">On Track</div>
-                    <div className="sla-stat-label">Overall SLA compliance ≥ 90%</div>
+                    <div className="sla-stat-label">Overall SLA compliance â‰¥ 90%</div>
                   </div>
                 </div>
               )}

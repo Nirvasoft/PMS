@@ -90,6 +90,72 @@ interface TrialBalance {
   generatedAt: string;
 }
 
+interface DetailedTrialTransaction {
+  id: string;
+  journalId: string;
+  entryDate: string;
+  journalNumber: string;
+  entryType: string;
+  description: string;
+  department: { code: string; name: string } | null;
+  costCenter: { code: string; name: string } | null;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+}
+
+interface DetailedTrialAccount {
+  accountId: string;
+  code: string;
+  name: string;
+  accountType: string;
+  accountSubtype: string | null;
+  normalBalance: string;
+  department: { code: string; name: string } | null;
+  costCenter: { code: string; name: string } | null;
+  openingDebit: number;
+  openingCredit: number;
+  openingBalance: number;
+  periodDebit: number;
+  periodCredit: number;
+  closingBalance: number;
+  transactions: DetailedTrialTransaction[];
+}
+
+interface DetailedTrialBalance {
+  accounts: DetailedTrialAccount[];
+  periodLabel: string;
+  effectiveFromDate: string;
+  effectiveToDate: string;
+  summary: {
+    openingDebit: number;
+    openingCredit: number;
+    periodDebit: number;
+    periodCredit: number;
+    totalDebit: number;
+    totalCredit: number;
+    isBalanced: boolean;
+  };
+  generatedAt: string;
+}
+
+interface DetailedTrialParams {
+  mode?: 'period' | 'date';
+  fiscalYear?: number;
+  periodFrom?: string;
+  periodTo?: string;
+  fromDate?: string;
+  toDate?: string;
+  category?: string;
+  includeZero?: boolean;
+  allAccounts?: boolean;
+  accountFrom?: string;
+  accountTo?: string;
+  costCenterId?: string;
+  departmentCenterId?: string;
+  propertyId?: string;
+}
+
 interface PnL {
   income: TrialBalanceRow[]; expense: TrialBalanceRow[];
   totalIncome: number; totalExpense: number; netProfit: number;
@@ -265,6 +331,11 @@ export const glApi = createApi({
       transformResponse: (r: any) => r.data,
       providesTags: ['TrialBalance'],
     }),
+    getDetailedTrialBalance: b.query<DetailedTrialBalance, DetailedTrialParams>({
+      query: (params) => ({ url: '/gl/detailed-trial-balance', params: params as any }),
+      transformResponse: (r: any) => r.data,
+      providesTags: ['TrialBalance'],
+    }),
     getPnL: b.query<PnL, { fromDate?: string; toDate?: string; propertyId?: string; compareFromDate?: string; compareToDate?: string }>({
       query: (params) => ({ url: '/gl/reports/pnl', params: params as any }),
       transformResponse: (r: any) => r.data,
@@ -292,7 +363,12 @@ export const {
   useCloseFiscalPeriodMutation, useReopenFiscalPeriodMutation,
   useGetJournalEntriesQuery, useGetJournalEntryQuery,
   useCreateJournalEntryMutation, usePostJournalEntryMutation, useReverseJournalEntryMutation,
-  useGetTrialBalanceQuery, useGetPnLQuery, useGetBalanceSheetQuery, useGetCashFlowQuery,
+  useGetTrialBalanceQuery, useGetDetailedTrialBalanceQuery, useLazyGetDetailedTrialBalanceQuery,
+  useGetPnLQuery, useGetBalanceSheetQuery, useGetCashFlowQuery,
 } = glApi;
 
-export type { DepartmentCenter, CostCenter, PaymentMethod, GlAccount, FiscalPeriod, JournalEntry, JournalEntryLine, TrialBalanceRow, TrialBalance, PnL, BalanceSheet, CashFlow };
+export type {
+  DepartmentCenter, CostCenter, PaymentMethod, GlAccount, FiscalPeriod, JournalEntry, JournalEntryLine,
+  TrialBalanceRow, TrialBalance, DetailedTrialTransaction, DetailedTrialAccount, DetailedTrialBalance, DetailedTrialParams,
+  PnL, BalanceSheet, CashFlow,
+};

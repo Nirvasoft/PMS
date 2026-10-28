@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useState, type ReactNode } from 'react';
 import { useGetPortalKycQuery, useSubmitPortalKycDocumentMutation } from '../../store/api/portalApi';
 import {
@@ -56,7 +57,7 @@ export default function PortalKyc() {
       </div>
 
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading KYC status...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : !kyc ? (
         <div className="portal-card" style={{ textAlign: 'center', padding: 40, opacity: 0.5 }}>
           <FileCheck size={40} />
@@ -97,10 +98,10 @@ export default function PortalKyc() {
           {(kyc.verifiedAt || kyc.expiryDate) && (
             <div style={{ display: 'flex', gap: 24, marginBottom: 20, fontSize: '0.85rem' }} className="text-muted">
               {kyc.verifiedAt && (
-                <span>✓ Verified on {new Date(kyc.verifiedAt).toLocaleDateString()}</span>
+                <span>âœ“ Verified on {new Date(kyc.verifiedAt).toLocaleDateString()}</span>
               )}
               {kyc.expiryDate && (
-                <span>⏰ Expires {new Date(kyc.expiryDate).toLocaleDateString()}</span>
+                <span>â° Expires {new Date(kyc.expiryDate).toLocaleDateString()}</span>
               )}
             </div>
           )}

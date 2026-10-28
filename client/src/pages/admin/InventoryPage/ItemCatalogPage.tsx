@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState, useEffect } from 'react';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
@@ -10,7 +11,7 @@ import {
 } from '../../../store/api/inventoryApi';
 import { useGetPropertiesQuery } from '../../../store/api/propertiesApi';
 import {
-  Package, Plus, Search, Loader2, AlertTriangle, Filter,
+  Package, Plus, Search, AlertTriangle, Filter,
   Warehouse, TrendingDown, DollarSign, BarChart3, Edit3, XCircle,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
@@ -21,7 +22,7 @@ import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 const CATEGORIES = ['plumbing', 'electrical', 'hvac', 'cleaning', 'general', 'other'];
 const UNITS = ['pcs', 'meters', 'kg', 'litres', 'roll', 'box', 'set'];
 const CATEGORY_ICONS: Record<string, string> = {
-  plumbing: '🔧', electrical: '⚡', hvac: '❄️', cleaning: '🧹', general: '📦', other: '🔩',
+  plumbing: 'Ã°Å¸â€Â§', electrical: 'Ã¢Å¡Â¡', hvac: 'Ã¢Ââ€žÃ¯Â¸Â', cleaning: 'Ã°Å¸Â§Â¹', general: 'Ã°Å¸â€œÂ¦', other: 'Ã°Å¸â€Â©',
 };
 
 export default function ItemCatalogPage() {
@@ -139,15 +140,15 @@ export default function ItemCatalogPage() {
               <h1 style={{ margin: 0 }}>Item Catalog</h1>
               {activeProperty ? (
                 <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
-                  🏢 {activeProperty.name}
+                  Ã°Å¸ÂÂ¢ {activeProperty.name}
                 </span>
               ) : (
                 <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-                  🌐 All Properties
+                  Ã°Å¸Å’Â All Properties
                 </span>
               )}
             </div>
-            <p>{meta?.total ?? items.length} total items · {stores.length} stores</p>
+            <p>{meta?.total ?? items.length} total items Ã‚Â· {stores.length} stores</p>
           </div>
         </div>
         <div className="header-actions">
@@ -217,7 +218,7 @@ export default function ItemCatalogPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : items.length === 0 ? (
         <div className="maint-empty"><Package size={32} /><p>No items found</p></div>
       ) : (
@@ -244,7 +245,7 @@ export default function ItemCatalogPage() {
                     <td><span className="cell-primary">{item.name}</span></td>
                     <td>
                       <span className="maint-status open">
-                        {CATEGORY_ICONS[item.category] || '📦'} {item.category}
+                        {CATEGORY_ICONS[item.category] || 'Ã°Å¸â€œÂ¦'} {item.category}
                       </span>
                     </td>
                     <td><span className="cell-secondary">{item.unitOfMeasure}</span></td>
@@ -259,11 +260,11 @@ export default function ItemCatalogPage() {
                     <td style={{ textAlign: 'right' }}><span className="cell-secondary">{Number(item.reorderPoint)}</span></td>
                     <td>
                       {item.totalOnHand <= 0 ? (
-                        <span className="maint-status cancelled">❌ Out</span>
+                        <span className="maint-status cancelled">Ã¢ÂÅ’ Out</span>
                       ) : item.isLowStock ? (
-                        <span className="maint-status in_progress">⚠️ Low</span>
+                        <span className="maint-status in_progress">Ã¢Å¡Â Ã¯Â¸Â Low</span>
                       ) : (
-                        <span className="maint-status completed">✅ OK</span>
+                        <span className="maint-status completed">Ã¢Å“â€¦ OK</span>
                       )}
                     </td>
                     <td style={{ textAlign: 'center' }}>

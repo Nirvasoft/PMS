@@ -23,6 +23,7 @@ import NotificationBell from '../../components/notifications/NotificationBell';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
 import ExpiringDocumentsWidget from '../../components/widgets/ExpiringDocumentsWidget';
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useState, useCallback, type ReactNode, Component, lazy, Suspense } from 'react';
 
 const SIDEBAR_COLLAPSED_WIDTH = 64;
@@ -515,6 +516,12 @@ export default function DashboardLayout() {
                 <NavLink to="/admin/gl/trial-balance" className="nav-item" title="Trial Balance">
                   <Scale size={18} />
                   <span>Trial Balance</span>
+                </NavLink>
+              </PermissionGuard>
+              <PermissionGuard hideWhenDenied permission="finance-trial-balance.read">
+                <NavLink to="/admin/gl/detailed-trial-balance" className="nav-item" title="Detailed Trial">
+                  <FileText size={18} />
+                  <span>Detailed Trial</span>
                 </NavLink>
               </PermissionGuard>
               <PermissionGuard hideWhenDenied permission="finance-pnl.read">
@@ -1067,7 +1074,7 @@ export function DashboardHome() {
   return (
     <>
       <DashboardErrorBoundary>
-        <Suspense fallback={<div className="loading-inline"><div className="loading-spinner" /> Loading dashboard...</div>}>
+        <Suspense fallback={<TableSkeleton columns={5} rows={5} />}>
           <AnalyticsDashboard />
         </Suspense>
       </DashboardErrorBoundary>

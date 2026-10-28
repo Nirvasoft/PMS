@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useNavigate } from 'react-router-dom';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
@@ -8,7 +9,7 @@ import {
   useGetStoresQuery,
 } from '../../../store/api/inventoryApi';
 import {
-  Package, Loader2, AlertTriangle, ArrowRight, BarChart3,
+  Package, AlertTriangle, ArrowRight, BarChart3,
   TrendingDown, Box, Store, Activity,
   ClipboardList, DollarSign, ArrowUpCircle, ArrowDownCircle, RefreshCw,
   Layers, ShieldCheck, Warehouse, FileText,
@@ -93,14 +94,14 @@ export default function InventoryDashboard() {
   if (isLoading) {
     return (
       <div className="maint-page">
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading inventory...</div>
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
 
   return (
     <div className="maint-page">
-      {/* ── Header ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Package size={22} /></div>
@@ -109,11 +110,11 @@ export default function InventoryDashboard() {
               <h1 style={{ margin: 0 }}>Inventory Dashboard</h1>
               {activeProperty ? (
                 <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
-                  🏢 {activeProperty.name}
+                  Ã°Å¸ÂÂ¢ {activeProperty.name}
                 </span>
               ) : (
                 <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-                  🌐 All Properties
+                  Ã°Å¸Å’Â All Properties
                 </span>
               )}
             </div>
@@ -136,7 +137,7 @@ export default function InventoryDashboard() {
         </div>
       </div>
 
-      {/* ── Hero Stat Cards ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Hero Stat Cards Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
         gap: 14, marginBottom: 20,
@@ -285,7 +286,7 @@ export default function InventoryDashboard() {
             {stats?.outOfStockCount ?? 0}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-            {(stats?.outOfStockCount ?? 0) === 0 ? 'all items in stock ✓' : 'need immediate reorder'}
+            {(stats?.outOfStockCount ?? 0) === 0 ? 'all items in stock Ã¢Å“â€œ' : 'need immediate reorder'}
           </div>
         </div>
 
@@ -314,12 +315,12 @@ export default function InventoryDashboard() {
         </div>
       </div>
 
-      {/* ── Main Grid ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Main Grid Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div style={{
         display: 'grid', gridTemplateColumns: '1fr 1fr',
         gap: 16, 
       }}>
-        {/* ─ Left Column ─ */}
+        {/* Ã¢â€â‚¬ Left Column Ã¢â€â‚¬ */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
           {/* Low Stock & Out of Stock Alerts */}
@@ -380,9 +381,9 @@ export default function InventoryDashboard() {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {sl.item?.name || '—'}
+                          {sl.item?.name || 'Ã¢â‚¬â€'}
                         </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{sl.store?.name || '—'}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{sl.store?.name || 'Ã¢â‚¬â€'}</div>
                       </div>
                       {/* Mini gauge */}
                       <div style={{ width: 50, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
@@ -505,7 +506,7 @@ export default function InventoryDashboard() {
           </div>
         </div>
 
-        {/* ─ Right Column ─ */}
+        {/* Ã¢â€â‚¬ Right Column Ã¢â€â‚¬ */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
           {/* Recent Movements */}
@@ -538,7 +539,7 @@ export default function InventoryDashboard() {
                       }}><MIcon size={14} /></div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {mov.item?.name || '—'}
+                          {mov.item?.name || 'Ã¢â‚¬â€'}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-tertiary)', display: 'flex', gap: 4, alignItems: 'center' }}>
                           <span style={{
@@ -547,7 +548,7 @@ export default function InventoryDashboard() {
                             fontWeight: 700, fontSize: 9, textTransform: 'uppercase',
                           }}>{m.label}</span>
                           <span>qty: {mov.qty}</span>
-                          {mov.store?.name && <span>· {mov.store.name}</span>}
+                          {mov.store?.name && <span>Ã‚Â· {mov.store.name}</span>}
                         </div>
                       </div>
                       <span style={{ fontSize: 10, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -614,7 +615,7 @@ export default function InventoryDashboard() {
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
                           {currency} {Number(pr.totalAmount || 0).toLocaleString()}
-                          {pr.property?.name && <> · {pr.property.name}</>}
+                          {pr.property?.name && <> Ã‚Â· {pr.property.name}</>}
                         </div>
                       </div>
                       <span style={{

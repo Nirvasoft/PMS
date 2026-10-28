@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { List, LayoutGrid, ChevronLeft, ChevronRight, Pencil, Trash2, Search, Key } from 'lucide-react';
@@ -138,7 +139,7 @@ export default function RolesPage() {
             <div>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Roles & Permissions</h1>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                {isLoading ? 'Loading…' : `${roles.length} total roles`}
+                {isLoading ? 'Loadingâ€¦' : `${roles.length} total roles`}
               </p>
             </div>
           </div>
@@ -174,7 +175,7 @@ export default function RolesPage() {
       </div>
 
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading roles...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : view === 'list' ? (
         <div className="roles-table-wrap positions-table-wrap billing-table-wrap">
           <TableScrollWrapper className="roles-table-scroll positions-table-scroll">
@@ -334,7 +335,7 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Create Role</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>âœ•</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">
@@ -393,7 +394,7 @@ function EditRoleModal({ role, onClose }: { role: RoleItem; onClose: () => void 
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{isSystem ? role.name : `Edit: ${name}`}</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>âœ•</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">

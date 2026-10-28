@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Package, ArrowLeft } from 'lucide-react';
@@ -21,7 +22,7 @@ export default function AssetDetailPage() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [showDispose, setShowDispose] = useState(false);
 
-  if (isLoading) return <div className="gl-page"><p style={{color:'var(--text-secondary)'}}>Loading…</p></div>;
+  if (isLoading) return <div className="gl-page"><TableSkeleton columns={6} rows={6} /></div>;
   if (!asset) return <div className="gl-page"><p>Asset not found</p></div>;
 
   const depPct = Number(asset.acquisitionCost) > 0
@@ -42,7 +43,7 @@ export default function AssetDetailPage() {
             <h1>{asset.name}</h1>
             <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               <span>#{asset.assetNumber}</span>
-              <span>·</span>
+              <span>Â·</span>
               <span className={`gl-badge ${asset.status === 'active' ? 'open' : asset.status === 'disposed' ? 'reversed' : 'closed'}`}>{asset.status}</span>
               <span className={`gl-type-chip ${asset.category === 'building' ? 'asset' : 'liability'}`}>{asset.category.replace(/_/g, ' ')}</span>
             </p>
@@ -81,7 +82,7 @@ export default function AssetDetailPage() {
         </div>
         <div style={{display:'flex',justifyContent:'space-between',fontSize:'0.75rem',color:'var(--text-muted)',marginTop:4}}>
           <span>Residual: {fmtAmt(Number(asset.residualValue))}</span>
-          <span>{asset.depreciationMethod === 'straight_line' ? 'Straight Line' : 'Declining Balance'} · {asset.usefulLifeYears} years</span>
+          <span>{asset.depreciationMethod === 'straight_line' ? 'Straight Line' : 'Declining Balance'} Â· {asset.usefulLifeYears} years</span>
         </div>
       </div>
 
@@ -90,9 +91,9 @@ export default function AssetDetailPage() {
         <div className="gl-card">
           <h3 style={{margin:'0 0 12px'}}>Details</h3>
           <DetailRow label="Acquisition Date" value={fmtDate(asset.acquisitionDate)} />
-          <DetailRow label="Location" value={asset.currentLocation || '—'} />
-          <DetailRow label="Serial Number" value={asset.serialNumber || '—'} />
-          <DetailRow label="Warranty Expiry" value={asset.warrantyExpiry ? fmtDate(asset.warrantyExpiry) : '—'} />
+          <DetailRow label="Location" value={asset.currentLocation || 'â€”'} />
+          <DetailRow label="Serial Number" value={asset.serialNumber || 'â€”'} />
+          <DetailRow label="Warranty Expiry" value={asset.warrantyExpiry ? fmtDate(asset.warrantyExpiry) : 'â€”'} />
           {asset.description && <DetailRow label="Description" value={asset.description} />}
         </div>
         <div className="gl-card">
@@ -100,8 +101,8 @@ export default function AssetDetailPage() {
           {asset.status === 'active' && (
             <PermissionGuard permission="finance-assets.write">
               <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                <button className="btn-primary" onClick={() => setShowTransfer(true)} style={{width:'100%'}}>🔄 Transfer Asset</button>
-                <button className="btn-sm btn-danger" onClick={() => setShowDispose(true)} style={{width:'100%'}}>🗑️ Dispose Asset</button>
+                <button className="btn-primary" onClick={() => setShowTransfer(true)} style={{width:'100%'}}>ðŸ”„ Transfer Asset</button>
+                <button className="btn-sm btn-danger" onClick={() => setShowDispose(true)} style={{width:'100%'}}>ðŸ—‘ï¸ Dispose Asset</button>
               </div>
             </PermissionGuard>
           )}
@@ -130,7 +131,7 @@ export default function AssetDetailPage() {
                   {schedule.map(e => (
                     <tr key={e.id}>
                       <td>{fmtDate(e.depreciationDate)}</td>
-                      <td>{e.fiscalPeriod?.name || '—'}</td>
+                      <td>{e.fiscalPeriod?.name || 'â€”'}</td>
                       <td className="amount negative">{fmtAmt(Number(e.amount))}</td>
                       <td className="amount">{fmtAmt(Number(e.netBookValueAfter))}</td>
                     </tr>
@@ -154,7 +155,7 @@ export default function AssetDetailPage() {
                   {asset.transfers.map((t: any) => (
                     <tr key={t.id}>
                       <td>{fmtDate(t.transferDate)}</td>
-                      <td>{t.reason || '—'}</td>
+                      <td>{t.reason || 'â€”'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -214,11 +215,11 @@ function TransferModal({ assetId, onClose }: { assetId: string; onClose: () => v
           </div>
           <div className="gl-form-group">
             <label>Reason</label>
-            <textarea value={form.reason} onChange={e => setForm({...form, reason: e.target.value})} rows={3} placeholder="Reason for transfer…" />
+            <textarea value={form.reason} onChange={e => setForm({...form, reason: e.target.value})} rows={3} placeholder="Reason for transferâ€¦" />
           </div>
           <div className="gl-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Transferring…' : 'Transfer'}</button>
+            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Transferringâ€¦' : 'Transfer'}</button>
           </div>
         </form>
       </div>
@@ -265,7 +266,7 @@ function DisposeModal({ assetId, onClose }: { assetId: string; onClose: () => vo
           </div>
           <div className="gl-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary btn-danger" disabled={isLoading}>{isLoading ? 'Disposing…' : 'Dispose'}</button>
+            <button type="submit" className="btn-primary btn-danger" disabled={isLoading}>{isLoading ? 'Disposingâ€¦' : 'Dispose'}</button>
           </div>
         </form>
       </div>

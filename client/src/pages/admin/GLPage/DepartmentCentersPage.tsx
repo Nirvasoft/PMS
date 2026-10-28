@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { GitBranch, Search, X, Plus, Pencil, Trash2 } from 'lucide-react';
 import {
@@ -44,7 +45,7 @@ export default function DepartmentCentersPage() {
 
   const handleDelete = async (dc: DepartmentCenter) => {
     const ok = await confirmDialog(
-      `Delete Department "${dc.code} — ${dc.name}"?`,
+      `Delete Department "${dc.code} â€” ${dc.name}"?`,
       { danger: true, confirmText: 'Delete' }
     );
     if (!ok) return;
@@ -97,7 +98,7 @@ export default function DepartmentCentersPage() {
           />
           <input
             type="text"
-            placeholder="Search by code, name, or description…"
+            placeholder="Search by code, name, or descriptionâ€¦"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: 34, paddingRight: search ? 30 : 12, boxSizing: 'border-box' }}
@@ -132,7 +133,7 @@ export default function DepartmentCentersPage() {
       </div>
 
       {isLoading ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Loading departments…</p>
+        <TableSkeleton columns={6} rows={6} />
       ) : (
         <div className="gl-table-wrap">
           <table className="gl-table">
@@ -161,7 +162,7 @@ export default function DepartmentCentersPage() {
                     </td>
                     <td style={{ fontWeight: 600 }}>{dc.name}</td>
                     <td style={{ color: 'var(--text-secondary)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {dc.description || '—'}
+                      {dc.description || 'â€”'}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span className="gl-badge" style={{ background: 'rgba(16, 185, 129, 0.14)', color: '#34d399' }}>
@@ -317,7 +318,7 @@ function DepartmentCenterModal({
             <label>Description</label>
             <textarea
               rows={2}
-              placeholder="Optional description of this accounting department…"
+              placeholder="Optional description of this accounting departmentâ€¦"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />

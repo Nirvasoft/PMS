@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -33,7 +34,7 @@ export default function UserDetailPage() {
   if (isLoading) {
     return (
       <div className="page-content">
-        <div className="loading-inline"><div className="loading-spinner" /> Loading user...</div>
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
@@ -43,7 +44,7 @@ export default function UserDetailPage() {
       <div className="page-content">
         <div className="info-card" style={{ textAlign: 'center', padding: 60 }}>
           <h3>User not found</h3>
-          <button className="btn btn-primary" onClick={() => navigate('/admin/users')}>← Back to Users</button>
+          <button className="btn btn-primary" onClick={() => navigate('/admin/users')}>â† Back to Users</button>
         </div>
       </div>
     );
@@ -53,7 +54,7 @@ export default function UserDetailPage() {
     <div className="page-content">
       {/* Header */}
       <div className="user-detail-header">
-        <button className="btn btn-sm" style={{ alignSelf: 'flex-end' }} onClick={() => navigate('/admin/users')}>← Back</button>
+        <button className="btn btn-sm" style={{ alignSelf: 'flex-end' }} onClick={() => navigate('/admin/users')}>â† Back</button>
         <div className="user-detail-identity">
           <AvatarUpload user={user} onRefresh={refetch} />
           <div>
@@ -100,7 +101,7 @@ export default function UserDetailPage() {
   );
 }
 
-/* ─── Profile Tab ──────────────────────────── */
+/* â”€â”€â”€ Profile Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void }) {
   const [updateUser, { isLoading }] = useUpdateUserMutation();
@@ -239,7 +240,7 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
                   });
                 }}
               >
-                <option value="">— Select Job Title —</option>
+                <option value="">â€” Select Job Title â€”</option>
                 {positions.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -278,7 +279,7 @@ function ProfileTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => vo
   );
 }
 
-/* ─── Roles Tab ────────────────────────────── */
+/* â”€â”€â”€ Roles Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void }) {
   const confirmDialog = useConfirm();
@@ -338,9 +339,9 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
             <div>
               <strong>{r.name}</strong>
               {r.scopedProperties.length > 0 && (
-                <span className="text-muted text-small"> · Active Property: {r.scopedProperties.map(p => p.name).join(', ')}</span>
+                <span className="text-muted text-small"> Â· Active Property: {r.scopedProperties.map(p => p.name).join(', ')}</span>
               )}
-              {r.expiresAt && <span className="text-muted text-small"> · expires {new Date(r.expiresAt).toLocaleDateString()}</span>}
+              {r.expiresAt && <span className="text-muted text-small"> Â· expires {new Date(r.expiresAt).toLocaleDateString()}</span>}
             </div>
             <PermissionGuard permission="users.manage-roles">
               <button className="btn btn-sm btn-danger" onClick={() => handleRemove(r.id, r.name)}>Remove</button>
@@ -355,7 +356,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
         <PermissionGuard permission="users.manage-roles">
           <div className="add-role-row">
             <select className="input-full" value={selectedRoleId} onChange={(e) => setSelectedRoleId(e.target.value)}>
-              <option value="">— Select role to add —</option>
+              <option value="">â€” Select role to add â€”</option>
               {availableRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
             <button className="btn btn-primary" onClick={handleAssign} disabled={!selectedRoleId}>
@@ -365,7 +366,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
         </PermissionGuard>
       )}
 
-      {/* Effective Permissions — Grouped by Module */}
+      {/* Effective Permissions â€” Grouped by Module */}
       <div className="section-header" style={{ marginTop: 24 }}>
         <h3>Effective Permissions ({user.effectivePermissions.length})</h3>
       </div>
@@ -387,7 +388,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
               </span>
               <strong style={{ marginLeft: 8 }}>{o.permissionName}</strong>
               <span className="text-muted text-small"> ({o.module})</span>
-              {o.reason && <span className="text-muted text-small"> — {o.reason}</span>}
+              {o.reason && <span className="text-muted text-small"> â€” {o.reason}</span>}
               {o.expiresAt && (
                 <span className="text-small" style={{ marginLeft: 8, color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <Clock size={12} /> expires {new Date(o.expiresAt).toLocaleDateString()}
@@ -399,7 +400,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
             </PermissionGuard>
           </div>
         ))}
-        {user.permissionOverrides.length === 0 && <p className="text-muted">No overrides — permissions come from assigned roles only</p>}
+        {user.permissionOverrides.length === 0 && <p className="text-muted">No overrides â€” permissions come from assigned roles only</p>}
       </div>
 
       {/* Add Override Modal */}
@@ -416,7 +417,7 @@ function RolesTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void
   );
 }
 
-/* ─── Add Override Modal ──────────────────── */
+/* â”€â”€â”€ Add Override Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function AddOverrideModal({
   userId, permsByModule, existingOverrides, onClose, onSuccess,
@@ -579,7 +580,7 @@ function AddOverrideModal({
   );
 }
 
-/* ─── Effective Permissions Grouped ────────── */
+/* â”€â”€â”€ Effective Permissions Grouped â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 // Kept in sync with the same hierarchy used in the Role editor (RolesPage.tsx):
 // a Property has Floors, and each Floor has Units. Billing has Meters and Charge Categories.
@@ -600,7 +601,7 @@ function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
   // Build override lookup by permission code
   const overrideMap = new Map(user.permissionOverrides.map(o => [o.permissionCode, o]));
 
-  // Build role→permissions lookup from role names (we'll mark granted permissions with role source)
+  // Build roleâ†’permissions lookup from role names (we'll mark granted permissions with role source)
   // Since we don't have per-role permission breakdown in UserDetail, we show role names as a combined source
   const roleNames = user.roles.map(r => r.name);
 
@@ -624,7 +625,7 @@ function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
     const override = overrideMap.get(code);
     let source: string;
     if (override?.overrideType === 'grant') {
-      source = '⊕ override (grant)';
+      source = 'âŠ• override (grant)';
     } else {
       source = roleNames.length > 0 ? `via ${roleNames.join(', ')}` : 'inherited';
     }
@@ -650,7 +651,7 @@ function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
       moduleMap.get(module)!.push({
         code: o.permissionCode,
         action,
-        source: '⊖ override (revoke)',
+        source: 'âŠ– override (revoke)',
         isRevoked: true,
         expiresAt: o.expiresAt,
       });
@@ -690,7 +691,7 @@ function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
           className="eff-perm-module-header"
           onClick={() => toggleModule(module)}
         >
-          <span className="eff-perm-expand">{isExpanded ? '▾' : '▸'}</span>
+          <span className="eff-perm-expand">{isExpanded ? 'â–¾' : 'â–¸'}</span>
           <span className="eff-perm-module-name">{module}</span>
           <span className="eff-perm-module-count">
             {grantedCount}
@@ -734,7 +735,7 @@ function EffectivePermissionsGrouped({ user }: { user: UserDetail }) {
   );
 }
 
-/* ─── Security Tab ─────────────────────────── */
+/* â”€â”€â”€ Security Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => void }) {
   const confirmDialog = useConfirm();
@@ -799,7 +800,7 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
             </p>
             <code className="temp-password">{tempPassword}</code>
             <p className="text-small text-muted" style={{ marginTop: 8 }}>
-              Copy this now — it won't be shown again. The user must change it on next login.
+              Copy this now â€” it won't be shown again. The user must change it on next login.
             </p>
             <button className="btn btn-sm" style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => {
               navigator.clipboard.writeText(tempPassword);
@@ -869,18 +870,18 @@ function SecurityTab({ user, onRefresh }: { user: UserDetail; onRefresh: () => v
   );
 }
 
-/* ─── Helpers ──────────────────────────────── */
+/* â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="detail-row">
       <span className="detail-label">{label}</span>
-      <span className="detail-value">{value || '—'}</span>
+      <span className="detail-value">{value || 'â€”'}</span>
     </div>
   );
 }
 
-/* ─── Avatar Upload ────────────────────────── */
+/* â”€â”€â”€ Avatar Upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function AvatarUpload({ user, onRefresh }: { user: UserDetail; onRefresh: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -944,7 +945,7 @@ function AvatarUpload({ user, onRefresh }: { user: UserDetail; onRefresh: () => 
   );
 }
 
-/* ─── Activity Tab ─────────────────────────── */
+/* â”€â”€â”€ Activity Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const EVENT_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   login_success: { label: 'Login', icon: <CheckCircle2 size={14} style={{ color: 'var(--accent)' }} /> },
@@ -986,7 +987,7 @@ function ActivityTab({ userId }: { userId: string }) {
       </div>
 
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading activity...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : logs.length === 0 ? (
         <p className="text-muted">No activity recorded for this user</p>
       ) : (
@@ -1009,7 +1010,7 @@ function ActivityTab({ userId }: { userId: string }) {
                     icon: <FileText size={14} style={{ color: 'var(--accent)' }} />,
                   };
                   const ua = String(log.userAgent || '');
-                  const shortUA = ua.length > 40 ? ua.substring(0, 40) + '…' : ua || '—';
+                  const shortUA = ua.length > 40 ? ua.substring(0, 40) + 'â€¦' : ua || 'â€”';
                   return (
                     <tr key={log.id as string}>
                       <td>
@@ -1023,7 +1024,7 @@ function ActivityTab({ userId }: { userId: string }) {
                           {String(log.status)}
                         </span>
                       </td>
-                      <td className="text-small">{String(log.ipAddress || '—')}</td>
+                      <td className="text-small">{String(log.ipAddress || 'â€”')}</td>
                       <td className="text-small text-muted" title={ua}>{shortUA}</td>
                       <td className="text-small text-muted">
                         {new Date(log.createdAt as string).toLocaleString()}
@@ -1042,7 +1043,7 @@ function ActivityTab({ userId }: { userId: string }) {
                 className="btn btn-sm"
                 disabled={page <= 1}
                 onClick={() => setPage(p => p - 1)}
-              >← Prev</button>
+              >â† Prev</button>
               <span className="text-muted text-small">
                 Page {page} of {meta.totalPages}
               </span>
@@ -1050,7 +1051,7 @@ function ActivityTab({ userId }: { userId: string }) {
                 className="btn btn-sm"
                 disabled={page >= meta.totalPages}
                 onClick={() => setPage(p => p + 1)}
-              >Next →</button>
+              >Next â†’</button>
             </div>
           )}
         </>

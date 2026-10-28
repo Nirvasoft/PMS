@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo } from 'react';
 import {
   Clock, Play, Pause, Settings, RefreshCw, CheckCircle2,
@@ -259,7 +260,7 @@ export default function CronJobsPage() {
           <div>
             <h1>Background Cron Jobs</h1>
             <p>
-              {totalJobs} total job{totalJobs !== 1 ? 's' : ''} · Monitor, reschedule, pause/resume, and manually trigger system background tasks
+              {totalJobs} total job{totalJobs !== 1 ? 's' : ''} Â· Monitor, reschedule, pause/resume, and manually trigger system background tasks
             </p>
           </div>
         </div>
@@ -375,7 +376,7 @@ export default function CronJobsPage() {
         </div>
       </div>
 
-      {/* ── Modern Card Grid View ── */}
+      {/* â”€â”€ Modern Card Grid View â”€â”€ */}
       <div className="cron-cards-grid">
         {isLoading ? (
           <div className="cron-empty-state">
@@ -511,7 +512,7 @@ export default function CronJobsPage() {
         )}
       </div>
 
-      {/* ─── MODAL 1: EDIT SCHEDULE MODAL (HYBRID) ─── */}
+      {/* â”€â”€â”€ MODAL 1: EDIT SCHEDULE MODAL (HYBRID) â”€â”€â”€ */}
       {editingJob && (
         <div className="cron-modal-backdrop" onClick={() => setEditingJob(null)}>
           <div className="cron-modal" onClick={e => e.stopPropagation()}>
@@ -731,7 +732,7 @@ export default function CronJobsPage() {
         </div>
       )}
 
-      {/* ─── MODAL 2: RUN NOW CONFIRMATION MODAL ─── */}
+      {/* â”€â”€â”€ MODAL 2: RUN NOW CONFIRMATION MODAL â”€â”€â”€ */}
       {runConfirmJob && (
         <div className="cron-modal-backdrop" onClick={() => setRunConfirmJob(null)}>
           <div className="cron-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
@@ -773,7 +774,7 @@ export default function CronJobsPage() {
         </div>
       )}
 
-      {/* ─── MODAL 3: EXECUTION LOGS MODAL ─── */}
+      {/* â”€â”€â”€ MODAL 3: EXECUTION LOGS MODAL â”€â”€â”€ */}
       {logsJob && (
         <CronJobLogsModal job={logsJob} onClose={() => setLogsJob(null)} />
       )}
@@ -781,7 +782,7 @@ export default function CronJobsPage() {
   );
 }
 
-// ── Execution Logs Modal Component ──
+// â”€â”€ Execution Logs Modal Component â”€â”€
 function CronJobLogsModal({ job, onClose }: { job: CronJobItem; onClose: () => void }) {
   const { data: logsRes, isLoading, refetch } = useGetCronJobLogsQuery({ jobKey: job.jobKey });
   const logs = logsRes?.logs || [];
@@ -818,11 +819,7 @@ function CronJobLogsModal({ job, onClose }: { job: CronJobItem; onClose: () => v
             </thead>
             <tbody>
               {isLoading ? (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>
-                    Loading execution logs...
-                  </td>
-                </tr>
+                <TableSkeletonRows columns={5} />
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
@@ -839,7 +836,7 @@ function CronJobLogsModal({ job, onClose }: { job: CronJobItem; onClose: () => v
                     <td>
                       <span className="cron-raw-tag">{log.triggeredBy}</span>
                     </td>
-                    <td>{log.durationMs ? `${log.durationMs}ms` : '—'}</td>
+                    <td>{log.durationMs ? `${log.durationMs}ms` : 'â€”'}</td>
                     <td>
                       {log.status === 'success' ? (
                         <span className="cron-status-badge success">Success</span>

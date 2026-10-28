@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -49,7 +50,7 @@ export default function WorkflowsPage() {
   );
 }
 
-/* ─── Definitions Tab ──────────────────────── */
+/* â”€â”€â”€ Definitions Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function DefinitionsTab() {
   const navigate = useNavigate();
@@ -63,7 +64,7 @@ function DefinitionsTab() {
   const confirmDialog = useConfirm();
   const defs = data?.data ?? [];
 
-  if (isLoading) return <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>;
+  if (isLoading) return <TableSkeleton columns={5} rows={5} />;
 
   return (
     <>
@@ -167,7 +168,7 @@ function DefinitionsTab() {
   );
 }
 
-/* ─── Instances Tab ────────────────────────── */
+/* â”€â”€â”€ Instances Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function InstancesTab() {
   const [statusFilter, setStatusFilter] = useState('');
@@ -184,7 +185,7 @@ function InstancesTab() {
   const instances = data?.data ?? [];
   const meta = data?.meta;
 
-  if (isLoading) return <div className="loading-inline"><div className="loading-spinner" /> Loading...</div>;
+  if (isLoading) return <TableSkeleton columns={5} rows={5} />;
 
   return (
     <>
@@ -221,7 +222,7 @@ function InstancesTab() {
             </div>
             {inst.status === 'cancelled' && inst.cancelReason && (
               <div className="wf-instance-cancel-reason">
-                <span className="text-small text-muted">💬 {inst.cancelReason}</span>
+                <span className="text-small text-muted">ðŸ’¬ {inst.cancelReason}</span>
               </div>
             )}
             {inst.status === 'running' && (
@@ -257,9 +258,9 @@ function InstancesTab() {
 
       {meta && meta.totalPages > 1 && (
         <div className="pagination">
-          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
+          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>â† Prev</button>
           <span className="text-secondary">Page {meta.page} of {meta.totalPages}</span>
-          <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next →</button>
+          <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next â†’</button>
         </div>
       )}
 
@@ -269,7 +270,7 @@ function InstancesTab() {
           <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div className="modal-header">
               <h2>Cancel Workflow</h2>
-              <button className="btn-icon" onClick={() => setCancelModal(null)}>✕</button>
+              <button className="btn-icon" onClick={() => setCancelModal(null)}>âœ•</button>
             </div>
             <div className="modal-body">
               <div className="cancel-modal-info">
@@ -283,7 +284,7 @@ function InstancesTab() {
                   rows={3}
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="e.g. Duplicate request, requirements changed, submitted in error…"
+                  placeholder="e.g. Duplicate request, requirements changed, submitted in errorâ€¦"
                 />
               </div>
               <div className="modal-actions">
@@ -313,7 +314,7 @@ function InstancesTab() {
   );
 }
 
-/* ─── Instance Detail ──────────────────────── */
+/* â”€â”€â”€ Instance Detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const { data, isLoading } = useGetInstanceQuery(id);
@@ -327,9 +328,9 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
         <h3>Instance Detail</h3>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Link to={`/admin/workflows/instances/${id}`} className="btn btn-sm">
-            Open Full Page →
+            Open Full Page â†’
           </Link>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>âœ•</button>
         </div>
       </div>
 
@@ -343,7 +344,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
         </span>
         {inst.status === 'cancelled' && inst.cancelReason && (
           <div className="wf-cancel-reason-display">
-            <span className="text-small">💬 <strong>Cancel reason:</strong> {inst.cancelReason}</span>
+            <span className="text-small">ðŸ’¬ <strong>Cancel reason:</strong> {inst.cancelReason}</span>
           </div>
         )}
       </div>
@@ -361,18 +362,18 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 </span>
                 <span><strong>{t.title}</strong></span>
                 <span className="text-muted text-small">
-                  → {nm ? `${nm.firstName} ${nm.lastName}` : 'Unassigned'}
+                  â†’ {nm ? `${nm.firstName} ${nm.lastName}` : 'Unassigned'}
                 </span>
               </div>
               {t.slaBreached && (
                 <div className="wf-task-sla-info">
                   <span className="sla-chip breached">
-                    {t.escalatedAt ? '🔺 Escalated' : '⚠️ SLA Breached'}
+                    {t.escalatedAt ? 'ðŸ”º Escalated' : 'âš ï¸ SLA Breached'}
                   </span>
                   {escNm && (
                     <span className="text-small text-muted">
-                      → Escalated to <strong>{escNm.firstName} {escNm.lastName}</strong>
-                      {t.escalatedAt && ` · ${new Date(t.escalatedAt).toLocaleString()}`}
+                      â†’ Escalated to <strong>{escNm.firstName} {escNm.lastName}</strong>
+                      {t.escalatedAt && ` Â· ${new Date(t.escalatedAt).toLocaleString()}`}
                     </span>
                   )}
                 </div>
@@ -380,7 +381,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
               {t.slaDueAt && !t.slaBreached && t.status === 'pending' && (
                 <div className="wf-task-sla-info">
                   <span className={`sla-chip ${t.remindedAt ? 'reminded' : 'normal'}`}>
-                    ⏳ Due: {new Date(t.slaDueAt).toLocaleString()}
+                    â³ Due: {new Date(t.slaDueAt).toLocaleString()}
                   </span>
                 </div>
               )}
@@ -401,7 +402,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 <div className="wf-timeline-content">
                   <span className="wf-timeline-action">{h.action}</span>
                   <span className="text-muted text-small">
-                    {prf ? `${prf.firstName} ${prf.lastName}` : 'System'} · {new Date(h.createdAt).toLocaleString()}
+                    {prf ? `${prf.firstName} ${prf.lastName}` : 'System'} Â· {new Date(h.createdAt).toLocaleString()}
                   </span>
                   {h.comments && <span className="text-small">"{h.comments}"</span>}
                 </div>
@@ -414,7 +415,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-/* ─── Create Workflow Modal ────────────────── */
+/* â”€â”€â”€ Create Workflow Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const ENTITY_TYPES = [
   { value: 'lease', label: 'Lease' },
@@ -434,7 +435,7 @@ function CreateWorkflowModal({ onClose }: { onClose: () => void }) {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Create with a simple start → approval → end graph
+      // Create with a simple start â†’ approval â†’ end graph
       const graph = {
         nodes: [
           { id: 'start', type: 'start' },
@@ -465,7 +466,7 @@ function CreateWorkflowModal({ onClose }: { onClose: () => void }) {
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>New Workflow</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>âœ•</button>
         </div>
         <form onSubmit={handleCreate} className="modal-body">
           <div className="form-group">
@@ -487,7 +488,7 @@ function CreateWorkflowModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="info-card" style={{ marginTop: 8 }}>
             <p className="text-small text-muted">
-              💡 A default graph (Start → Manager Approval → End) will be created.
+              ðŸ’¡ A default graph (Start â†’ Manager Approval â†’ End) will be created.
               Edit the JSON graph via the API to customize the workflow before publishing.
             </p>
           </div>
@@ -503,7 +504,7 @@ function CreateWorkflowModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ─── Start Instance Modal ─────────────────── */
+/* â”€â”€â”€ Start Instance Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefinition; onClose: () => void }) {
   const [startInstance, { isLoading }] = useStartInstanceMutation();
@@ -545,8 +546,8 @@ function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefin
     <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540 }}>
         <div className="modal-header">
-          <h2>▶ Start Workflow</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <h2>â–¶ Start Workflow</h2>
+          <button className="btn-icon" onClick={onClose}>âœ•</button>
         </div>
         <form onSubmit={handleStart} className="modal-body">
           <div className="info-card" style={{ marginBottom: 16 }}>
@@ -555,11 +556,11 @@ function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefin
               <br />
               Entity type: <span className="role-chip">{definition.entityType}</span>
               <br />
-              Nodes: {definition.graph.nodes.map(n => `${n.type}${n.data?.name ? ` (${n.data.name})` : ''}`).join(' → ')}
+              Nodes: {definition.graph.nodes.map(n => `${n.type}${n.data?.name ? ` (${n.data.name})` : ''}`).join(' â†’ ')}
             </p>
           </div>
 
-          {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>⚠ {error}</div>}
+          {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>âš  {error}</div>}
 
           <div className="form-group">
             <label>Entity ID <span className="text-muted text-small">(leave blank for auto-generated)</span></label>
@@ -577,7 +578,7 @@ function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefin
           <div className="modal-actions">
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-success" disabled={isLoading}>
-              {isLoading ? '⏳ Starting...' : '▶ Start Instance'}
+              {isLoading ? 'â³ Starting...' : 'â–¶ Start Instance'}
             </button>
           </div>
         </form>

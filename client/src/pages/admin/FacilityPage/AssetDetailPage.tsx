@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGetFacilityAssetByIdQuery, useUpdateFacilityAssetMutation, useDeleteFacilityAssetMutation, useGetAssetServiceHistoryQuery } from '../../../store/api/facilityApi';
@@ -12,11 +13,11 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 const ASSET_TYPES: Record<string, { label: string; icon: string }> = {
-  hvac: { label: 'HVAC', icon: '❄️' }, elevator: { label: 'Elevator', icon: '🛗' },
-  generator: { label: 'Generator', icon: '⚡' }, fire_system: { label: 'Fire System', icon: '🧯' },
-  water_pump: { label: 'Water Pump', icon: '💧' }, cctv: { label: 'CCTV', icon: '📹' },
-  access_control: { label: 'Access Control', icon: '🔑' }, lighting: { label: 'Lighting', icon: '💡' },
-  other: { label: 'Other', icon: '🔧' },
+  hvac: { label: 'HVAC', icon: 'â„ï¸' }, elevator: { label: 'Elevator', icon: 'ðŸ›—' },
+  generator: { label: 'Generator', icon: 'âš¡' }, fire_system: { label: 'Fire System', icon: 'ðŸ§¯' },
+  water_pump: { label: 'Water Pump', icon: 'ðŸ’§' }, cctv: { label: 'CCTV', icon: 'ðŸ“¹' },
+  access_control: { label: 'Access Control', icon: 'ðŸ”‘' }, lighting: { label: 'Lighting', icon: 'ðŸ’¡' },
+  other: { label: 'Other', icon: 'ðŸ”§' },
 };
 
 const STATUS_MAP: Record<string, string> = {
@@ -73,7 +74,7 @@ export default function AssetDetailPage() {
     }
   };
 
-  if (isLoading) return <div className="maint-page"><div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div></div>;
+  if (isLoading) return <div className="maint-page"><TableSkeleton columns={5} rows={5} /></div>;
   if (!asset) return <div className="maint-page"><div className="maint-empty"><p>Asset not found</p></div></div>;
 
   return (
@@ -85,13 +86,13 @@ export default function AssetDetailPage() {
             <ArrowLeft size={16} />
           </button>
           <div className="page-icon-lg" style={{ fontSize: '20px' }}>
-            {ASSET_TYPES[asset.assetType]?.icon || '🔧'}
+            {ASSET_TYPES[asset.assetType]?.icon || 'ðŸ”§'}
           </div>
           <div>
             <h1>{asset.name}</h1>
             <p>
               <span className="cell-mono" style={{ marginRight: '8px' }}>{asset.assetNumber}</span>
-              {asset.property?.name} · {ASSET_TYPES[asset.assetType]?.label}
+              {asset.property?.name} Â· {ASSET_TYPES[asset.assetType]?.label}
             </p>
           </div>
         </div>
@@ -99,10 +100,10 @@ export default function AssetDetailPage() {
           <div className="header-actions">
             <select className="filter-select" value={asset.status} onChange={(e) => handleStatusChange(e.target.value)}
               disabled={statusChanging} style={{ minWidth: '180px' }}>
-              <option value="operational">✅ Operational</option>
-              <option value="under_maintenance">🔧 Under Maintenance</option>
-              <option value="fault">⚠️ Fault</option>
-              <option value="decommissioned">🚫 Decommissioned</option>
+              <option value="operational">âœ… Operational</option>
+              <option value="under_maintenance">ðŸ”§ Under Maintenance</option>
+              <option value="fault">âš ï¸ Fault</option>
+              <option value="decommissioned">ðŸš« Decommissioned</option>
             </select>
             <button className="btn btn-ghost btn-danger-ghost" onClick={() => setShowDeleteConfirm(true)}>
               <Trash2 size={16} /> Delete
@@ -123,23 +124,23 @@ export default function AssetDetailPage() {
             <InfoItem label="Type">
               <span>{ASSET_TYPES[asset.assetType]?.icon} {ASSET_TYPES[asset.assetType]?.label}</span>
             </InfoItem>
-            <InfoItem label="Make / Brand">{asset.make || '—'}</InfoItem>
-            <InfoItem label="Model">{asset.model || '—'}</InfoItem>
-            <InfoItem label="Serial Number">{asset.serialNumber || '—'}</InfoItem>
-            <InfoItem label="QR Code"><span className="cell-mono">{asset.qrCode || '—'}</span></InfoItem>
-            <InfoItem label="Location"><MapPin size={12} style={{ marginRight: '4px' }} />{asset.location || '—'}</InfoItem>
-            <InfoItem label="Floor">{asset.floor || '—'}</InfoItem>
+            <InfoItem label="Make / Brand">{asset.make || 'â€”'}</InfoItem>
+            <InfoItem label="Model">{asset.model || 'â€”'}</InfoItem>
+            <InfoItem label="Serial Number">{asset.serialNumber || 'â€”'}</InfoItem>
+            <InfoItem label="QR Code"><span className="cell-mono">{asset.qrCode || 'â€”'}</span></InfoItem>
+            <InfoItem label="Location"><MapPin size={12} style={{ marginRight: '4px' }} />{asset.location || 'â€”'}</InfoItem>
+            <InfoItem label="Floor">{asset.floor || 'â€”'}</InfoItem>
             <InfoItem label="Installation Date">
-              {asset.installationDate ? new Date(asset.installationDate).toLocaleDateString() : '—'}
+              {asset.installationDate ? new Date(asset.installationDate).toLocaleDateString() : 'â€”'}
             </InfoItem>
             <InfoItem label="Expected Lifespan">
-              {asset.expectedLifespanYears ? `${asset.expectedLifespanYears} years` : '—'}
+              {asset.expectedLifespanYears ? `${asset.expectedLifespanYears} years` : 'â€”'}
             </InfoItem>
             <InfoItem label="Purchase Cost">
-              {asset.purchaseCost ? `$${Number(asset.purchaseCost).toLocaleString()}` : '—'}
+              {asset.purchaseCost ? `$${Number(asset.purchaseCost).toLocaleString()}` : 'â€”'}
             </InfoItem>
             <InfoItem label="Current Value">
-              {asset.currentValue ? `$${Number(asset.currentValue).toLocaleString()}` : '—'}
+              {asset.currentValue ? `$${Number(asset.currentValue).toLocaleString()}` : 'â€”'}
             </InfoItem>
           </div>
           {asset.notes && (
@@ -164,7 +165,7 @@ export default function AssetDetailPage() {
                     </span>
                   )}
                 </div>
-              ) : '—'}
+              ) : 'â€”'}
             </InfoItem>
             <InfoItem label="Next Service Due">
               {asset.nextServiceDue ? (
@@ -177,20 +178,20 @@ export default function AssetDetailPage() {
                     </span>
                   )}
                 </div>
-              ) : '—'}
+              ) : 'â€”'}
             </InfoItem>
             <InfoItem label="Last Serviced">
               {asset.lastServicedAt ? new Date(asset.lastServicedAt).toLocaleDateString() : 'Never'}
             </InfoItem>
             <InfoItem label="Responsible Person">
               {asset.responsiblePerson?.profile
-                ? `${asset.responsiblePerson.profile.firstName} ${asset.responsiblePerson.profile.lastName}` : '—'}
+                ? `${asset.responsiblePerson.profile.firstName} ${asset.responsiblePerson.profile.lastName}` : 'â€”'}
             </InfoItem>
-            <InfoItem label="Vendor">{asset.vendorName || '—'}</InfoItem>
-            <InfoItem label="Vendor Contact">{asset.vendorContact || '—'}</InfoItem>
-            <InfoItem label="Service Contract #">{asset.serviceContractNo || '—'}</InfoItem>
+            <InfoItem label="Vendor">{asset.vendorName || 'â€”'}</InfoItem>
+            <InfoItem label="Vendor Contact">{asset.vendorContact || 'â€”'}</InfoItem>
+            <InfoItem label="Service Contract #">{asset.serviceContractNo || 'â€”'}</InfoItem>
             <InfoItem label="Contract Expiry">
-              {asset.serviceContractExpiry ? new Date(asset.serviceContractExpiry).toLocaleDateString() : '—'}
+              {asset.serviceContractExpiry ? new Date(asset.serviceContractExpiry).toLocaleDateString() : 'â€”'}
             </InfoItem>
           </div>
         </div>
@@ -214,7 +215,7 @@ export default function AssetDetailPage() {
                 <tr key={s.id} onClick={() => navigate(`/admin/maintenance/pm/${s.id}`)}>
                   <td>
                     <span className="cell-primary">{s.name}</span>
-                    {s.asset && <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>{s.asset.assetNumber} — {s.asset.name}</span>}
+                    {s.asset && <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>{s.asset.assetNumber} â€” {s.asset.name}</span>}
                   </td>
                   <td><span className="maint-status open">{s.frequencyType}</span></td>
                   <td><span className="cell-secondary">{new Date(s.nextDueDate).toLocaleDateString()}</span></td>
@@ -245,10 +246,10 @@ export default function AssetDetailPage() {
                 <tr key={h.id}>
                   <td><span className="cell-primary">{h.scheduleName}</span></td>
                   <td><span className="cell-secondary">{new Date(h.dueDate).toLocaleDateString()}</span></td>
-                  <td><span className="cell-secondary">{h.completedAt ? new Date(h.completedAt).toLocaleDateString() : '—'}</span></td>
-                  <td>{h.technician || '—'}</td>
+                  <td><span className="cell-secondary">{h.completedAt ? new Date(h.completedAt).toLocaleDateString() : 'â€”'}</span></td>
+                  <td>{h.technician || 'â€”'}</td>
                   <td><span className={`maint-status ${h.status === 'completed' ? 'completed' : 'cancelled'}`}>{h.status}</span></td>
-                  <td><span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{h.findings || '—'}</span></td>
+                  <td><span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{h.findings || 'â€”'}</span></td>
                 </tr>
               ))}
             </tbody>

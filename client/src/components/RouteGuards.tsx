@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAppSelector } from '../store';
 import { isAdminRole } from '../utils/permissions';
 import { getDefaultRoute } from '../utils/defaultRoute';
+import { PageSkeleton } from './common/SkeletonLoaders';
 
 export function ProtectedRoute() {
   const { isAuthenticated, isLoading, user } = useAppSelector((s) => s.auth);
@@ -9,9 +10,8 @@ export function ProtectedRoute() {
 
   if (isLoading) {
     return (
-      <div className="loading-screen">
-        <div className="loading-spinner" />
-        <p>Loading...</p>
+      <div className="page-content" style={{ padding: 24 }}>
+        <PageSkeleton cards={4} rows={6} />
       </div>
     );
   }

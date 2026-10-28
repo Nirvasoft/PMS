@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect } from 'react';
 import { GitBranch, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
@@ -82,7 +83,7 @@ export default function DepartmentsPage() {
             <div>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Divisions</h1>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                {isLoading ? 'Loading…' : `${totalDepartments} total divisions`}
+                {isLoading ? 'Loadingâ€¦' : `${totalDepartments} total divisions`}
               </p>
             </div>
           </div>
@@ -95,7 +96,7 @@ export default function DepartmentsPage() {
       </div>
 
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading divisions...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : tree.length === 0 ? (
         <div className="info-card" style={{ textAlign: 'center', padding: '60px' }}>
           <p className="text-muted">No divisions yet. Create your first division to get started.</p>
@@ -199,27 +200,27 @@ function DeptTreeNode({
           onClick={() => setExpanded(!expanded)}
           style={{ visibility: hasChildren ? 'visible' : 'hidden' }}
         >
-          {expanded ? '▾' : '▸'}
+          {expanded ? 'â–¾' : 'â–¸'}
         </button>
         <div className="dept-node-info">
           <span className="dept-node-name">{node.name}</span>
           {node.code && <span className="dept-code">{node.code}</span>}
-          {node.manager && <span className="text-muted text-small"> · {node.manager.fullName}</span>}
-          <span className="text-muted text-small"> · {node.userCount} users</span>
+          {node.manager && <span className="text-muted text-small"> Â· {node.manager.fullName}</span>}
+          <span className="text-muted text-small"> Â· {node.userCount} users</span>
         </div>
         <div className="dept-actions">
           <PermissionGuard permission="departments.create">
             <button className="btn btn-sm" onClick={() => onAddChild(node.id)} title="Add sub-division">+</button>
           </PermissionGuard>
           <PermissionGuard permission="departments.update">
-            <button className="btn btn-sm" onClick={() => onMove(node.id, node.name)} title="Move division">↕</button>
+            <button className="btn btn-sm" onClick={() => onMove(node.id, node.name)} title="Move division">â†•</button>
           </PermissionGuard>
           <PermissionGuard permission="departments.delete">
             <button
               className="btn btn-sm btn-danger"
               onClick={() => onDelete(node.id, node.name)}
               title="Delete"
-            >✕</button>
+            >âœ•</button>
           </PermissionGuard>
         </div>
       </div>
@@ -266,7 +267,7 @@ function CreateDeptModal({
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{parentId ? 'Add Sub-Division' : 'Create Division'}</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>âœ•</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">
@@ -293,7 +294,7 @@ function CreateDeptModal({
   );
 }
 
-/* ─── Move Division Modal ──────────────────── */
+/* â”€â”€â”€ Move Division Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function MoveDeptModal({
   deptId, deptName, tree, onClose,
@@ -336,7 +337,7 @@ function MoveDeptModal({
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
         <div className="modal-header">
           <h2>Move Division</h2>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}>âœ•</button>
         </div>
         <div className="modal-body">
           <p className="text-secondary" style={{ marginBottom: 16 }}>
@@ -350,10 +351,10 @@ function MoveDeptModal({
               value={selectedParentId}
               onChange={(e) => setSelectedParentId(e.target.value)}
             >
-              <option value="__root__">— Root level (no parent) —</option>
+              <option value="__root__">â€” Root level (no parent) â€”</option>
               {options.map(opt => (
                 <option key={opt.id} value={opt.id}>
-                  {'  '.repeat(opt.depth)}{'└ '}{opt.name}
+                  {'  '.repeat(opt.depth)}{'â”” '}{opt.name}
                 </option>
               ))}
             </select>

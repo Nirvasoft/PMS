@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useGetPortalDashboardQuery } from '../../store/api/portalApi';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -12,7 +13,7 @@ export default function PortalDashboard() {
   if (isLoading) {
     return (
       <div className="page-content portal-page">
-        <div className="loading-inline"><div className="loading-spinner" /> Loading your dashboard...</div>
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
@@ -51,7 +52,7 @@ export default function PortalDashboard() {
         <div className="portal-welcome-text">
           <h1>{greeting}, {resident.firstName}!</h1>
           <p className="portal-welcome-sub">
-            {unit.unitNumber} · {property.name}
+            {unit.unitNumber} Â· {property.name}
           </p>
         </div>
         <div className="portal-welcome-accent" />
@@ -133,7 +134,7 @@ export default function PortalDashboard() {
                   }
                 }}
               >
-                <span className="portal-qa-icon">{qa.icon || '⚡'}</span>
+                <span className="portal-qa-icon">{qa.icon || 'âš¡'}</span>
                 <span className="portal-qa-label">{qa.label}</span>
               </button>
             ))}
@@ -159,7 +160,7 @@ export default function PortalDashboard() {
               <div className="portal-lease-row">
                 <span className="portal-lease-label">Period</span>
                 <span className="portal-lease-val">
-                  {new Date(lease.startDate).toLocaleDateString()} — {new Date(lease.endDate).toLocaleDateString()}
+                  {new Date(lease.startDate).toLocaleDateString()} â€” {new Date(lease.endDate).toLocaleDateString()}
                 </span>
               </div>
               <div className="portal-lease-row">
@@ -205,7 +206,7 @@ export default function PortalDashboard() {
                   <div className="portal-ticket-info">
                     <span className="portal-ticket-title">{t.title}</span>
                     <span className="portal-ticket-meta">
-                      {t.ticketNumber} · {new Date(t.createdAt).toLocaleDateString()}
+                      {t.ticketNumber} Â· {new Date(t.createdAt).toLocaleDateString()}
                     </span>
                   </div>
                   <span className={`portal-status-badge status-${t.status.replace(/_/g, '-')}`}>

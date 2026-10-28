@@ -1405,6 +1405,309 @@ class GlService {
     };
   }
 
+  async getDetailedTrialBalance(
+    companyId: string,
+    params: {
+      mode?: 'period' | 'date';
+      fiscalYear?: number;
+      periodFrom?: string;
+      periodTo?: string;
+      fromDate?: string;
+      toDate?: string;
+      category?: string;
+      includeZero?: boolean;
+      allAccounts?: boolean;
+      accountFrom?: string;
+      accountTo?: string;
+      costCenterId?: string;
+      departmentCenterId?: string;
+      propertyId?: string;
+    },
+  ) {
+    await ensurePropertySetupScope();
+
+    const mode = params.mode === 'date' ? 'date' : 'period';
+    const now = new Date();
+    const year = params.fiscalYear || now.getFullYear();
+
+    let effectiveFromDate: Date;
+    let effectiveToDate: Date;
+    let isOpeningOnly = false;
+    let periodLabel = '';
+
+    if (mode === 'period') {
+      const pFrom = (params.periodFrom || 'OPENING').toUpperCase();
+      const pTo = (params.periodTo || 'OPENING').toUpperCase();
+
+      const fiscalPeriods = await prisma.fiscalPeriod.findMany({
+        where: { companyId, fiscalYear: year },
+        orderBy: { periodNumber: 'asc' },
+      });
+
+      const resolvePeriodBounds = (pVal: string) => {
+        if (pVal === 'OPENING') {
+          const firstStart = fiscalPeriods[0]?.startDate
+            ? new Date(fiscalPeriods[0].startDate)
+            : new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+          return { start: firstStart, end: firstStart, label: 'Opening' };
+        }
+        const pNum = Math.max(1, Math.min(12, parseInt(pVal, 10) || 1));
+        const found = fiscalPeriods.find(fp => fp.periodNumber === pNum);
+        if (found) {
+          return {
+            start: new Date(found.startDate),
+            end: new Date(found.endDate),
+            label: found.name,
+          };
+        }
+        const start = new Date(Date.UTC(year, pNum - 1, 1, 0, 0, 0));
+        const end = new Date(Date.UTC(year, pNum, 0, 23, 59, 59, 999));
+        const label = start.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+        return { start, end, label };
+      };
+
+      const fromBounds = resolvePeriodBounds(pFrom);
+      const toBounds = resolvePeriodBounds(pTo);
+
+      if (pFrom === 'OPENING' && pTo === 'OPENING') {
+        isOpeningOnly = true;
+        effectiveFromDate = fromBounds.start;
+        effectiveToDate = fromBounds.start;
+        periodLabel = 'Opening - Opening';
+      } else {
+        effectiveFromDate = fromBounds.start <= toBounds.start ? fromBounds.start : toBounds.start;
+        effectiveToDate = toBounds.end >= fromBounds.end ? toBounds.end : fromBounds.end;
+        effectiveToDate.setUTCHours(23, 59, 59, 999);
+        periodLabel = `${fromBounds.label} - ${toBounds.label}`;
+      }
+    } else {
+      const rawFrom = params.fromDate || `${year}-01-01`;
+      const rawTo = params.toDate || now.toISOString().split('T')[0];
+      effectiveFromDate = new Date(`${rawFrom}T00:00:00.000Z`);
+      effectiveToDate = new Date(`${rawTo}T23:59:59.999Z`);
+      periodLabel = `${rawFrom} - ${rawTo}`;
+    }
+
+    const allAccounts = await prisma.glAccount.findMany({
+      where: { companyId, isActive: true },
+      include: {
+        departmentCenter: { select: { id: true, code: true, name: true } },
+        costCenter: { select: { id: true, code: true, name: true } },
+      },
+      orderBy: [{ code: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const categoryFilter = (params.category || '').trim().toLowerCase();
+    const useAllAccounts = params.allAccounts !== false;
+    const accFrom = (params.accountFrom || '').trim();
+    const accTo = (params.accountTo || '').trim();
+
+    const filteredAccounts = allAccounts.filter(a => {
+      if (categoryFilter && categoryFilter !== 'all') {
+        const typeMatch = (a.accountType || '').toLowerCase() === categoryFilter;
+        const subMatch = (a.accountSubtype || '').toLowerCase() === categoryFilter;
+        const nameMatch = (a.name || '').toLowerCase() === categoryFilter;
+        if (!typeMatch && !subMatch && !nameMatch) return false;
+      }
+      if (!useAllAccounts) {
+        if (accFrom && a.code.localeCompare(accFrom, undefined, { numeric: true, sensitivity: 'base' }) < 0) {
+          return false;
+        }
+        if (accTo && a.code.localeCompare(accTo, undefined, { numeric: true, sensitivity: 'base' }) > 0) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const accountIds = filteredAccounts.map(a => a.id);
+
+    const lineWhereBase: any = {
+      accountId: { in: accountIds.length > 0 ? accountIds : ['00000000-0000-0000-0000-000000000000'] },
+      journalEntry: {
+        companyId,
+        status: { in: ['posted', 'reversed'] },
+        entryDate: { lte: effectiveToDate },
+      },
+    };
+
+    if (params.propertyId) {
+      lineWhereBase.propertyId = params.propertyId;
+    }
+    if (params.departmentCenterId) {
+      lineWhereBase.OR = [
+        { departmentCenterId: params.departmentCenterId },
+        { departmentCenterId: null, account: { departmentCenterId: params.departmentCenterId } },
+      ];
+    }
+    if (params.costCenterId) {
+      const ccCond = [
+        { costCenterId: params.costCenterId },
+        { costCenterId: null, account: { costCenterId: params.costCenterId } },
+      ];
+      if (lineWhereBase.OR) {
+        lineWhereBase.AND = [{ OR: lineWhereBase.OR }, { OR: ccCond }];
+        delete lineWhereBase.OR;
+      } else {
+        lineWhereBase.OR = ccCond;
+      }
+    }
+
+    const allLines = await prisma.journalEntryLine.findMany({
+      where: lineWhereBase,
+      include: {
+        journalEntry: {
+          select: {
+            id: true,
+            journalNumber: true,
+            entryDate: true,
+            entryType: true,
+            description: true,
+            referenceType: true,
+            referenceId: true,
+          },
+        },
+        departmentCenter: { select: { id: true, code: true, name: true } },
+        costCenter: { select: { id: true, code: true, name: true } },
+      },
+      orderBy: [
+        { journalEntry: { entryDate: 'asc' } },
+        { journalEntry: { journalNumber: 'asc' } },
+        { sortOrder: 'asc' },
+      ],
+    });
+
+    const linesByAccount: Record<string, typeof allLines> = {};
+    for (const line of allLines) {
+      if (!linesByAccount[line.accountId]) linesByAccount[line.accountId] = [];
+      linesByAccount[line.accountId].push(line);
+    }
+
+    let grandOpeningDebit = 0;
+    let grandOpeningCredit = 0;
+    let grandPeriodDebit = 0;
+    let grandPeriodCredit = 0;
+    let grandClosingBalance = 0;
+
+    const accountsResult = [];
+
+    for (const acc of filteredAccounts) {
+      if (params.departmentCenterId && (!linesByAccount[acc.id] || linesByAccount[acc.id].length === 0)) {
+        if (acc.departmentCenterId !== params.departmentCenterId) continue;
+      }
+      if (params.costCenterId && (!linesByAccount[acc.id] || linesByAccount[acc.id].length === 0)) {
+        if (acc.costCenterId !== params.costCenterId) continue;
+      }
+
+      const accLines = linesByAccount[acc.id] || [];
+      const isDebitNormal = acc.normalBalance === 'debit';
+
+      let openingDebit = 0;
+      let openingCredit = 0;
+      let periodDebit = 0;
+      let periodCredit = 0;
+
+      const periodLines: typeof accLines = [];
+
+      for (const l of accLines) {
+        const eDate = new Date(l.journalEntry.entryDate);
+        const d = Number(l.debit || 0);
+        const c = Number(l.credit || 0);
+
+        if (isOpeningOnly || eDate < effectiveFromDate) {
+          openingDebit += d;
+          openingCredit += c;
+        } else {
+          periodDebit += d;
+          periodCredit += c;
+          periodLines.push(l);
+        }
+      }
+
+      const openingBalance = isDebitNormal
+        ? openingDebit - openingCredit
+        : openingCredit - openingDebit;
+
+      let runningBalance = openingBalance;
+      const transactions = periodLines.map(l => {
+        const d = Number(l.debit || 0);
+        const c = Number(l.credit || 0);
+        runningBalance += isDebitNormal ? d - c : c - d;
+        const dept = l.departmentCenter || acc.departmentCenter || null;
+        const cc = l.costCenter || acc.costCenter || null;
+
+        return {
+          id: l.id,
+          journalId: l.journalEntry.id,
+          entryDate: l.journalEntry.entryDate.toISOString(),
+          journalNumber: l.journalEntry.journalNumber,
+          entryType: l.journalEntry.entryType,
+          description: l.description || l.journalEntry.description || '',
+          department: dept ? { code: dept.code, name: dept.name } : null,
+          costCenter: cc ? { code: cc.code, name: cc.name } : null,
+          debit: d,
+          credit: c,
+          runningBalance,
+        };
+      });
+
+      const closingBalance = runningBalance;
+      const hasActivity =
+        Math.abs(openingBalance) >= 0.005 ||
+        Math.abs(periodDebit) >= 0.005 ||
+        Math.abs(periodCredit) >= 0.005 ||
+        transactions.length > 0;
+
+      if (!params.includeZero && !hasActivity) {
+        continue;
+      }
+
+      grandOpeningDebit += openingDebit;
+      grandOpeningCredit += openingCredit;
+      grandPeriodDebit += periodDebit;
+      grandPeriodCredit += periodCredit;
+      grandClosingBalance += isDebitNormal ? closingBalance : -closingBalance;
+
+      accountsResult.push({
+        accountId: acc.id,
+        code: acc.code,
+        name: acc.name,
+        accountType: acc.accountType,
+        accountSubtype: acc.accountSubtype,
+        normalBalance: acc.normalBalance,
+        department: acc.departmentCenter ? { code: acc.departmentCenter.code, name: acc.departmentCenter.name } : null,
+        costCenter: acc.costCenter ? { code: acc.costCenter.code, name: acc.costCenter.name } : null,
+        openingDebit,
+        openingCredit,
+        openingBalance,
+        periodDebit,
+        periodCredit,
+        closingBalance,
+        transactions,
+      });
+    }
+
+    const totalDebit = grandOpeningDebit + grandPeriodDebit;
+    const totalCredit = grandOpeningCredit + grandPeriodCredit;
+
+    return {
+      accounts: accountsResult,
+      periodLabel,
+      effectiveFromDate: effectiveFromDate.toISOString().split('T')[0],
+      effectiveToDate: effectiveToDate.toISOString().split('T')[0],
+      summary: {
+        openingDebit: grandOpeningDebit,
+        openingCredit: grandOpeningCredit,
+        periodDebit: grandPeriodDebit,
+        periodCredit: grandPeriodCredit,
+        totalDebit,
+        totalCredit,
+        isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   async getProfitAndLoss(companyId: string, params: {
     fromDate: string; toDate: string; propertyId?: string;
     compareFromDate?: string; compareToDate?: string;

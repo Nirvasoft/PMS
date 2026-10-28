@@ -1,6 +1,7 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect } from 'react';
 import { useGetPositionsQuery, useCreatePositionMutation, useDeletePositionMutation, useGetDepartmentTreeQuery } from '../../../store/api/usersApi';
-import { Briefcase, Trash2, Plus, Loader2, ChevronLeft, ChevronRight, Search, Filter, X } from 'lucide-react';
+import { Briefcase, Trash2, Plus, ChevronLeft, ChevronRight, Search, Filter, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -64,7 +65,7 @@ export default function PositionsPage() {
     try {
       await deletePosition(id).unwrap();
       toast.success('Position deleted');
-    } catch { toast.error('Cannot delete — position may be in use'); }
+    } catch { toast.error('Cannot delete Ã¢â‚¬â€ position may be in use'); }
   };
 
   // Flatten departments for select
@@ -125,7 +126,7 @@ export default function PositionsPage() {
 
   const pagedPositions = filteredPositions.slice((page - 1) * pageSize, page * pageSize);
 
-  if (isLoading) return <div className="page-content"><div className="loading-inline"><Loader2 size={20} className="spin" /> Loading positions...</div></div>;
+  if (isLoading) return <div className="page-content"><TableSkeleton columns={5} rows={5} /></div>;
 
   return (
     <div className="page-content">
@@ -179,7 +180,7 @@ export default function PositionsPage() {
           />
         </div>
         <button className="btn-secondary" onClick={() => setShowFilters(!showFilters)}>
-          <Filter size={15} /> Filters{hasActiveFilters ? ' •' : ''}
+          <Filter size={15} /> Filters{hasActiveFilters ? ' Ã¢â‚¬Â¢' : ''}
         </button>
       </div>
 
@@ -223,7 +224,7 @@ export default function PositionsPage() {
           <div className="modal-card">
             <div className="modal-header">
               <h2>New Position</h2>
-              <button className="btn-icon" onClick={closeForm}>✕</button>
+              <button className="btn-icon" onClick={closeForm}>Ã¢Å“â€¢</button>
             </div>
             <form onSubmit={handleCreate} className="modal-body" noValidate>
               <div className="form-group">
@@ -245,7 +246,7 @@ export default function PositionsPage() {
                 <label>Division (optional)</label>
                 <select className="input-full" value={form.departmentId}
                   onChange={e => setForm({ ...form, departmentId: e.target.value })}>
-                  <option value="">— All Divisions —</option>
+                  <option value="">Ã¢â‚¬â€ All Divisions Ã¢â‚¬â€</option>
                   {flatDepts.map(d => (
                     <option key={d.id} value={d.id}>{'  '.repeat(d.depth) + d.name}</option>
                   ))}
@@ -305,16 +306,16 @@ export default function PositionsPage() {
                     <tr key={p.id}>
                       <td><strong>{p.name}</strong></td>
                       <td><span className="role-chip">Level {p.level}</span></td>
-                      <td className="text-muted">{p.departmentId ? flatDepts.find(d => d.id === p.departmentId)?.name || '—' : 'All'}</td>
+                      <td className="text-muted">{p.departmentId ? flatDepts.find(d => d.id === p.departmentId)?.name || 'Ã¢â‚¬â€' : 'All'}</td>
                       <td>
                         {(p as any).canApprove ? (
                           <span className="status-badge active">
-                            ✓ {(p as any).approvalLimit
-                              ? `≤ ${Number((p as any).approvalLimit).toLocaleString()}`
+                            Ã¢Å“â€œ {(p as any).approvalLimit
+                              ? `Ã¢â€°Â¤ ${Number((p as any).approvalLimit).toLocaleString()}`
                               : 'Unlimited'}
                           </span>
                         ) : (
-                          <span className="text-muted">—</span>
+                          <span className="text-muted">Ã¢â‚¬â€</span>
                         )}
                       </td>
                       <td style={{ textAlign: 'center' }}>

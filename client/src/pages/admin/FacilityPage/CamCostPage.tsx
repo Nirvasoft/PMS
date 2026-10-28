@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import {
@@ -107,7 +108,7 @@ export default function CamCostPage() {
 
       {/* Filters */}
       <div className="maint-filters">
-        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
         <select className="filter-select" value={selectedProperty} disabled>
           {selectedProperty && (
             <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
@@ -189,7 +190,7 @@ export default function CamCostPage() {
 
         {/* Table */}
         {isLoading ? (
-          <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading...</div>
+          <TableSkeleton columns={5} rows={5} />
         ) : costs.length === 0 ? (
           <div className="maint-empty">
             <div className="empty-icon"><Receipt size={28} /></div>
@@ -338,7 +339,7 @@ export default function CamCostPage() {
   );
 }
 
-// ── Create / Edit CAM Entry Modal ────────────────
+// â”€â”€ Create / Edit CAM Entry Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }: {
   entry: any | null;
@@ -443,7 +444,7 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
                 className={hasAttemptedSubmit && !form.description.trim() ? 'maint-input-error' : ''}
                 value={form.description}
                 onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="e.g. Monthly cleaning services — January 2025"
+                placeholder="e.g. Monthly cleaning services â€” January 2025"
               />
               {hasAttemptedSubmit && !form.description.trim() && (
                 <span className="maint-error-text">Description is required</span>
@@ -505,8 +506,7 @@ function CamEntryModal({ entry, properties, defaultMonth, defaultYear, onClose }
           <div className="maint-modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? <Loader2 size={16} className="spin" /> : isEdit
-                ? <><Pencil size={16} /> Update Entry</>
+              {isLoading ? "Savingâ€¦" : isEdit ? <><Pencil size={16} /> Update Entry</>
                 : <><Plus size={16} /> Add Entry</>
               }
             </button>

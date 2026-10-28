@@ -5,7 +5,6 @@ import { X } from 'lucide-react';
 import { store } from './store';
 import { ProtectedRoute, PublicRoute, RequirePermission } from './components/RouteGuards';
 import { DialogProvider } from './components/DialogProvider';
-import { GlobalLoadingIndicator } from './components/GlobalLoadingIndicator';
 import LoginPage from './pages/LoginPage/LoginPage';
 import MfaVerifyPage from './pages/MfaVerifyPage/MfaVerifyPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage/ForgotPasswordPage';
@@ -73,6 +72,7 @@ import PaymentMethodSetupPage from './pages/admin/GLPage/PaymentMethodSetupPage'
 import JournalEntriesPage from './pages/admin/GLPage/JournalEntriesPage';
 import FiscalPeriodsPage from './pages/admin/GLPage/FiscalPeriodsPage';
 import TrialBalancePage from './pages/admin/GLPage/TrialBalancePage';
+import DetailedTrialBalancePage from './pages/admin/GLPage/DetailedTrialBalancePage';
 import ProfitAndLossPage from './pages/admin/GLPage/ProfitAndLossPage';
 import BalanceSheetPage from './pages/admin/GLPage/BalanceSheetPage';
 import CashFlowPage from './pages/admin/GLPage/CashFlowPage';
@@ -337,6 +337,7 @@ function AppRoutes() {
             <Route path="/admin/gl/journal-entries" element={<JournalEntriesPage />} />
             <Route path="/admin/gl/fiscal-periods" element={<FiscalPeriodsPage />} />
             <Route path="/admin/gl/trial-balance" element={<TrialBalancePage />} />
+            <Route path="/admin/gl/detailed-trial-balance" element={<DetailedTrialBalancePage />} />
             <Route path="/admin/gl/pnl" element={<ProfitAndLossPage />} />
             <Route path="/admin/gl/balance-sheet" element={<BalanceSheetPage />} />
             <Route path="/admin/gl/cash-flow" element={<CashFlowPage />} />
@@ -530,7 +531,6 @@ export default function App() {
   return (
     <GlobalErrorBoundary>
       <Provider store={store}>
-        <GlobalLoadingIndicator />
         <DialogProvider>
           <BrowserRouter>
             <AuthBootstrap>

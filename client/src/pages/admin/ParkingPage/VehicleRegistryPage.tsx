@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo, type ReactNode } from 'react';
 import {
   useGetVehiclesQuery, useAddVehicleMutation,
@@ -23,9 +24,9 @@ const VEHICLE_TYPES: Record<string, { label: string; icon: ReactNode; color: str
 
 function getTenantLabel(t: TenantListItem): string {
   if (t.tenantType !== 'individual') {
-    return t.companyName || t.displayName || '—';
+    return t.companyName || t.displayName || 'â€”';
   }
-  return t.lastName || t.displayName || '—';
+  return t.lastName || t.displayName || 'â€”';
 }
 
 export default function VehicleRegistryPage() {
@@ -91,12 +92,12 @@ export default function VehicleRegistryPage() {
               className="form-input"
               value={tenantSearch}
               onChange={e => setTenantSearch(e.target.value)}
-              placeholder="Search tenants…"
+              placeholder="Search tenantsâ€¦"
             />
           </div>
           <div className="vr-tenant-list">
             {isFetchingTenants ? (
-              <div className="vr-tenant-empty">Loading…</div>
+              <TableSkeleton columns={4} rows={4} />
             ) : tenants.length === 0 ? (
               <div className="vr-tenant-empty">No tenants found</div>
             ) : (
@@ -116,7 +117,7 @@ export default function VehicleRegistryPage() {
                     </div>
                     <div className="vti-info">
                       <div className="vti-name">{tenantLabel}</div>
-                      <div className="vti-meta">{t.tenantType} {t.email ? `· ${t.email}` : ''}</div>
+                      <div className="vti-meta">{t.tenantType} {t.email ? `Â· ${t.email}` : ''}</div>
                     </div>
                   </button>
                 );
@@ -150,7 +151,7 @@ export default function VehicleRegistryPage() {
                       className="form-input"
                       value={vehicleSearch}
                       onChange={e => setVehicleSearch(e.target.value)}
-                      placeholder="Filter vehicles…"
+                      placeholder="Filter vehiclesâ€¦"
                     />
                   </div>
                   <PermissionGuard permission="parking-vehicles.write">
@@ -231,7 +232,7 @@ export default function VehicleRegistryPage() {
   );
 }
 
-// ── Vehicle Card ─────────────────────────────
+// â”€â”€ Vehicle Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function VehicleCard({
   vehicle: v, tenantId: _tenantId, onEdit, onDelete, inactive,
@@ -295,7 +296,7 @@ function VehicleCard({
   );
 }
 
-// ── Add/Edit Modal ──────────────────────────
+// â”€â”€ Add/Edit Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function VehicleFormModal({
   tenantId,
@@ -413,7 +414,7 @@ function VehicleFormModal({
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn-primary" onClick={handleSubmit} disabled={isSaving}>
             <Save size={14} />
-            {isSaving ? 'Saving…' : isEdit ? 'Update Vehicle' : 'Register Vehicle'}
+            {isSaving ? 'Savingâ€¦' : isEdit ? 'Update Vehicle' : 'Register Vehicle'}
           </button>
         </div>
       </div>
@@ -421,7 +422,7 @@ function VehicleFormModal({
   );
 }
 
-// ── Delete Confirmation ────────────────────
+// â”€â”€ Delete Confirmation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function DeleteVehicleConfirm({
   vehicle,
@@ -459,7 +460,7 @@ function DeleteVehicleConfirm({
         <div className="modal-actions" style={{ justifyContent: 'center' }}>
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn-danger" onClick={handleDelete} disabled={isLoading}>
-            {isLoading ? 'Deactivating…' : 'Deactivate'}
+            {isLoading ? 'Deactivatingâ€¦' : 'Deactivate'}
           </button>
         </div>
       </div>
@@ -467,7 +468,7 @@ function DeleteVehicleConfirm({
   );
 }
 
-// ── Helpers ────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function getColorHex(colorName: string): string {
   const map: Record<string, string> = {

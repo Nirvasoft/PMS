@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import {
   useGetAdminCompaniesQuery, useProvisionCompanyMutation,
@@ -46,7 +47,7 @@ export default function AdminCompaniesPage() {
     return (
       <div className="page-content">
         <div className="info-card" style={{ textAlign: 'center', padding: 60 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>ðŸš«</div>
           <h2>Access Denied</h2>
           <p className="text-muted">Requires <code>companies.provision</code> permission.</p>
         </div>
@@ -57,21 +58,21 @@ export default function AdminCompaniesPage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <h1>🏗️ Company Provisioning</h1>
+        <h1>ðŸ—ï¸ Company Provisioning</h1>
         <p className="text-secondary">Create and manage multi-tenant companies</p>
       </div>
 
       <div className="toolbar">
         <span className="text-secondary">{companies.length} company(ies)</span>
         <button className="btn btn-primary" onClick={() => { setShowProvision(!showProvision); setResult(null); }}>
-          {showProvision ? '✕ Close' : '+ Provision New Company'}
+          {showProvision ? 'âœ• Close' : '+ Provision New Company'}
         </button>
       </div>
 
       {/* Provision Form */}
       {showProvision && (
         <div className="info-card" style={{ padding: 24, marginBottom: 20 }}>
-          <h3 style={{ marginTop: 0 }}>🏗️ Provision New Company</h3>
+          <h3 style={{ marginTop: 0 }}>ðŸ—ï¸ Provision New Company</h3>
           <p className="text-muted text-small" style={{ marginBottom: 16 }}>
             Creates a company with default roles, departments, password policy, and the first admin user.
           </p>
@@ -144,7 +145,7 @@ export default function AdminCompaniesPage() {
 
             <div style={{ marginTop: 16 }}>
               <button type="submit" className="btn btn-primary" disabled={provisioning}>
-                {provisioning ? '⏳ Provisioning...' : '🚀 Provision Company'}
+                {provisioning ? 'â³ Provisioning...' : 'ðŸš€ Provision Company'}
               </button>
             </div>
           </form>
@@ -152,7 +153,7 @@ export default function AdminCompaniesPage() {
           {/* Result */}
           {result && (
             <div className="info-card" style={{ marginTop: 16, padding: 16, background: 'var(--surface-elevated)' }}>
-              <h4 style={{ color: 'var(--success)', marginTop: 0 }}>✅ Company Provisioned</h4>
+              <h4 style={{ color: 'var(--success)', marginTop: 0 }}>âœ… Company Provisioned</h4>
               <div className="org-info-list">
                 <InfoRow label="Company" value={String((result.company as Record<string, unknown>)?.name || '')} />
                 <InfoRow label="Code" value={String((result.company as Record<string, unknown>)?.code || '')} badge />
@@ -168,7 +169,7 @@ export default function AdminCompaniesPage() {
 
       {/* Companies Table */}
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading companies...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : (
         <div className="audit-table-container">
           <table className="audit-table">
@@ -188,9 +189,9 @@ export default function AdminCompaniesPage() {
               {companies.map((c) => (
                 <tr key={c.id as string}>
                   <td><strong>{String(c.name)}</strong></td>
-                  <td><span className="dept-code">{String(c.code || '—')}</span></td>
+                  <td><span className="dept-code">{String(c.code || 'â€”')}</span></td>
                   <td><span className="role-chip">{String(c.companyType || 'standalone')}</span></td>
-                  <td>{String(c.country || '—')}</td>
+                  <td>{String(c.country || 'â€”')}</td>
                   <td>{String((c._count as Record<string, number>)?.users ?? 0)}</td>
                   <td>{String((c._count as Record<string, number>)?.properties ?? 0)}</td>
                   <td>
@@ -227,9 +228,9 @@ function InfoRow({ label, value, badge }: { label: string; value: string | null;
     <div className="org-info-row">
       <span className="org-info-label">{label}</span>
       {badge ? (
-        <span className="role-chip">{value || '—'}</span>
+        <span className="role-chip">{value || 'â€”'}</span>
       ) : (
-        <span className="org-info-value">{value || '—'}</span>
+        <span className="org-info-value">{value || 'â€”'}</span>
       )}
     </div>
   );

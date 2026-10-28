@@ -1,3 +1,4 @@
+import { TableSkeleton } from './common/SkeletonLoaders';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, BookOpen, Check } from 'lucide-react';
@@ -22,7 +23,7 @@ export default function GlAccountLookupField({
   onChange,
   wrapperClassName = 'form-field',
   disabled = false,
-  placeholder = 'Select from Chart of Accounts…',
+  placeholder = 'Select from Chart of Accountsâ€¦',
   propertyId: propPropertyId,
 }: GlAccountLookupFieldProps) {
   const selectedPropertyId = useSelectedPropertyId();
@@ -104,7 +105,7 @@ export default function GlAccountLookupField({
         </span>
       )}
 
-      {/* Chart of Accounts Lookup Modal — identical to ChargeTypesPage */}
+      {/* Chart of Accounts Lookup Modal â€” identical to ChargeTypesPage */}
       {showCoaModal &&
         createPortal(
           <div className="modal-overlay coa-lookup-overlay" onClick={() => setShowCoaModal(false)}>
@@ -127,7 +128,7 @@ export default function GlAccountLookupField({
                   <Search size={15} className="coa-lookup-search-icon" />
                   <input
                     type="text"
-                    placeholder="Search by account code or name…"
+                    placeholder="Search by account code or nameâ€¦"
                     value={coaSearch}
                     onChange={(e) => setCoaSearch(e.target.value)}
                     autoFocus
@@ -160,7 +161,7 @@ export default function GlAccountLookupField({
 
               <div className="modal-body coa-lookup-body">
                 {loadingGlAccounts ? (
-                  <div className="coa-lookup-empty">Loading Chart of Accounts…</div>
+                  <TableSkeleton columns={4} rows={4} />
                 ) : filteredGlAccounts.length === 0 ? (
                   <div className="coa-lookup-empty">
                     No GL accounts found matching your search.
@@ -203,12 +204,12 @@ export default function GlAccountLookupField({
                               </td>
                               <td>
                                 <span className="cell-mono" style={{ fontSize: 12, color: acc.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                  {acc.departmentCenter?.code || '—'}
+                                  {acc.departmentCenter?.code || 'â€”'}
                                 </span>
                               </td>
                               <td>
                                 <span className="cell-mono" style={{ fontSize: 12, color: acc.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                  {acc.costCenter?.code || '—'}
+                                  {acc.costCenter?.code || 'â€”'}
                                 </span>
                               </td>
                               <td>

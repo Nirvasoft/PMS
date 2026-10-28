@@ -1,3 +1,4 @@
+import { TableSkeleton, TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect, useMemo } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
@@ -188,7 +189,7 @@ export default function PaymentMethodSetupPage() {
 
   const handleDelete = async (pm: PaymentMethod) => {
     const ok = await confirmDialog(
-      `Delete payment method "${pm.code} — ${pm.name}"?`,
+      `Delete payment method "${pm.code} â€” ${pm.name}"?`,
       { danger: true, confirmText: 'Delete' }
     );
     if (!ok) return;
@@ -267,7 +268,7 @@ export default function PaymentMethodSetupPage() {
             <Search size={15} className="search-icon" />
             <input
               type="text"
-              placeholder="Search code, name, GL account…"
+              placeholder="Search code, name, GL accountâ€¦"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -288,7 +289,7 @@ export default function PaymentMethodSetupPage() {
             className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
+            <Filter size={14} /> Filters{hasFilterSelections ? ' â€¢' : ''}
           </button>
         </div>
       </div>
@@ -336,7 +337,7 @@ export default function PaymentMethodSetupPage() {
             </thead>
             <tbody>
               {isFetching && paymentMethods.length === 0 ? (
-                <tr><td colSpan={7} className="billing-empty">Loading…</td></tr>
+                <TableSkeletonRows columns={7} />
               ) : paymentMethods.length === 0 ? (
                 <tr><td colSpan={7} className="billing-empty">No payment methods found</td></tr>
               ) : filteredPaymentMethods.length === 0 ? (
@@ -365,17 +366,17 @@ export default function PaymentMethodSetupPage() {
                     <td><div className="cell-primary">{pm.name}</div></td>
                     <td>
                       <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
-                        {pm.glAccountCode || '—'}
+                        {pm.glAccountCode || 'â€”'}
                       </span>
                     </td>
                     <td>
                       <span className="cell-mono" style={{ fontSize: 13, color: deptCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                        {deptCode || '—'}
+                        {deptCode || 'â€”'}
                       </span>
                     </td>
                     <td>
                       <span className="cell-mono" style={{ fontSize: 13, color: ccCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                        {ccCode || '—'}
+                        {ccCode || 'â€”'}
                       </span>
                     </td>
                     <td>
@@ -495,7 +496,7 @@ export default function PaymentMethodSetupPage() {
                     <div className="coa-input-group">
                       <input
                         className="coa-bound-input"
-                        placeholder="Select from Chart of Accounts…"
+                        placeholder="Select from Chart of Accountsâ€¦"
                         value={form.glAccountCode}
                         readOnly
                         tabIndex={-1}
@@ -556,7 +557,7 @@ export default function PaymentMethodSetupPage() {
                         })
                       }
                     >
-                      <option value="">— None —</option>
+                      <option value="">â€” None â€”</option>
                       {departmentCenters
                         .filter((d) => d.isActive)
                         .map((d) => (
@@ -577,7 +578,7 @@ export default function PaymentMethodSetupPage() {
                         })
                       }
                     >
-                      <option value="">— None —</option>
+                      <option value="">â€” None â€”</option>
                       {costCenters
                         .filter((c) => {
                           if (!c.isActive) return false;
@@ -606,7 +607,7 @@ export default function PaymentMethodSetupPage() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating || updating}>
-                  {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Payment Method'}
+                  {creating || updating ? 'Savingâ€¦' : editing ? 'Save Changes' : 'Create Payment Method'}
                 </button>
               </div>
             </form>
@@ -632,7 +633,7 @@ export default function PaymentMethodSetupPage() {
                 <Search size={15} className="coa-lookup-search-icon" />
                 <input
                   type="text"
-                  placeholder="Search by account code or name…"
+                  placeholder="Search by account code or nameâ€¦"
                   value={coaSearch}
                   onChange={e => setCoaSearch(e.target.value)}
                   autoFocus
@@ -665,7 +666,7 @@ export default function PaymentMethodSetupPage() {
 
             <div className="modal-body coa-lookup-body">
               {loadingGlAccounts ? (
-                <div className="coa-lookup-empty">Loading Chart of Accounts…</div>
+                <TableSkeleton columns={4} rows={4} />
               ) : filteredGlAccounts.length === 0 ? (
                 <div className="coa-lookup-empty">
                   No GL accounts found matching your search.
@@ -718,12 +719,12 @@ export default function PaymentMethodSetupPage() {
                             </td>
                             <td>
                               <span className="cell-mono" style={{ fontSize: 12, color: acc.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                {acc.departmentCenter?.code || '—'}
+                                {acc.departmentCenter?.code || 'â€”'}
                               </span>
                             </td>
                             <td>
                               <span className="cell-mono" style={{ fontSize: 12, color: acc.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                {acc.costCenter?.code || '—'}
+                                {acc.costCenter?.code || 'â€”'}
                               </span>
                             </td>
                             <td>

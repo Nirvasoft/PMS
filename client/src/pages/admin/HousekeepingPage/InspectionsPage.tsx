@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState } from 'react';
 import {
@@ -124,7 +125,7 @@ export default function InspectionsPage() {
 
   return (
     <div className="maint-page">
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><ClipboardCheck size={22} /></div>
@@ -140,7 +141,7 @@ export default function InspectionsPage() {
         </PermissionGuard>
       </div>
 
-      {/* ── Stats ── */}
+      {/* â”€â”€ Stats â”€â”€ */}
       <div className="hk-hero-stats">
         <div className="hk-hero-stat-card" style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -156,7 +157,7 @@ export default function InspectionsPage() {
             <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Avg Score</span>
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: SCORE_COLORS[Math.round(avgScore)] || '#10b981' }}>{avgScore.toFixed(1)}<span style={{ fontSize: 11, fontWeight: 600 }}>/5</span></div>
-          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{SCORE_LABELS[Math.round(avgScore)] || '—'}</div>
+          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{SCORE_LABELS[Math.round(avgScore)] || 'â€”'}</div>
         </div>
 
         <div className="hk-hero-stat-card" style={{ '--stat-accent': actionCount > 0 ? '#ef4444' : '#10b981' } as React.CSSProperties}>
@@ -165,7 +166,7 @@ export default function InspectionsPage() {
             <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Action Req.</span>
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: actionCount > 0 ? '#ef4444' : '#10b981' }}>{actionCount}</div>
-          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{actionCount === 0 ? 'all clear ✓' : 'need follow-up'}</div>
+          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{actionCount === 0 ? 'all clear âœ“' : 'need follow-up'}</div>
         </div>
 
         {/* Score distribution mini */}
@@ -183,7 +184,7 @@ export default function InspectionsPage() {
                     opacity: scoreDist[s] > 0 ? 0.75 : 0.2,
                     transition: 'height 0.5s',
                   }} />
-                  <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--text-tertiary)' }}>{s}★</span>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--text-tertiary)' }}>{s}â˜…</span>
                 </div>
               );
             })}
@@ -191,7 +192,7 @@ export default function InspectionsPage() {
         </div>
       </div>
 
-      {/* ── Toolbar ── */}
+      {/* â”€â”€ Toolbar â”€â”€ */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 200, maxWidth: 320, position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
@@ -201,7 +202,7 @@ export default function InspectionsPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Filter size={13} style={{ color: 'var(--text-tertiary)' }} />
-          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
           <select className="filter-select" value={propertyFilter} disabled
             style={{ borderRadius: 10, fontSize: 12, padding: '7px 28px 7px 10px' }}>
             {propertyFilter && (
@@ -211,9 +212,9 @@ export default function InspectionsPage() {
         </div>
       </div>
 
-      {/* ── Inspection Cards ── */}
+      {/* â”€â”€ Inspection Cards â”€â”€ */}
       {isLoading ? (
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading inspections...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : filtered.length === 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px', gap: 12 }}>
           <div style={{ width: 64, height: 64, borderRadius: 16, background: 'rgba(107,114,128,0.08)', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ClipboardCheck size={28} /></div>
@@ -278,7 +279,7 @@ export default function InspectionsPage() {
                     background: 'rgba(107,114,128,0.06)', color: 'var(--text-secondary)',
                     display: 'flex', alignItems: 'center', gap: 4,
                   }}>
-                    <Building2 size={9} /> {insp.property?.name || '—'}
+                    <Building2 size={9} /> {insp.property?.name || 'â€”'}
                   </span>
                 </div>
 
@@ -292,7 +293,7 @@ export default function InspectionsPage() {
                     <User size={10} />
                     {insp.inspectedBy?.profile
                       ? `${insp.inspectedBy.profile.firstName} ${insp.inspectedBy.profile.lastName}`
-                      : '—'}
+                      : 'â€”'}
                   </span>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     {issues.length > 0 && (
@@ -327,7 +328,7 @@ export default function InspectionsPage() {
         </div>
       )}
 
-      {/* ── Detail Modal ── */}
+      {/* â”€â”€ Detail Modal â”€â”€ */}
       {detailInsp && (
         <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '560px', borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>
@@ -355,11 +356,11 @@ export default function InspectionsPage() {
 
               {/* Meta */}
               <div className="pr-detail-meta">
-                <div className="pr-meta-row"><span className="pr-meta-label">Property</span><span>{detailInsp.property?.name || '—'}</span></div>
+                <div className="pr-meta-row"><span className="pr-meta-label">Property</span><span>{detailInsp.property?.name || 'â€”'}</span></div>
                 {detailInsp.zone && <div className="pr-meta-row"><span className="pr-meta-label">Zone</span><span>{detailInsp.zone.name}</span></div>}
                 <div className="pr-meta-row"><span className="pr-meta-label">Date</span><span>{new Date(detailInsp.inspectionDate).toLocaleDateString()}</span></div>
-                <div className="pr-meta-row"><span className="pr-meta-label">Inspector</span><span>{detailInsp.inspectedBy?.profile ? `${detailInsp.inspectedBy.profile.firstName} ${detailInsp.inspectedBy.profile.lastName}` : '—'}</span></div>
-                <div className="pr-meta-row"><span className="pr-meta-label">Action Required</span><span>{detailInsp.actionRequired ? '⚠️ Yes' : '✅ No'}</span></div>
+                <div className="pr-meta-row"><span className="pr-meta-label">Inspector</span><span>{detailInsp.inspectedBy?.profile ? `${detailInsp.inspectedBy.profile.firstName} ${detailInsp.inspectedBy.profile.lastName}` : 'â€”'}</span></div>
+                <div className="pr-meta-row"><span className="pr-meta-label">Action Required</span><span>{detailInsp.actionRequired ? 'âš ï¸ Yes' : 'âœ… No'}</span></div>
               </div>
 
               {/* Checklist */}
@@ -374,7 +375,7 @@ export default function InspectionsPage() {
                       <div key={i} className="pr-items-row" style={{ gridTemplateColumns: '2fr 1fr 2fr' }}>
                         <span className="pr-item-name">{c.item}</span>
                         <span><ScoreStars score={c.score || 0} size={11} /></span>
-                        <span className="cell-secondary" style={{ fontSize: 12 }}>{c.notes || '—'}</span>
+                        <span className="cell-secondary" style={{ fontSize: 12 }}>{c.notes || 'â€”'}</span>
                       </div>
                     ))}
                   </div>
@@ -397,7 +398,7 @@ export default function InspectionsPage() {
         </div>
       )}
 
-      {/* ── Create Modal ── */}
+      {/* â”€â”€ Create Modal â”€â”€ */}
       {showCreate && (
         <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '600px', borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>
@@ -522,7 +523,7 @@ export default function InspectionsPage() {
               <label className="insp-action-toggle" style={{ marginTop: 12 }}>
                 <input type="checkbox" checked={formAction} onChange={(e) => setFormAction(e.target.checked)} />
                 <AlertTriangle size={14} />
-                <span>Action required — auto-creates a maintenance ticket</span>
+                <span>Action required â€” auto-creates a maintenance ticket</span>
               </label>
             </div>
 

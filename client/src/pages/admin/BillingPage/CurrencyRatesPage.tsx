@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect, useMemo } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -30,7 +31,7 @@ const formatChangedBy = (h: CurrencyRateHistory) => {
 
 const formatDateTime = (iso: string) => {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return 'â€”';
   return d.toLocaleString(undefined, {
     year: 'numeric',
     month: 'short',
@@ -67,8 +68,8 @@ const renderActionBadge = (action: string) => {
   );
 };
 
-// 'multiply' — baseAmount = amount * rate (rate quoted as base-per-1-currency).
-// 'divide'   — baseAmount = amount / rate (rate quoted as currency-per-1-base).
+// 'multiply' â€” baseAmount = amount * rate (rate quoted as base-per-1-currency).
+// 'divide'   â€” baseAmount = amount / rate (rate quoted as currency-per-1-base).
 const computeForward = (rate: number, operator: string) => (!rate ? 0 : operator === 'divide' ? 1 / rate : rate);
 const computeInverse = (rate: number, operator: string) => (!rate ? 0 : operator === 'divide' ? rate : 1 / rate);
 
@@ -85,7 +86,7 @@ const emptyForm = {
 
 export default function CurrencyRatesPage() {
   const activePropertyId = useSelectedPropertyId();
-  // /properties/my-scope is permission-free — see useSelectedPropertyId.ts — and carries
+  // /properties/my-scope is permission-free â€” see useSelectedPropertyId.ts â€” and carries
   // each property's own currency, which Code/Base Currency below bind to.
   const { data: scopeData } = useGetMyPropertyScopeQuery();
   const activeProperty = scopeData?.data.find((p) => p.id === activePropertyId);
@@ -104,14 +105,14 @@ export default function CurrencyRatesPage() {
   const rates = ratesData?.data || [];
   const historyList = historyData?.data || [];
 
-  // The base currency isn't chosen per row — it's whichever currency was most recently
+  // The base currency isn't chosen per row â€” it's whichever currency was most recently
   // flagged "Base Currency" (mirrors the server's own derivation in currencyRates.service.ts).
   const globalBaseCurrency = useMemo(() => {
     const baseRows = rates.filter((r) => r.isBaseCurrency).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
     return baseRows[0]?.currency || '';
   }, [rates]);
 
-  // ── Search ────────────────────────────────────────────
+  // â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredRates = rates
@@ -123,7 +124,7 @@ export default function CurrencyRatesPage() {
     // Base currency always pinned to top, then alphabetical, then newest-first within each code.
     .sort((a, b) => (b.isBaseCurrency ? 1 : 0) - (a.isBaseCurrency ? 1 : 0) || a.currency.localeCompare(b.currency) || b.effectiveDate.localeCompare(a.effectiveDate));
 
-  // ── Pagination ──────────────────────────────────────
+  // â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [searchQuery, pageSize]);
@@ -131,7 +132,7 @@ export default function CurrencyRatesPage() {
   const currentPage = Math.min(page, totalPages);
   const paginatedRates = filteredRates.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  // ── History Search, Filter & Pagination ─────────────
+  // â”€â”€ History Search, Filter & Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [historySearch, setHistorySearch] = useState('');
   const [historyCurrencyFilter, setHistoryCurrencyFilter] = useState('');
   const [historyActionFilter, setHistoryActionFilter] = useState('');
@@ -170,7 +171,7 @@ export default function CurrencyRatesPage() {
     currentHistoryPage * historyPageSize,
   );
 
-  // ── List / Form / History toolbar ───────────────────
+  // â”€â”€ List / Form / History toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [viewMode, setViewMode] = useState<'list' | 'form' | 'history'>('list');
   const [showIsoModal, setShowIsoModal] = useState(false);
   const [isoSearch, setIsoSearch] = useState('');
@@ -185,7 +186,7 @@ export default function CurrencyRatesPage() {
     );
   }, [editing, historyList]);
 
-  // No rows yet for this property means no base currency is set — the row about to be
+  // No rows yet for this property means no base currency is set â€” the row about to be
   // created must be it, so Code/Base Currency below bind to and lock onto the property's
   // own currency instead of offering a free choice.
   const mustBeBaseCurrency = !editing && rates.length === 0;
@@ -219,7 +220,7 @@ export default function CurrencyRatesPage() {
   const backToList = () => { setViewMode('list'); setEditing(null); setHasAttemptedSubmit(false); setForm(emptyForm); };
   const openHistory = () => { setViewMode('history'); };
 
-  // Switching the sidebar's Active Property changes which property's rates this page shows —
+  // Switching the sidebar's Active Property changes which property's rates this page shows â€”
   // an open create/edit form would otherwise keep referencing the property it was opened for.
   useEffect(() => { backToList(); }, [activePropertyId]);
 
@@ -231,9 +232,9 @@ export default function CurrencyRatesPage() {
       return;
     }
 
-    // Nothing is base yet — the first currency created must be marked Base Currency,
+    // Nothing is base yet â€” the first currency created must be marked Base Currency,
     // otherwise the property would end up with no base at all. Unreachable in practice
-    // since mustBeBaseCurrency already forces the checkbox on — kept as a safety net.
+    // since mustBeBaseCurrency already forces the checkbox on â€” kept as a safety net.
     if (rates.length === 0 && !form.isBaseCurrency) {
       alertDialog('No Base Currency is set up yet. Check "Base Currency" for this entry before saving.');
       return;
@@ -273,15 +274,15 @@ export default function CurrencyRatesPage() {
     }
   };
 
-  // ── Live conversion preview for the form ─────────────
+  // â”€â”€ Live conversion preview for the form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const formRateNum = Number(form.rate);
   const forwardValue = computeForward(formRateNum, form.operator);
   const inverseValue = computeInverse(formRateNum, form.operator);
   // While "Base Currency" is checked, this row is about to become the base, so the
   // preview should reflect the in-progress selection rather than the still-saved one.
-  const displayBaseCurrency = form.isBaseCurrency ? (form.currency || '—') : globalBaseCurrency;
+  const displayBaseCurrency = form.isBaseCurrency ? (form.currency || 'â€”') : globalBaseCurrency;
 
-  // Only one currency can be the base at a time — lock the checkbox once another is set.
+  // Only one currency can be the base at a time â€” lock the checkbox once another is set.
   const existingBaseCurrency = rates.find((r) => r.isBaseCurrency && r.id !== editing?.id);
   const baseCurrencyLocked = !form.isBaseCurrency && !!existingBaseCurrency;
 
@@ -312,8 +313,8 @@ export default function CurrencyRatesPage() {
             </h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
               {viewMode === 'history'
-                ? (isFetchingHistory && historyList.length === 0 ? 'Loading…' : `${historyList.length} total update records`)
-                : (isFetching && rates.length === 0 ? 'Loading…' : `${rates.length} total currencies`)}
+                ? (isFetchingHistory && historyList.length === 0 ? 'Loadingâ€¦' : `${historyList.length} total update records`)
+                : (isFetching && rates.length === 0 ? 'Loadingâ€¦' : `${rates.length} total currencies`)}
             </p>
           </div>
           {viewMode === 'list' ? (
@@ -357,7 +358,7 @@ export default function CurrencyRatesPage() {
                 </button>
               </PermissionGuard>
               <button type="submit" form="currency-rate-form" className="btn btn-primary" disabled={creating || updating} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Save size={14} /> {creating || updating ? 'Saving…' : 'Save'}
+                <Save size={14} /> {creating || updating ? 'Savingâ€¦' : 'Save'}
               </button>
               {editing && (
                 <PermissionGuard permission="currency-rate.delete">
@@ -380,7 +381,7 @@ export default function CurrencyRatesPage() {
               <input
                 type="text"
                 className="meter-search-input"
-                placeholder="Search currency, base currency, remarks…"
+                placeholder="Search currency, base currency, remarksâ€¦"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -412,7 +413,7 @@ export default function CurrencyRatesPage() {
               </thead>
               <tbody>
                 {isFetching && rates.length === 0 ? (
-                  <tr><td colSpan={5} className="billing-empty">Loading…</td></tr>
+                  <TableSkeletonRows columns={5} />
                 ) : rates.length === 0 ? (
                   <tr><td colSpan={5} className="billing-empty">No currency rates set up yet</td></tr>
                 ) : filteredRates.length === 0 ? (
@@ -425,11 +426,11 @@ export default function CurrencyRatesPage() {
                         {r.isBaseCurrency && <span className="cr-base-badge">Base</span>}
                       </div>
                     </td>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{r.description || '—'}</td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{r.description || 'â€”'}</td>
                     <td>
                       {r.symbol
                         ? <span className="cr-symbol-chip">{r.symbol}</span>
-                        : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        : <span style={{ color: 'var(--text-muted)' }}>â€”</span>}
                     </td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.operator === 'divide' ? '/' : '*'}</td>
                     <td><span className="cell-mono">{formatRate(r.rate)}</span></td>
@@ -492,7 +493,7 @@ export default function CurrencyRatesPage() {
               <input
                 type="text"
                 className="meter-search-input"
-                placeholder="Search currency, rate, changed by…"
+                placeholder="Search currency, rate, changed byâ€¦"
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
               />
@@ -549,7 +550,7 @@ export default function CurrencyRatesPage() {
                 </thead>
                 <tbody>
                   {isFetchingHistory && historyList.length === 0 ? (
-                    <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
+                    <TableSkeletonRows columns={8} />
                   ) : historyList.length === 0 ? (
                     <tr><td colSpan={8} className="billing-empty">No currency update history yet</td></tr>
                   ) : filteredHistory.length === 0 ? (
@@ -564,10 +565,10 @@ export default function CurrencyRatesPage() {
                       <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{h.operator === 'divide' ? '/' : '*'}</td>
                       <td>{renderActionBadge(h.action)}</td>
                       <td className="text-right">
-                        {h.oldRate != null ? <span className="cell-mono">{formatRate(h.oldRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        {h.oldRate != null ? <span className="cell-mono">{formatRate(h.oldRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>â€”</span>}
                       </td>
                       <td className="text-right">
-                        {h.newRate != null ? <span className="cell-mono">{formatRate(h.newRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        {h.newRate != null ? <span className="cell-mono">{formatRate(h.newRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>â€”</span>}
                       </td>
                       <td style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatChangedBy(h)}</td>
                     </tr>
@@ -621,7 +622,7 @@ export default function CurrencyRatesPage() {
           </div>
         </>
       ) : (
-        /* Detail Form — Code / Base Currency checkbox / Description / Operator / Symbol / Rate + live conversion */
+        /* Detail Form â€” Code / Base Currency checkbox / Description / Operator / Symbol / Rate + live conversion */
         <>
           <form id="currency-rate-form" onSubmit={handleSubmit} noValidate>
             <div className="billing-table-wrap cr-detail-form-card" style={{ padding: 24 }}>
@@ -636,13 +637,13 @@ export default function CurrencyRatesPage() {
                           className="cr-iso-link"
                           onClick={() => { setIsoSearch(''); setShowIsoModal(true); }}
                         >
-                          ISO ↗
+                          ISO â†—
                         </button>
                       )}
                     </label>
                     <input
                       className={currencyError ? 'input-error' : ''}
-                      placeholder="Select via ISO →"
+                      placeholder="Select via ISO â†’"
                       value={form.currency}
                       disabled
                       style={{ cursor: 'not-allowed', opacity: form.currency ? 1 : (currencyError ? 1 : 0.6) }}
@@ -703,22 +704,22 @@ export default function CurrencyRatesPage() {
                 <div className="cr-conversion-preview">
                   {form.operator === 'divide' ? (
                     <div className="cr-conversion-row">
-                      <span className="cr-conversion-label">1.00 {displayBaseCurrency || '—'} <span className="cr-conversion-base-tag">base</span></span>
+                      <span className="cr-conversion-label">1.00 {displayBaseCurrency || 'â€”'} <span className="cr-conversion-base-tag">base</span></span>
                       <span className="cr-conversion-eq">=</span>
                       <span className="cr-conversion-value">
                         {formRateNum > 0
-                          ? <>{inverseValue.toLocaleString(undefined, { maximumFractionDigits: 6 })} <strong>{form.currency || '—'}</strong></>
-                          : <span className="cr-conversion-empty">—</span>}
+                          ? <>{inverseValue.toLocaleString(undefined, { maximumFractionDigits: 6 })} <strong>{form.currency || 'â€”'}</strong></>
+                          : <span className="cr-conversion-empty">â€”</span>}
                       </span>
                     </div>
                   ) : (
                     <div className="cr-conversion-row">
-                      <span className="cr-conversion-label">1.00 {form.currency || '—'}</span>
+                      <span className="cr-conversion-label">1.00 {form.currency || 'â€”'}</span>
                       <span className="cr-conversion-eq">=</span>
                       <span className="cr-conversion-value">
                         {formRateNum > 0
                           ? <>{forwardValue.toLocaleString(undefined, { maximumFractionDigits: 6 })} <strong>{displayBaseCurrency}</strong></>
-                          : <span className="cr-conversion-empty">—</span>}
+                          : <span className="cr-conversion-empty">â€”</span>}
                       </span>
                     </div>
                   )}
@@ -765,10 +766,10 @@ export default function CurrencyRatesPage() {
                         <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{h.operator === 'divide' ? '/' : '*'}</td>
                         <td>{renderActionBadge(h.action)}</td>
                         <td className="text-right">
-                          {h.oldRate != null ? <span className="cell-mono">{formatRate(h.oldRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                          {h.oldRate != null ? <span className="cell-mono">{formatRate(h.oldRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>â€”</span>}
                         </td>
                         <td className="text-right">
-                          {h.newRate != null ? <span className="cell-mono">{formatRate(h.newRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                          {h.newRate != null ? <span className="cell-mono">{formatRate(h.newRate)}</span> : <span style={{ color: 'var(--text-muted)' }}>â€”</span>}
                         </td>
                         <td style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatChangedBy(h)}</td>
                       </tr>
@@ -801,7 +802,7 @@ export default function CurrencyRatesPage() {
                 autoFocus
                 type="text"
                 className="cr-iso-search"
-                placeholder="Search country, currency or ISO code…"
+                placeholder="Search country, currency or ISO codeâ€¦"
                 value={isoSearch}
                 onChange={(e) => setIsoSearch(e.target.value)}
               />

@@ -1,51 +1,22 @@
 import { useState } from 'react';
 import { Landmark } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useAppSelector } from '../../../store';
 import { useGetBalanceSheetQuery } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { PageSkeleton } from '../../../components/common/SkeletonLoaders';
+import { GlExportExcelButton } from './GlExportExcelButton';
 import './GLPage.css';
 
 import { formatCompactAmount as fmtAmt } from '../../../utils/formatCurrency';
 
 export default function BalanceSheetPage() {
   const selectedPropertyId = useSelectedPropertyId();
-  const accessToken = useAppSelector(s => s.auth.accessToken);
-  const [exporting, setExporting] = useState(false);
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0]);
   const { data: bs, isLoading } = useGetBalanceSheetQuery({
     asOfDate,
     propertyId: selectedPropertyId || undefined,
   });
 
-  const handleExportExcel = async () => {
-    setExporting(true);
-    try {
-      const propParam = selectedPropertyId ? `&propertyId=${encodeURIComponent(selectedPropertyId)}` : '';
-      const url = `/api/v1/gl/reports/balance-sheet?asOfDate=${asOfDate}${propParam}&format=xlsx`;
-      const res = await fetch(url, {
-        credentials: 'include',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-      });
-      if (!res.ok) throw new Error('Export failed');
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = `balance-sheet-${asOfDate}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(objectUrl);
-    } catch {
-      toast.error('Failed to export Balance Sheet');
-    } finally {
-      setExporting(false);
-    }
-  };
+  const propParam = selectedPropertyId ? `&propertyId=${encodeURIComponent(selectedPropertyId)}` : '';
 
   const renderSection = (title: string, icon: string, rows: any[], total: number, colorClass: string) => (
     <div className="report-section">
@@ -82,19 +53,11 @@ export default function BalanceSheetPage() {
         <div style={{ flex: 1 }} />
         {bs && (
           <>
-            <button
-              onClick={handleExportExcel}
-              disabled={exporting}
-              style={{
-                padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)', cursor: exporting ? 'wait' : 'pointer',
-                display: 'flex', alignItems: 'center',
-                opacity: exporting ? 0.7 : 1,
-              }}
-            >
-              {exporting ? 'Exporting…' : 'Export Excel'}
-            </button>
+            <GlExportExcelButton
+              url={`/api/v1/gl/reports/balance-sheet?asOfDate=${asOfDate}${propParam}&format=xlsx`}
+              filename={`balance-sheet-${asOfDate}.xlsx`}
+              errorMessage="Failed to export Balance Sheet"
+            />
             <span className={`report-balanced ${bs.isBalanced ? 'yes' : 'no'}`}>
               {bs.isBalanced ? '✓ A = L + E' : '✗ Out of Balance'}
             </span>
@@ -102,7 +65,7 @@ export default function BalanceSheetPage() {
         )}
       </div>
 
-      {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : bs && (
+      {isLoading ? <PageSkeleton cards={3} rows={6} columns={5} /> : bs && (
         <>
           {renderSection('Assets', '🏢', bs.assets, bs.totalAssets, 'positive')}
 

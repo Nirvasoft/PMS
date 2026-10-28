@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo } from 'react';
 import { useGetPortalAnalyticsQuery, type PortalAnalyticsData } from '../../../store/api/portalApi';
 import {
@@ -42,7 +43,7 @@ export default function PortalAnalyticsPage() {
       </div>
 
       {isLoading ? (
-        <div className="loading-inline"><div className="loading-spinner" /> Loading analytics...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : data ? (
         <>
           {/* Summary Cards */}
@@ -92,7 +93,7 @@ export default function PortalAnalyticsPage() {
                       {data.topUsers.map((u, i) => (
                         <tr key={u.userId}>
                           <td style={{ fontWeight: 700, opacity: 0.4 }}>{i + 1}</td>
-                          <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
+                          <td style={{ fontWeight: 600 }}>{u.name || 'â€”'}</td>
                           <td className="text-muted">{u.email}</td>
                           <td>
                             <span className="status-badge status-active">{u.sessionCount}</span>
@@ -120,7 +121,7 @@ export default function PortalAnalyticsPage() {
   );
 }
 
-// ── Sub-components ───────────────────────────
+// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SummaryCards({ data }: { data: PortalAnalyticsData }) {
   const cards = [
@@ -194,7 +195,7 @@ function HourlyChart({ peakHours }: { peakHours: PortalAnalyticsData['peakHours'
       {hours.map((h) => (
         <div
           key={h.hour}
-          title={`${h.hour}:00 — ${h.count} sessions`}
+          title={`${h.hour}:00 â€” ${h.count} sessions`}
           style={{
             flex: 1,
             height: `${Math.max(3, (h.count / maxCount) * 100)}%`,

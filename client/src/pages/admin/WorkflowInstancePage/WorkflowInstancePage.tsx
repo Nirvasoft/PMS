@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
@@ -24,7 +25,7 @@ export default function WorkflowInstancePage() {
   if (isLoading) {
     return (
       <div className="page-content">
-        <div className="loading-inline"><div className="loading-spinner" /> Loading instance…</div>
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
@@ -36,7 +37,7 @@ export default function WorkflowInstancePage() {
           <h2>Instance Not Found</h2>
           <p className="text-muted">The workflow instance could not be loaded.</p>
           <Link to="/admin/workflows" className="btn btn-primary" style={{ marginTop: 16 }}>
-            ← Back to Workflows
+            â† Back to Workflows
           </Link>
         </div>
       </div>
@@ -78,11 +79,11 @@ export default function WorkflowInstancePage() {
             <p className="text-secondary">
               <span className="role-chip">{inst.entityType}</span>
               Entity: <strong>{inst.entityId}</strong>
-              {' · '}Started {new Date(inst.startedAt).toLocaleString()}
+              {' Â· '}Started {new Date(inst.startedAt).toLocaleString()}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-sm" onClick={() => refetch()}>↻ Refresh</button>
+            <button className="btn btn-sm" onClick={() => refetch()}>â†» Refresh</button>
             {inst.status === 'running' && (
               <PermissionGuard permission="workflows-engine.write">
                 <button className="btn btn-sm btn-danger" onClick={() => { setCancelModal(true); setCancelReason(''); }}>
@@ -134,7 +135,7 @@ export default function WorkflowInstancePage() {
       {/* Cancel Reason Display */}
       {inst.status === 'cancelled' && inst.cancelReason && (
         <div className="wf-cancel-reason-display" style={{ marginBottom: 16 }}>
-          <span>💬 <strong>Cancel reason:</strong> {inst.cancelReason}</span>
+          <span>ðŸ’¬ <strong>Cancel reason:</strong> {inst.cancelReason}</span>
         </div>
       )}
 
@@ -255,7 +256,7 @@ export default function WorkflowInstancePage() {
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div className="modal-header">
               <h2>Cancel Workflow</h2>
-              <button className="btn-icon" onClick={() => setCancelModal(false)}>✕</button>
+              <button className="btn-icon" onClick={() => setCancelModal(false)}>âœ•</button>
             </div>
             <div className="modal-body">
               <div className="cancel-modal-info">
@@ -266,7 +267,7 @@ export default function WorkflowInstancePage() {
                 <label>Reason for cancellation *</label>
                 <textarea className="input-full" rows={3} value={cancelReason}
                   onChange={e => setCancelReason(e.target.value)}
-                  placeholder="e.g. Duplicate request, requirements changed…" />
+                  placeholder="e.g. Duplicate request, requirements changedâ€¦" />
               </div>
               <div className="modal-actions">
                 <button className="btn" onClick={() => setCancelModal(false)}>Close</button>
@@ -282,7 +283,7 @@ export default function WorkflowInstancePage() {
   );
 }
 
-/* ─── Task Card ────────────────────────────── */
+/* â”€â”€â”€ Task Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function TaskCard({ task: t }: { task: WorkflowTask }) {
   const assignee = t.assignee?.profile;
@@ -301,10 +302,10 @@ function TaskCard({ task: t }: { task: WorkflowTask }) {
         {t.slaDueAt && t.status === 'pending' && (
           <span className={`sla-chip ${slaBreached ? 'breached' : slaUrgent ? 'urgent' : t.remindedAt ? 'reminded' : 'normal'}`}>
             {slaBreached
-              ? (t.escalatedAt ? '🔺 Escalated' : '⚠️ Breached')
+              ? (t.escalatedAt ? 'ðŸ”º Escalated' : 'âš ï¸ Breached')
               : slaUrgent
-                ? `⏰ ${slaMinutes}m`
-                : `⏳ ${Math.round((slaMinutes ?? 0) / 60)}h`}
+                ? `â° ${slaMinutes}m`
+                : `â³ ${Math.round((slaMinutes ?? 0) / 60)}h`}
           </span>
         )}
       </div>
@@ -317,13 +318,13 @@ function TaskCard({ task: t }: { task: WorkflowTask }) {
         {delegatee && (
           <div className="wfi-task-detail-row">
             <ArrowRightLeft size={13} />
-            <span>→ {delegatee.firstName} {delegatee.lastName}</span>
+            <span>â†’ {delegatee.firstName} {delegatee.lastName}</span>
           </div>
         )}
         {escalator && t.escalatedAt && (
           <div className="wfi-task-detail-row" style={{ color: 'var(--error)' }}>
             <AlertTriangle size={13} />
-            <span>→ {escalator.firstName} {escalator.lastName}</span>
+            <span>â†’ {escalator.firstName} {escalator.lastName}</span>
           </div>
         )}
       </div>
@@ -341,7 +342,7 @@ function TaskCard({ task: t }: { task: WorkflowTask }) {
   );
 }
 
-/* ─── Helpers ──────────────────────────────── */
+/* â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function formatLabel(key: string): string {
   return key
@@ -352,7 +353,7 @@ function formatLabel(key: string): string {
 }
 
 function formatContextValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
+  if (value === null || value === undefined) return 'â€”';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'number') return value >= 1000 ? value.toLocaleString() : String(value);
   if (typeof value === 'string') {

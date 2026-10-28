@@ -1,3 +1,4 @@
+import { TableSkeleton, TableSkeletonRows } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect, useMemo } from 'react';
 import {
   useGetChargeTypesQuery, useCreateChargeTypeMutation, useUpdateChargeTypeMutation,
@@ -253,7 +254,7 @@ export default function ChargeTypesPage() {
             <Search size={15} className="search-icon" />
             <input
               type="text"
-              placeholder="Search code, name, GL account…"
+              placeholder="Search code, name, GL accountâ€¦"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -274,7 +275,7 @@ export default function ChargeTypesPage() {
             className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
+            <Filter size={14} /> Filters{hasFilterSelections ? ' â€¢' : ''}
           </button>
         </div>
       </div>
@@ -350,7 +351,7 @@ export default function ChargeTypesPage() {
           </thead>
           <tbody>
             {isFetching && chargeTypes.length === 0 ? (
-              <tr><td colSpan={8} className="billing-empty">Loading…</td></tr>
+              <TableSkeletonRows columns={8} />
             ) : chargeTypes.length === 0 ? (
               <tr><td colSpan={8} className="billing-empty">No charge types found</td></tr>
             ) : filteredChargeTypes.length === 0 ? (
@@ -382,17 +383,17 @@ export default function ChargeTypesPage() {
                   </td>
                   <td>
                     <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
-                      {ct.glAccountCode || '—'}
+                      {ct.glAccountCode || 'â€”'}
                     </span>
                   </td>
                   <td>
                     <span className="cell-mono" style={{ fontSize: 13, color: deptCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                      {deptCode || '—'}
+                      {deptCode || 'â€”'}
                     </span>
                   </td>
                   <td>
                     <span className="cell-mono" style={{ fontSize: 13, color: ccCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                      {ccCode || '—'}
+                      {ccCode || 'â€”'}
                     </span>
                   </td>
                   <td>
@@ -504,7 +505,7 @@ export default function ChargeTypesPage() {
                       value={form.category}
                       onChange={e => setForm({ ...form, category: e.target.value })}
                     >
-                      {categories.length === 0 && <option value="">No charge categories — add one first</option>}
+                      {categories.length === 0 && <option value="">No charge categories â€” add one first</option>}
                       {categories.map(cat => <option key={cat.id} value={cat.code}>{cat.description || cat.code}</option>)}
                     </select>
                     {isCategoryMissing && <span className="inv-error-text">Category is required</span>}
@@ -514,7 +515,7 @@ export default function ChargeTypesPage() {
                     <div className="coa-input-group">
                       <input
                         className="coa-bound-input"
-                        placeholder="Select from Chart of Accounts…"
+                        placeholder="Select from Chart of Accountsâ€¦"
                         value={form.glAccountCode}
                         readOnly
                         tabIndex={-1}
@@ -575,7 +576,7 @@ export default function ChargeTypesPage() {
                         })
                       }
                     >
-                      <option value="">— None —</option>
+                      <option value="">â€” None â€”</option>
                       {departmentCenters
                         .filter((d) => d.isActive)
                         .map((d) => (
@@ -596,7 +597,7 @@ export default function ChargeTypesPage() {
                         })
                       }
                     >
-                      <option value="">— None —</option>
+                      <option value="">â€” None â€”</option>
                       {costCenters
                         .filter((c) => {
                           if (!c.isActive) return false;
@@ -638,7 +639,7 @@ export default function ChargeTypesPage() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating || updating}>
-                  {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Charge Type'}
+                  {creating || updating ? 'Savingâ€¦' : editing ? 'Save Changes' : 'Create Charge Type'}
                 </button>
               </div>
             </form>
@@ -664,7 +665,7 @@ export default function ChargeTypesPage() {
                 <Search size={15} className="coa-lookup-search-icon" />
                 <input
                   type="text"
-                  placeholder="Search by account code or name…"
+                  placeholder="Search by account code or nameâ€¦"
                   value={coaSearch}
                   onChange={e => setCoaSearch(e.target.value)}
                   autoFocus
@@ -697,7 +698,7 @@ export default function ChargeTypesPage() {
 
             <div className="modal-body coa-lookup-body">
               {loadingGlAccounts ? (
-                <div className="coa-lookup-empty">Loading Chart of Accounts…</div>
+                <TableSkeleton columns={4} rows={4} />
               ) : filteredGlAccounts.length === 0 ? (
                 <div className="coa-lookup-empty">
                   No GL accounts found matching your search.
@@ -750,12 +751,12 @@ export default function ChargeTypesPage() {
                             </td>
                             <td>
                               <span className="cell-mono" style={{ fontSize: 12, color: acc.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                {acc.departmentCenter?.code || '—'}
+                                {acc.departmentCenter?.code || 'â€”'}
                               </span>
                             </td>
                             <td>
                               <span className="cell-mono" style={{ fontSize: 12, color: acc.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                {acc.costCenter?.code || '—'}
+                                {acc.costCenter?.code || 'â€”'}
                               </span>
                             </td>
                             <td>

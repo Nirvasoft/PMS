@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, Search, X, Check, GitBranch, Layers, Pencil } from 'lucide-react';
@@ -215,14 +216,14 @@ function AccountNode({
     <li>
       <div className="coa-node">
         {children.length > 0
-          ? <span className="coa-toggle" onClick={() => setOpen(!open)}>{isExpanded ? '▾' : '▸'}</span>
+          ? <span className="coa-toggle" onClick={() => setOpen(!open)}>{isExpanded ? 'â–¾' : 'â–¸'}</span>
           : <span className="coa-toggle" />}
         <span className="coa-code">{account.code}</span>
         <span className="coa-name">{account.name}</span>
         {account.departmentCenter && (
           <span
             className="gl-badge"
-            title={`Department: ${account.departmentCenter.code} — ${account.departmentCenter.name}`}
+            title={`Department: ${account.departmentCenter.code} â€” ${account.departmentCenter.name}`}
             style={{
               fontSize: '0.68rem',
               background: 'rgba(139, 92, 246, 0.14)',
@@ -236,7 +237,7 @@ function AccountNode({
         {account.costCenter && (
           <span
             className="gl-badge"
-            title={`Cost Center: ${account.costCenter.code} — ${account.costCenter.name}`}
+            title={`Cost Center: ${account.costCenter.code} â€” ${account.costCenter.name}`}
             style={{
               fontSize: '0.68rem',
               background: 'rgba(59, 130, 246, 0.14)',
@@ -351,7 +352,7 @@ export default function ChartOfAccountsPage() {
           />
           <input
             type="text"
-            placeholder="Search code, name, subtype, department, cost center…"
+            placeholder="Search code, name, subtype, department, cost centerâ€¦"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: 34, paddingRight: search ? 30 : 12, boxSizing: 'border-box' }}
@@ -388,7 +389,7 @@ export default function ChartOfAccountsPage() {
         </select>
       </div>
 
-      {isLoading ? <p style={{color:'var(--text-secondary)'}}>Loading…</p> : (
+      {isLoading ? <TableSkeleton columns={6} rows={6} /> : (
         <div className="gl-card">
           <ul className="coa-tree">
             {filtered.map(a => (
@@ -619,7 +620,7 @@ function AccountModal({
                 onChange={e => handleSubtypeChange(e.target.value)}
               >
                 {isEdit && !form.accountSubtype && (
-                  <option value="">— Select Subtype —</option>
+                  <option value="">â€” Select Subtype â€”</option>
                 )}
                 {currentGroupObj.subtypes.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -639,9 +640,9 @@ function AccountModal({
             <div className="gl-form-group">
               <label>Parent Account</label>
               <select value={form.parentId} onChange={e => setForm({...form, parentId: e.target.value})} disabled={isEdit}>
-                <option value="">— None (Root) —</option>
+                <option value="">â€” None (Root) â€”</option>
                 {accounts.filter((a: GlAccount) => !a.parentId).map((a: GlAccount) => (
-                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                  <option key={a.id} value={a.id}>{a.code} â€” {a.name}</option>
                 ))}
               </select>
             </div>
@@ -654,8 +655,8 @@ function AccountModal({
               <div className="coa-input-group">
                 <input
                   className="coa-bound-input"
-                  placeholder="Select Department…"
-                  value={selectedDept ? `${selectedDept.code} — ${selectedDept.name}` : ''}
+                  placeholder="Select Departmentâ€¦"
+                  value={selectedDept ? `${selectedDept.code} â€” ${selectedDept.name}` : ''}
                   readOnly
                   tabIndex={-1}
                   onClick={() => {
@@ -695,8 +696,8 @@ function AccountModal({
               <div className="coa-input-group">
                 <input
                   className="coa-bound-input"
-                  placeholder="Select Cost Center…"
-                  value={selectedCost ? `${selectedCost.code} — ${selectedCost.name}` : ''}
+                  placeholder="Select Cost Centerâ€¦"
+                  value={selectedCost ? `${selectedCost.code} â€” ${selectedCost.name}` : ''}
                   readOnly
                   tabIndex={-1}
                   onClick={() => {
@@ -770,7 +771,7 @@ function AccountModal({
                   <Search size={15} className="coa-lookup-search-icon" />
                   <input
                     type="text"
-                    placeholder="Search department by code or name…"
+                    placeholder="Search department by code or nameâ€¦"
                     value={deptSearch}
                     onChange={(e) => setDeptSearch(e.target.value)}
                     autoFocus
@@ -823,7 +824,7 @@ function AccountModal({
                                 <div className="cell-primary">{dc.name}</div>
                               </td>
                               <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                                {dc.description || '—'}
+                                {dc.description || 'â€”'}
                               </td>
                               <td className="text-center">
                                 <button
@@ -885,7 +886,7 @@ function AccountModal({
                   <Search size={15} className="coa-lookup-search-icon" />
                   <input
                     type="text"
-                    placeholder="Search cost center by code or name…"
+                    placeholder="Search cost center by code or nameâ€¦"
                     value={costSearch}
                     onChange={(e) => setCostSearch(e.target.value)}
                     autoFocus
@@ -941,7 +942,7 @@ function AccountModal({
                                 <div className="cell-primary">{cc.name}</div>
                               </td>
                               <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                                {cc.description || '—'}
+                                {cc.description || 'â€”'}
                               </td>
                               <td className="text-center">
                                 <button

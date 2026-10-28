@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +9,7 @@ import {
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  ClipboardList, Loader2, Inbox, Clock, Check, SkipForward,
+  ClipboardList, Inbox, Clock, Check, SkipForward,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -37,7 +38,7 @@ export default function PmWorkOrderListPage() {
     status: '', page: 1, limit: 20,
   });
 
-  // Active property from the sidebar — follows the same pattern as Parking Overview.
+  // Active property from the sidebar Ã¢â‚¬â€ follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
@@ -100,10 +101,10 @@ export default function PmWorkOrderListPage() {
             onChange={(e) => setFilters(f => ({ ...f, status: e.target.value, page: 1 }))}>
             {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
+          {/* Property follows the sidebar's "Active Property" selector Ã¢â‚¬â€ not independently choosable here. */}
           <select className="filter-select" value={selectedProperty} disabled>
             {!selectedProperty && <option value="">All Properties</option>}
-            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
+            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'LoadingÃ¢â‚¬Â¦'}</option>}
           </select>
         </div>
         <div className="toolbar-stats">
@@ -116,7 +117,7 @@ export default function PmWorkOrderListPage() {
 
       {/* Content */}
       {isLoading ? (
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading work orders...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : workOrders.length === 0 ? (
         <div className="maint-empty">
           <Inbox size={40} />
@@ -150,7 +151,7 @@ export default function PmWorkOrderListPage() {
                               className="cell-primary" style={{ cursor: 'pointer', color: 'var(--primary)' }}
                               onClick={() => wo.scheduleId && navigate(`/admin/maintenance/pm/${wo.scheduleId}`)}
                             >
-                              {wo.schedule?.name || '—'}
+                              {wo.schedule?.name || 'Ã¢â‚¬â€'}
                             </span>
                             {wo.schedule?.category && (
                               <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>
@@ -159,7 +160,7 @@ export default function PmWorkOrderListPage() {
                             )}
                           </div>
                         </td>
-                        <td><span className="cell-secondary">{wo.schedule?.property?.name || '—'}</span></td>
+                        <td><span className="cell-secondary">{wo.schedule?.property?.name || 'Ã¢â‚¬â€'}</span></td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <span className="cell-mono">{new Date(wo.dueDate).toLocaleDateString()}</span>
@@ -178,7 +179,7 @@ export default function PmWorkOrderListPage() {
                         </td>
                         <td>
                           <span className="cell-secondary">
-                            {wo.completedAt ? new Date(wo.completedAt).toLocaleString() : '—'}
+                            {wo.completedAt ? new Date(wo.completedAt).toLocaleString() : 'Ã¢â‚¬â€'}
                           </span>
                           {wo.completedBy?.profile && (
                             <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>
@@ -191,7 +192,7 @@ export default function PmWorkOrderListPage() {
                             maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap', display: 'block',
                           }}>
-                            {wo.findings || '—'}
+                            {wo.findings || 'Ã¢â‚¬â€'}
                           </span>
                         </td>
                         <td>
@@ -212,7 +213,7 @@ export default function PmWorkOrderListPage() {
                               </div>
                             </PermissionGuard>
                           ) : (
-                            <span className="cell-secondary" style={{ fontSize: 11 }}>—</span>
+                            <span className="cell-secondary" style={{ fontSize: 11 }}>Ã¢â‚¬â€</span>
                           )}
                         </td>
                       </tr>

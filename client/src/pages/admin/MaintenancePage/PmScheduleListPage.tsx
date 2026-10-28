@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import '../MaintenancePage/MaintenancePage.css';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -25,10 +26,10 @@ const FREQUENCIES: Record<string, string> = {
 };
 
 const PRIORITIES = [
-  { value: 'P1', label: 'P1 — Emergency' },
-  { value: 'P2', label: 'P2 — Urgent' },
-  { value: 'P3', label: 'P3 — Normal' },
-  { value: 'P4', label: 'P4 — Low' },
+  { value: 'P1', label: 'P1 â€” Emergency' },
+  { value: 'P2', label: 'P2 â€” Urgent' },
+  { value: 'P3', label: 'P3 â€” Normal' },
+  { value: 'P4', label: 'P4 â€” Low' },
 ];
 
 function DueDateBadge({ daysUntilDue }: { daysUntilDue: number }) {
@@ -145,7 +146,7 @@ export default function PmScheduleListPage() {
             onChange={(e) => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))}
           />
         </div>
-        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
+        {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
         <select className="filter-select" value={selectedProperty} disabled>
           {selectedProperty && (
             <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
@@ -165,7 +166,7 @@ export default function PmScheduleListPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="maint-loading"><Loader2 size={20} className="spin" /> Loading schedules...</div>
+        <TableSkeleton columns={5} rows={5} />
       ) : schedules.length === 0 ? (
         <div className="maint-empty">
           <div className="empty-icon"><CalendarClock size={28} /></div>
@@ -216,7 +217,7 @@ export default function PmScheduleListPage() {
                         <span className="cell-secondary">
                           {s.assignedTo?.profile
                             ? `${s.assignedTo.profile.firstName} ${s.assignedTo.profile.lastName}`
-                            : s.assignedRole || '—'}
+                            : s.assignedRole || 'â€”'}
                         </span>
                       </td>
                       <td>
@@ -302,7 +303,7 @@ export default function PmScheduleListPage() {
   );
 }
 
-// ── Create Schedule Modal ─────────────────
+// â”€â”€ Create Schedule Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CreateScheduleModal({ categories, properties, onClose }: {
   categories: any[]; properties: any[]; onClose: () => void;

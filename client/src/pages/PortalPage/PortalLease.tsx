@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../../components/common/SkeletonLoaders';
 import { useGetPortalLeaseQuery, useGetPortalLeaseDocumentsQuery } from '../../store/api/portalApi';
 import {
   FileText, CalendarDays, DollarSign, TrendingUp,
@@ -11,7 +12,7 @@ export default function PortalLease() {
   if (isLoading) {
     return (
       <div className="page-content portal-page">
-        <div className="loading-inline"><div className="loading-spinner" /> Loading lease details...</div>
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
@@ -49,7 +50,7 @@ export default function PortalLease() {
           <div className="portal-highlight-info">
             <span className="portal-highlight-label">Lease Period</span>
             <span className="portal-highlight-value">
-              {new Date(lease.startDate).toLocaleDateString()} — {new Date(lease.endDate).toLocaleDateString()}
+              {new Date(lease.startDate).toLocaleDateString()} â€” {new Date(lease.endDate).toLocaleDateString()}
             </span>
           </div>
         </div>
@@ -170,7 +171,7 @@ export default function PortalLease() {
                 <div className="portal-doc-info">
                   <span className="portal-doc-name">{d.originalName}</span>
                   <span className="portal-doc-meta">
-                    {(d.fileSize / 1024).toFixed(0)} KB · {new Date(d.createdAt).toLocaleDateString()}
+                    {(d.fileSize / 1024).toFixed(0)} KB Â· {new Date(d.createdAt).toLocaleDateString()}
                   </span>
                 </div>
                 <button className="btn btn-sm"><Download size={14} /></button>

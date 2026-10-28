@@ -1,9 +1,10 @@
+import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo } from 'react';
 import {
   useGetTechniciansQuery, useGetTechScheduleQuery, useUpsertTechProfileMutation,
 } from '../../../store/api/maintenanceApi';
 import {
-  Users, Calendar, ChevronLeft, ChevronRight, Loader2, XCircle,
+  Users, Calendar, ChevronLeft, ChevronRight, XCircle,
   UserPlus, Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -52,7 +53,7 @@ export default function TechnicianSchedulePage() {
     return {
       weekStart: start.toISOString(),
       weekEnd: end.toISOString(),
-      weekLabel: `${start.toLocaleDateString('en', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+      weekLabel: `${start.toLocaleDateString('en', { month: 'short', day: 'numeric' })} Ã¢â‚¬â€œ ${end.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}`,
       days: daysArr,
     };
   }, [weekOffset]);
@@ -109,7 +110,7 @@ export default function TechnicianSchedulePage() {
         <div className="tech-list-panel">
           <h3>Technicians ({techs.length})</h3>
           {isLoading ? (
-            <div className="maint-loading"><Loader2 size={18} className="spin" /></div>
+            <TableSkeleton columns={5} rows={5} />
           ) : techs.length === 0 ? (
             <p className="empty-state-inline">No technician profiles found</p>
           ) : techs.map((tech) => (
@@ -124,7 +125,7 @@ export default function TechnicianSchedulePage() {
               <div className="tech-info">
                 <span className="tech-name">{tech.fullName}</span>
                 <span className="tech-meta">
-                  {tech.openJobs}/{tech.maxConcurrentJobs} jobs · {tech.isAvailable ? '🟢' : '🔴'}
+                  {tech.openJobs}/{tech.maxConcurrentJobs} jobs Ã‚Â· {tech.isAvailable ? 'Ã°Å¸Å¸Â¢' : 'Ã°Å¸â€Â´'}
                 </span>
               </div>
             </div>
