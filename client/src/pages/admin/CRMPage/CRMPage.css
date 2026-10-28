@@ -296,7 +296,7 @@
 .lead-table-header,
 .lead-row {
   display: grid;
-  grid-template-columns: 1fr 1.1fr 1.1fr 1.6fr 1fr 0.8fr;
+  grid-template-columns: 1.1fr 1.1fr 1.6fr 1fr 1fr 0.8fr;
   align-items: center;
   padding: 0 16px;
   gap: 12px;
@@ -316,7 +316,6 @@
   font-size: 0.82rem;
   color: var(--text-primary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  cursor: pointer;
   transition: background 0.12s;
   height: 48px;
 }

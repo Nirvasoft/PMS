@@ -2450,11 +2450,11 @@
 
 /* Table checkbox */
 .inv-checkbox {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   border-radius: 4px;
-  border: 2px solid #10b981;
-  background: rgba(16, 185, 129, 0.08);
+  border: 1.5px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
@@ -2463,52 +2463,57 @@
   justify-content: center;
   transition: all 0.15s;
   flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.15);
+  box-shadow: none;
 }
 
 .billing-table thead th .inv-checkbox {
-  border-color: #34d399;
-  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(148, 163, 184, 0.55);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .inv-checkbox:checked,
 .inv-checkbox:indeterminate {
   background: #10b981;
-  border-color: #34d399;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.28);
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.22);
 }
 
 .billing-table thead th .inv-checkbox:checked,
 .billing-table thead th .inv-checkbox:indeterminate {
   background: #10b981;
-  border-color: #34d399;
+  border-color: #10b981;
 }
 
 .inv-checkbox:checked::after {
   content: '✓';
   color: #ffffff;
-  font-size: 12px;
-  font-weight: 900;
+  font-size: 11px;
+  font-weight: 800;
   line-height: 1;
 }
 
 .inv-checkbox:indeterminate::after {
   content: '−';
   color: #ffffff;
-  font-size: 13px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1;
 }
 
 .inv-checkbox:hover:not(:checked):not(:indeterminate) {
-  border-color: #34d399;
-  background: rgba(16, 185, 129, 0.22);
+  border-color: #94a3b8;
+  background: rgba(148, 163, 184, 0.12);
 }
 
 [data-theme="light"] .inv-checkbox {
   border-color: #94a3b8;
   background: #ffffff;
   box-shadow: none;
+}
+
+[data-theme="light"] .inv-checkbox:hover:not(:checked):not(:indeterminate) {
+  border-color: #64748b;
+  background: #f8fafc;
 }
 
 [data-theme="light"] .inv-checkbox:checked,
@@ -2524,13 +2529,13 @@
 
 /* Header checkbox inside green Light Mode thead */
 [data-theme="light"] .billing-table thead th .inv-checkbox {
-  border-color: rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 [data-theme="light"] .billing-table thead th .inv-checkbox:hover:not(:checked):not(:indeterminate) {
   border-color: #ffffff;
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.24);
 }
 
 [data-theme="light"] .billing-table thead th .inv-checkbox:checked,

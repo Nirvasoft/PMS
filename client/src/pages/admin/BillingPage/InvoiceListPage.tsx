@@ -1,6 +1,6 @@
 import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   useGetInvoicesQuery, useLazyGetInvoicesQuery, useGetInvoiceReportFiltersQuery,
   useRunBillingMutation, useGetBillingSchedulesQuery,
@@ -603,8 +603,8 @@ export default function InvoiceListPage() {
                   title="Select all"
                 />
               </th>
-              <th style={{ width: 110 }}>Invoice Date</th>
               <th style={{ width: 140 }}>Invoice #</th>
+              <th style={{ width: 110 }}>Invoice Date</th>
               <th style={{ width: 160 }}>Tenant</th>
               <th style={{ width: 120 }}>Unit</th>
               <th className="text-right" style={{ width: 110 }}>Total</th>
@@ -637,8 +637,7 @@ export default function InvoiceListPage() {
                 return (
                   <tr
                     key={inv.id}
-                    className={`clickable${isSelected ? ' row-selected' : ''}`}
-                    onClick={() => navigate(`/admin/billing/invoices/${inv.id}`)}
+                    className={isSelected ? 'row-selected' : ''}
                   >
                     <td style={{ paddingLeft: 12 }} onClick={e => e.stopPropagation()}>
                       <input
@@ -650,15 +649,19 @@ export default function InvoiceListPage() {
                       />
                     </td>
                     <td>
-                      <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-                        {inv.invoiceDate ? format(new Date(inv.invoiceDate), 'yyyy-MM-dd') : '—'}
+                      <div>
+                        <Link to={`/admin/billing/invoices/${inv.id}`} className="user-name-link">
+                          {inv.invoiceNumber}
+                        </Link>
                       </div>
-                    </td>
-                    <td>
-                      <div className="cell-primary">{inv.invoiceNumber}</div>
                       {inv.invoiceType !== 'invoice' && (
                         <span className={`inv-type inv-type--${inv.invoiceType}`}>{inv.invoiceType.replace('_', ' ')}</span>
                       )}
+                    </td>
+                    <td>
+                      <div style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+                        {inv.invoiceDate ? format(new Date(inv.invoiceDate), 'yyyy-MM-dd') : '—'}
+                      </div>
                     </td>
                     <td>
                       <div className="cell-primary">{getTenantName(inv)}</div>

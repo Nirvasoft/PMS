@@ -3591,7 +3591,7 @@ input.input-full:focus {
 }
 
 .user-cell-name {
-  font-weight: 600;
+  font-weight: 400;
   font-size: 0.9rem;
 }
 
@@ -3706,10 +3706,32 @@ input.input-full:focus {
   font-size: 0.75rem;
 }
 
-#users-table .user-cell-name {
+#users-table .user-cell-name,
+.user-name-link {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 400 !important;
   line-height: 1.2;
+  color: rgba(52, 211, 153, 0.78) !important;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+[data-theme="light"] #users-table .user-cell-name,
+[data-theme="light"] .user-name-link {
+  color: rgba(5, 150, 105, 0.85) !important;
+}
+
+.role-card-header .user-name-link {
+  font-size: 0.95rem;
+  font-weight: 400 !important;
+  flex: 1;
+}
+
+#users-table .user-cell-name:hover,
+.user-name-link:hover {
+  color: var(--accent, #10b981) !important;
+  text-decoration: underline;
 }
 
 #users-table .role-chips {

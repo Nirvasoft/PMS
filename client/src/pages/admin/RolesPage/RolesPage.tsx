@@ -1,6 +1,6 @@
 import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { List, LayoutGrid, ChevronLeft, ChevronRight, Pencil, Trash2, Search, Key } from 'lucide-react';
 import {
   useGetRolesQuery, useCreateRoleMutation, useUpdateRoleMutation, useDeleteRoleMutation, type RoleItem,
@@ -11,7 +11,6 @@ import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import toast from 'react-hot-toast';
 
 export default function RolesPage() {
-  const navigate = useNavigate();
   const confirmDialog = useConfirm();
   const { data, isLoading } = useGetRolesQuery({ includePermissions: false });
   const [deleteRole] = useDeleteRoleMutation();
@@ -191,10 +190,15 @@ export default function RolesPage() {
               </thead>
               <tbody>
                 {pagedRoles.map((role) => (
-                  <tr key={role.id} className="table-row-clickable" onClick={() => navigate(`/admin/roles/assign-permission?roleId=${role.id}`)}>
+                  <tr key={role.id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontWeight: 600 }}>{role.name}</span>
+                        <Link
+                          to={`/admin/roles/assign-permission?roleId=${role.id}`}
+                          className="user-cell-name user-name-link"
+                        >
+                          {role.name}
+                        </Link>
                         {role.isSystem && <span className="role-chip system">System</span>}
                       </div>
                     </td>
@@ -249,9 +253,14 @@ export default function RolesPage() {
         <>
           <div className="roles-grid">
             {pagedRoles.map((role) => (
-              <div key={role.id} className="role-card-full" onClick={() => navigate(`/admin/roles/assign-permission?roleId=${role.id}`)}>
+              <div key={role.id} className="role-card-full">
                 <div className="role-card-header">
-                  <h3>{role.name}</h3>
+                  <Link
+                    to={`/admin/roles/assign-permission?roleId=${role.id}`}
+                    className="user-name-link"
+                  >
+                    {role.name}
+                  </Link>
                   {role.isSystem && <span className="role-chip system">System</span>}
                 </div>
                 <p className="text-secondary text-small">{role.description || 'No description'}</p>

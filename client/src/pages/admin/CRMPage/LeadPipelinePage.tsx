@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   useGetLeadStatsQuery, useGetLeadsQuery,
   type LeadListItem,
@@ -143,10 +143,10 @@ export default function LeadPipelinePage() {
         <TableScrollWrapper className="tenant-table-scroll">
           <div className="lead-table-inner">
             <div className="lead-table-header">
-              <span>Date</span>
               <span>Lead Number</span>
               <span>Lease Number</span>
               <span>Name</span>
+              <span>Date</span>
               <span>Stage</span>
               <span>Priority</span>
             </div>
@@ -162,16 +162,24 @@ export default function LeadPipelinePage() {
               leads.map((lead) => {
                 const stageMeta = STAGE_META[lead.stage];
                 return (
-                  <div key={lead.id} className="lead-row" onClick={() => navigate(`/admin/crm/leads/${lead.id}`)}>
-                    <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
-                    <span>{lead.leadNumber || '–'}</span>
-                    <span style={lead.convertedLease?.leaseNumber ? { color: 'var(--accent)', fontWeight: 600, fontFamily: 'monospace' } : undefined}>
+                  <div key={lead.id} className="lead-row">
+                    <span>
+                      {lead.leadNumber ? (
+                        <Link to={`/admin/crm/leads/${lead.id}`} className="user-name-link">
+                          {lead.leadNumber}
+                        </Link>
+                      ) : (
+                        '–'
+                      )}
+                    </span>
+                    <span>
                       {lead.convertedLease?.leaseNumber || '–'}
                     </span>
                     <span className="lc-name">
                       {leadDisplayName(lead)}
                       {lead.isBlacklisted && <span className="blacklist-chip"><ShieldOff size={9} /> Blacklisted</span>}
                     </span>
+                    <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
                     <span>
                       <span className="stage-chip" style={{ background: `${stageMeta?.color || '#666'}18`, color: stageMeta?.color || '#666' }}>
                         {stageMeta?.label || lead.stage}

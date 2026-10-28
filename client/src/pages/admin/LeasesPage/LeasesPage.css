@@ -170,7 +170,6 @@
 
 .lease-table tbody tr {
   height: 48px;
-  cursor: pointer;
   transition: background-color 0.15s ease;
 }
 .lease-table tbody tr:hover {

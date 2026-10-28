@@ -313,8 +313,8 @@ export default function CurrencyRatesPage() {
             </h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
               {viewMode === 'history'
-                ? (isFetchingHistory && historyList.length === 0 ? 'Loading…' : `${historyList.length} total update records`)
-                : (isFetching && rates.length === 0 ? 'Loading…' : `${rates.length} total currencies`)}
+                ? (isFetchingHistory && historyList.length === 0 ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${historyList.length} total update records`)
+                : (isFetching && rates.length === 0 ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${rates.length} total currencies`)}
             </p>
           </div>
           {viewMode === 'list' ? (
@@ -419,10 +419,23 @@ export default function CurrencyRatesPage() {
                 ) : filteredRates.length === 0 ? (
                   <tr><td colSpan={5} className="billing-empty">No currency rates match your filters</td></tr>
                 ) : paginatedRates.map((r) => (
-                  <tr key={r.id} onClick={() => openEdit(r)} style={{ cursor: 'pointer' }}>
+                  <tr key={r.id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className="cell-primary">{r.currency}</span>
+                        <span
+                          className="user-name-link"
+                          onClick={() => openEdit(r)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              openEdit(r);
+                            }
+                          }}
+                        >
+                          {r.currency}
+                        </span>
                         {r.isBaseCurrency && <span className="cr-base-badge">Base</span>}
                       </div>
                     </td>

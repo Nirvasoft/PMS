@@ -14,7 +14,7 @@ import { useConfirm } from '../../../components/DialogProvider';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Mail, Undo2, Clock, CheckCircle, UserPlus, Users, Search, ChevronLeft, ChevronRight, Eye, Upload } from 'lucide-react';
+import { Mail, Undo2, Clock, CheckCircle, UserPlus, Users, Search, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import { BulkImportTab } from './BulkImportTab';
 
 export default function UsersPage() {
@@ -116,7 +116,7 @@ export default function UsersPage() {
 
         {/* Users Table */}
         {isLoading ? (
-          <TableSkeleton columns={5} rows={5} />
+          <TableSkeleton columns={4} rows={5} />
         ) : (
           <div className="users-table-wrap billing-table-wrap">
             <TableScrollWrapper>
@@ -127,7 +127,6 @@ export default function UsersPage() {
                     <th style={{ minWidth: 220 }}>Roles</th>
                     <th style={{ width: 120 }}>Status</th>
                     <th style={{ width: 140 }}>Last Login</th>
-                    <th style={{ width: 60, textAlign: 'center' }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -136,7 +135,9 @@ export default function UsersPage() {
                       <td data-label="User">
                         <div className="user-cell">
                           <UserAvatar url={user.avatarUrl} name={user.fullName} />
-                          <div className="user-cell-name">{user.fullName}</div>
+                          <Link to={`/admin/users/${user.id}`} className="user-cell-name user-name-link">
+                            {user.fullName}
+                          </Link>
                         </div>
                       </td>
                       <td data-label="Roles">
@@ -154,15 +155,10 @@ export default function UsersPage() {
                       <td data-label="Last Login" className="text-muted text-small">
                         {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
                       </td>
-                      <td className="users-actions-cell" style={{ textAlign: 'center' }}>
-                        <Link to={`/admin/users/${user.id}`} className="btn-icon" title="View" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Eye size={15} />
-                        </Link>
-                      </td>
                     </tr>
                   ))}
                   {users.length === 0 && (
-                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px' }} className="text-muted">No users found</td></tr>
+                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '40px' }} className="text-muted">No users found</td></tr>
                   )}
                 </tbody>
               </table>

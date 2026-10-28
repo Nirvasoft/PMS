@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   useGetTenantsQuery, useDeleteTenantMutation,
   type TenantListItem,
@@ -265,7 +265,7 @@ export default function TenantListPage() {
               <span>Photo</span>
               {isCompanyTab
                 ? <span style={{ gridColumn: 'span 2' }}>Company</span>
-                : <><span>Code</span><span>Name</span></>
+                : <><span>Code</span><span>Tenant</span></>
               }
               <span>Type</span>
               <span>KYC Status</span><span>Lease</span><span></span>
@@ -281,7 +281,6 @@ export default function TenantListPage() {
                   key={tenant.id}
                   tenant={tenant}
                   isCompanyTab={isCompanyTab}
-                  onClick={() => navigate(`/admin/tenants/${tenant.id}`)}
                   onDelete={(e) => handleDelete(tenant, e)}
                 />
               ))
@@ -338,17 +337,16 @@ export default function TenantListPage() {
 }
 
 // ── Tenant Row ────────────────────────────────
-function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
+function TenantRow({ tenant, isCompanyTab, onDelete }: {
   tenant: TenantListItem;
   isCompanyTab: boolean;
-  onClick: () => void;
   onDelete: (e: React.MouseEvent) => void;
 }) {
   const kycColor  = KYC_COLORS[tenant.kycStatus] || '#95a5a6';
   const isCompany = tenant.tenantType === 'company' || tenant.tenantType === 'corporate';
 
   return (
-    <div className={`tenant-row ${tenant.isBlacklisted ? 'blacklisted' : ''}`} onClick={onClick}>
+    <div className={`tenant-row ${tenant.isBlacklisted ? 'blacklisted' : ''}`}>
 
       {/* Avatar — own grid column */}
       <div className="tenant-avatar" style={{ background: tenant.isBlacklisted ? 'rgba(231,76,60,0.15)' : 'rgba(108,92,231,0.15)' }}>
@@ -368,7 +366,13 @@ function TenantRow({ tenant, isCompanyTab, onClick, onDelete }: {
             style={isCompanyTab ? { gridColumn: 'span 2' } : {}}
             title={!isDash ? codeVal : undefined}
           >
-            <span className="tenant-code-text">{codeVal}</span>
+            {isDash ? (
+              <span className="tenant-code-text">{codeVal}</span>
+            ) : (
+              <Link to={`/admin/tenants/${tenant.id}`} className="user-name-link tenant-code-text">
+                {codeVal}
+              </Link>
+            )}
             {tenant.isBlacklisted && <span className="bl-badge"><ShieldOff size={10} /> Blacklisted</span>}
           </div>
         );

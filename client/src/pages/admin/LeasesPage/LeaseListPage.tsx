@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useGetLeasesQuery, useDeleteLeaseMutation } from '../../../store/api/leasesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
@@ -183,11 +183,12 @@ export default function LeaseListPage() {
                     <tr
                       key={lease.id}
                       className={expiring ? 'expiring' : ''}
-                      onClick={() => navigate(`/admin/leases/${lease.id}`)}
                     >
                       <td className="col-lease-num">
                         <div className="lease-num">
-                          <span className="ln-badge">{lease.leaseNumber}</span>
+                          <Link to={`/admin/leases/${lease.id}`} className="user-name-link">
+                            {lease.leaseNumber}
+                          </Link>
                           {expiring && (
                             <span className="exp-warn">
                               <AlertTriangle size={10} /> {lease.daysUntilExpiry}d left
