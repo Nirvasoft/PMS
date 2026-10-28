@@ -267,7 +267,7 @@ glRouter.get('/trial-balance', asyncHandler(async (req, res) => {
       });
     }
 
-    // Totals Row
+    //Totals Row
     const totalRow = sheet.addRow([
       '',
       'TOTALS',
@@ -283,11 +283,13 @@ glRouter.get('/trial-balance', asyncHandler(async (req, res) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
       cell.border = {
         top: { style: 'thin', color: { argb: 'FF94A3B8' } },
-        bottom: { style: 'double', color: { argb: 'FF94A3B8' } },
+        bottom: { style: 'thin', color: { argb: 'FF94A3B8' } },
       };
       if (colNum >= 5) {
         cell.numFmt = '#,##0.00';
-        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: false };
+      } else {
+        cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
       }
     });
 
@@ -328,10 +330,127 @@ glRouter.get('/reports/pnl', asyncHandler(async (req, res) => {
 }));
 
 glRouter.get('/reports/balance-sheet', asyncHandler(async (req, res) => {
+  const asOfDate = q(req, 'asOfDate') || new Date().toISOString().split('T')[0];
   const data = await glService.getBalanceSheet(req.user!.companyId, {
-    asOfDate: q(req, 'asOfDate') || new Date().toISOString().split('T')[0],
+    asOfDate,
     propertyId: q(req, 'propertyId') || undefined,
   });
+
+  if (req.query.format === 'xlsx') {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'NirvaSoft PMS';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Balance Sheet');
+    const columns = [
+      { key: 'code', header: 'Code', width: 14 },
+      { key: 'name', header: 'Account Name', width: 38 },
+      { key: 'section', header: 'Section', width: 18 },
+      { key: 'accountSubtype', header: 'Subtype', width: 24 },
+      { key: 'netBalance', header: 'Net Balance', width: 22 },
+    ];
+    sheet.columns = columns.map(c => ({ key: c.key, width: c.width }));
+
+    // Title Row
+    sheet.mergeCells(1, 1, 1, columns.length);
+    const titleCell = sheet.getCell('A1');
+    titleCell.value = 'Balance Sheet';
+    titleCell.font = { bold: true, size: 14, color: { argb: 'FF059669' } };
+    titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
+    sheet.getRow(1).height = 26;
+
+    // As of Date & Status Row
+    sheet.mergeCells(2, 1, 2, columns.length);
+    const subCell = sheet.getCell('A2');
+    subCell.value = `As of Date: ${asOfDate}   |   Status: ${data.isBalanced ? 'Balanced (A = L + E)' : 'Out of Balance'}`;
+    subCell.font = { size: 10, color: { argb: 'FF555555' } };
+    sheet.getRow(2).height = 18;
+
+    // Header Row (Row 4)
+    const headerRow = sheet.getRow(4);
+    headerRow.height = 22;
+    columns.forEach((c, idx) => {
+      const cell = headerRow.getCell(idx + 1);
+      cell.value = c.header;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: idx === 4 ? 'right' : 'left',
+        wrapText: false,
+      };
+    });
+
+    const addAccountRow = (code: string, name: string, section: string, subtype: string, balance: number) => {
+      const row = sheet.addRow([code, name, section, subtype, Number(balance || 0)]);
+      row.eachCell((cell, colNum) => {
+        cell.border = { bottom: { style: 'hair', color: { argb: 'FFE0E0E0' } } };
+        if (colNum === 5) {
+          cell.numFmt = '#,##0.00';
+          cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: false };
+        } else {
+          cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
+        }
+      });
+    };
+
+    const addSubtotalRow = (label: string, total: number, isGrandTotal = false) => {
+      const row = sheet.addRow(['', label, '', '', Number(total || 0)]);
+      row.height = 21;
+      row.eachCell((cell, colNum) => {
+        cell.font = { bold: true, size: 11 };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: isGrandTotal ? 'FFECFDF5' : 'FFF1F5F9' },
+        };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          bottom: { style: 'thin', color: { argb: 'FF94A3B8' } },
+        };
+        if (colNum === 5) {
+          cell.numFmt = '#,##0.00';
+          cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: false };
+        } else {
+          cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
+        }
+      });
+    };
+
+    // Assets Section
+    for (const r of data.assets) {
+      addAccountRow(r.code, r.name, 'Assets', r.accountSubtype || '', r.netBalance);
+    }
+    addSubtotalRow('Total Assets', data.totalAssets, true);
+    sheet.addRow([]);
+
+    // Liabilities Section
+    for (const r of data.liabilities) {
+      addAccountRow(r.code, r.name, 'Liabilities', r.accountSubtype || '', r.netBalance);
+    }
+    addSubtotalRow('Total Liabilities', data.totalLiabilities);
+    sheet.addRow([]);
+
+    // Equity Section
+    for (const r of data.equity) {
+      addAccountRow(r.code, r.name, 'Equity', r.accountSubtype || '', r.netBalance);
+    }
+    if (data.retainedEarnings !== 0) {
+      addAccountRow('', 'Retained Earnings (Current Period)', 'Equity', 'retained_earnings', data.retainedEarnings);
+    }
+    addSubtotalRow('Total Equity', data.totalEquity);
+    sheet.addRow([]);
+
+    // Total Liabilities + Equity
+    addSubtotalRow('Total Liabilities + Equity', data.totalLiabilitiesAndEquity, true);
+
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+    const filename = `balance-sheet-${asOfDate}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  }
+
   res.json({ success: true, data });
 }));
 
