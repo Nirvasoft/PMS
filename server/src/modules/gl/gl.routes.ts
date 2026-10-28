@@ -1,4 +1,5 @@
 import { Router, Request } from 'express';
+import ExcelJS from 'exceljs';
 import { asyncHandler } from '../../middleware';
 import { validateRequest } from '../../middleware/validateRequest';
 import { glService } from './gl.service';
@@ -191,23 +192,125 @@ glRouter.post('/journal-entries/:id/reverse', asyncHandler(async (req, res) => {
 // ════════════════════════════════════════════════
 
 glRouter.get('/trial-balance', asyncHandler(async (req, res) => {
+  const fromDate = q(req, 'fromDate') || undefined;
+  const toDate = q(req, 'toDate') || undefined;
   const data = await glService.getTrialBalance(req.user!.companyId, {
-    fromDate: q(req, 'fromDate') || undefined,
-    toDate: q(req, 'toDate') || undefined,
+    fromDate,
+    toDate,
     propertyId: q(req, 'propertyId') || undefined,
   });
 
+  if (req.query.format === 'xlsx') {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'NirvaSoft PMS';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Trial Balance');
+    const columns = [
+      { key: 'code', header: 'Code', width: 14 },
+      { key: 'name', header: 'Account Name', width: 34 },
+      { key: 'accountType', header: 'Type', width: 16 },
+      { key: 'accountSubtype', header: 'Subtype', width: 20 },
+      { key: 'totalDebit', header: 'Debit', width: 18 },
+      { key: 'totalCredit', header: 'Credit', width: 18 },
+      { key: 'netBalance', header: 'Net Balance', width: 18 },
+    ];
+    sheet.columns = columns.map(c => ({ key: c.key, width: c.width }));
+
+    // Title Row
+    sheet.mergeCells(1, 1, 1, columns.length);
+    const titleCell = sheet.getCell('A1');
+    titleCell.value = 'Trial Balance';
+    titleCell.font = { bold: true, size: 14, color: { argb: 'FF059669' } };
+    titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
+    sheet.getRow(1).height = 26;
+
+    // Period & Status Row
+    sheet.mergeCells(2, 1, 2, columns.length);
+    const subCell = sheet.getCell('A2');
+    const periodText = fromDate || toDate ? `Period: ${fromDate || 'Start'} to ${toDate || 'Current'}` : 'Period: All Time';
+    subCell.value = `${periodText}   |   Status: ${data.summary.isBalanced ? 'Balanced' : 'Unbalanced'}`;
+    subCell.font = { size: 10, color: { argb: 'FF555555' } };
+    sheet.getRow(2).height = 18;
+
+    // Header Row (Row 4)
+    const headerRow = sheet.getRow(4);
+    headerRow.height = 22;
+    columns.forEach((c, idx) => {
+      const cell = headerRow.getCell(idx + 1);
+      cell.value = c.header;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: idx >= 4 ? 'right' : 'left',
+      };
+    });
+
+    // Data Rows
+    for (const r of data.rows) {
+      const row = sheet.addRow([
+        r.code,
+        r.name,
+        r.accountType,
+        r.accountSubtype || '',
+        Number(r.totalDebit || 0),
+        Number(r.totalCredit || 0),
+        Number(r.netBalance || 0),
+      ]);
+      row.eachCell((cell, colNum) => {
+        cell.border = { bottom: { style: 'hair', color: { argb: 'FFE0E0E0' } } };
+        if (colNum >= 5) {
+          cell.numFmt = '#,##0.00';
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        }
+      });
+    }
+
+    // Totals Row
+    const totalRow = sheet.addRow([
+      '',
+      'TOTALS',
+      '',
+      data.summary.isBalanced ? 'Balanced' : 'Unbalanced',
+      Number(data.summary.totalDebit || 0),
+      Number(data.summary.totalCredit || 0),
+      Number((data.summary.totalDebit || 0) - (data.summary.totalCredit || 0)),
+    ]);
+    totalRow.height = 22;
+    totalRow.eachCell((cell, colNum) => {
+      cell.font = { bold: true, size: 11 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+        bottom: { style: 'double', color: { argb: 'FF94A3B8' } },
+      };
+      if (colNum >= 5) {
+        cell.numFmt = '#,##0.00';
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      }
+    });
+
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+    const filename = `trial-balance-${toDate || 'current'}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  }
+
   if (req.query.format === 'csv') {
+    const esc = (val: unknown) => `"${String(val ?? '').replace(/"/g, '""')}"`;
     const header = 'Code,Account Name,Type,Subtype,Total Debit,Total Credit,Net Balance\n';
     const rows = data.rows.map(r =>
-      `"${r.code}","${r.name}","${r.accountType}","${r.accountSubtype || ''}",${r.totalDebit.toFixed(2)},${r.totalCredit.toFixed(2)},${r.netBalance.toFixed(2)}`
+      `${esc(r.code)},${esc(r.name)},${esc(r.accountType)},${esc(r.accountSubtype || '')},${r.totalDebit.toFixed(2)},${r.totalCredit.toFixed(2)},${r.netBalance.toFixed(2)}`
     ).join('\n');
-    const totals = `\n"","TOTALS","","",${data.summary.totalDebit.toFixed(2)},${data.summary.totalCredit.toFixed(2)},""`;
-    const balanced = `\n"","Balanced: ${data.summary.isBalanced ? 'YES' : 'NO'}"`;
+    const netDiff = (data.summary.totalDebit - data.summary.totalCredit).toFixed(2);
+    const totals = `\n"","TOTALS","","",${data.summary.totalDebit.toFixed(2)},${data.summary.totalCredit.toFixed(2)},${netDiff}`;
+    const balanced = `\n"","Balanced: ${data.summary.isBalanced ? 'YES' : 'NO'}","","","","",""`;
 
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="trial-balance-${q(req, 'toDate') || 'current'}.csv"`);
-    return res.send(header + rows + totals + balanced);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="trial-balance-${toDate || 'current'}.csv"`);
+    return res.send('\uFEFF' + header + rows + totals + balanced);
   }
 
   res.json({ success: true, data });
