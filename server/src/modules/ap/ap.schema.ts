@@ -55,12 +55,23 @@ export const createPaymentVoucherSchema = z.object({
       apInvoiceId: z.string().uuid(),
       amount: z.number().positive(),
     })).optional().default([]),
+    lines: z.array(z.object({
+      chargeTypeId: optionalUuid,
+      description: z.string().min(1).max(500),
+      quantity: z.number().positive().default(1),
+      unitPrice: z.number().min(0),
+      taxRate: z.number().min(0).max(1).default(0),
+      glAccountCode: z.string().max(50).optional(),
+    })).optional().default([]),
   }).refine((data) => data.isCash || (data.vendorName && data.vendorName.trim().length > 0), {
     message: 'Vendor name is required unless Cash is selected',
     path: ['vendorName'],
   }).refine((data) => data.isCash || (data.allocations && data.allocations.length > 0), {
     message: 'At least one AP invoice allocation is required unless Cash is selected',
     path: ['allocations'],
+  }).refine((data) => !data.isCash || (data.lines && data.lines.length > 0), {
+    message: 'At least one line item is required for Cash vouchers',
+    path: ['lines'],
   }),
 });
 

@@ -67,6 +67,14 @@ export class PaymentVouchersService {
     await this.ensurePaymentVouchersPropertyColumn();
 
     const allocations = ((dto.allocations as Array<{ apInvoiceId: string; amount: number }>) || []);
+    const cashLines = ((dto.lines as Array<{
+      chargeTypeId?: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      taxRate?: number;
+      glAccountCode?: string;
+    }>) || []);
     const isCash = Boolean(dto.isCash);
     const vendorName = isCash ? '' : ((dto.vendorName as string) || '').trim();
     let resolvedPropertyId = (dto.propertyId as string) || undefined;
@@ -95,9 +103,24 @@ export class PaymentVouchersService {
       resolvedPropertyId = await this.resolveEffectivePropertyId(companyId);
     }
 
+    // Calculate Cash line totals if Cash mode with lines
+    let cashSubtotal = 0;
+    let cashTotalTax = 0;
+    const computedCashLines = cashLines.map((line) => {
+      const amount = Math.round(line.quantity * line.unitPrice * 100) / 100;
+      const lineTax = Math.round(amount * (line.taxRate || 0) * 100) / 100;
+      const lineTotal = Math.round((amount + lineTax) * 100) / 100;
+      cashSubtotal += amount;
+      cashTotalTax += lineTax;
+      return { ...line, amount, lineTax, lineTotal };
+    });
+    const cashGrandTotal = Math.round((cashSubtotal + cashTotalTax) * 100) / 100;
+
     const allocatedTotal = Math.round(allocations.reduce((s, a) => s + a.amount, 0) * 100) / 100;
     const explicitAmount = typeof dto.amount === 'number' && !isNaN(dto.amount) ? Math.round(dto.amount * 100) / 100 : 0;
-    const totalAmount = allocations.length > 0 ? (explicitAmount > 0 ? explicitAmount : allocatedTotal) : explicitAmount;
+    const totalAmount = isCash && computedCashLines.length > 0
+      ? cashGrandTotal
+      : (allocations.length > 0 ? (explicitAmount > 0 ? explicitAmount : allocatedTotal) : explicitAmount);
     const voucherNumber = await this.generateVoucherNumber(companyId);
 
     const voucher = await prisma.paymentVoucher.create({
@@ -135,6 +158,97 @@ export class PaymentVouchersService {
         creator: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
       },
     });
+
+    // ── Cash Voucher GL Auto-Post: Dr Charges' GL Accounts (or 5000) / Cr Accounts Payable (2100) ──
+    if (isCash && computedCashLines.length > 0 && totalAmount > 0) {
+      try {
+        const chargeTypeIds = Array.from(
+          new Set(computedCashLines.map((l) => l.chargeTypeId).filter((id): id is string => Boolean(id)))
+        );
+        const chargeTypeMap = new Map<string, {
+          glAccountCode: string | null;
+          departmentCenterId: string | null;
+          costCenterId: string | null;
+        }>();
+        if (chargeTypeIds.length > 0) {
+          const cts = await prisma.chargeType.findMany({
+            where: { id: { in: chargeTypeIds } },
+            select: { id: true, glAccountCode: true, departmentCenterId: true, costCenterId: true },
+          });
+          for (const ct of cts) chargeTypeMap.set(ct.id, ct);
+        }
+
+        const glLines: Array<{
+          accountCode: string;
+          debit: number;
+          credit: number;
+          description?: string;
+          departmentCenterId?: string | null;
+          costCenterId?: string | null;
+        }> = [];
+
+        for (const line of computedCashLines) {
+          const ct = line.chargeTypeId ? chargeTypeMap.get(line.chargeTypeId) : undefined;
+          const expenseCode = ct?.glAccountCode?.trim() || line.glAccountCode?.trim() || '5000';
+          glLines.push({
+            accountCode: expenseCode,
+            debit: line.amount,
+            credit: 0,
+            description: `${line.description} — ${voucher.voucherNumber}`,
+            departmentCenterId: ct?.departmentCenterId || null,
+            costCenterId: ct?.costCenterId || null,
+          });
+        }
+
+        if (cashTotalTax > 0) {
+          glLines.push({
+            accountCode: '2200', // Tax Payable — Input Tax
+            debit: cashTotalTax,
+            credit: 0,
+            description: `Input Tax — ${voucher.voucherNumber}`,
+          });
+        }
+
+        // Cash voucher is paid directly: credit the Payment Method's GL account (Cash/Bank)
+        // instead of Accounts Payable.
+        const pmConfig = await glService.resolvePaymentMethodConfig(
+          companyId,
+          voucher.paymentMethod,
+          resolvedPropertyId,
+        );
+        const creditAccountCode = pmConfig?.glAccountCode || '1000';
+
+        glLines.push({
+          accountCode: creditAccountCode,
+          debit: 0,
+          credit: totalAmount,
+          description: `Cash Payment — ${voucher.voucherNumber}`,
+          departmentCenterId: pmConfig?.departmentCenterId || undefined,
+          costCenterId: pmConfig?.costCenterId || undefined,
+        });
+
+        const journal = await glService.postAutoJournal({
+          companyId,
+          entryDate: voucher.voucherDate,
+          entryType: 'ap_payment',
+          description: `Cash Payment Voucher ${voucher.voucherNumber}`,
+          referenceType: 'payment_voucher',
+          referenceId: voucher.id,
+          propertyId: resolvedPropertyId || undefined,
+          lines: glLines,
+        });
+
+        // Mark as posted so "Mark as Paid" does not post a second (AP) journal for cash vouchers.
+        if (journal) {
+          await prisma.paymentVoucher.update({
+            where: { id: voucher.id },
+            data: { glPosted: true, glJournalId: (journal as any).id },
+          });
+        }
+      } catch (err: any) {
+        logger.warn(`GL auto-post for Cash Voucher ${voucher.voucherNumber} failed: ${err.message}`);
+      }
+    }
 
     logger.info(`Created payment voucher ${voucherNumber} for ${totalAmount} ${dto.currency}`);
     return voucher;
@@ -215,43 +329,9 @@ export class PaymentVouchersService {
       });
     }
 
-    // ── GL Auto-Post: Dr Accounts Payable / Cr Cash/Bank ──
-    if (Number(voucher.totalAmount) > 0) {
-      try {
-        const vendorNames = [...new Set(voucher.allocations.map(a => (a.apInvoice as any)?.vendorName).filter(Boolean))];
-        const vendorLabel = voucher.vendorName || (vendorNames.length > 0 ? vendorNames.join(', ') : 'Cash Payment');
-        const voucherPropertyId = voucher.propertyId || (voucher.allocations[0]?.apInvoice as any)?.propertyId || undefined;
-        const pmConfig = await glService.resolvePaymentMethodConfig(companyId, voucher.paymentMethod, voucherPropertyId);
-        const creditAccountCode = pmConfig?.glAccountCode || '1000';
-
-        await glService.postAutoJournal({
-          companyId,
-          entryDate: paidAt,
-          entryType: 'ap_payment',
-          description: `AP Payment ${voucher.voucherNumber} — ${vendorLabel}`,
-          referenceType: 'payment_voucher',
-          referenceId: voucher.id,
-          lines: [
-            {
-              accountCode: '2100', // Accounts Payable
-              debit: Number(voucher.totalAmount),
-              credit: 0,
-              description: `AP cleared — ${voucher.voucherNumber}`,
-            },
-            {
-              accountCode: creditAccountCode, // Cash / Bank (or configured PaymentMethod GL Account)
-              debit: 0,
-              credit: Number(voucher.totalAmount),
-              description: `Payment — ${voucher.voucherNumber} (Ref: ${dto.paymentReference})`,
-              departmentCenterId: pmConfig?.departmentCenterId || undefined,
-              costCenterId: pmConfig?.costCenterId || undefined,
-            },
-          ],
-        });
-      } catch (err: any) {
-        logger.warn(`GL auto-post for PV ${voucher.voucherNumber} failed: ${err.message}`);
-      }
-    }
+    // No GL journal is posted when marking a voucher as paid:
+    //  - Cash vouchers already posted their journal at creation (Dr Charges / Cr Payment Method account).
+    //  - Non-cash vouchers (allocated to AP invoices) do not generate a journal entry.
 
     logger.info(`Payment voucher ${voucher.voucherNumber} marked as paid (ref: ${dto.paymentReference})`);
     return updated;
