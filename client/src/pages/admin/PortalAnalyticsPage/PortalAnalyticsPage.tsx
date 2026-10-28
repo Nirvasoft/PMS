@@ -93,7 +93,7 @@ export default function PortalAnalyticsPage() {
                       {data.topUsers.map((u, i) => (
                         <tr key={u.userId}>
                           <td style={{ fontWeight: 700, opacity: 0.4 }}>{i + 1}</td>
-                          <td style={{ fontWeight: 600 }}>{u.name || 'â€”'}</td>
+                          <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
                           <td className="text-muted">{u.email}</td>
                           <td>
                             <span className="status-badge status-active">{u.sessionCount}</span>
@@ -121,7 +121,7 @@ export default function PortalAnalyticsPage() {
   );
 }
 
-// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sub-components ───────────────────────────
 
 function SummaryCards({ data }: { data: PortalAnalyticsData }) {
   const cards = [
@@ -195,7 +195,7 @@ function HourlyChart({ peakHours }: { peakHours: PortalAnalyticsData['peakHours'
       {hours.map((h) => (
         <div
           key={h.hour}
-          title={`${h.hour}:00 â€” ${h.count} sessions`}
+          title={`${h.hour}:00 — ${h.count} sessions`}
           style={{
             flex: 1,
             height: `${Math.max(3, (h.count / maxCount) * 100)}%`,

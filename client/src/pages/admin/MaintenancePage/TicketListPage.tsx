@@ -22,10 +22,10 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
 
 const PRIORITIES = [
-  { value: 'P1', label: 'P1 â€” Emergency', color: '#ef4444' },
-  { value: 'P2', label: 'P2 â€” Urgent', color: '#f97316' },
-  { value: 'P3', label: 'P3 â€” Normal', color: '#3b82f6' },
-  { value: 'P4', label: 'P4 â€” Low', color: '#94a3b8' },
+  { value: 'P1', label: 'P1 — Emergency', color: '#ef4444' },
+  { value: 'P2', label: 'P2 — Urgent', color: '#f97316' },
+  { value: 'P3', label: 'P3 — Normal', color: '#3b82f6' },
+  { value: 'P4', label: 'P4 — Low', color: '#94a3b8' },
 ];
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -75,7 +75,7 @@ export default function TicketListPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const selectedProperty = useSelectedPropertyFilter();
 
-  // Keep the ticket filter's propertyId in sync with the sidebar's Active Property â€”
+  // Keep the ticket filter's propertyId in sync with the sidebar's Active Property —
   // it's no longer independently choosable via the filter dropdown below.
   useEffect(() => {
     if (filters.propertyId !== selectedProperty) {
@@ -126,7 +126,7 @@ export default function TicketListPage() {
             <h1>Maintenance Tickets</h1>
             <p>
               {stats
-                ? `${stats.ticketSummary.total} total Â· ${stats.ticketSummary.overdue} overdue`
+                ? `${stats.ticketSummary.total} total · ${stats.ticketSummary.overdue} overdue`
                 : 'Manage maintenance requests and work orders'}
             </p>
           </div>
@@ -174,7 +174,7 @@ export default function TicketListPage() {
           </div>
           <div className="maint-stat-card amber">
             <div className="msc-icon"><Star size={18} /></div>
-            <span className="msc-value">{stats.avgRating ? `${stats.avgRating} â˜…` : 'â€”'}</span>
+            <span className="msc-value">{stats.avgRating ? `${stats.avgRating} ★` : '—'}</span>
             <span className="msc-label">Avg Rating</span>
           </div>
         </div>
@@ -190,7 +190,7 @@ export default function TicketListPage() {
             onChange={(e) => dispatch(setTicketFilters({ search: e.target.value, page: 1 }))}
           />
         </div>
-        {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select className="filter-select" value={selectedProperty} disabled>
           {selectedProperty && (
             <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
@@ -260,7 +260,7 @@ export default function TicketListPage() {
                             t.assignedTo.profile
                               ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}`
                               : t.assignedTo.email
-                          ) : 'â€”'}
+                          ) : '—'}
                         </span>
                       </td>
                       <td><span className="cell-secondary">{t.property.name}</span></td>
@@ -335,7 +335,7 @@ export default function TicketListPage() {
                     <p className="kanban-card-title">{t.title}</p>
                     <div className="kanban-card-meta">
                       {t.category.name}
-                      {t.unit && ` Â· ${t.unit.unitNumber}`}
+                      {t.unit && ` · ${t.unit.unitNumber}`}
                     </div>
                     <div className="kanban-card-footer">
                       <SlaChip slaStatus={t.slaStatus} hoursUntilSla={t.hoursUntilSla} />
@@ -366,7 +366,7 @@ export default function TicketListPage() {
   );
 }
 
-// â”€â”€ Create Ticket Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Create Ticket Modal ──────────────────────
 
 function CreateTicketModal({ categories, properties, initialPropertyId, onClose }: {
   categories: any[]; properties: any[]; initialPropertyId?: string; onClose: () => void;

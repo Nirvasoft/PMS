@@ -66,7 +66,7 @@ export default function FiscalPeriodsPage() {
         <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} min={2020} max={2099} style={{width:80}} />
         <PermissionGuard permission="finance-fiscal-periods.write">
           <button className="btn-primary" onClick={handleGenerate} disabled={generating}>
-            {generating ? 'Generatingâ€¦' : 'ðŸ“… Generate 12 Months'}
+            {generating ? 'Generating…' : '📅 Generate 12 Months'}
           </button>
         </PermissionGuard>
       </div>
@@ -89,8 +89,8 @@ export default function FiscalPeriodsPage() {
                     <td><span className={`gl-badge ${p.status}`}>{p.status}</span></td>
                     <td>
                       <PermissionGuard permission="finance-fiscal-periods.write">
-                        {p.status === 'open' && <button className="btn-sm" onClick={() => handleClose(p.id)}>ðŸ”’ Close</button>}
-                        {p.status === 'closed' && <button className="btn-sm" onClick={() => handleReopen(p.id)}>ðŸ”“ Reopen</button>}
+                        {p.status === 'open' && <button className="btn-sm" onClick={() => handleClose(p.id)}>🔒 Close</button>}
+                        {p.status === 'closed' && <button className="btn-sm" onClick={() => handleReopen(p.id)}>🔓 Reopen</button>}
                       </PermissionGuard>
                     </td>
                   </tr>

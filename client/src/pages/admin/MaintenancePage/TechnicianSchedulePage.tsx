@@ -53,7 +53,7 @@ export default function TechnicianSchedulePage() {
     return {
       weekStart: start.toISOString(),
       weekEnd: end.toISOString(),
-      weekLabel: `${start.toLocaleDateString('en', { month: 'short', day: 'numeric' })} Ã¢â‚¬â€œ ${end.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+      weekLabel: `${start.toLocaleDateString('en', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}`,
       days: daysArr,
     };
   }, [weekOffset]);
@@ -125,7 +125,7 @@ export default function TechnicianSchedulePage() {
               <div className="tech-info">
                 <span className="tech-name">{tech.fullName}</span>
                 <span className="tech-meta">
-                  {tech.openJobs}/{tech.maxConcurrentJobs} jobs Ã‚Â· {tech.isAvailable ? 'Ã°Å¸Å¸Â¢' : 'Ã°Å¸â€Â´'}
+                  {tech.openJobs}/{tech.maxConcurrentJobs} jobs · {tech.isAvailable ? '🟢' : '🔴'}
                 </span>
               </div>
             </div>

@@ -52,10 +52,10 @@ export default function CashFlowPage() {
           {/* Summary Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
             {[
-              { label: 'Net Income', value: cf.netIncome, icon: 'ðŸ“ˆ', color: '#10b981' },
-              { label: 'Operating', value: cf.operating.net, icon: 'âš™ï¸', color: '#3b82f6' },
-              { label: 'Investing', value: cf.investing.net, icon: 'ðŸ—ï¸', color: '#f59e0b' },
-              { label: 'Financing', value: cf.financing.net, icon: 'ðŸ¦', color: '#8b5cf6' },
+              { label: 'Net Income', value: cf.netIncome, icon: '📈', color: '#10b981' },
+              { label: 'Operating', value: cf.operating.net, icon: '⚙️', color: '#3b82f6' },
+              { label: 'Investing', value: cf.investing.net, icon: '🏗️', color: '#f59e0b' },
+              { label: 'Financing', value: cf.financing.net, icon: '🏦', color: '#8b5cf6' },
             ].map(c => (
               <div key={c.label} style={{
                 background: 'var(--bg-secondary)', borderRadius: 12, padding: '20px 24px',
@@ -88,9 +88,9 @@ export default function CashFlowPage() {
 
           {/* Three Sections */}
           {[
-            { title: 'âš™ï¸ Operating Activities', section: cf.operating, color: '#3b82f6' },
-            { title: 'ðŸ—ï¸ Investing Activities', section: cf.investing, color: '#f59e0b' },
-            { title: 'ðŸ¦ Financing Activities', section: cf.financing, color: '#8b5cf6' },
+            { title: '⚙️ Operating Activities', section: cf.operating, color: '#3b82f6' },
+            { title: '🏗️ Investing Activities', section: cf.investing, color: '#f59e0b' },
+            { title: '🏦 Financing Activities', section: cf.financing, color: '#8b5cf6' },
           ].map(({ title, section, color }) => (
             <div key={title} className="gl-table-wrap" style={{ marginBottom: 16 }}>
               <div style={{

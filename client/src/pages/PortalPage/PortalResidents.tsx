@@ -171,7 +171,7 @@ export default function PortalResidents() {
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Relationship</label>
                 <select value={form.relationship} onChange={e => setForm({ ...form, relationship: e.target.value })}>
-                  <option value="">â€” Select â€”</option>
+                  <option value="">— Select —</option>
                   <option value="spouse">Spouse</option>
                   <option value="child">Child</option>
                   <option value="parent">Parent</option>

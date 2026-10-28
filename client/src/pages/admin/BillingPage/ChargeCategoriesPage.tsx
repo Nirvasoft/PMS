@@ -149,7 +149,7 @@ export default function ChargeCategoriesPage() {
             <Search size={15} className="search-icon" />
             <input
               type="text"
-              placeholder="Search code, descriptionâ€¦"
+              placeholder="Search code, description…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -170,7 +170,7 @@ export default function ChargeCategoriesPage() {
             className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter size={14} /> Filters{hasFilterSelections ? ' â€¢' : ''}
+            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
           </button>
         </div>
       </div>
@@ -251,14 +251,14 @@ export default function ChargeCategoriesPage() {
                 paginatedCategories.map(cc => (
                   <tr key={cc.id}>
                     <td><span className="cell-mono">{cc.code}</span></td>
-                    <td><div className="cell-primary">{cc.description || <span style={{ color: 'var(--text-tertiary)' }}>â€”</span>}</div></td>
+                    <td><div className="cell-primary">{cc.description || <span style={{ color: 'var(--text-tertiary)' }}>—</span>}</div></td>
                     <td className="text-center">
                       {cc.monthly ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
                           <Check size={13} />
                         </span>
                       ) : (
-                        <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>â€”</span>
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>—</span>
                       )}
                     </td>
                     <td className="text-center">
@@ -381,7 +381,7 @@ export default function ChargeCategoriesPage() {
                 <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button>
                 <PermissionGuard permission={editing ? 'charge-category.update' : 'charge-category.create'}>
                   <button type="submit" className="btn btn-primary" disabled={creating || updating}>
-                    {creating || updating ? 'Savingâ€¦' : editing ? 'Save Changes' : 'Create Charge Category'}
+                    {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Charge Category'}
                   </button>
                 </PermissionGuard>
               </div>

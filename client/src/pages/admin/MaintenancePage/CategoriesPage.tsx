@@ -135,7 +135,7 @@ export default function CategoriesPage() {
                           </span>
                         )}
                       </td>
-                      <td><span className="cell-secondary">{cat.description || 'â€”'}</span></td>
+                      <td><span className="cell-secondary">{cat.description || '—'}</span></td>
                       <td className="text-center">
                         <span className="cat-ticket-count">{cat._count?.tickets || 0}</span>
                       </td>
@@ -149,7 +149,7 @@ export default function CategoriesPage() {
                       <td>
                         {isSystem ? (
                           <div className="sla-row-actions">
-                            <span className="cell-secondary" title="System categories cannot be modified" style={{ fontSize: 11 }}>â€”</span>
+                            <span className="cell-secondary" title="System categories cannot be modified" style={{ fontSize: 11 }}>—</span>
                           </div>
                         ) : (
                           <PermissionGuard permission="maintenance-tickets.write">
@@ -226,7 +226,7 @@ export default function CategoriesPage() {
   );
 }
 
-// â”€â”€ Category Create/Edit Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Category Create/Edit Modal ────────────────
 function CategoryModal({ mode, initialData, onClose }: {
   mode: 'create' | 'edit';
   initialData?: MaintenanceCategory;
@@ -326,7 +326,7 @@ function CategoryModal({ mode, initialData, onClose }: {
           <div className="maint-modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? "Savingâ€¦" : isEdit ? 'Update Category' : 'Create Category'}
+              {isLoading ? "Saving…" : isEdit ? 'Update Category' : 'Create Category'}
             </button>
           </div>
         </form>

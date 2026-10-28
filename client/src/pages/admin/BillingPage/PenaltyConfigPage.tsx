@@ -187,7 +187,7 @@ export default function PenaltyConfigPage() {
                 </td>
                 <td className="text-right">
                   <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                    {cfg.maxPenaltyPct ? `${Number(cfg.maxPenaltyPct)}%` : 'â€”'}
+                    {cfg.maxPenaltyPct ? `${Number(cfg.maxPenaltyPct)}%` : '—'}
                   </span>
                 </td>
                 <td className="text-center">
@@ -286,7 +286,7 @@ export default function PenaltyConfigPage() {
                       className={hasAttemptedSubmit && isGraceInvalid ? 'inv-input-error' : ''}
                     />
                     {hasAttemptedSubmit && isGraceInvalid && (
-                      <span className="inv-error-text">Grace period (0â€“90 days) is required</span>
+                      <span className="inv-error-text">Grace period (0–90 days) is required</span>
                     )}
                   </div>
                   <div className="inv-field">
@@ -348,7 +348,7 @@ export default function PenaltyConfigPage() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating}>
-                  {creating ? 'Savingâ€¦' : 'Create Config'}
+                  {creating ? 'Saving…' : 'Create Config'}
                 </button>
               </div>
             </form>

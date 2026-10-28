@@ -13,12 +13,12 @@ import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 const EVENT_TYPES = [
   { value: '', label: 'All Events' },
-  { value: 'access_granted', label: 'Ã¢Å“â€¦ Access Granted' },
-  { value: 'access_denied', label: 'Ã°Å¸Å¡Â« Access Denied' },
-  { value: 'door_forced', label: 'Ã¢Å¡Â Ã¯Â¸Â Door Forced' },
-  { value: 'door_held', label: 'Ã°Å¸Å¡Âª Door Held Open' },
-  { value: 'tailgate', label: 'Ã°Å¸Å¡Â¶ Tailgate' },
-  { value: 'lockdown', label: 'Ã°Å¸â€â€™ Lockdown' },
+  { value: 'access_granted', label: '✅ Access Granted' },
+  { value: 'access_denied', label: '🚫 Access Denied' },
+  { value: 'door_forced', label: '⚠️ Door Forced' },
+  { value: 'door_held', label: '🚪 Door Held Open' },
+  { value: 'tailgate', label: '🚶 Tailgate' },
+  { value: 'lockdown', label: '🔒 Lockdown' },
 ];
 
 const EVENT_STYLE: Record<string, { color: string; bg: string; icon: typeof DoorOpen; label: string }> = {
@@ -41,7 +41,7 @@ export default function AccessEventsPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
-  // Active property from the sidebar Ã¢â‚¬â€ follows the same pattern as Parking Overview.
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
   const { data: propsData } = useGetMyPropertyScopeQuery();
   const properties = propsData?.data || [];
@@ -110,10 +110,10 @@ export default function AccessEventsPage() {
       {/* Filters */}
       <div className="maint-toolbar">
         <div className="filter-group">
-          {/* Property follows the sidebar's "Active Property" selector Ã¢â‚¬â€ not independently choosable here. */}
+          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select className="filter-select" value={selectedProperty} disabled>
             {!selectedProperty && <option value="">All Properties</option>}
-            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'LoadingÃ¢â‚¬Â¦'}</option>}
+            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
           </select>
           <select className="filter-select" value={eventType}
             onChange={(e) => { setEventType(e.target.value); setPage(1); }}>
@@ -169,7 +169,7 @@ export default function AccessEventsPage() {
                       </td>
                       <td>
                         <div className="ace-door-cell">
-                          <span className="ace-door-name">{evt.doorName || 'Ã¢â‚¬â€'}</span>
+                          <span className="ace-door-name">{evt.doorName || '—'}</span>
                           {evt.deviceName && (
                             <span className="ace-device-id">{evt.deviceName}</span>
                           )}
@@ -184,7 +184,7 @@ export default function AccessEventsPage() {
                             <CreditCard size={11} /> {evt.cardNumber}
                           </span>
                         ) : (
-                          <span className="cell-secondary">Ã¢â‚¬â€</span>
+                          <span className="cell-secondary">—</span>
                         )}
                       </td>
                       <td>
@@ -199,7 +199,7 @@ export default function AccessEventsPage() {
                       <td>
                         <span className="cell-secondary">
                           <Building2 size={11} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                          {evt.property?.name || 'Ã¢â‚¬â€'}
+                          {evt.property?.name || '—'}
                         </span>
                       </td>
                       <td>
@@ -215,7 +215,7 @@ export default function AccessEventsPage() {
                         {evt.denialReason ? (
                           <span className="ace-denial">{evt.denialReason}</span>
                         ) : (
-                          <span className="cell-secondary">Ã¢â‚¬â€</span>
+                          <span className="cell-secondary">—</span>
                         )}
                       </td>
                     </tr>

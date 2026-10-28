@@ -16,8 +16,8 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const SYSTEM_TYPES: Record<string, { label: string; icon: typeof Zap; color: string; unit: string }> = {
   electricity: { label: 'Electricity', icon: Zap, color: '#facc15', unit: 'kWh' },
-  water: { label: 'Water', icon: Droplets, color: '#38bdf8', unit: 'mÂ³' },
-  gas: { label: 'Gas', icon: Flame, color: '#fb923c', unit: 'mÂ³' },
+  water: { label: 'Water', icon: Droplets, color: '#38bdf8', unit: 'm³' },
+  gas: { label: 'Gas', icon: Flame, color: '#fb923c', unit: 'm³' },
   chilled_water: { label: 'Chilled Water', icon: Snowflake, color: '#818cf8', unit: 'RTh' },
 };
 
@@ -76,7 +76,7 @@ export default function UtilitySystemsPage() {
       {/* Filters */}
       <div className="maint-toolbar">
         <div className="filter-group">
-          {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select className="filter-select" value={propertyFilter} disabled>
             {propertyFilter && (
               <option value={propertyFilter}>{properties.find((p: any) => p.id === propertyFilter)?.name || ''}</option>
@@ -198,7 +198,7 @@ export default function UtilitySystemsPage() {
   );
 }
 
-// â”€â”€ Create / Edit Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Create / Edit Modal ──────────────────────
 function UtilitySystemModal({ system, properties, onClose }: {
   system: any | null;
   properties: any[];
@@ -327,7 +327,7 @@ function UtilitySystemModal({ system, properties, onClose }: {
               <label>Unit of Measure</label>
               <input type="text" value={form.unitOfMeasure}
                 onChange={(e) => setForm(f => ({ ...f, unitOfMeasure: e.target.value }))}
-                placeholder={selectedType?.unit || 'kWh, mÂ³, etc.'}
+                placeholder={selectedType?.unit || 'kWh, m³, etc.'}
               />
             </div>
           </div>
@@ -345,7 +345,7 @@ function UtilitySystemModal({ system, properties, onClose }: {
           <div className="maint-modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? "Savingâ€¦" : isEdit ? <><Pencil size={16} /> Update System</>
+              {isLoading ? "Saving…" : isEdit ? <><Pencil size={16} /> Update System</>
                 : <><Plus size={16} /> Add System</>
               }
             </button>

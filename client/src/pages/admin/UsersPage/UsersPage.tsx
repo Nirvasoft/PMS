@@ -58,7 +58,7 @@ export default function UsersPage() {
             <div>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>User Management</h1>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                {meta ? `${meta.total} total users` : 'Loadingâ€¦'}
+                {meta ? `${meta.total} total users` : <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} />}
               </p>
             </div>
           </div>
@@ -309,7 +309,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
       <div className="modal-card">
         <div className="modal-header">
           <h2>Create User</h2>
-          <button className="btn-icon" onClick={onClose}>âœ•</button>
+          <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-row-2">
@@ -362,7 +362,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
                 });
               }}
             >
-              <option value="">â€” Select Job Title â€”</option>
+              <option value="">— Select Job Title —</option>
               {positions.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -374,7 +374,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
             <label>Role</label>
             <select className="input-full" value={form.roleIds[0] || ''}
               onChange={(e) => setForm({ ...form, roleIds: e.target.value ? [e.target.value] : [] })}>
-              <option value="">â€” Select Role â€”</option>
+              <option value="">— Select Role —</option>
               {rolesData?.data?.map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
               ))}
@@ -393,7 +393,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
 }
 
 
-/* â”€â”€â”€ Invitations Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Invitations Tab ──────────────────────── */
 
 function InvitationsTab() {
   const confirmDialog = useConfirm();
@@ -459,7 +459,7 @@ function InvitationsTab() {
             <label>Role (optional)</label>
             <select className="input-full" value={form.roleId}
               onChange={e => setForm({ ...form, roleId: e.target.value })}>
-              <option value="">â€” No Role â€”</option>
+              <option value="">— No Role —</option>
               {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>
@@ -470,7 +470,7 @@ function InvitationsTab() {
           </div>
         </div>
         <button type="submit" className="btn btn-primary" disabled={sending} style={{ marginTop: 8 }}>
-          {sending ? 'ðŸ“¨ Sending...' : 'ðŸ“¨ Send Invitation'}
+          {sending ? '📨 Sending...' : '📨 Send Invitation'}
         </button>
       </form>
 
@@ -500,7 +500,7 @@ function InvitationsTab() {
               {invitations.map(inv => (
                 <tr key={inv.id}>
                   <td><Mail size={14} style={{ marginRight: 6 }} />{inv.email}</td>
-                  <td>{inv.role?.name ? <span className="role-chip">{inv.role.name}</span> : 'â€”'}</td>
+                  <td>{inv.role?.name ? <span className="role-chip">{inv.role.name}</span> : '—'}</td>
                   <td>
                     {inv.acceptedAt
                       ? <span className="status-badge active"><CheckCircle size={12} /> Accepted</span>

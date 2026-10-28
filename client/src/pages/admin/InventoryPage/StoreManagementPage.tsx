@@ -131,7 +131,7 @@ export default function StoreManagementPage() {
 
   return (
     <div className="maint-page">
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Warehouse size={22} /></div>
@@ -140,11 +140,11 @@ export default function StoreManagementPage() {
               <h1 style={{ margin: 0 }}>Store Management</h1>
               {activeProperty ? (
                 <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
-                  ðŸ¢ {activeProperty.name}
+                  🏢 {activeProperty.name}
                 </span>
               ) : (
                 <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-                  ðŸŒ All Properties
+                  🌐 All Properties
                 </span>
               )}
             </div>
@@ -160,7 +160,7 @@ export default function StoreManagementPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Stats â”€â”€ */}
+      {/* ── Stats ── */}
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
         gap: 12, marginBottom: 20,
@@ -232,7 +232,7 @@ export default function StoreManagementPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Toolbar â”€â”€ */}
+      {/* ── Toolbar ── */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap',
       }}>
@@ -253,7 +253,7 @@ export default function StoreManagementPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Filter size={13} style={{ color: 'var(--text-tertiary)' }} />
-          {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select className="filter-select" value={filterProperty} disabled
             style={{ borderRadius: 10, fontSize: 12, padding: '7px 28px 7px 10px' }}>
             {filterProperty && (
@@ -273,7 +273,7 @@ export default function StoreManagementPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Store Cards Grouped by Property â”€â”€ */}
+      {/* ── Store Cards Grouped by Property ── */}
       {isLoading ? (
         <TableSkeleton columns={5} rows={5} />
       ) : sorted.length === 0 ? (
@@ -445,7 +445,7 @@ export default function StoreManagementPage() {
         ))
       )}
 
-      {/* â”€â”€ Create Store Modal â”€â”€ */}
+      {/* ── Create Store Modal ── */}
       {showCreate && (
         <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '480px', borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>
@@ -518,7 +518,7 @@ export default function StoreManagementPage() {
         </div>
       )}
 
-      {/* â”€â”€ Edit Store Modal â”€â”€ */}
+      {/* ── Edit Store Modal ── */}
       {editStore && (
         <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '480px', borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>

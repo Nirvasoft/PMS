@@ -189,7 +189,7 @@ export default function PaymentMethodSetupPage() {
 
   const handleDelete = async (pm: PaymentMethod) => {
     const ok = await confirmDialog(
-      `Delete payment method "${pm.code} â€” ${pm.name}"?`,
+      `Delete payment method "${pm.code} — ${pm.name}"?`,
       { danger: true, confirmText: 'Delete' }
     );
     if (!ok) return;
@@ -268,7 +268,7 @@ export default function PaymentMethodSetupPage() {
             <Search size={15} className="search-icon" />
             <input
               type="text"
-              placeholder="Search code, name, GL accountâ€¦"
+              placeholder="Search code, name, GL account…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -289,7 +289,7 @@ export default function PaymentMethodSetupPage() {
             className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter size={14} /> Filters{hasFilterSelections ? ' â€¢' : ''}
+            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
           </button>
         </div>
       </div>
@@ -366,17 +366,17 @@ export default function PaymentMethodSetupPage() {
                     <td><div className="cell-primary">{pm.name}</div></td>
                     <td>
                       <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
-                        {pm.glAccountCode || 'â€”'}
+                        {pm.glAccountCode || '—'}
                       </span>
                     </td>
                     <td>
                       <span className="cell-mono" style={{ fontSize: 13, color: deptCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                        {deptCode || 'â€”'}
+                        {deptCode || '—'}
                       </span>
                     </td>
                     <td>
                       <span className="cell-mono" style={{ fontSize: 13, color: ccCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                        {ccCode || 'â€”'}
+                        {ccCode || '—'}
                       </span>
                     </td>
                     <td>
@@ -496,7 +496,7 @@ export default function PaymentMethodSetupPage() {
                     <div className="coa-input-group">
                       <input
                         className="coa-bound-input"
-                        placeholder="Select from Chart of Accountsâ€¦"
+                        placeholder="Select from Chart of Accounts…"
                         value={form.glAccountCode}
                         readOnly
                         tabIndex={-1}
@@ -557,7 +557,7 @@ export default function PaymentMethodSetupPage() {
                         })
                       }
                     >
-                      <option value="">â€” None â€”</option>
+                      <option value="">— None —</option>
                       {departmentCenters
                         .filter((d) => d.isActive)
                         .map((d) => (
@@ -578,7 +578,7 @@ export default function PaymentMethodSetupPage() {
                         })
                       }
                     >
-                      <option value="">â€” None â€”</option>
+                      <option value="">— None —</option>
                       {costCenters
                         .filter((c) => {
                           if (!c.isActive) return false;
@@ -607,7 +607,7 @@ export default function PaymentMethodSetupPage() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating || updating}>
-                  {creating || updating ? 'Savingâ€¦' : editing ? 'Save Changes' : 'Create Payment Method'}
+                  {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Payment Method'}
                 </button>
               </div>
             </form>
@@ -633,7 +633,7 @@ export default function PaymentMethodSetupPage() {
                 <Search size={15} className="coa-lookup-search-icon" />
                 <input
                   type="text"
-                  placeholder="Search by account code or nameâ€¦"
+                  placeholder="Search by account code or name…"
                   value={coaSearch}
                   onChange={e => setCoaSearch(e.target.value)}
                   autoFocus
@@ -719,12 +719,12 @@ export default function PaymentMethodSetupPage() {
                             </td>
                             <td>
                               <span className="cell-mono" style={{ fontSize: 12, color: acc.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                {acc.departmentCenter?.code || 'â€”'}
+                                {acc.departmentCenter?.code || '—'}
                               </span>
                             </td>
                             <td>
                               <span className="cell-mono" style={{ fontSize: 12, color: acc.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                {acc.costCenter?.code || 'â€”'}
+                                {acc.costCenter?.code || '—'}
                               </span>
                             </td>
                             <td>

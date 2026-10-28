@@ -8,18 +8,18 @@ import {
 } from 'lucide-react';
 
 const ASSET_TYPES: Record<string, { label: string; icon: string }> = {
-  hvac: { label: 'HVAC', icon: 'Ã¢Ââ€žÃ¯Â¸Â' }, elevator: { label: 'Elevator', icon: 'Ã°Å¸â€ºâ€”' },
-  generator: { label: 'Generator', icon: 'Ã¢Å¡Â¡' }, fire_system: { label: 'Fire System', icon: 'Ã°Å¸Â§Â¯' },
-  water_pump: { label: 'Water Pump', icon: 'Ã°Å¸â€™Â§' }, cctv: { label: 'CCTV', icon: 'Ã°Å¸â€œÂ¹' },
-  access_control: { label: 'Access Control', icon: 'Ã°Å¸â€â€˜' }, lighting: { label: 'Lighting', icon: 'Ã°Å¸â€™Â¡' },
-  other: { label: 'Other', icon: 'Ã°Å¸â€Â§' },
+  hvac: { label: 'HVAC', icon: '❄️' }, elevator: { label: 'Elevator', icon: '🛗' },
+  generator: { label: 'Generator', icon: '⚡' }, fire_system: { label: 'Fire System', icon: '🧯' },
+  water_pump: { label: 'Water Pump', icon: '💧' }, cctv: { label: 'CCTV', icon: '📹' },
+  access_control: { label: 'Access Control', icon: '🔑' }, lighting: { label: 'Lighting', icon: '💡' },
+  other: { label: 'Other', icon: '🔧' },
 };
 
 const STATUS_MAP: Record<string, { label: string; css: string }> = {
-  operational: { label: 'Ã¢Å“â€¦ Operational', css: 'completed' },
-  under_maintenance: { label: 'Ã°Å¸â€Â§ Under Maintenance', css: 'in_progress' },
-  fault: { label: 'Ã¢Å¡Â Ã¯Â¸Â Fault', css: 'cancelled' },
-  decommissioned: { label: 'Ã°Å¸Å¡Â« Decommissioned', css: 'closed' },
+  operational: { label: '✅ Operational', css: 'completed' },
+  under_maintenance: { label: '🔧 Under Maintenance', css: 'in_progress' },
+  fault: { label: '⚠️ Fault', css: 'cancelled' },
+  decommissioned: { label: '🚫 Decommissioned', css: 'closed' },
 };
 
 export default function QrScanLandingPage() {
@@ -50,7 +50,7 @@ export default function QrScanLandingPage() {
   }
 
   const { asset, pmSchedules, recentHistory } = scanData.data;
-  const typeInfo = ASSET_TYPES[asset.assetType] || { label: asset.assetType, icon: 'Ã°Å¸â€Â§' };
+  const typeInfo = ASSET_TYPES[asset.assetType] || { label: asset.assetType, icon: '🔧' };
   const statusInfo = STATUS_MAP[asset.status] || { label: asset.status, css: 'open' };
 
   return (
@@ -66,7 +66,7 @@ export default function QrScanLandingPage() {
             <h1 className="qr-asset-name">{asset.name}</h1>
             <p className="qr-asset-sub">
               <span className="cell-mono">{asset.assetNumber}</span>
-              {' Ã‚Â· '}{typeInfo.label}
+              {' · '}{typeInfo.label}
             </p>
           </div>
         </div>
@@ -153,7 +153,7 @@ export default function QrScanLandingPage() {
                   <div className="qr-list-info">
                     <span className="qr-list-name">{s.name}</span>
                     <span className="qr-list-sub">
-                      {s.frequencyType} Ã‚Â· {s.assignedTo?.profile
+                      {s.frequencyType} · {s.assignedTo?.profile
                         ? `${s.assignedTo.profile.firstName} ${s.assignedTo.profile.lastName}`
                         : 'Unassigned'}
                     </span>
@@ -185,7 +185,7 @@ export default function QrScanLandingPage() {
                 <div className="qr-list-info">
                   <span className="qr-list-name">{h.schedule?.name || 'PM Service'}</span>
                   <span className="qr-list-sub">
-                    {h.completedAt ? new Date(h.completedAt).toLocaleDateString() : 'Ã¢â‚¬â€'}
+                    {h.completedAt ? new Date(h.completedAt).toLocaleDateString() : '—'}
                     {h.completedBy?.profile && ` by ${h.completedBy.profile.firstName}`}
                   </span>
                 </div>

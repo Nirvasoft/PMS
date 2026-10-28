@@ -52,7 +52,7 @@ export default function ApInvoiceDetailPage() {
 
   const outstanding = Number(inv.totalAmount) - Number(inv.paidAmount);
   const isOverdue = new Date(inv.dueDate) < new Date() && !['paid', 'void', 'rejected'].includes(inv.status);
-  const creatorName = inv.creator?.profile ? `${inv.creator.profile.firstName} ${inv.creator.profile.lastName}` : inv.creator?.email || 'â€”';
+  const creatorName = inv.creator?.profile ? `${inv.creator.profile.firstName} ${inv.creator.profile.lastName}` : inv.creator?.email || '—';
   const approverName = inv.approver?.profile ? `${inv.approver.profile.firstName} ${inv.approver.profile.lastName}` : inv.approver?.email || null;
 
   return (
@@ -94,11 +94,11 @@ export default function ApInvoiceDetailPage() {
         {/* Invoice Info */}
         <div className="ap-detail-card">
           <h3><FileText size={16} /> Invoice Information</h3>
-          <div className="field-row"><span className="label">Vendor Invoice No.</span><span className="val">{inv.vendorInvoiceNo || 'â€”'}</span></div>
+          <div className="field-row"><span className="label">Vendor Invoice No.</span><span className="val">{inv.vendorInvoiceNo || '—'}</span></div>
           <div className="field-row"><span className="label">Invoice Date</span><span className="val">{format(new Date(inv.invoiceDate), 'dd MMM yyyy')}</span></div>
           <div className="field-row"><span className="label">Due Date</span><span className="val">{format(new Date(inv.dueDate), 'dd MMM yyyy')}</span></div>
-          <div className="field-row"><span className="label">PO Reference</span><span className="val">{inv.poReference || 'â€”'}</span></div>
-          <div className="field-row"><span className="label">Cost Center</span><span className="val">{inv.costCenter || 'â€”'}</span></div>
+          <div className="field-row"><span className="label">PO Reference</span><span className="val">{inv.poReference || '—'}</span></div>
+          <div className="field-row"><span className="label">Cost Center</span><span className="val">{inv.costCenter || '—'}</span></div>
           {inv.description && <div className="field-row"><span className="label">Description</span><span className="val">{inv.description}</span></div>}
         </div>
 
@@ -116,7 +116,7 @@ export default function ApInvoiceDetailPage() {
         <div className="ap-detail-card">
           <h3><Building2 size={16} /> Allocation</h3>
           <div className="field-row"><span className="label">Property</span><span className="val">{inv.property?.name || 'All Properties'}</span></div>
-          <div className="field-row"><span className="label">Department</span><span className="val">{inv.department?.name || 'â€”'}</span></div>
+          <div className="field-row"><span className="label">Department</span><span className="val">{inv.department?.name || '—'}</span></div>
           <div className="field-row"><span className="label">Created By</span><span className="val">{creatorName}</span></div>
           <div className="field-row"><span className="label">Created At</span><span className="val">{format(new Date(inv.createdAt), 'dd MMM yyyy HH:mm')}</span></div>
         </div>
@@ -153,7 +153,7 @@ export default function ApInvoiceDetailPage() {
                 <tr key={line.id}>
                   <td>{idx + 1}</td>
                   <td>{line.description}</td>
-                  <td>{line.chargeType?.name || 'â€”'}</td>
+                  <td>{line.chargeType?.name || '—'}</td>
                   <td style={{ textAlign: 'right' }}>{Number(line.quantity)}</td>
                   <td style={{ textAlign: 'right' }}>{fmt(line.unitPrice)}</td>
                   <td style={{ textAlign: 'right' }}>{fmt(line.amount)}</td>
@@ -196,7 +196,7 @@ export default function ApInvoiceDetailPage() {
                     <td><strong>{alloc.voucher.voucherNumber}</strong></td>
                     <td>{fmt(alloc.amount)}</td>
                     <td><span className={`ap-status ${alloc.voucher.status}`}>{alloc.voucher.status}</span></td>
-                    <td>{alloc.voucher.paidAt ? format(new Date(alloc.voucher.paidAt), 'dd MMM yyyy HH:mm') : 'â€”'}</td>
+                    <td>{alloc.voucher.paidAt ? format(new Date(alloc.voucher.paidAt), 'dd MMM yyyy HH:mm') : '—'}</td>
                   </tr>
                 ))}
               </tbody>

@@ -69,7 +69,7 @@ export default function PropertyDetailPage() {
   const [updateStatus] = useUpdatePropertyStatusMutation();
 
   // Keep the sidebar's "Active Property" switcher pointed at whichever property this
-  // page is showing â€” but only when a *different specific* property is already active.
+  // page is showing — but only when a *different specific* property is already active.
   // If the sidebar is on "All Properties", leave it alone so the user can navigate
   // back to the full property list without it being filtered to just this property.
   const selectedPropertyId = useAppSelector((s) => s.properties.selectedPropertyId);
@@ -82,7 +82,7 @@ export default function PropertyDetailPage() {
 
   // If the Active Property is switched to a *different specific* property while this page
   // is open, follow it to that property's detail page.
-  // When the sidebar is on "All Properties" we simply stay on this detail page â€” the user
+  // When the sidebar is on "All Properties" we simply stay on this detail page — the user
   // may have arrived here by clicking a card from the full list, so we must not bounce them back.
   useEffect(() => {
     if (!id || selectedPropertyId === null || selectedPropertyId === id) return;
@@ -162,7 +162,7 @@ export default function PropertyDetailPage() {
         <div className="stat-item"><span className="stat-val">{property.currency}</span><span className="stat-lbl">Currency</span></div>
         <div className="stat-item"><span className="stat-val">{property.billingCycle}</span><span className="stat-lbl">Billing Cycle</span></div>
         {property.yearBuilt && <div className="stat-item"><span className="stat-val">{property.yearBuilt}</span><span className="stat-lbl">Year Built</span></div>}
-        <div className="stat-item"><span className="stat-val">{property.totalFloors ?? 'â€”'}</span><span className="stat-lbl">Floors</span></div>
+        <div className="stat-item"><span className="stat-val">{property.totalFloors ?? '—'}</span><span className="stat-lbl">Floors</span></div>
       </div>
 
       {/* Tab navigation */}
@@ -219,7 +219,7 @@ export default function PropertyDetailPage() {
   );
 }
 
-// â”€â”€â”€ Overview Section (Details + Facilities + Contacts) â”€â”€
+// ─── Overview Section (Details + Facilities + Contacts) ──
 function OverviewSection({ property, propertyId }: { property: any; propertyId: string }) {
   const [sub, setSub] = useState<'details' | 'facilities' | 'contacts'>('details');
   return (
@@ -238,7 +238,7 @@ function OverviewSection({ property, propertyId }: { property: any; propertyId: 
   );
 }
 
-// â”€â”€â”€ Overview Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Overview Tab ─────────────────────────────
 function OverviewTab({ property }: { property: any }) {
   return (
     <div className="overview-grid">
@@ -274,7 +274,7 @@ function OverviewTab({ property }: { property: any }) {
           {property.legalName      && <div className="info-row"><span className="label">Legal Name</span><span>{property.legalName}</span></div>}
           {property.registrationNo && <div className="info-row"><span className="label">Registration No.</span><span>{property.registrationNo}</span></div>}
           {property.yearBuilt      && <div className="info-row"><span className="label">Year Built</span><span>{property.yearBuilt}</span></div>}
-          <div className="info-row"><span className="label">Total Floors</span><span>{property.totalFloors ?? 'â€”'}</span></div>
+          <div className="info-row"><span className="label">Total Floors</span><span>{property.totalFloors ?? '—'}</span></div>
           {property.totalAreaSqm  && <div className="info-row"><span className="label">Area (sqm)</span><span>{Number(property.totalAreaSqm).toLocaleString()}</span></div>}
           {property.totalAreaSqft && <div className="info-row"><span className="label">Area (sqft)</span><span>{Number(property.totalAreaSqft).toLocaleString()}</span></div>}
         </div>
@@ -316,7 +316,7 @@ function OverviewTab({ property }: { property: any }) {
   );
 }
 
-// â”€â”€ Facility helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Facility helpers ─────────────────────────
 const FACILITY_ICONS: Record<string, ReactNode> = {
   waves:          <Waves size={18} />,
   dumbbell:       <Dumbbell size={18} />,
@@ -345,7 +345,7 @@ const FACILITY_CAT_COLORS: Record<string, string> = {
   utility:     '#00b894',
 };
 
-// â”€â”€â”€ Facilities Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Facilities Tab ───────────────────────────
 function FacilitiesTab({ propertyId }: { propertyId: string }) {
   const confirmDialog = useConfirm();
   const { data } = useGetFacilitiesQuery(propertyId);
@@ -410,7 +410,7 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
             <div className="rff-field rff-grow">
               <label>Facility Type *</label>
               <select value={fForm.facilityTypeId} onChange={e => setFForm(f => ({ ...f, facilityTypeId: e.target.value }))}>
-                <option value="">Select typeâ€¦</option>
+                <option value="">Select type…</option>
                 {facilityTypes.filter(t => !assigned.has(t.id)).map(t => (
                   <option key={t.id} value={t.id}>{t.name} ({t.category})</option>
                 ))}
@@ -454,7 +454,7 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
           </div>
           <div className="form-actions">
             <button className="btn-primary" onClick={handleAdd} disabled={isSubmitting}>
-              <Plus size={14} /> {isSubmitting ? 'Addingâ€¦' : 'Add Facility'}
+              <Plus size={14} /> {isSubmitting ? 'Adding…' : 'Add Facility'}
             </button>
             <button className="btn-ghost" onClick={() => { setAdding(false); resetForm(); }}>Cancel</button>
           </div>
@@ -482,7 +482,7 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
                   </div>
                   {f.isBookable && (
                     <span className="facility-bookable">
-                      <CheckCircle size={11} /> Bookable Â· {f.bookingAdvanceDays ?? 7}d advance
+                      <CheckCircle size={11} /> Bookable · {f.bookingAdvanceDays ?? 7}d advance
                     </span>
                   )}
                 </div>
@@ -498,7 +498,7 @@ function FacilitiesTab({ propertyId }: { propertyId: string }) {
   );
 }
 
-// â”€â”€ Contact helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Contact helpers ──────────────────────────
 const CONTACT_ROLES = [
   { value: 'building_manager', label: 'Building Manager' },
   { value: 'security',         label: 'Security' },
@@ -509,7 +509,7 @@ const CONTACT_ROLES = [
 ];
 const BLANK_CONTACT = { role: 'building_manager', name: '', phone: '', mobile: '', email: '', isPrimary: false };
 
-// â”€â”€â”€ Contacts Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Contacts Tab ─────────────────────────────
 function ContactsTab({ propertyId }: { propertyId: string }) {
   const confirmDialog = useConfirm();
   const { data } = useGetContactsQuery(propertyId);
@@ -592,7 +592,7 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
           </div>
           <div className="form-actions">
             <button className="btn-primary" onClick={handleSave} disabled={isAdding}>
-              {isAdding ? 'Savingâ€¦' : editingId ? 'Update Contact' : 'Save Contact'}
+              {isAdding ? 'Saving…' : editingId ? 'Update Contact' : 'Save Contact'}
             </button>
             <button className="btn-ghost" onClick={() => { setShowForm(false); setEditingId(null); }}>Cancel</button>
           </div>
@@ -631,7 +631,7 @@ function ContactsTab({ propertyId }: { propertyId: string }) {
   );
 }
 
-// â”€â”€â”€ Photos Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Photos Tab ───────────────────────────────
 function PhotosTab({ propertyId }: { propertyId: string }) {
   const confirmDialog = useConfirm();
   const { data } = useGetPhotosQuery(propertyId);
@@ -661,7 +661,7 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
     e.target.value = '';
   };
 
-  // â”€â”€ DnD handlers â”€â”€
+  // ── DnD handlers ──
   const handleDragStart = useCallback((idx: number) => {
     setDragIdx(idx);
   }, []);
@@ -695,7 +695,7 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
     setDragOverIdx(null);
   }, []);
 
-  // â”€â”€ Lightbox keyboard navigation â”€â”€
+  // ── Lightbox keyboard navigation ──
   useEffect(() => {
     if (lightboxIdx === null) return;
     const handler = (e: KeyboardEvent) => {
@@ -790,7 +790,7 @@ function PhotosTab({ propertyId }: { propertyId: string }) {
   );
 }
 
-// â”€â”€â”€ History Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── History Tab ──────────────────────────────
 function HistoryTab({ propertyId }: { propertyId: string }) {
   const { data } = useGetStatusHistoryQuery(propertyId);
   const history = data?.data || [];
@@ -806,7 +806,7 @@ function HistoryTab({ propertyId }: { propertyId: string }) {
                 <div className="history-dot" />
                 <div className="history-body">
                   <div className="history-change">
-                    {h.fromStatus ? <span className="from-status">{h.fromStatus.replace(/_/g, ' ')}</span> : <span className="from-status">â€”</span>}
+                    {h.fromStatus ? <span className="from-status">{h.fromStatus.replace(/_/g, ' ')}</span> : <span className="from-status">—</span>}
                     <ChevronRight size={14} />
                     <span className="to-status">{h.toStatus.replace(/_/g, ' ')}</span>
                   </div>
@@ -828,7 +828,7 @@ function HistoryTab({ propertyId }: { propertyId: string }) {
   );
 }
 
-// â”€â”€â”€ Settings Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Settings Tab ─────────────────────────────
 const BILLING_CYCLES = [
   { value: 'monthly',     label: 'Monthly' },
   { value: 'quarterly',   label: 'Quarterly' },
@@ -883,7 +883,7 @@ function SettingsTab({ property }: { property: any }) {
             disabled={isLoading}
             style={{ gap: 6 }}
           >
-            {isLoading ? 'Savingâ€¦' : saved ? 'âœ“ Saved' : 'Save Changes'}
+            {isLoading ? 'Saving…' : saved ? '✓ Saved' : 'Save Changes'}
           </button>
         </PermissionGuard>
       </div>
@@ -909,7 +909,7 @@ function SettingsTab({ property }: { property: any }) {
           <label className="settings-field-label">
             <Calendar size={14} /> Billing Day
           </label>
-          <div className="settings-field-desc">Day of the month invoices are issued (1â€“28)</div>
+          <div className="settings-field-desc">Day of the month invoices are issued (1–28)</div>
           <input
             type="number"
             className="settings-input"
@@ -967,11 +967,11 @@ function SettingsTab({ property }: { property: any }) {
 }
 
 const getTenantDisplayName = (tenant?: { lastName?: string | null; companyName?: string | null; firstName?: string | null } | null) =>
-  tenant?.lastName || tenant?.companyName || tenant?.firstName || 'â€”';
+  tenant?.lastName || tenant?.companyName || tenant?.firstName || '—';
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 // LEASES TAB
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 function LeasesTab({ propertyId }: { propertyId: string }) {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const { data, isLoading } = useGetLeasesQuery({ propertyId, status: statusFilter || undefined, limit: 50 });
@@ -1067,9 +1067,9 @@ function LeasesTab({ propertyId }: { propertyId: string }) {
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 // DOCUMENTS TAB
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 function DocumentsTab({ propertyId }: { propertyId: string }) {
   const { data, isLoading } = useGetDocumentsQuery({ entityType: 'property', entityId: propertyId, limit: '50' });
   const documents = data?.data || [];
@@ -1107,7 +1107,7 @@ function DocumentsTab({ propertyId }: { propertyId: string }) {
               <div className="doc-info">
                 <span className="doc-name">{doc.name}</span>
                 <span className="doc-meta">
-                  {doc.extension?.toUpperCase()} Â· {doc.fileSizeFormatted} Â· v{doc.currentVersion}
+                  {doc.extension?.toUpperCase()} · {doc.fileSizeFormatted} · v{doc.currentVersion}
                 </span>
               </div>
               <div className="doc-status">
@@ -1127,9 +1127,9 @@ function DocumentsTab({ propertyId }: { propertyId: string }) {
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 // FINANCE TAB
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 function FinanceTab({ property }: { property: any }) {
   const { data: currencyRatesData } = useGetCurrencyRatesQuery({ propertyId: property.id });
   const currencyRates = currencyRatesData?.data ?? [];
@@ -1314,7 +1314,7 @@ function FinanceTab({ property }: { property: any }) {
                         <span style={{ fontWeight: 600 }}>{s.chargeType.name}</span>
                       </td>
                       <td title={tenantName}>{tenantName}</td>
-                      <td>{s.unit ? s.unit.unitNumber : 'â€”'}</td>
+                      <td>{s.unit ? s.unit.unitNumber : '—'}</td>
                       <td className="capitalize">{(s.billingCycle || '').replace(/_/g, ' ')}</td>
                       <td>Day {s.billingDay}</td>
                       <td className="rent-amount" title={`${s.currency} ${formatFullAmount(s.amount)}`} style={{ cursor: 'help' }}>
@@ -1332,9 +1332,9 @@ function FinanceTab({ property }: { property: any }) {
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 // METER RECORDS TAB
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 function MeterRecordsTab({ propertyId }: { propertyId: string }) {
   const [previewRecords, { isLoading: previewing }] = usePreviewMeterRecordsMutation();
   const [importRecords, { isLoading: importing }] = useImportMeterRecordsMutation();
@@ -1407,12 +1407,12 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
       const { imported, billingSchedulesCreated, skipped, duplicatesSkipped } = result.data;
 
       if (imported === 0 && duplicatesSkipped > 0) {
-        // Every row in the sheet was already on record â€” nothing new was written.
-        toast.error(`All ${duplicatesSkipped} row${duplicatesSkipped === 1 ? '' : 's'} already exist (same Meter No, Start Date & End Date) â€” nothing imported`);
+        // Every row in the sheet was already on record — nothing new was written.
+        toast.error(`All ${duplicatesSkipped} row${duplicatesSkipped === 1 ? '' : 's'} already exist (same Meter No, Start Date & End Date) — nothing imported`);
       } else {
         let msg = `Imported ${imported} meter record${imported === 1 ? '' : 's'}, created ${billingSchedulesCreated} billing schedule${billingSchedulesCreated === 1 ? '' : 's'}`;
         const notes: string[] = [];
-        if (skipped > 0) notes.push(`${skipped} skipped â€” no active tenant`);
+        if (skipped > 0) notes.push(`${skipped} skipped — no active tenant`);
         if (duplicatesSkipped > 0) notes.push(`${duplicatesSkipped} duplicate${duplicatesSkipped === 1 ? '' : 's'} skipped`);
         if (notes.length > 0) msg += ` (${notes.join(', ')})`;
         toast.success(msg);
@@ -1441,10 +1441,10 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
             }}
           />
           <button className="btn-secondary" onClick={handleExportClick} disabled={exporting}>
-            <Upload size={14} /> {exporting ? 'Exportingâ€¦' : 'Export'}
+            <Upload size={14} /> {exporting ? 'Exporting…' : 'Export'}
           </button>
           <button className="btn-secondary" onClick={handleImportClick} disabled={previewing || importing}>
-            <Download size={14} /> {previewing ? 'Readingâ€¦' : 'Import'}
+            <Download size={14} /> {previewing ? 'Reading…' : 'Import'}
           </button>
         </div>
       </div>
@@ -1455,7 +1455,7 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
           <div className="modal-card" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Export Meter Records</h2>
-              <button type="button" className="btn-icon" onClick={() => setShowExportModal(false)}>âœ•</button>
+              <button type="button" className="btn-icon" onClick={() => setShowExportModal(false)}>✕</button>
             </div>
             <div className="modal-body">
               <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 14 }}>
@@ -1486,12 +1486,12 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
         <>
           <div className="section-header">
             <h4 className="finance-sub-title" style={{ margin: 0 }}>
-              Preview â€” {previewRows.length} row{previewRows.length === 1 ? '' : 's'} from "{pendingFile?.name}"
+              Preview — {previewRows.length} row{previewRows.length === 1 ? '' : 's'} from "{pendingFile?.name}"
             </h4>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn-ghost" onClick={handleCancelPreview} disabled={importing}>Cancel</button>
               <button className="btn-primary" onClick={handleConfirmImport} disabled={importing}>
-                {importing ? 'Importingâ€¦' : 'Confirm Import'}
+                {importing ? 'Importing…' : 'Confirm Import'}
               </button>
             </div>
           </div>
@@ -1516,7 +1516,7 @@ function MeterRecordsTab({ propertyId }: { propertyId: string }) {
               <tbody>
                 {previewRows.map((r, i) => (
                   <tr key={i}>
-                    <td>{r.tenant || 'â€”'}</td>
+                    <td>{r.tenant || '—'}</td>
                     <td>{r.unitCode}</td>
                     <td>{r.meterType}</td>
                     <td>{r.meterNo}</td>

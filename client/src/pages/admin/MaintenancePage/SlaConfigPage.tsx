@@ -81,19 +81,19 @@ export default function SlaConfigPage() {
         <div className="sla-defaults-grid">
           <div className="sla-default-item">
             <span className="sla-default-priority" style={{ color: '#ef4444' }}>P1</span>
-            <span>Response: <strong className="sla-hours">2h</strong> Â· Resolution: <strong className="sla-hours">8h</strong></span>
+            <span>Response: <strong className="sla-hours">2h</strong> · Resolution: <strong className="sla-hours">8h</strong></span>
           </div>
           <div className="sla-default-item">
             <span className="sla-default-priority" style={{ color: '#f97316' }}>P2</span>
-            <span>Response: <strong className="sla-hours">4h</strong> Â· Resolution: <strong className="sla-hours">24h</strong></span>
+            <span>Response: <strong className="sla-hours">4h</strong> · Resolution: <strong className="sla-hours">24h</strong></span>
           </div>
           <div className="sla-default-item">
             <span className="sla-default-priority" style={{ color: '#3b82f6' }}>P3</span>
-            <span>Response: <strong className="sla-hours">8h</strong> Â· Resolution: <strong className="sla-hours">72h</strong></span>
+            <span>Response: <strong className="sla-hours">8h</strong> · Resolution: <strong className="sla-hours">72h</strong></span>
           </div>
           <div className="sla-default-item">
             <span className="sla-default-priority" style={{ color: '#94a3b8' }}>P4</span>
-            <span>Response: <strong className="sla-hours">24h</strong> Â· Resolution: <strong className="sla-hours">168h</strong></span>
+            <span>Response: <strong className="sla-hours">24h</strong> · Resolution: <strong className="sla-hours">168h</strong></span>
           </div>
         </div>
       </div>
@@ -143,14 +143,14 @@ export default function SlaConfigPage() {
                       <td><span className="cell-secondary">{c.propertyId ? 'Specific' : 'All Properties'}</span></td>
                       <td><span className="sla-hours">{c.responseHours}h</span></td>
                       <td><span className="sla-hours">{c.resolutionHours}h</span></td>
-                      <td><span className="cell-secondary">{c.workingHoursOnly ? 'âœ“ Yes' : 'â€”'}</span></td>
+                      <td><span className="cell-secondary">{c.workingHoursOnly ? '✓ Yes' : '—'}</span></td>
                       <td>
                         <span className="cell-secondary">
                           {c.escalationContact
                             ? (c.escalationContact.profile
                               ? `${c.escalationContact.profile.firstName} ${c.escalationContact.profile.lastName}`
                               : c.escalationContact.email)
-                            : 'â€”'}
+                            : '—'}
                         </span>
                       </td>
                       <td>
@@ -203,7 +203,7 @@ export default function SlaConfigPage() {
   );
 }
 
-// â”€â”€ Shared Create/Edit Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Shared Create/Edit Modal ────────────────────
 function SlaConfigModal({ mode, initialData, categories, onClose }: {
   mode: 'create' | 'edit';
   initialData?: SlaConfigItem;
@@ -337,7 +337,7 @@ function SlaConfigModal({ mode, initialData, categories, onClose }: {
           <div className="maint-modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? "Savingâ€¦" : isEdit ? 'Update Config' : 'Create Config'}
+              {isLoading ? "Saving…" : isEdit ? 'Update Config' : 'Create Config'}
             </button>
           </div>
         </form>

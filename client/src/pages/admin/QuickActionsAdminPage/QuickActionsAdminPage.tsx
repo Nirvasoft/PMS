@@ -23,8 +23,8 @@ const ACTION_TYPES = [
 ];
 
 const ICON_OPTIONS = [
-  'ðŸ’³', 'ðŸ”§', 'ðŸ“', 'ðŸ“ž', 'ðŸ ', 'ðŸš—', 'ðŸ“‹', 'ðŸ”‘', 'ðŸ“¦', 'ðŸŽ‰',
-  'âš¡', 'ðŸ›¡ï¸', 'ðŸ“Š', 'ðŸ’°', 'ðŸ””', 'ðŸ‘¤', 'ðŸ“§', 'ðŸ¢', 'ðŸ—“ï¸', 'âœ‰ï¸',
+  '💳', '🔧', '📝', '📞', '🏠', '🚗', '📋', '🔑', '📦', '🎉',
+  '⚡', '🛡️', '📊', '💰', '🔔', '👤', '📧', '🏢', '🗓️', '✉️',
 ];
 
 export default function QuickActionsAdminPage() {
@@ -35,7 +35,7 @@ export default function QuickActionsAdminPage() {
   );
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
-  // /properties requires properties.read, which a community-only role may lack â€” use the
+  // /properties requires properties.read, which a community-only role may lack — use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
   const { data: scopeData } = useGetMyPropertyScopeQuery();
@@ -53,7 +53,7 @@ export default function QuickActionsAdminPage() {
   const [showForm, setShowForm] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
-    propertyId: '', label: '', icon: 'âš¡', actionType: 'page', actionUrl: '', sortOrder: 0,
+    propertyId: '', label: '', icon: '⚡', actionType: 'page', actionUrl: '', sortOrder: 0,
   });
 
   // Clears back to "Select Property" (or re-locks to the new property) if the sidebar
@@ -87,7 +87,7 @@ export default function QuickActionsAdminPage() {
       toast.success('Quick action created');
       setShowForm(false);
       setSubmitted(false);
-      setForm({ propertyId: '', label: '', icon: 'âš¡', actionType: 'page', actionUrl: '', sortOrder: 0 });
+      setForm({ propertyId: '', label: '', icon: '⚡', actionType: 'page', actionUrl: '', sortOrder: 0 });
     } catch (err: any) {
       toast.error(err?.data?.errors?.[0]?.message || 'Failed to create');
     }
@@ -125,7 +125,7 @@ export default function QuickActionsAdminPage() {
       </div>
 
       <div className="section-toolbar" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
-        {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select value={propertyFilter} disabled className="form-select" style={{ width: 220 }}>
           {!propertyFilter && <option value="">All Properties</option>}
           {propertyFilter && (
@@ -162,7 +162,7 @@ export default function QuickActionsAdminPage() {
                   className={`form-select ${submitted && !form.propertyId ? 'maint-input-error' : ''}`}
                 >
                   {propertyLocked ? (
-                    <option value={form.propertyId}>{lockedPropertyName || 'Loadingâ€¦'}</option>
+                    <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
                   ) : (
                     <>
                       <option value="">Select Property</option>
@@ -277,9 +277,9 @@ export default function QuickActionsAdminPage() {
               <tbody>
                 {actions.map((qa) => (
                   <tr key={qa.id} style={{ opacity: qa.isActive === false ? 0.5 : 1 }}>
-                    <td style={{ fontSize: '1.3rem' }}>{qa.icon || 'âš¡'}</td>
+                    <td style={{ fontSize: '1.3rem' }}>{qa.icon || '⚡'}</td>
                     <td style={{ fontWeight: 600 }}>{qa.label}</td>
-                    <td>{qa.property?.name || 'â€”'}</td>
+                    <td>{qa.property?.name || '—'}</td>
                     <td>
                       <span className={`status-badge ${qa.actionType === 'page' ? 'status-active' : qa.actionType === 'link' ? 'status-pending' : 'status-closed'}`}>
                         {qa.actionType}
@@ -291,7 +291,7 @@ export default function QuickActionsAdminPage() {
                           {qa.actionUrl}
                           {qa.actionType === 'link' && <ExternalLink size={12} />}
                         </span>
-                      ) : 'â€”'}
+                      ) : '—'}
                     </td>
                     <td>{qa.sortOrder}</td>
                     <td>

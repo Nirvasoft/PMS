@@ -13,13 +13,13 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const ZONE_TYPES = ['corridor', 'lobby', 'car_park', 'amenity', 'office', 'restroom', 'other'];
 const ZONE_META: Record<string, { emoji: string; color: string; bg: string }> = {
-  corridor: { emoji: 'ðŸš¶', color: '#6366f1', bg: 'rgba(99,102,241,0.08)' },
-  lobby:    { emoji: 'ðŸ›ï¸', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
-  car_park: { emoji: 'ðŸ…¿ï¸', color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)' },
-  amenity:  { emoji: 'ðŸŠ', color: '#10b981', bg: 'rgba(16,185,129,0.08)' },
-  office:   { emoji: 'ðŸ¢', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)' },
-  restroom: { emoji: 'ðŸš»', color: '#f97316', bg: 'rgba(249,115,22,0.08)' },
-  other:    { emoji: 'ðŸ“', color: '#6b7280', bg: 'rgba(107,114,128,0.08)' },
+  corridor: { emoji: '🚶', color: '#6366f1', bg: 'rgba(99,102,241,0.08)' },
+  lobby:    { emoji: '🏛️', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
+  car_park: { emoji: '🅿️', color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)' },
+  amenity:  { emoji: '🏊', color: '#10b981', bg: 'rgba(16,185,129,0.08)' },
+  office:   { emoji: '🏢', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)' },
+  restroom: { emoji: '🚻', color: '#f97316', bg: 'rgba(249,115,22,0.08)' },
+  other:    { emoji: '📍', color: '#6b7280', bg: 'rgba(107,114,128,0.08)' },
 };
 
 export default function ZoneManagementPage() {
@@ -91,7 +91,7 @@ export default function ZoneManagementPage() {
 
   return (
     <div className="maint-page">
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Map size={22} /></div>
@@ -107,7 +107,7 @@ export default function ZoneManagementPage() {
         </PermissionGuard>
       </div>
 
-      {/* â”€â”€ Stats â”€â”€ */}
+      {/* ── Stats ── */}
       <div className="hk-hero-stats">
         <div className="hk-hero-stat-card" style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -147,7 +147,7 @@ export default function ZoneManagementPage() {
         )}
       </div>
 
-      {/* â”€â”€ Toolbar â”€â”€ */}
+      {/* ── Toolbar ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 200, maxWidth: 320, position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
@@ -157,7 +157,7 @@ export default function ZoneManagementPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Filter size={13} style={{ color: 'var(--text-tertiary)' }} />
-          {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+          {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select className="filter-select" value={filterProperty} disabled
             style={{ borderRadius: 10, fontSize: 12, padding: '7px 28px 7px 10px' }}>
             {filterProperty && (
@@ -176,7 +176,7 @@ export default function ZoneManagementPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Zone Cards â”€â”€ */}
+      {/* ── Zone Cards ── */}
       {isLoading ? (
         <TableSkeleton columns={5} rows={5} />
       ) : filtered.length === 0 ? (
@@ -263,7 +263,7 @@ export default function ZoneManagementPage() {
         ))
       )}
 
-      {/* â”€â”€ Create Modal â”€â”€ */}
+      {/* ── Create Modal ── */}
       {showCreate && (
         <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '480px', borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>

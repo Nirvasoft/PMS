@@ -65,7 +65,7 @@ export default function PositionsPage() {
     try {
       await deletePosition(id).unwrap();
       toast.success('Position deleted');
-    } catch { toast.error('Cannot delete Ã¢â‚¬â€ position may be in use'); }
+    } catch { toast.error('Cannot delete — position may be in use'); }
   };
 
   // Flatten departments for select
@@ -180,7 +180,7 @@ export default function PositionsPage() {
           />
         </div>
         <button className="btn-secondary" onClick={() => setShowFilters(!showFilters)}>
-          <Filter size={15} /> Filters{hasActiveFilters ? ' Ã¢â‚¬Â¢' : ''}
+          <Filter size={15} /> Filters{hasActiveFilters ? ' •' : ''}
         </button>
       </div>
 
@@ -224,7 +224,7 @@ export default function PositionsPage() {
           <div className="modal-card">
             <div className="modal-header">
               <h2>New Position</h2>
-              <button className="btn-icon" onClick={closeForm}>Ã¢Å“â€¢</button>
+              <button className="btn-icon" onClick={closeForm}>✕</button>
             </div>
             <form onSubmit={handleCreate} className="modal-body" noValidate>
               <div className="form-group">
@@ -246,7 +246,7 @@ export default function PositionsPage() {
                 <label>Division (optional)</label>
                 <select className="input-full" value={form.departmentId}
                   onChange={e => setForm({ ...form, departmentId: e.target.value })}>
-                  <option value="">Ã¢â‚¬â€ All Divisions Ã¢â‚¬â€</option>
+                  <option value="">— All Divisions —</option>
                   {flatDepts.map(d => (
                     <option key={d.id} value={d.id}>{'  '.repeat(d.depth) + d.name}</option>
                   ))}
@@ -306,16 +306,16 @@ export default function PositionsPage() {
                     <tr key={p.id}>
                       <td><strong>{p.name}</strong></td>
                       <td><span className="role-chip">Level {p.level}</span></td>
-                      <td className="text-muted">{p.departmentId ? flatDepts.find(d => d.id === p.departmentId)?.name || 'Ã¢â‚¬â€' : 'All'}</td>
+                      <td className="text-muted">{p.departmentId ? flatDepts.find(d => d.id === p.departmentId)?.name || '—' : 'All'}</td>
                       <td>
                         {(p as any).canApprove ? (
                           <span className="status-badge active">
-                            Ã¢Å“â€œ {(p as any).approvalLimit
-                              ? `Ã¢â€°Â¤ ${Number((p as any).approvalLimit).toLocaleString()}`
+                            ✓ {(p as any).approvalLimit
+                              ? `≤ ${Number((p as any).approvalLimit).toLocaleString()}`
                               : 'Unlimited'}
                           </span>
                         ) : (
-                          <span className="text-muted">Ã¢â‚¬â€</span>
+                          <span className="text-muted">—</span>
                         )}
                       </td>
                       <td style={{ textAlign: 'center' }}>

@@ -58,7 +58,7 @@ export default function AssetsListPage() {
         <PermissionGuard permission="finance-assets.write">
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn-sm" onClick={handleRunDepreciation} disabled={depRunning}>
-              {depRunning ? 'â³ Runningâ€¦' : 'âš™ï¸ Run Depreciation'}
+              {depRunning ? '⏳ Running…' : '⚙️ Run Depreciation'}
             </button>
             <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Asset</button>
           </div>
@@ -115,7 +115,7 @@ export default function AssetsListPage() {
                     <td className="amount negative">{fmtAmt(Number(a.accumulatedDepreciation))}</td>
                     <td className="amount positive">{fmtAmt(a.netBookValue)}</td>
                     <td><span className={`gl-badge ${a.status === 'active' ? 'open' : a.status === 'disposed' ? 'reversed' : 'closed'}`}>{a.status}</span></td>
-                    <td style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{a.currentLocation || 'â€”'}</td>
+                    <td style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{a.currentLocation || '—'}</td>
                   </tr>
                 ))}
                 {assets.length === 0 && (
@@ -288,7 +288,7 @@ function CreateAssetModal({ onClose }: { onClose: () => void }) {
 
           <div className="gl-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Creatingâ€¦' : 'Register Asset'}</button>
+            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Creating…' : 'Register Asset'}</button>
           </div>
         </form>
       </div>

@@ -50,7 +50,7 @@ export default function WorkflowsPage() {
   );
 }
 
-/* â”€â”€â”€ Definitions Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Definitions Tab ──────────────────────── */
 
 function DefinitionsTab() {
   const navigate = useNavigate();
@@ -168,7 +168,7 @@ function DefinitionsTab() {
   );
 }
 
-/* â”€â”€â”€ Instances Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Instances Tab ────────────────────────── */
 
 function InstancesTab() {
   const [statusFilter, setStatusFilter] = useState('');
@@ -222,7 +222,7 @@ function InstancesTab() {
             </div>
             {inst.status === 'cancelled' && inst.cancelReason && (
               <div className="wf-instance-cancel-reason">
-                <span className="text-small text-muted">ðŸ’¬ {inst.cancelReason}</span>
+                <span className="text-small text-muted">💬 {inst.cancelReason}</span>
               </div>
             )}
             {inst.status === 'running' && (
@@ -258,9 +258,9 @@ function InstancesTab() {
 
       {meta && meta.totalPages > 1 && (
         <div className="pagination">
-          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>â† Prev</button>
+          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
           <span className="text-secondary">Page {meta.page} of {meta.totalPages}</span>
-          <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next â†’</button>
+          <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next →</button>
         </div>
       )}
 
@@ -270,7 +270,7 @@ function InstancesTab() {
           <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div className="modal-header">
               <h2>Cancel Workflow</h2>
-              <button className="btn-icon" onClick={() => setCancelModal(null)}>âœ•</button>
+              <button className="btn-icon" onClick={() => setCancelModal(null)}>✕</button>
             </div>
             <div className="modal-body">
               <div className="cancel-modal-info">
@@ -284,7 +284,7 @@ function InstancesTab() {
                   rows={3}
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="e.g. Duplicate request, requirements changed, submitted in errorâ€¦"
+                  placeholder="e.g. Duplicate request, requirements changed, submitted in error…"
                 />
               </div>
               <div className="modal-actions">
@@ -314,7 +314,7 @@ function InstancesTab() {
   );
 }
 
-/* â”€â”€â”€ Instance Detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Instance Detail ──────────────────────── */
 
 function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const { data, isLoading } = useGetInstanceQuery(id);
@@ -328,9 +328,9 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
         <h3>Instance Detail</h3>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Link to={`/admin/workflows/instances/${id}`} className="btn btn-sm">
-            Open Full Page â†’
+            Open Full Page →
           </Link>
-          <button className="btn-icon" onClick={onClose}>âœ•</button>
+          <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
       </div>
 
@@ -344,7 +344,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
         </span>
         {inst.status === 'cancelled' && inst.cancelReason && (
           <div className="wf-cancel-reason-display">
-            <span className="text-small">ðŸ’¬ <strong>Cancel reason:</strong> {inst.cancelReason}</span>
+            <span className="text-small">💬 <strong>Cancel reason:</strong> {inst.cancelReason}</span>
           </div>
         )}
       </div>
@@ -362,18 +362,18 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 </span>
                 <span><strong>{t.title}</strong></span>
                 <span className="text-muted text-small">
-                  â†’ {nm ? `${nm.firstName} ${nm.lastName}` : 'Unassigned'}
+                  → {nm ? `${nm.firstName} ${nm.lastName}` : 'Unassigned'}
                 </span>
               </div>
               {t.slaBreached && (
                 <div className="wf-task-sla-info">
                   <span className="sla-chip breached">
-                    {t.escalatedAt ? 'ðŸ”º Escalated' : 'âš ï¸ SLA Breached'}
+                    {t.escalatedAt ? '🔺 Escalated' : '⚠️ SLA Breached'}
                   </span>
                   {escNm && (
                     <span className="text-small text-muted">
-                      â†’ Escalated to <strong>{escNm.firstName} {escNm.lastName}</strong>
-                      {t.escalatedAt && ` Â· ${new Date(t.escalatedAt).toLocaleString()}`}
+                      → Escalated to <strong>{escNm.firstName} {escNm.lastName}</strong>
+                      {t.escalatedAt && ` · ${new Date(t.escalatedAt).toLocaleString()}`}
                     </span>
                   )}
                 </div>
@@ -381,7 +381,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
               {t.slaDueAt && !t.slaBreached && t.status === 'pending' && (
                 <div className="wf-task-sla-info">
                   <span className={`sla-chip ${t.remindedAt ? 'reminded' : 'normal'}`}>
-                    â³ Due: {new Date(t.slaDueAt).toLocaleString()}
+                    ⏳ Due: {new Date(t.slaDueAt).toLocaleString()}
                   </span>
                 </div>
               )}
@@ -402,7 +402,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 <div className="wf-timeline-content">
                   <span className="wf-timeline-action">{h.action}</span>
                   <span className="text-muted text-small">
-                    {prf ? `${prf.firstName} ${prf.lastName}` : 'System'} Â· {new Date(h.createdAt).toLocaleString()}
+                    {prf ? `${prf.firstName} ${prf.lastName}` : 'System'} · {new Date(h.createdAt).toLocaleString()}
                   </span>
                   {h.comments && <span className="text-small">"{h.comments}"</span>}
                 </div>
@@ -415,7 +415,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-/* â”€â”€â”€ Create Workflow Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Create Workflow Modal ────────────────── */
 
 const ENTITY_TYPES = [
   { value: 'lease', label: 'Lease' },
@@ -435,7 +435,7 @@ function CreateWorkflowModal({ onClose }: { onClose: () => void }) {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Create with a simple start â†’ approval â†’ end graph
+      // Create with a simple start → approval → end graph
       const graph = {
         nodes: [
           { id: 'start', type: 'start' },
@@ -466,7 +466,7 @@ function CreateWorkflowModal({ onClose }: { onClose: () => void }) {
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>New Workflow</h2>
-          <button className="btn-icon" onClick={onClose}>âœ•</button>
+          <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleCreate} className="modal-body">
           <div className="form-group">
@@ -488,7 +488,7 @@ function CreateWorkflowModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="info-card" style={{ marginTop: 8 }}>
             <p className="text-small text-muted">
-              ðŸ’¡ A default graph (Start â†’ Manager Approval â†’ End) will be created.
+              💡 A default graph (Start → Manager Approval → End) will be created.
               Edit the JSON graph via the API to customize the workflow before publishing.
             </p>
           </div>
@@ -504,7 +504,7 @@ function CreateWorkflowModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* â”€â”€â”€ Start Instance Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Start Instance Modal ─────────────────── */
 
 function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefinition; onClose: () => void }) {
   const [startInstance, { isLoading }] = useStartInstanceMutation();
@@ -546,8 +546,8 @@ function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefin
     <div className="modal-overlay">
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540 }}>
         <div className="modal-header">
-          <h2>â–¶ Start Workflow</h2>
-          <button className="btn-icon" onClick={onClose}>âœ•</button>
+          <h2>▶ Start Workflow</h2>
+          <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleStart} className="modal-body">
           <div className="info-card" style={{ marginBottom: 16 }}>
@@ -556,11 +556,11 @@ function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefin
               <br />
               Entity type: <span className="role-chip">{definition.entityType}</span>
               <br />
-              Nodes: {definition.graph.nodes.map(n => `${n.type}${n.data?.name ? ` (${n.data.name})` : ''}`).join(' â†’ ')}
+              Nodes: {definition.graph.nodes.map(n => `${n.type}${n.data?.name ? ` (${n.data.name})` : ''}`).join(' → ')}
             </p>
           </div>
 
-          {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>âš  {error}</div>}
+          {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>⚠ {error}</div>}
 
           <div className="form-group">
             <label>Entity ID <span className="text-muted text-small">(leave blank for auto-generated)</span></label>
@@ -578,7 +578,7 @@ function StartInstanceModal({ definition, onClose }: { definition: WorkflowDefin
           <div className="modal-actions">
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-success" disabled={isLoading}>
-              {isLoading ? 'â³ Starting...' : 'â–¶ Start Instance'}
+              {isLoading ? '⏳ Starting...' : '▶ Start Instance'}
             </button>
           </div>
         </form>

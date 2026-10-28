@@ -135,7 +135,7 @@ export default function JournalEntriesPage() {
           />
           <input
             type="text"
-            placeholder="Search JE #, description, department, cost centerâ€¦"
+            placeholder="Search JE #, description, department, cost center…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: 34, paddingRight: search ? 30 : 12, boxSizing: 'border-box' }}
@@ -198,7 +198,7 @@ export default function JournalEntriesPage() {
                               <span
                                 key={d.id || d.code}
                                 className="gl-badge"
-                                title={`${d.code} â€” ${d.name}`}
+                                title={`${d.code} — ${d.name}`}
                                 style={{
                                   fontSize: '0.68rem',
                                   background: 'rgba(139, 92, 246, 0.14)',
@@ -211,7 +211,7 @@ export default function JournalEntriesPage() {
                             ))}
                           </div>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>â€”</span>
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
                         )}
                       </td>
                       <td>
@@ -221,7 +221,7 @@ export default function JournalEntriesPage() {
                               <span
                                 key={c.id || c.code}
                                 className="gl-badge"
-                                title={`${c.code} â€” ${c.name}`}
+                                title={`${c.code} — ${c.name}`}
                                 style={{
                                   fontSize: '0.68rem',
                                   background: 'rgba(59, 130, 246, 0.14)',
@@ -234,7 +234,7 @@ export default function JournalEntriesPage() {
                             ))}
                           </div>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>â€”</span>
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
                         )}
                       </td>
                       <td className="amount">{fmtAmt(Number(je.totalDebit))}</td>
@@ -348,18 +348,18 @@ function JournalEntryDetailModal({
           </div>
           <div className="je-detail-meta-item">
             <span className="meta-label">Fiscal Period</span>
-            <span className="meta-value">{entry.fiscalPeriod?.name || 'â€”'}</span>
+            <span className="meta-value">{entry.fiscalPeriod?.name || '—'}</span>
           </div>
           <div className="je-detail-meta-item">
             <span className="meta-label">Department</span>
             <span className="meta-value">
-              {entryDepts.length > 0 ? entryDepts.map((d) => d.code).join(', ') : 'â€”'}
+              {entryDepts.length > 0 ? entryDepts.map((d) => d.code).join(', ') : '—'}
             </span>
           </div>
           <div className="je-detail-meta-item">
             <span className="meta-label">Cost Center</span>
             <span className="meta-value">
-              {entryCcs.length > 0 ? entryCcs.map((c) => c.code).join(', ') : 'â€”'}
+              {entryCcs.length > 0 ? entryCcs.map((c) => c.code).join(', ') : '—'}
             </span>
           </div>
           <div className="je-detail-meta-item">
@@ -394,10 +394,10 @@ function JournalEntryDetailModal({
                   return (
                     <tr key={line.id || idx}>
                       <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
-                      <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{line.account?.code || 'â€”'}</td>
+                      <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{line.account?.code || '—'}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span>{line.account?.name || 'â€”'}</span>
+                          <span>{line.account?.name || '—'}</span>
                           {line.account?.accountType && (
                             <span className={`gl-type-chip ${line.account.accountType}`} style={{ fontSize: '0.65rem' }}>
                               {line.account.accountType}
@@ -409,7 +409,7 @@ function JournalEntryDetailModal({
                         {dept ? (
                           <span
                             className="gl-badge"
-                            title={`${dept.code} â€” ${dept.name}`}
+                            title={`${dept.code} — ${dept.name}`}
                             style={{
                               fontSize: '0.68rem',
                               background: 'rgba(139, 92, 246, 0.14)',
@@ -420,14 +420,14 @@ function JournalEntryDetailModal({
                             {dept.code}
                           </span>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>â€”</span>
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
                         )}
                       </td>
                       <td>
                         {cc ? (
                           <span
                             className="gl-badge"
-                            title={`${cc.code} â€” ${cc.name}`}
+                            title={`${cc.code} — ${cc.name}`}
                             style={{
                               fontSize: '0.68rem',
                               background: 'rgba(59, 130, 246, 0.14)',
@@ -438,12 +438,12 @@ function JournalEntryDetailModal({
                             {cc.code}
                           </span>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>â€”</span>
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
                         )}
                       </td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{line.description || 'â€”'}</td>
-                      <td className="amount">{Number(line.debit) > 0 ? fmtAmt(Number(line.debit)) : 'â€”'}</td>
-                      <td className="amount">{Number(line.credit) > 0 ? fmtAmt(Number(line.credit)) : 'â€”'}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{line.description || '—'}</td>
+                      <td className="amount">{Number(line.debit) > 0 ? fmtAmt(Number(line.debit)) : '—'}</td>
+                      <td className="amount">{Number(line.credit) > 0 ? fmtAmt(Number(line.credit)) : '—'}</td>
                     </tr>
                   );
                 })}
@@ -573,7 +573,7 @@ function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; prop
                 className={hasAttemptedSubmit && !form.description.trim() ? 'gl-input-error' : ''}
                 value={form.description}
                 onChange={e => setForm({...form, description: e.target.value})}
-                placeholder="Journal memoâ€¦"
+                placeholder="Journal memo…"
               />
               {hasAttemptedSubmit && !form.description.trim() && (
                 <span className="gl-error-text">Description is required</span>
@@ -592,12 +592,12 @@ function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; prop
                   value={line.accountId}
                   onChange={e => updateLine(i, 'accountId', e.target.value)}
                 >
-                  <option value="">Selectâ€¦</option>
+                  <option value="">Select…</option>
                   {nonControlAccounts.map(a => {
                     const deptCc = [a.departmentCenter?.code, a.costCenter?.code].filter(Boolean).join(' / ');
                     return (
                       <option key={a.id} value={a.id}>
-                        {a.code} â€” {a.name}{deptCc ? ` (${deptCc})` : ''}
+                        {a.code} — {a.name}{deptCc ? ` (${deptCc})` : ''}
                       </option>
                     );
                   })}
@@ -605,7 +605,7 @@ function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; prop
                 <input value={line.description} onChange={e => updateLine(i, 'description', e.target.value)} placeholder="Line memo" />
                 <input type="number" min="0" step="0.01" value={line.debit || ''} onChange={e => updateLine(i, 'debit', parseFloat(e.target.value) || 0)} placeholder="0.00" />
                 <input type="number" min="0" step="0.01" value={line.credit || ''} onChange={e => updateLine(i, 'credit', parseFloat(e.target.value) || 0)} placeholder="0.00" />
-                <button type="button" className="remove-line" onClick={() => removeLine(i)}>âœ•</button>
+                <button type="button" className="remove-line" onClick={() => removeLine(i)}>✕</button>
               </div>
             ))}
             {hasAttemptedSubmit && lines.some(l => !l.accountCode) && (
@@ -617,7 +617,7 @@ function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; prop
               <span>Total Debit: <strong>{fmtAmt(totalDebit)}</strong></span>
               <span>Total Credit: <strong>{fmtAmt(totalCredit)}</strong></span>
               <span className={isBalanced ? 'balanced' : 'unbalanced'}>
-                {isBalanced ? 'âœ“ Balanced' : 'âœ— Unbalanced'}
+                {isBalanced ? '✓ Balanced' : '✗ Unbalanced'}
               </span>
             </div>
           </div>
@@ -625,7 +625,7 @@ function CreateJournalModal({ onClose, propertyId }: { onClose: () => void; prop
           <div className="gl-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={isLoading}>
-              {isLoading ? 'Creatingâ€¦' : 'Create Journal Entry'}
+              {isLoading ? 'Creating…' : 'Create Journal Entry'}
             </button>
           </div>
         </form>

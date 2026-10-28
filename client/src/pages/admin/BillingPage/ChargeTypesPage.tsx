@@ -254,7 +254,7 @@ export default function ChargeTypesPage() {
             <Search size={15} className="search-icon" />
             <input
               type="text"
-              placeholder="Search code, name, GL accountâ€¦"
+              placeholder="Search code, name, GL account…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -275,7 +275,7 @@ export default function ChargeTypesPage() {
             className={`btn btn-secondary billing-filter-toggle-btn${showFilters || hasFilterSelections ? ' active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter size={14} /> Filters{hasFilterSelections ? ' â€¢' : ''}
+            <Filter size={14} /> Filters{hasFilterSelections ? ' •' : ''}
           </button>
         </div>
       </div>
@@ -383,17 +383,17 @@ export default function ChargeTypesPage() {
                   </td>
                   <td>
                     <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
-                      {ct.glAccountCode || 'â€”'}
+                      {ct.glAccountCode || '—'}
                     </span>
                   </td>
                   <td>
                     <span className="cell-mono" style={{ fontSize: 13, color: deptCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                      {deptCode || 'â€”'}
+                      {deptCode || '—'}
                     </span>
                   </td>
                   <td>
                     <span className="cell-mono" style={{ fontSize: 13, color: ccCode ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                      {ccCode || 'â€”'}
+                      {ccCode || '—'}
                     </span>
                   </td>
                   <td>
@@ -505,7 +505,7 @@ export default function ChargeTypesPage() {
                       value={form.category}
                       onChange={e => setForm({ ...form, category: e.target.value })}
                     >
-                      {categories.length === 0 && <option value="">No charge categories â€” add one first</option>}
+                      {categories.length === 0 && <option value="">No charge categories — add one first</option>}
                       {categories.map(cat => <option key={cat.id} value={cat.code}>{cat.description || cat.code}</option>)}
                     </select>
                     {isCategoryMissing && <span className="inv-error-text">Category is required</span>}
@@ -515,7 +515,7 @@ export default function ChargeTypesPage() {
                     <div className="coa-input-group">
                       <input
                         className="coa-bound-input"
-                        placeholder="Select from Chart of Accountsâ€¦"
+                        placeholder="Select from Chart of Accounts…"
                         value={form.glAccountCode}
                         readOnly
                         tabIndex={-1}
@@ -576,7 +576,7 @@ export default function ChargeTypesPage() {
                         })
                       }
                     >
-                      <option value="">â€” None â€”</option>
+                      <option value="">— None —</option>
                       {departmentCenters
                         .filter((d) => d.isActive)
                         .map((d) => (
@@ -597,7 +597,7 @@ export default function ChargeTypesPage() {
                         })
                       }
                     >
-                      <option value="">â€” None â€”</option>
+                      <option value="">— None —</option>
                       {costCenters
                         .filter((c) => {
                           if (!c.isActive) return false;
@@ -639,7 +639,7 @@ export default function ChargeTypesPage() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating || updating}>
-                  {creating || updating ? 'Savingâ€¦' : editing ? 'Save Changes' : 'Create Charge Type'}
+                  {creating || updating ? 'Saving…' : editing ? 'Save Changes' : 'Create Charge Type'}
                 </button>
               </div>
             </form>
@@ -665,7 +665,7 @@ export default function ChargeTypesPage() {
                 <Search size={15} className="coa-lookup-search-icon" />
                 <input
                   type="text"
-                  placeholder="Search by account code or nameâ€¦"
+                  placeholder="Search by account code or name…"
                   value={coaSearch}
                   onChange={e => setCoaSearch(e.target.value)}
                   autoFocus
@@ -751,12 +751,12 @@ export default function ChargeTypesPage() {
                             </td>
                             <td>
                               <span className="cell-mono" style={{ fontSize: 12, color: acc.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                {acc.departmentCenter?.code || 'â€”'}
+                                {acc.departmentCenter?.code || '—'}
                               </span>
                             </td>
                             <td>
                               <span className="cell-mono" style={{ fontSize: 12, color: acc.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                {acc.costCenter?.code || 'â€”'}
+                                {acc.costCenter?.code || '—'}
                               </span>
                             </td>
                             <td>

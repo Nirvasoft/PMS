@@ -96,7 +96,7 @@ function ChangePasswordSection() {
       toast.success('Password changed! Please sign in again.');
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
       setSubmitted(false);
-      // Force re-login â€” backend has already cleared the refresh token cookie
+      // Force re-login — backend has already cleared the refresh token cookie
       // and set mustChangePassword = false on the user record
       window.location.href = '/login';
     } catch (err: unknown) {
@@ -181,7 +181,7 @@ function DevicesSection() {
               <div className="device-info">
                 <span className="device-name">{d.deviceName as string || 'Unknown Device'}</span>
                 <span className="device-meta">
-                  {d.os as string} Â· {d.browser as string} Â· Last seen {d.lastSeenAt ? new Date(d.lastSeenAt as string).toLocaleDateString() : 'Never'}
+                  {d.os as string} · {d.browser as string} · Last seen {d.lastSeenAt ? new Date(d.lastSeenAt as string).toLocaleDateString() : 'Never'}
                 </span>
               </div>
               <button className="btn-icon btn-danger" onClick={() => handleRevoke(d.id as string)} title="Revoke">
@@ -287,7 +287,7 @@ function AuditLogSection() {
           )}
         </div>
         <div className="text-small text-muted" style={{ marginTop: 4 }}>
-          {isFetching ? 'Loading...' : `${totalCount} event${totalCount === 1 ? '' : 's'} found`}
+          {isFetching ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${totalCount} event${totalCount === 1 ? '' : 's'} found`}
         </div>
       </div>
 
@@ -321,7 +321,7 @@ function AuditLogSection() {
                           ? <span className="status-success"><CheckCircle size={14} /> Success</span>
                           : <span className="status-failure"><AlertTriangle size={14} /> Failure</span>}
                       </td>
-                      <td className="text-mono">{log.ipAddress as string || 'â€”'}</td>
+                      <td className="text-mono">{log.ipAddress as string || '—'}</td>
                       <td>{new Date(log.createdAt as string).toLocaleString()}</td>
                     </tr>
                   ))}
@@ -417,7 +417,7 @@ function MfaSetupSection() {
 
   const downloadBackupCodes = () => {
     if (!setupData) return;
-    const content = `PMS Backup Codes\nGenerated: ${new Date().toLocaleString()}\n${'â”€'.repeat(30)}\n${setupData.backupCodes.join('\n')}\n\nâš  Each code can only be used once.\n   Store this file securely.`;
+    const content = `PMS Backup Codes\nGenerated: ${new Date().toLocaleString()}\n${'─'.repeat(30)}\n${setupData.backupCodes.join('\n')}\n\n⚠ Each code can only be used once.\n   Store this file securely.`;
     const blob = new Blob([content], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -427,13 +427,13 @@ function MfaSetupSection() {
 
   const STEPS = ['Scan QR Code', 'Verify Code', 'Save Backup Codes'];
 
-  // â”€â”€ MFA Already Enabled â”€â”€
+  // ── MFA Already Enabled ──
   if (mfaEnabled && wizardStep < 3) {
     return (
       <div className="settings-section">
         <h2><Key size={20} /> Two-Factor Authentication</h2>
         <div className="info-card" style={{ borderLeft: '4px solid var(--success)', marginBottom: 16 }}>
-          <p><CheckCircle size={16} style={{ color: 'var(--success)' }} /> <strong>MFA is enabled</strong> â€” your account is protected with TOTP-based two-factor authentication.</p>
+          <p><CheckCircle size={16} style={{ color: 'var(--success)' }} /> <strong>MFA is enabled</strong> — your account is protected with TOTP-based two-factor authentication.</p>
         </div>
         <form onSubmit={handleDisable} className="settings-form" noValidate>
           <p className="text-muted">To disable MFA, enter a current authenticator code:</p>
@@ -459,7 +459,7 @@ function MfaSetupSection() {
     );
   }
 
-  // â”€â”€ Idle State (Not started) â”€â”€
+  // ── Idle State (Not started) ──
   if (wizardStep === 0) {
     return (
       <div className="settings-section">
@@ -470,12 +470,12 @@ function MfaSetupSection() {
           <div className="mfa-benefit-item"><Smartphone size={16} /> Works with any TOTP authenticator app</div>
           <div className="mfa-benefit-item"><Key size={16} /> Backup codes for account recovery</div>
         </div>
-        <button className="btn btn-primary" onClick={handleStart} style={{ marginTop: 16 }}>ðŸ” Set Up MFA</button>
+        <button className="btn btn-primary" onClick={handleStart} style={{ marginTop: 16 }}>🔐 Set Up MFA</button>
       </div>
     );
   }
 
-  // â”€â”€ Wizard Steps â”€â”€
+  // ── Wizard Steps ──
   return (
     <div className="settings-section">
       <h2><Key size={20} /> Set Up Two-Factor Authentication</h2>
@@ -516,14 +516,14 @@ function MfaSetupSection() {
                   className="btn btn-sm btn-outline"
                   onClick={() => copyToClipboard(setupData.secret, 'secret')}
                 >
-                  {copiedSecret ? 'âœ“ Copied' : 'Copy'}
+                  {copiedSecret ? '✓ Copied' : 'Copy'}
                 </button>
               </div>
             </div>
           </div>
           <div className="mfa-wizard-actions">
             <button className="btn btn-outline" onClick={() => { setWizardStep(0); setSetupData(null); }}>Cancel</button>
-            <button className="btn btn-primary" onClick={() => setWizardStep(2)}>Next: Verify Code â†’</button>
+            <button className="btn btn-primary" onClick={() => setWizardStep(2)}>Next: Verify Code →</button>
           </div>
         </div>
       )}
@@ -559,7 +559,7 @@ function MfaSetupSection() {
               </div>
             )}
             <div className="mfa-wizard-actions">
-              <button type="button" className="btn btn-outline" onClick={() => setWizardStep(1)}>â† Back</button>
+              <button type="button" className="btn btn-outline" onClick={() => setWizardStep(1)}>← Back</button>
               <button type="submit" className="btn btn-primary" disabled={enabling}>
                 {enabling ? <><Loader2 size={16} className="spin" /> Verifying...</> : 'Verify & Enable'}
               </button>
@@ -587,10 +587,10 @@ function MfaSetupSection() {
               className="btn btn-sm btn-outline"
               onClick={() => copyToClipboard(setupData.backupCodes.join('\n'), 'backup')}
             >
-              {copiedBackup ? 'âœ“ Copied!' : 'ðŸ“‹ Copy All'}
+              {copiedBackup ? '✓ Copied!' : '📋 Copy All'}
             </button>
             <button className="btn btn-sm btn-outline" onClick={downloadBackupCodes}>
-              ðŸ“¥ Download .txt
+              📥 Download .txt
             </button>
           </div>
           <div className="alert" style={{ marginTop: 16, padding: 10, background: 'color-mix(in srgb, var(--warning) 10%, transparent)', borderRadius: 8, fontSize: 13 }}>
@@ -615,7 +615,7 @@ function MfaSetupSection() {
   );
 }
 
-/* â”€â”€â”€ IP Policy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── IP Policy ───────────────────────────── */
 
 function IpPolicySection() {
   const { data, isLoading } = useGetIpPoliciesQuery();
@@ -672,7 +672,7 @@ function IpPolicySection() {
                   <tr key={p.id as string}>
                     <td className="text-mono">{p.ipAddress as string}</td>
                     <td><span className={`status-badge ${p.type === 'allow' ? 'active' : 'danger'}`}>{p.type as string}</span></td>
-                    <td>{p.description as string || 'â€”'}</td>
+                    <td>{p.description as string || '—'}</td>
                     <td><button className="btn-icon btn-danger" onClick={async () => { await deletePolicy(p.id as string).unwrap(); toast.success('Removed'); }}><Trash2 size={14} /></button></td>
                   </tr>
                 ))}
@@ -685,7 +685,7 @@ function IpPolicySection() {
   );
 }
 
-/* â”€â”€â”€ Password Policy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Password Policy ─────────────────────── */
 
 function PasswordPolicySection() {
   const { data, isLoading } = useGetPasswordPolicyQuery();

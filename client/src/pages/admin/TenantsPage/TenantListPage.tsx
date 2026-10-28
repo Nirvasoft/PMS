@@ -102,7 +102,7 @@ export default function TenantListPage() {
           <div className="page-icon"><Users size={22} /></div>
           <div>
             <h1>Tenants</h1>
-            <p>{meta ? `${meta.total} total tenants` : 'Loading…'}</p>
+            <p>{meta ? `${meta.total} total tenants` : <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} />}</p>
           </div>
         </div>
         <div className="page-actions">

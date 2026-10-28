@@ -81,7 +81,7 @@ export default function LeadPipelinePage() {
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Lead Pipeline</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              {meta ? `${meta.total} total leads` : 'Loading…'}
+              {meta ? `${meta.total} total leads` : <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} />}
             </p>
           </div>
         </div>

@@ -23,7 +23,7 @@ export default function PmCalendarPage() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
 
-  // Active property from the sidebar Ã¢â‚¬â€ follows the same pattern as Parking Overview.
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
@@ -94,10 +94,10 @@ export default function PmCalendarPage() {
           </div>
         </div>
         <div className="header-actions">
-          {/* Property follows the sidebar's "Active Property" selector Ã¢â‚¬â€ not independently choosable here. */}
+          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select className="filter-select" value={selectedProperty} disabled>
             {!selectedProperty && <option value="">All Properties</option>}
-            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'LoadingÃ¢â‚¬Â¦'}</option>}
+            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
           </select>
         </div>
       </div>

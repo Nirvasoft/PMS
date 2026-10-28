@@ -183,7 +183,7 @@ export default function VisitorBlacklistPage() {
               {formErrors.reason && <span className="maint-error-text">{formErrors.reason}</span>}
             </div>
             <p className="text-muted" style={{ fontSize: '0.8rem', margin: '8px 0 0' }}>
-              â“˜ At least one identifier (name, IC, or mobile) is required. The system will check against these when visitors are pre-registered.
+              ⓘ At least one identifier (name, IC, or mobile) is required. The system will check against these when visitors are pre-registered.
             </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
               <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
@@ -222,16 +222,16 @@ export default function VisitorBlacklistPage() {
               <tbody>
                 {items.map((entry) => (
                   <tr key={entry.id} style={{ opacity: entry.isActive ? 1 : 0.5 }}>
-                    <td style={{ fontWeight: 600 }}>{entry.visitorName || 'â€”'}</td>
-                    <td className="cell-mono">{entry.visitorIc || 'â€”'}</td>
-                    <td>{entry.visitorMobile || 'â€”'}</td>
+                    <td style={{ fontWeight: 600 }}>{entry.visitorName || '—'}</td>
+                    <td className="cell-mono">{entry.visitorIc || '—'}</td>
+                    <td>{entry.visitorMobile || '—'}</td>
                     <td title={entry.reason} style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {entry.reason}
                     </td>
                     <td>
                       {entry.addedByUser?.profile
                         ? `${entry.addedByUser.profile.firstName} ${entry.addedByUser.profile.lastName}`
-                        : entry.addedByUser?.email || 'â€”'}
+                        : entry.addedByUser?.email || '—'}
                     </td>
                     <td>{new Date(entry.addedAt).toLocaleDateString()}</td>
                     <td>

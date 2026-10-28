@@ -38,7 +38,7 @@ export default function PmWorkOrderListPage() {
     status: '', page: 1, limit: 20,
   });
 
-  // Active property from the sidebar Ã¢â‚¬â€ follows the same pattern as Parking Overview.
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
@@ -101,10 +101,10 @@ export default function PmWorkOrderListPage() {
             onChange={(e) => setFilters(f => ({ ...f, status: e.target.value, page: 1 }))}>
             {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          {/* Property follows the sidebar's "Active Property" selector Ã¢â‚¬â€ not independently choosable here. */}
+          {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
           <select className="filter-select" value={selectedProperty} disabled>
             {!selectedProperty && <option value="">All Properties</option>}
-            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'LoadingÃ¢â‚¬Â¦'}</option>}
+            {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
           </select>
         </div>
         <div className="toolbar-stats">
@@ -151,7 +151,7 @@ export default function PmWorkOrderListPage() {
                               className="cell-primary" style={{ cursor: 'pointer', color: 'var(--primary)' }}
                               onClick={() => wo.scheduleId && navigate(`/admin/maintenance/pm/${wo.scheduleId}`)}
                             >
-                              {wo.schedule?.name || 'Ã¢â‚¬â€'}
+                              {wo.schedule?.name || '—'}
                             </span>
                             {wo.schedule?.category && (
                               <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>
@@ -160,7 +160,7 @@ export default function PmWorkOrderListPage() {
                             )}
                           </div>
                         </td>
-                        <td><span className="cell-secondary">{wo.schedule?.property?.name || 'Ã¢â‚¬â€'}</span></td>
+                        <td><span className="cell-secondary">{wo.schedule?.property?.name || '—'}</span></td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <span className="cell-mono">{new Date(wo.dueDate).toLocaleDateString()}</span>
@@ -179,7 +179,7 @@ export default function PmWorkOrderListPage() {
                         </td>
                         <td>
                           <span className="cell-secondary">
-                            {wo.completedAt ? new Date(wo.completedAt).toLocaleString() : 'Ã¢â‚¬â€'}
+                            {wo.completedAt ? new Date(wo.completedAt).toLocaleString() : '—'}
                           </span>
                           {wo.completedBy?.profile && (
                             <span className="cell-secondary" style={{ display: 'block', fontSize: '11px' }}>
@@ -192,7 +192,7 @@ export default function PmWorkOrderListPage() {
                             maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap', display: 'block',
                           }}>
-                            {wo.findings || 'Ã¢â‚¬â€'}
+                            {wo.findings || '—'}
                           </span>
                         </td>
                         <td>
@@ -213,7 +213,7 @@ export default function PmWorkOrderListPage() {
                               </div>
                             </PermissionGuard>
                           ) : (
-                            <span className="cell-secondary" style={{ fontSize: 11 }}>Ã¢â‚¬â€</span>
+                            <span className="cell-secondary" style={{ fontSize: 11 }}>—</span>
                           )}
                         </td>
                       </tr>

@@ -98,10 +98,10 @@ export default function PortalKyc() {
           {(kyc.verifiedAt || kyc.expiryDate) && (
             <div style={{ display: 'flex', gap: 24, marginBottom: 20, fontSize: '0.85rem' }} className="text-muted">
               {kyc.verifiedAt && (
-                <span>âœ“ Verified on {new Date(kyc.verifiedAt).toLocaleDateString()}</span>
+                <span>✓ Verified on {new Date(kyc.verifiedAt).toLocaleDateString()}</span>
               )}
               {kyc.expiryDate && (
-                <span>â° Expires {new Date(kyc.expiryDate).toLocaleDateString()}</span>
+                <span>⏰ Expires {new Date(kyc.expiryDate).toLocaleDateString()}</span>
               )}
             </div>
           )}

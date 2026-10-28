@@ -15,10 +15,10 @@ import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
 
 const PROVIDERS = [
-  { value: 'azure_ad', label: 'Azure AD', icon: 'ðŸ”·' },
-  { value: 'google', label: 'Google Workspace', icon: 'ðŸ”´' },
-  { value: 'okta', label: 'Okta', icon: 'ðŸŸ¡' },
-  { value: 'oidc', label: 'Generic OIDC', icon: 'ðŸ”‘' },
+  { value: 'azure_ad', label: 'Azure AD', icon: '🔷' },
+  { value: 'google', label: 'Google Workspace', icon: '🔴' },
+  { value: 'okta', label: 'Okta', icon: '🟡' },
+  { value: 'oidc', label: 'Generic OIDC', icon: '🔑' },
 ];
 
 const emptyForm = {
@@ -133,10 +133,10 @@ export default function SsoConfigPage() {
             return (
               <div key={config.id} className={`sso-config-card ${config.isEnabled ? 'enabled' : 'disabled'}`}>
                 <div className="sso-config-header">
-                  <span className="sso-provider-icon">{provider?.icon || 'ðŸ”'}</span>
+                  <span className="sso-provider-icon">{provider?.icon || '🔐'}</span>
                   <div className="sso-config-info">
                     <h3>{config.name}</h3>
-                    <span className="text-muted text-small">{provider?.label || config.provider} Â· {config.protocol.toUpperCase()}</span>
+                    <span className="text-muted text-small">{provider?.label || config.provider} · {config.protocol.toUpperCase()}</span>
                   </div>
                   <PermissionGuard permission="company.manage">
                     <button
@@ -291,7 +291,7 @@ function SsoConfigModal({
               </div>
               <div className="form-group">
                 <label>Client Secret</label>
-                <input type="password" value={form.clientSecret} onChange={e => set('clientSecret', e.target.value)} placeholder={editId ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : 'Client secret value'} />
+                <input type="password" value={form.clientSecret} onChange={e => set('clientSecret', e.target.value)} placeholder={editId ? '••••••••' : 'Client secret value'} />
               </div>
             </div>
 

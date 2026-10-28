@@ -149,7 +149,7 @@ export default function TaxConfigPage() {
                 </td>
                 <td>
                   <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                    {tax.effectiveTo ? format(new Date(tax.effectiveTo), 'MMM d, yyyy') : 'â€”'}
+                    {tax.effectiveTo ? format(new Date(tax.effectiveTo), 'MMM d, yyyy') : '—'}
                   </span>
                 </td>
                 <td>
@@ -248,7 +248,7 @@ export default function TaxConfigPage() {
                       </span>
                     </div>
                     {hasAttemptedSubmit && isRateInvalid && (
-                      <span className="inv-error-text">Valid tax rate (0â€“1) is required</span>
+                      <span className="inv-error-text">Valid tax rate (0–1) is required</span>
                     )}
                   </div>
                   <div className="inv-field">
@@ -298,7 +298,7 @@ export default function TaxConfigPage() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating}>
-                  {creating ? 'Savingâ€¦' : 'Create Tax Config'}
+                  {creating ? 'Saving…' : 'Create Tax Config'}
                 </button>
               </div>
             </form>

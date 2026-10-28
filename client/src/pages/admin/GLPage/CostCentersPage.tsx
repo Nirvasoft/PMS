@@ -45,7 +45,7 @@ export default function CostCentersPage() {
 
   const handleDelete = async (cc: CostCenter) => {
     const ok = await confirmDialog(
-      `Delete Cost Center "${cc.code} â€” ${cc.name}"?`,
+      `Delete Cost Center "${cc.code} — ${cc.name}"?`,
       { danger: true, confirmText: 'Delete' }
     );
     if (!ok) return;
@@ -98,7 +98,7 @@ export default function CostCentersPage() {
           />
           <input
             type="text"
-            placeholder="Search by code, name, or descriptionâ€¦"
+            placeholder="Search by code, name, or description…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: 34, paddingRight: search ? 30 : 12, boxSizing: 'border-box' }}
@@ -162,7 +162,7 @@ export default function CostCentersPage() {
                     </td>
                     <td style={{ fontWeight: 600 }}>{cc.name}</td>
                     <td style={{ color: 'var(--text-secondary)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {cc.description || 'â€”'}
+                      {cc.description || '—'}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span className="gl-badge" style={{ background: 'rgba(16, 185, 129, 0.14)', color: '#34d399' }}>
@@ -315,7 +315,7 @@ function CostCenterModal({
             <label>Description</label>
             <textarea
               rows={2}
-              placeholder="Optional description of this cost centerâ€¦"
+              placeholder="Optional description of this cost center…"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />

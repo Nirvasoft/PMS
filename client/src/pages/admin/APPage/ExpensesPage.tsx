@@ -31,7 +31,7 @@ export default function ExpensesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
 
-  // Active property from the sidebar â€” follows the same pattern as Parking Overview.
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
@@ -61,7 +61,7 @@ export default function ExpensesPage() {
     };
   }, [expenses]);
 
-  // Create form â€” propertyId is always seeded from the active property.
+  // Create form — propertyId is always seeded from the active property.
   const [form, setForm] = useState({
     expenseDate: format(new Date(), 'yyyy-MM-dd'), category: 'maintenance',
     description: '', amount: '', currency: 'USD', propertyId: selectedProperty,
@@ -141,10 +141,10 @@ export default function ExpensesPage() {
 
       {/* Filters */}
       <div className="ap-filters">
-        {/* Property follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+        {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select value={selectedProperty} disabled style={{ minWidth: 180 }}>
           {!selectedProperty && <option value="">All Properties</option>}
-          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loadingâ€¦'}</option>}
+          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
         </select>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="">All Statuses</option>
@@ -189,7 +189,7 @@ export default function ExpensesPage() {
                   <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</td>
                   <td className="amount-neutral">{fmt(exp.amount)} {exp.currency}</td>
                   <td>{exp.submitter?.profile ? `${exp.submitter.profile.firstName} ${exp.submitter.profile.lastName}` : exp.submitter?.email}</td>
-                  <td>{exp.property?.name || 'â€”'}</td>
+                  <td>{exp.property?.name || '—'}</td>
                   <td><span className={`ap-status ${exp.status}`}>{exp.status}</span></td>
                   <td>
                     {exp.status === 'pending' && (
@@ -282,10 +282,10 @@ export default function ExpensesPage() {
                 </div>
                 <div className="ap-form-group">
                   <label>Property</label>
-                  {/* Locked to the sidebar's Active Property â€” not independently editable. */}
+                  {/* Locked to the sidebar's Active Property — not independently editable. */}
                   <select value={form.propertyId} disabled>
                     {!form.propertyId && <option value="">None</option>}
-                    {form.propertyId && <option value={form.propertyId}>{selectedPropertyName || 'Loadingâ€¦'}</option>}
+                    {form.propertyId && <option value={form.propertyId}>{selectedPropertyName || 'Loading…'}</option>}
                   </select>
                 </div>
                 <div className="ap-form-group">

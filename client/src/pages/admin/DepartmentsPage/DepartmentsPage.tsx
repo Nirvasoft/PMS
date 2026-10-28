@@ -83,7 +83,7 @@ export default function DepartmentsPage() {
             <div>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Divisions</h1>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                {isLoading ? 'Loadingâ€¦' : `${totalDepartments} total divisions`}
+                {isLoading ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${totalDepartments} total divisions`}
               </p>
             </div>
           </div>
@@ -200,27 +200,27 @@ function DeptTreeNode({
           onClick={() => setExpanded(!expanded)}
           style={{ visibility: hasChildren ? 'visible' : 'hidden' }}
         >
-          {expanded ? 'â–¾' : 'â–¸'}
+          {expanded ? '▾' : '▸'}
         </button>
         <div className="dept-node-info">
           <span className="dept-node-name">{node.name}</span>
           {node.code && <span className="dept-code">{node.code}</span>}
-          {node.manager && <span className="text-muted text-small"> Â· {node.manager.fullName}</span>}
-          <span className="text-muted text-small"> Â· {node.userCount} users</span>
+          {node.manager && <span className="text-muted text-small"> · {node.manager.fullName}</span>}
+          <span className="text-muted text-small"> · {node.userCount} users</span>
         </div>
         <div className="dept-actions">
           <PermissionGuard permission="departments.create">
             <button className="btn btn-sm" onClick={() => onAddChild(node.id)} title="Add sub-division">+</button>
           </PermissionGuard>
           <PermissionGuard permission="departments.update">
-            <button className="btn btn-sm" onClick={() => onMove(node.id, node.name)} title="Move division">â†•</button>
+            <button className="btn btn-sm" onClick={() => onMove(node.id, node.name)} title="Move division">↕</button>
           </PermissionGuard>
           <PermissionGuard permission="departments.delete">
             <button
               className="btn btn-sm btn-danger"
               onClick={() => onDelete(node.id, node.name)}
               title="Delete"
-            >âœ•</button>
+            >✕</button>
           </PermissionGuard>
         </div>
       </div>
@@ -267,7 +267,7 @@ function CreateDeptModal({
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{parentId ? 'Add Sub-Division' : 'Create Division'}</h2>
-          <button className="btn-icon" onClick={onClose}>âœ•</button>
+          <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">
@@ -294,7 +294,7 @@ function CreateDeptModal({
   );
 }
 
-/* â”€â”€â”€ Move Division Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Move Division Modal ──────────────────── */
 
 function MoveDeptModal({
   deptId, deptName, tree, onClose,
@@ -337,7 +337,7 @@ function MoveDeptModal({
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
         <div className="modal-header">
           <h2>Move Division</h2>
-          <button className="btn-icon" onClick={onClose}>âœ•</button>
+          <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
           <p className="text-secondary" style={{ marginBottom: 16 }}>
@@ -351,10 +351,10 @@ function MoveDeptModal({
               value={selectedParentId}
               onChange={(e) => setSelectedParentId(e.target.value)}
             >
-              <option value="__root__">â€” Root level (no parent) â€”</option>
+              <option value="__root__">— Root level (no parent) —</option>
               {options.map(opt => (
                 <option key={opt.id} value={opt.id}>
-                  {'  '.repeat(opt.depth)}{'â”” '}{opt.name}
+                  {'  '.repeat(opt.depth)}{'└ '}{opt.name}
                 </option>
               ))}
             </select>

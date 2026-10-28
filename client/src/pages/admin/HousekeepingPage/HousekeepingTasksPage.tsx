@@ -20,7 +20,7 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 
 const ZONE_TYPES = ['corridor', 'lobby', 'car_park', 'amenity', 'office', 'restroom', 'other'];
 const ZONE_ICONS: Record<string, string> = {
-  corridor: 'ðŸš¶', lobby: 'ðŸ›ï¸', car_park: 'ðŸ…¿ï¸', amenity: 'ðŸŠ', office: 'ðŸ¢', restroom: 'ðŸš»', other: 'ðŸ“',
+  corridor: '🚶', lobby: '🏛️', car_park: '🅿️', amenity: '🏊', office: '🏢', restroom: '🚻', other: '📍',
 };
 const FREQ_BADGES: Record<string, { bg: string; color: string }> = {
   daily: { bg: 'rgba(99,102,241,0.15)', color: '#818cf8' },
@@ -170,13 +170,13 @@ export default function HousekeepingTasksPage() {
 
   return (
     <div className="maint-page">
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Sparkles size={22} /></div>
           <div>
             <h1>Housekeeping</h1>
-            <p>{tasks.length} total tasks Â· {schedules.length} schedules Â· {zones.length} zones</p>
+            <p>{tasks.length} total tasks · {schedules.length} schedules · {zones.length} zones</p>
           </div>
         </div>
         <div className="header-actions">
@@ -197,7 +197,7 @@ export default function HousekeepingTasksPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Stats Row â”€â”€ */}
+      {/* ── Stats Row ── */}
       {stats?.today && (
         <div className="hk-hero-stats">
           <div className="hk-hero-stat-card" style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}>
@@ -241,7 +241,7 @@ export default function HousekeepingTasksPage() {
         </div>
       )}
 
-      {/* â”€â”€ Tab Bar â”€â”€ */}
+      {/* ── Tab Bar ── */}
       <div className="maint-filters" style={{ gap: '4px' }}>
         {(['tasks', 'schedules', 'zones'] as const).map((t) => (
           <button key={t} className={`filter-chip ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
@@ -265,13 +265,13 @@ export default function HousekeepingTasksPage() {
         )}
       </div>
 
-      {/* â”€â”€ Tasks Tab â€” Card layout â”€â”€ */}
+      {/* ── Tasks Tab — Card layout ── */}
       {tab === 'tasks' && (
         tasksLoading ? <TableSkeleton columns={5} rows={5} /> :
         tasks.length === 0 ? <div className="maint-empty"><Sparkles size={32} /><p>No tasks for {date === today ? 'today' : date}</p></div> : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
             {tasks.map((t: any) => {
-              const assignee = t.assignedTo?.profile ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}` : 'â€”';
+              const assignee = t.assignedTo?.profile ? `${t.assignedTo.profile.firstName} ${t.assignedTo.profile.lastName}` : '—';
               const theme = STATUS_THEME[t.status] || STATUS_THEME.pending;
               const Icon = theme.icon;
               return (
@@ -279,7 +279,7 @@ export default function HousekeepingTasksPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                       <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: theme.bg, color: theme.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>
-                        {ZONE_ICONS[t.zone?.zoneType] || 'ðŸ“'}
+                        {ZONE_ICONS[t.zone?.zoneType] || '📍'}
                       </div>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{t.zone?.name || 'Unknown Zone'}</div>
@@ -323,7 +323,7 @@ export default function HousekeepingTasksPage() {
         )
       )}
 
-      {/* â”€â”€ Schedules Tab â”€â”€ */}
+      {/* ── Schedules Tab ── */}
       {tab === 'schedules' && (
         schedules.length === 0 ? <div className="maint-empty"><Calendar size={32} /><p>No schedules</p></div> : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
@@ -342,11 +342,11 @@ export default function HousekeepingTasksPage() {
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
                     <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: freq.bg, color: freq.color }}>{s.frequencyType}</span>
                     {s.cleaningType && <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'rgba(99,102,241,0.12)', color: '#6366f1' }}>{s.cleaningType}</span>}
-                    {s.scheduledTime && <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-secondary)' }}>â° {s.scheduledTime}</span>}
+                    {s.scheduledTime && <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'var(--surface-hover)', color: 'var(--text-secondary)' }}>⏰ {s.scheduledTime}</span>}
                   </div>
 
                   <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-tertiary)' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={11} /> {s.zone?.name || 'â€”'}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={11} /> {s.zone?.name || '—'}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Users size={11} /> {assignee}</span>
                     {s.durationMinutes && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Timer size={11} /> {s.durationMinutes} min</span>}
                   </div>
@@ -357,14 +357,14 @@ export default function HousekeepingTasksPage() {
         )
       )}
 
-      {/* â”€â”€ Zones Tab â”€â”€ */}
+      {/* ── Zones Tab ── */}
       {tab === 'zones' && (
         zones.length === 0 ? <div className="maint-empty"><MapPin size={32} /><p>No zones</p></div> : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px' }}>
             {zones.map((z: any) => (
               <div key={z.id} className="hk-dash-card" style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
                 <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>
-                  {ZONE_ICONS[z.zoneType] || 'ðŸ“'}
+                  {ZONE_ICONS[z.zoneType] || '📍'}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{z.name}</div>
@@ -381,7 +381,7 @@ export default function HousekeepingTasksPage() {
         )
       )}
 
-      {/* â”€â”€ Zone Modal â”€â”€ */}
+      {/* ── Zone Modal ── */}
       {showZoneModal && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
@@ -410,7 +410,7 @@ export default function HousekeepingTasksPage() {
         </div>
       )}
 
-      {/* â”€â”€ Schedule Modal â”€â”€ */}
+      {/* ── Schedule Modal ── */}
       {showScheduleModal && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
@@ -448,7 +448,7 @@ export default function HousekeepingTasksPage() {
         </div>
       )}
 
-      {/* â”€â”€ Complete Task with Checklist Modal â”€â”€ */}
+      {/* ── Complete Task with Checklist Modal ── */}
       {completeTaskId && (
         <div className="maint-modal-backdrop">
           <div className="maint-modal" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>

@@ -60,9 +60,9 @@ export default function CommunityAdminPage() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════
    ANNOUNCEMENTS TAB
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════ */
 
 const CATEGORIES = ['general', 'maintenance', 'event', 'emergency', 'policy'];
 const PRIORITIES = ['normal', 'important', 'urgent'];
@@ -80,7 +80,7 @@ function AnnouncementsTab() {
   const [createAnnouncement, { isLoading: creating }] = useCreateAnnouncementMutation();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
-  // /properties requires properties.read, which a community-only role may lack â€” use the
+  // /properties requires properties.read, which a community-only role may lack — use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
   const { data: scopeData } = useGetMyPropertyScopeQuery();
@@ -169,7 +169,7 @@ function AnnouncementsTab() {
                   className={`form-select ${submitted && !form.propertyId ? 'maint-input-error' : ''}`}
                 >
                   {propertyLocked ? (
-                    <option value={form.propertyId}>{lockedPropertyName || 'Loadingâ€¦'}</option>
+                    <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
                   ) : (
                     <>
                       <option value="">Select property...</option>
@@ -267,11 +267,11 @@ function AnnouncementsTab() {
                     </td>
                     <td><span className={`badge badge-${a.category}`}>{a.category}</span></td>
                     <td><span className={`badge badge-${a.priority === 'urgent' ? 'danger' : a.priority === 'important' ? 'warning' : 'default'}`}>{a.priority}</span></td>
-                    <td>{a.property?.name || 'â€”'}</td>
+                    <td>{a.property?.name || '—'}</td>
                     <td><span className={`status-badge status-${a.status}`}>{a.status}</span></td>
                     <td><Eye size={12} /> {a.viewCount || 0}</td>
                     <td>{a._count?.reads || 0}</td>
-                    <td>{a.publishedAt ? new Date(a.publishedAt).toLocaleDateString() : 'â€”'}</td>
+                    <td>{a.publishedAt ? new Date(a.publishedAt).toLocaleDateString() : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -295,9 +295,9 @@ function AnnouncementsTab() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════
    POLLS TAB
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════ */
 
 function PollsTab() {
   const [page, setPage] = useState(1);
@@ -307,7 +307,7 @@ function PollsTab() {
   const [createPoll, { isLoading: creating }] = useCreatePollMutation();
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
-  // /properties requires properties.read, which a community-only role may lack â€” use the
+  // /properties requires properties.read, which a community-only role may lack — use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
   const { data: scopeData } = useGetMyPropertyScopeQuery();
@@ -393,7 +393,7 @@ function PollsTab() {
                   className={`form-select ${submitted && !form.propertyId ? 'maint-input-error' : ''}`}
                 >
                   {propertyLocked ? (
-                    <option value={form.propertyId}>{lockedPropertyName || 'Loadingâ€¦'}</option>
+                    <option value={form.propertyId}>{lockedPropertyName || 'Loading…'}</option>
                   ) : (
                     <>
                       <option value="">Select property...</option>
@@ -514,7 +514,7 @@ function PollsTab() {
                   return (
                     <tr key={p.id}>
                       <td>{p.title}</td>
-                      <td>{p.property?.name || 'â€”'}</td>
+                      <td>{p.property?.name || '—'}</td>
                       <td>{p.pollType}</td>
                       <td>{Array.isArray(p.options) ? p.options.length : 0}</td>
                       <td>{p._count?.votes || 0}</td>
@@ -553,9 +553,9 @@ function PollsTab() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════
    COMPLAINTS TAB
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════ */
 
 const STATUS_OPTIONS = ['open', 'in_review', 'resolved', 'closed'];
 const COMPLAINT_CATS: Record<string, string> = {
@@ -659,11 +659,11 @@ function ComplaintsTab() {
                       {c.isAnonymous ? (
                         <span className="text-muted">Anonymous</span>
                       ) : (
-                        c.resident ? `${c.resident.firstName} ${c.resident.lastName}` : 'â€”'
+                        c.resident ? `${c.resident.firstName} ${c.resident.lastName}` : '—'
                       )}
                     </td>
-                    <td>{c.unit?.unitNumber || 'â€”'}</td>
-                    <td>{c.property?.name || 'â€”'}</td>
+                    <td>{c.unit?.unitNumber || '—'}</td>
+                    <td>{c.property?.name || '—'}</td>
                     <td>
                       <span className={`status-badge status-${c.status}`}>
                         {c.status === 'open' && <AlertCircle size={10} />}
@@ -677,7 +677,7 @@ function ComplaintsTab() {
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                           <Star size={12} className="text-warning" /> {c.satisfactionScore}/5
                         </span>
-                      ) : 'â€”'}
+                      ) : '—'}
                     </td>
                     <td>{new Date(c.createdAt).toLocaleDateString()}</td>
                     <td>
@@ -715,9 +715,9 @@ function ComplaintsTab() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════
    MOVE REQUESTS TAB
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════ */
 
 function MoveRequestsTab() {
   const [statusFilter, setStatusFilter] = useState('');
@@ -785,18 +785,18 @@ function MoveRequestsTab() {
                   <tr key={m.id}>
                     <td>
                       <span className={`badge badge-${m.requestType === 'move_in' ? 'success' : 'warning'}`}>
-                        {m.requestType === 'move_in' ? 'â†“ Move In' : 'â†‘ Move Out'}
+                        {m.requestType === 'move_in' ? '↓ Move In' : '↑ Move Out'}
                       </span>
                     </td>
-                    <td>{m.resident ? `${m.resident.firstName} ${m.resident.lastName}` : 'â€”'}</td>
-                    <td>{m.unit?.unitNumber || 'â€”'}</td>
-                    <td>{m.property?.name || 'â€”'}</td>
+                    <td>{m.resident ? `${m.resident.firstName} ${m.resident.lastName}` : '—'}</td>
+                    <td>{m.unit?.unitNumber || '—'}</td>
+                    <td>{m.property?.name || '—'}</td>
                     <td>{new Date(m.requestedDate).toLocaleDateString()}</td>
-                    <td>{m.preferredTime || 'â€”'}</td>
+                    <td>{m.preferredTime || '—'}</td>
                     <td>
                       {m.depositAmount ? (
-                        <span>{Number(m.depositAmount).toLocaleString()} {m.depositPaid ? 'âœ“ Paid' : 'â³'}</span>
-                      ) : 'â€”'}
+                        <span>{Number(m.depositAmount).toLocaleString()} {m.depositPaid ? '✓ Paid' : '⏳'}</span>
+                      ) : '—'}
                     </td>
                     <td><span className={`status-badge status-${m.status}`}>{m.status}</span></td>
                     <td>

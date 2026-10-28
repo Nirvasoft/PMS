@@ -677,7 +677,7 @@ export default function PropertiesPage() {
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Properties</h1>
             <p className="subtitle" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              {isLoading ? 'Loading…' : `${meta?.total ?? 0} total properties`}
+              {isLoading ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${meta?.total ?? 0} total properties`}
             </p>
           </div>
         </div>

@@ -114,7 +114,7 @@ export default function ProfilePage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 32, alignItems: 'start' }}>
-        {/* Left â€” Avatar & Info Card */}
+        {/* Left — Avatar & Info Card */}
         <div className="info-card" style={{ textAlign: 'center', padding: 32 }}>
           {/* Avatar */}
           <div style={{ position: 'relative', width: 96, height: 96, margin: '0 auto 16px' }}>
@@ -178,7 +178,7 @@ export default function ProfilePage() {
           ))}
         </div>
 
-        {/* Right â€” Edit Form */}
+        {/* Right — Edit Form */}
         <form onSubmit={handleSave} className="settings-form" noValidate>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className="form-group">

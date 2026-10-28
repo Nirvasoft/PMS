@@ -24,9 +24,9 @@ const VEHICLE_TYPES: Record<string, { label: string; icon: ReactNode; color: str
 
 function getTenantLabel(t: TenantListItem): string {
   if (t.tenantType !== 'individual') {
-    return t.companyName || t.displayName || 'â€”';
+    return t.companyName || t.displayName || '—';
   }
-  return t.lastName || t.displayName || 'â€”';
+  return t.lastName || t.displayName || '—';
 }
 
 export default function VehicleRegistryPage() {
@@ -92,7 +92,7 @@ export default function VehicleRegistryPage() {
               className="form-input"
               value={tenantSearch}
               onChange={e => setTenantSearch(e.target.value)}
-              placeholder="Search tenantsâ€¦"
+              placeholder="Search tenants…"
             />
           </div>
           <div className="vr-tenant-list">
@@ -117,7 +117,7 @@ export default function VehicleRegistryPage() {
                     </div>
                     <div className="vti-info">
                       <div className="vti-name">{tenantLabel}</div>
-                      <div className="vti-meta">{t.tenantType} {t.email ? `Â· ${t.email}` : ''}</div>
+                      <div className="vti-meta">{t.tenantType} {t.email ? `· ${t.email}` : ''}</div>
                     </div>
                   </button>
                 );
@@ -151,7 +151,7 @@ export default function VehicleRegistryPage() {
                       className="form-input"
                       value={vehicleSearch}
                       onChange={e => setVehicleSearch(e.target.value)}
-                      placeholder="Filter vehiclesâ€¦"
+                      placeholder="Filter vehicles…"
                     />
                   </div>
                   <PermissionGuard permission="parking-vehicles.write">
@@ -232,7 +232,7 @@ export default function VehicleRegistryPage() {
   );
 }
 
-// â”€â”€ Vehicle Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Vehicle Card ─────────────────────────────
 
 function VehicleCard({
   vehicle: v, tenantId: _tenantId, onEdit, onDelete, inactive,
@@ -296,7 +296,7 @@ function VehicleCard({
   );
 }
 
-// â”€â”€ Add/Edit Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Add/Edit Modal ──────────────────────────
 
 function VehicleFormModal({
   tenantId,
@@ -414,7 +414,7 @@ function VehicleFormModal({
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn-primary" onClick={handleSubmit} disabled={isSaving}>
             <Save size={14} />
-            {isSaving ? 'Savingâ€¦' : isEdit ? 'Update Vehicle' : 'Register Vehicle'}
+            {isSaving ? 'Saving…' : isEdit ? 'Update Vehicle' : 'Register Vehicle'}
           </button>
         </div>
       </div>
@@ -422,7 +422,7 @@ function VehicleFormModal({
   );
 }
 
-// â”€â”€ Delete Confirmation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Delete Confirmation ────────────────────
 
 function DeleteVehicleConfirm({
   vehicle,
@@ -460,7 +460,7 @@ function DeleteVehicleConfirm({
         <div className="modal-actions" style={{ justifyContent: 'center' }}>
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn-danger" onClick={handleDelete} disabled={isLoading}>
-            {isLoading ? 'Deactivatingâ€¦' : 'Deactivate'}
+            {isLoading ? 'Deactivating…' : 'Deactivate'}
           </button>
         </div>
       </div>
@@ -468,7 +468,7 @@ function DeleteVehicleConfirm({
   );
 }
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helpers ────────────────────────────────
 
 function getColorHex(colorName: string): string {
   const map: Record<string, string> = {

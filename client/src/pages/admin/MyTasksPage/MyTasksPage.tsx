@@ -50,8 +50,8 @@ export default function MyTasksPage() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <h1>ðŸ“¥ My Tasks</h1>
-        <p className="text-secondary">Your approval inbox â€” review and action pending items</p>
+        <h1>📥 My Tasks</h1>
+        <p className="text-secondary">Your approval inbox — review and action pending items</p>
       </div>
 
       {meta && (
@@ -112,10 +112,10 @@ export default function MyTasksPage() {
                     {t.slaDueAt && t.status === 'pending' && (
                       <span className={`sla-chip ${slaBreached ? 'breached' : slaUrgent ? 'urgent' : t.remindedAt ? 'reminded' : 'normal'}`}>
                         {slaBreached
-                          ? (t.escalatedAt ? 'ðŸ”º Escalated' : 'âš ï¸ SLA Breached')
+                          ? (t.escalatedAt ? '🔺 Escalated' : '⚠️ SLA Breached')
                           : slaUrgent
-                            ? `â° ${slaMinutes}m left`
-                            : `â³ ${Math.round((slaMinutes ?? 0) / 60)}h left`}
+                            ? `⏰ ${slaMinutes}m left`
+                            : `⏳ ${Math.round((slaMinutes ?? 0) / 60)}h left`}
                       </span>
                     )}
                   </div>
@@ -130,7 +130,7 @@ export default function MyTasksPage() {
 
                 <div className="task-card-body">
                   <span className="text-small text-muted">
-                    Initiated by {initiator ? `${initiator.firstName} ${initiator.lastName}` : 'Unknown'} Â· {new Date(t.createdAt).toLocaleString()}
+                    Initiated by {initiator ? `${initiator.firstName} ${initiator.lastName}` : 'Unknown'} · {new Date(t.createdAt).toLocaleString()}
                   </span>
                   {delegateeName && (
                     <span className="delegate-badge">
@@ -140,11 +140,11 @@ export default function MyTasksPage() {
                   )}
                   {escalatorName && t.escalatedAt && (
                     <span className="escalation-badge">
-                      ðŸ”º Escalated to <strong>{escalatorName}</strong>
-                      <span className="text-muted text-small"> Â· {new Date(t.escalatedAt).toLocaleString()}</span>
+                      🔺 Escalated to <strong>{escalatorName}</strong>
+                      <span className="text-muted text-small"> · {new Date(t.escalatedAt).toLocaleString()}</span>
                     </span>
                   )}
-                  {t.comments && <span className="text-small task-comment">ðŸ’¬ "{t.comments}"</span>}
+                  {t.comments && <span className="text-small task-comment">💬 "{t.comments}"</span>}
 
                   {/* Attachments */}
                   {t.attachments && t.attachments.length > 0 && (
@@ -165,11 +165,11 @@ export default function MyTasksPage() {
                     <div className="task-card-actions">
                       <button className="btn btn-sm btn-primary"
                         onClick={() => { setActionTask({ task: t, action: 'approve' }); setComments(''); }}>
-                        âœ“ Approve
+                        ✓ Approve
                       </button>
                       <button className="btn btn-sm btn-danger"
                         onClick={() => { setActionTask({ task: t, action: 'reject' }); setComments(''); }}>
-                        âœ• Reject
+                        ✕ Reject
                       </button>
                       <button className="btn btn-sm btn-delegate"
                         onClick={() => setDelegateTask(t)}>
@@ -184,7 +184,7 @@ export default function MyTasksPage() {
           })}
           {tasks.length === 0 && (
             <div className="info-card" style={{ textAlign: 'center', padding: 60 }}>
-              <h3>ðŸŽ‰ All clear!</h3>
+              <h3>🎉 All clear!</h3>
               <p className="text-muted">No {statusFilter || ''} tasks in your inbox.</p>
             </div>
           )}
@@ -193,9 +193,9 @@ export default function MyTasksPage() {
 
       {meta && meta.totalPages > 1 && (
         <div className="pagination">
-          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>â† Prev</button>
+          <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
           <span className="text-secondary">Page {meta.page} of {meta.totalPages}</span>
-          <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next â†’</button>
+          <button className="btn btn-sm" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)}>Next →</button>
         </div>
       )}
 
@@ -204,13 +204,13 @@ export default function MyTasksPage() {
         <div className="modal-overlay">
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{actionTask.action === 'approve' ? 'âœ“ Approve' : 'âœ• Reject'} Task</h2>
-              <button className="btn-icon" onClick={() => setActionTask(null)}>âœ•</button>
+              <h2>{actionTask.action === 'approve' ? '✓ Approve' : '✕ Reject'} Task</h2>
+              <button className="btn-icon" onClick={() => setActionTask(null)}>✕</button>
             </div>
             <div className="modal-body">
               <p><strong>{actionTask.task.title}</strong></p>
               <p className="text-muted text-small" style={{ marginBottom: 12 }}>
-                {actionTask.task.instance?.definition?.name} Â· {actionTask.task.instance?.entityType}
+                {actionTask.task.instance?.definition?.name} · {actionTask.task.instance?.entityType}
               </p>
               <div className="form-group">
                 <label>Comments {actionTask.action === 'reject' ? '*' : '(optional)'}</label>
@@ -225,7 +225,7 @@ export default function MyTasksPage() {
                   onClick={handleAction}
                   disabled={actionTask.action === 'reject' && !comments.trim()}
                 >
-                  {actionTask.action === 'approve' ? 'âœ“ Approve' : 'âœ• Reject'}
+                  {actionTask.action === 'approve' ? '✓ Approve' : '✕ Reject'}
                 </button>
               </div>
             </div>
@@ -245,7 +245,7 @@ export default function MyTasksPage() {
   );
 }
 
-/* â”€â”€â”€ Delegate Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Delegate Modal ───────────────────────── */
 
 function DelegateModal({ task, onClose, onDelegated }: {
   task: WorkflowTask;
@@ -307,7 +307,7 @@ function DelegateModal({ task, onClose, onDelegated }: {
           <div className="delegate-task-info">
             <p className="delegate-task-title">{task.title}</p>
             <p className="text-muted text-small">
-              {task.instance?.definition?.name} Â· <span className="role-chip">{task.instance?.entityType}</span>
+              {task.instance?.definition?.name} · <span className="role-chip">{task.instance?.entityType}</span>
             </p>
           </div>
 
@@ -332,7 +332,7 @@ function DelegateModal({ task, onClose, onDelegated }: {
               <Search size={15} className="delegate-search-icon" />
               <input
                 className="input-full delegate-search-input"
-                placeholder="Search by name, email, departmentâ€¦"
+                placeholder="Search by name, email, department…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -346,7 +346,7 @@ function DelegateModal({ task, onClose, onDelegated }: {
             <div className="delegate-user-list">
               {usersLoading ? (
                 <div className="loading-inline" style={{ padding: 20 }}>
-                  <div className="loading-spinner" /> Loading usersâ€¦
+                  <div className="loading-spinner" /> Loading users…
                 </div>
               ) : filteredUsers.length === 0 ? (
                 <div className="delegate-empty">
@@ -370,8 +370,8 @@ function DelegateModal({ task, onClose, onDelegated }: {
                       <span className="delegate-user-name">{u.fullName}</span>
                       <span className="delegate-user-meta">
                         {u.email}
-                        {u.jobTitle && ` Â· ${u.jobTitle}`}
-                        {u.department && ` Â· ${u.department.name}`}
+                        {u.jobTitle && ` · ${u.jobTitle}`}
+                        {u.department && ` · ${u.department.name}`}
                       </span>
                     </div>
                     {u.roles.length > 0 && (
@@ -401,7 +401,7 @@ function DelegateModal({ task, onClose, onDelegated }: {
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. On leave until Aug 20, please review in my absenceâ€¦"
+              placeholder="e.g. On leave until Aug 20, please review in my absence…"
             />
           </div>
 
@@ -414,7 +414,7 @@ function DelegateModal({ task, onClose, onDelegated }: {
               disabled={!selectedUserId || !reason.trim() || isDelegating}
             >
               {isDelegating ? (
-                <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Delegatingâ€¦</>
+                <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Delegating…</>
               ) : (
                 <><ArrowRightLeft size={15} /> Delegate Task</>
               )}
@@ -426,20 +426,20 @@ function DelegateModal({ task, onClose, onDelegated }: {
   );
 }
 
-/* â”€â”€â”€ Entity Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Entity Summary ───────────────────────── */
 
 /** Format camelCase/snake_case keys into readable labels */
 function formatLabel(key: string): string {
   return key
-    .replace(/([A-Z])/g, ' $1')       // camelCase â†’ words
-    .replace(/[_-]/g, ' ')             // snake_case â†’ words
+    .replace(/([A-Z])/g, ' $1')       // camelCase → words
+    .replace(/[_-]/g, ' ')             // snake_case → words
     .replace(/\b\w/g, c => c.toUpperCase()) // capitalize
     .trim();
 }
 
 /** Format values for display */
 function formatValue(value: unknown): string {
-  if (value === null || value === undefined) return 'â€”';
+  if (value === null || value === undefined) return '—';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'number') {
     // Format large numbers with commas
@@ -512,7 +512,7 @@ function EntitySummary({ entityType, context }: { entityType: string; context: R
   );
 }
 
-/* â”€â”€â”€ Attachment Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Attachment Button ────────────────────── */
 
 function AttachButton({ taskId }: { taskId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -543,13 +543,13 @@ function AttachButton({ taskId }: { taskId: string }) {
         onChange={handleUpload} />
       <button className="btn btn-sm" disabled={isLoading}
         onClick={() => fileRef.current?.click()}>
-        {isLoading ? 'â€¦' : <><Paperclip size={14} /> Attach</>}
+        {isLoading ? '…' : <><Paperclip size={14} /> Attach</>}
       </button>
     </>
   );
 }
 
-/* â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Helpers ──────────────────────────────── */
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

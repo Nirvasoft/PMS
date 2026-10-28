@@ -22,7 +22,7 @@ export default function PortalBrandingPage() {
 
   const { data: propertiesData } = useGetPropertiesQuery({ page: 1, limit: 100 });
   const properties = propertiesData?.data || [];
-  // /properties requires properties.read, which a community-only role may lack â€” use the
+  // /properties requires properties.read, which a community-only role may lack — use the
   // permission-free /properties/my-scope endpoint so the locked field still resolves
   // a name instead of silently rendering as unselected. See useSelectedPropertyId.ts.
   const { data: scopeData } = useGetMyPropertyScopeQuery();
@@ -59,7 +59,7 @@ export default function PortalBrandingPage() {
           style={{ width: 280 }}
         >
           {propertyLocked ? (
-            <option value={selectedProperty}>{lockedPropertyName || 'Loadingâ€¦'}</option>
+            <option value={selectedProperty}>{lockedPropertyName || 'Loading…'}</option>
           ) : (
             <>
               <option value="">Select property...</option>
@@ -347,8 +347,8 @@ function BrandingEditor({ propertyId }: { propertyId: string }) {
               background: 'rgba(255,255,255,0.03)',
               borderRadius: 6, fontSize: '0.65rem', opacity: 0.6,
             }}>
-              {form.supportEmail && <div>ðŸ“§ {form.supportEmail}</div>}
-              {form.supportPhone && <div>ðŸ“ž {form.supportPhone}</div>}
+              {form.supportEmail && <div>📧 {form.supportEmail}</div>}
+              {form.supportPhone && <div>📞 {form.supportPhone}</div>}
             </div>
           )}
         </div>

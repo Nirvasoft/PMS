@@ -18,15 +18,15 @@ import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 const ASSET_TYPES: Record<string, { label: string; icon: string }> = {
-  hvac: { label: 'HVAC', icon: 'â„ï¸' },
-  elevator: { label: 'Elevator', icon: 'ðŸ›—' },
-  generator: { label: 'Generator', icon: 'âš¡' },
-  fire_system: { label: 'Fire System', icon: 'ðŸ§¯' },
-  water_pump: { label: 'Water Pump', icon: 'ðŸ’§' },
-  cctv: { label: 'CCTV', icon: 'ðŸ“¹' },
-  access_control: { label: 'Access Control', icon: 'ðŸ”‘' },
-  lighting: { label: 'Lighting', icon: 'ðŸ’¡' },
-  other: { label: 'Other', icon: 'ðŸ”§' },
+  hvac: { label: 'HVAC', icon: '❄️' },
+  elevator: { label: 'Elevator', icon: '🛗' },
+  generator: { label: 'Generator', icon: '⚡' },
+  fire_system: { label: 'Fire System', icon: '🧯' },
+  water_pump: { label: 'Water Pump', icon: '💧' },
+  cctv: { label: 'CCTV', icon: '📹' },
+  access_control: { label: 'Access Control', icon: '🔑' },
+  lighting: { label: 'Lighting', icon: '💡' },
+  other: { label: 'Other', icon: '🔧' },
 };
 
 const STATUS_MAP: Record<string, string> = {
@@ -142,10 +142,10 @@ export default function AssetRegistryPage() {
                 const days = a.nextServiceDue ? Math.ceil((new Date(a.nextServiceDue).getTime() - Date.now()) / 86400000) : 0;
                 return (
                   <div key={a.id} className="asset-alert-item" onClick={() => navigate(`/admin/facility/assets/${a.id}`)}>
-                    <span style={{ fontSize: '16px' }}>{ASSET_TYPES[a.assetType]?.icon || 'ðŸ”§'}</span>
+                    <span style={{ fontSize: '16px' }}>{ASSET_TYPES[a.assetType]?.icon || '🔧'}</span>
                     <div className="asset-alert-info">
                       <span className="asset-alert-name">{a.name}</span>
-                      <span className="asset-alert-sub">{a.property?.name} Â· {a.assetNumber}</span>
+                      <span className="asset-alert-sub">{a.property?.name} · {a.assetNumber}</span>
                     </div>
                     <span className={`sla-chip ${days < 0 ? 'breached' : 'at_risk'}`}>
                       <Clock size={10} />
@@ -173,10 +173,10 @@ export default function AssetRegistryPage() {
                 const days = a.warrantyExpiry ? Math.ceil((new Date(a.warrantyExpiry).getTime() - Date.now()) / 86400000) : 0;
                 return (
                   <div key={a.id} className="asset-alert-item" onClick={() => navigate(`/admin/facility/assets/${a.id}`)}>
-                    <span style={{ fontSize: '16px' }}>{ASSET_TYPES[a.assetType]?.icon || 'ðŸ”§'}</span>
+                    <span style={{ fontSize: '16px' }}>{ASSET_TYPES[a.assetType]?.icon || '🔧'}</span>
                     <div className="asset-alert-info">
                       <span className="asset-alert-name">{a.name}</span>
-                      <span className="asset-alert-sub">{a.property?.name} Â· {a.assetNumber}</span>
+                      <span className="asset-alert-sub">{a.property?.name} · {a.assetNumber}</span>
                     </div>
                     <span className={`sla-chip ${days < 0 ? 'breached' : days <= 30 ? 'at_risk' : 'on_track'}`}>
                       {days < 0 ? 'Expired' : `${days}d left`}
@@ -196,7 +196,7 @@ export default function AssetRegistryPage() {
           <input type="text" placeholder="Search assets..." value={filters.search}
             onChange={(e) => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))} />
         </div>
-        {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select className="filter-select" value={selectedProperty} disabled>
           {selectedProperty && (
             <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
@@ -251,14 +251,14 @@ export default function AssetRegistryPage() {
                     <td>
                       <div className="ticket-title-cell">
                         <span style={{ fontSize: '16px', marginRight: '4px' }}>
-                          {ASSET_TYPES[a.assetType]?.icon || 'ðŸ”§'}
+                          {ASSET_TYPES[a.assetType]?.icon || '🔧'}
                         </span>
                         <span className="title-text">{a.name}</span>
                       </div>
                     </td>
                     <td><span className="maint-status open">{ASSET_TYPES[a.assetType]?.label || a.assetType}</span></td>
                     <td><span className="cell-secondary">{a.property?.name}</span></td>
-                    <td><span className="cell-secondary">{a.location || 'â€”'}</span></td>
+                    <td><span className="cell-secondary">{a.location || '—'}</span></td>
                     <td>
                       <span className={`maint-status ${STATUS_MAP[a.status] || 'open'}`}>
                         {a.status?.replace('_', ' ')}
@@ -277,7 +277,7 @@ export default function AssetRegistryPage() {
                             </span>
                           )}
                         </div>
-                      ) : <span className="cell-secondary">â€”</span>}
+                      ) : <span className="cell-secondary">—</span>}
                     </td>
                     <td>
                       {a.warrantyExpiry ? (
@@ -291,7 +291,7 @@ export default function AssetRegistryPage() {
                             </span>
                           )}
                         </div>
-                      ) : <span className="cell-secondary">â€”</span>}
+                      ) : <span className="cell-secondary">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -346,7 +346,7 @@ export default function AssetRegistryPage() {
   );
 }
 
-// â”€â”€ Create Asset Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Create Asset Modal ─────────────────────
 
 function CreateAssetModal({ properties, onClose }: {
   properties: any[]; onClose: () => void;
@@ -449,7 +449,7 @@ function CreateAssetModal({ properties, onClose }: {
                 className={hasAttemptedSubmit && !form.name.trim() ? 'maint-input-error' : ''}
                 value={form.name}
                 onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Air Handling Unit â€” Basement 1"
+                placeholder="e.g. Air Handling Unit — Basement 1"
               />
               {hasAttemptedSubmit && !form.name.trim() && (
                 <span className="maint-error-text">Name is required</span>

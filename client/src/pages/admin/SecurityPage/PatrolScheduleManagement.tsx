@@ -102,7 +102,7 @@ export default function PatrolScheduleManagement() {
           <div className="page-icon-lg"><Shield size={22} /></div>
           <div>
             <h1>Patrol Management</h1>
-            <p>{schedules.length} total schedules Ã‚Â· {checkpoints.length} checkpoints</p>
+            <p>{schedules.length} total schedules · {checkpoints.length} checkpoints</p>
           </div>
         </div>
         <PermissionGuard permission="security-patrol-schedules.write">
@@ -156,7 +156,7 @@ export default function PatrolScheduleManagement() {
             </button>
           ))}
         </div>
-        {/* Follows the sidebar's "Active Property" selector Ã¢â‚¬â€ not independently choosable here. */}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select className="filter-select" value={filterProperty} disabled style={{ marginLeft: 'auto' }}>
           {filterProperty && (
             <option value={filterProperty}>{properties.find((p: any) => p.id === filterProperty)?.name || ''}</option>
@@ -196,7 +196,7 @@ export default function PatrolScheduleManagement() {
                     </span>
                   </div>
                   <div className="hk-mgmt-meta">
-                    <span><Building2 size={11} /> {s.property?.name || 'Ã¢â‚¬â€'}</span>
+                    <span><Building2 size={11} /> {s.property?.name || '—'}</span>
                     <span><Users size={11} /> {assignee}</span>
                   </div>
                   {Array.isArray(s.customTimes) && s.customTimes.length > 0 && (
@@ -230,7 +230,7 @@ export default function PatrolScheduleManagement() {
                     <span className="hk-mgmt-tag" style={{ background: 'rgba(14,165,233,0.08)', color: '#38bdf8' }}>#{cp.sortOrder}</span>
                   </div>
                   <div className="hk-mgmt-meta">
-                    <span><Building2 size={11} /> {cp.property?.name || 'Ã¢â‚¬â€'}</span>
+                    <span><Building2 size={11} /> {cp.property?.name || '—'}</span>
                     {cp.location && <span><MapPin size={11} /> {cp.location}</span>}
                   </div>
                   <div style={{ marginTop: '6px', fontFamily: 'monospace', fontSize: '10px', color: 'var(--text-tertiary)', wordBreak: 'break-all' }}>

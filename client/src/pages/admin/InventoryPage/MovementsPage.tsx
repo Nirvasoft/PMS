@@ -8,12 +8,12 @@ import { Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 
 const TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  receipt: { label: 'Receipt', icon: 'Ã°Å¸â€œÂ¥', color: 'completed' },
-  issue: { label: 'Issue', icon: 'Ã°Å¸â€œÂ¤', color: 'in_progress' },
-  transfer_in: { label: 'Transfer In', icon: 'Ã¢Å¾Â¡Ã¯Â¸Â', color: 'completed' },
-  transfer_out: { label: 'Transfer Out', icon: 'Ã¢Â¬â€¦Ã¯Â¸Â', color: 'in_progress' },
-  adjustment: { label: 'Adjustment', icon: 'Ã°Å¸â€œâ€¹', color: 'open' },
-  write_off: { label: 'Write-off', icon: 'Ã¢ÂÅ’', color: 'cancelled' },
+  receipt: { label: 'Receipt', icon: '📥', color: 'completed' },
+  issue: { label: 'Issue', icon: '📤', color: 'in_progress' },
+  transfer_in: { label: 'Transfer In', icon: '➡️', color: 'completed' },
+  transfer_out: { label: 'Transfer Out', icon: '⬅️', color: 'in_progress' },
+  adjustment: { label: 'Adjustment', icon: '📋', color: 'open' },
+  write_off: { label: 'Write-off', icon: '❌', color: 'cancelled' },
 };
 
 export default function MovementsPage() {
@@ -50,11 +50,11 @@ export default function MovementsPage() {
               <h1 style={{ margin: 0 }}>Stock Movements</h1>
               {activeProperty ? (
                 <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
-                  Ã°Å¸ÂÂ¢ {activeProperty.name}
+                  🏢 {activeProperty.name}
                 </span>
               ) : (
                 <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-                  Ã°Å¸Å’Â All Properties
+                  🌐 All Properties
                 </span>
               )}
             </div>
@@ -93,10 +93,10 @@ export default function MovementsPage() {
               </thead>
               <tbody>
                 {movements.map((m: any) => {
-                  const t = TYPE_LABELS[m.movementType] || { label: m.movementType, icon: 'Ã¢â‚¬Â¢', color: 'open' };
+                  const t = TYPE_LABELS[m.movementType] || { label: m.movementType, icon: '•', color: 'open' };
                   const user = m.performedBy?.profile
                     ? `${m.performedBy.profile.firstName || ''} ${m.performedBy.profile.lastName || ''}`.trim()
-                    : m.performedBy?.email || 'Ã¢â‚¬â€';
+                    : m.performedBy?.email || '—';
                   return (
                     <tr key={m.id}>
                       <td><span className="cell-secondary">{new Date(m.createdAt).toLocaleString()}</span></td>
@@ -112,13 +112,13 @@ export default function MovementsPage() {
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <span className="cell-mono">{m.unitCost ? `${currency} ${Number(m.unitCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Ã¢â‚¬â€'}</span>
+                        <span className="cell-mono">{m.unitCost ? `${currency} ${Number(m.unitCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <span className="cell-mono">{m.totalCost ? `${currency} ${Number(m.totalCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Ã¢â‚¬â€'}</span>
+                        <span className="cell-mono">{m.totalCost ? `${currency} ${Number(m.totalCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</span>
                       </td>
                       <td><span className="cell-secondary">{user}</span></td>
-                      <td><span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>{m.notes || 'Ã¢â‚¬â€'}</span></td>
+                      <td><span className="cell-secondary" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>{m.notes || '—'}</span></td>
                     </tr>
                   );
                 })}

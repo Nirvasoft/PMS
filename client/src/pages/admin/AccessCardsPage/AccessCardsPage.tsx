@@ -128,7 +128,7 @@ export default function AccessCardsPage() {
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
-        {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select value={selectedProperty} disabled className="form-select" style={{ width: 170 }}>
           {!selectedProperty && <option value="">All Properties</option>}
           {selectedProperty && (
@@ -213,7 +213,7 @@ export default function AccessCardsPage() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <User size={12} style={{ opacity: 0.4 }} />
-                        {card.resident ? `${card.resident.firstName} ${card.resident.lastName}` : 'â€”'}
+                        {card.resident ? `${card.resident.firstName} ${card.resident.lastName}` : '—'}
                       </div>
                       {card.resident?.residentType && (
                         <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>{card.resident.residentType}</span>
@@ -222,7 +222,7 @@ export default function AccessCardsPage() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Building2 size={12} style={{ opacity: 0.4 }} />
-                        {card.property?.name || 'â€”'}
+                        {card.property?.name || '—'}
                       </div>
                     </td>
                     <td style={{ fontSize: '0.82rem' }}>
@@ -234,7 +234,7 @@ export default function AccessCardsPage() {
                           {new Date(card.expiresAt).toLocaleDateString()}
                         </span>
                       ) : (
-                        <span style={{ opacity: 0.4 }}>â€”</span>
+                        <span style={{ opacity: 0.4 }}>—</span>
                       )}
                     </td>
                     <td>
@@ -270,7 +270,7 @@ export default function AccessCardsPage() {
   );
 }
 
-// â”€â”€ Issue Card Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Issue Card Modal ───────────────────────────
 function IssueCardModal({ properties, onClose, onSubmit }: {
   properties: any[];
   onClose: () => void;
@@ -393,7 +393,7 @@ function IssueCardModal({ properties, onClose, onSubmit }: {
   );
 }
 
-// â”€â”€ Edit Card Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Edit Card Modal ────────────────────────────
 function EditCardModal({ card, onClose, onSave }: {
   card: AccessCard;
   onClose: () => void;
@@ -406,9 +406,9 @@ function EditCardModal({ card, onClose, onSave }: {
   return (
     <div className="modal-overlay">
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-        <h3>Edit Card â€” {card.cardNumber}</h3>
+        <h3>Edit Card — {card.cardNumber}</h3>
         <p className="text-muted" style={{ fontSize: '0.82rem' }}>
-          {card.resident ? `${card.resident.firstName} ${card.resident.lastName}` : ''} Â· {card.property?.name || ''}
+          {card.resident ? `${card.resident.firstName} ${card.resident.lastName}` : ''} · {card.property?.name || ''}
         </p>
 
         <div className="form-group">
@@ -446,7 +446,7 @@ function EditCardModal({ card, onClose, onSave }: {
   );
 }
 
-// â”€â”€ Residents loader hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Residents loader hook ──────────────────────
 function useGetResidentsForProperty(propertyId: string) {
   const [residents, setResidents] = useState<any[]>([]);
 

@@ -32,7 +32,7 @@ export default function PaymentVouchersPage() {
   const [payRef, setPayRef] = useState('');
   const [hasAttemptedPay, setHasAttemptedPay] = useState(false);
 
-  // Active property from the sidebar â€” follows the same pattern as Parking Overview.
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
@@ -214,10 +214,10 @@ export default function PaymentVouchersPage() {
 
       {/* Filter */}
       <div className="ap-filters">
-        {/* Property follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+        {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select value={selectedProperty} disabled style={{ minWidth: 180 }}>
           {!selectedProperty && <option value="">All Properties</option>}
-          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loadingâ€¦'}</option>}
+          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
         </select>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="">All Statuses</option>
@@ -254,12 +254,12 @@ export default function PaymentVouchersPage() {
                 <tr key={pv.id}>
                   <td><strong>{pv.voucherNumber}</strong></td>
                   <td>{format(new Date(pv.voucherDate), 'dd MMM yyyy')}</td>
-                  <td>{pv.vendorName || 'â€”'}</td>
+                  <td>{pv.vendorName || '—'}</td>
                   <td style={{ textTransform: 'capitalize' }}>{formatPaymentMethod(pv.paymentMethod)}</td>
                   <td className="amount-neutral">{fmt(pv.totalAmount)} {pv.currency}</td>
-                  <td>{pv.allocations.map((a: any) => a.apInvoice.apInvoiceNumber).join(', ') || 'â€”'}</td>
+                  <td>{pv.allocations.map((a: any) => a.apInvoice.apInvoiceNumber).join(', ') || '—'}</td>
                   <td><span className={`ap-status ${pv.status}`}>{pv.status}</span></td>
-                  <td>{pv.paidAt ? format(new Date(pv.paidAt), 'dd MMM yyyy') : 'â€”'}</td>
+                  <td>{pv.paidAt ? format(new Date(pv.paidAt), 'dd MMM yyyy') : '—'}</td>
                   <td>
                     {pv.status === 'pending' && (
                       <PermissionGuard permission="ap-vouchers.write">
@@ -474,10 +474,10 @@ export default function PaymentVouchersPage() {
                     style={isCash ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                     onChange={e => { addAllocation(e.target.value); e.target.value = ''; }}
                   >
-                    <option value="">{isCash ? 'â€” Disabled for Cash voucher â€”' : 'â€” Select an approved AP invoice â€”'}</option>
+                    <option value="">{isCash ? '— Disabled for Cash voucher —' : '— Select an approved AP invoice —'}</option>
                     {!isCash && availableInvoices.filter((i: any) => !allocations.find(a => a.apInvoiceId === i.id)).map((inv: any) => (
                       <option key={inv.id} value={inv.id}>
-                        {inv.apInvoiceNumber} â€” {inv.vendorName} â€” Outstanding: {fmt(inv.outstanding)} {inv.currency}
+                        {inv.apInvoiceNumber} — {inv.vendorName} — Outstanding: {fmt(inv.outstanding)} {inv.currency}
                       </option>
                     ))}
                   </select>
@@ -503,7 +503,7 @@ export default function PaymentVouchersPage() {
                           return (
                             <tr key={alloc.apInvoiceId}>
                               <td>{inv?.apInvoiceNumber || alloc.apInvoiceId}</td>
-                              <td>{inv?.vendorName || 'â€”'}</td>
+                              <td>{inv?.vendorName || '—'}</td>
                               <td>
                                 <input type="number" min={0.01} step={0.01} value={alloc.amount}
                                   style={{ width: 120, padding: '0.25rem 0.5rem' }}

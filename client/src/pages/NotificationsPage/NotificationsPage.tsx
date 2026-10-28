@@ -42,9 +42,9 @@ export default function NotificationsPage() {
   };
 
   const iconMap: Record<string, string> = {
-    bell: 'ðŸ””', home: 'ðŸ ', user: 'ðŸ‘¤', 'git-branch': 'ðŸ”€',
-    'file-text': 'ðŸ“„', tool: 'ðŸ”§', 'dollar-sign': 'ðŸ’°',
-    'check-circle': 'âœ…', 'alert-triangle': 'âš ï¸',
+    bell: '🔔', home: '🏠', user: '👤', 'git-branch': '🔀',
+    'file-text': '📄', tool: '🔧', 'dollar-sign': '💰',
+    'check-circle': '✅', 'alert-triangle': '⚠️',
   };
 
   const handleClick = async (n: typeof notifications[0]) => {
@@ -76,7 +76,7 @@ export default function NotificationsPage() {
           </button>
         </div>
         {unreadCount > 0 && (
-          <button className="btn btn-sm" onClick={() => markAllRead()}>âœ“ Mark all read</button>
+          <button className="btn btn-sm" onClick={() => markAllRead()}>✓ Mark all read</button>
         )}
       </div>
 
@@ -84,7 +84,7 @@ export default function NotificationsPage() {
         <TableSkeleton columns={5} rows={5} />
       ) : notifications.length === 0 ? (
         <div className="notif-empty-state">
-          <div className="notif-empty-icon">ðŸ””</div>
+          <div className="notif-empty-icon">🔔</div>
           <h3>{filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}</h3>
           <p className="text-muted">When something happens, you'll see it here.</p>
         </div>
@@ -92,7 +92,7 @@ export default function NotificationsPage() {
         <div className="notif-list">
           {notifications.map((n) => (
             <div key={n.id} className={`notif-list-item ${n.isRead ? '' : 'unread'}`}>
-              <div className="notif-list-icon">{iconMap[n.icon] || 'ðŸ””'}</div>
+              <div className="notif-list-icon">{iconMap[n.icon] || '🔔'}</div>
               <div className="notif-list-content" onClick={() => handleClick(n)}>
                 <div className="notif-list-title">
                   {n.title}
@@ -103,9 +103,9 @@ export default function NotificationsPage() {
               </div>
               <div className="notif-list-actions">
                 {!n.isRead && (
-                  <button className="btn btn-sm" onClick={() => markAsRead(n.id)} title="Mark read">âœ“</button>
+                  <button className="btn btn-sm" onClick={() => markAsRead(n.id)} title="Mark read">✓</button>
                 )}
-                <button className="btn btn-sm" onClick={() => deleteNotif(n.id)} title="Delete">âœ•</button>
+                <button className="btn btn-sm" onClick={() => deleteNotif(n.id)} title="Delete">✕</button>
               </div>
             </div>
           ))}

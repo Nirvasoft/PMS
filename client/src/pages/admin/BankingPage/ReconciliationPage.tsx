@@ -61,12 +61,12 @@ export default function ReconciliationPage() {
             <Landmark size={22} />
           </div>
           <div>
-            <h1>{balance ? `${balance.bankName} â€” ${balance.accountName}` : 'Bank Reconciliation'}</h1>
-            <p>{meta.total} total statement lines{balance ? ` Â· Balance: ${balance.currency} ${fmtAmt(Number(balance.currentBalance))}` : ''}</p>
+            <h1>{balance ? `${balance.bankName} — ${balance.accountName}` : 'Bank Reconciliation'}</h1>
+            <p>{meta.total} total statement lines{balance ? ` · Balance: ${balance.currency} ${fmtAmt(Number(balance.currentBalance))}` : ''}</p>
           </div>
         </div>
         <PermissionGuard permission="finance-banking.write">
-          <button className="btn-primary" onClick={() => setShowImport(true)}>ðŸ“¥ Import Statement</button>
+          <button className="btn-primary" onClick={() => setShowImport(true)}>📥 Import Statement</button>
         </PermissionGuard>
       </div>
 
@@ -117,8 +117,8 @@ export default function ReconciliationPage() {
                 {lines.map(line => (
                   <tr key={line.id}>
                     <td>{fmtDate(line.transactionDate)}</td>
-                    <td style={{maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{line.description || 'â€”'}</td>
-                    <td style={{fontSize:'0.8rem',color:'var(--text-secondary)'}}>{line.reference || 'â€”'}</td>
+                    <td style={{maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{line.description || '—'}</td>
+                    <td style={{fontSize:'0.8rem',color:'var(--text-secondary)'}}>{line.reference || '—'}</td>
                     <td className="amount positive">{Number(line.creditAmount) > 0 ? fmtAmt(Number(line.creditAmount)) : ''}</td>
                     <td className="amount negative">{Number(line.debitAmount) > 0 ? fmtAmt(Number(line.debitAmount)) : ''}</td>
                     <td>
@@ -127,19 +127,19 @@ export default function ReconciliationPage() {
                       </span>
                     </td>
                     <td style={{fontVariantNumeric:'tabular-nums',color:'var(--text-secondary)'}}>
-                      {line.matchConfidence ? `${line.matchConfidence}%` : 'â€”'}
+                      {line.matchConfidence ? `${line.matchConfidence}%` : '—'}
                     </td>
                     <td>
                       <div style={{display:'flex',gap:4}}>
                         <PermissionGuard permission="finance-banking.write">
                           {line.matchStatus === 'unmatched' && (
-                            <button className="btn-sm" onClick={() => handleExclude(line.id)} title="Exclude">âœ•</button>
+                            <button className="btn-sm" onClick={() => handleExclude(line.id)} title="Exclude">✕</button>
                           )}
                           {(line.matchStatus === 'auto_matched' || line.matchStatus === 'manually_matched') && (
-                            <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Unmatch">â†©</button>
+                            <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Unmatch">↩</button>
                           )}
                           {line.matchStatus === 'excluded' && (
-                            <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Restore">â™»</button>
+                            <button className="btn-sm" onClick={() => handleUnmatch(line.id)} title="Restore">♻</button>
                           )}
                         </PermissionGuard>
                       </div>
@@ -230,7 +230,7 @@ function ImportStatementModal({ bankAccountId, onClose }: { bankAccountId: strin
   return (
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:750}}>
-        <h3>ðŸ“¥ Import Bank Statement</h3>
+        <h3>📥 Import Bank Statement</h3>
         <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-row">
             <div className="gl-form-group">
@@ -277,7 +277,7 @@ function ImportStatementModal({ bankAccountId, onClose }: { bankAccountId: strin
           </p>
           <div className="gl-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Importingâ€¦' : 'Import & Auto-Match'}</button>
+            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Importing…' : 'Import & Auto-Match'}</button>
           </div>
         </form>
       </div>

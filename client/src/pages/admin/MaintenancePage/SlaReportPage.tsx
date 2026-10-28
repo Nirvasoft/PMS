@@ -14,7 +14,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   P1: '#ef4444', P2: '#f97316', P3: '#3b82f6', P4: '#94a3b8',
 };
 
-// â”€â”€ SLA Gauge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── SLA Gauge ────────────────────────────────
 function SlaGauge({ label, rate, subtitle }: { label: string; rate: number; subtitle?: string }) {
   const circumference = 2 * Math.PI * 44;
   const offset = circumference - (rate / 100) * circumference;
@@ -41,7 +41,7 @@ function SlaGauge({ label, rate, subtitle }: { label: string; rate: number; subt
   );
 }
 
-// â”€â”€ Rate Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Rate Bar ─────────────────────────────────
 function RateBar({ rate, label }: { rate: number; label?: string }) {
   const color = rate >= 90 ? '#22c55e' : rate >= 70 ? '#f59e0b' : '#ef4444';
   return (
@@ -55,7 +55,7 @@ function RateBar({ rate, label }: { rate: number; label?: string }) {
   );
 }
 
-// â”€â”€ Group Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Group Row ────────────────────────────────
 function GroupRow({ g }: { g: SlaReportGroup }) {
   const priorityColor = PRIORITY_COLORS[g.group];
 
@@ -79,21 +79,21 @@ function GroupRow({ g }: { g: SlaReportGroup }) {
         {g.breaches > 0 ? (
           <span className="sla-breach-count">{g.breaches}</span>
         ) : (
-          <span className="sla-no-breach">â€”</span>
+          <span className="sla-no-breach">—</span>
         )}
       </td>
       <td className="text-center">
         {g.avgResolutionHours !== null ? (
           <span className="sla-res-hours">{g.avgResolutionHours}h</span>
         ) : (
-          <span className="sla-no-data">â€”</span>
+          <span className="sla-no-data">—</span>
         )}
       </td>
     </tr>
   );
 }
 
-// â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main Page ────────────────────────────────
 export default function SlaReportPage() {
   const [filters, setFilters] = useState({
     propertyId: '',
@@ -214,7 +214,7 @@ export default function SlaReportPage() {
                   <div className="sla-stat-icon"><TrendingUp size={18} /></div>
                   <div>
                     <div className="sla-stat-value">On Track</div>
-                    <div className="sla-stat-label">Overall SLA compliance â‰¥ 90%</div>
+                    <div className="sla-stat-label">Overall SLA compliance ≥ 90%</div>
                   </div>
                 </div>
               )}

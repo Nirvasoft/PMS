@@ -85,13 +85,13 @@ export default function HousekeepingDashboard() {
 
   return (
     <div className="maint-page">
-      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      {/* ── Header ── */}
       <div className="page-header">
         <div className="page-title-row">
           <div className="page-icon-lg"><Sparkles size={22} /></div>
           <div>
             <h1>Housekeeping Dashboard</h1>
-            <p>Today's overview Ã‚Â· {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <p>Today's overview · {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
           </div>
         </div>
         <div className="header-actions">
@@ -104,7 +104,7 @@ export default function HousekeepingDashboard() {
         </div>
       </div>
 
-      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Hero Stats Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      {/* ── Hero Stats ── */}
       <div className="hk-hero-stats">
         {/* Completion */}
         <div
@@ -176,11 +176,11 @@ export default function HousekeepingDashboard() {
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Missed</span>
           </div>
           <div style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.03em', color: missed > 0 ? '#ef4444' : 'var(--text-primary)' }}>{missed}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, fontWeight: 500 }}>{missed === 0 ? 'none missed Ã¢Å“â€œ' : 'need attention'}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, fontWeight: 500 }}>{missed === 0 ? 'none missed ✓' : 'need attention'}</div>
         </div>
       </div>
 
-      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Main Grid Ã¢â€â‚¬Ã¢â€â‚¬ */}
+      {/* ── Main Grid ── */}
       <div className="hk-dash-main-grid">
         {/* Left */}
         <div className="hk-dash-col">
@@ -258,7 +258,7 @@ export default function HousekeepingDashboard() {
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
                           {task.zone && <><MapPin size={10} /> {task.zone.name}</>}
-                          {task.scheduledTime && <> Ã‚Â· <Timer size={10} /> {task.scheduledTime}</>}
+                          {task.scheduledTime && <> · <Timer size={10} /> {task.scheduledTime}</>}
                         </div>
                       </div>
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: st.bg, color: st.color, textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -318,7 +318,7 @@ export default function HousekeepingDashboard() {
                         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{zone.name}</div>
                         <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-tertiary)', display: 'flex', gap: 4, alignItems: 'center', marginTop: 1 }}>
                           {zone.zoneType && <span style={{ textTransform: 'capitalize' }}>{zone.zoneType.replace('_', ' ')}</span>}
-                          {zone.floor && <span>Ã‚Â· F{zone.floor}</span>}
+                          {zone.floor && <span>· F{zone.floor}</span>}
                         </div>
                       </div>
                     </div>
@@ -376,7 +376,7 @@ export default function HousekeepingDashboard() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontWeight: 800, fontSize: 13,
                       }}>
-                        {insp.overallScore || 'Ã¢â‚¬â€'}
+                        {insp.overallScore || '—'}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

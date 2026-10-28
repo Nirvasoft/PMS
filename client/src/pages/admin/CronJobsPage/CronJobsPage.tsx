@@ -260,7 +260,7 @@ export default function CronJobsPage() {
           <div>
             <h1>Background Cron Jobs</h1>
             <p>
-              {totalJobs} total job{totalJobs !== 1 ? 's' : ''} Â· Monitor, reschedule, pause/resume, and manually trigger system background tasks
+              {totalJobs} total job{totalJobs !== 1 ? 's' : ''} · Monitor, reschedule, pause/resume, and manually trigger system background tasks
             </p>
           </div>
         </div>
@@ -376,7 +376,7 @@ export default function CronJobsPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Modern Card Grid View â”€â”€ */}
+      {/* ── Modern Card Grid View ── */}
       <div className="cron-cards-grid">
         {isLoading ? (
           <div className="cron-empty-state">
@@ -512,7 +512,7 @@ export default function CronJobsPage() {
         )}
       </div>
 
-      {/* â”€â”€â”€ MODAL 1: EDIT SCHEDULE MODAL (HYBRID) â”€â”€â”€ */}
+      {/* ─── MODAL 1: EDIT SCHEDULE MODAL (HYBRID) ─── */}
       {editingJob && (
         <div className="cron-modal-backdrop" onClick={() => setEditingJob(null)}>
           <div className="cron-modal" onClick={e => e.stopPropagation()}>
@@ -732,7 +732,7 @@ export default function CronJobsPage() {
         </div>
       )}
 
-      {/* â”€â”€â”€ MODAL 2: RUN NOW CONFIRMATION MODAL â”€â”€â”€ */}
+      {/* ─── MODAL 2: RUN NOW CONFIRMATION MODAL ─── */}
       {runConfirmJob && (
         <div className="cron-modal-backdrop" onClick={() => setRunConfirmJob(null)}>
           <div className="cron-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
@@ -774,7 +774,7 @@ export default function CronJobsPage() {
         </div>
       )}
 
-      {/* â”€â”€â”€ MODAL 3: EXECUTION LOGS MODAL â”€â”€â”€ */}
+      {/* ─── MODAL 3: EXECUTION LOGS MODAL ─── */}
       {logsJob && (
         <CronJobLogsModal job={logsJob} onClose={() => setLogsJob(null)} />
       )}
@@ -782,7 +782,7 @@ export default function CronJobsPage() {
   );
 }
 
-// â”€â”€ Execution Logs Modal Component â”€â”€
+// ── Execution Logs Modal Component ──
 function CronJobLogsModal({ job, onClose }: { job: CronJobItem; onClose: () => void }) {
   const { data: logsRes, isLoading, refetch } = useGetCronJobLogsQuery({ jobKey: job.jobKey });
   const logs = logsRes?.logs || [];
@@ -836,7 +836,7 @@ function CronJobLogsModal({ job, onClose }: { job: CronJobItem; onClose: () => v
                     <td>
                       <span className="cron-raw-tag">{log.triggeredBy}</span>
                     </td>
-                    <td>{log.durationMs ? `${log.durationMs}ms` : 'â€”'}</td>
+                    <td>{log.durationMs ? `${log.durationMs}ms` : '—'}</td>
                     <td>
                       {log.status === 'success' ? (
                         <span className="cron-status-badge success">Success</span>

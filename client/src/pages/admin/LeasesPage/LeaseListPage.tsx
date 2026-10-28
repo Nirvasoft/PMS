@@ -75,7 +75,7 @@ export default function LeaseListPage() {
           <div className="page-icon-lg"><FileText size={22} /></div>
           <div>
             <h1>Leases</h1>
-            <p>{meta ? `${meta.total} total leases` : 'Loading…'}</p>
+            <p>{meta ? `${meta.total} total leases` : <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} />}</p>
           </div>
         </div>
         <div className="lease-header-actions">

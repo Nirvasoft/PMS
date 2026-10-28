@@ -26,10 +26,10 @@ const FREQUENCIES: Record<string, string> = {
 };
 
 const PRIORITIES = [
-  { value: 'P1', label: 'P1 â€” Emergency' },
-  { value: 'P2', label: 'P2 â€” Urgent' },
-  { value: 'P3', label: 'P3 â€” Normal' },
-  { value: 'P4', label: 'P4 â€” Low' },
+  { value: 'P1', label: 'P1 — Emergency' },
+  { value: 'P2', label: 'P2 — Urgent' },
+  { value: 'P3', label: 'P3 — Normal' },
+  { value: 'P4', label: 'P4 — Low' },
 ];
 
 function DueDateBadge({ daysUntilDue }: { daysUntilDue: number }) {
@@ -146,7 +146,7 @@ export default function PmScheduleListPage() {
             onChange={(e) => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))}
           />
         </div>
-        {/* Follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+        {/* Follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select className="filter-select" value={selectedProperty} disabled>
           {selectedProperty && (
             <option value={selectedProperty}>{properties.find((p: any) => p.id === selectedProperty)?.name || ''}</option>
@@ -217,7 +217,7 @@ export default function PmScheduleListPage() {
                         <span className="cell-secondary">
                           {s.assignedTo?.profile
                             ? `${s.assignedTo.profile.firstName} ${s.assignedTo.profile.lastName}`
-                            : s.assignedRole || 'â€”'}
+                            : s.assignedRole || '—'}
                         </span>
                       </td>
                       <td>
@@ -303,7 +303,7 @@ export default function PmScheduleListPage() {
   );
 }
 
-// â”€â”€ Create Schedule Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Create Schedule Modal ─────────────────
 
 function CreateScheduleModal({ categories, properties, onClose }: {
   categories: any[]; properties: any[]; onClose: () => void;

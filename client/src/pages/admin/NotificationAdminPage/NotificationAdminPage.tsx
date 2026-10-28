@@ -31,10 +31,10 @@ export default function NotificationAdminPage() {
 
       <div className="tabs">
         <button className={`tab ${tab === 'logs' ? 'active' : ''}`} onClick={() => setTab('logs')}>
-          ðŸ“‹ Delivery Logs
+          📋 Delivery Logs
         </button>
         <button className={`tab ${tab === 'templates' ? 'active' : ''}`} onClick={() => setTab('templates')}>
-          ðŸ“ Templates
+          📝 Templates
         </button>
       </div>
 
@@ -46,7 +46,7 @@ export default function NotificationAdminPage() {
   );
 }
 
-/* â”€â”€â”€ Logs Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Logs Tab ─────────────────────────────── */
 
 const CHANNEL_ICONS: Record<string, ReactNode> = {
   email: <Mail size={14} />, in_app: <Bell size={14} />,
@@ -118,7 +118,7 @@ function LogsTab() {
                         <span style={{ fontSize: 13, fontWeight: 500 }}>
                           {log.recipient?.profile ? `${log.recipient.profile.firstName} ${log.recipient.profile.lastName}` : 'Unknown'}
                         </span>
-                        <span className="text-muted text-small">{log.recipient?.email || 'â€”'}</span>
+                        <span className="text-muted text-small">{log.recipient?.email || '—'}</span>
                       </div>
                     </td>
                     <td>
@@ -128,7 +128,7 @@ function LogsTab() {
                       </span>
                     </td>
                     <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {log.subject || log.templateCode || 'â€”'}
+                      {log.subject || log.templateCode || '—'}
                     </td>
                     <td>
                       <span className={`status-badge ${log.status === 'sent' ? 'active' : log.status === 'failed' ? 'danger' : 'pending'}`}>
@@ -174,7 +174,7 @@ function LogsTab() {
   );
 }
 
-/* â”€â”€â”€ Templates Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Templates Tab ────────────────────────── */
 
 const EMPTY_TEMPLATE: Partial<NotificationTemplate> = {
   code: '', name: '', description: '', channels: ['in_app'],
@@ -314,8 +314,8 @@ function TemplatesTab() {
                   </span>
                 </div>
                 <div className="text-small text-muted" style={{ marginTop: 2 }}>
-                  <code>{t.code}</code> Â· {t.channels.join(', ')}
-                  {t.isCritical && <span style={{ color: 'var(--danger)', marginLeft: 6 }}>âš  critical</span>}
+                  <code>{t.code}</code> · {t.channels.join(', ')}
+                  {t.isCritical && <span style={{ color: 'var(--danger)', marginLeft: 6 }}>⚠ critical</span>}
                 </div>
                 {/* Delete button on hover */}
                 <PermissionGuard permission="notifications.manage">
@@ -346,7 +346,7 @@ function TemplatesTab() {
         {editing ? (
           <div style={{ background: 'var(--surface-elevated)', borderRadius: 12, padding: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0 }}>{isNew ? 'âœ¨ New Template' : 'âœï¸ Edit Template'}</h3>
+              <h3 style={{ margin: 0 }}>{isNew ? '✨ New Template' : '✏️ Edit Template'}</h3>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-sm" onClick={() => setPreviewMode(!previewMode)}>
                   {previewMode ? <><Code size={14} /> Editor</> : <><Eye size={14} /> Preview</>}
@@ -422,7 +422,7 @@ function TemplatesTab() {
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
                       <input type="checkbox" checked={form.isCritical || false}
                         onChange={e => setForm({ ...form, isCritical: e.target.checked })} />
-                      âš  Critical (bypasses quiet hours)
+                      ⚠ Critical (bypasses quiet hours)
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
                       <input type="checkbox" checked={form.isActive !== false}
@@ -434,7 +434,7 @@ function TemplatesTab() {
 
                 <div>
                   <label className="text-small text-muted">Subject (Handlebars)</label>
-                  <input className="input-full" value={form.subject || ''} placeholder="e.g. Lease Approved â€” Unit {{unitCode}}"
+                  <input className="input-full" value={form.subject || ''} placeholder="e.g. Lease Approved — Unit {{unitCode}}"
                     style={{ fontFamily: 'monospace', fontSize: 13 }}
                     onChange={e => setForm({ ...form, subject: e.target.value })} />
                 </div>
@@ -535,7 +535,7 @@ function TemplatesTab() {
               <h3 style={{ marginTop: 0 }}><FileText size={16} /> {selectedTemplate.name}</h3>
               <PermissionGuard permission="notifications.manage">
                 <button className="btn btn-sm btn-primary" onClick={() => startEdit(selectedTemplate)}>
-                  âœï¸ Edit
+                  ✏️ Edit
                 </button>
               </PermissionGuard>
             </div>

@@ -41,11 +41,11 @@ export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
   };
 
   const getTenantName = (r: any) => {
-    if (!r?.tenant) return 'â€”';
+    if (!r?.tenant) return '—';
     if (r.tenant.tenantType && r.tenant.tenantType !== 'individual') {
-      return r.tenant.companyName || 'â€”';
+      return r.tenant.companyName || '—';
     }
-    return r.tenant.lastName || r.tenant.firstName || 'â€”';
+    return r.tenant.lastName || r.tenant.firstName || '—';
   };
 
   return (
@@ -72,7 +72,7 @@ export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
               </div>
               <div className="drawer-meta-item">
                 <div className="dmi-label">Property</div>
-                <div className="dmi-value">{receipt.property?.name || 'â€”'}</div>
+                <div className="dmi-value">{receipt.property?.name || '—'}</div>
               </div>
               <div className="drawer-meta-item">
                 <div className="dmi-label">Receipt Date</div>
@@ -92,7 +92,7 @@ export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
               </div>
               <div className="drawer-meta-item">
                 <div className="dmi-label">Reference</div>
-                <div className="dmi-value">{receipt.paymentReference || 'â€”'}</div>
+                <div className="dmi-value">{receipt.paymentReference || '—'}</div>
               </div>
             </div>
 
@@ -130,7 +130,7 @@ export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
                 </table>
               ) : (
                 <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: '8px 0' }}>
-                  No allocations â€” full amount recorded as unallocated.
+                  No allocations — full amount recorded as unallocated.
                 </div>
               )}
             </div>
@@ -141,7 +141,7 @@ export default function ReceiptDetailDrawer({ receiptId, onClose }: Props) {
                 <div style={{ marginTop: 24 }}>
                   <button className="btn btn-secondary" onClick={handleReverse} disabled={reversing}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f87171' }}>
-                    <RotateCcw size={14} /> {reversing ? 'Reversingâ€¦' : 'Reverse Receipt'}
+                    <RotateCcw size={14} /> {reversing ? 'Reversing…' : 'Reverse Receipt'}
                   </button>
                 </div>
               </PermissionGuard>

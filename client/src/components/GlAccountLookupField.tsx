@@ -23,7 +23,7 @@ export default function GlAccountLookupField({
   onChange,
   wrapperClassName = 'form-field',
   disabled = false,
-  placeholder = 'Select from Chart of Accountsâ€¦',
+  placeholder = 'Select from Chart of Accounts…',
   propertyId: propPropertyId,
 }: GlAccountLookupFieldProps) {
   const selectedPropertyId = useSelectedPropertyId();
@@ -105,7 +105,7 @@ export default function GlAccountLookupField({
         </span>
       )}
 
-      {/* Chart of Accounts Lookup Modal â€” identical to ChargeTypesPage */}
+      {/* Chart of Accounts Lookup Modal — identical to ChargeTypesPage */}
       {showCoaModal &&
         createPortal(
           <div className="modal-overlay coa-lookup-overlay" onClick={() => setShowCoaModal(false)}>
@@ -128,7 +128,7 @@ export default function GlAccountLookupField({
                   <Search size={15} className="coa-lookup-search-icon" />
                   <input
                     type="text"
-                    placeholder="Search by account code or nameâ€¦"
+                    placeholder="Search by account code or name…"
                     value={coaSearch}
                     onChange={(e) => setCoaSearch(e.target.value)}
                     autoFocus
@@ -204,12 +204,12 @@ export default function GlAccountLookupField({
                               </td>
                               <td>
                                 <span className="cell-mono" style={{ fontSize: 12, color: acc.departmentCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                  {acc.departmentCenter?.code || 'â€”'}
+                                  {acc.departmentCenter?.code || '—'}
                                 </span>
                               </td>
                               <td>
                                 <span className="cell-mono" style={{ fontSize: 12, color: acc.costCenter?.code ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
-                                  {acc.costCenter?.code || 'â€”'}
+                                  {acc.costCenter?.code || '—'}
                                 </span>
                               </td>
                               <td>

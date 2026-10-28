@@ -22,7 +22,7 @@ import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 const CATEGORIES = ['plumbing', 'electrical', 'hvac', 'cleaning', 'general', 'other'];
 const UNITS = ['pcs', 'meters', 'kg', 'litres', 'roll', 'box', 'set'];
 const CATEGORY_ICONS: Record<string, string> = {
-  plumbing: 'Ã°Å¸â€Â§', electrical: 'Ã¢Å¡Â¡', hvac: 'Ã¢Ââ€žÃ¯Â¸Â', cleaning: 'Ã°Å¸Â§Â¹', general: 'Ã°Å¸â€œÂ¦', other: 'Ã°Å¸â€Â©',
+  plumbing: '🔧', electrical: '⚡', hvac: '❄️', cleaning: '🧹', general: '📦', other: '🔩',
 };
 
 export default function ItemCatalogPage() {
@@ -140,15 +140,15 @@ export default function ItemCatalogPage() {
               <h1 style={{ margin: 0 }}>Item Catalog</h1>
               {activeProperty ? (
                 <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
-                  Ã°Å¸ÂÂ¢ {activeProperty.name}
+                  🏢 {activeProperty.name}
                 </span>
               ) : (
                 <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-                  Ã°Å¸Å’Â All Properties
+                  🌐 All Properties
                 </span>
               )}
             </div>
-            <p>{meta?.total ?? items.length} total items Ã‚Â· {stores.length} stores</p>
+            <p>{meta?.total ?? items.length} total items · {stores.length} stores</p>
           </div>
         </div>
         <div className="header-actions">
@@ -245,7 +245,7 @@ export default function ItemCatalogPage() {
                     <td><span className="cell-primary">{item.name}</span></td>
                     <td>
                       <span className="maint-status open">
-                        {CATEGORY_ICONS[item.category] || 'Ã°Å¸â€œÂ¦'} {item.category}
+                        {CATEGORY_ICONS[item.category] || '📦'} {item.category}
                       </span>
                     </td>
                     <td><span className="cell-secondary">{item.unitOfMeasure}</span></td>
@@ -260,11 +260,11 @@ export default function ItemCatalogPage() {
                     <td style={{ textAlign: 'right' }}><span className="cell-secondary">{Number(item.reorderPoint)}</span></td>
                     <td>
                       {item.totalOnHand <= 0 ? (
-                        <span className="maint-status cancelled">Ã¢ÂÅ’ Out</span>
+                        <span className="maint-status cancelled">❌ Out</span>
                       ) : item.isLowStock ? (
-                        <span className="maint-status in_progress">Ã¢Å¡Â Ã¯Â¸Â Low</span>
+                        <span className="maint-status in_progress">⚠️ Low</span>
                       ) : (
-                        <span className="maint-status completed">Ã¢Å“â€¦ OK</span>
+                        <span className="maint-status completed">✅ OK</span>
                       )}
                     </td>
                     <td style={{ textAlign: 'center' }}>

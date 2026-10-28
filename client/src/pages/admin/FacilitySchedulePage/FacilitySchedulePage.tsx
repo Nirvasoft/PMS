@@ -38,7 +38,7 @@ export default function FacilitySchedulePage() {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectAttempted, setRejectAttempted] = useState(false);
 
-  // Active property from the sidebar â€” follows the same pattern as Parking Overview.
+  // Active property from the sidebar — follows the same pattern as Parking Overview.
   const selectedProperty = useSelectedPropertyFilter();
   const { data: propertiesData } = useGetMyPropertyScopeQuery();
   const properties = propertiesData?.data || [];
@@ -129,7 +129,7 @@ export default function FacilitySchedulePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button className="btn btn-sm" onClick={() => setWeekOffset(w => w - 1)}><ChevronLeft size={14} /></button>
           <span style={{ fontWeight: 600, minWidth: 200, textAlign: 'center' }}>
-            {formatDate(startDate)} â€” {formatDate(endDate)}
+            {formatDate(startDate)} — {formatDate(endDate)}
           </span>
           <button className="btn btn-sm" onClick={() => setWeekOffset(w => w + 1)}><ChevronRight size={14} /></button>
           {weekOffset !== 0 && (
@@ -137,7 +137,7 @@ export default function FacilitySchedulePage() {
           )}
         </div>
         <div style={{ flex: 1 }} />
-        {/* Property follows the sidebar's "Active Property" selector â€” not independently choosable here. */}
+        {/* Property follows the sidebar's "Active Property" selector — not independently choosable here. */}
         <select
           value={selectedProperty}
           disabled
@@ -145,7 +145,7 @@ export default function FacilitySchedulePage() {
           style={{ width: 180 }}
         >
           {!selectedProperty && <option value="">All Properties</option>}
-          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loadingâ€¦'}</option>}
+          {selectedProperty && <option value={selectedProperty}>{selectedPropertyName || 'Loading…'}</option>}
         </select>
         <select
           value={statusFilter}
@@ -215,15 +215,15 @@ export default function FacilitySchedulePage() {
                       <div key={b.id} className={`facility-booking-card booking-${b.status}`}>
                         <div className="facility-booking-time">
                           <Clock size={11} />
-                          {b.startTime}â€“{b.endTime}
+                          {b.startTime}–{b.endTime}
                         </div>
                         <div className="facility-booking-name">
                           {b.facility?.name || 'Facility'}
                         </div>
                         <div className="facility-booking-meta">
                           <User size={10} />
-                          {b.resident ? `${b.resident.firstName} ${b.resident.lastName}` : 'â€”'}
-                          {b.unit && <> Â· <Building2 size={10} /> {b.unit.unitNumber}</>}
+                          {b.resident ? `${b.resident.firstName} ${b.resident.lastName}` : '—'}
+                          {b.unit && <> · <Building2 size={10} /> {b.unit.unitNumber}</>}
                         </div>
                         {b.purpose && (
                           <div className="facility-booking-purpose" title={b.purpose}>

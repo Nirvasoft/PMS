@@ -64,18 +64,18 @@ export default function InvoiceDetailPage() {
    * the amount is returned as-is.
    *
    * Strategy: treat every rate as "<currency> <operator> rate = base". We first
-   * convert fromCurrency â†’ base, then base â†’ toCurrency.
+   * convert fromCurrency → base, then base → toCurrency.
    */
   const convertCurrency = (amount: number, fromCurrency: string, toCurrency: string): number => {
     if (!fromCurrency || !toCurrency || fromCurrency === toCurrency) return amount;
     const fromRow = currencyRates.find(r => r.currency === fromCurrency);
     const toRow   = currencyRates.find(r => r.currency === toCurrency);
-    // Convert fromCurrency â†’ base
+    // Convert fromCurrency → base
     let baseAmount = amount;
     if (fromRow && !fromRow.isBaseCurrency) {
       baseAmount = fromRow.operator === 'divide' ? amount / Number(fromRow.rate) : amount * Number(fromRow.rate);
     }
-    // Convert base â†’ toCurrency
+    // Convert base → toCurrency
     if (toRow && !toRow.isBaseCurrency) {
       return toRow.operator === 'divide' ? baseAmount * Number(toRow.rate) : baseAmount / Number(toRow.rate);
     }
@@ -186,7 +186,7 @@ export default function InvoiceDetailPage() {
 
   const outstanding = Number(inv.totalAmount) - Number(inv.paidAmount);
 
-  // â”€â”€ Tenant-currency conversion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Tenant-currency conversion ──────────────────────────────────────────────
   // The invoice is stored in `inv.currency` (property/base currency).
   // The tenant may have a different preferred currency (`inv.tenant.currency`).
   // When they differ we show the tenant-currency amount as the primary value and
@@ -198,7 +198,7 @@ export default function InvoiceDetailPage() {
   const baseCurrencyRow = currencyRates.find(r => r.isBaseCurrency);
 
   // effectiveRate = the current rate for the tenant's currency from Currency Setup.
-  // Always look up from the live rate table â€” inv.currencyRate is the invoice's
+  // Always look up from the live rate table — inv.currencyRate is the invoice's
   // internal rate (e.g. MMK) and is NOT the tenant's currency rate.
   const effectiveRate = tenantRateRow?.rate != null && Number(tenantRateRow.rate) > 0
     ? Number(tenantRateRow.rate)
@@ -250,13 +250,13 @@ export default function InvoiceDetailPage() {
           </button>
           <button className="btn btn-secondary" onClick={handleDownloadPdf} disabled={downloadingPdf}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Download size={14} /> {downloadingPdf ? 'Downloadingâ€¦' : 'Download'}
+            <Download size={14} /> {downloadingPdf ? 'Downloading…' : 'Download'}
           </button>
           <PermissionGuard permission="billing-invoices.write">
             {['draft', 'issued'].includes(inv.status) && (
               <button className="btn btn-primary" onClick={handleSend} disabled={sending}
                 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Send size={14} /> {sending ? 'Sendingâ€¦' : 'Send'}
+                <Send size={14} /> {sending ? 'Sending…' : 'Send'}
               </button>
             )}
             {isV6Active && inv.status === 'issued' && (
@@ -267,7 +267,7 @@ export default function InvoiceDetailPage() {
                 title="Send this invoice to V6 ERP"
                 style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
               >
-                <UploadCloud size={14} /> {pushingToV6 ? 'Sendingâ€¦' : 'Send to V6 ERP'}
+                <UploadCloud size={14} /> {pushingToV6 ? 'Sending…' : 'Send to V6 ERP'}
               </button>
             )}
             {/* Credit Note button */}
@@ -295,7 +295,7 @@ export default function InvoiceDetailPage() {
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Unit</div>
-          <div className="imi-value">{inv.unit?.unitNumber || 'â€”'}</div>
+          <div className="imi-value">{inv.unit?.unitNumber || '—'}</div>
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Invoice Date</div>
@@ -307,18 +307,18 @@ export default function InvoiceDetailPage() {
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Second Ref.</div>
-          <div className="imi-value">{inv.secondRef || 'â€”'}</div>
+          <div className="imi-value">{inv.secondRef || '—'}</div>
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Department</div>
           <div className="imi-value">
-            {inv.departmentCenter ? inv.departmentCenter.code : 'â€”'}
+            {inv.departmentCenter ? inv.departmentCenter.code : '—'}
           </div>
         </div>
         <div className="invoice-meta-item">
           <div className="imi-label">Cost Center</div>
           <div className="imi-value">
-            {inv.costCenter ? inv.costCenter.code : 'â€”'}
+            {inv.costCenter ? inv.costCenter.code : '—'}
           </div>
         </div>
         <div className="invoice-meta-item">
@@ -335,7 +335,7 @@ export default function InvoiceDetailPage() {
         {inv.periodFrom && inv.periodTo && (
           <div className="invoice-meta-item">
             <div className="imi-label">Billing Period</div>
-            <div className="imi-value">{format(new Date(inv.periodFrom), 'MMM d')} â€” {format(new Date(inv.periodTo), 'MMM d, yyyy')}</div>
+            <div className="imi-value">{format(new Date(inv.periodFrom), 'MMM d')} — {format(new Date(inv.periodTo), 'MMM d, yyyy')}</div>
           </div>
         )}
       </div>
@@ -439,7 +439,7 @@ export default function InvoiceDetailPage() {
                 <td className="text-right">{Number(line.quantity)}</td>
                 <td className="text-right">{fmtTenant(line.unitPrice)}</td>
                 <td className="text-right" style={{ color: 'var(--text-tertiary)' }}>
-                  {Number(line.taxRate) > 0 ? `${(Number(line.taxRate) * 100).toFixed(1)}%` : 'â€”'}
+                  {Number(line.taxRate) > 0 ? `${(Number(line.taxRate) * 100).toFixed(1)}%` : '—'}
                 </td>
                 <td className="text-right" style={{ fontWeight: 600 }}>{fmtTenant(line.lineTotal)}</td>
               </tr>
@@ -526,7 +526,7 @@ export default function InvoiceDetailPage() {
                       {alloc.receipt.paymentMethod.replace(/_/g, ' ')}
                     </span>
                   </td>
-                  <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{alloc.receipt.paymentReference || 'â€”'}</td>
+                  <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{alloc.receipt.paymentReference || '—'}</td>
                   <td className="text-right" style={{ fontWeight: 700, color: '#10b981' }}>
                     {hasTenantCurrency
                       ? formatCurrency(convertCurrency(Number(alloc.amount), inv.currency, tenantCurrency), tenantCurrency)
@@ -590,7 +590,7 @@ export default function InvoiceDetailPage() {
         </div>
       )}
 
-      {/* â•â•â• Credit Note Modal â•â•â• */}
+      {/* ═══ Credit Note Modal ═══ */}
       {showCreditModal && (
         <div className="modal-overlay">
           <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
@@ -601,12 +601,12 @@ export default function InvoiceDetailPage() {
             <form onSubmit={handleCreateCreditNote}>
               <div className="modal-body">
                 <div style={{ marginBottom: 16, padding: 12, background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 10, fontSize: 12, color: '#34d399' }}>
-                  Creating credit note against <strong>{inv.invoiceNumber}</strong> â€” Total: {fmtTenant(inv.totalAmount)}
+                  Creating credit note against <strong>{inv.invoiceNumber}</strong> — Total: {fmtTenant(inv.totalAmount)}
                 </div>
 
                 <div className="inv-field" style={{ marginBottom: 16 }}>
                   <label>Credit Reason <span className="req">*</span></label>
-                  <textarea required rows={2} placeholder="Reason for issuing this credit noteâ€¦"
+                  <textarea required rows={2} placeholder="Reason for issuing this credit note…"
                     value={creditReason} onChange={e => setCreditReason(e.target.value)} />
                 </div>
 
@@ -637,7 +637,7 @@ export default function InvoiceDetailPage() {
                         <td>
                           <select className="line-select" required value={line.chargeTypeId}
                             onChange={e => updateCreditLine(idx, 'chargeTypeId', e.target.value)}>
-                            <option value="">Selectâ€¦</option>
+                            <option value="">Select…</option>
                             {chargeTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
                           </select>
                         </td>
@@ -678,7 +678,7 @@ export default function InvoiceDetailPage() {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreditModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creatingCN}
                   style={{ background: 'linear-gradient(135deg, #10b981, #06b6d4)' }}>
-                  {creatingCN ? 'Creatingâ€¦' : 'Issue Credit Note'}
+                  {creatingCN ? 'Creating…' : 'Issue Credit Note'}
                 </button>
               </div>
             </form>

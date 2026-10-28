@@ -98,7 +98,7 @@ export default function PurchaseRequisitionsPage() {
   };
 
   const formatCurrency = (val: any) => {
-    if (!val) return 'Ã¢â‚¬â€';
+    if (!val) return '—';
     return `${currency} ${formatCompactAmount(val, { minDecimals: 2, maxDecimals: 2 })}`;
   };
 
@@ -117,11 +117,11 @@ export default function PurchaseRequisitionsPage() {
               <h1 style={{ margin: 0 }}>Purchase Requisitions</h1>
               {activeProperty ? (
                 <span className="maint-status completed" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8 }}>
-                  Ã°Å¸ÂÂ¢ {activeProperty.name}
+                  🏢 {activeProperty.name}
                 </span>
               ) : (
                 <span className="maint-status open" style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: 8, background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)' }}>
-                  Ã°Å¸Å’Â All Properties
+                  🌐 All Properties
                 </span>
               )}
             </div>
@@ -198,13 +198,13 @@ export default function PurchaseRequisitionsPage() {
                           {pr.prNumber}
                         </span>
                       </td>
-                      <td><span className="cell-secondary">{pr.property?.name || 'Ã¢â‚¬â€'}</span></td>
+                      <td><span className="cell-secondary">{pr.property?.name || '—'}</span></td>
                       <td>
                         <div className="pr-items-preview">
                           {items.slice(0, 2).map((item: any, i: number) => (
                             <span key={i} className="pr-item-tag">
                               {item.itemName || item.name}
-                              <span className="pr-item-qty">Ãƒâ€”{item.qty}</span>
+                              <span className="pr-item-qty">×{item.qty}</span>
                             </span>
                           ))}
                           {items.length > 2 && (
@@ -227,7 +227,7 @@ export default function PurchaseRequisitionsPage() {
                         <span className="cell-secondary">
                           {pr.requestedBy?.profile
                             ? `${pr.requestedBy.profile.firstName} ${pr.requestedBy.profile.lastName}`
-                            : pr.requestedBy?.email === 'system' ? 'Ã¢Å¡â„¢Ã¯Â¸Â Auto-generated' : 'Ã¢â‚¬â€'}
+                            : pr.requestedBy?.email === 'system' ? '⚙️ Auto-generated' : '—'}
                         </span>
                       </td>
                       <td>
@@ -334,14 +334,14 @@ export default function PurchaseRequisitionsPage() {
                 </div>
                 <div className="pr-meta-row">
                   <span className="pr-meta-label">Property</span>
-                  <span>{detailPr.property?.name || 'Ã¢â‚¬â€'}</span>
+                  <span>{detailPr.property?.name || '—'}</span>
                 </div>
                 <div className="pr-meta-row">
                   <span className="pr-meta-label">Requested By</span>
                   <span>
                     {detailPr.requestedBy?.profile
                       ? `${detailPr.requestedBy.profile.firstName} ${detailPr.requestedBy.profile.lastName}`
-                      : 'Ã¢Å¡â„¢Ã¯Â¸Â Auto-generated'}
+                      : '⚙️ Auto-generated'}
                   </span>
                 </div>
                 {detailPr.approvedBy?.profile && (
@@ -376,7 +376,7 @@ export default function PurchaseRequisitionsPage() {
                   </div>
                   {(Array.isArray(detailPr.items) ? detailPr.items : []).map((item: any, idx: number) => (
                     <div key={idx} className="pr-items-row">
-                      <span className="pr-item-name">{item.itemName || item.name || 'Ã¢â‚¬â€'}</span>
+                      <span className="pr-item-name">{item.itemName || item.name || '—'}</span>
                       <span className="pr-item-qty-cell">{item.qty}</span>
                       <span className="pr-item-cost">{formatCurrency(item.unitCost)}</span>
                       <span className="pr-item-total">{formatCurrency((item.qty || 0) * (item.unitCost || 0))}</span>

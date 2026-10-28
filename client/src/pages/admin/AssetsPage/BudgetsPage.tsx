@@ -47,10 +47,10 @@ export default function BudgetsPage() {
 
       <div className="gl-toolbar">
         <button className={`btn-sm ${tab === 'spreadsheet' ? 'btn-primary' : ''}`} onClick={() => setTab('spreadsheet')}>
-          ðŸ“‹ Budget Spreadsheet
+          📋 Budget Spreadsheet
         </button>
         <button className={`btn-sm ${tab === 'variance' ? 'btn-primary' : ''}`} onClick={() => setTab('variance')}>
-          ðŸ“Š Variance Report
+          📊 Variance Report
         </button>
         <div style={{ flex: 1 }} />
         <label>FY</label>
@@ -68,9 +68,9 @@ export default function BudgetsPage() {
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// SPREADSHEET TAB â€” inline editable monthly grid
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
+// SPREADSHEET TAB — inline editable monthly grid
+// ═══════════════════════════════════════════════════
 
 function SpreadsheetTab({ year }: { year: number }) {
   const { data: budgets = [], isLoading } = useGetBudgetsQuery({ fiscalYear: year });
@@ -280,7 +280,7 @@ function SpreadsheetTab({ year }: { year: number }) {
         background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)',
         color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8,
       }}>
-        ðŸ’¡ <strong>Tip:</strong> Click any cell to edit. Use <kbd style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--surface-hover)', fontSize: 10 }}>Tab</kbd> to move right,{' '}
+        💡 <strong>Tip:</strong> Click any cell to edit. Use <kbd style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--surface-hover)', fontSize: 10 }}>Tab</kbd> to move right,{' '}
         <kbd style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--surface-hover)', fontSize: 10 }}>Enter</kbd> to move down,{' '}
         <kbd style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--surface-hover)', fontSize: 10 }}>Esc</kbd> to cancel. Changes auto-save.
       </div>
@@ -325,7 +325,7 @@ function SpreadsheetTab({ year }: { year: number }) {
                       {b.name || b.glAccount.name}
                     </td>
 
-                    {/* â”€â”€ Monthly cells (editable) â”€â”€ */}
+                    {/* ── Monthly cells (editable) ── */}
                     {MONTHS.map((_, i) => {
                       const cellKey = `${b.id}-${i}`;
                       const isEditing = editCell === cellKey;
@@ -363,7 +363,7 @@ function SpreadsheetTab({ year }: { year: number }) {
                             />
                           ) : (
                             <span style={{ color: val === 0 ? 'var(--text-muted, #999)' : 'var(--text-primary)' }}>
-                              {val === 0 ? 'â€”' : fmtAmt(val)}
+                              {val === 0 ? '—' : fmtAmt(val)}
                             </span>
                           )}
                         </td>
@@ -392,18 +392,18 @@ function SpreadsheetTab({ year }: { year: number }) {
                           {!isLocked && (
                             <>
                               <button className="btn-sm" onClick={() => distributeEvenly(b.id)} title="Distribute evenly"
-                                style={{ fontSize: 11, padding: '3px 6px' }}>â‡‰</button>
+                                style={{ fontSize: 11, padding: '3px 6px' }}>⇉</button>
                               <button className="btn-sm" onClick={() => copyFirstMonth(b.id)} title="Copy Jan to all months"
-                                style={{ fontSize: 11, padding: '3px 6px' }}>ðŸ“‹</button>
+                                style={{ fontSize: 11, padding: '3px 6px' }}>📋</button>
                             </>
                           )}
                           {b.status === 'draft' && (
                             <button className="btn-sm btn-success" onClick={() => handleApprove(b.id)} title="Approve"
-                              style={{ fontSize: 11, padding: '3px 6px' }}>âœ“</button>
+                              style={{ fontSize: 11, padding: '3px 6px' }}>✓</button>
                           )}
                           {!isLocked && (
                             <button className="btn-sm btn-danger" onClick={() => handleDelete(b.id)} title="Delete"
-                              style={{ fontSize: 11, padding: '3px 6px' }}>âœ•</button>
+                              style={{ fontSize: 11, padding: '3px 6px' }}>✕</button>
                           )}
                         </div>
                       </PermissionGuard>
@@ -447,9 +447,9 @@ function SpreadsheetTab({ year }: { year: number }) {
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// VARIANCE TAB â€” Recharts Bar Chart + Monthly Trend
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
+// VARIANCE TAB — Recharts Bar Chart + Monthly Trend
+// ═══════════════════════════════════════════════════
 
 function VarianceTab({ year }: { year: number }) {
   const [month, setMonth] = useState<number | undefined>(undefined);
@@ -473,7 +473,7 @@ function VarianceTab({ year }: { year: number }) {
     if (!variance?.rows) return [];
     return variance.rows.map(r => ({
       name: r.glAccountCode,
-      fullName: `${r.glAccountCode} â€” ${r.accountName}`,
+      fullName: `${r.glAccountCode} — ${r.accountName}`,
       budget: Math.round(r.budgetAmount * 100) / 100,
       actual: Math.round(r.actualAmount * 100) / 100,
       variance: Math.round(r.variance * 100) / 100,
@@ -548,7 +548,7 @@ function VarianceTab({ year }: { year: number }) {
             background: chartView === 'bar' ? 'var(--primary)' : 'transparent',
             color: chartView === 'bar' ? '#fff' : 'var(--text-secondary)',
           }}>
-            ðŸ“Š By Account
+            📊 By Account
           </button>
           <button onClick={() => setChartView('trend')} style={{
             padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
@@ -556,7 +556,7 @@ function VarianceTab({ year }: { year: number }) {
             background: chartView === 'trend' ? 'var(--primary)' : 'transparent',
             color: chartView === 'trend' ? '#fff' : 'var(--text-secondary)',
           }}>
-            ðŸ“ˆ Monthly Trend
+            📈 Monthly Trend
           </button>
         </div>
       </div>
@@ -587,7 +587,7 @@ function VarianceTab({ year }: { year: number }) {
             </div>
           </div>
 
-          {/* â•â• Charts â•â• */}
+          {/* ══ Charts ══ */}
           {chartView === 'bar' && barData.length > 0 && (
             <div style={{
               background: 'var(--surface)', borderRadius: 14, padding: '24px 20px',
@@ -597,7 +597,7 @@ function VarianceTab({ year }: { year: number }) {
                 Budget vs Actual by Account
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>
-                {month ? `${MONTHS[month - 1]} ${year}` : `Full Year ${year}`} â€” Grouped bar comparison
+                {month ? `${MONTHS[month - 1]} ${year}` : `Full Year ${year}`} — Grouped bar comparison
               </div>
               <ResponsiveContainer width="100%" height={Math.max(300, barData.length * 50)}>
                 <BarChart
@@ -654,7 +654,7 @@ function VarianceTab({ year }: { year: number }) {
                 Monthly Budget Allocation
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>
-                FY {year} â€” Monthly budget distribution across all accounts
+                FY {year} — Monthly budget distribution across all accounts
               </div>
               <ResponsiveContainer width="100%" height={320}>
                 <AreaChart data={monthlyTrend} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
@@ -722,7 +722,7 @@ function VarianceTab({ year }: { year: number }) {
                       </td>
                       <td>
                         <span className={`gl-badge ${r.status === 'under_budget' ? 'posted' : 'reversed'}`}>
-                          {r.status === 'under_budget' ? 'âœ“ Under' : 'âœ— Over'}
+                          {r.status === 'under_budget' ? '✓ Under' : '✗ Over'}
                         </span>
                       </td>
                     </tr>
@@ -740,9 +740,9 @@ function VarianceTab({ year }: { year: number }) {
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 // CREATE BUDGET MODAL
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════
 
 function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => void }) {
   const selectedPropertyId = useSelectedPropertyId();
@@ -798,7 +798,7 @@ function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => voi
   return (
     <div className="gl-modal-overlay">
       <div className="gl-modal" onClick={e => e.stopPropagation()} style={{maxWidth:800}}>
-        <h3>New Budget â€” FY {year}</h3>
+        <h3>New Budget — FY {year}</h3>
         <form onSubmit={handleSubmit} noValidate>
           <div className="gl-form-row">
             <div className="gl-form-group">
@@ -808,8 +808,8 @@ function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => voi
                 value={form.glAccountId}
                 onChange={e => setForm({...form, glAccountId: e.target.value})}
               >
-                <option value="">Select accountâ€¦</option>
-                {expenseAccounts.map(a => <option key={a.id} value={a.id}>{a.code} â€” {a.name}</option>)}
+                <option value="">Select account…</option>
+                {expenseAccounts.map(a => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
               </select>
               {hasAttemptedSubmit && !form.glAccountId && (
                 <span className="gl-error-text">GL account is required</span>
@@ -856,7 +856,7 @@ function CreateBudgetModal({ year, onClose }: { year: number; onClose: () => voi
           </div>
           <div className="gl-modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Creatingâ€¦' : 'Create Budget'}</button>
+            <button type="submit" className="btn-primary" disabled={isLoading}>{isLoading ? 'Creating…' : 'Create Budget'}</button>
           </div>
         </form>
       </div>

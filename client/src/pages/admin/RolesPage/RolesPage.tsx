@@ -139,7 +139,7 @@ export default function RolesPage() {
             <div>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>Roles & Permissions</h1>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                {isLoading ? 'Loadingâ€¦' : `${roles.length} total roles`}
+                {isLoading ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} /> : `${roles.length} total roles`}
               </p>
             </div>
           </div>
@@ -335,7 +335,7 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Create Role</h2>
-          <button className="btn-icon" onClick={onClose}>âœ•</button>
+          <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">
@@ -394,7 +394,7 @@ function EditRoleModal({ role, onClose }: { role: RoleItem; onClose: () => void 
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{isSystem ? role.name : `Edit: ${name}`}</h2>
-          <button className="btn-icon" onClick={onClose}>âœ•</button>
+          <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body" noValidate>
           <div className="form-group">
