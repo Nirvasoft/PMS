@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useConfirm } from '../../components/DialogProvider';
 import { PermissionGuard } from '../../components/guards/PermissionGuard';
+import { useSelectedPropertyId } from '../../hooks/useSelectedPropertyId';
 
 const TYPE_META: Record<string, { name: string; icon: string; cat: string; color: string; image?: string }> = {
   v6erp:       { name: 'V6 ERP',                 icon: '🔗', image: '/v6erp-logo.png', cat: 'ERP', color: '#2b579a' },
@@ -37,6 +38,7 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
 };
 
 export default function IntegrationsPage() {
+  const activePropertyId = useSelectedPropertyId();
   const { data: res, isLoading } = useGetIntegrationsQuery();
   const [createIntegration, { isLoading: isCreating }] = useCreateIntegrationMutation();
   const [updateIntegration, { isLoading: isUpdating }] = useUpdateIntegrationMutation();
@@ -71,7 +73,11 @@ export default function IntegrationsPage() {
       return;
     }
     try {
-      await createIntegration({ ...createForm, name: trimmedName }).unwrap();
+      await createIntegration({
+        ...createForm,
+        name: trimmedName,
+        ...(activePropertyId ? { propertyId: activePropertyId } : {}),
+      }).unwrap();
       toast.success('Integration created successfully');
       setShowCreate(false);
       setCreateSubmitted(false);
@@ -85,7 +91,10 @@ export default function IntegrationsPage() {
   const handleTest = async (id: string) => {
     setTestingId(id);
     try {
-      const res = await testIntegration(id).unwrap();
+      const res = await testIntegration({
+        id,
+        ...(activePropertyId ? { propertyId: activePropertyId } : {}),
+      }).unwrap();
       setTestResult({ id, status: 'success', ...res.data });
       toast.success(res?.data?.connected ? 'Connection successful!' : 'Connected');
       setTimeout(() => setTestResult((prev: any) => (prev?.id === id ? null : prev)), 8000);
@@ -102,7 +111,13 @@ export default function IntegrationsPage() {
   const handleSync = async (id: string) => {
     setSyncingId(id);
     try {
-      const res = await triggerSync({ id, data: { syncType: 'full_sync' } }).unwrap();
+      const res = await triggerSync({
+        id,
+        data: {
+          syncType: 'full_sync',
+          ...(activePropertyId ? { propertyId: activePropertyId } : {}),
+        },
+      }).unwrap();
       toast.success(res?.message || res?.data?.message || 'Sync completed successfully');
     } catch (err: any) {
       toast.error(err?.data?.message || err?.message || 'Sync failed');
@@ -172,6 +187,7 @@ export default function IntegrationsPage() {
         isActive:      editForm.isActive,
         status:        editForm.isActive ? 'active' : 'disabled',
         config,
+        ...(activePropertyId ? { propertyId: activePropertyId } : {}),
       };
       if (credentials !== undefined) {
         payload.credentials = credentials;
@@ -494,15 +510,19 @@ export default function IntegrationsPage() {
 
       {/* Edit Integration Modal */}
       {showEdit && createPortal(
-        <div className="mall-modal-overlay" onClick={() => !isUpdating && setShowEdit(null)}>
-          <div className="mall-modal" onClick={e => e.stopPropagation()}>
-            <div className="mall-modal-header">
+        <div className="mall-modal-overlay">
+          <div
+            className="mall-modal"
+            onClick={e => e.stopPropagation()}
+            style={{ display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflow: 'hidden' }}
+          >
+            <div className="mall-modal-header" style={{ flexShrink: 0 }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Edit size={18} /> Edit Integration: {showEdit.name}
               </h3>
               <button className="mall-modal-close" onClick={() => !isUpdating && setShowEdit(null)}>✕</button>
             </div>
-            <div className="mall-modal-body">
+            <div className="mall-modal-body" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
               {/* Type info banner */}
               {(() => { const meta = TYPE_META[showEdit.integrationType] || { name: showEdit.integrationType, icon: '🔌', cat: 'Other', color: '#6b7280' }; return (
                 <div style={{
@@ -642,7 +662,7 @@ export default function IntegrationsPage() {
                 </label>
               </div>
             </div>
-            <div className="mall-modal-footer">
+            <div className="mall-modal-footer" style={{ flexShrink: 0 }}>
               <button className="btn btn-ghost" onClick={() => setShowEdit(null)} disabled={isUpdating}>Cancel</button>
               <button
                 className="btn btn-primary"

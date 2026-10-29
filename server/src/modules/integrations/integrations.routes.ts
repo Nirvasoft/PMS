@@ -27,7 +27,7 @@ integrationsRouter.post('/', asyncHandler(async (req, res) => {
 }));
 
 integrationsRouter.put('/:id', asyncHandler(async (req, res) => {
-  const data = await integrationsService.update(String(req.params.id), getCompanyId(req), req.body);
+  const data = await integrationsService.update(String(req.params.id), getCompanyId(req), req.body, getUserId(req));
   res.json({ success: true, data });
 }));
 
@@ -38,7 +38,12 @@ integrationsRouter.delete('/:id', asyncHandler(async (req, res) => {
 
 // Test & Sync
 integrationsRouter.post('/:id/test', asyncHandler(async (req, res) => {
-  const data = await integrationsService.testConnection(String(req.params.id), getCompanyId(req));
+  const data = await integrationsService.testConnection(
+    String(req.params.id),
+    getCompanyId(req),
+    req.body?.propertyId,
+    getUserId(req),
+  );
   res.json({ success: true, data });
 }));
 
@@ -162,5 +167,21 @@ developerRouter.post('/api-keys/:id/revoke', asyncHandler(async (req, res) => {
 developerRouter.post('/v6erp/push-invoices', asyncHandler(async (req, res) => {
   const { invoiceIds } = req.body as { invoiceIds?: string[] };
   const data = await integrationsService.pushInvoicesToV6Erp(getCompanyId(req), invoiceIds);
+  res.json({ success: true, data });
+}));
+
+/**
+ * POST /api/v1/developer/v6erp/sync-coa
+ *
+ * Pulls General Ledger -> Chart of Accounts from V6 ERP (/v6IntegrationAPIlogin/getCOA)
+ * for the currently active property when V6 ERP flag is ON.
+ */
+developerRouter.post('/v6erp/sync-coa', asyncHandler(async (req, res) => {
+  const { propertyId } = (req.body || {}) as { propertyId?: string };
+  const data = await integrationsService.syncV6ChartOfAccounts(
+    getCompanyId(req),
+    propertyId,
+    getUserId(req),
+  );
   res.json({ success: true, data });
 }));

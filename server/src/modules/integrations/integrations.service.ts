@@ -2,6 +2,116 @@ import crypto from 'crypto';
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
+import { ensurePropertySetupScope, resolveEffectivePropertyId } from '../../common/propertySetupScope';
+
+function mapV6AccountClassification(
+  code: string,
+  description: string,
+): {
+  accountType: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+  accountSubtype: string;
+  normalBalance: 'debit' | 'credit';
+} {
+  const c = code.trim();
+  const d = description.trim();
+  const major = c.charAt(0);
+
+  switch (major) {
+    case '1': {
+      if (c.startsWith('1-1102') || /accumulated\s+depreciation/i.test(d)) {
+        return { accountType: 'asset', accountSubtype: 'Accumulated Depreciation', normalBalance: 'credit' };
+      }
+      if (c.startsWith('1-11') || /property,\s*plant|non-current\s+asset|fixed\s+asset/i.test(d)) {
+        return { accountType: 'asset', accountSubtype: 'Non-Current Assets', normalBalance: 'debit' };
+      }
+      if (c.startsWith('1-2411') || /other\s+receivable/i.test(d)) {
+        return { accountType: 'asset', accountSubtype: 'Other Accounts Receivable', normalBalance: 'debit' };
+      }
+      return { accountType: 'asset', accountSubtype: 'Current Assets', normalBalance: 'debit' };
+    }
+    case '2': {
+      if (c.startsWith('2-11') || c.startsWith('2-12') || /long\s+term|non-current\s+liabilit/i.test(d)) {
+        return { accountType: 'liability', accountSubtype: 'Non-Current Liabilities', normalBalance: 'credit' };
+      }
+      if (c.startsWith('2-214') || /other\s+payable/i.test(d)) {
+        return { accountType: 'liability', accountSubtype: 'Other Accounts Payable', normalBalance: 'credit' };
+      }
+      return { accountType: 'liability', accountSubtype: 'Current Liabilities', normalBalance: 'credit' };
+    }
+    case '3': {
+      if (c.startsWith('3-1102') || /retained\s+earning/i.test(d)) {
+        return { accountType: 'equity', accountSubtype: 'Retained Earnings', normalBalance: 'credit' };
+      }
+      if (c.startsWith('3-1103') || /reserve/i.test(d)) {
+        return { accountType: 'equity', accountSubtype: 'Reserve', normalBalance: 'credit' };
+      }
+      if (/net\s+profit/i.test(d)) {
+        return { accountType: 'equity', accountSubtype: 'Net Profit', normalBalance: 'credit' };
+      }
+      return { accountType: 'equity', accountSubtype: 'Capital', normalBalance: 'credit' };
+    }
+    case '4': {
+      if (/other\s+revenue|other\s+income/i.test(d)) {
+        return { accountType: 'income', accountSubtype: 'Other Revenue', normalBalance: 'credit' };
+      }
+      return { accountType: 'income', accountSubtype: 'Sales', normalBalance: 'credit' };
+    }
+    case '5': {
+      if (c.startsWith('5-10') || /opening\s+stock/i.test(d)) {
+        return { accountType: 'expense', accountSubtype: 'Opening Stocks', normalBalance: 'debit' };
+      }
+      if (c.startsWith('5-20') || /closing\s+stock/i.test(d)) {
+        return { accountType: 'expense', accountSubtype: 'Closing Stocks', normalBalance: 'credit' };
+      }
+      if (c.startsWith('5-60') || c.startsWith('5-7000') || /purchase/i.test(d)) {
+        return { accountType: 'expense', accountSubtype: 'Purchase', normalBalance: 'debit' };
+      }
+      if (c.startsWith('5-7001') || /freight|carriage\s+inward/i.test(d)) {
+        return { accountType: 'expense', accountSubtype: 'Carriage Inwards', normalBalance: 'debit' };
+      }
+      return { accountType: 'expense', accountSubtype: 'Cost of Sales', normalBalance: 'debit' };
+    }
+    case '6': {
+      if (/income\s+tax|\btax\b/i.test(d)) {
+        return { accountType: 'expense', accountSubtype: 'Income Tax', normalBalance: 'debit' };
+      }
+      return { accountType: 'income', accountSubtype: 'Income & Expenses', normalBalance: 'credit' };
+    }
+    case '7':
+    case '8': {
+      if (c.startsWith('7-1100') || /selling|direct\s+expense/i.test(d)) {
+        return { accountType: 'expense', accountSubtype: 'Direct Expenses', normalBalance: 'debit' };
+      }
+      if (c.startsWith('7-1101') || c.startsWith('7-1102') || /operating|admin|overhead/i.test(d)) {
+        return { accountType: 'expense', accountSubtype: 'Overheads', normalBalance: 'debit' };
+      }
+      return { accountType: 'expense', accountSubtype: 'Cost & Expenses', normalBalance: 'debit' };
+    }
+    default:
+      return { accountType: 'asset', accountSubtype: 'Current Assets', normalBalance: 'debit' };
+  }
+}
+
+function resolveV6ParentCode(code: string, codeLowerSet: Set<string>): string | null {
+  const c = code.trim();
+  const lower = c.toLowerCase();
+  if (c.endsWith('00') || c.length < 6) {
+    return null;
+  }
+  const candidates = [
+    `${c.slice(0, -2)}00`,
+    c.length >= 7 ? `${c.slice(0, -3)}000` : '',
+    c.length >= 8 ? `${c.slice(0, -4)}0000` : '',
+  ].filter(Boolean);
+
+  for (const cand of candidates) {
+    const candLower = cand.toLowerCase();
+    if (candLower !== lower && codeLowerSet.has(candLower)) {
+      return candLower;
+    }
+  }
+  return null;
+}
 
 // ═════════════════════════════════════════
 // INTEGRATION TYPES REGISTRY
@@ -66,6 +176,7 @@ export const API_KEY_SCOPES = [
 ];
 
 class IntegrationsService {
+  private activeCoaSyncs = new Map<string, Promise<any>>();
 
   // ── Integration Configs ──
 
@@ -89,7 +200,7 @@ class IntegrationsService {
   }
 
   async create(companyId: string, userId: string, data: any) {
-    return prisma.integrationConfig.create({
+    const created = await prisma.integrationConfig.create({
       data: {
         companyId,
         integrationType: data.integrationType,
@@ -101,9 +212,17 @@ class IntegrationsService {
         createdBy: userId,
       },
     });
+
+    if (created.integrationType === 'v6erp' && created.isActive && created.status !== 'disabled') {
+      await this.syncV6ChartOfAccounts(companyId, data.propertyId, userId, false, created).catch((err) => {
+        logger.warn(`Initial V6 ERP COA auto-sync skipped on create: ${err.message}`);
+      });
+    }
+
+    return created;
   }
 
-  async update(id: string, companyId: string, data: any) {
+  async update(id: string, companyId: string, data: any, userId?: string) {
     const existing = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!existing) throw AppError.notFound('Integration');
 
@@ -131,6 +250,18 @@ class IntegrationsService {
       },
     });
 
+    if (updated.integrationType === 'v6erp') {
+      if (updated.isActive && updated.status !== 'disabled') {
+        await this.syncV6ChartOfAccounts(companyId, data.propertyId, userId, false, updated).catch((err) => {
+          logger.warn(`V6 ERP COA auto-sync warning on update: ${err.message}`);
+        });
+      } else {
+        await this.restorePmsChartOfAccountsOnV6Disable(updated.id, companyId).catch((err) => {
+          logger.warn(`V6 ERP COA restore warning on disable: ${err.message}`);
+        });
+      }
+    }
+
     return {
       ...updated,
       credentials: undefined,
@@ -142,10 +273,15 @@ class IntegrationsService {
   async delete(id: string, companyId: string) {
     const existing = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!existing) throw AppError.notFound('Integration');
+    if (existing.integrationType === 'v6erp') {
+      await this.restorePmsChartOfAccountsOnV6Disable(existing.id, companyId).catch((err) => {
+        logger.warn(`V6 ERP COA restore warning on delete: ${err.message}`);
+      });
+    }
     return prisma.integrationConfig.delete({ where: { id } });
   }
 
-  async testConnection(id: string, companyId: string) {
+  async testConnection(id: string, companyId: string, propertyId?: string, userId?: string) {
     const config = await prisma.integrationConfig.findFirst({ where: { id, companyId } });
     if (!config) throw AppError.notFound('Integration');
 
@@ -175,9 +311,12 @@ class IntegrationsService {
         let json: any = null;
         try { json = JSON.parse(text); } catch { /* not JSON */ }
         if (resp.ok && json?.status === 'SUCCESS') {
-          await prisma.integrationConfig.update({
+          const activated = await prisma.integrationConfig.update({
             where: { id },
             data: { status: 'active', isActive: true, lastError: null },
+          });
+          await this.syncV6ChartOfAccounts(companyId, propertyId, userId, false, activated).catch((err) => {
+            logger.warn(`V6 ERP COA auto-sync warning after testConnection: ${err.message}`);
           });
           return {
             connected: true,
@@ -224,7 +363,7 @@ class IntegrationsService {
     if (!config) throw AppError.notFound('Integration');
 
     if (config.integrationType === 'v6erp') {
-      return this.syncV6Erp(config, companyId, userId);
+      return this.syncV6Erp(config, companyId, userId, data?.propertyId);
     }
 
     // Stub: simulate sync result
@@ -274,7 +413,11 @@ class IntegrationsService {
 
   async getEntityMaps(companyId: string, integrationId?: string, entityType?: string) {
     return prisma.integrationEntityMap.findMany({
-      where: { companyId, ...(integrationId && { integrationId }), ...(entityType && { entityType }) },
+      where: {
+        companyId,
+        ...(integrationId && { integrationId }),
+        ...(entityType ? { entityType } : { entityType: { not: 'gl_account_pms_hidden' } }),
+      },
       orderBy: { syncedAt: 'desc' },
       take: 100,
     });
@@ -646,12 +789,546 @@ class IntegrationsService {
   }
 
   /**
+   * Pull General Ledger -> Chart of Accounts from V6 ERP (/v6IntegrationAPIlogin/getCOA)
+   * scoped to the active propertyId:
+   * - Upserts V6 ERP COA accounts with mapped accountType, accountSubtype, normalBalance, parentId, isControl.
+   * - Marks non-V6 PMS accounts for that property as isActive: false (preserving them in IntegrationEntityMap
+   *   under 'gl_account_pms_hidden' so turning V6 Flag OFF restores original PMS accounts with zero data loss).
+   */
+  async syncV6ChartOfAccounts(
+    companyId: string,
+    propertyId?: string,
+    userId?: string,
+    skipLog = false,
+    preloadedConfig?: any,
+    initiatedBy: 'user' | 'cron' = 'user',
+  ) {
+    const config =
+      preloadedConfig ||
+      (await prisma.integrationConfig.findFirst({
+        where: {
+          companyId,
+          integrationType: 'v6erp',
+          isActive: true,
+          status: { not: 'disabled' },
+        },
+      }));
+
+    if (!config || !config.isActive || config.status === 'disabled') {
+      throw new AppError(
+        400,
+        'V6ERP_NOT_ACTIVE',
+        'V6 ERP integration is not active. Turn ON the V6 ERP flag in Integrations first.',
+      );
+    }
+
+    await ensurePropertySetupScope();
+    const targetPropertyId = await resolveEffectivePropertyId(companyId, propertyId);
+    const lockKey = `${companyId}:${targetPropertyId || 'default'}`;
+
+    const inflight = this.activeCoaSyncs.get(lockKey);
+    if (inflight) {
+      return inflight;
+    }
+
+    const runner = (async () => {
+      const cfg = (config.config || {}) as Record<string, string>;
+      const creds = (config.credentials || {}) as Record<string, string>;
+      const baseUrl = (cfg.baseUrl || creds.apiUrl || '').replace(/\/+$/, '');
+      if (!baseUrl) {
+        throw new AppError(
+          400,
+          'V6ERP_NOT_CONFIGURED',
+          '🔶 V6 ERP API URL is not configured. Edit the integration and set config.baseUrl.',
+        );
+      }
+
+      const domain = cfg.domain || 'demo';
+      let cleanRoot = baseUrl;
+      if (!/\/V6$/i.test(cleanRoot) && !/\/v6_addon$/i.test(cleanRoot)) {
+        cleanRoot = `${cleanRoot}/V6`;
+      }
+
+      const t0 = Date.now();
+      const coaEndpoint = `${cleanRoot}/v6IntegrationAPIlogin/getCOA`;
+      const resp = await fetch(coaEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, code: '', date: '' }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!resp.ok) {
+        const errBody = await resp.text().catch(() => '');
+        throw new AppError(
+          502,
+          'V6ERP_COA_FETCH_FAILED',
+          `V6 ERP getCOA failed with HTTP ${resp.status}: ${errBody.substring(0, 150)}`,
+        );
+      }
+
+      const coaJson = (await resp.json().catch(() => null)) as any;
+      const rawList: any[] | null = Array.isArray(coaJson?.coalist)
+        ? coaJson.coalist
+        : Array.isArray(coaJson?.list)
+          ? coaJson.list
+          : null;
+
+      if (!rawList) {
+        throw new AppError(
+          502,
+          'V6ERP_COA_INVALID_RESPONSE',
+          'V6 ERP getCOA returned an unexpected payload without coalist.',
+        );
+      }
+
+      // Deduplicate by account code (case-insensitive), keeping latest syskey
+      const dedupedByLower = new Map<
+        string,
+        { code: string; name: string; syskey: string }
+      >();
+
+      for (const item of rawList) {
+        const rawCode = String(item.code || item.accountCode || item.t1 || '').trim();
+        if (!rawCode) continue;
+        const rawDesc = String(item.description || item.name || item.t2 || rawCode).trim() || rawCode;
+        const rawSyskey = String(item.syskey || '').trim();
+        const lower = rawCode.toLowerCase();
+
+        const prev = dedupedByLower.get(lower);
+        if (!prev || rawSyskey > prev.syskey) {
+          dedupedByLower.set(lower, {
+            code: rawCode,
+            name: rawDesc.substring(0, 255),
+            syskey: rawSyskey,
+          });
+        }
+      }
+
+      const v6Items = [...dedupedByLower.values()].sort((a, b) => a.code.localeCompare(b.code));
+      if (v6Items.length === 0) {
+        return {
+          success: true,
+          propertyId: targetPropertyId,
+          totalV6Accounts: 0,
+          created: 0,
+          updated: 0,
+          deactivated: 0,
+          message: 'V6 ERP returned 0 Chart of Accounts records.',
+        };
+      }
+
+      const codeLowerSet = new Set(dedupedByLower.keys());
+      const parentLowerByCodeLower = new Map<string, string | null>();
+      const parentCodeSet = new Set<string>();
+
+      for (const item of v6Items) {
+        const lower = item.code.toLowerCase();
+        const pLower = resolveV6ParentCode(item.code, codeLowerSet);
+        parentLowerByCodeLower.set(lower, pLower);
+        if (pLower) parentCodeSet.add(pLower);
+      }
+
+      // Load existing GL accounts for this property + existing entity mappings
+      const [existingAccounts, existingMaps] = await Promise.all([
+        prisma.glAccount.findMany({
+          where: { companyId, propertyId: targetPropertyId },
+        }),
+        prisma.integrationEntityMap.findMany({
+          where: {
+            companyId,
+            integrationId: config.id,
+            entityType: { in: ['gl_account', 'gl_account_pms_hidden'] },
+          },
+        }),
+      ]);
+
+      const glEntityMapByPmsId = new Map<string, (typeof existingMaps)[number]>();
+      for (const m of existingMaps) {
+        if (m.entityType === 'gl_account') {
+          glEntityMapByPmsId.set(m.pmsId, m);
+        }
+      }
+
+      // Prefer matching account without department/cost center for standard COA codes
+      const existingByCodeLower = new Map<string, (typeof existingAccounts)[number]>();
+      for (const acc of existingAccounts) {
+        const lower = acc.code.trim().toLowerCase();
+        const current = existingByCodeLower.get(lower);
+        if (!current || (!acc.departmentCenterId && !acc.costCenterId)) {
+          existingByCodeLower.set(lower, acc);
+        }
+      }
+
+      const toCreate: Array<{
+        companyId: string;
+        propertyId: string | null;
+        code: string;
+        name: string;
+        accountType: string;
+        accountSubtype: string;
+        normalBalance: string;
+        isControl: boolean;
+        isActive: boolean;
+        sortOrder: number;
+      }> = [];
+
+      const newlyCreatedCodeLowers = new Set<string>();
+      const toUpdateRows: Array<{
+        id: string;
+        data: {
+          name: string;
+          accountType: string;
+          accountSubtype: string;
+          normalBalance: string;
+          isControl: boolean;
+          isActive: boolean;
+        };
+      }> = [];
+
+      let createdCount = 0;
+      let updatedCount = 0;
+
+      v6Items.forEach((item, idx) => {
+        const lower = item.code.toLowerCase();
+        const cls = mapV6AccountClassification(item.code, item.name);
+        const isControl = parentCodeSet.has(lower);
+        const existing = existingByCodeLower.get(lower);
+
+        if (!existing) {
+          newlyCreatedCodeLowers.add(lower);
+          toCreate.push({
+            companyId,
+            propertyId: targetPropertyId,
+            code: item.code,
+            name: item.name,
+            accountType: cls.accountType,
+            accountSubtype: cls.accountSubtype,
+            normalBalance: cls.normalBalance,
+            isControl,
+            isActive: true,
+            sortOrder: idx,
+          });
+        } else {
+          const needsUpdate =
+            existing.name !== item.name ||
+            existing.accountType !== cls.accountType ||
+            existing.accountSubtype !== cls.accountSubtype ||
+            existing.normalBalance !== cls.normalBalance ||
+            existing.isControl !== isControl ||
+            !existing.isActive;
+
+          if (needsUpdate) {
+            toUpdateRows.push({
+              id: existing.id,
+              data: {
+                name: item.name,
+                accountType: cls.accountType,
+                accountSubtype: cls.accountSubtype,
+                normalBalance: cls.normalBalance,
+                isControl,
+                isActive: true,
+              },
+            });
+          }
+        }
+      });
+
+      if (toCreate.length > 0) {
+        const res = await prisma.glAccount.createMany({
+          data: toCreate,
+          skipDuplicates: true,
+        });
+        createdCount = res.count;
+      }
+
+      const CHUNK = 25;
+      for (let i = 0; i < toUpdateRows.length; i += CHUNK) {
+        const batch = toUpdateRows.slice(i, i + CHUNK);
+        await Promise.all(
+          batch.map((u) =>
+            prisma.glAccount.update({
+              where: { id: u.id },
+              data: u.data,
+            }),
+          ),
+        );
+        updatedCount += batch.length;
+      }
+
+      // Reload property GL accounts so we have IDs for newly created rows & parent tree linking
+      const allPropertyAccounts =
+        toCreate.length > 0
+          ? await prisma.glAccount.findMany({
+              where: { companyId, propertyId: targetPropertyId },
+            })
+          : existingAccounts;
+
+      const syncedByCodeLower = new Map<string, (typeof allPropertyAccounts)[number]>();
+      for (const acc of allPropertyAccounts) {
+        const lower = acc.code.trim().toLowerCase();
+        if (!codeLowerSet.has(lower)) continue;
+        const current = syncedByCodeLower.get(lower);
+        if (!current || (!acc.departmentCenterId && !acc.costCenterId)) {
+          syncedByCodeLower.set(lower, acc);
+        }
+      }
+
+      // Link parentId hierarchy where changed
+      const parentUpdates: Array<{ id: string; parentId: string | null }> = [];
+      for (const item of v6Items) {
+        const lower = item.code.toLowerCase();
+        const acc = syncedByCodeLower.get(lower);
+        if (!acc) continue;
+        const parentLower = parentLowerByCodeLower.get(lower) || null;
+        const desiredParentId = parentLower ? syncedByCodeLower.get(parentLower)?.id || null : null;
+        const safeParentId = desiredParentId && desiredParentId !== acc.id ? desiredParentId : null;
+        if (acc.parentId !== safeParentId) {
+          parentUpdates.push({ id: acc.id, parentId: safeParentId });
+        }
+      }
+
+      for (let i = 0; i < parentUpdates.length; i += CHUNK) {
+        const batch = parentUpdates.slice(i, i + CHUNK);
+        await Promise.all(
+          batch.map((p) =>
+            prisma.glAccount.update({
+              where: { id: p.id },
+              data: { parentId: p.parentId },
+            }),
+          ),
+        );
+      }
+
+      const syncedIds = new Set<string>([...syncedByCodeLower.values()].map((a) => a.id));
+
+      // Record original active PMS accounts that are being hidden so Flag OFF can restore them
+      const accountsToHide = allPropertyAccounts.filter(
+        (acc) => acc.isActive && !syncedIds.has(acc.id),
+      );
+      const genuinePmsAccountsToRemember = accountsToHide.filter((acc) => {
+        const existingMap = glEntityMapByPmsId.get(acc.id);
+        return !existingMap || !String(existingMap.externalRef || '').startsWith('V6 |');
+      });
+
+      if (genuinePmsAccountsToRemember.length > 0) {
+        await prisma.integrationEntityMap.createMany({
+          data: genuinePmsAccountsToRemember.map((acc) => ({
+            companyId,
+            integrationId: config.id,
+            entityType: 'gl_account_pms_hidden',
+            pmsId: acc.id,
+            externalId: acc.code,
+            externalRef: targetPropertyId || 'default',
+            syncedAt: new Date(),
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      let deactivatedCount = 0;
+      if (accountsToHide.length > 0) {
+        const deactRes = await prisma.glAccount.updateMany({
+          where: {
+            companyId,
+            propertyId: targetPropertyId,
+            id: { in: accountsToHide.map((a) => a.id) },
+            isActive: true,
+          },
+          data: { isActive: false },
+        });
+        deactivatedCount = deactRes.count;
+      }
+
+      // Clean up any stale hidden markers for accounts that are currently active in V6
+      if (syncedIds.size > 0) {
+        await prisma.integrationEntityMap.deleteMany({
+          where: {
+            companyId,
+            integrationId: config.id,
+            entityType: 'gl_account_pms_hidden',
+            pmsId: { in: [...syncedIds] },
+          },
+        }).catch(() => {});
+      }
+
+      // Persist IntegrationEntityMap entries for synced V6 GL accounts
+      const newGlMaps: Array<{
+        companyId: string;
+        integrationId: string;
+        entityType: string;
+        pmsId: string;
+        externalId: string;
+        externalRef: string;
+        syncedAt: Date;
+      }> = [];
+
+      const now = new Date();
+      for (const item of v6Items) {
+        const lower = item.code.toLowerCase();
+        const acc = syncedByCodeLower.get(lower);
+        if (!acc) continue;
+        const prevMap = glEntityMapByPmsId.get(acc.id);
+        if (!prevMap) {
+          const originPrefix = newlyCreatedCodeLowers.has(lower) ? 'V6' : 'PMS';
+          const refLabel = `${originPrefix} | ${item.syskey ? `Syskey: ${item.syskey}` : item.name}`.substring(0, 255);
+          newGlMaps.push({
+            companyId,
+            integrationId: config.id,
+            entityType: 'gl_account',
+            pmsId: acc.id,
+            externalId: item.code,
+            externalRef: refLabel,
+            syncedAt: now,
+          });
+        }
+      }
+
+      if (newGlMaps.length > 0) {
+        await prisma.integrationEntityMap.createMany({
+          data: newGlMaps,
+          skipDuplicates: true,
+        }).catch(() => {});
+      }
+
+      if (syncedIds.size > 0) {
+        await prisma.integrationEntityMap.updateMany({
+          where: {
+            companyId,
+            integrationId: config.id,
+            entityType: 'gl_account',
+            pmsId: { in: [...syncedIds] },
+          },
+          data: { syncedAt: now },
+        }).catch(() => {});
+      }
+
+      const durationMs = Date.now() - t0;
+
+      if (!skipLog) {
+        await prisma.integrationSyncLog.create({
+          data: {
+            companyId,
+            integrationId: config.id,
+            syncType: 'coa_sync',
+            direction: 'pull',
+            status: 'success',
+            recordsProcessed: v6Items.length,
+            recordsCreated: createdCount,
+            recordsUpdated: updatedCount,
+            recordsFailed: 0,
+            errorDetails: [],
+            durationMs,
+            initiatedBy,
+            initiatedUserId: userId || null,
+            completedAt: new Date(),
+          },
+        }).catch((err) => logger.warn(`Failed to persist V6 COA sync log: ${err.message}`));
+
+        await prisma.integrationConfig.update({
+          where: { id: config.id },
+          data: { lastSyncAt: new Date(), lastError: null },
+        }).catch(() => {});
+      }
+
+      logger.info(
+        `V6 ERP COA sync completed for property ${targetPropertyId}: total=${v6Items.length}, created=${createdCount}, updated=${updatedCount}, hidden=${deactivatedCount}`,
+      );
+
+      return {
+        success: true,
+        propertyId: targetPropertyId,
+        totalV6Accounts: v6Items.length,
+        created: createdCount,
+        updated: updatedCount,
+        deactivated: deactivatedCount,
+        durationMs,
+        message: `Synced ${v6Items.length} Chart of Accounts from V6 ERP (${createdCount} created, ${updatedCount} updated).`,
+      };
+    })();
+
+    this.activeCoaSyncs.set(lockKey, runner);
+    try {
+      return await runner;
+    } finally {
+      this.activeCoaSyncs.delete(lockKey);
+    }
+  }
+
+  /**
+   * Restores original PMS Chart of Accounts when V6 ERP Flag is turned OFF or integration is deleted:
+   * - Hides accounts that were created solely by V6 sync ('V6 | ...').
+   * - Re-activates pre-existing PMS accounts that were hidden during V6 sync ('gl_account_pms_hidden').
+   */
+  async restorePmsChartOfAccountsOnV6Disable(integrationId: string, companyId: string) {
+    const [v6CreatedMaps, hiddenPmsMaps] = await Promise.all([
+      prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'gl_account',
+          externalRef: { startsWith: 'V6 |' },
+        },
+        select: { pmsId: true },
+      }),
+      prisma.integrationEntityMap.findMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'gl_account_pms_hidden',
+        },
+        select: { id: true, pmsId: true },
+      }),
+    ]);
+
+    const v6CreatedIds = v6CreatedMaps.map((m) => m.pmsId);
+    const hiddenPmsIds = hiddenPmsMaps.map((m) => m.pmsId);
+
+    if (v6CreatedIds.length > 0) {
+      await prisma.glAccount.updateMany({
+        where: { companyId, id: { in: v6CreatedIds } },
+        data: { isActive: false },
+      });
+    }
+
+    if (hiddenPmsIds.length > 0) {
+      await prisma.glAccount.updateMany({
+        where: { companyId, id: { in: hiddenPmsIds } },
+        data: { isActive: true },
+      });
+      await prisma.integrationEntityMap.deleteMany({
+        where: {
+          companyId,
+          integrationId,
+          entityType: 'gl_account_pms_hidden',
+        },
+      });
+    }
+
+    logger.info(
+      `Restored PMS Chart of Accounts after V6 ERP disable: ${hiddenPmsIds.length} PMS account(s) re-activated, ${v6CreatedIds.length} V6-only account(s) hidden.`,
+    );
+
+    return {
+      restoredPmsAccounts: hiddenPmsIds.length,
+      hiddenV6Accounts: v6CreatedIds.length,
+    };
+  }
+
+  /**
    * Bidirectional sync for V6 ERP:
    * 1. Inbound: Pull customers from V6 ERP and sync to PMS tenants & entity map.
-   * 2. Outbound: Push issued invoices to V6 ERP and record entity map.
-   * 3. Record unified sync log and update lastSyncAt.
+   * 2. Inbound: Pull General Ledger Chart of Accounts from V6 ERP for active property (when V6 flag is ON).
+   * 3. Outbound: Push issued invoices to V6 ERP and record entity map.
+   * 4. Record unified sync log and update lastSyncAt.
    */
-  async syncV6Erp(config: any, companyId: string, userId?: string) {
+  async syncV6Erp(
+    config: any,
+    companyId: string,
+    userId?: string,
+    propertyId?: string,
+    initiatedBy: 'user' | 'cron' = 'user',
+  ) {
     const cfg   = (config.config      || {}) as Record<string, string>;
     const creds = (config.credentials || {}) as Record<string, string>;
     const baseUrl = (cfg.baseUrl || creds.apiUrl || '').replace(/\/+$/, '');
@@ -670,6 +1347,9 @@ class IntegrationsService {
     const t0 = Date.now();
     let customersImported = 0;
     let customersUpdated = 0;
+    let coaCreated = 0;
+    let coaUpdated = 0;
+    let coaTotal = 0;
     const errors: any[] = [];
 
     // 1. Inbound Customer Sync from V6 ERP
@@ -761,7 +1441,48 @@ class IntegrationsService {
       errors.push({ error: `Customer sync warning: ${cErr.message}` });
     }
 
-    // 2. Outbound Invoice Push to V6 ERP
+    // 2. Inbound Chart of Accounts Sync from V6 ERP (when V6 Flag is ON)
+    if (config.isActive && config.status !== 'disabled') {
+      try {
+        if (propertyId) {
+          const coaRes = await this.syncV6ChartOfAccounts(companyId, propertyId, userId, true, config, initiatedBy);
+          coaCreated += coaRes.created || 0;
+          coaUpdated += coaRes.updated || 0;
+          coaTotal += coaRes.totalV6Accounts || 0;
+        } else {
+          // For scheduled/company sync without explicit propertyId, refresh any properties already using V6 COA (or default property)
+          const mappedGl = await prisma.integrationEntityMap.findMany({
+            where: { companyId, integrationId: config.id, entityType: 'gl_account' },
+            select: { pmsId: true },
+            take: 500,
+          });
+          let targetPropIds: string[] = [];
+          if (mappedGl.length > 0) {
+            const propRows = await prisma.glAccount.findMany({
+              where: { companyId, id: { in: mappedGl.map((m) => m.pmsId) }, propertyId: { not: null } },
+              select: { propertyId: true },
+              distinct: ['propertyId'],
+            });
+            targetPropIds = propRows.map((r) => r.propertyId!).filter(Boolean);
+          }
+          if (targetPropIds.length === 0) {
+            const defProp = await resolveEffectivePropertyId(companyId);
+            if (defProp) targetPropIds = [defProp];
+          }
+          for (const pid of targetPropIds) {
+            const coaRes = await this.syncV6ChartOfAccounts(companyId, pid, userId, true, config, initiatedBy);
+            coaCreated += coaRes.created || 0;
+            coaUpdated += coaRes.updated || 0;
+            coaTotal = Math.max(coaTotal, coaRes.totalV6Accounts || 0);
+          }
+        }
+      } catch (coaErr: any) {
+        logger.warn(`V6 ERP COA sync warning: ${coaErr.message}`);
+        errors.push({ error: `COA sync warning: ${coaErr.message}` });
+      }
+    }
+
+    // 3. Outbound Invoice Push to V6 ERP
     let invoiceRes: any = { sent: 0, failed: 0, skipped: 0, results: [] };
     try {
       invoiceRes = await this.pushInvoicesToV6Erp(companyId, undefined, true);
@@ -776,10 +1497,10 @@ class IntegrationsService {
     }
 
     const durationMs = Date.now() - t0;
-    const totalProcessed = customersImported + customersUpdated + (invoiceRes.results?.length || 0);
+    const totalProcessed = customersImported + customersUpdated + coaTotal + (invoiceRes.results?.length || 0);
     const totalFailed = (invoiceRes.failed || 0) + (errors.length > (invoiceRes.failed || 0) ? 1 : 0);
 
-    // 3. Record Unified Sync Log
+    // 4. Record Unified Sync Log
     const log = await prisma.integrationSyncLog.create({
       data: {
         companyId,
@@ -788,31 +1509,38 @@ class IntegrationsService {
         direction: 'bidirectional',
         status: totalFailed === 0 ? 'success' : (totalProcessed > totalFailed ? 'partial' : 'failed'),
         recordsProcessed: totalProcessed,
-        recordsCreated: customersImported + (invoiceRes.sent || 0),
-        recordsUpdated: customersUpdated,
+        recordsCreated: customersImported + coaCreated + (invoiceRes.sent || 0),
+        recordsUpdated: customersUpdated + coaUpdated,
         recordsFailed: totalFailed,
         errorDetails: errors,
         durationMs,
-        initiatedBy: 'user',
+        initiatedBy,
         initiatedUserId: userId || null,
         completedAt: new Date(),
       },
     });
 
-    // 4. Update lastSyncAt & status
+    // 5. Update lastSyncAt
     await prisma.integrationConfig.update({
       where: { id: config.id },
-      data: { lastSyncAt: new Date(), status: 'active', lastError: null },
+      data: {
+        lastSyncAt: new Date(),
+        ...(config.isActive ? { status: 'active' } : {}),
+        lastError: null,
+      },
     });
 
     return {
       success: true,
       customersImported,
       customersUpdated,
+      coaTotal,
+      coaCreated,
+      coaUpdated,
       invoicesSent: invoiceRes.sent || 0,
       invoicesFailed: invoiceRes.failed || 0,
       log,
-      message: `Sync completed: ${customersImported} customer(s) imported, ${customersUpdated} updated, ${invoiceRes.sent || 0} invoice(s) sent.`,
+      message: `Sync completed: ${coaTotal} COA account(s) synced, ${customersImported} customer(s) imported, ${customersUpdated} updated, ${invoiceRes.sent || 0} invoice(s) sent.`,
     };
   }
 

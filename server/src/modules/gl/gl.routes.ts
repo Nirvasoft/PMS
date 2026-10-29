@@ -37,6 +37,7 @@ glRouter.post('/accounts', validateRequest(createAccountSchema), asyncHandler(as
 }));
 
 glRouter.put('/accounts/:id', validateRequest(updateAccountSchema), asyncHandler(async (req, res) => {
+  await assertV6ErpNotActive(req.user!.companyId, 'GL account update');
   const data = await glService.updateAccount(p(req, 'id'), req.user!.companyId, req.body);
   res.json({ success: true, data });
 }));

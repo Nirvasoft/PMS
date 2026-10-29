@@ -1,5 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from './baseQuery';
+import { glApi } from './glApi';
 
 export const integrationsApi = createApi({
   reducerPath: 'integrationsApi',
@@ -18,22 +19,56 @@ export const integrationsApi = createApi({
     createIntegration: builder.mutation<any, any>({
       query: (body) => ({ url: '/integrations', method: 'POST', body }),
       invalidatesTags: ['Integrations'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+        } catch { /* ignore */ }
+      },
     }),
     updateIntegration: builder.mutation<any, { id: string; data: any }>({
       query: ({ id, data }) => ({ url: `/integrations/${id}`, method: 'PUT', body: data }),
-      invalidatesTags: ['Integrations'],
+      invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+        } catch { /* ignore */ }
+      },
     }),
     deleteIntegration: builder.mutation<any, string>({
       query: (id) => ({ url: `/integrations/${id}`, method: 'DELETE' }),
-      invalidatesTags: ['Integrations'],
+      invalidatesTags: ['Integrations', 'EntityMap'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+        } catch { /* ignore */ }
+      },
     }),
-    testIntegration: builder.mutation<any, string>({
-      query: (id) => ({ url: `/integrations/${id}/test`, method: 'POST' }),
-      invalidatesTags: ['Integrations'],
+    testIntegration: builder.mutation<any, string | { id: string; propertyId?: string }>({
+      query: (arg) => {
+        const id = typeof arg === 'string' ? arg : arg.id;
+        const body = typeof arg === 'string' ? {} : { propertyId: arg.propertyId };
+        return { url: `/integrations/${id}/test`, method: 'POST', body };
+      },
+      invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+        } catch { /* ignore */ }
+      },
     }),
     triggerSync: builder.mutation<any, { id: string; data?: any }>({
       query: ({ id, data = {} }) => ({ url: `/integrations/${id}/sync`, method: 'POST', body: data }),
       invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+        } catch { /* ignore */ }
+      },
     }),
     getSyncLogs: builder.query<any, { integrationId: string; page?: number }>({
       query: ({ integrationId, page = 1 }) => `/integrations/${integrationId}/sync-logs?page=${page}`,
@@ -106,13 +141,27 @@ export const integrationsApi = createApi({
       invalidatesTags: ['ApiKeys'],
     }),
 
-    // ── V6 ERP Push ──
+    // ── V6 ERP Push & COA Sync ──
     pushInvoicesToV6Erp: builder.mutation<any, { invoiceIds?: string[] } | void>({
       query: (body) => ({
         url: '/developer/v6erp/push-invoices',
         method: 'POST',
         body: body ?? {},
       }),
+    }),
+    syncV6Coa: builder.mutation<any, { propertyId?: string } | void>({
+      query: (body) => ({
+        url: '/developer/v6erp/sync-coa',
+        method: 'POST',
+        body: body ?? {},
+      }),
+      invalidatesTags: ['Integrations', 'SyncLogs', 'EntityMap'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(glApi.util.invalidateTags(['GlAccounts']));
+        } catch { /* ignore */ }
+      },
     }),
 
     // ── BMS (Building Management System) ──
@@ -219,6 +268,7 @@ export const {
   useRevokeApiKeyMutation,
   // V6 ERP
   usePushInvoicesToV6ErpMutation,
+  useSyncV6CoaMutation,
   // BMS
   useGetBmsSummaryQuery,
   useGetBmsMetaQuery,
