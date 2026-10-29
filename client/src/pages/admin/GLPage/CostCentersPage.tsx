@@ -9,12 +9,14 @@ import {
   type CostCenter,
 } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { useAlertDialog, useConfirm } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import toast from 'react-hot-toast';
 import './GLPage.css';
 
 export default function CostCentersPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const propertyId = useSelectedPropertyId();
   const { data: costCenters = [], isLoading } = useGetCostCentersQuery(
     propertyId ? { propertyId } : undefined
@@ -72,13 +74,21 @@ export default function CostCentersPage() {
         <PermissionGuard permission="finance-coa.write">
           <button
             className="btn-primary"
+            disabled={isV6Active}
             onClick={() => {
+              if (isV6Active) return;
               setEditingItem(null);
               setShowModal(true);
             }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            title={isV6Active ? 'Cost center creation is disabled because V6 ERP integration is active.' : undefined}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              ...(isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+            }}
           >
-            <Plus size={16} /> Add Cost Center
+            {isV6Active ? '🔒 Add Cost Center (V6 Active)' : <><Plus size={16} /> Add Cost Center</>}
           </button>
         </PermissionGuard>
       </div>

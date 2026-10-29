@@ -7,6 +7,7 @@ import {
 import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   FileText, Plus, X, Clock, CheckCircle, AlertTriangle,
   DollarSign, Trash2, ChevronLeft, ChevronRight,
@@ -30,6 +31,7 @@ interface LineItem {
 }
 
 export default function ApInvoiceListPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -206,14 +208,18 @@ export default function ApInvoiceListPage() {
         <PermissionGuard permission="ap-invoices.write">
           <button
             className="ap-btn primary"
+            disabled={isV6Active}
             onClick={() => {
+              if (isV6Active) return;
               const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
               setForm((f) => ({ ...f, currency: propertyCurrency || f.currency }));
               setHasAttemptedCreate(false);
               setShowCreate(true);
             }}
+            title={isV6Active ? 'AP invoice creation is disabled because V6 ERP integration is active.' : undefined}
+            style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
           >
-            <Plus size={16} /> New AP Invoice
+            {isV6Active ? '🔒 New AP Invoice (V6 Active)' : <><Plus size={16} /> New AP Invoice</>}
           </button>
         </PermissionGuard>
       </div>

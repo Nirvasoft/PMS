@@ -3,6 +3,7 @@ import { useGetReceiptsQuery } from '../../../store/api/arApi';
 import { useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
 import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { useSelectedPropertyId, useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import {
   Banknote, Plus, Search, ChevronLeft, ChevronRight,
@@ -22,6 +23,7 @@ const formatCurrency = (amount: string | number, currency = 'USD') =>
   formatCurrencyHelper(amount, currency, 'code');
 
 export default function ReceiptsPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState('');
@@ -130,9 +132,19 @@ export default function ReceiptsPage() {
           </div>
         </div>
         <PermissionGuard permission="ar-receipts.write">
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> Record Receipts
+          <button
+            className="btn btn-primary"
+            disabled={isV6Active}
+            onClick={() => { if (!isV6Active) setShowCreate(true); }}
+            title={isV6Active ? 'Receipt creation is disabled because V6 ERP integration is active.' : undefined}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              ...(isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+            }}
+          >
+            {isV6Active ? '🔒 Record Receipts (V6 Active)' : <><Plus size={14} /> Record Receipts</>}
           </button>
         </PermissionGuard>
       </div>

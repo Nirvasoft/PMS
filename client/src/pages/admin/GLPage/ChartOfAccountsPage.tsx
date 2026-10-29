@@ -11,6 +11,7 @@ import {
 } from '../../../store/api/glApi';
 import type { GlAccount, DepartmentCenter, CostCenter } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import { useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import '../BillingPage/BillingPage.css';
@@ -291,6 +292,7 @@ function AccountNode({
 }
 
 export default function ChartOfAccountsPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const propertyId = useSelectedPropertyId();
   const { data: accounts = [], isLoading } = useGetGlAccountsQuery(
     propertyId ? { propertyId } : {}
@@ -316,7 +318,11 @@ export default function ChartOfAccountsPage() {
     : rootAccounts;
 
   const handleEdit = (a: GlAccount) => { setEditAccount(a); setShowModal(true); };
-  const handleNew = () => { setEditAccount(null); setShowModal(true); };
+  const handleNew = () => {
+    if (isV6Active) return;
+    setEditAccount(null);
+    setShowModal(true);
+  };
 
   return (
     <div className="gl-page">
@@ -332,7 +338,15 @@ export default function ChartOfAccountsPage() {
         </div>
         <PermissionGuard permission="finance-coa.write">
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn-primary" onClick={handleNew}>+ Add Account</button>
+            <button
+              className="btn-primary"
+              disabled={isV6Active}
+              onClick={handleNew}
+              title={isV6Active ? 'Account creation is disabled because V6 ERP integration is active.' : undefined}
+              style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
+            >
+              {isV6Active ? '🔒 Add Account (V6 Active)' : '+ Add Account'}
+            </button>
           </div>
         </PermissionGuard>
       </div>

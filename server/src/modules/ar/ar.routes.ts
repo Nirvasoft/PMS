@@ -9,6 +9,7 @@ import {
   createRefundSchema, rejectRefundSchema, markRefundPaidSchema,
   createTenantCreditSchema, applyCreditSchema,
 } from './ar.schema';
+import { assertV6ErpNotActive } from '../integrations/v6Status.helper';
 
 const p = (req: Request, key: string) => req.params[key] as string;
 
@@ -31,6 +32,7 @@ receiptsRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 receiptsRouter.post('/', validateRequest(createReceiptSchema), asyncHandler(async (req, res) => {
+  await assertV6ErpNotActive(req.user!.companyId, 'Receipt');
   const data = await receiptsService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
@@ -102,6 +104,7 @@ refundsRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 refundsRouter.post('/', validateRequest(createRefundSchema), asyncHandler(async (req, res) => {
+  await assertV6ErpNotActive(req.user!.companyId, 'Refund');
   const data = await refundsService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
@@ -152,6 +155,7 @@ creditsRouter.get('/summary', asyncHandler(async (req, res) => {
 }));
 
 creditsRouter.post('/', validateRequest(createTenantCreditSchema), asyncHandler(async (req, res) => {
+  await assertV6ErpNotActive(req.user!.companyId, 'Tenant credit');
   const data = await tenantCreditsService.create(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));

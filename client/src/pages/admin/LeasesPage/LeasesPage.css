@@ -159,6 +159,7 @@
 .lease-table td {
   padding: 10px 12px;
   font-size: 13px;
+  font-weight: 400;
   color: var(--text-primary);
   border-bottom: 1px solid rgba(255,255,255,0.03);
   vertical-align: middle;
@@ -186,6 +187,9 @@
 }
 
 /* Light mode for sticky header and scrollbars */
+[data-theme="light"] .lease-table td {
+  font-weight: 400;
+}
 [data-theme="light"] .lease-table-scroll.has-overflow thead th,
 [data-theme="light"] .lease-table-wrap .table-scroll-container.has-overflow thead th,
 [data-theme="light"] .lease-table-wrap .billing-table-scroll.has-overflow thead th {
@@ -282,14 +286,15 @@
 
 .ln-badge { font-family: monospace; font-size: .78rem; font-weight: 600; color: var(--accent, #10b981); background: rgba(16, 185, 129, 0.12); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
 .exp-warn { display: flex; align-items: center; gap: 3px; font-size: .65rem; color: #f39c12; margin-top: 3px; white-space: nowrap; }
-.lu-number { font-weight: 600; font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lu-number { font-weight: 400; font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lu-property { font-size: .72rem; color: var(--text-muted); }
-.lease-tenant { font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lease-tenant { font-weight: 400; font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lease-dates {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   font-size: .76rem;
+  font-weight: 400;
   color: var(--text-secondary, #94a3b8);
   white-space: nowrap;
 }
@@ -307,9 +312,9 @@
 }
 .date-sep { color: rgba(255,255,255,.2); margin: 0 4px; }
 .lease-rent { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; font-size: .82rem; }
-.rent-val { font-weight: 600; font-size: .82rem; }
+.rent-val { font-weight: 400; font-size: .82rem; }
 .rent-cur { font-size: .7rem; color: var(--text-muted); }
-.status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .7rem; font-weight: 700; border: 1px solid; white-space: nowrap; }
+.status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 6px; font-size: .7rem; font-weight: 500; border: 1px solid; white-space: nowrap; }
 .row-actions { display: flex; align-items: center; justify-content: center; }
 
 /* Responsive adjustments for smaller desktops, tablets, and mobile devices */

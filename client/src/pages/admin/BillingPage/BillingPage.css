@@ -3043,3 +3043,18 @@
 [data-theme="light"] .coa-type-badge.expense   { background: #fee2e2; color: #b91c1c; }
 
 
+
+/* ── Invoice Detail — Light Mode: white cards with elevation shadow ── */
+[data-theme="light"] .invoice-meta-item,
+[data-theme="light"] .invoice-totals-panel,
+[data-theme="light"] .billing-page .card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px -3px rgba(15, 23, 42, 0.10), 0 3px 8px -2px rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .billing-page .card:hover {
+  box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .line-items-table tbody tr:hover {
+  background: #E8EEF5;
+}

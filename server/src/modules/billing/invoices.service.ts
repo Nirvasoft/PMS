@@ -8,6 +8,7 @@ import { workflowEngine } from '../workflow/services/engine.service';
 import { glService } from '../gl/gl.service';
 import { webhookInvoiceIssued } from '../../common/webhookHooks';
 import { calcLeaseTermMonths } from '../leases/services/helpers';
+import { isV6ErpActive } from '../integrations/v6Status.helper';
 
 /** Adds computed `outstandingAmount` to an invoice object */
 function withOutstanding<T extends { totalAmount: any; paidAmount: any }>(inv: T): T & { outstandingAmount: number } {
@@ -584,71 +585,73 @@ export class InvoicesService {
       null;
 
     // GL auto-posting: Dr Accounts Receivable (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
-    const glLines: Array<{
-      accountCode: string;
-      debit: number;
-      credit: number;
-      description?: string;
-      departmentCenterId?: string | null;
-      costCenterId?: string | null;
-    }> = [
-      {
-        accountCode: '1-2210',
-        debit: Number(invoice.totalAmount),
-        credit: 0,
-        description: `AR — ${invoiceNumber}`,
-        departmentCenterId: invDeptId,
-        costCenterId: invCcId,
-      },
-    ];
-    // Credit each charge line using its linked ChargeType GL account (fallback to 4100)
-    const activeLines = invoice.lines.filter((l) => Number(l.amount) > 0);
-    if (activeLines.length > 0) {
-      for (const invLine of activeLines) {
-        const creditAccountCode = invLine.chargeType?.glAccountCode?.trim() || '4100';
-        const lineDesc = invLine.description || invLine.chargeType?.name || 'Revenue';
+    if (!(await isV6ErpActive(companyId))) {
+      const glLines: Array<{
+        accountCode: string;
+        debit: number;
+        credit: number;
+        description?: string;
+        departmentCenterId?: string | null;
+        costCenterId?: string | null;
+      }> = [
+        {
+          accountCode: '1-2210',
+          debit: Number(invoice.totalAmount),
+          credit: 0,
+          description: `AR — ${invoiceNumber}`,
+          departmentCenterId: invDeptId,
+          costCenterId: invCcId,
+        },
+      ];
+      // Credit each charge line using its linked ChargeType GL account (fallback to 4100)
+      const activeLines = invoice.lines.filter((l) => Number(l.amount) > 0);
+      if (activeLines.length > 0) {
+        for (const invLine of activeLines) {
+          const creditAccountCode = invLine.chargeType?.glAccountCode?.trim() || '4100';
+          const lineDesc = invLine.description || invLine.chargeType?.name || 'Revenue';
+          glLines.push({
+            accountCode: creditAccountCode,
+            debit: 0,
+            credit: Number(invLine.amount),
+            description: `${lineDesc} — ${invoiceNumber}`,
+            departmentCenterId: invLine.chargeType?.departmentCenterId || invDeptId,
+            costCenterId: invLine.chargeType?.costCenterId || invCcId,
+          });
+        }
+      } else if (subtotal > 0) {
         glLines.push({
-          accountCode: creditAccountCode,
+          accountCode: '4100',
           debit: 0,
-          credit: Number(invLine.amount),
-          description: `${lineDesc} — ${invoiceNumber}`,
-          departmentCenterId: invLine.chargeType?.departmentCenterId || invDeptId,
-          costCenterId: invLine.chargeType?.costCenterId || invCcId,
+          credit: subtotal,
+          description: `Revenue — ${invoiceNumber}`,
+          departmentCenterId: invDeptId,
+          costCenterId: invCcId,
         });
       }
-    } else if (subtotal > 0) {
-      glLines.push({
-        accountCode: '4100',
-        debit: 0,
-        credit: subtotal,
-        description: `Revenue — ${invoiceNumber}`,
+      // Credit tax payable if tax exists
+      if (totalTax > 0) {
+        glLines.push({
+          accountCode: '2200',
+          debit: 0,
+          credit: totalTax,
+          description: `Tax Payable — ${invoiceNumber}`,
+          departmentCenterId: invDeptId,
+          costCenterId: invCcId,
+        });
+      }
+      await glService.postAutoJournal({
+        companyId,
+        entryDate: dto.invoiceDate as string,
+        entryType: 'ar_invoice',
+        description: `AR Invoice ${invoiceNumber}`,
+        referenceType: 'invoice',
+        referenceId: invoice.id,
+        propertyId: dto.propertyId as string,
         departmentCenterId: invDeptId,
         costCenterId: invCcId,
+        lines: glLines,
       });
     }
-    // Credit tax payable if tax exists
-    if (totalTax > 0) {
-      glLines.push({
-        accountCode: '2200',
-        debit: 0,
-        credit: totalTax,
-        description: `Tax Payable — ${invoiceNumber}`,
-        departmentCenterId: invDeptId,
-        costCenterId: invCcId,
-      });
-    }
-    await glService.postAutoJournal({
-      companyId,
-      entryDate: dto.invoiceDate as string,
-      entryType: 'ar_invoice',
-      description: `AR Invoice ${invoiceNumber}`,
-      referenceType: 'invoice',
-      referenceId: invoice.id,
-      propertyId: dto.propertyId as string,
-      departmentCenterId: invDeptId,
-      costCenterId: invCcId,
-      lines: glLines,
-    });
 
     // Send notification
     const tenantName = invoice.tenant
@@ -909,88 +912,90 @@ export class InvoicesService {
    */
   private async _postInvoiceGlAndNotify(invoice: any, companyId: string, invoiceDate: Date, currency: string): Promise<void> {
     try {
-      const subtotal    = Number(invoice.subtotal);
-      const totalAmount = Number(invoice.totalAmount);
-      const taxAmount   = Number(invoice.taxAmount);
+      if (!(await isV6ErpActive(companyId))) {
+        const subtotal    = Number(invoice.subtotal);
+        const totalAmount = Number(invoice.totalAmount);
+        const taxAmount   = Number(invoice.taxAmount);
 
-      const invDeptId =
-        invoice.departmentCenterId ||
-        (Array.isArray(invoice.lines)
-          ? invoice.lines.find((l: any) => l.chargeType?.departmentCenterId)?.chargeType?.departmentCenterId
-          : null) ||
-        null;
-      const invCcId =
-        invoice.costCenterId ||
-        (Array.isArray(invoice.lines)
-          ? invoice.lines.find((l: any) => l.chargeType?.costCenterId)?.chargeType?.costCenterId
-          : null) ||
-        null;
+        const invDeptId =
+          invoice.departmentCenterId ||
+          (Array.isArray(invoice.lines)
+            ? invoice.lines.find((l: any) => l.chargeType?.departmentCenterId)?.chargeType?.departmentCenterId
+            : null) ||
+          null;
+        const invCcId =
+          invoice.costCenterId ||
+          (Array.isArray(invoice.lines)
+            ? invoice.lines.find((l: any) => l.chargeType?.costCenterId)?.chargeType?.costCenterId
+            : null) ||
+          null;
 
-      const glLines: Array<{
-        accountCode: string;
-        debit: number;
-        credit: number;
-        description?: string;
-        departmentCenterId?: string | null;
-        costCenterId?: string | null;
-      }> = [
-        {
-          accountCode: '1-2210',
-          debit: totalAmount,
-          credit: 0,
-          description: `AR — ${invoice.invoiceNumber}`,
-          departmentCenterId: invDeptId,
-          costCenterId: invCcId,
-        },
-      ];
-      const activeLines = Array.isArray(invoice.lines)
-        ? invoice.lines.filter((l: any) => Number(l.amount) > 0)
-        : [];
-      if (activeLines.length > 0) {
-        for (const invLine of activeLines) {
-          const creditAccountCode = invLine.chargeType?.glAccountCode?.trim() || '4100';
-          const lineDesc = invLine.description || invLine.chargeType?.name || 'Revenue';
+        const glLines: Array<{
+          accountCode: string;
+          debit: number;
+          credit: number;
+          description?: string;
+          departmentCenterId?: string | null;
+          costCenterId?: string | null;
+        }> = [
+          {
+            accountCode: '1-2210',
+            debit: totalAmount,
+            credit: 0,
+            description: `AR — ${invoice.invoiceNumber}`,
+            departmentCenterId: invDeptId,
+            costCenterId: invCcId,
+          },
+        ];
+        const activeLines = Array.isArray(invoice.lines)
+          ? invoice.lines.filter((l: any) => Number(l.amount) > 0)
+          : [];
+        if (activeLines.length > 0) {
+          for (const invLine of activeLines) {
+            const creditAccountCode = invLine.chargeType?.glAccountCode?.trim() || '4100';
+            const lineDesc = invLine.description || invLine.chargeType?.name || 'Revenue';
+            glLines.push({
+              accountCode: creditAccountCode,
+              debit: 0,
+              credit: Number(invLine.amount),
+              description: `${lineDesc} — ${invoice.invoiceNumber}`,
+              departmentCenterId: invLine.chargeType?.departmentCenterId || invDeptId,
+              costCenterId: invLine.chargeType?.costCenterId || invCcId,
+            });
+          }
+        } else if (subtotal > 0) {
           glLines.push({
-            accountCode: creditAccountCode,
+            accountCode: '4100',
             debit: 0,
-            credit: Number(invLine.amount),
-            description: `${lineDesc} — ${invoice.invoiceNumber}`,
-            departmentCenterId: invLine.chargeType?.departmentCenterId || invDeptId,
-            costCenterId: invLine.chargeType?.costCenterId || invCcId,
+            credit: subtotal,
+            description: `Revenue — ${invoice.invoiceNumber}`,
+            departmentCenterId: invDeptId,
+            costCenterId: invCcId,
           });
         }
-      } else if (subtotal > 0) {
-        glLines.push({
-          accountCode: '4100',
-          debit: 0,
-          credit: subtotal,
-          description: `Revenue — ${invoice.invoiceNumber}`,
+        if (taxAmount > 0) {
+          glLines.push({
+            accountCode: '2200',
+            debit: 0,
+            credit: taxAmount,
+            description: `Tax Payable — ${invoice.invoiceNumber}`,
+            departmentCenterId: invDeptId,
+            costCenterId: invCcId,
+          });
+        }
+        await glService.postAutoJournal({
+          companyId,
+          entryDate: invoiceDate,
+          entryType: 'ar_invoice',
+          description: `AR Invoice ${invoice.invoiceNumber}`,
+          referenceType: 'invoice',
+          referenceId: invoice.id,
+          propertyId: invoice.propertyId,
           departmentCenterId: invDeptId,
           costCenterId: invCcId,
+          lines: glLines,
         });
       }
-      if (taxAmount > 0) {
-        glLines.push({
-          accountCode: '2200',
-          debit: 0,
-          credit: taxAmount,
-          description: `Tax Payable — ${invoice.invoiceNumber}`,
-          departmentCenterId: invDeptId,
-          costCenterId: invCcId,
-        });
-      }
-      await glService.postAutoJournal({
-        companyId,
-        entryDate: invoiceDate,
-        entryType: 'ar_invoice',
-        description: `AR Invoice ${invoice.invoiceNumber}`,
-        referenceType: 'invoice',
-        referenceId: invoice.id,
-        propertyId: invoice.propertyId,
-        departmentCenterId: invDeptId,
-        costCenterId: invCcId,
-        lines: glLines,
-      });
     } catch (err: any) {
       logger.warn(`[createFromLease] GL auto-journal skipped: ${err.message}`);
     }
@@ -1209,75 +1214,77 @@ export class InvoicesService {
     );
 
     // GL auto-posting: Dr AR (linked to Invoice Dept/CC) / Cr per ChargeType GL Account / Cr Tax Payable
-    const glLines: Array<{
-      accountCode: string;
-      debit: number;
-      credit: number;
-      description?: string;
-      departmentCenterId?: string | null;
-      costCenterId?: string | null;
-    }> = [
-      {
-        accountCode: '1-2210',
-        debit: totalAmount,
-        credit: 0,
-        description: `AR — ${invoiceNumber}`,
-        departmentCenterId,
-        costCenterId,
-      },
-    ];
-    const activeScheduleLines = lineInputs.filter((l) => l.amount > 0);
-    if (activeScheduleLines.length > 0) {
-      for (const l of activeScheduleLines) {
-        const creditAccountCode = l.schedule.chargeType?.glAccountCode?.trim() || '4100';
-        const lineDesc = l.schedule.description || l.schedule.chargeType?.name || 'Revenue';
+    if (!(await isV6ErpActive(first.companyId))) {
+      const glLines: Array<{
+        accountCode: string;
+        debit: number;
+        credit: number;
+        description?: string;
+        departmentCenterId?: string | null;
+        costCenterId?: string | null;
+      }> = [
+        {
+          accountCode: '1-2210',
+          debit: totalAmount,
+          credit: 0,
+          description: `AR — ${invoiceNumber}`,
+          departmentCenterId,
+          costCenterId,
+        },
+      ];
+      const activeScheduleLines = lineInputs.filter((l) => l.amount > 0);
+      if (activeScheduleLines.length > 0) {
+        for (const l of activeScheduleLines) {
+          const creditAccountCode = l.schedule.chargeType?.glAccountCode?.trim() || '4100';
+          const lineDesc = l.schedule.description || l.schedule.chargeType?.name || 'Revenue';
+          glLines.push({
+            accountCode: creditAccountCode,
+            debit: 0,
+            credit: l.amount,
+            description: `${lineDesc} — ${invoiceNumber}`,
+            departmentCenterId:
+              l.schedule.departmentCenterId ||
+              l.schedule.chargeType?.departmentCenterId ||
+              departmentCenterId,
+            costCenterId:
+              l.schedule.costCenterId ||
+              l.schedule.chargeType?.costCenterId ||
+              costCenterId,
+          });
+        }
+      } else if (subtotal > 0) {
         glLines.push({
-          accountCode: creditAccountCode,
+          accountCode: '4100',
           debit: 0,
-          credit: l.amount,
-          description: `${lineDesc} — ${invoiceNumber}`,
-          departmentCenterId:
-            l.schedule.departmentCenterId ||
-            l.schedule.chargeType?.departmentCenterId ||
-            departmentCenterId,
-          costCenterId:
-            l.schedule.costCenterId ||
-            l.schedule.chargeType?.costCenterId ||
-            costCenterId,
+          credit: subtotal,
+          description: `Revenue — ${invoiceNumber}`,
+          departmentCenterId,
+          costCenterId,
         });
       }
-    } else if (subtotal > 0) {
-      glLines.push({
-        accountCode: '4100',
-        debit: 0,
-        credit: subtotal,
-        description: `Revenue — ${invoiceNumber}`,
+      if (taxAmount > 0) {
+        glLines.push({
+          accountCode: '2200',
+          debit: 0,
+          credit: taxAmount,
+          description: `Tax Payable — ${invoiceNumber}`,
+          departmentCenterId,
+          costCenterId,
+        });
+      }
+      await glService.postAutoJournal({
+        companyId: first.companyId,
+        entryDate: invoiceDate,
+        entryType: 'ar_invoice',
+        description: `AR Invoice ${invoiceNumber}`,
+        referenceType: 'invoice',
+        referenceId: invoice.id,
+        propertyId: first.propertyId,
         departmentCenterId,
         costCenterId,
+        lines: glLines,
       });
     }
-    if (taxAmount > 0) {
-      glLines.push({
-        accountCode: '2200',
-        debit: 0,
-        credit: taxAmount,
-        description: `Tax Payable — ${invoiceNumber}`,
-        departmentCenterId,
-        costCenterId,
-      });
-    }
-    await glService.postAutoJournal({
-      companyId: first.companyId,
-      entryDate: invoiceDate,
-      entryType: 'ar_invoice',
-      description: `AR Invoice ${invoiceNumber}`,
-      referenceType: 'invoice',
-      referenceId: invoice.id,
-      propertyId: first.propertyId,
-      departmentCenterId,
-      costCenterId,
-      lines: glLines,
-    });
     // Send notification
     const tenantName = first.tenant
       ? `${first.tenant.firstName || ''} ${first.tenant.lastName || ''}`.trim()
@@ -1344,22 +1351,24 @@ export class InvoicesService {
     });
 
     // 1. Reverse posted GL journal entry(s) for this invoice
-    try {
-      const postedJournals = await prisma.journalEntry.findMany({
-        where: {
-          companyId,
-          referenceType: 'invoice',
-          referenceId: invoice.id,
-          status: 'posted',
-          isReversal: false,
-        },
-      });
-      for (const je of postedJournals) {
-        await glService.reverseJournalEntry(je.id, companyId, userId);
-        logger.info(`Reversed GL journal ${je.journalNumber} for voided invoice ${invoice.invoiceNumber}`);
+    if (!(await isV6ErpActive(companyId))) {
+      try {
+        const postedJournals = await prisma.journalEntry.findMany({
+          where: {
+            companyId,
+            referenceType: 'invoice',
+            referenceId: invoice.id,
+            status: 'posted',
+            isReversal: false,
+          },
+        });
+        for (const je of postedJournals) {
+          await glService.reverseJournalEntry(je.id, companyId, userId);
+          logger.info(`Reversed GL journal ${je.journalNumber} for voided invoice ${invoice.invoiceNumber}`);
+        }
+      } catch (err: any) {
+        logger.error(`Failed to reverse GL journal for voided invoice ${invoice.invoiceNumber}: ${err.message}`);
       }
-    } catch (err: any) {
-      logger.error(`Failed to reverse GL journal for voided invoice ${invoice.invoiceNumber}: ${err.message}`);
     }
 
     // 2. If this invoice was generated from Billing Schedule(s), restore each schedule's nextBillingDate

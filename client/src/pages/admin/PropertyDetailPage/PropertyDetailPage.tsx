@@ -981,8 +981,22 @@ const getTenantDisplayName = (tenant?: { lastName?: string | null; companyName?:
 // ═══════════════════════════════════════════════════
 function LeasesTab({ propertyId }: { propertyId: string }) {
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const { data, isLoading } = useGetLeasesQuery({ propertyId, status: statusFilter || undefined, limit: 50 });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [propertyId]);
+
+  const { data, isLoading } = useGetLeasesQuery({
+    propertyId,
+    status: statusFilter || undefined,
+    page,
+    limit: pageSize,
+  });
   const leases = data?.data || [];
+  const meta = data?.meta;
+  const totalPages = Math.max(meta?.totalPages ?? 1, 1);
 
   const STATUS_COLORS: Record<string, string> = {
     draft: '#6c757d', pending_approval: '#f39c12', approved: '#3498db',
@@ -995,7 +1009,14 @@ function LeasesTab({ propertyId }: { propertyId: string }) {
       <div className="section-header">
         <h3><Briefcase size={16} /> Leases</h3>
         <div className="section-header-actions">
-          <select className="filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <select
+            className="filter-select"
+            value={statusFilter}
+            onChange={e => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+          >
             <option value="">All statuses</option>
             {['draft','pending_approval','approved','active','expired','terminated','renewed'].map(s => (
               <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
@@ -1012,62 +1033,106 @@ function LeasesTab({ propertyId }: { propertyId: string }) {
       ) : leases.length === 0 ? (
         <div className="empty-section"><Briefcase size={32} /><p>No leases found for this property</p></div>
       ) : (
-        <div className="leases-table-wrap">
-          <table className="leases-table">
-            <colgroup>
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '20%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '15%' }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Lease #</th>
-                <th>Tenant</th>
-                <th>Unit</th>
-                <th>Status</th>
-                <th>Term</th>
-                <th>Rent</th>
-                <th>Expiry</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leases.map(lease => (
-                <tr key={lease.id}>
-                  <td>
-                    <Link to={`/admin/leases/${lease.id}`} className="lease-link">{lease.leaseNumber}</Link>
-                  </td>
-                  <td className="tenant-cell">
-                    <span className="tenant-name">{getTenantDisplayName(lease.tenant)}</span>
-                    <span className="tenant-type">{lease.tenant.tenantType}</span>
-                  </td>
-                  <td>{lease.unit.unitNumber}</td>
-                  <td>
-                    <span className="status-badge" style={{ background: `${STATUS_COLORS[lease.status] || '#6c757d'}22`, color: STATUS_COLORS[lease.status] || '#6c757d' }}>
-                      {lease.status.replace(/_/g, ' ')}
-                    </span>
-                  </td>
-                  <td>{lease.leaseTermMonths}mo</td>
-                  <td>
-                    <span className="rent-amount" title={`${lease.currency} ${formatFullAmount(lease.rentAmount)}`} style={{ cursor: 'help' }}>
-                      {lease.currency} {formatCompactAmount(lease.rentAmount)}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`expiry-text ${lease.daysUntilExpiry <= 30 ? 'expiring-soon' : ''}`}>
-                      {new Date(lease.endDate).toLocaleDateString()}
-                      {lease.daysUntilExpiry > 0 && lease.daysUntilExpiry <= 90 && (
-                        <span className="days-badge">{lease.daysUntilExpiry}d</span>
-                      )}
-                    </span>
-                  </td>
+        <div className="leases-table-wrap with-pagination">
+          <div className="leases-table-scroll">
+            <table className="leases-table">
+              <colgroup>
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '15%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Lease #</th>
+                  <th>Tenant</th>
+                  <th>Unit</th>
+                  <th>Status</th>
+                  <th>Term</th>
+                  <th>Rent</th>
+                  <th>Expiry</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {leases.map(lease => (
+                  <tr key={lease.id}>
+                    <td>
+                      <Link to={`/admin/leases/${lease.id}`} className="lease-link">{lease.leaseNumber}</Link>
+                    </td>
+                    <td>
+                      <div className="tenant-cell">
+                        <span className="tenant-name">{getTenantDisplayName(lease.tenant)}</span>
+                        <span className="tenant-type">{lease.tenant.tenantType}</span>
+                      </div>
+                    </td>
+                    <td>{lease.unit.unitNumber}</td>
+                    <td>
+                      <span className="status-badge" style={{ background: `${STATUS_COLORS[lease.status] || '#6c757d'}22`, color: STATUS_COLORS[lease.status] || '#6c757d' }}>
+                        {lease.status.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td>{lease.leaseTermMonths}mo</td>
+                    <td>
+                      <span className="rent-amount" title={`${lease.currency} ${formatFullAmount(lease.rentAmount)}`} style={{ cursor: 'help' }}>
+                        {lease.currency} {formatCompactAmount(lease.rentAmount)}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`expiry-text ${lease.daysUntilExpiry <= 30 ? 'expiring-soon' : ''}`}>
+                        {new Date(lease.endDate).toLocaleDateString()}
+                        {lease.daysUntilExpiry > 0 && lease.daysUntilExpiry <= 90 && (
+                          <span className="days-badge">{lease.daysUntilExpiry}d</span>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="leases-pagination">
+            <div className="pagination-left">
+              <div className="page-size-selector">
+                <span>Rows per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="page-btns">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                title="Previous page"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="page-num-display">
+                Page {meta?.page ?? page} of {totalPages}
+              </span>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                title="Next page"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ import {
 } from '../../../store/api/assetsApi';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 
@@ -16,6 +17,7 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { year: '
 const CATEGORIES = ['building', 'machinery', 'furniture', 'vehicle', 'it_equipment', 'other'];
 
 export default function AssetsListPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -60,7 +62,15 @@ export default function AssetsListPage() {
             <button className="btn-sm" onClick={handleRunDepreciation} disabled={depRunning}>
               {depRunning ? '⏳ Running…' : '⚙️ Run Depreciation'}
             </button>
-            <button className="btn-primary" onClick={() => setShowCreate(true)}>+ Add Asset</button>
+            <button
+              className="btn-primary"
+              disabled={isV6Active}
+              onClick={() => { if (!isV6Active) setShowCreate(true); }}
+              title={isV6Active ? 'Asset creation is disabled because V6 ERP integration is active.' : undefined}
+              style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
+            >
+              {isV6Active ? '🔒 Add Asset (V6 Active)' : '+ Add Asset'}
+            </button>
           </div>
         </PermissionGuard>
       </div>

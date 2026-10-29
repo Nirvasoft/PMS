@@ -5,6 +5,7 @@ import {
 } from '../../../store/api/apApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   Receipt, Plus, X, Clock, CheckCircle, DollarSign,
   ChevronLeft, ChevronRight, Tag,
@@ -24,6 +25,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function ExpensesPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -106,15 +108,21 @@ export default function ExpensesPage() {
           <button
             className="ap-btn primary"
             onClick={() => {
+              if (isV6Active) return;
               const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
               setForm((f) => ({ ...f, currency: propertyCurrency || 'USD', propertyId: selectedProperty }));
               setHasAttemptedCreate(false);
               setShowCreate(true);
             }}
-            disabled={!selectedProperty}
-            title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
+            disabled={isV6Active || !selectedProperty}
+            title={
+              isV6Active
+                ? 'Expense creation is disabled because V6 ERP integration is active.'
+                : (!selectedProperty ? 'Select a property from the sidebar first' : undefined)
+            }
+            style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
           >
-            <Plus size={16} /> Submit Expense
+            {isV6Active ? '🔒 Submit Expense (V6 Active)' : <><Plus size={16} /> Submit Expense</>}
           </button>
         </PermissionGuard>
       </div>

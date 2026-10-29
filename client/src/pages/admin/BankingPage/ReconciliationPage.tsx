@@ -9,6 +9,7 @@ import {
 } from '../../../store/api/bankingApi';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import '../GLPage/GLPage.css';
 
@@ -20,6 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function ReconciliationPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const { bankAccountId } = useParams<{ bankAccountId: string }>();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -66,7 +68,15 @@ export default function ReconciliationPage() {
           </div>
         </div>
         <PermissionGuard permission="finance-banking.write">
-          <button className="btn-primary" onClick={() => setShowImport(true)}>📥 Import Statement</button>
+          <button
+            className="btn-primary"
+            disabled={isV6Active}
+            onClick={() => { if (!isV6Active) setShowImport(true); }}
+            title={isV6Active ? 'Bank statement import is disabled because V6 ERP integration is active.' : undefined}
+            style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
+          >
+            {isV6Active ? '🔒 Import Statement (V6 Active)' : '📥 Import Statement'}
+          </button>
         </PermissionGuard>
       </div>
 

@@ -13,6 +13,7 @@ import {
   type GlAccount,
 } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   CreditCard, Plus, X, Check, Pencil, Trash2, Search, RotateCcw,
   ChevronLeft, ChevronRight, BookOpen, Filter,
@@ -24,6 +25,7 @@ import toast from 'react-hot-toast';
 import '../BillingPage/BillingPage.css';
 
 export default function PaymentMethodSetupPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const propertyId = useSelectedPropertyId();
   const { data: paymentMethods = [], isFetching } = useGetPaymentMethodsQuery(
     propertyId ? { propertyId } : skipToken
@@ -115,6 +117,7 @@ export default function PaymentMethodSetupPage() {
   };
 
   const openCreate = () => {
+    if (isV6Active) return;
     setHasAttemptedSubmit(false);
     setEditing(null);
     setForm(emptyForm);
@@ -254,8 +257,19 @@ export default function PaymentMethodSetupPage() {
             </p>
           </div>
           <PermissionGuard permission="finance-coa.write">
-            <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Plus size={14} /> New Payment Method
+            <button
+              className="btn btn-primary"
+              disabled={isV6Active}
+              onClick={openCreate}
+              title={isV6Active ? 'Payment method creation is disabled because V6 ERP integration is active.' : undefined}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                ...(isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+              }}
+            >
+              {isV6Active ? '🔒 New Payment Method (V6 Active)' : <><Plus size={14} /> New Payment Method</>}
             </button>
           </PermissionGuard>
         </div>

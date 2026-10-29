@@ -7,12 +7,14 @@ import {
 } from '../../../store/api/glApi';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import TableScrollWrapper from '../../../components/TableScrollWrapper';
 import './GLPage.css';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
 export default function FiscalPeriodsPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const { data: periods = [], isLoading } = useGetFiscalPeriodsQuery();
   const [generateFY, { isLoading: generating }] = useGenerateFiscalYearMutation();
   const [closePeriod] = useCloseFiscalPeriodMutation();
@@ -30,6 +32,7 @@ export default function FiscalPeriodsPage() {
   const pagedPeriods = filtered.slice((page - 1) * limit, page * limit);
 
   const handleGenerate = async () => {
+    if (isV6Active) return;
     try { await generateFY(year).unwrap(); } catch (err: any) { alertDialog(err.data?.errors?.[0]?.message || 'Error'); }
   };
   const handleClose = async (id: string) => {
@@ -63,10 +66,24 @@ export default function FiscalPeriodsPage() {
         </select>
         <div style={{ flex: 1 }} />
         <label>Generate FY</label>
-        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} min={2020} max={2099} style={{width:80}} />
+        <input
+          type="number"
+          value={year}
+          disabled={isV6Active}
+          onChange={e => setYear(Number(e.target.value))}
+          min={2020}
+          max={2099}
+          style={{ width: 80, ...(isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}
+        />
         <PermissionGuard permission="finance-fiscal-periods.write">
-          <button className="btn-primary" onClick={handleGenerate} disabled={generating}>
-            {generating ? 'Generating…' : '📅 Generate 12 Months'}
+          <button
+            className="btn-primary"
+            onClick={handleGenerate}
+            disabled={isV6Active || generating}
+            title={isV6Active ? 'Fiscal period generation is disabled because V6 ERP integration is active.' : undefined}
+            style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
+          >
+            {isV6Active ? '🔒 Generate 12 Months (V6 Active)' : (generating ? 'Generating…' : '📅 Generate 12 Months')}
           </button>
         </PermissionGuard>
       </div>

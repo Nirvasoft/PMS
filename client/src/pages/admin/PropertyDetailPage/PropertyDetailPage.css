@@ -1397,8 +1397,20 @@
 .filter-select option { background: #1a1f2e; }
 
 .leases-table-wrap {
-  overflow-x: auto; border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.06);
+  overflow-x: auto;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.leases-table-wrap.with-pagination {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.leases-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .leases-table {
@@ -1409,33 +1421,49 @@
   font-weight: 600; font-size: .72rem;
   text-transform: uppercase; letter-spacing: .05em;
   color: var(--text-muted);
-  background: rgba(255,255,255,.02);
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  background: rgba(255, 255, 255, .02);
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .leases-table td {
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(255,255,255,.04);
+  font-weight: 400;
+  border-bottom: 1px solid rgba(255, 255, 255, .04);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  vertical-align: middle;
 }
-.leases-table tbody tr:hover { background: rgba(16, 185, 129, .04); }
+.leases-table tbody tr {
+  transition: background-color 0.12s ease;
+}
+.leases-table tbody tr:nth-child(odd) {
+  background: transparent;
+}
+.leases-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.035);
+}
+.leases-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.leases-table tbody tr:hover {
+  background: rgba(16, 185, 129, 0.08) !important;
+}
 
 .lease-link {
-  color: var(--accent, #10b981); font-weight: 600;
+  color: var(--accent, #10b981); font-weight: 400;
   text-decoration: none;
 }
 .lease-link:hover { text-decoration: underline; }
 
 .tenant-cell { display: flex; flex-direction: column; gap: 2px; }
-.tenant-name { font-weight: 500; }
+.tenant-name { font-weight: 400; }
 .tenant-type { font-size: .7rem; color: var(--text-muted); text-transform: capitalize; }
 
 .status-badge {
   display: inline-block; padding: 3px 9px; border-radius: 6px;
-  font-size: .72rem; font-weight: 600; text-transform: capitalize;
+  font-size: .72rem; font-weight: 500; text-transform: capitalize;
 }
 
-.rent-amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+.rent-amount { font-weight: 400; font-variant-numeric: tabular-nums; }
 
 .expiry-text { display: flex; align-items: center; gap: 6px; }
 .expiry-text.expiring-soon { color: #e74c3c; }
@@ -1443,6 +1471,77 @@
   padding: 1px 6px; border-radius: 4px;
   background: rgba(231,76,60,.12); color: #e74c3c;
   font-size: .68rem; font-weight: 700;
+}
+
+.leases-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.01);
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+}
+.leases-pagination .pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.leases-pagination .page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.leases-pagination .page-size-selector select {
+  height: 32px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+.leases-pagination .page-size-selector select option {
+  background: #1a1f2e;
+}
+.leases-pagination .page-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.leases-pagination .page-num-display {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.leases-pagination .page-btns button {
+  height: 32px;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.leases-pagination .page-btns button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--accent, #10b981);
+}
+.leases-pagination .page-btns button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1553,26 +1652,68 @@
 
 [data-theme="light"] .leases-table-wrap {
   background: #ffffff;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--border, #cbd5e1);
+  box-shadow: 0 6px 20px -3px rgba(15, 23, 42, 0.10), 0 3px 8px -2px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .leases-table thead tr {
+  background: var(--accent, #059669) !important;
 }
 
 [data-theme="light"] .leases-table th {
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  color: #475569;
+  background: var(--accent, #059669) !important;
+  border-bottom: 1px solid #047857 !important;
+  color: #ffffff !important;
+  font-weight: 650 !important;
 }
 
 [data-theme="light"] .leases-table td {
-  border-bottom: 1px solid #f1f5f9;
+  background: transparent;
+  font-weight: 400;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0) !important;
 }
 
 [data-theme="light"] .leases-table tbody tr:last-child td {
-  border-bottom: none;
+  border-bottom: none !important;
+}
+
+[data-theme="light"] .leases-table tbody tr:nth-child(odd) {
+  background: #ffffff !important;
+}
+
+[data-theme="light"] .leases-table tbody tr:nth-child(even) {
+  background: #f1f5f9 !important;
 }
 
 [data-theme="light"] .leases-table tbody tr:hover {
-  background: rgba(5, 150, 105, 0.04);
+  background: #e8eef5 !important;
+}
+
+[data-theme="light"] .leases-pagination {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+}
+
+[data-theme="light"] .leases-pagination .page-size-selector select {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .leases-pagination .page-size-selector select option {
+  background: #ffffff;
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .leases-pagination .page-btns button {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .leases-pagination .page-btns button:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: var(--accent, #059669);
 }
 
 [data-theme="light"] .document-card {

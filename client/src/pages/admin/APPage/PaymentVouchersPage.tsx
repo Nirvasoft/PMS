@@ -9,6 +9,7 @@ import { useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import {
   CreditCard, Plus, X, DollarSign, FileText, Trash2,
   ChevronLeft, ChevronRight, Banknote,
@@ -32,6 +33,7 @@ interface LineItem {
 }
 
 export default function PaymentVouchersPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -266,16 +268,22 @@ export default function PaymentVouchersPage() {
           <button
             className="ap-btn primary"
             onClick={() => {
+              if (isV6Active) return;
               const propertyCurrency = properties.find((p) => p.id === selectedProperty)?.currency;
               setForm((f) => ({ ...f, currency: propertyCurrency || 'USD', paymentMethod: f.paymentMethod || defaultPaymentMethodCode }));
               setIsCash(false);
               setHasAttemptedCreate(false);
               setShowCreate(true);
             }}
-            disabled={!selectedProperty}
-            title={!selectedProperty ? 'Select a property from the sidebar first' : undefined}
+            disabled={isV6Active || !selectedProperty}
+            title={
+              isV6Active
+                ? 'Payment voucher creation is disabled because V6 ERP integration is active.'
+                : (!selectedProperty ? 'Select a property from the sidebar first' : undefined)
+            }
+            style={isV6Active ? { opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
           >
-            <Plus size={16} /> New Voucher
+            {isV6Active ? '🔒 New Voucher (V6 Active)' : <><Plus size={16} /> New Voucher</>}
           </button>
         </PermissionGuard>
       </div>

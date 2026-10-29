@@ -9,6 +9,7 @@ import {
   createPaymentVoucherSchema, markVoucherPaidSchema,
   createExpenseSchema,
 } from './ap.schema';
+import { assertV6ErpNotActive } from '../integrations/v6Status.helper';
 
 const p = (req: Request, key: string) => req.params[key] as string;
 
@@ -31,6 +32,7 @@ apInvoicesRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 apInvoicesRouter.post('/', validateRequest(createApInvoiceSchema), asyncHandler(async (req, res) => {
+  await assertV6ErpNotActive(req.user!.companyId, 'AP invoice');
   const data = await apInvoicesService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
@@ -67,6 +69,7 @@ paymentVouchersRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 paymentVouchersRouter.post('/', validateRequest(createPaymentVoucherSchema), asyncHandler(async (req, res) => {
+  await assertV6ErpNotActive(req.user!.companyId, 'Payment voucher');
   const data = await paymentVouchersService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));
@@ -95,6 +98,7 @@ expensesRouter.get('/', asyncHandler(async (req, res) => {
 }));
 
 expensesRouter.post('/', validateRequest(createExpenseSchema), asyncHandler(async (req, res) => {
+  await assertV6ErpNotActive(req.user!.companyId, 'Expense');
   const data = await expensesService.create(req.user!.companyId, req.body, req.user!.sub);
   res.status(201).json({ success: true, data });
 }));

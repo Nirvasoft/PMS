@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import './ARPage.css';
 
 import { formatCurrency } from '../../../utils/formatCurrency';
@@ -19,6 +20,7 @@ import { formatCurrency } from '../../../utils/formatCurrency';
 type ActionType = 'approve' | 'reject' | 'mark_paid';
 
 export default function RefundsPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState('');
@@ -64,9 +66,19 @@ export default function RefundsPage() {
           </div>
         </div>
         <PermissionGuard permission="ar-refunds.write">
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> New Refund
+          <button
+            className="btn btn-primary"
+            disabled={isV6Active}
+            onClick={() => { if (!isV6Active) setShowCreate(true); }}
+            title={isV6Active ? 'Refund creation is disabled because V6 ERP integration is active.' : undefined}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              ...(isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+            }}
+          >
+            {isV6Active ? '🔒 New Refund (V6 Active)' : <><Plus size={14} /> New Refund</>}
           </button>
         </PermissionGuard>
       </div>

@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import { useV6IntegrationStatus } from '../../../hooks/useV6IntegrationStatus';
 import '../BillingPage/BillingPage.css';
 import './ARPage.css';
 
@@ -27,6 +28,7 @@ const SOURCE_TYPE_MAP: Record<string, { label: string; color: string; bg: string
 };
 
 export default function TenantCreditsPage() {
+  const { isV6Active } = useV6IntegrationStatus();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [sourceFilter, setSourceFilter] = useState('');
@@ -78,6 +80,7 @@ export default function TenantCreditsPage() {
   );
 
   const openCreateModal = () => {
+    if (isV6Active) return;
     setHasAttemptedCreate(false);
     setForm({ tenantId: '', amount: '', currency: 'USD', sourceType: 'adjustment', description: '' });
     setShowCreate(true);
@@ -146,9 +149,19 @@ export default function TenantCreditsPage() {
             </p>
           </div>
           <PermissionGuard permission="ar-credits.write">
-            <button className="btn btn-primary" onClick={openCreateModal}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Plus size={14} /> Issue Credit
+            <button
+              className="btn btn-primary"
+              disabled={isV6Active}
+              onClick={openCreateModal}
+              title={isV6Active ? 'Tenant credit creation is disabled because V6 ERP integration is active.' : undefined}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                ...(isV6Active ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+              }}
+            >
+              {isV6Active ? '🔒 Issue Credit (V6 Active)' : <><Plus size={14} /> Issue Credit</>}
             </button>
           </PermissionGuard>
         </div>

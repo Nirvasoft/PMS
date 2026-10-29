@@ -5,7 +5,7 @@ export function useV6IntegrationStatus() {
   const integrations = res?.data || [];
   const v6 = integrations.find((i: any) => i.integrationType === 'v6erp');
   const isV6Active = Boolean(
-    v6 && (v6.isActive || v6.status === 'active') && v6.status !== 'disabled'
+    v6 && v6.isActive !== false && v6.status !== 'disabled'
   );
 
   return {

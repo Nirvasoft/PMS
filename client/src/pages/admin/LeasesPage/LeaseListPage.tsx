@@ -198,21 +198,21 @@ export default function LeaseListPage() {
                       </td>
                       <td className="col-unit">
                         <div className="lease-tenant lu-number" title={lease.unit?.unitNumber || undefined}>
-                          <span style={{ fontWeight: 600 }}>
+                          <span>
                             {lease.unit?.unitNumber || '—'}
                           </span>
                         </div>
                       </td>
                       <td className="col-code">
                         <div className="lease-tenant" title={tenantCode !== '—' ? tenantCode : undefined}>
-                          <span style={{ fontWeight: 600 }}>
+                          <span>
                             {tenantCode}
                           </span>
                         </div>
                       </td>
                       <td className="col-tenant">
                         <div className="lease-tenant" title={tenantName !== '—' ? tenantName : undefined}>
-                          <span style={{ fontWeight: 600 }}>
+                          <span>
                             {tenantName}
                           </span>
                         </div>
@@ -236,7 +236,7 @@ export default function LeaseListPage() {
                           style={{ justifyContent: 'flex-end', cursor: 'help' }}
                           title={`${formatRentDetail(lease.rentAmount)} ${lease.currency || 'USD'}`}
                         >
-                          <span className="rent-val" style={{ fontWeight: 600 }}>{formatCompactRent(lease.rentAmount)}</span>
+                          <span className="rent-val">{formatCompactRent(lease.rentAmount)}</span>
                           <span className="rent-cur">{lease.currency || 'USD'}</span>
                         </div>
                       </td>

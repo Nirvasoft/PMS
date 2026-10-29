@@ -2,6 +2,7 @@ import { Router, Request, raw } from 'express';
 import { asyncHandler } from '../../middleware';
 import { bankingService } from './banking.service';
 import { paymentGatewayService } from './paymentGateway.service';
+import { assertV6ErpNotActive } from '../integrations/v6Status.helper';
 
 const p = (req: Request, key: string) => req.params[key] as string;
 
@@ -15,6 +16,7 @@ bankingRouter.get('/bank-accounts', asyncHandler(async (req, res) => {
 }));
 
 bankingRouter.post('/bank-accounts', asyncHandler(async (req, res) => {
+  await assertV6ErpNotActive(req.user!.companyId, 'Bank account');
   const data = await bankingService.createBankAccount(req.user!.companyId, req.body);
   res.status(201).json({ success: true, data });
 }));
@@ -31,6 +33,7 @@ bankingRouter.get('/bank-accounts/:id/balance', asyncHandler(async (req, res) =>
 
 // ── Statement Import ──────────────────────────
 bankingRouter.post('/bank-accounts/:id/reconcile', asyncHandler(async (req, res) => {
+  await assertV6ErpNotActive(req.user!.companyId, 'Bank statement import');
   const data = await bankingService.importStatement(
     req.user!.companyId, req.user!.sub, p(req, 'id'), req.body,
   );

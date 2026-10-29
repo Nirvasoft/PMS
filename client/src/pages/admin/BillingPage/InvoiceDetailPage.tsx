@@ -3,11 +3,11 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
-  useGetInvoiceQuery, useVoidInvoiceMutation, useLazyGetInvoicePdfQuery,
+  useGetInvoiceQuery, useVoidInvoiceMutation,
   useSendInvoiceMutation, useCreateCreditNoteMutation, useGetChargeTypesQuery,
   useGetCurrencyRatesQuery,
 } from '../../../store/api/billingApi';
-import { List, FileText, Ban, CreditCard, Download, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, Eye, UploadCloud } from 'lucide-react';
+import { List, FileText, Ban, CreditCard, Send, Plus, Trash2, X, Banknote, History, ShieldAlert, Timer, Eye, UploadCloud } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useConfirm, useAlertDialog } from '../../../components/DialogProvider';
@@ -37,7 +37,6 @@ export default function InvoiceDetailPage() {
   const selectedPropertyId = useSelectedPropertyId();
   const { data, isLoading } = useGetInvoiceQuery(id!);
   const [voidInvoice, { isLoading: voiding }] = useVoidInvoiceMutation();
-  const [triggerPdf, { isFetching: downloadingPdf }] = useLazyGetInvoicePdfQuery();
   const [sendInvoice, { isLoading: sending }] = useSendInvoiceMutation();
   const [createCreditNote, { isLoading: creatingCN }] = useCreateCreditNoteMutation();
   const [pushInvoicesToV6Erp, { isLoading: pushingToV6 }] = usePushInvoicesToV6ErpMutation();
@@ -98,15 +97,6 @@ export default function InvoiceDetailPage() {
   const handleViewPdf = () => {
     if (!inv) return;
     openInvoicePrintPreview(inv);
-  };
-
-  const handleDownloadPdf = async () => {
-    try {
-      const blobUrl = await triggerPdf(id!).unwrap();
-      if (blobUrl) {
-        window.open(blobUrl, '_blank');
-      }
-    } catch { /* error handled by RTK */ }
   };
 
   const handleSend = async () => {
@@ -250,10 +240,6 @@ export default function InvoiceDetailPage() {
           <button className="btn btn-primary" onClick={handleViewPdf}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Eye size={14} /> View PDF
-          </button>
-          <button className="btn btn-secondary" onClick={handleDownloadPdf} disabled={downloadingPdf}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Download size={14} /> {downloadingPdf ? 'Downloading…' : 'Download'}
           </button>
           <PermissionGuard permission="billing-invoices.write">
             {['draft', 'issued'].includes(inv.status) && (
