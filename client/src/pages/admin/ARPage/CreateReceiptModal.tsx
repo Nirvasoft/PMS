@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import { useCreateReceiptMutation } from '../../../store/api/arApi';
-import { useGetInvoicesQuery, useGetCurrencyRatesQuery } from '../../../store/api/billingApi';
+import { useGetInvoicesQuery, useGetCurrencyRatesQuery, useGetChargeTypesQuery } from '../../../store/api/billingApi';
 import { useGetPaymentMethodsQuery } from '../../../store/api/glApi';
 import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
-import { Banknote, X, AlertTriangle } from 'lucide-react';
+import { Banknote, X, AlertTriangle, Plus, Trash2, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ComboBox from '../../../components/ComboBox';
 
@@ -15,6 +15,17 @@ const formatCurrency = (amount: number, currency = 'USD') =>
   formatCurrencyHelper(amount, currency, 'code');
 
 interface Props { onClose: () => void; }
+
+interface LineItem {
+  chargeTypeId: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  glAccountCode?: string;
+}
+
+const emptyLine = (): LineItem => ({ chargeTypeId: '', description: '', quantity: 1, unitPrice: 0, taxRate: 0, glAccountCode: '' });
 
 export default function CreateReceiptModal({ onClose }: Props) {
   // Active property — tenants and payment methods are scoped to this property.
@@ -37,6 +48,16 @@ export default function CreateReceiptModal({ onClose }: Props) {
   const [notes, setNotes] = useState('');
   const [allocations, setAllocations] = useState<Record<string, number>>({});
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  // Cash receipt line items — Charges picked directly (no Invoice).
+  const [lines, setLines] = useState<LineItem[]>([emptyLine()]);
+
+  const { data: chargeTypesData } = useGetChargeTypesQuery(
+    activePropertyId ? { propertyId: activePropertyId } : undefined,
+  );
+  const chargeTypes = useMemo(
+    () => (chargeTypesData?.data || []).filter((ct) => ct.isActive !== false),
+    [chargeTypesData],
+  );
 
   useEffect(() => {
     if (activePaymentMethods.length > 0 && (!paymentMethod || !activePaymentMethods.some((pm) => pm.code === paymentMethod))) {
@@ -101,12 +122,42 @@ export default function CreateReceiptModal({ onClose }: Props) {
   useEffect(() => {
     setTenantId('');
     setAllocations({});
+    setLines([emptyLine()]);
   }, [activePropertyId]);
 
 
   const totalAllocated = Object.values(allocations).reduce((s, v) => s + (v || 0), 0);
-  const amountNum = parseFloat(amount) || 0;
+  const lineSubtotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  const lineTax = lines.reduce((s, l) => s + l.quantity * l.unitPrice * l.taxRate, 0);
+  const lineTotal = Math.round((lineSubtotal + lineTax) * 100) / 100;
+  // For Cash the amount is the sum of the line items.
+  const amountNum = isCash ? lineTotal : (parseFloat(amount) || 0);
   const overpayment = amountNum - totalAllocated;
+
+  const addLine = () => setLines(prev => [...prev, emptyLine()]);
+  const removeLine = (idx: number) => setLines(prev => prev.filter((_, i) => i !== idx));
+  const updateLine = (idx: number, field: keyof LineItem, value: string | number) => {
+    setLines(prev => prev.map((l, i) => {
+      if (i !== idx) return l;
+      const next: LineItem = { ...l, [field]: value };
+      if (field === 'chargeTypeId') {
+        const ct = chargeTypes.find(c => c.id === value);
+        if (ct) {
+          const prevCt = chargeTypes.find(c => c.id === l.chargeTypeId);
+          if (!l.description.trim() || (prevCt && l.description === prevCt.name)) {
+            next.description = ct.name;
+          }
+          next.taxRate = ct.isTaxable ? (Number(ct.taxRate) || 0) : 0;
+          next.glAccountCode = ct.glAccountCode || '';
+        } else {
+          next.taxRate = 0;
+          next.glAccountCode = '';
+        }
+      }
+      return next;
+    }));
+  };
+  const invalidLines = isCash && lines.some(l => !l.chargeTypeId || !l.description.trim() || !(l.quantity > 0) || !(l.unitPrice > 0));
 
   const handleAllocChange = (invoiceId: string, val: string) => {
     const n = parseFloat(val) || 0;
@@ -116,12 +167,16 @@ export default function CreateReceiptModal({ onClose }: Props) {
   const isTenantMissing = hasAttemptedSubmit && !isCash && !tenantId;
   const isPaymentMethodMissing = hasAttemptedSubmit && !paymentMethod;
   const isReceiptDateMissing = hasAttemptedSubmit && !receiptDate;
-  const isAmountMissing = hasAttemptedSubmit && (!amount.trim() || amountNum <= 0);
+  const isAmountMissing = hasAttemptedSubmit && !isCash && (!amount.trim() || amountNum <= 0);
 
   const handleSubmit = async () => {
     setHasAttemptedSubmit(true);
-    if ((!isCash && !tenantId) || !paymentMethod || !receiptDate || !amount.trim() || amountNum <= 0) {
+    if ((!isCash && !tenantId) || !paymentMethod || !receiptDate || (!isCash && !amount.trim()) || amountNum <= 0) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    if (invalidLines) {
+      toast.error('Each line item needs a charge, description, quantity and unit price greater than 0');
       return;
     }
     if (totalAllocated > amountNum + 0.01) {
@@ -147,6 +202,16 @@ export default function CreateReceiptModal({ onClose }: Props) {
         currency: currency || baseCurrency || undefined,
         notes: notes || undefined,
         allocations: allocArr,
+        lines: isCash
+          ? lines.map(l => ({
+              chargeTypeId: l.chargeTypeId,
+              description: l.description.trim(),
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+              taxRate: l.taxRate,
+              ...(l.glAccountCode ? { glAccountCode: l.glAccountCode } : {}),
+            }))
+          : [],
       }).unwrap();
 
       toast.success('Payment recorded successfully');
@@ -172,7 +237,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
 
   return (
     <div className="ar-modal-backdrop">
-      <div className="ar-modal">
+      <div className={`ar-modal${isCash ? ' wide' : ''}`}>
         <h2>
           <span className="modal-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
             <Banknote size={18} />
@@ -213,6 +278,7 @@ export default function CreateReceiptModal({ onClose }: Props) {
                     if (checked) {
                       setTenantId('');
                       setAllocations({});
+                      setLines([emptyLine()]);
                     }
                   }}
                   style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--primary)', margin: 0 }}
@@ -278,7 +344,10 @@ export default function CreateReceiptModal({ onClose }: Props) {
               min="0"
               placeholder="0.00"
               className={isAmountMissing ? 'ar-input-error' : ''}
-              value={amount}
+              readOnly={isCash}
+              title={isCash ? 'Calculated from the line items' : undefined}
+              style={isCash ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
+              value={isCash ? (lineTotal > 0 ? String(lineTotal) : '') : amount}
               onChange={e => setAmount(e.target.value)}
             />
             {isAmountMissing && <span className="ar-error-text">Valid amount is required</span>}
@@ -306,6 +375,108 @@ export default function CreateReceiptModal({ onClose }: Props) {
               onChange={e => setNotes(e.target.value)} />
           </div>
         </div>
+
+        {/* Cash Line Items — Charges selected directly, like Invoice line items */}
+        {isCash && (
+          <div className="alloc-section">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <FileText size={14} /> Line Items
+              </h4>
+              <button type="button" className="btn btn-secondary" onClick={addLine}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', fontSize: 12 }}>
+                <Plus size={14} /> Add Line
+              </button>
+            </div>
+            <table className="alloc-table cash-lines-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '24%' }}>Charge <span className="req" style={{ color: '#f87171' }}>*</span></th>
+                  <th style={{ width: '26%' }}>Description <span className="req" style={{ color: '#f87171' }}>*</span></th>
+                  <th style={{ width: '9%', textAlign: 'right' }}>Qty</th>
+                  <th style={{ width: '14%', textAlign: 'right' }}>Unit Price <span className="req" style={{ color: '#f87171' }}>*</span></th>
+                  <th style={{ width: '9%', textAlign: 'right' }}>Tax %</th>
+                  <th style={{ width: '14%', textAlign: 'right' }}>Total ({currency || baseCurrency})</th>
+                  <th style={{ width: '4%' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line, idx) => {
+                  const rowTotal = line.quantity * line.unitPrice * (1 + line.taxRate);
+                  return (
+                    <tr key={idx}>
+                      <td>
+                        <select
+                          className={`line-input ${hasAttemptedSubmit && !line.chargeTypeId ? 'ar-input-error' : ''}`}
+                          value={line.chargeTypeId}
+                          onChange={e => updateLine(idx, 'chargeTypeId', e.target.value)}
+                        >
+                          <option value="">— Select charge —</option>
+                          {chargeTypes.map(ct => (
+                            <option key={ct.id} value={ct.id}>{ct.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          className={`line-input ${hasAttemptedSubmit && !line.description.trim() ? 'ar-input-error' : ''}`}
+                          placeholder="Description"
+                          value={line.description}
+                          onChange={e => updateLine(idx, 'description', e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number" min={0.01} step={0.01}
+                          className="line-input num"
+                          value={line.quantity || ''}
+                          onChange={e => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number" min={0} step={0.01} placeholder="0.00"
+                          className={`line-input num ${hasAttemptedSubmit && !(line.unitPrice > 0) ? 'ar-input-error' : ''}`}
+                          value={line.unitPrice || ''}
+                          onChange={e => updateLine(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number" min={0} max={100} step={0.01} placeholder="0"
+                          className="line-input num"
+                          value={line.taxRate ? Math.round(line.taxRate * 10000) / 100 : ''}
+                          onChange={e => updateLine(idx, 'taxRate', (parseFloat(e.target.value) || 0) / 100)}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                        {formatCurrency(rowTotal, currency || baseCurrency || 'USD')}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button type="button" className="btn-icon" onClick={() => removeLine(idx)}
+                          disabled={lines.length <= 1} title="Remove line">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {hasAttemptedSubmit && invalidLines && (
+              <span className="ar-error-text">
+                Each line needs a charge, description, and a unit price greater than 0
+              </span>
+            )}
+            <div style={{ marginTop: 14, textAlign: 'right', fontSize: 13 }}>
+              <div>Subtotal: <strong>{formatCurrency(lineSubtotal, currency || baseCurrency || 'USD')}</strong></div>
+              <div>Tax: <strong>{formatCurrency(lineTax, currency || baseCurrency || 'USD')}</strong></div>
+              <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>
+                Total: {formatCurrency(lineTotal, currency || baseCurrency || 'USD')}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Invoice Allocations */}
         {!isCash && tenantId && (

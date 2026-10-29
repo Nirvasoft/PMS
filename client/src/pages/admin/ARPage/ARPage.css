@@ -554,6 +554,24 @@
 }
 .alloc-table .alloc-input:focus { border-color: var(--primary); }
 
+/* Cash receipt line items */
+.ar-modal.wide { width: 960px; }
+.alloc-table.cash-lines-table td { padding: 8px 6px; }
+.alloc-table.cash-lines-table .line-input {
+  width: 100%; box-sizing: border-box; padding: 8px 10px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: var(--text-primary); font-size: 12.5px;
+  outline: none; font-family: inherit; transition: border-color 0.15s;
+}
+.alloc-table.cash-lines-table .line-input:focus { border-color: var(--primary); }
+.alloc-table.cash-lines-table .line-input.num { text-align: right; font-variant-numeric: tabular-nums; }
+.alloc-table.cash-lines-table select.line-input option { background: #1a1f2e; }
+.alloc-table.cash-lines-table .line-input.ar-input-error {
+  border-color: #ef4444 !important; background-color: rgba(239,68,68,0.08) !important;
+}
+[data-theme="light"] .alloc-table.cash-lines-table .line-input { background: white; border-color: rgba(0,0,0,0.12); color: #111; }
+[data-theme="light"] .alloc-table.cash-lines-table select.line-input option { background: white; }
+
 .overpayment-notice {
   margin-top: 14px; padding: 12px 16px;
   background: color-mix(in srgb, #f59e0b 8%, transparent);

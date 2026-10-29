@@ -13,14 +13,30 @@ export const createReceiptSchema = z.object({
     paymentMethod: z.string().min(1, 'Payment method is required').max(50),
     paymentReference: z.string().max(255).optional(),
     bankAccountId: z.string().uuid().optional(),
-    amount: z.number().positive('Amount must be positive'),
+    // For Cash receipts the amount is derived from the line items, so it is optional there.
+    amount: z.number().positive('Amount must be positive').optional(),
     currency: z.string().length(3).optional(),
     exchangeRate: z.number().positive().optional(),
     notes: z.string().optional(),
     allocations: z.array(z.object({
       invoiceId: z.string().uuid(),
       amount: z.number().positive(),
-    })).min(0),
+    })).optional().default([]),
+    // Cash receipt line items (direct Charge selection — no invoice required).
+    lines: z.array(z.object({
+      chargeTypeId: z.string().uuid().optional().nullable(),
+      description: z.string().min(1).max(500),
+      quantity: z.number().positive().default(1),
+      unitPrice: z.number().positive('Unit price must be positive'),
+      taxRate: z.number().min(0).max(1).default(0),
+      glAccountCode: z.string().max(50).optional(),
+    })).optional().default([]),
+  }).refine((data) => data.isCash || (typeof data.amount === 'number' && data.amount > 0), {
+    message: 'Amount must be positive',
+    path: ['amount'],
+  }).refine((data) => !data.isCash || (data.lines && data.lines.length > 0), {
+    message: 'At least one line item is required for Cash receipts',
+    path: ['lines'],
   }),
 });
 

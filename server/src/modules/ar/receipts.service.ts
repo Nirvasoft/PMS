@@ -48,11 +48,40 @@ export class ReceiptsService {
   // ── Create Receipt ──────────────────────────
 
   async create(companyId: string, dto: Record<string, unknown>, userId: string) {
-    let allocations = (dto.allocations || []) as Array<{ invoiceId: string; amount: number }>;
-    const amount = dto.amount as number;
+    const isCash = Boolean(dto.isCash);
+    let allocations = (isCash ? [] : (dto.allocations || [])) as Array<{ invoiceId: string; amount: number }>;
+
+    // Cash receipt: the payer picks Charges directly (like Invoice line items) instead of
+    // an Invoice, so the receipt amount is derived from the lines.
+    const cashLines = (isCash ? (dto.lines || []) : []) as Array<{
+      chargeTypeId?: string | null;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      taxRate?: number;
+      glAccountCode?: string;
+    }>;
+    if (isCash && cashLines.length === 0) {
+      throw AppError.validation('At least one line item is required for Cash receipts');
+    }
+    let cashSubtotal = 0;
+    let cashTotalTax = 0;
+    const computedCashLines = cashLines.map((line) => {
+      const lineAmount = Math.round(line.quantity * line.unitPrice * 100) / 100;
+      const lineTax = Math.round(lineAmount * (line.taxRate || 0) * 100) / 100;
+      cashSubtotal += lineAmount;
+      cashTotalTax += lineTax;
+      return { ...line, amount: lineAmount, lineTax };
+    });
+    const cashGrandTotal = Math.round((cashSubtotal + cashTotalTax) * 100) / 100;
+
+    const amount = isCash ? cashGrandTotal : (dto.amount as number);
+    if (!(amount > 0)) throw AppError.validation('Amount must be positive');
+    // A Cash receipt is never tied to a tenant / invoice.
+    if (isCash) dto = { ...dto, tenantId: null };
 
     // Auto-allocate if no manual allocations provided
-    if (allocations.length === 0 && dto.tenantId) {
+    if (!isCash && allocations.length === 0 && dto.tenantId) {
       const outstanding = await prisma.invoice.findMany({
         where: {
           companyId,
@@ -166,7 +195,80 @@ export class ReceiptsService {
         (dto.propertyId as string) || undefined,
       );
       const debitAccountCode = pmConfig?.glAccountCode || '1210';
-      await glService.postAutoJournal({
+
+      if (isCash) {
+        // Cash receipt (no invoice): Dr Payment Method's GL account (Cash/Bank) /
+        // Cr each Charge's GL account (fallback 4100) / Cr Tax Payable (2200).
+        const chargeTypeIds = Array.from(
+          new Set(computedCashLines.map((l) => l.chargeTypeId).filter((id): id is string => Boolean(id))),
+        );
+        const chargeTypeMap = new Map<string, {
+          glAccountCode: string | null;
+          departmentCenterId: string | null;
+          costCenterId: string | null;
+        }>();
+        if (chargeTypeIds.length > 0) {
+          const cts = await prisma.chargeType.findMany({
+            where: { id: { in: chargeTypeIds } },
+            select: { id: true, glAccountCode: true, departmentCenterId: true, costCenterId: true },
+          });
+          for (const ct of cts) chargeTypeMap.set(ct.id, ct);
+        }
+
+        const glLines: Array<{
+          accountCode: string;
+          debit: number;
+          credit: number;
+          description?: string;
+          departmentCenterId?: string | null;
+          costCenterId?: string | null;
+        }> = [
+          {
+            accountCode: debitAccountCode,
+            debit: amount,
+            credit: 0,
+            description: `Cash receipt — ${receiptNumber}`,
+            departmentCenterId: pmConfig?.departmentCenterId || undefined,
+            costCenterId: pmConfig?.costCenterId || undefined,
+          },
+        ];
+        for (const line of computedCashLines) {
+          const ct = line.chargeTypeId ? chargeTypeMap.get(line.chargeTypeId) : undefined;
+          glLines.push({
+            accountCode: ct?.glAccountCode?.trim() || line.glAccountCode?.trim() || '4100',
+            debit: 0,
+            credit: line.amount,
+            description: `${line.description} — ${receiptNumber}`,
+            departmentCenterId: ct?.departmentCenterId || null,
+            costCenterId: ct?.costCenterId || null,
+          });
+        }
+        if (cashTotalTax > 0) {
+          glLines.push({
+            accountCode: '2200',
+            debit: 0,
+            credit: Math.round(cashTotalTax * 100) / 100,
+            description: `Tax Payable — ${receiptNumber}`,
+          });
+        }
+
+        const journal = await glService.postAutoJournal({
+          companyId,
+          entryDate: dto.receiptDate as string || new Date().toISOString().split('T')[0],
+          entryType: 'ar_receipt',
+          description: `Cash Receipt ${receiptNumber}`,
+          referenceType: 'receipt',
+          referenceId: receipt.id,
+          propertyId: (dto.propertyId as string) || undefined,
+          lines: glLines,
+        });
+        if (journal) {
+          await prisma.receipt.update({
+            where: { id: receipt.id },
+            data: { glPosted: true, glJournalId: (journal as any).id },
+          });
+        }
+      } else await glService.postAutoJournal({
         companyId,
         entryDate: dto.receiptDate as string || new Date().toISOString().split('T')[0],
         entryType: 'ar_receipt',
