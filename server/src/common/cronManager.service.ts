@@ -483,9 +483,10 @@ export const SYSTEM_CRON_REGISTRY: CronJobDefinition[] = [
         for (const intg of activeIntegrations) {
           try {
             const freq = (intg.syncFrequency || 'daily').toLowerCase();
-            if (freq === 'daily' && intg.lastSyncAt) {
+            const minIntervalHours = freq === 'daily' ? 23 : freq === 'hourly' ? 55 / 60 : 0;
+            if (minIntervalHours > 0 && intg.lastSyncAt) {
               const elapsedHours = (now - new Date(intg.lastSyncAt).getTime()) / (1000 * 60 * 60);
-              if (elapsedHours < 23) {
+              if (elapsedHours < minIntervalHours) {
                 continue;
               }
             }

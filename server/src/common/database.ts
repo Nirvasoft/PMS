@@ -3,7 +3,29 @@ import { logger } from './logger';
 
 const isProd = process.env.NODE_ENV === 'production';
 
+/**
+ * Ensure the Prisma connection pool has an explicit size and acquire timeout.
+ * Values already present in DATABASE_URL (or via DB_POOL_* env) always win.
+ */
+function buildDatasourceUrl(): string | undefined {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (!url.searchParams.has('connection_limit')) {
+      url.searchParams.set('connection_limit', process.env.DB_POOL_SIZE || '20');
+    }
+    if (!url.searchParams.has('pool_timeout')) {
+      url.searchParams.set('pool_timeout', process.env.DB_POOL_TIMEOUT || '20');
+    }
+    return url.toString();
+  } catch {
+    return raw;
+  }
+}
+
 export const prisma = new PrismaClient({
+  datasourceUrl: buildDatasourceUrl(),
   log: isProd
     ? [
         { level: 'error', emit: 'stdout' },

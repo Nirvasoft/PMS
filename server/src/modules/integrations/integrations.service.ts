@@ -1042,7 +1042,9 @@ class IntegrationsService {
         createdCount = res.count;
       }
 
-      const CHUNK = 25;
+      // Keep parallelism well below the Prisma pool size so a COA sync never starves
+      // interactive requests (e.g. login) of database connections.
+      const CHUNK = 5;
       for (let i = 0; i < toUpdateRows.length; i += CHUNK) {
         const batch = toUpdateRows.slice(i, i + CHUNK);
         await Promise.all(
