@@ -555,7 +555,22 @@
 .alloc-table .alloc-input:focus { border-color: var(--primary); }
 
 /* Cash receipt line items */
-.ar-modal.wide { width: 960px; }
+/* Same size as the AP Payment Voucher form; fixed so toggling Cash never resizes it. */
+.ar-modal.wide {
+  width: 100%; max-width: 900px;
+  /* Fixed height (header / scrolling body / footer) so toggling Cash never resizes the form;
+     Line Items appear inside the scrolling body. */
+  height: min(calc(100vh - 64px), 760px); max-height: none;
+  padding: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.ar-modal.wide > h2 {
+  margin: 0; padding: 20px 32px; flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.ar-modal.wide .ar-modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 32px; }
+.ar-modal.wide .ar-modal-actions { margin: 0; padding: 16px 32px; flex-shrink: 0; }
+[data-theme="light"] .ar-modal.wide > h2 { border-bottom-color: rgba(0,0,0,0.08); }
 .alloc-table.cash-lines-table td { padding: 8px 6px; }
 .alloc-table.cash-lines-table .line-input {
   width: 100%; box-sizing: border-box; padding: 8px 10px;
