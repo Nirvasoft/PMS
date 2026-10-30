@@ -7,6 +7,7 @@ import {
 import { Target, Plus, Search, X, ShieldOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import './CRMPage.css';
 
 const STAGE_META: Record<string, { label: string; color: string }> = {
@@ -20,15 +21,6 @@ const STAGE_META: Record<string, { label: string; color: string }> = {
 };
 
 const leadDisplayName = (lead: LeadListItem) => lead.lastName || lead.companyName || 'Unknown';
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(t);
-  }, [value, delayMs]);
-  return debounced;
-}
 
 export default function LeadPipelinePage() {
   const navigate = useNavigate();

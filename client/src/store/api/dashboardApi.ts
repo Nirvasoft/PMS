@@ -104,23 +104,6 @@ export interface HeatmapData {
 
 export type WidgetData = KpiCardData | LineChartData | BarChartData | PieChartData | GaugeData | DataTableData | HeatmapData;
 
-export interface DrillDownColumn {
-  key: string;
-  label: string;
-  link?: string;
-}
-
-export interface DrillDownResult {
-  title: string;
-  columns: DrillDownColumn[];
-  rows: Record<string, unknown>[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  navigateTo?: string;
-}
-
 export interface LayoutItem {
   id: string;
   widgetCode: string;
@@ -201,16 +184,25 @@ export const dashboardApi = createApi({
       invalidatesTags: ['Layout'],
     }),
 
-    resetDashboardLayout: builder.mutation<{ success: boolean }, void>({
-      query: () => ({ url: '/dashboard/layout/reset', method: 'POST' }),
-      invalidatesTags: ['Layout'],
-    }),
-
-    getDrillDown: builder.query<ApiResponse<DrillDownResult>, { code: string; drillKey?: string; propertyId?: string; page?: number }>({
-      query: ({ code, drillKey, propertyId, page }) => ({
-        url: `/dashboard/widget-data/${code}/drilldown`,
-        params: { ...(drillKey && { drillKey }), ...(propertyId && { propertyId }), ...(page && { page }) },
+    resetDashboardLayout: builder.mutation<ApiResponse<DashboardLayoutResponse>, string | void>({
+      query: (dashboardKey) => ({
+        url: '/dashboard/layout/reset',
+        method: 'POST',
+        body: { dashboardKey: dashboardKey || 'main' },
       }),
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.data) {
+            dispatch(
+              dashboardApi.util.updateQueryData('getDashboardLayout', arg || 'main', (draft) => {
+                draft.data = data.data;
+              }),
+            );
+          }
+        } catch { /* ignore — tag invalidation will still refetch */ }
+      },
+      invalidatesTags: ['Layout'],
     }),
 
     // ─── Reports ──────────────────────────────
@@ -244,7 +236,6 @@ export const {
   useGetDashboardLayoutQuery,
   useSaveDashboardLayoutMutation,
   useResetDashboardLayoutMutation,
-  useLazyGetDrillDownQuery,
   useListReportsQuery,
   useCreateReportMutation,
   useDeleteReportMutation,

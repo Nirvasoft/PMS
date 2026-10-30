@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../../middleware';
 import { dashboardService } from './dashboard.service';
-import { getDrillDownData } from './widgets/drillDownProvider';
 
 // ═══════════════════════════════════════════════════
 // DASHBOARD ROUTES
@@ -35,21 +34,6 @@ dashboardRouter.get('/widget-data/:code', asyncHandler(async (req: Request, res:
   res.json({ success: true, data });
 }));
 
-/** GET /dashboard/widget-data/:code/drilldown — Drill-down detail data */
-dashboardRouter.get('/widget-data/:code/drilldown', asyncHandler(async (req: Request, res: Response) => {
-  const data = await getDrillDownData(req.params.code as string, {
-    companyId: req.user!.companyId,
-    userId: req.user!.sub,
-    propertyId: cleanPropertyId(req.query.propertyId),
-    drillKey: req.query.drillKey as string,
-    dateFrom: req.query.dateFrom as string,
-    dateTo: req.query.dateTo as string,
-    page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
-    limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
-  });
-  res.json({ success: true, data });
-}));
-
 /** GET /dashboard/layout — Get user's dashboard layout */
 dashboardRouter.get('/layout', asyncHandler(async (req: Request, res: Response) => {
   const layout = await dashboardService.getLayout(
@@ -71,8 +55,11 @@ dashboardRouter.put('/layout', asyncHandler(async (req: Request, res: Response) 
 
 /** POST /dashboard/layout/reset — Reset to default layout */
 dashboardRouter.post('/layout/reset', asyncHandler(async (req: Request, res: Response) => {
-  await dashboardService.resetLayout(req.user!.sub);
-  res.json({ success: true });
+  const data = await dashboardService.resetLayout(
+    req.user!.sub,
+    req.body?.dashboardKey || 'main',
+  );
+  res.json({ success: true, data });
 }));
 
 // ═══════════════════════════════════════════════════

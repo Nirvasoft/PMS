@@ -1,9 +1,10 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
+export type DatePresetKey = 'today' | 'mtd' | 'qtd' | 'ytd' | 'last30' | 'custom';
+
 interface DashboardFilters {
-  propertyIds: string[];
   dateRange: {
-    preset: 'today' | 'mtd' | 'qtd' | 'ytd' | 'last30' | 'custom';
+    preset: DatePresetKey;
     from: string;
     to: string;
   };
@@ -21,7 +22,6 @@ function startOfMonth(): string {
 }
 
 const defaultFilters: DashboardFilters = {
-  propertyIds: [],
   dateRange: {
     preset: 'mtd',
     from: startOfMonth(),
@@ -39,14 +39,14 @@ export const dashboardSlice = createSlice({
   name: 'dashboard',
   initialState,
   reducers: {
-    setFilters: (state, action: PayloadAction<Partial<DashboardFilters>>) => {
-      state.filters = { ...state.filters, ...action.payload };
-    },
     setDatePreset: (state, action: PayloadAction<DashboardFilters['dateRange']>) => {
       state.filters.dateRange = action.payload;
     },
     toggleEditMode: (state) => {
       state.editMode = !state.editMode;
+    },
+    setEditMode: (state, action: PayloadAction<boolean>) => {
+      state.editMode = action.payload;
     },
     toggleAddWidgetPanel: (state) => {
       state.addWidgetPanelOpen = !state.addWidgetPanelOpen;
@@ -57,5 +57,5 @@ export const dashboardSlice = createSlice({
   },
 });
 
-export const { setFilters, setDatePreset, toggleEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } = dashboardSlice.actions;
+export const { setDatePreset, toggleEditMode, setEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } = dashboardSlice.actions;
 export default dashboardSlice.reducer;

@@ -14,7 +14,14 @@ import {
 } from '../../store/api/dashboardApi';
 import type { LayoutItem, WidgetData, KpiCardData, LineChartData, BarChartData, PieChartData, GaugeData, DataTableData, HeatmapData, WidgetCatalogItem } from '../../store/api/dashboardApi';
 import { useAppSelector, useAppDispatch } from '../../store';
-import { setDatePreset, toggleEditMode, toggleAddWidgetPanel, closeAddWidgetPanel } from '../../store/slices/dashboardSlice';
+import {
+  setDatePreset,
+  toggleEditMode,
+  setEditMode,
+  toggleAddWidgetPanel,
+  closeAddWidgetPanel,
+  type DatePresetKey,
+} from '../../store/slices/dashboardSlice';
 import { useSelectedPropertyFilter } from '../../hooks/useSelectedPropertyId';
 import { formatCompactAmount, formatFullAmount } from '../../utils/formatCurrency';
 import {
@@ -24,13 +31,72 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Minus, Plus, X, Settings2, RotateCcw,
-  Calendar, LayoutGrid, GripVertical, Trash2, Search,
+  Calendar, LayoutGrid, GripVertical, Trash2, Search, ExternalLink,
   BarChart3, PieChart as PieChartIcon, Table2, Gauge, Activity,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../components/DialogProvider';
-import DrillDownModal from './DrillDownModal';
 import './AnalyticsDashboard.css';
+
+const PROPERTY_UNIT_WIDGETS = new Set([
+  'occupancy_rate',
+  'vacancy_trend',
+  'unit_status_breakdown',
+]);
+
+const WIDGET_LIST_ROUTES: Record<string, string> = {
+  // Property & Leases
+  lease_expiring_soon: '/admin/leases',
+  // Finance & Billing
+  revenue_mtd: '/admin/billing/invoices',
+  revenue_ytd: '/admin/billing/invoices',
+  overdue_invoices: '/admin/billing/invoices',
+  revenue_by_property: '/admin/billing/invoices',
+  collection_rate: '/admin/ar/collections',
+  gl_net_income: '/admin/gl/pnl',
+  bank_balance_summary: '/admin/banking',
+  // Maintenance & Preventive Maintenance
+  maintenance_open: '/admin/maintenance/tickets',
+  maintenance_sla: '/admin/maintenance/tickets',
+  tickets_by_category: '/admin/maintenance/tickets',
+  maintenance_trend: '/admin/maintenance/tickets',
+  occupancy_heatmap: '/admin/maintenance/tickets',
+  pm_upcoming: '/admin/maintenance/pm',
+  pm_compliance_rate: '/admin/maintenance/pm',
+  // CRM
+  crm_active_leads: '/admin/crm/leads',
+  crm_lead_pipeline: '/admin/crm/leads',
+  crm_conversion_rate: '/admin/crm/leads',
+  // Facility & Parking
+  facility_bookings_today: '/admin/facility/schedule',
+  facility_utilization: '/admin/facility/schedule',
+  parking_occupancy: '/admin/parking',
+  parking_revenue: '/admin/parking',
+  // Security & Visitors
+  security_open_incidents: '/admin/security/incidents',
+  security_incidents_trend: '/admin/security/incidents',
+  visitors_today: '/admin/security/dashboard',
+  visitors_trend: '/admin/security/dashboard',
+  // Housekeeping & Inventory
+  cleaning_completion_rate: '/admin/housekeeping',
+  cleaning_open_tasks: '/admin/housekeeping',
+  inventory_low_stock: '/admin/inventory/stock',
+  inventory_movement_trend: '/admin/inventory/movements',
+  // Activity & Workflows
+  pending_tasks: '/tasks',
+  active_workflows: '/admin/workflows',
+  documents_expiring: '/documents',
+  recent_activity: '/notifications',
+};
+
+/** Maps each dashboard widget code to its primary related list/module route. */
+function resolveWidgetListRoute(widgetCode: string, propertyId?: string): string | null {
+  if (PROPERTY_UNIT_WIDGETS.has(widgetCode)) {
+    return propertyId ? `/admin/properties/${propertyId}?tab=units` : '/admin/properties';
+  }
+  return WIDGET_LIST_ROUTES[widgetCode] ?? null;
+}
 
 const CHART_COLORS = ['#6c5ce7', '#00cec9', '#fd79a8', '#fdcb6e', '#74b9ff', '#55efc4', '#a29bfe', '#fab1a0'];
 
@@ -54,7 +120,7 @@ function useChartTheme() {
 // ═══════════════════════════════════════════════════
 // DATE PRESETS
 // ═══════════════════════════════════════════════════
-function getDateRange(preset: string): { from: string; to: string } {
+function getDateRange(preset: DatePresetKey): { from: string; to: string } {
   const now = new Date();
   const to = now.toISOString().split('T')[0];
   switch (preset) {
@@ -73,7 +139,7 @@ function getDateRange(preset: string): { from: string; to: string } {
   }
 }
 
-const DATE_PRESETS = [
+const DATE_PRESETS: Array<{ key: DatePresetKey; label: string }> = [
   { key: 'today', label: 'Today' },
   { key: 'mtd', label: 'MTD' },
   { key: 'qtd', label: 'QTD' },
@@ -86,6 +152,7 @@ const DATE_PRESETS = [
 // ═══════════════════════════════════════════════════
 export default function AnalyticsDashboard() {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const { filters, editMode, addWidgetPanelOpen } = useAppSelector((s) => s.dashboard);
 
   // A successful load means the chunk fetched fine — clear the reload guard
@@ -114,17 +181,14 @@ export default function AnalyticsDashboard() {
     return () => ro.disconnect();
   }, []);
 
-  // Drill-down state
-  const [drillDownData, setDrillDownData] = useState<{ widgetCode: string; drillKey?: string } | null>(null);
-
   const layout = (layoutData?.data?.layout || []) as LayoutItem[];
   // Widget data follows the sidebar's "Active Property" selector — not independently
   // choosable here, so every module reads the same scope.
   const selectedPropertyId = useSelectedPropertyFilter() || undefined;
 
-  const handlePreset = (preset: string) => {
+  const handlePreset = (preset: DatePresetKey) => {
     const range = getDateRange(preset);
-    dispatch(setDatePreset({ preset: preset as any, ...range }));
+    dispatch(setDatePreset({ preset, ...range }));
   };
 
   const handleRemoveWidget = useCallback(async (widgetId: string) => {
@@ -154,20 +218,35 @@ export default function AnalyticsDashboard() {
     } catch { toast.error('Failed to add widget'); }
   }, [layout, saveLayout, dispatch]);
 
+  // ─── react-grid-layout integration ────────────
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [resetEpoch, setResetEpoch] = useState(0);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
   const handleReset = async () => {
     if (!(await confirmDialog('Reset to default dashboard layout? (Based on your role)', { danger: true, confirmText: 'Reset' }))) return;
+    // Cancel any pending debounced drag/resize save so it never overwrites the reset
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
     try {
-      await resetLayout().unwrap();
-      toast.success('Dashboard reset to role default');
+      await resetLayout('main').unwrap();
+      if (editMode) dispatch(setEditMode(false));
+      // Force ResponsiveGridLayout to remount cleanly from default coordinates
+      setResetEpoch((n) => n + 1);
+      toast.success('Dashboard layout reset to default');
     } catch { toast.error('Failed to reset'); }
   };
 
-  // ─── react-grid-layout integration ────────────
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  /** Convert our LayoutItem[] → react-grid-layout's Layout[] */
-  const rglLayout = useMemo(() =>
-    layout.map((item) => ({
+  /** Convert our LayoutItem[] → react-grid-layout's Layout[] across all breakpoints */
+  const rglLayouts = useMemo(() => {
+    const base12 = layout.map((item) => ({
       i: item.id,
       x: item.x,
       y: item.y,
@@ -177,14 +256,27 @@ export default function AnalyticsDashboard() {
       h: Math.max(item.h, 2),
       minW: 2,
       minH: 2,
-      // NOTE: Do NOT set `static: !editMode` here. Grid-level isDraggable/isResizable
-      // already controls interaction. Setting static prevents compactType="vertical"
-      // from pushing items apart when heights change, causing overlaps.
-    })),
-  [layout, editMode]);
+    }));
 
-  /** Called by RGL on every drag/resize stop. Debounce save to avoid spamming API. */
-  const handleLayoutChange = useCallback((newRglLayout: Array<{ i: string; x: number; y: number; w: number; h: number }>) => {
+    const stackForCols = (cols: number) => {
+      let cursorY = 0;
+      return base12.map((item) => {
+        const y = cursorY;
+        cursorY += item.h;
+        return { ...item, x: 0, y, w: cols };
+      });
+    };
+
+    return {
+      lg: base12,
+      md: base12,
+      sm: stackForCols(6),
+      xs: stackForCols(4),
+    };
+  }, [layout]);
+
+  /** Called only on explicit user drag/resize stop (never on programmatic reset or resize). */
+  const handleUserLayoutCommit = useCallback((newRglLayout: Array<{ i: string; x: number; y: number; w: number; h: number }>) => {
     if (!editMode) return;
     // Map RGL layout back to our LayoutItem format
     const updated: LayoutItem[] = newRglLayout.map((rgl) => {
@@ -200,13 +292,14 @@ export default function AnalyticsDashboard() {
       };
     }).filter((l) => l.widgetCode); // safety: skip unmapped items
 
-    // Debounced auto-save (800ms after last change)
+    // Debounced auto-save (600ms after last drag/resize)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
+      saveTimerRef.current = null;
       try {
         await saveLayout({ dashboardKey: 'main', layout: updated }).unwrap();
       } catch { /* silent — user can manually retry */ }
-    }, 800);
+    }, 600);
   }, [editMode, layout, saveLayout]);
 
   return (
@@ -266,34 +359,39 @@ export default function AnalyticsDashboard() {
           </div>
         ) : (
           <ResponsiveGridLayout
+            key={`rgl-grid-${resetEpoch}`}
             className="rgl-grid"
-            layouts={{ lg: rglLayout }}
+            layouts={rglLayouts}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480 }}
             cols={{ lg: 12, md: 12, sm: 6, xs: 4 }}
             rowHeight={120}
             width={containerWidth || 1200}
             isDraggable={editMode}
             isResizable={editMode}
-            draggableHandle=".drag-handle"
+            draggableCancel=".widget-remove,.widget-nav-btn,button,a,input,textarea,select"
             compactType="vertical"
             margin={[12, 12]}
             containerPadding={[0, 0]}
-            onLayoutChange={(newLayout: any) => handleLayoutChange(newLayout)}
+            onDragStop={(newLayout: any) => handleUserLayoutCommit(newLayout)}
+            onResizeStop={(newLayout: any) => handleUserLayoutCommit(newLayout)}
             useCSSTransforms
           >
-            {layout.map((item) => (
-              <div key={item.id} className={`rgl-widget-wrapper ${editMode ? 'edit-mode' : ''}`}
-                style={{ overflow: 'hidden', borderRadius: 14, height: '100%' }}>
-                <WidgetContainer
-                  item={item}
-                  dateRange={filters.dateRange}
-                  propertyId={selectedPropertyId}
-                  editMode={editMode}
-                  onRemove={() => handleRemoveWidget(item.id)}
-                  onDrillDown={(drillKey) => setDrillDownData({ widgetCode: item.widgetCode, drillKey })}
-                />
-              </div>
-            ))}
+            {layout.map((item) => {
+              const targetRoute = resolveWidgetListRoute(item.widgetCode, selectedPropertyId);
+              return (
+                <div key={item.id} className={`rgl-widget-wrapper ${editMode ? 'edit-mode' : ''}`}>
+                  <WidgetContainer
+                    item={item}
+                    dateRange={filters.dateRange}
+                    propertyId={selectedPropertyId}
+                    editMode={editMode}
+                    targetRoute={targetRoute}
+                    onNavigate={targetRoute ? () => navigate(targetRoute) : undefined}
+                    onRemove={() => handleRemoveWidget(item.id)}
+                  />
+                </div>
+              );
+            })}
           </ResponsiveGridLayout>
         )}
       </div>
@@ -302,16 +400,6 @@ export default function AnalyticsDashboard() {
       {addWidgetPanelOpen && (
         <AddWidgetPanel onAdd={handleAddWidget} onClose={() => dispatch(closeAddWidgetPanel())} />
       )}
-
-      {/* Drill Down Modal */}
-      {drillDownData && (
-        <DrillDownModal
-          widgetCode={drillDownData.widgetCode}
-          drillKey={drillDownData.drillKey}
-          propertyId={selectedPropertyId}
-          onClose={() => setDrillDownData(null)}
-        />
-      )}
     </div>
   );
 }
@@ -319,13 +407,14 @@ export default function AnalyticsDashboard() {
 // ═══════════════════════════════════════════════════
 // WIDGET CONTAINER
 // ═══════════════════════════════════════════════════
-function WidgetContainer({ item, dateRange, propertyId, editMode, onRemove, onDrillDown }: {
+function WidgetContainer({ item, dateRange, propertyId, editMode, targetRoute, onNavigate, onRemove }: {
   item: LayoutItem;
   dateRange: { from: string; to: string };
   propertyId?: string;
   editMode: boolean;
+  targetRoute: string | null;
+  onNavigate?: () => void;
   onRemove: () => void;
-  onDrillDown: (drillKey?: string) => void;
 }) {
   const { data, isLoading, error, refetch } = useGetWidgetDataQuery({
     code: item.widgetCode,
@@ -341,15 +430,34 @@ function WidgetContainer({ item, dateRange, propertyId, editMode, onRemove, onDr
   });
 
   const widgetData = data?.data;
+  const showNavBtn = !editMode && !!targetRoute && !!onNavigate && !isLoading && !error && !widgetData?.disabled;
+  const hasTopAction = editMode || showNavBtn;
 
   return (
-    <div className="widget-container" style={{ overflow: 'hidden' }}>
-      {editMode && (
+    <div className={`widget-container ${hasTopAction ? 'has-top-action' : ''}`}>
+      {editMode ? (
         <div className="widget-edit-bar">
           <GripVertical size={14} className="drag-handle" />
-          <button className="widget-remove" onClick={onRemove}><Trash2 size={14} /></button>
+          <button
+            type="button"
+            className="widget-remove"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            title="Remove widget"
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
-      )}
+      ) : showNavBtn ? (
+        <button
+          type="button"
+          className="widget-nav-btn"
+          onClick={(e) => { e.stopPropagation(); onNavigate(); }}
+          title="View related list"
+          aria-label="View related list"
+        >
+          <ExternalLink size={13} />
+        </button>
+      ) : null}
 
       {isLoading ? (
         <div className="widget-loading">
@@ -361,7 +469,7 @@ function WidgetContainer({ item, dateRange, propertyId, editMode, onRemove, onDr
           <button onClick={() => refetch()}>Retry</button>
         </div>
       ) : widgetData ? (
-        <WidgetRenderer data={widgetData} onDrillDown={onDrillDown} />
+        <WidgetRenderer data={widgetData} widgetCode={item.widgetCode} />
       ) : null}
     </div>
   );
@@ -370,7 +478,7 @@ function WidgetContainer({ item, dateRange, propertyId, editMode, onRemove, onDr
 // ═══════════════════════════════════════════════════
 // WIDGET RENDERER — dispatches to type-specific components
 // ═══════════════════════════════════════════════════
-function WidgetRenderer({ data, onDrillDown }: { data: WidgetData; onDrillDown: (key?: string) => void }) {
+function WidgetRenderer({ data, widgetCode }: { data: WidgetData; widgetCode: string }) {
   // Server sends this shape for any widget type whose feature flag is off —
   // it carries no type-specific fields (data/series/columns), so it must be
   // handled before dispatching to a type-specific renderer.
@@ -378,13 +486,13 @@ function WidgetRenderer({ data, onDrillDown }: { data: WidgetData; onDrillDown: 
     return <div className="widget-disabled">Not available</div>;
   }
   switch (data.type) {
-    case 'kpi_card': return <KpiCardWidget data={data} onDrillDown={onDrillDown} />;
-    case 'line_chart': return <LineChartWidget data={data} onDrillDown={onDrillDown} />;
-    case 'bar_chart': return <BarChartWidget data={data} onDrillDown={onDrillDown} />;
-    case 'pie_chart': return <PieChartWidget data={data} onDrillDown={onDrillDown} />;
-    case 'gauge': return <GaugeWidget data={data} onDrillDown={onDrillDown} />;
-    case 'data_table': return <DataTableWidget data={data} onDrillDown={onDrillDown} />;
-    case 'heatmap': return <HeatmapWidget data={data as HeatmapData} />;
+    case 'kpi_card': return <KpiCardWidget data={data} widgetCode={widgetCode} />;
+    case 'line_chart': return <LineChartWidget data={data} />;
+    case 'bar_chart': return <BarChartWidget data={data} />;
+    case 'pie_chart': return <PieChartWidget data={data} />;
+    case 'gauge': return <GaugeWidget data={data} />;
+    case 'data_table': return <DataTableWidget data={data} />;
+    case 'heatmap': return <HeatmapWidget data={data} />;
     default: return <div className="widget-unknown">Unknown type: {(data as any).type}</div>;
   }
 }
@@ -392,9 +500,11 @@ function WidgetRenderer({ data, onDrillDown }: { data: WidgetData; onDrillDown: 
 // ═══════════════════════════════════════════════════
 // KPI CARD
 // ═══════════════════════════════════════════════════
-function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: (k?: string) => void }) {
+function KpiCardWidget({ data, widgetCode }: { data: KpiCardData; widgetCode?: string }) {
   const formatNum = (v: number, compact = true) =>
     compact ? formatCompactAmount(v) : formatFullAmount(v);
+
+  const effectiveUnit = widgetCode === 'revenue_mtd' ? '' : data.unit;
 
   const formatValue = (v: number, unit: string, compact = true) => {
     if (/^[A-Z]{3}$/.test(unit || '')) {
@@ -412,7 +522,7 @@ function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: 
   };
 
   return (
-    <div className="kpi-card" onClick={() => onDrillDown()} style={{ cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
+    <div className="kpi-card">
       {/* Sparkline background */}
       {data.sparkline && data.sparkline.length > 1 && (
         <svg className="kpi-sparkline" viewBox="0 0 100 40" preserveAspectRatio="none">
@@ -453,12 +563,12 @@ function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: 
           </div>
         )}
       </div>
-      <div className="kpi-value" title={formatValue(data.value, data.unit, false)}>{formatValue(data.value, data.unit, true)}</div>
+      <div className="kpi-value" title={formatValue(data.value, effectiveUnit, false)}>{formatValue(data.value, effectiveUnit, true)}</div>
       {data.trend?.label && <span className="kpi-sublabel">{data.trend.label}</span>}
       {data.breakdown && (
         <div className="kpi-breakdown">
           {Object.entries(data.breakdown).map(([k, v]) => (
-            <div key={k} className="breakdown-item" onClick={(e) => { e.stopPropagation(); onDrillDown(k); }}>
+            <div key={k} className="breakdown-item">
               <span className="breakdown-value">{v.toLocaleString()}</span>
               <span className="breakdown-label">{k}</span>
             </div>
@@ -472,7 +582,7 @@ function KpiCardWidget({ data, onDrillDown }: { data: KpiCardData; onDrillDown: 
 // ═══════════════════════════════════════════════════
 // LINE CHART
 // ═══════════════════════════════════════════════════
-function LineChartWidget({ data, onDrillDown }: { data: LineChartData; onDrillDown: (k?: string) => void }) {
+function LineChartWidget({ data }: { data: LineChartData }) {
   const theme = useChartTheme();
   const chartData = data.series[0]?.data.map((point, i) => {
     const row: Record<string, unknown> = { x: point.x };
@@ -481,7 +591,7 @@ function LineChartWidget({ data, onDrillDown }: { data: LineChartData; onDrillDo
   }) || [];
 
   return (
-    <div className="chart-widget" onClick={() => onDrillDown()} style={{ cursor: 'pointer' }}>
+    <div className="chart-widget">
       <h4 className="chart-title">{data.label}</h4>
       <ResponsiveContainer width="100%" height={180}>
         <AreaChart data={chartData}>
@@ -510,20 +620,20 @@ function LineChartWidget({ data, onDrillDown }: { data: LineChartData; onDrillDo
 // ═══════════════════════════════════════════════════
 // BAR CHART
 // ═══════════════════════════════════════════════════
-function BarChartWidget({ data, onDrillDown }: { data: BarChartData; onDrillDown: (k?: string) => void }) {
+function BarChartWidget({ data }: { data: BarChartData }) {
   const theme = useChartTheme();
   const chartData = data.series[0]?.data.map((d) => ({ name: d.x, value: d.y })) || [];
 
   return (
-    <div className="chart-widget" style={{ cursor: 'pointer' }}>
-      <h4 className="chart-title" onClick={() => onDrillDown()}>{data.label}</h4>
+    <div className="chart-widget">
+      <h4 className="chart-title">{data.label}</h4>
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke={theme.gridStroke} />
           <XAxis dataKey="name" tick={{ fontSize: 11, fill: theme.tickFill }} tickLine={false} axisLine={false} />
           <YAxis tick={{ fontSize: 11, fill: theme.tickFill }} tickLine={false} axisLine={false} width={50} />
           <Tooltip contentStyle={{ background: theme.tooltipBg, border: `1px solid ${theme.tooltipBorder}`, borderRadius: 8, color: theme.tickFill }} cursor={{ fill: theme.cursorFill }} />
-          <Bar dataKey="value" fill={theme.accent} radius={[4, 4, 0, 0]} onClick={(d) => onDrillDown(d.name)} />
+          <Bar dataKey="value" fill={theme.accent} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -533,11 +643,11 @@ function BarChartWidget({ data, onDrillDown }: { data: BarChartData; onDrillDown
 // ═══════════════════════════════════════════════════
 // PIE CHART
 // ═══════════════════════════════════════════════════
-function PieChartWidget({ data, onDrillDown }: { data: PieChartData; onDrillDown: (k?: string) => void }) {
+function PieChartWidget({ data }: { data: PieChartData }) {
   const theme = useChartTheme();
   return (
-    <div className="chart-widget" style={{ cursor: 'pointer' }}>
-      <h4 className="chart-title" onClick={() => onDrillDown()}>{data.label}</h4>
+    <div className="chart-widget">
+      <h4 className="chart-title">{data.label}</h4>
       <ResponsiveContainer width="100%" height={180}>
         <PieChart>
           <Pie
@@ -547,7 +657,6 @@ function PieChartWidget({ data, onDrillDown }: { data: PieChartData; onDrillDown
             dataKey="value"
             stroke="none"
             paddingAngle={2}
-            onClick={(d) => onDrillDown(d.name)}
           >
             {data.data.map((entry, i) => (
               <Cell key={i} fill={entry.color || CHART_COLORS[i]} />
@@ -564,7 +673,7 @@ function PieChartWidget({ data, onDrillDown }: { data: PieChartData; onDrillDown
 // ═══════════════════════════════════════════════════
 // GAUGE
 // ═══════════════════════════════════════════════════
-function GaugeWidget({ data, onDrillDown }: { data: GaugeData; onDrillDown: (k?: string) => void }) {
+function GaugeWidget({ data }: { data: GaugeData }) {
   const theme = useChartTheme();
   const angle = (data.value / 100) * 180;
   const radius = 60;
@@ -582,7 +691,7 @@ function GaugeWidget({ data, onDrillDown }: { data: GaugeData; onDrillDown: (k?:
   const largeArc = angle > 180 ? 1 : 0;
 
   return (
-    <div className="gauge-widget" onClick={() => onDrillDown()} style={{ cursor: 'pointer' }}>
+    <div className="gauge-widget">
       <h4 className="chart-title">{data.label}</h4>
       <div className="gauge-container">
         <svg viewBox="0 0 160 90" className="gauge-svg">
@@ -607,9 +716,9 @@ function GaugeWidget({ data, onDrillDown }: { data: GaugeData; onDrillDown: (k?:
 // ═══════════════════════════════════════════════════
 // DATA TABLE
 // ═══════════════════════════════════════════════════
-function DataTableWidget({ data, onDrillDown }: { data: DataTableData; onDrillDown: (k?: string) => void }) {
+function DataTableWidget({ data }: { data: DataTableData }) {
   return (
-    <div className="table-widget" onClick={() => onDrillDown()} style={{ cursor: 'pointer' }}>
+    <div className="table-widget">
       <h4 className="chart-title">{data.label}</h4>
       <div className="table-scroll">
         <table>

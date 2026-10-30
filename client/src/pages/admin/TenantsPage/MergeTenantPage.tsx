@@ -1,24 +1,41 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useGetTenantsQuery, useMergeTenantsMutation, useGetTenantQuery, useGetLeaseHistoryQuery,
+  type TenantDetail,
 } from '../../../store/api/tenantsApi';
 import {
-  ArrowLeft, GitMerge, Search, User, Building2, X,
+  List, GitMerge, User, Building2,
   ShieldOff, ArrowRight, CheckCircle, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ComboBox from '../../../components/ComboBox';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import './MergeTenantPage.css';
 
 export default function MergeTenantPage() {
   const navigate = useNavigate();
-  const [primaryId, setPrimaryId] = useState<string | null>(null);
-  const [duplicateId, setDuplicateId] = useState<string | null>(null);
+  const propertyId = useSelectedPropertyFilter();
+  const [primaryId, setPrimaryId] = useState('');
+  const [primaryLabel, setPrimaryLabel] = useState('');
+  const [duplicateId, setDuplicateId] = useState('');
+  const [duplicateLabel, setDuplicateLabel] = useState('');
   const [step, setStep] = useState<'select' | 'preview'>('select');
   const [mergeTenants, { isLoading: merging }] = useMergeTenantsMutation();
 
   const [confirmActive, setConfirmActive] = useState(false);
+
+  // Reset selections when the sidebar Active Property changes
+  useEffect(() => {
+    setPrimaryId('');
+    setPrimaryLabel('');
+    setDuplicateId('');
+    setDuplicateLabel('');
+    setConfirmActive(false);
+    setStep('select');
+  }, [propertyId]);
 
   const handleMerge = async () => {
     if (!primaryId || !duplicateId) return;
@@ -31,48 +48,65 @@ export default function MergeTenantPage() {
     }
   };
 
-  const canPreview = primaryId && duplicateId && primaryId !== duplicateId;
+  const canPreview = Boolean(primaryId && duplicateId && primaryId !== duplicateId);
 
   return (
     <div className="merge-page">
       <div className="merge-header">
-        <button className="back-btn" onClick={() => navigate('/admin/tenants')}>
-          <ArrowLeft size={16} /> Tenants
+        <div className="merge-title-row">
+          <h1><GitMerge size={22} /> Merge Tenants</h1>
+          <p className="merge-subtitle">
+            Select a primary tenant (kept) and a duplicate tenant (merged into primary, then soft-deleted).
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+          onClick={() => navigate('/admin/tenants')}
+        >
+          <List size={14} /> List
         </button>
-        <h1><GitMerge size={22} /> Merge Tenants</h1>
-        <p className="merge-subtitle">
-          Select a primary tenant (kept) and a duplicate tenant (merged into primary, then soft-deleted).
-        </p>
       </div>
 
       {step === 'select' && (
         <div className="merge-select">
           <div className="merge-side">
-            <div className="merge-side-label primary-label">
+            <label htmlFor="merge-primary-tenant" className="merge-side-label primary-label">
               <CheckCircle size={14} /> Primary Tenant <span>(kept)</span>
-            </div>
-            <TenantSearchPicker
-              selectedId={primaryId}
+            </label>
+            <TenantComboPicker
+              id="merge-primary-tenant"
+              propertyId={propertyId || undefined}
+              value={primaryId}
+              selectedLabel={primaryLabel}
               excludeId={duplicateId}
-              onSelect={setPrimaryId}
-              onClear={() => setPrimaryId(null)}
+              onChange={(id, label) => {
+                setPrimaryId(id);
+                setPrimaryLabel(label);
+              }}
             />
           </div>
 
           <div className="merge-arrow">
-            <ArrowRight size={24} />
+            <ArrowRight size={22} />
             <span>merges into</span>
           </div>
 
           <div className="merge-side">
-            <div className="merge-side-label duplicate-label">
+            <label htmlFor="merge-duplicate-tenant" className="merge-side-label duplicate-label">
               <AlertTriangle size={14} /> Duplicate Tenant <span>(deleted)</span>
-            </div>
-            <TenantSearchPicker
-              selectedId={duplicateId}
+            </label>
+            <TenantComboPicker
+              id="merge-duplicate-tenant"
+              propertyId={propertyId || undefined}
+              value={duplicateId}
+              selectedLabel={duplicateLabel}
               excludeId={primaryId}
-              onSelect={setDuplicateId}
-              onClear={() => setDuplicateId(null)}
+              onChange={(id, label) => {
+                setDuplicateId(id);
+                setDuplicateLabel(label);
+              }}
             />
           </div>
         </div>
@@ -106,93 +140,76 @@ export default function MergeTenantPage() {
   );
 }
 
-/* ══ Tenant Search Picker ══ */
-function TenantSearchPicker({ selectedId, excludeId, onSelect, onClear }: {
-  selectedId: string | null; excludeId: string | null;
-  onSelect: (id: string) => void; onClear: () => void;
+/* ══ Tenant ComboBox Picker (matches Lease form's UnitTenantStep) ══ */
+function TenantComboPicker({
+  id,
+  propertyId,
+  value,
+  selectedLabel,
+  excludeId,
+  onChange,
+}: {
+  id: string;
+  propertyId?: string;
+  value: string;
+  selectedLabel: string;
+  excludeId: string;
+  onChange: (id: string, label: string) => void;
 }) {
   const [search, setSearch] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const debouncedSearch = useDebouncedValue(search);
 
-  const { data } = useGetTenantsQuery(
-    { search: search || undefined, limit: 8 },
-    { skip: !search || search.length < 2 },
-  );
+  const { data: tenantsData, isFetching: tenantsLoading } = useGetTenantsQuery({
+    search: debouncedSearch || undefined,
+    propertyId,
+    limit: 20,
+  });
 
-  const results = (data?.data || []).filter((t) => t.id !== excludeId);
-  const { data: selectedData } = useGetTenantQuery(selectedId!, { skip: !selectedId });
-  const selected = selectedData?.data;
+  const tenantOptions = useMemo(() => {
+    const list = (tenantsData?.data || [])
+      .filter((t) => t.id !== excludeId)
+      .map((t) => {
+        const isCompany = t.tenantType === 'company' || t.tenantType === 'corporate';
+        if (isCompany) {
+          return {
+            id: t.id,
+            label: t.firstName || t.companyName || t.displayName,
+            sublabel: t.firstName ? (t.companyName || t.lastName || undefined) : (t.lastName || undefined),
+          };
+        }
+        return {
+          id: t.id,
+          label: t.firstName || t.lastName || t.displayName,
+          sublabel: t.firstName ? (t.lastName || undefined) : undefined,
+        };
+      });
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+    if (value && value !== excludeId && !list.some((t) => t.id === value)) {
+      list.unshift({
+        id: value,
+        label: selectedLabel || 'Selected tenant',
+        sublabel: undefined,
+      });
+    }
 
-  if (selected) {
-    return (
-      <div className="selected-tenant-card">
-        <div className="stc-avatar" style={{ background: selected.isBlacklisted ? 'rgba(231,76,60,0.15)' : 'rgba(108,92,231,0.15)' }}>
-          {selected.displayName.charAt(0).toUpperCase()}
-        </div>
-        <div className="stc-info">
-          <div className="stc-name">
-            {selected.displayName}
-            {selected.isBlacklisted && <span className="bl-badge"><ShieldOff size={9} /> BL</span>}
-          </div>
-          <div className="stc-meta">
-            <span className={`type-badge ${selected.tenantType}`}>
-              {selected.tenantType === 'individual' ? <User size={10} /> : <Building2 size={10} />}
-              {selected.tenantType}
-            </span>
-            <span className="stc-email">{selected.email || '—'}</span>
-          </div>
-        </div>
-        <button className="stc-clear" onClick={onClear}><X size={14} /></button>
-      </div>
-    );
-  }
+    return list;
+  }, [tenantsData?.data, excludeId, value, selectedLabel]);
 
   return (
-    <div className="tenant-search-picker" ref={ref}>
-      <div className="tsp-input-wrap">
-        <Search size={14} />
-        <input
-          placeholder="Search by name, email, ID…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
-          onFocus={() => search.length >= 2 && setOpen(true)}
-        />
-        {search && <button onClick={() => { setSearch(''); setOpen(false); }}><X size={13} /></button>}
-      </div>
-      {open && results.length > 0 && (
-        <div className="tsp-dropdown">
-          {results.map((t) => (
-            <button
-              key={t.id}
-              className="tsp-option"
-              onClick={() => { onSelect(t.id); setSearch(''); setOpen(false); }}
-            >
-              <div className="tsp-opt-avatar" style={{ background: t.isBlacklisted ? 'rgba(231,76,60,0.15)' : 'rgba(108,92,231,0.15)' }}>
-                {t.displayName.charAt(0).toUpperCase()}
-              </div>
-              <div className="tsp-opt-info">
-                <div className="tsp-opt-name">{t.displayName}</div>
-                <div className="tsp-opt-meta">{t.email || '—'} · {t.tenantType}</div>
-              </div>
-              {t.isBlacklisted && <ShieldOff size={12} color="#e74c3c" />}
-            </button>
-          ))}
-        </div>
-      )}
-      {open && search.length >= 2 && results.length === 0 && (
-        <div className="tsp-dropdown"><div className="tsp-empty">No tenants found</div></div>
-      )}
-    </div>
+    <ComboBox
+      id={id}
+      value={value}
+      selectedLabel={selectedLabel}
+      onChange={(nextId) => {
+        const opt = tenantOptions.find((t) => t.id === nextId);
+        onChange(nextId, opt?.label || '');
+      }}
+      options={tenantOptions}
+      onSearch={setSearch}
+      loading={tenantsLoading}
+      placeholder="Search id or name"
+      emptyText={propertyId ? 'No tenants found for this property' : 'No tenants found'}
+    />
   );
 }
 
@@ -291,7 +308,7 @@ function MergePreview({ primaryId, duplicateId, onBack, onConfirm, merging, conf
   );
 }
 
-function TenantPreviewCard({ tenant }: { tenant: any }) {
+function TenantPreviewCard({ tenant }: { tenant: TenantDetail }) {
   return (
     <div className="tp-card-inner">
       <div className="tp-avatar" style={{ background: tenant.isBlacklisted ? 'rgba(231,76,60,0.15)' : 'rgba(108,92,231,0.15)' }}>

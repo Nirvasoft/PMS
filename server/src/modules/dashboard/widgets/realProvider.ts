@@ -113,7 +113,13 @@ async function resolveCurrency(params: WidgetDataParams): Promise<string> {
 }
 
 /** Revenue billed within the selected period, from issued invoices. */
-async function revenueForPeriod(params: WidgetDataParams, fallbackFrom: Date, fallbackTo: Date, label: string) {
+async function revenueForPeriod(
+  params: WidgetDataParams,
+  fallbackFrom: Date,
+  fallbackTo: Date,
+  label: string,
+  includeCurrency = true,
+) {
   const { from, to } = resolvePeriod(params, fallbackFrom, fallbackTo);
 
   const where: any = {
@@ -129,7 +135,7 @@ async function revenueForPeriod(params: WidgetDataParams, fallbackFrom: Date, fa
       _sum: { totalAmount: true },
       _count: true,
     }),
-    resolveCurrency(params),
+    includeCurrency ? resolveCurrency(params) : Promise.resolve(''),
   ]);
 
   const totalRevenue = agg._sum.totalAmount?.toNumber() ?? 0;
@@ -144,7 +150,7 @@ async function revenueForPeriod(params: WidgetDataParams, fallbackFrom: Date, fa
 async function revenueMtd(params: WidgetDataParams) {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  return revenueForPeriod(params, monthStart, now, 'Revenue MTD');
+  return revenueForPeriod(params, monthStart, now, 'Revenue MTD', false);
 }
 
 async function revenueYtd(params: WidgetDataParams) {

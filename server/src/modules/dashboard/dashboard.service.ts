@@ -1,7 +1,12 @@
 import { prisma } from '../../common/database';
 import { AppError } from '../../common/errors';
 import { logger } from '../../common/logger';
-import { WIDGET_DEFINITIONS, getDefaultLayoutForRole } from './widgets/widgetDefinitions';
+import {
+  WIDGET_DEFINITIONS,
+  DEFAULT_LAYOUT,
+  LEGACY_DEFAULT_WIDGET_CODES,
+  getDefaultLayoutForRole,
+} from './widgets/widgetDefinitions';
 import { getRealWidgetData } from './widgets/realProvider';
 import { redis } from '../../common/redis';
 import { config } from '../../common/config';
@@ -10,6 +15,7 @@ import { config } from '../../common/config';
 // to the pattern manually, and stripped again from whatever keys() returns before
 // passing them to del() (which re-adds the prefix itself). See token.service.ts.
 const KEY_PREFIX = config.redis.prefix || '';
+const WIDGET_DEF_MAP = new Map(WIDGET_DEFINITIONS.map((def) => [def.code, def]));
 
 function isUuid(val?: string | null): boolean {
   if (!val) return false;
@@ -82,19 +88,12 @@ export class DashboardService {
       orderBy: { category: 'asc' },
     });
 
-    // Build feature checker
     const isEnabled = companyId ? await getFeatureChecker(companyId) : () => true;
-
-    // Build a map of code → requiredFeature from definitions
-    const featureMap = new Map<string, string | undefined>();
-    for (const def of WIDGET_DEFINITIONS) {
-      featureMap.set(def.code, def.requiredFeature);
-    }
 
     // Group by category, filtering by feature flag
     const catalog: Record<string, unknown[]> = {};
     for (const w of widgets) {
-      const flag = featureMap.get(w.code);
+      const flag = WIDGET_DEF_MAP.get(w.code)?.requiredFeature;
       if (!isEnabled(flag)) continue; // skip disabled modules
 
       if (!catalog[w.category]) catalog[w.category] = [];
@@ -114,7 +113,7 @@ export class DashboardService {
   }
 
   /**
-   * Get widget data (delegated to providers — Phase 1 uses stubs).
+   * Get widget data via realProvider with per-category Redis caching.
    */
   async getWidgetData(code: string, companyId: string, query: {
     propertyId?: string;
@@ -128,10 +127,10 @@ export class DashboardService {
       throw new AppError(404, 'WIDGET_NOT_FOUND', `Widget "${code}" not found`);
     }
 
+    const widgetDef = WIDGET_DEF_MAP.get(code);
+
     // Check feature flag
-    const featureMap = new Map<string, string | undefined>();
-    for (const def of WIDGET_DEFINITIONS) featureMap.set(def.code, def.requiredFeature);
-    const flag = featureMap.get(code);
+    const flag = widgetDef?.requiredFeature;
     if (flag) {
       const isEnabled = await getFeatureChecker(companyId);
       if (!isEnabled(flag)) {
@@ -145,7 +144,6 @@ export class DashboardService {
     const propertyKey = cleanPropertyId || 'all';
 
     // ─── Redis cache ────────────────────────────
-    const widgetDef = WIDGET_DEFINITIONS.find((w) => w.code === code);
     const ttl = CACHE_TTL[widgetDef?.category || ''] || 120;
     const cacheKey = `widget:${companyId}:${code}:${propertyKey}:${dateFrom || ''}:${dateTo || ''}`;
 
@@ -196,6 +194,23 @@ export class DashboardService {
         seen.add(item.widgetCode);
         return true;
       });
+
+      // 1b. Auto-upgrade unmodified legacy 13-widget universal default layout
+      const isLegacyDefault =
+        deduped.length === LEGACY_DEFAULT_WIDGET_CODES.length &&
+        LEGACY_DEFAULT_WIDGET_CODES.every((code) => seen.has(code));
+
+      if (isLegacyDefault) {
+        const updatedRecord = await prisma.dashboardLayout.update({
+          where: { uq_user_dashboard: { userId, dashboardKey } },
+          data: { layout: DEFAULT_LAYOUT as any },
+        });
+        return {
+          dashboardKey: updatedRecord.dashboardKey,
+          layout: DEFAULT_LAYOUT,
+          updatedAt: updatedRecord.updatedAt,
+        };
+      }
 
       // 2. Check if any items had h < 2 (legacy layout needing y-recalculation)
       const needsReflow = deduped.some((item: any) => (item.h || 1) < 2);
@@ -326,11 +341,17 @@ export class DashboardService {
     const roleName = await this.getUserPrimaryRoleName(userId);
     const layout = getDefaultLayoutForRole(roleName);
 
-    await prisma.dashboardLayout.upsert({
+    const record = await prisma.dashboardLayout.upsert({
       where: { uq_user_dashboard: { userId, dashboardKey } },
       create: { userId, dashboardKey, layout: layout as any },
       update: { layout: layout as any },
     });
+
+    return {
+      dashboardKey: record.dashboardKey,
+      layout,
+      updatedAt: record.updatedAt,
+    };
   }
 
   // ─── Saved Reports ──────────────────────────

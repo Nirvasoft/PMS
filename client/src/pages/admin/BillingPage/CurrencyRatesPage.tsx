@@ -127,7 +127,7 @@ export default function CurrencyRatesPage() {
   // ── Pagination ──────────────────────────────────────
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [searchQuery, pageSize]);
+  useEffect(() => { setPage(1); }, [searchQuery, pageSize, activePropertyId]);
   const totalPages = Math.max(1, Math.ceil(filteredRates.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginatedRates = filteredRates.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -163,7 +163,7 @@ export default function CurrencyRatesPage() {
     });
   }, [historyList, historySearch, historyCurrencyFilter, historyActionFilter]);
 
-  useEffect(() => { setHistoryPage(1); }, [historySearch, historyCurrencyFilter, historyActionFilter, historyPageSize]);
+  useEffect(() => { setHistoryPage(1); }, [historySearch, historyCurrencyFilter, historyActionFilter, historyPageSize, activePropertyId]);
   const totalHistoryPages = Math.max(1, Math.ceil(filteredHistory.length / historyPageSize));
   const currentHistoryPage = Math.min(historyPage, totalHistoryPages);
   const paginatedHistory = filteredHistory.slice(
@@ -472,7 +472,7 @@ export default function CurrencyRatesPage() {
             </table>
             </TableScrollWrapper>
 
-            {filteredRates.length > 0 && (
+            {filteredRates.length >= 10 && (
               <div className="positions-pagination billing-pagination">
                 <div className="pagination-left">
                   <div className="page-size-selector">
@@ -609,7 +609,7 @@ export default function CurrencyRatesPage() {
               </table>
             </TableScrollWrapper>
 
-            {filteredHistory.length > 0 && (
+            {filteredHistory.length >= 10 && (
               <div className="positions-pagination billing-pagination">
                 <div className="pagination-left">
                   <div className="page-size-selector">
@@ -810,7 +810,7 @@ export default function CurrencyRatesPage() {
                 </table>
               </TableScrollWrapper>
 
-              {editingCurrencyHistory.length > 0 && (
+              {editingCurrencyHistory.length >= 10 && (
                 <div className="positions-pagination billing-pagination">
                   <div className="pagination-left">
                     <div className="page-size-selector">

@@ -1,6 +1,6 @@
 import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
 import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   useGetPropertyQuery, useGetStatusHistoryQuery,
   useUpdatePropertyStatusMutation, useGetPhotosQuery,
@@ -36,6 +36,7 @@ import { ALL_PROPERTIES } from '../../../hooks/useSelectedPropertyId';
 import './PropertyDetailPage.css';
 
 type Tab = 'overview' | 'floorSetup' | 'units' | 'leases' | 'documents' | 'photos' | 'finance' | 'meters' | 'history' | 'settings';
+const VALID_TABS: Tab[] = ['overview', 'floorSetup', 'units', 'leases', 'documents', 'photos', 'finance', 'meters', 'history', 'settings'];
 
 const TAB_LABELS: Partial<Record<Tab, string>> = { units: 'P-Units', floorSetup: 'Floor Setup', meters: 'Meter Records' };
 
@@ -54,9 +55,19 @@ const STATUS_BADGE_STYLE: Record<string, { bg: string; color: string }> = {
 export default function PropertyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const tabParam = searchParams.get('tab') as Tab | null;
+  const [activeTab, setActiveTab] = useState<Tab>(() =>
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'overview'
+  );
   const canViewFloorSetup = usePermission('floor.read');
+
+  useEffect(() => {
+    if (tabParam && VALID_TABS.includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
   const [statusModal, setStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [statusReason, setStatusReason] = useState('');

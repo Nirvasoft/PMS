@@ -4,6 +4,7 @@ import { useGetPropertiesQuery, useGetFloorSetupsQuery, useGetMyPropertyScopeQue
 import { useGetUnitsQuery, useGetUnitQuery } from '../../../../../../store/api/unitsApi';
 import { useGetTenantsQuery } from '../../../../../../store/api/tenantsApi';
 import { useSelectedPropertyFilter } from '../../../../../../hooks/useSelectedPropertyId';
+import { useDebouncedValue } from '../../../../../../hooks/useDebouncedValue';
 import ComboBox from '../../../../../../components/ComboBox';
 import type { FormState } from '../../types';
 
@@ -15,9 +16,9 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
   const [propertySearch, setPropertySearch] = useState('');
   const [unitSearch, setUnitSearch] = useState('');
   const [tenantSearch, setTenantSearch] = useState('');
-  const debounced = useDebounced(propertySearch);
-  const unitDebounced = useDebounced(unitSearch);
-  const tenantDebounced = useDebounced(tenantSearch);
+  const debounced = useDebouncedValue(propertySearch);
+  const unitDebounced = useDebouncedValue(unitSearch);
+  const tenantDebounced = useDebouncedValue(tenantSearch);
 
   // Locked to the sidebar's Active Property, same convention as Expenses/Payment Vouchers —
   // only when "All Properties" is active can the property be chosen here.
@@ -299,13 +300,4 @@ export function UnitTenantStep({ form, set, templates }: { form: FormState; set:
       </div>
     </div>
   );
-}
-
-function useDebounced(value: string, delay = 250) {
-  const [settled, setSettled] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setSettled(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return settled;
 }

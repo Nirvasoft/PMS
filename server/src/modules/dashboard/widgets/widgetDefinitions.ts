@@ -3,7 +3,7 @@ export interface WidgetDef {
   name: string;
   category: string;
   widgetType: string;      // 'kpi_card' | 'line_chart' | 'bar_chart' | 'pie_chart' | 'gauge' | 'data_table' | 'heatmap'
-  dataProvider: 'stub' | 'real';
+  dataProvider: 'real';
   defaultWidth: number;
   defaultHeight: number;
   requiredPermissions: string[];
@@ -76,27 +76,42 @@ export const WIDGET_DEFINITIONS: WidgetDef[] = [
 ];
 
 /**
+ * Legacy 13-widget universal default codes (used to auto-upgrade unmodified saved layouts).
+ */
+export const LEGACY_DEFAULT_WIDGET_CODES = [
+  'occupancy_rate',
+  'revenue_mtd',
+  'maintenance_open',
+  'crm_active_leads',
+  'vacancy_trend',
+  'revenue_by_property',
+  'unit_status_breakdown',
+  'tickets_by_category',
+  'crm_lead_pipeline',
+  'parking_occupancy',
+  'visitors_today',
+  'security_open_incidents',
+  'pm_upcoming',
+] as const;
+
+/**
  * Default layout for new users — 4-row overview.
  * All items use h >= 2 to ensure content fits without overflow.
  */
 export const DEFAULT_LAYOUT = [
   // Row 0 — top KPI cards (h=2 each)
-  { id: 'w1',  widgetCode: 'occupancy_rate',          x: 0, y: 0, w: 3, h: 2, config: {} },
-  { id: 'w2',  widgetCode: 'revenue_mtd',             x: 3, y: 0, w: 3, h: 2, config: {} },
-  { id: 'w3',  widgetCode: 'maintenance_open',        x: 6, y: 0, w: 3, h: 2, config: {} },
-  { id: 'w4',  widgetCode: 'crm_active_leads',        x: 9, y: 0, w: 3, h: 2, config: {} },
-  // Row 1 — charts
+  { id: 'w1',  widgetCode: 'occupancy_rate',          x: 0, y: 0, w: 4, h: 2, config: {} },
+  { id: 'w2',  widgetCode: 'revenue_mtd',             x: 4, y: 0, w: 4, h: 2, config: {} },
+  { id: 'w4',  widgetCode: 'crm_active_leads',        x: 8, y: 0, w: 4, h: 2, config: {} },
+  // Row 1 — primary charts
   { id: 'w5',  widgetCode: 'vacancy_trend',           x: 0, y: 2, w: 6, h: 2, config: {} },
   { id: 'w6',  widgetCode: 'revenue_by_property',     x: 6, y: 2, w: 6, h: 2, config: {} },
-  // Row 2 — mixed
-  { id: 'w7',  widgetCode: 'unit_status_breakdown',   x: 0, y: 4, w: 4, h: 2, config: {} },
-  { id: 'w8',  widgetCode: 'tickets_by_category',     x: 4, y: 4, w: 4, h: 2, config: {} },
-  { id: 'w9',  widgetCode: 'crm_lead_pipeline',       x: 8, y: 4, w: 4, h: 2, config: {} },
+  // Row 2 — breakdown & pipeline charts
+  { id: 'w7',  widgetCode: 'unit_status_breakdown',   x: 0, y: 4, w: 6, h: 2, config: {} },
+  { id: 'w9',  widgetCode: 'crm_lead_pipeline',       x: 6, y: 4, w: 6, h: 2, config: {} },
   // Row 3 — operational KPIs (h=2 each)
-  { id: 'w10', widgetCode: 'parking_occupancy',        x: 0, y: 6, w: 3, h: 2, config: {} },
-  { id: 'w11', widgetCode: 'visitors_today',           x: 3, y: 6, w: 3, h: 2, config: {} },
-  { id: 'w12', widgetCode: 'security_open_incidents',  x: 6, y: 6, w: 3, h: 2, config: {} },
-  { id: 'w13', widgetCode: 'pm_upcoming',              x: 9, y: 6, w: 3, h: 2, config: {} },
+  { id: 'w10', widgetCode: 'parking_occupancy',       x: 0, y: 6, w: 6, h: 2, config: {} },
+  { id: 'w11', widgetCode: 'visitors_today',          x: 6, y: 6, w: 6, h: 2, config: {} },
 ];
 
 /**

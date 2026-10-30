@@ -303,8 +303,8 @@ export const tenantsApi = createApi({
     }),
 
     // ── KYC Requirements ──
-    getKycRequirements: builder.query<ApiResponse<KycRequirement[]>, { tenantType?: string } | void>({
-      query: (params) => ({ url: '/kyc-requirements', params: params || {} }),
+    getKycRequirements: builder.query<ApiResponse<KycRequirement[]>, void>({
+      query: () => '/kyc-requirements',
       providesTags: ['KycRequirements'],
     }),
     createKycRequirement: builder.mutation<ApiResponse<KycRequirement>, Record<string, unknown>>({
