@@ -1489,7 +1489,11 @@ class GlService {
     }
 
     const allAccounts = await prisma.glAccount.findMany({
-      where: { companyId, isActive: true },
+      where: {
+        companyId,
+        isActive: true,
+        ...(params.propertyId ? { propertyId: params.propertyId } : {}),
+      },
       include: {
         departmentCenter: { select: { id: true, code: true, name: true } },
         costCenter: { select: { id: true, code: true, name: true } },

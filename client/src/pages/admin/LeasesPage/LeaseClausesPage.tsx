@@ -5,7 +5,7 @@ import {
   type LeaseClause,
 } from '../../../store/api/leasesApi';
 import {
-  ArrowLeft, BookOpen, Plus, Trash2, Star,
+  BookOpen, List, Plus, Trash2, Star,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../../components/DialogProvider';
@@ -60,19 +60,28 @@ export default function LeaseClausesPage() {
 
   return (
     <div className="lc-page">
-      <div className="lc-header">
-        <button className="back-btn" onClick={() => navigate('/admin/leases')}>
-          <ArrowLeft size={16} /> Leases
-        </button>
-        <div className="lc-title-row">
-          <h1><BookOpen size={22} /> Clause Library</h1>
-          <p className="lc-subtitle">Manage reusable lease clauses. Standard clauses are auto-included in new templates.</p>
+      <div className="page-header lc-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><BookOpen size={22} /></div>
+          <div>
+            <h1>Clause Library</h1>
+            <p>
+              {isLoading
+                ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} />
+                : `${clauses.length} total clauses`}
+            </p>
+          </div>
         </div>
-        <PermissionGuard permission="leases.update">
-          <button className="btn-primary" onClick={() => { setShowForm(!showForm); setAttempted(false); }}>
-            <Plus size={14} /> New Clause
+        <div className="lc-header-actions">
+          <button className="btn-ghost" onClick={() => navigate('/admin/leases')}>
+            <List size={14} /> List
           </button>
-        </PermissionGuard>
+          <PermissionGuard permission="leases.update">
+            <button className="btn-primary" onClick={() => { setShowForm(!showForm); setAttempted(false); }}>
+              <Plus size={14} /> New Clause
+            </button>
+          </PermissionGuard>
+        </div>
       </div>
 
       <div className="lc-filters">

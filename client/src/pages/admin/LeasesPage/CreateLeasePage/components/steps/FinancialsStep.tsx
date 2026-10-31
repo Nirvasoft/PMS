@@ -286,7 +286,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: 'var(--accent, #6366f1)',
+                    color: 'var(--accent, #10b981)',
                     cursor: 'pointer',
                     fontSize: '0.72rem',
                     display: 'inline-flex',
@@ -468,7 +468,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ fontWeight: 600, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Info size={18} style={{ color: 'var(--accent, #6366f1)' }} /> Lease Payment Plan Preview
+                <Info size={18} style={{ color: 'var(--accent, #10b981)' }} /> Lease Payment Plan Preview
               </div>
               <button
                 type="button"
@@ -546,7 +546,7 @@ export function FinancialsStep({ form, set }: { form: FormState; set: Function }
                 style={{
                   padding: '6px 18px',
                   borderRadius: 6,
-                  background: 'var(--accent, #6366f1)',
+                  background: 'var(--accent, #10b981)',
                   color: '#fff',
                   border: 'none',
                   cursor: 'pointer',

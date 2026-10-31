@@ -3,7 +3,7 @@
 
 /* Loading */
 .ld-loading { display: flex; align-items: center; justify-content: center; height: 200px; }
-.ld-spinner { width: 40px; height: 40px; border: 3px solid rgba(108,92,231,.2); border-top-color: #6c5ce7; border-radius: 50%; animation: spin .8s linear infinite; }
+.ld-spinner { width: 40px; height: 40px; border: 3px solid rgba(16,185,129,.2); border-top-color: #10b981; border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .ld-not-found { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 80px 20px; color: rgba(255,255,255,.2); }
 
@@ -82,7 +82,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .08em;
-  color: var(--accent, #6c5ce7);
+  color: var(--accent, #10b981);
   margin-bottom: 8px;
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(255,255,255,.06);
@@ -239,7 +239,7 @@
 .penalty-calc { font-size: .72rem; color: rgba(231,76,60,.7); }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.06); }
 .btn-ghost-sm { padding: 8px 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; color: var(--text-primary); font-size: .82rem; cursor: pointer; }
-.btn-primary-sm { padding: 8px 16px; background: #6c5ce7; border: none; border-radius: 8px; color: #fff; font-size: .82rem; font-weight: 600; cursor: pointer; }
+.btn-primary-sm { padding: 8px 16px; background: #10b981; border: none; border-radius: 8px; color: #fff; font-size: .82rem; font-weight: 600; cursor: pointer; }
 .btn-primary-sm:disabled { opacity: .5; cursor: default; }
 .btn-danger { padding: 8px 16px; background: #e74c3c; border: none; border-radius: 8px; color: #fff; font-size: .82rem; font-weight: 600; cursor: pointer; }
 .recipient-form-row { display: grid; grid-template-columns: 80px 1fr 1fr; gap: 8px; align-items: center; }
@@ -247,7 +247,7 @@
 .recipient-form-row input { padding: 7px 10px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 7px; color: var(--text-primary); font-size: .8rem; outline: none; }
 
 /* Edit button */
-.btn-action-edit     { background: rgba(108,92,231,.1);  border-color: rgba(108,92,231,.3);   color: #6c5ce7; }
+.btn-action-edit     { background: rgba(16,185,129,.1);  border-color: rgba(16,185,129,.3);   color: #10b981; }
 
 /* ═══ Invoice Preview Modal ═══════════════════ */
 .invoice-modal-box { max-width: 1400px; width: 97vw; }
@@ -494,20 +494,20 @@
   box-sizing: border-box;
   transition: border-color .15s;
 }
-.edf-charge-select:focus, .edf-charge-amount:focus { border-color: rgba(108,92,231,.5); }
+.edf-charge-select:focus, .edf-charge-amount:focus { border-color: rgba(16,185,129,.5); }
 .edf-charge-select option { background: #1e1d2e; color: #e2e0ef; }
 .edf-charge-select optgroup { background: #161525; color: #8b8aae; font-weight: 700; }
 [data-theme="light"] .edf-charge-select option { background: #ffffff; color: var(--text-primary); }
 [data-theme="light"] .edf-charge-select optgroup { background: #f8fafc; color: var(--text-muted); }
 .edf-charge-add-btn {
   padding: 7px 14px; border-radius: 7px;
-  border: 1px solid rgba(108,92,231,.3);
-  background: rgba(108,92,231,.15); color: #a29bfe;
+  border: 1px solid rgba(16,185,129,.3);
+  background: rgba(16,185,129,.15); color: #34d399;
   font-size: .8rem; cursor: pointer; white-space: nowrap;
   transition: background .15s;
 }
 .edf-charge-add-btn:disabled { opacity: .4; cursor: not-allowed; }
-.edf-charge-add-btn:not(:disabled):hover { background: rgba(108,92,231,.25); }
+.edf-charge-add-btn:not(:disabled):hover { background: rgba(16,185,129,.25); }
 
 /* ── Light Mode Overrides for Lease Detail & Edit Draft Modal ── */
 [data-theme="light"] .ra-divider {

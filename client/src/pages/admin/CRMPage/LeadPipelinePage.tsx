@@ -4,7 +4,7 @@ import {
   useGetLeadStatsQuery, useGetLeadsQuery,
   type LeadListItem,
 } from '../../../store/api/crmApi';
-import { Target, Plus, Search, X, ShieldOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Target, Plus, Search, X, Filter, ShieldOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
@@ -28,6 +28,7 @@ export default function LeadPipelinePage() {
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -48,7 +49,8 @@ export default function LeadPipelinePage() {
   const stats = statsData?.data;
   const leads = leadsData?.data || [];
   const meta = leadsData?.meta;
-  const hasFilters = !!(search || stageFilter || priorityFilter);
+  const hasActiveFilters = !!(stageFilter || priorityFilter);
+  const hasFilters = !!search || hasActiveFilters;
 
   return (
     <div className="crm-pipeline-page">
@@ -106,7 +108,7 @@ export default function LeadPipelinePage() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Search & Filters */}
       <div className="pipeline-toolbar">
         <div className="search-box">
           <Search size={15} />
@@ -118,17 +120,38 @@ export default function LeadPipelinePage() {
           />
           {search && <button onClick={() => setSearch('')} title="Clear search"><X size={14} /></button>}
         </div>
-        <select className="filter-select" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
-          <option value="">All Statuses</option>
-          {Object.entries(STAGE_META).map(([value, m]) => <option key={value} value={value}>{m.label}</option>)}
-        </select>
-        <select className="filter-select" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
-          <option value="">All Priorities</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
+        <button
+          type="button"
+          className={`pipeline-filter-btn${showFilters || hasActiveFilters ? ' active' : ''}`}
+          onClick={() => setShowFilters((v) => !v)}
+          title="Filters"
+        >
+          <Filter size={14} /> Filters{hasActiveFilters ? ' •' : ''}
+        </button>
       </div>
+
+      {showFilters && (
+        <div className="pipeline-filter-bar">
+          <select className="filter-select" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+            <option value="">All Statuses</option>
+            {Object.entries(STAGE_META).map(([value, m]) => <option key={value} value={value}>{m.label}</option>)}
+          </select>
+          <select className="filter-select" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
+            <option value="">All Priorities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <button
+            type="button"
+            className="pipeline-filter-btn"
+            onClick={() => { setStageFilter(''); setPriorityFilter(''); }}
+            disabled={!hasActiveFilters}
+          >
+            <X size={14} /> Reset
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="lead-table-wrap">

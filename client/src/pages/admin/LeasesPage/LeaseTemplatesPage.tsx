@@ -5,7 +5,7 @@ import {
   type LeaseTemplate,
 } from '../../../store/api/leasesApi';
 import {
-  ArrowLeft, FileText, Plus,
+  FileText, List, Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
@@ -61,19 +61,28 @@ export default function LeaseTemplatesPage() {
 
   return (
     <div className="lt-page">
-      <div className="lt-header">
-        <button className="back-btn" onClick={() => navigate('/admin/leases')}>
-          <ArrowLeft size={16} /> Leases
-        </button>
-        <div className="lt-title-row">
-          <h1><FileText size={22} /> Lease Templates</h1>
-          <p className="lt-subtitle">Manage reusable lease templates with default terms. Templates can be selected when creating new leases.</p>
+      <div className="page-header lt-header">
+        <div className="page-title-row">
+          <div className="page-icon-lg"><FileText size={22} /></div>
+          <div>
+            <h1>Lease Templates</h1>
+            <p>
+              {isLoading
+                ? <span className="pms-skeleton-line" style={{ display: 'inline-block', width: 96, height: 12, verticalAlign: 'middle' }} />
+                : `${templates.length} total templates`}
+            </p>
+          </div>
         </div>
-        <PermissionGuard permission="leases.update">
-          <button className="btn-primary" onClick={() => { setShowForm(!showForm); setAttempted(false); }}>
-            <Plus size={14} /> New Template
+        <div className="lt-header-actions">
+          <button className="btn-ghost" onClick={() => navigate('/admin/leases')}>
+            <List size={14} /> List
           </button>
-        </PermissionGuard>
+          <PermissionGuard permission="leases.update">
+            <button className="btn-primary" onClick={() => { setShowForm(!showForm); setAttempted(false); }}>
+              <Plus size={14} /> New Template
+            </button>
+          </PermissionGuard>
+        </div>
       </div>
 
       {showForm && (

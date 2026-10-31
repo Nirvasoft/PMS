@@ -1440,6 +1440,11 @@ input.input-full:focus {
   transition: border-color 0.15s;
 }
 .combobox-control:focus-within { border-color: var(--accent); }
+.combobox-invalid .combobox-control {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
 .combobox.is-disabled .combobox-control { opacity: 1; cursor: default; }
 .combobox.is-disabled .combobox-caret { opacity: 0.45; }
 

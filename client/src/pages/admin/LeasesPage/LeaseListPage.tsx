@@ -87,7 +87,7 @@ export default function LeaseListPage() {
           </button>
           <PermissionGuard permission="leases.create">
             <button className="btn-ghost" onClick={() => setShowImportModal(true)}>
-              <Import size={14} /> Import Lead
+              <Import size={14} className="import-lead-icon" /> Import Lead
             </button>
           </PermissionGuard>
           <PermissionGuard permission="leases.create">

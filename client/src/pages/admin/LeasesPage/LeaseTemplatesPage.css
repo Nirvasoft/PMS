@@ -1,9 +1,7 @@
 /* ─── Lease Templates Page ──────────────────── */
 .lt-page { display: flex; flex-direction: column; gap: 20px; padding: 24px 28px; max-width: 1000px; }
-.lt-header { display: flex; flex-direction: column; gap: 12px; }
-.lt-title-row h1 { display: flex; align-items: center; gap: 10px; font-size: 1.35rem; font-weight: 700; }
-.lt-subtitle { font-size: .82rem; color: var(--text-muted); margin: 0; }
-.lt-header .btn-primary { align-self: flex-start; }
+.lt-header { margin-bottom: 0; }
+.lt-header-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
 /* Form */
 .lt-form { padding: 20px; border-radius: 14px; background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.08); }

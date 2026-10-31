@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  useGetTenantsQuery, useMergeTenantsMutation, useGetTenantQuery, useGetLeaseHistoryQuery,
+  useMergeTenantsMutation, useGetTenantQuery, useGetLeaseHistoryQuery,
   type TenantDetail,
 } from '../../../store/api/tenantsApi';
 import {
@@ -9,10 +9,9 @@ import {
   ShieldOff, ArrowRight, CheckCircle, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import ComboBox from '../../../components/ComboBox';
+import TenantComboBox from '../../../components/TenantComboBox';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
-import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import './MergeTenantPage.css';
 
 export default function MergeTenantPage() {
@@ -75,7 +74,7 @@ export default function MergeTenantPage() {
             <label htmlFor="merge-primary-tenant" className="merge-side-label primary-label">
               <CheckCircle size={14} /> Primary Tenant <span>(kept)</span>
             </label>
-            <TenantComboPicker
+            <TenantComboBox
               id="merge-primary-tenant"
               propertyId={propertyId || undefined}
               value={primaryId}
@@ -97,7 +96,7 @@ export default function MergeTenantPage() {
             <label htmlFor="merge-duplicate-tenant" className="merge-side-label duplicate-label">
               <AlertTriangle size={14} /> Duplicate Tenant <span>(deleted)</span>
             </label>
-            <TenantComboPicker
+            <TenantComboBox
               id="merge-duplicate-tenant"
               propertyId={propertyId || undefined}
               value={duplicateId}
@@ -137,79 +136,6 @@ export default function MergeTenantPage() {
         />
       )}
     </div>
-  );
-}
-
-/* ══ Tenant ComboBox Picker (matches Lease form's UnitTenantStep) ══ */
-function TenantComboPicker({
-  id,
-  propertyId,
-  value,
-  selectedLabel,
-  excludeId,
-  onChange,
-}: {
-  id: string;
-  propertyId?: string;
-  value: string;
-  selectedLabel: string;
-  excludeId: string;
-  onChange: (id: string, label: string) => void;
-}) {
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebouncedValue(search);
-
-  const { data: tenantsData, isFetching: tenantsLoading } = useGetTenantsQuery({
-    search: debouncedSearch || undefined,
-    propertyId,
-    limit: 20,
-  });
-
-  const tenantOptions = useMemo(() => {
-    const list = (tenantsData?.data || [])
-      .filter((t) => t.id !== excludeId)
-      .map((t) => {
-        const isCompany = t.tenantType === 'company' || t.tenantType === 'corporate';
-        if (isCompany) {
-          return {
-            id: t.id,
-            label: t.firstName || t.companyName || t.displayName,
-            sublabel: t.firstName ? (t.companyName || t.lastName || undefined) : (t.lastName || undefined),
-          };
-        }
-        return {
-          id: t.id,
-          label: t.firstName || t.lastName || t.displayName,
-          sublabel: t.firstName ? (t.lastName || undefined) : undefined,
-        };
-      });
-
-    if (value && value !== excludeId && !list.some((t) => t.id === value)) {
-      list.unshift({
-        id: value,
-        label: selectedLabel || 'Selected tenant',
-        sublabel: undefined,
-      });
-    }
-
-    return list;
-  }, [tenantsData?.data, excludeId, value, selectedLabel]);
-
-  return (
-    <ComboBox
-      id={id}
-      value={value}
-      selectedLabel={selectedLabel}
-      onChange={(nextId) => {
-        const opt = tenantOptions.find((t) => t.id === nextId);
-        onChange(nextId, opt?.label || '');
-      }}
-      options={tenantOptions}
-      onSearch={setSearch}
-      loading={tenantsLoading}
-      placeholder="Search id or name"
-      emptyText={propertyId ? 'No tenants found for this property' : 'No tenants found'}
-    />
   );
 }
 

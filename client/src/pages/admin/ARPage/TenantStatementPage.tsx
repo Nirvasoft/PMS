@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLazyGetTenantStatementQuery } from '../../../store/api/arApi';
-import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import TenantComboBox from '../../../components/TenantComboBox';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import { FileText, Search, Download } from 'lucide-react';
 import { TableScrollWrapper } from '../../../components/TableScrollWrapper';
 import './ARPage.css';
@@ -11,13 +12,12 @@ export default function TenantStatementPage() {
   const today = new Date();
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
+  const propertyId = useSelectedPropertyFilter();
   const [tenantId, setTenantId] = useState('');
+  const [tenantLabel, setTenantLabel] = useState('');
   const [from, setFrom] = useState(firstOfMonth.toISOString().split('T')[0]);
   const [to, setTo] = useState(today.toISOString().split('T')[0]);
   const [hasAttemptedGenerate, setHasAttemptedGenerate] = useState(false);
-
-  const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 50 });
-  const tenants = tenantsData?.data || [];
 
   const [fetchStatement, { data, isFetching }] = useLazyGetTenantStatementQuery();
   const statement = data?.data;
@@ -33,9 +33,6 @@ export default function TenantStatementPage() {
     const url = `/api/v1/tenants/${tenantId}/statement/pdf?from=${from}&to=${to}`;
     window.open(url, '_blank');
   };
-
-  const getTenantName = (t: any) =>
-    t.tenantType === 'corporate' ? t.companyName || '' : `${t.firstName || ''} ${t.lastName || ''}`.trim();
 
   const typeLabel = (type: string) => {
     switch (type) {
@@ -63,18 +60,15 @@ export default function TenantStatementPage() {
 
       {/* Filters */}
       <div className="ar-filters" style={{ marginBottom: 24, alignItems: 'flex-start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <select
-            className={`filter-select${hasAttemptedGenerate && !tenantId ? ' ar-input-error' : ''}`}
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 260 }}>
+          <TenantComboBox
+            id="statement-tenant"
             value={tenantId}
-            onChange={e => setTenantId(e.target.value)}
-            style={{ minWidth: 240 }}
-          >
-            <option value="">Select tenant…</option>
-            {tenants.map((t: any) => (
-              <option key={t.id} value={t.id}>{getTenantName(t)}</option>
-            ))}
-          </select>
+            selectedLabel={tenantLabel}
+            propertyId={propertyId || undefined}
+            invalid={hasAttemptedGenerate && !tenantId}
+            onChange={(id, label) => { setTenantId(id); setTenantLabel(label); }}
+          />
           {hasAttemptedGenerate && !tenantId && (
             <span className="ar-error-text">Tenant is required</span>
           )}

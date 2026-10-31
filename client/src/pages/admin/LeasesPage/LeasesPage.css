@@ -1,5 +1,5 @@
 /* ═══ Lease List & Create Pages — Shared CSS ═══ */
-:root { --purple: #6c5ce7; --purple-lt: #a29bfe; }
+:root { --purple: var(--accent, #10b981); --purple-lt: var(--accent, #10b981); }
 
 /* ─── List Page ─────────────────────────────── */
 .lease-list-page { padding: 24px 28px; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
@@ -11,7 +11,7 @@
 .lease-list-page .page-title-row p  { font-size: .82rem; color: var(--text-muted); margin: 2px 0 0; }
 
 .btn-primary { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--purple); color: #fff; border: none; border-radius: 9px; font-size: .82rem; font-weight: 600; cursor: pointer; transition: background .15s; }
-.btn-primary:hover:not(:disabled) { background: #5a4bd5; }
+.btn-primary:hover:not(:disabled) { background: #059669; }
 .btn-primary:disabled { opacity: .5; cursor: default; }
 .btn-ghost { display: flex; align-items: center; gap: 5px; padding: 8px 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); border-radius: 9px; color: var(--text-primary); font-size: .82rem; cursor: pointer; transition: all .15s; }
 .btn-ghost:hover { background: rgba(255,255,255,.08); }
@@ -174,7 +174,7 @@
   transition: background-color 0.15s ease;
 }
 .lease-table tbody tr:hover {
-  background-color: rgba(108,92,231,0.08);
+  background-color: rgba(16,185,129,0.08);
 }
 .lease-table tbody tr:nth-child(even) {
   background-color: rgba(255, 255, 255, 0.02);
@@ -200,7 +200,7 @@
   background-color: rgba(0, 0, 0, 0.015);
 }
 [data-theme="light"] .lease-table tbody tr:hover {
-  background-color: rgba(108, 92, 231, 0.06);
+  background-color: rgba(16,185,129, 0.06);
 }
 [data-theme="light"] .lease-table-scroll::-webkit-scrollbar-track,
 [data-theme="light"] .lease-table-wrap .table-scroll-container::-webkit-scrollbar-track,
@@ -358,7 +358,7 @@
 .cl-steps { display: flex; align-items: center; width: 100%; }
 .cl-step { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .step-dot { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: .75rem; background: rgba(255,255,255,.04); flex-shrink: 0; transition: all .2s; }
-.cl-step.active .step-dot { border-color: var(--purple); background: rgba(108,92,231,.2); color: var(--purple-lt); }
+.cl-step.active .step-dot { border-color: var(--purple); background: rgba(16,185,129,.2); color: var(--purple-lt); }
 .cl-step.done .step-dot { border-color: #2ecc71; background: rgba(46,204,113,.15); color: #2ecc71; }
 .step-label { font-size: .72rem; color: var(--text-muted); white-space: nowrap; }
 .cl-step.active .step-label { color: var(--purple-lt); font-weight: 600; }
@@ -371,13 +371,13 @@
 .form-field { display: flex; flex-direction: column; gap: 5px; }
 .form-field label { font-size: .72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
 .form-field input, .form-field select, .form-field textarea { padding: 9px 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: var(--text-primary); font-size: .84rem; outline: none; transition: border-color .15s, background .15s; width: 100%; box-sizing: border-box; }
-.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: rgba(108,92,231,.5); background: rgba(255,255,255,.09); }
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: rgba(16,185,129,.5); background: rgba(255,255,255,.09); }
 .form-field select option { background: #1e1d2e; color: #e2e0ef; }
 .form-field select optgroup { background: #161525; color: #8b8aae; font-weight: 700; font-size: .72rem; }
 .form-field input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
 .hint { font-weight: 400; font-size: .68rem; text-transform: none; }
 .optional { font-weight: 400; color: rgba(255,255,255,.3); text-transform: none; }
-.step-info { margin-top: 14px; padding: 10px 14px; background: rgba(108,92,231,.08); border-radius: 9px; font-size: .8rem; color: var(--text-muted); }
+.step-info { margin-top: 14px; padding: 10px 14px; background: rgba(16,185,129,.08); border-radius: 9px; font-size: .8rem; color: var(--text-muted); }
 .dates-summary { margin-top: 8px; padding: 8px 14px; background: rgba(46,204,113,.08); border-radius: 8px; font-size: .82rem; color: var(--text-muted); }
 .section-divider { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 18px 0 12px; border-top: 1px solid rgba(255,255,255,.04); padding-top: 12px; }
 .escalation-preview { margin-top: 14px; background: rgba(46,204,113,.06); border: 1px solid rgba(46,204,113,.15); border-radius: 10px; padding: 12px 14px; }
@@ -391,8 +391,8 @@
 .lib-clause.added { opacity: .5; }
 .lc-info { display: flex; align-items: center; gap: 8px; }
 .lc-title { font-size: .8rem; }
-.std-badge { padding: 1px 6px; background: rgba(108,92,231,.15); border-radius: 4px; font-size: .65rem; color: var(--purple-lt); }
-.lib-clause button { padding: 3px 8px; background: rgba(108,92,231,.15); border: none; border-radius: 6px; color: var(--purple-lt); font-size: .72rem; cursor: pointer; }
+.std-badge { padding: 1px 6px; background: rgba(16,185,129,.15); border-radius: 4px; font-size: .65rem; color: var(--purple-lt); }
+.lib-clause button { padding: 3px 8px; background: rgba(16,185,129,.15); border: none; border-radius: 6px; color: var(--purple-lt); font-size: .72rem; cursor: pointer; }
 .lib-clause button:disabled { opacity: .5; cursor: default; }
 .selected-clauses { margin-bottom: 8px; }
 .sel-clause { padding: 6px 10px; background: rgba(255,255,255,.03); border-radius: 8px; margin-bottom: 4px; position: relative; }
@@ -422,19 +422,8 @@
 .cl-footer { display: flex; align-items: center; justify-content: space-between; margin-top: -12px; }
 .footer-right { margin-left: auto; }
 
-/* ── Import Lead button ──────────────────────── */
-.btn-import-lead {
-  display: flex; align-items: center; gap: 5px;
-  padding: 8px 14px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 9px;
-  color: var(--text-primary);
-  font-size: .82rem;
-  cursor: pointer;
-  transition: all .15s;
-}
-.btn-import-lead:hover { background: rgba(255,255,255,.08); }
+/* ── Import Lead icon ────────────────────────── */
+.import-lead-icon { color: var(--accent, #10b981); flex-shrink: 0; }
 
 /* ── Import Lead Modal ───────────────────────── */
 .il-overlay {
@@ -472,7 +461,7 @@
   font-size: 1rem; font-weight: 700; color: var(--text-primary);
   margin-bottom: 4px;
 }
-.il-title svg { color: #22d3ee; }
+.il-title svg { color: var(--accent, #10b981); }
 .il-subtitle { font-size: .78rem; color: var(--text-muted); margin: 0; }
 .il-close {
   position: absolute; top: 18px; right: 18px;
@@ -501,7 +490,7 @@
   color: var(--text-primary); font-size: .84rem; outline: none;
   transition: border-color .15s;
 }
-.il-search-input:focus { border-color: #22d3ee; }
+.il-search-input:focus { border-color: var(--accent, #10b981); }
 .il-search-clear {
   position: absolute; right: 30px;
   display: flex; align-items: center; justify-content: center;
@@ -535,7 +524,7 @@
   transition: background .1s;
 }
 .il-row:last-child { border-bottom: none; }
-.il-row:hover { background: rgba(6,182,212,.06); }
+.il-row:hover { background: rgba(16,185,129,.07); }
 .il-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .il-mono { font-family: 'SF Mono','Fira Code', monospace; font-size: .75rem; background: rgba(255,255,255,.05); padding: 2px 6px; border-radius: 4px; }
 .il-dim { color: var(--text-muted); }
@@ -594,7 +583,7 @@
 /* Light mode */
 [data-theme="light"] .il-modal { background: #fff; border-color: rgba(0,0,0,.08); }
 [data-theme="light"] .il-table-head { background: rgba(0,0,0,.02); }
-[data-theme="light"] .il-row:hover { background: rgba(6,182,212,.05); }
+[data-theme="light"] .il-row:hover { background: rgba(16,185,129,.06); }
 [data-theme="light"] .il-mono { background: rgba(0,0,0,.05); }
 [data-theme="light"] .il-lp { background: rgba(0,0,0,.04); }
 [data-theme="light"] .il-search-input { background: #fafafa; border-color: rgba(0,0,0,.12); color: #111; }

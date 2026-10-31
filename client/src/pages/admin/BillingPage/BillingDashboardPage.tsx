@@ -9,8 +9,8 @@ import {
 import { useGetCronJobsQuery } from '../../../store/api/integrationsApi';
 import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
-  LayoutDashboard, FileText, AlertTriangle, Clock, DollarSign,
-  Play, ArrowRight, TrendingUp, Receipt, CalendarClock, CheckCircle,
+  LayoutDashboard, FileText, AlertTriangle, Clock,
+  Play, ArrowRight, TrendingUp, CalendarClock,
   Settings, RefreshCw,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -240,11 +240,15 @@ export default function BillingDashboardPage() {
             <div
               className="bsc-icon"
               style={{
-                background: (billingJob?.isEnabled ?? true) ? 'rgba(6,182,212,0.12)' : 'rgba(148, 163, 184, 0.12)',
-                color: (billingJob?.isEnabled ?? true) ? '#22d3ee' : 'var(--text-muted)',
+                background: (billingJob?.isEnabled ?? true) ? 'rgba(16,185,129,0.12)' : 'rgba(148, 163, 184, 0.12)',
+                color: (billingJob?.isEnabled ?? true) ? 'var(--accent, #10b981)' : 'var(--text-muted)',
                 width: 42,
                 height: 42,
                 borderRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
               <CalendarClock size={20} />
@@ -349,31 +353,6 @@ export default function BillingDashboardPage() {
             </PermissionGuard>
           </div>
         </div>
-      </div>
-
-      {/* Quick Navigation */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
-        {[
-          { label: 'Invoices', icon: <Receipt size={16} />, path: '/admin/billing/invoices', color: '#818cf8' },
-          { label: 'Schedules', icon: <CalendarClock size={16} />, path: '/admin/billing/schedules', color: '#22d3ee' },
-          { label: 'Charge Types', icon: <DollarSign size={16} />, path: '/admin/billing/charge-types', color: '#34d399' },
-          { label: 'Settings', icon: <CheckCircle size={16} />, path: '/admin/billing/settings', color: '#fbbf24' },
-        ].map(item => (
-          <button
-            key={item.path}
-            className="billing-stat-card"
-            onClick={() => navigate(item.path)}
-            style={{ cursor: 'pointer', border: '1px solid var(--border-subtle)', textAlign: 'left', background: 'var(--surface-elevated)' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="bsc-icon" style={{ background: `color-mix(in srgb, ${item.color} 12%, transparent)`, color: item.color, width: 32, height: 32 }}>
-                {item.icon}
-              </div>
-              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{item.label}</span>
-            </div>
-            <ArrowRight size={14} style={{ color: 'var(--text-tertiary)', marginLeft: 'auto' }} />
-          </button>
-        ))}
       </div>
 
       {/* Recent Invoices Table */}

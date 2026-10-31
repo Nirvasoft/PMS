@@ -261,6 +261,38 @@
   cursor: pointer;
   padding: 2px;
 }
+.pipeline-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pipeline-filter-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+.pipeline-filter-btn.active { border-color: var(--accent, #10b981); color: var(--accent, #10b981); }
+.pipeline-filter-btn:disabled { opacity: 0.5; cursor: default; }
+.pipeline-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -8px 0 20px;
+}
+[data-theme="light"] .pipeline-filter-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+[data-theme="light"] .pipeline-filter-btn:hover:not(:disabled) { background: #f1f5f9; }
+[data-theme="light"] .pipeline-filter-btn.active { border-color: var(--accent, #059669); color: var(--accent, #059669); }
+
 /* Priority chips */
 .priority-chip {
   font-size: 10px;

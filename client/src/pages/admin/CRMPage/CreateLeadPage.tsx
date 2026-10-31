@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCreateLeadMutation } from '../../../store/api/crmApi';
 import { useGetUsersQuery } from '../../../store/api/usersApi';
 import { useGetUnitTypesQuery } from '../../../store/api/unitsApi';
-import { ArrowLeft } from 'lucide-react';
+import { List } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PermissionGuard } from '../../../components/guards/PermissionGuard';
 import { format } from 'date-fns';
@@ -85,10 +85,10 @@ export default function CreateLeadPage() {
   return (
     <div className="create-lead-page">
       <div className="cl-header">
-        <button className="back-btn" onClick={() => navigate('/admin/crm/leads')}>
-          <ArrowLeft size={16} /> Lead Pipeline
-        </button>
         <h1>New Lead</h1>
+        <button type="button" className="cl-list-btn" onClick={() => navigate('/admin/crm/leads')}>
+          <List size={14} /> List
+        </button>
       </div>
 
       <div className="cl-form">

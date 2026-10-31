@@ -3,7 +3,8 @@ import {
   useGetRefundsQuery, useCreateRefundMutation,
   useApproveRefundMutation, useRejectRefundMutation, useMarkRefundPaidMutation,
 } from '../../../store/api/arApi';
-import { useGetTenantsQuery } from '../../../store/api/tenantsApi';
+import TenantComboBox from '../../../components/TenantComboBox';
+import { useSelectedPropertyFilter } from '../../../hooks/useSelectedPropertyId';
 import {
   RotateCcw, Plus, Search, ChevronLeft, ChevronRight, X,
   Check, XCircle, Banknote, Shield, AlertTriangle,
@@ -385,6 +386,7 @@ function RefundActionModal({
 
 function CreateRefundModal({ onClose }: { onClose: () => void }) {
   const [tenantId, setTenantId] = useState('');
+  const [tenantLabel, setTenantLabel] = useState('');
   const [refundType, setRefundType] = useState('overpayment');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
@@ -394,12 +396,8 @@ function CreateRefundModal({ onClose }: { onClose: () => void }) {
   const [bankAccountName, setBankAccountName] = useState('');
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
-  const { data: tenantsData } = useGetTenantsQuery({ page: 1, limit: 50 });
-  const tenants = tenantsData?.data || [];
+  const propertyId = useSelectedPropertyFilter();
   const [createRefund, { isLoading }] = useCreateRefundMutation();
-
-  const getTenantName = (t: any) =>
-    t.tenantType === 'corporate' ? t.companyName || '' : `${t.firstName || ''} ${t.lastName || ''}`.trim();
 
   const amtNum = parseFloat(amount);
   const isTenantInvalid = !tenantId;
@@ -440,14 +438,14 @@ function CreateRefundModal({ onClose }: { onClose: () => void }) {
         <div className="ar-form-grid">
           <div className="ar-field" style={{ gridColumn: '1 / -1' }}>
             <label>Tenant <span className="req">*</span></label>
-            <select
+            <TenantComboBox
+              id="refund-tenant"
               value={tenantId}
-              onChange={e => setTenantId(e.target.value)}
-              className={hasAttemptedSubmit && isTenantInvalid ? 'ar-input-error' : ''}
-            >
-              <option value="">Select tenant…</option>
-              {tenants.map((t: any) => <option key={t.id} value={t.id}>{getTenantName(t)}</option>)}
-            </select>
+              selectedLabel={tenantLabel}
+              propertyId={propertyId || undefined}
+              invalid={hasAttemptedSubmit && isTenantInvalid}
+              onChange={(id, label) => { setTenantId(id); setTenantLabel(label); }}
+            />
             {hasAttemptedSubmit && isTenantInvalid && (
               <span className="ar-error-text">Tenant is required</span>
             )}

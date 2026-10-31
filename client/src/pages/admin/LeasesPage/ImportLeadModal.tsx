@@ -72,7 +72,7 @@ export default function ImportLeadModal({ onClose }: Props) {
         {/* Header */}
         <div className="il-header">
           <div className="il-title">
-            <Import size={18} />
+            <Import size={18} className="import-lead-icon" />
             <span>Import Lead</span>
           </div>
           <p className="il-subtitle">Select a lead from the pipeline to prefill the lease form</p>

@@ -1,10 +1,10 @@
 /* Create Lead Page */
 .create-lead-page { padding: 24px 28px; max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
 
-.cl-header { display: flex; align-items: center; gap: 14px; }
+.cl-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .cl-header h1 { font-size: 1.4rem; font-weight: 800; margin: 0; }
-.back-btn { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-muted); font-size: 0.8rem; cursor: pointer; }
-.back-btn:hover { background: rgba(255,255,255,0.08); }
+.cl-list-btn { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); font-size: 0.8rem; cursor: pointer; }
+.cl-list-btn:hover { background: rgba(255,255,255,0.08); }
 
 .cl-form { display: flex; flex-direction: column; gap: 16px; }
 
@@ -19,7 +19,7 @@
   padding: 9px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
   border-radius: 8px; color: var(--text-primary); font-size: 0.84rem; outline: none; transition: border-color 0.15s;
 }
-.form-field input:focus, .form-field select:focus { border-color: rgba(108,92,231,0.5); }
+.form-field input:focus, .form-field select:focus { border-color: rgba(16,185,129,0.5); }
 .form-field select option { background: #1a1f2e; }
 
 .cl-radio-options {
@@ -28,7 +28,7 @@
   background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
 }
 .cl-radio-option { display: flex; align-items: center; gap: 6px; font-size: 0.84rem; color: var(--text-primary); cursor: pointer; font-weight: 400; text-transform: none; letter-spacing: normal; }
-.cl-radio-option input[type="radio"] { width: 15px; height: 15px; cursor: pointer; accent-color: #6c5ce7; flex-shrink: 0; }
+.cl-radio-option input[type="radio"] { width: 15px; height: 15px; cursor: pointer; accent-color: #10b981; flex-shrink: 0; }
 
 .cl-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
 
@@ -60,13 +60,13 @@
 }
 
 /* ── Light Mode Overrides ── */
-[data-theme="light"] .create-lead-page .back-btn {
+[data-theme="light"] .create-lead-page .cl-list-btn {
   background: rgba(15, 23, 42, 0.04);
   border-color: var(--border, #cbd5e1);
   color: var(--text-primary, #0f172a);
 }
 
-[data-theme="light"] .create-lead-page .back-btn:hover {
+[data-theme="light"] .create-lead-page .cl-list-btn:hover {
   background: rgba(15, 23, 42, 0.08);
 }
 

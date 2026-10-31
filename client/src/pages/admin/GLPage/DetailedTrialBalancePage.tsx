@@ -1,5 +1,5 @@
-import { Fragment, useMemo, useState } from 'react';
-import { FileSearch, FileText, Printer, Search, X } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { FileText, Printer, Search, X } from 'lucide-react';
 import {
   useGetCostCentersQuery,
   useGetDepartmentCentersQuery,
@@ -9,9 +9,8 @@ import {
   type DetailedTrialParams,
 } from '../../../store/api/glApi';
 import { useSelectedPropertyId } from '../../../hooks/useSelectedPropertyId';
-import { useAppSelector } from '../../../store';
+import { useGetMyPropertyScopeQuery } from '../../../store/api/propertiesApi';
 import { TableSkeleton } from '../../../components/common/SkeletonLoaders';
-import { GlExportExcelButton } from './GlExportExcelButton';
 import './GLPage.css';
 
 const MONTH_NAMES = [
@@ -19,13 +18,12 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-type ReportTemplateId = 'by_period' | 'with_entry_desc' | 'gl_summary' | 'by_account_code';
+type ReportTemplateId = 'by_period' | 'gl_summary' | 'by_account_code';
 
 const REPORT_TEMPLATES: Array<{ id: ReportTemplateId; number: number; label: string }> = [
   { id: 'by_period', number: 1, label: 'By Period' },
-  { id: 'with_entry_desc', number: 2, label: 'With Entry Description' },
-  { id: 'gl_summary', number: 3, label: 'GL Summary' },
-  { id: 'by_account_code', number: 4, label: 'By Account Code' },
+  { id: 'gl_summary', number: 2, label: 'GL Summary' },
+  { id: 'by_account_code', number: 3, label: 'By Account Code' },
 ];
 
 function formatNum(val: number): string {
@@ -80,7 +78,11 @@ function mapEntryMode(entryType: string): string {
 
 export default function DetailedTrialBalancePage() {
   const selectedPropertyId = useSelectedPropertyId();
-  const user = useAppSelector(s => s.auth.user);
+  const { data: propertyScope } = useGetMyPropertyScopeQuery();
+  const selectedPropertyName = useMemo(
+    () => propertyScope?.data?.find((p) => p.id === selectedPropertyId)?.name || '-',
+    [propertyScope, selectedPropertyId],
+  );
   const now = new Date();
   const currentYear = now.getFullYear();
 
@@ -121,6 +123,18 @@ export default function DetailedTrialBalancePage() {
     propertyId: selectedPropertyId || undefined,
     isActive: true,
   });
+
+  // Criteria bound to a property become invalid when the Active Property changes.
+  useEffect(() => {
+    setCostCenterId('');
+    setDepartmentCenterId('');
+    setAccountFrom('');
+    setAccountTo('');
+    setCategory('');
+    setActiveTemplate(null);
+    setShowTemplatePopup(false);
+    setLookupTarget(null);
+  }, [selectedPropertyId]);
 
   // Available fiscal years
   const availableYears = useMemo(() => {
@@ -211,10 +225,11 @@ export default function DetailedTrialBalancePage() {
     propertyId: selectedPropertyId || undefined,
   });
 
-  const [triggerDetailedTrial, { data: report, isLoading, isFetching }] =
+  const [triggerDetailedTrial, { currentData: report, isLoading, isFetching }] =
     useLazyGetDetailedTrialBalanceQuery();
 
   const handleOpenTemplate = (templateId: ReportTemplateId) => {
+    if (!selectedPropertyId) return;
     setShowTemplatePopup(false);
     setActiveTemplate(templateId);
     setPrintedAtText(formatPrintedTimestamp(new Date()));
@@ -241,22 +256,6 @@ export default function DetailedTrialBalancePage() {
       setToDate(`${y - 1}-12-31`);
     }
   };
-
-  const exportUrl = useMemo(() => {
-    const qs = new URLSearchParams();
-    const p = buildFilterParams();
-    Object.entries(p).forEach(([k, v]) => {
-      if (v !== undefined && v !== '') {
-        qs.set(k, String(v));
-      }
-    });
-    qs.set('format', 'xlsx');
-    return `/api/v1/gl/detailed-trial-balance?${qs.toString()}`;
-  }, [
-    mode, fiscalYear, periodFrom, periodTo, fromDate, toDate,
-    category, includeZero, allAccounts, accountFrom, accountTo,
-    costCenterId, departmentCenterId, selectedPropertyId,
-  ]);
 
   const filteredLookupAccounts = useMemo(() => {
     const q = lookupSearch.trim().toLowerCase();
@@ -289,9 +288,38 @@ export default function DetailedTrialBalancePage() {
     const rightText = periodTo === 'OPENING' ? 'Opening' : toOpt?.endDate || 'Opening';
     return `${leftText} to ${rightText}`;
   }, [mode, fromDate, toDate, periodFrom, periodTo, periodOptions]);
+  const defaultPeriodTo = String(now.getMonth() + 1);
+  const defaultFromDate = `${currentYear}-01-01`;
+  const defaultToDate = now.toISOString().split('T')[0];
 
-  const activeTemplateObj = REPORT_TEMPLATES.find(t => t.id === activeTemplate);
-  const companyHeaderTitle = (user as any)?.companyName || 'NirvaSoft PMS';
+  const hasCustomFilters =
+    mode !== 'period' ||
+    fiscalYear !== currentYear ||
+    periodFrom !== 'OPENING' ||
+    periodTo !== defaultPeriodTo ||
+    category !== '' ||
+    includeZero ||
+    !allAccounts ||
+    accountFrom !== '' ||
+    accountTo !== '' ||
+    costCenterId !== '' ||
+    departmentCenterId !== '';
+
+  const handleResetFilters = () => {
+    setMode('period');
+    setFiscalYear(currentYear);
+    setPeriodFrom('OPENING');
+    setPeriodTo(defaultPeriodTo);
+    setFromDate(defaultFromDate);
+    setToDate(defaultToDate);
+    setCategory('');
+    setIncludeZero(false);
+    setAllAccounts(true);
+    setAccountFrom('');
+    setAccountTo('');
+    setCostCenterId('');
+    setDepartmentCenterId('');
+  };
 
   return (
     <div className="gl-page">
@@ -305,159 +333,165 @@ export default function DetailedTrialBalancePage() {
             <p>Detailed Trial Balance report criteria</p>
           </div>
         </div>
-      </div>
 
-      {/* Top Action Bar — Preview Button */}
-      <div className="dt-action-bar">
-        <button
-          type="button"
-          className="dt-preview-btn"
-          onClick={() => setShowTemplatePopup(true)}
-        >
-          <FileText size={16} />
-          Preview
-        </button>
-      </div>
-
-      {/* Criteria 1 Tab Header */}
-      <div className="dt-tabs-header">
-        <div className="dt-tab-item">Criteria 1</div>
-      </div>
-
-      {/* Section 1: Report Options */}
-      <div className="dt-section-box">
-        <div className="dt-section-title">Report Options</div>
-        <div className="dt-radio-group">
-          <label className="dt-radio-label">
-            <input
-              type="radio"
-              name="dtReportMode"
-              checked={mode === 'period'}
-              onChange={() => setMode('period')}
-            />
-            By Period
-          </label>
-          <label className="dt-radio-label">
-            <input
-              type="radio"
-              name="dtReportMode"
-              checked={mode === 'date'}
-              onChange={() => setMode('date')}
-            />
-            By Date Range
-          </label>
+        <div className="dt-header-actions">
+          {hasCustomFilters && (
+            <button
+              type="button"
+              className="dt-reset-btn"
+              onClick={handleResetFilters}
+            >
+              Reset
+            </button>
+          )}
+          <button
+            type="button"
+            className="dt-preview-btn"
+            disabled={!selectedPropertyId}
+            onClick={() => setShowTemplatePopup(true)}
+          >
+            <FileText size={16} />
+            Preview
+          </button>
         </div>
       </div>
 
-      {/* Section 2: Filter By */}
-      <div className="dt-section-box">
-        <div className="dt-section-title">Filter By</div>
-        <div className="dt-filter-grid">
+      <div className="dt-criteria-layout">
+        {/* Card 1: Report Period */}
+        <section className="dt-card">
+          <div className="dt-card-header">
+            <div className="dt-card-title-group">
+              <h2 className="dt-card-title">Report Period</h2>
+              <span className="dt-range-badge">{resolvedPeriodText}</span>
+            </div>
+
+            <div className="dt-mode-switch" role="radiogroup" aria-label="Report period mode">
+              <label className={`dt-mode-option${mode === 'period' ? ' active' : ''}`}>
+                <input
+                  type="radio"
+                  name="dtReportMode"
+                  checked={mode === 'period'}
+                  onChange={() => setMode('period')}
+                />
+                By Period
+              </label>
+              <label className={`dt-mode-option${mode === 'date' ? ' active' : ''}`}>
+                <input
+                  type="radio"
+                  name="dtReportMode"
+                  checked={mode === 'date'}
+                  onChange={() => setMode('date')}
+                />
+                By Date Range
+              </label>
+            </div>
+          </div>
+
           {mode === 'period' ? (
-            <>
-              <div className="dt-filter-row">
-                <span className="dt-filter-label">Acc. Year</span>
-                <div className="dt-range-inline">
-                  <select
-                    className="dt-select"
-                    value={fiscalYear}
-                    onChange={e => setFiscalYear(Number(e.target.value))}
-                  >
-                    {availableYears.map((yr, idx) => (
-                      <option key={yr} value={yr}>
-                        {String(idx + 1).padStart(2, '0')} [ {yr} - {yr + 1} ]
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <div className="dt-grid-3">
+              <div className="dt-field-group">
+                <label className="dt-field-label">Acc. Year</label>
+                <select
+                  className="dt-control"
+                  value={fiscalYear}
+                  onChange={e => setFiscalYear(Number(e.target.value))}
+                >
+                  {availableYears.map((yr, idx) => (
+                    <option key={yr} value={yr}>
+                      {String(idx + 1).padStart(2, '0')} [ {yr} - {yr + 1} ]
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="dt-filter-row">
-                <span className="dt-filter-label">Period From</span>
-                <div className="dt-range-inline">
-                  <select
-                    className="dt-select"
-                    value={periodFrom}
-                    onChange={e => setPeriodFrom(e.target.value)}
-                  >
-                    {periodOptions.map(o => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="dt-range-sep">-</span>
-                  <select
-                    className="dt-select"
-                    value={periodTo}
-                    onChange={e => setPeriodTo(e.target.value)}
-                  >
-                    {periodOptions.map(o => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="dt-field-group">
+                <label className="dt-field-label">Period From</label>
+                <select
+                  className="dt-control"
+                  value={periodFrom}
+                  onChange={e => setPeriodFrom(e.target.value)}
+                >
+                  {periodOptions.map(o => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="dt-filter-row">
-                <span />
-                <div className="dt-period-preview-text">{resolvedPeriodText}</div>
+              <div className="dt-field-group">
+                <label className="dt-field-label">Period To</label>
+                <select
+                  className="dt-control"
+                  value={periodTo}
+                  onChange={e => setPeriodTo(e.target.value)}
+                >
+                  {periodOptions.map(o => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </>
+            </div>
           ) : (
-            <>
-              <div className="dt-filter-row">
-                <span className="dt-filter-label">Date Range</span>
-                <div className="dt-range-inline">
-                  <input
-                    type="date"
-                    className="dt-input"
-                    value={fromDate}
-                    onChange={e => setFromDate(e.target.value)}
-                  />
-                  <span className="dt-range-sep">-</span>
-                  <input
-                    type="date"
-                    className="dt-input"
-                    value={toDate}
-                    onChange={e => setToDate(e.target.value)}
-                  />
-                  <div className="dt-preset-pills">
-                    <button type="button" className="dt-preset-pill" onClick={() => applyDatePreset('thisMonth')}>
-                      This Month
-                    </button>
-                    <button type="button" className="dt-preset-pill" onClick={() => applyDatePreset('thisQuarter')}>
-                      This Quarter
-                    </button>
-                    <button type="button" className="dt-preset-pill" onClick={() => applyDatePreset('thisYear')}>
-                      This Year
-                    </button>
-                    <button type="button" className="dt-preset-pill" onClick={() => applyDatePreset('lastYear')}>
-                      Last Year
-                    </button>
-                  </div>
+            <div className="dt-date-grid">
+              <div className="dt-field-group">
+                <label className="dt-field-label">From Date</label>
+                <input
+                  type="date"
+                  className="dt-control"
+                  value={fromDate}
+                  onChange={e => setFromDate(e.target.value)}
+                />
+              </div>
+
+              <div className="dt-field-group">
+                <label className="dt-field-label">To Date</label>
+                <input
+                  type="date"
+                  className="dt-control"
+                  value={toDate}
+                  onChange={e => setToDate(e.target.value)}
+                />
+              </div>
+
+              <div className="dt-field-group dt-presets-group">
+                <label className="dt-field-label">Quick Range</label>
+                <div className="dt-preset-pills">
+                  <button type="button" className="dt-preset-pill" onClick={() => applyDatePreset('thisMonth')}>
+                    This Month
+                  </button>
+                  <button type="button" className="dt-preset-pill" onClick={() => applyDatePreset('thisQuarter')}>
+                    This Quarter
+                  </button>
+                  <button type="button" className="dt-preset-pill" onClick={() => applyDatePreset('thisYear')}>
+                    This Year
+                  </button>
+                  <button type="button" className="dt-preset-pill" onClick={() => applyDatePreset('lastYear')}>
+                    Last Year
+                  </button>
                 </div>
               </div>
-
-              <div className="dt-filter-row">
-                <span />
-                <div className="dt-period-preview-text">{resolvedPeriodText}</div>
-              </div>
-            </>
+            </div>
           )}
+        </section>
 
-          {/* Category + Include Zero Amount */}
-          <div className="dt-filter-row">
-            <span className="dt-filter-label">Category</span>
-            <div className="dt-range-inline">
+        {/* Card 2: Filter By */}
+        <section className="dt-card">
+          <div className="dt-card-header">
+            <h2 className="dt-card-title">Filter By</h2>
+          </div>
+
+          <div className="dt-grid-3">
+            <div className="dt-field-group">
+              <label className="dt-field-label">Category</label>
               <select
-                className="dt-select"
+                className="dt-control"
                 value={category}
                 onChange={e => setCategory(e.target.value)}
               >
-                <option value="">All</option>
+                <option value="">All Categories</option>
                 <optgroup label="Account Types">
                   {categoryOptions.types.map(t => (
                     <option key={t.value} value={t.value}>
@@ -475,23 +509,43 @@ export default function DetailedTrialBalancePage() {
                   </optgroup>
                 )}
               </select>
-
-              <label className="dt-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={includeZero}
-                  onChange={e => setIncludeZero(e.target.checked)}
-                />
-                Include Zero Amount
-              </label>
             </div>
-          </div>
 
-          {/* Account Code + All Account */}
-          <div className="dt-filter-row">
-            <span className="dt-filter-label">Account Code</span>
-            <div className="dt-range-inline">
-              <div className="dt-lookup-field">
+            <div className="dt-field-group">
+              <label className="dt-field-label">Cost Centre</label>
+              <select
+                className="dt-control"
+                value={costCenterId}
+                onChange={e => setCostCenterId(e.target.value)}
+              >
+                <option value="">All Cost Centres</option>
+                {costCenters.map(cc => (
+                  <option key={cc.id} value={cc.id}>
+                    {cc.code} — {cc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="dt-field-group">
+              <label className="dt-field-label">Department</label>
+              <select
+                className="dt-control"
+                value={departmentCenterId}
+                onChange={e => setDepartmentCenterId(e.target.value)}
+              >
+                <option value="">All Departments</option>
+                {departmentCenters.map(dept => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.code} — {dept.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="dt-field-group">
+              <label className="dt-field-label">Account From</label>
+              <div className={`dt-lookup-field${allAccounts ? ' disabled' : ''}`}>
                 <input
                   type="text"
                   placeholder="From Account Code"
@@ -512,10 +566,11 @@ export default function DetailedTrialBalancePage() {
                   <Search size={15} />
                 </button>
               </div>
+            </div>
 
-              <span className="dt-range-sep">-</span>
-
-              <div className="dt-lookup-field">
+            <div className="dt-field-group">
+              <label className="dt-field-label">Account To</label>
+              <div className={`dt-lookup-field${allAccounts ? ' disabled' : ''}`}>
                 <input
                   type="text"
                   placeholder="To Account Code"
@@ -536,60 +591,39 @@ export default function DetailedTrialBalancePage() {
                   <Search size={15} />
                 </button>
               </div>
+            </div>
 
-              <label className="dt-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={allAccounts}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    setAllAccounts(checked);
-                    if (checked) {
-                      setAccountFrom('');
-                      setAccountTo('');
-                    }
-                  }}
-                />
-                All Account
-              </label>
+            <div className="dt-field-group">
+              <label className="dt-field-label">Options</label>
+              <div className="dt-options-box">
+                <label className="dt-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={allAccounts}
+                    onChange={e => {
+                      const checked = e.target.checked;
+                      setAllAccounts(checked);
+                      if (checked) {
+                        setAccountFrom('');
+                        setAccountTo('');
+                      }
+                    }}
+                  />
+                  All Account
+                </label>
+
+                <label className="dt-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={includeZero}
+                    onChange={e => setIncludeZero(e.target.checked)}
+                  />
+                  Include Zero Amount
+                </label>
+              </div>
             </div>
           </div>
-
-          {/* Cost Centre & Department */}
-          <div className="dt-filter-row">
-            <span className="dt-filter-label">Cost Centre</span>
-            <div className="dt-range-inline">
-              <select
-                className="dt-select"
-                value={costCenterId}
-                onChange={e => setCostCenterId(e.target.value)}
-              >
-                <option value="">All</option>
-                {costCenters.map(cc => (
-                  <option key={cc.id} value={cc.id}>
-                    {cc.code} — {cc.name}
-                  </option>
-                ))}
-              </select>
-
-              <span className="dt-filter-label" style={{ marginLeft: 12 }}>
-                Department
-              </span>
-              <select
-                className="dt-select"
-                value={departmentCenterId}
-                onChange={e => setDepartmentCenterId(e.target.value)}
-              >
-                <option value="">All</option>
-                {departmentCenters.map(dept => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.code} — {dept.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
 
       {/* Template Selection Popup (Photo 1) */}
@@ -624,9 +658,6 @@ export default function DetailedTrialBalancePage() {
                     <span>{tpl.number}.</span>
                     <span>{tpl.label}</span>
                   </span>
-                  <span className="dt-template-item-icon">
-                    <FileSearch size={18} />
-                  </span>
                 </li>
               ))}
             </ul>
@@ -641,21 +672,11 @@ export default function DetailedTrialBalancePage() {
             <div className="dt-report-viewer-title">
               <FileText size={18} />
               <span>
-                Detailed Trial — {activeTemplateObj?.number}. {activeTemplateObj?.label}
+                Detailed Trial
               </span>
             </div>
 
             <div className="dt-report-viewer-actions">
-              <button
-                type="button"
-                className="dt-viewer-btn"
-                onClick={() => {
-                  setActiveTemplate(null);
-                  setShowTemplatePopup(true);
-                }}
-              >
-                Templates
-              </button>
               <button
                 type="button"
                 className="dt-viewer-btn"
@@ -664,11 +685,6 @@ export default function DetailedTrialBalancePage() {
                 <Printer size={15} />
                 Print
               </button>
-              <GlExportExcelButton
-                url={exportUrl}
-                filename={`detailed-trial-balance-${report?.effectiveToDate || toDate}.xlsx`}
-                errorMessage="Failed to export Detailed Trial Balance"
-              />
               <button
                 type="button"
                 className="dt-viewer-btn"
@@ -689,12 +705,12 @@ export default function DetailedTrialBalancePage() {
               report && (
                 <div className="dt-report-paper">
                   <div className="dt-paper-printed">Printed : {printedAtText}</div>
-                  <h2 className="dt-paper-company">{companyHeaderTitle}</h2>
                   <div className="dt-paper-subtitle">
-                    Detailed Trial{activeTemplate !== 'by_period' ? ` (${activeTemplateObj?.label})` : ''}
+                    Detailed Trial
                   </div>
 
                   <div className="dt-paper-meta-row">
+                    <span>Property : {selectedPropertyName}</span>
                     <span>Date : {reportDateLabel}</span>
                     <span>CC. Code : {selectedCcCode}</span>
                     <span>Dept. Code : {selectedDeptCode}</span>
@@ -927,8 +943,8 @@ export default function DetailedTrialBalancePage() {
 
             <input
               type="text"
-              className="dt-input"
-              style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12 }}
+              className="dt-control"
+              style={{ marginBottom: 12 }}
               placeholder="Search by code, name, or type..."
               value={lookupSearch}
               onChange={e => setLookupSearch(e.target.value)}
